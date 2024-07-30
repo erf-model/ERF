@@ -138,6 +138,10 @@ ERF::ERF ()
     ReadParameters();
     initializeMicrophysics(nlevs_max);
 
+#ifdef ERF_USE_WINDFARM
+    initializeWindFarm(nlevs_max);
+#endif
+
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
@@ -152,12 +156,12 @@ ERF::ERF ()
 
         int nz = geom[0].Domain().length(2) + 1; // staggered
         if (std::fabs(zlevels_stag[nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
-            Print() << "WARNING: prob_hi[2]=" << geom[0].ProbHi(2)
+            Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)
                 << " does not match highest requested z level " << zlevels_stag[nz-1]
                 << std::endl;
         }
         if (std::fabs(zlevels_stag[0]-geom[0].ProbLo(2)) > 1.0e-4) {
-            Print() << "WARNING: prob_lo[2]=" << geom[0].ProbLo(2)
+            Print() << "Note: prob_lo[2]=" << geom[0].ProbLo(2)
                 << " does not match lowest requested level " << zlevels_stag[0]
                 << std::endl;
         }
@@ -189,7 +193,6 @@ ERF::ERF ()
 #ifdef ERF_USE_POISSON_SOLVE
     pp_inc.resize(nlevs_max);
 #endif
-
 
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
@@ -918,7 +921,7 @@ ERF::InitData ()
 #ifdef ERF_USE_WW3_COUPLING
     int lev = 0;
     read_waves(lev);
-    send_waves(lev);
+    send_to_ww3(lev);
 #endif
 
     // Configure ABLMost params if used MostWall boundary condition
@@ -1126,6 +1129,15 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
     qmoist.resize(a_nlevsmax);
     return;
 }
+
+
+#ifdef ERF_USE_WINDFARM
+void
+ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
+{
+    windfarm = std::make_unique<WindFarm>(a_nlevsmax, solverChoice.windfarm_type);
+}
+#endif
 
 void
 ERF::restart ()

@@ -130,6 +130,20 @@ void ERF::advance_dycore(int level,
             Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
             Box tbxyz = mfi.tilebox(IntVect(0,1,1),IntVect(1,1,0));
 
+            if (bxcc.smallEnd(2) != domain.smallEnd(2)) {
+                 bxcc.growLo(2,1);
+                tbxxy.growLo(2,1);
+                tbxxz.growLo(2,1);
+                tbxyz.growLo(2,1);
+            }
+
+            if (bxcc.bigEnd(2) != domain.bigEnd(2)) {
+                 bxcc.growHi(2,1);
+                tbxxy.growHi(2,1);
+                tbxxz.growHi(2,1);
+                tbxyz.growHi(2,1);
+            }
+
             const Array4<const Real> & u = xvel_old.array(mfi);
             const Array4<const Real> & v = yvel_old.array(mfi);
             const Array4<const Real> & w = zvel_old.array(mfi);

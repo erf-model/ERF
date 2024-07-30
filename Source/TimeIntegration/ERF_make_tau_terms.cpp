@@ -1,4 +1,4 @@
-#include <AMReX_MultiFab.H>
+
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_GpuContainers.H>
@@ -139,6 +139,20 @@ void erf_make_tau_terms (int level, int nrk,
             tbxxy.grow(IntVect(1,1,0));
             tbxxz.grow(IntVect(1,1,0));
             tbxyz.grow(IntVect(1,1,0));
+
+            if (bxcc.smallEnd(2) != domain.smallEnd(2)) {
+                 bxcc.growLo(2,1);
+                tbxxy.growLo(2,1);
+                tbxxz.growLo(2,1);
+                tbxyz.growLo(2,1);
+            }
+
+            if (bxcc.bigEnd(2) != domain.bigEnd(2)) {
+                 bxcc.growHi(2,1);
+                tbxxy.growHi(2,1);
+                tbxxz.growHi(2,1);
+                tbxyz.growHi(2,1);
+            }
 
             // Expansion rate
             Array4<Real> er_arr = expr->array(mfi);

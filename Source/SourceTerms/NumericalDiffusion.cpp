@@ -10,7 +10,7 @@ using namespace amrex;
  * @param[in]  num_comp number of total components
  * @param[in]  num_diff_coeff
  * @param[in]  data variables used to compute RHS
- * @param[out] rhs stor the right hand side
+ * @param[out] rhs store the right hand side
  * @param[in]  mf_x map factor at x-face
  * @param[in]  mf_y map factor at y-face
  * @param[in]  avg_mf_x_y flag to average map factor x in y-dir
@@ -76,5 +76,45 @@ NumericalDiffusion (const Box& bx,
         if ( (yflux_hi * (data(i,j+1,k,n) - data(i,j,k,n)) ) < 0.) yflux_hi = 0.;
         rhs(i,j,k,n) += coeff6 * ( (xflux_hi - xflux_lo) * mfx_arr(i,j,0)
                                  + (yflux_hi - yflux_lo) * mfy_arr(i,j,0) );
+    });
+}
+
+/**
+ * Function to compute 6th order numerical diffusion RHS.
+ *
+ * @param[in]  bx box to loop over
+ * @param[in]  start_comp staring component index
+ * @param[in]  num_comp number of total components
+ * @param[in]  num_diff_coeff
+ * @param[in]  data variables used to compute RHS
+ * @param[out] rhs store the right hand side
+ */
+void
+NumericalDiffusionVert (const Box& bx,
+                        const int  start_comp,
+                        const int  num_comp,
+                        const Real dt,
+                        const Real num_diff_coeff,
+                        const Array4<const Real>& data,
+                        const Array4<      Real>& rhs)
+{
+    BL_PROFILE_VAR("NumericalDiffusionVert()",NumericalDiffusionVert);
+
+    // Capture diffusion coeff
+    Real coeff6 = num_diff_coeff / (2.0 * dt);
+
+    // Compute 5th order derivative and augment RHS
+    ParallelFor(bx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int m) noexcept
+    {
+        int n = start_comp + m;
+        Real zflux_lo = 10. * (data(i,j,k  ,n) - data(i,j,k-1,n))
+                       - 5. * (data(i,j,k+1,n) - data(i,j,k-2,n))
+                            + (data(i,j,k+2,n) - data(i,j,k-3,n));
+        if ( (zflux_lo * (data(i,j,k,n) - data(i,j,k-1,n)) ) < 0.) zflux_lo = 0.;
+        Real zflux_hi = 10. * (data(i,j,k+1,n) - data(i,j,k  ,n))
+                       - 5. * (data(i,j,k+2,n) - data(i,j,k-1,n))
+                            + (data(i,j,k+3,n) - data(i,j,k-2,n));
+        if ( (zflux_hi * (data(i,j,k+1,n) - data(i,j,k,n)) ) < 0.) zflux_hi = 0.;
+        rhs(i,j,k,n) += coeff6 * ( (zflux_hi - zflux_lo) );
     });
 }

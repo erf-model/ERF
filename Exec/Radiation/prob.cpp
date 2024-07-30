@@ -124,7 +124,7 @@ Problem::init_custom_pert(
     const Real us      = 30.;
     const Real uc      = 15.;
 
-    ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo         = geomdata.ProbLo();
@@ -132,8 +132,8 @@ Problem::init_custom_pert(
         const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
         Real relhum = init_supercell_relhum(z, ztr);
-        Real temp   = init_supercell_temperature(z, prob_lo_z, ztr, prob_hi_z, parms.T_0, Ttr, Ttop);
-        Real press  = init_supercell_pressure(z, prob_lo_z, ztr, prob_hi_z, parms.T_0, Ttr, Ttop);
+        Real temp   = init_supercell_temperature(z, prob_lo_z, ztr, prob_hi_z, parms_d.T_0, Ttr, Ttop);
+        Real press  = init_supercell_pressure(z, prob_lo_z, ztr, prob_hi_z, parms_d.T_0, Ttr, Ttop);
         Real qvs    = init_supercell_sat_mix(press, temp);
 
 #if 0
@@ -167,7 +167,7 @@ Problem::init_custom_pert(
         // perturb theta
         Real rand_double = amrex::Random(engine) - 1.0;        // Random number in [-1,1]
         Real scaling = (khi-static_cast<Real>(k))/khi;  // Less effect at higher levels
-        Real deltaT = parms.T_pert*scaling*rand_double;
+        Real deltaT = parms_d.T_pert*scaling*rand_double;
 
         Real theta = getThgivenRandT(rho, temp+deltaT, rdOcp);
 

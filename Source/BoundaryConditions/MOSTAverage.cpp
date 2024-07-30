@@ -408,6 +408,7 @@ MOSTAverage::set_norm_indices_T()
                     if (z_target > z_lo && z_target < z_hi){
                         AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                   "K index must be larger than averaging radius!");
+                        amrex::ignore_unused(d_radius);
                         k_arr(i,j,k) = lk;
                         break;
                     }

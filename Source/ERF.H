@@ -47,6 +47,9 @@
 #include "EulerianMicrophysics.H"
 #include "LagrangianMicrophysics.H"
 #include "LandSurface.H"
+#ifdef ERF_USE_WINDFARM
+#include "WindFarm.H"
+#endif
 
 #ifdef ERF_USE_RRTMGP
 #include "Radiation.H"
@@ -252,6 +255,8 @@ public:
 
 #ifdef ERF_USE_WW3_COUPLING
     void read_waves (int lev);
+
+    void send_to_ww3 (int lev);
 #endif
 
     // Interface for advancing the data at one level by one "slow" timestep
@@ -383,14 +388,11 @@ public:
 
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
-    void init_windfarm_lat_lon(const int lev,
-                               const std::string windfarm_loc_table,
-                               amrex::Vector<amrex::Real>& xloc,
-                               amrex::Vector<amrex::Real>& yloc);
-    void init_windfarm_x_y(const int lev,
-                               const std::string windfarm_loc_table,
-                               amrex::Vector<amrex::Real>& xloc,
-                               amrex::Vector<amrex::Real>& yloc);
+    void advance_windfarm (const amrex::Geometry& a_geom,
+                       const amrex::Real& dt_advance,
+                       amrex::MultiFab& cons_in,
+                       amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
+                       amrex::MultiFab& mf_vars_windfarm, const amrex::MultiFab& mf_Nturb);
 #endif
 
 #ifdef ERF_USE_EB
@@ -447,6 +449,11 @@ private:
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
+
+#ifdef ERF_USE_WINDFARM
+    // Initialize the windfarm object
+    void initializeWindFarm (const int&);
+#endif
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
@@ -578,6 +585,14 @@ private:
     // Struct for working with the sponge data we take as an input
     InputSpongeData input_sponge_data;
 
+    // Vector (6 planes) of DeviceVectors (ncell in plane) for Dirichlet BC data
+    amrex::Gpu::DeviceVector<amrex::Real> xvel_bc_data;
+    amrex::Gpu::DeviceVector<amrex::Real> yvel_bc_data;
+    amrex::Gpu::DeviceVector<amrex::Real> zvel_bc_data;
+
+    // Function to read and populate above vectors (if input file exists)
+    void init_Dirichlet_bc_data (const std::string input_file);
+
     // write checkpoint file to disk
     void WriteCheckpointFile () const;
 
@@ -661,9 +676,12 @@ private:
 
     // Variables for wind farm parametrization models
 
+#ifdef ERF_USE_WINDFARM
+    std::unique_ptr<WindFarm> windfarm;
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
                                                   // EWP:                 dudt, dvdt, dTKEdt
+#endif
 
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2

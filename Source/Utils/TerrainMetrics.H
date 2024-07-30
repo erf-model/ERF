@@ -19,7 +19,8 @@ void init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
 
 void init_terrain_grid (int lev, const amrex::Geometry& geom,
                         amrex::MultiFab& z_phys_nd,
-                        amrex::Vector<amrex::Real> const& z_levels_h);
+                        amrex::Vector<amrex::Real> const& z_levels_h,
+                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type);
 
 //*****************************************************************************************
 // Compute terrain metric terms at cell-center

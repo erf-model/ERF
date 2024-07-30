@@ -12,9 +12,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
                             const amrex::Real alpha_interp, const int alpha_size)
 {
-    using namespace amrex;
-
-    amrex::Real beta_interp;
+    amrex::Real beta_interp = -1.0e34;
 
     // If the interpolation point already exists in the array,
     // just return it
@@ -42,6 +40,7 @@ amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
                 amrex::Real x0 = alpha[i];
                 amrex::Real x1 = alpha[i + 1];
                 beta_interp = y0 + (y1 - y0)*(x - x0) / (x1 - x0);
+                return beta_interp;
             }
         }
     }
@@ -64,6 +63,7 @@ amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
         amrex::Real x0 = alpha[i];
         amrex::Real x1 = alpha[i + 1];
         beta_interp = y0 + ((x - x0) / (x1 - x0)) * (y1 - y0);
+        return beta_interp;
     }
 
     return beta_interp;

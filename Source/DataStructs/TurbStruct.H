@@ -78,20 +78,22 @@ struct TurbChoice {
                     amrex::Print() << "Selected a PBL model and an LES model: " <<
                     "Using PBL for vertical transport, LES for horizontal" << std::endl;
                 }
-                pp.query("pbl_mynn_A1", pbl_mynn_A1);
-                pp.query("pbl_mynn_A2", pbl_mynn_A2);
-                pp.query("pbl_mynn_B1", pbl_mynn_B1);
-                pp.query("pbl_mynn_B2", pbl_mynn_B2);
-                pp.query("pbl_mynn_C1", pbl_mynn_C1);
-                pp.query("pbl_mynn_C2", pbl_mynn_C2);
-                pp.query("pbl_mynn_C3", pbl_mynn_C3);
-                pp.query("pbl_mynn_C4", pbl_mynn_C4);
-                pp.query("pbl_mynn_C5", pbl_mynn_C5);
+
+                if (pbl_type == PBLType::MYNN25) {
+                    pp.query("pbl_mynn_A1", pbl_mynn_A1);
+                    pp.query("pbl_mynn_A2", pbl_mynn_A2);
+                    pp.query("pbl_mynn_B1", pbl_mynn_B1);
+                    pp.query("pbl_mynn_B2", pbl_mynn_B2);
+                    pp.query("pbl_mynn_C1", pbl_mynn_C1);
+                    pp.query("pbl_mynn_C2", pbl_mynn_C2);
+                    pp.query("pbl_mynn_C3", pbl_mynn_C3);
+                    pp.query("pbl_mynn_C4", pbl_mynn_C4);
+                    pp.query("pbl_mynn_C5", pbl_mynn_C5);
+                }
             }
 
             // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
-            if (pbl_type == PBLType::MYNN25 ||
-                pbl_type == PBLType::YSU       ) {
+            if (pbl_type == PBLType::MYNN25) {
                 use_QKE = true;
                 pp.query("diffuse_QKE_3D", diffuse_QKE_3D);
                 pp.query("advect_QKE", advect_QKE);
@@ -163,20 +165,22 @@ struct TurbChoice {
                 } else if (les_type == LESType::Deardorff) {
                     amrex::Error("It is not recommended to use Deardorff LES and a PBL model");
                 }
-                pp.query("pbl_mynn_A1", pbl_mynn_A1, lev);
-                pp.query("pbl_mynn_A2", pbl_mynn_A2, lev);
-                pp.query("pbl_mynn_B1", pbl_mynn_B1, lev);
-                pp.query("pbl_mynn_B2", pbl_mynn_B2, lev);
-                pp.query("pbl_mynn_C1", pbl_mynn_C1, lev);
-                pp.query("pbl_mynn_C2", pbl_mynn_C2, lev);
-                pp.query("pbl_mynn_C3", pbl_mynn_C3, lev);
-                pp.query("pbl_mynn_C4", pbl_mynn_C4, lev);
-                pp.query("pbl_mynn_C5", pbl_mynn_C5, lev);
+
+                if (pbl_type == PBLType::MYNN25) {
+                    pp.query("pbl_mynn_A1", pbl_mynn_A1, lev);
+                    pp.query("pbl_mynn_A2", pbl_mynn_A2, lev);
+                    pp.query("pbl_mynn_B1", pbl_mynn_B1, lev);
+                    pp.query("pbl_mynn_B2", pbl_mynn_B2, lev);
+                    pp.query("pbl_mynn_C1", pbl_mynn_C1, lev);
+                    pp.query("pbl_mynn_C2", pbl_mynn_C2, lev);
+                    pp.query("pbl_mynn_C3", pbl_mynn_C3, lev);
+                    pp.query("pbl_mynn_C4", pbl_mynn_C4, lev);
+                    pp.query("pbl_mynn_C5", pbl_mynn_C5, lev);
+                }
             }
 
             // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
-            if (pbl_type == PBLType::MYNN25 ||
-                pbl_type == PBLType::YSU       ) {
+            if (pbl_type == PBLType::MYNN25) {
                 use_QKE = true;
                 pp.query("diffuse_QKE_3D", diffuse_QKE_3D, lev);
                 pp.query("advect_QKE"    , advect_QKE, lev);
@@ -236,7 +240,7 @@ struct TurbChoice {
             amrex::Print() << "reference theta             : " << theta_ref << std::endl;
         }
 
-        if (pbl_type != PBLType::None) {
+        if (pbl_type == PBLType::MYNN25) {
             amrex::Print() << "pbl_mynn_A1                      : " << pbl_mynn_A1 << std::endl;
             amrex::Print() << "pbl_mynn_A2                      : " << pbl_mynn_A2 << std::endl;
             amrex::Print() << "pbl_mynn_B1                      : " << pbl_mynn_B1 << std::endl;
@@ -293,9 +297,9 @@ struct TurbChoice {
     amrex::Real pbl_ysu_coriolis_freq = 1.0e-4; // TODO: make this consistent with coriolis forcing (but note WRF always uses 1e-4)
     bool        pbl_ysu_over_land = false; // TODO: pull from other inputs and make local
     amrex::Real pbl_ysu_land_Ribcr = 0.25; // Critical Bulk Richardson number of Land for stable conditions
-    amrex::Real pbl_ysu_unst_Ribcr = 0.0;
+    amrex::Real pbl_ysu_unst_Ribcr = 0.0;  // Critical Bulk Richardson number for unstable conditions
 
-    // QKE stuff - default is not to use it, if MYNN2.5 or YSU PBL is used default is turb transport in Z-direction only
+    // QKE stuff - default is not to use it, if MYNN2.5 PBL is used default is turb transport in Z-direction only
     bool use_QKE = false;
     bool diffuse_QKE_3D = false;
     bool advect_QKE = true;

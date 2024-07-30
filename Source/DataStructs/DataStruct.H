@@ -38,7 +38,7 @@ enum struct MoistureType {
 };
 
 enum struct WindFarmType {
-    Fitch, EWP, None
+    Fitch, EWP, SimpleAD, None
 };
 
 enum struct WindFarmLocType{
@@ -177,10 +177,13 @@ struct SolverChoice {
         pp.query("project_initial_velocity", project_initial_velocity);
 
         int nvals_inc = pp.countval("incompressible");
-        AMREX_ALWAYS_ASSERT(nvals_inc == 1 || nvals_inc >= max_level+1);
+        AMREX_ALWAYS_ASSERT(nvals_inc == 0 || nvals_inc == 1 || nvals_inc >= max_level+1);
         amrex::Vector<int> inc_in; inc_in.resize(nvals_inc);
-        pp.getarr("incompressible",inc_in);
-        if (nvals_inc == 1) {
+        pp.queryarr("incompressible",inc_in);
+        if (nvals_inc == 0) {
+            for (int i = 0; i <= max_level; ++i) incompressible.push_back(0);
+            amrex::Warning("NOTE: ERF was built with the Poisson solver but the incompressible flag was not set");
+        } else if (nvals_inc == 1) {
             for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
         } else {
             for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
@@ -291,6 +294,9 @@ struct SolverChoice {
             NumDiffCoeff *= std::pow(2.0,-6);
         }
 
+        // Use monotonic advection?
+        pp.query("use_mono_adv",use_mono_adv);
+
            advChoice.init_params();
           diffChoice.init_params();
         spongeChoice.init_params();
@@ -329,6 +335,9 @@ struct SolverChoice {
         }
         else if (windfarm_type_string == "EWP") {
             windfarm_type = WindFarmType::EWP;
+        }
+        else if (windfarm_type_string == "SimpleActuatorDisk") {
+            windfarm_type = WindFarmType::SimpleAD;
         }
         else if (windfarm_type_string != "None") {
             amrex::Abort("Are you using windfarms? Dont know this windfarm_type. windfarm_type"
@@ -426,6 +435,8 @@ struct SolverChoice {
         sinphi = std::sin(latitude);
         cosphi = std::cos(latitude);
 
+        amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
+
         if (abl_driver_type == ABLDriverType::GeostrophicWind)
         {
             // Read in the geostrophic wind -- we only use this to construct
@@ -514,6 +525,9 @@ struct SolverChoice {
     // Numerical diffusion
     bool use_NumDiff{false};
     amrex::Real NumDiffCoeff{0.};
+
+    // Monotonic advection limiter
+    bool use_mono_adv{false};
 
     CouplingType coupling_type;
     TerrainType  terrain_type;

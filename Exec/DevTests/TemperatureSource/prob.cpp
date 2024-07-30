@@ -74,7 +74,7 @@ Problem::init_custom_pert(
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-  ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+  ParallelForRNG(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
     const Real* prob_hi = geomdata.ProbHi();
@@ -91,16 +91,16 @@ Problem::init_custom_pert(
     const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
     // Add temperature perturbations
-    if ((z <= parms.pert_ref_height) && (parms.T_0_Pert_Mag != 0.0)) {
+    if ((z <= parms_d.pert_ref_height) && (parms_d.T_0_Pert_Mag != 0.0)) {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
+        state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms_d.T_0_Pert_Mag;
     }
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-    state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
+    state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * exp(-10.*r*r);
 
     // Set an initial value for QKE
-    state_pert(i, j, k, RhoQKE_comp) = parms.QKE_0;
+    state_pert(i, j, k, RhoQKE_comp) = parms_d.QKE_0;
 
     if (use_moisture) {
         state_pert(i, j, k, RhoQ1_comp) = 0.0;
@@ -109,55 +109,55 @@ Problem::init_custom_pert(
   });
 
   // Set the x-velocity
-  ParallelForRNG(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+  ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real y = prob_lo[1] + (j + 0.5) * dx[1];
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
-    x_vel_pert(i, j, k) = parms.U_0;
-    if ((z <= parms.pert_ref_height) && (parms.U_0_Pert_Mag != 0.0))
+    x_vel_pert(i, j, k) = parms_d.U_0;
+    if ((z <= parms_d.pert_ref_height) && (parms_d.U_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
+        Real x_vel_prime = (rand_double*2.0 - 1.0)*parms_d.U_0_Pert_Mag;
         x_vel_pert(i, j, k) += x_vel_prime;
     }
-    if (parms.pert_deltaU != 0.0)
+    if (parms_d.pert_deltaU != 0.0)
     {
         const amrex::Real yl = y - prob_lo[1];
-        const amrex::Real zl = z / parms.pert_ref_height;
+        const amrex::Real zl = z / parms_d.pert_ref_height;
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
-        x_vel_pert(i, j, k) += parms.ufac * damp * z * std::cos(parms.aval * yl);
+        x_vel_pert(i, j, k) += parms_d.ufac * damp * z * std::cos(parms_d.aval * yl);
     }
   });
 
   // Set the y-velocity
-  ParallelForRNG(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+  ParallelForRNG(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the y-velocity
-    y_vel_pert(i, j, k) = parms.V_0;
-    if ((z <= parms.pert_ref_height) && (parms.V_0_Pert_Mag != 0.0))
+    y_vel_pert(i, j, k) = parms_d.V_0;
+    if ((z <= parms_d.pert_ref_height) && (parms_d.V_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
+        Real y_vel_prime = (rand_double*2.0 - 1.0)*parms_d.V_0_Pert_Mag;
         y_vel_pert(i, j, k) += y_vel_prime;
     }
-    if (parms.pert_deltaV != 0.0)
+    if (parms_d.pert_deltaV != 0.0)
     {
         const amrex::Real xl = x - prob_lo[0];
-        const amrex::Real zl = z / parms.pert_ref_height;
+        const amrex::Real zl = z / parms_d.pert_ref_height;
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
-        y_vel_pert(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
+        y_vel_pert(i, j, k) += parms_d.vfac * damp * z * std::cos(parms_d.bval * xl);
     }
   });
 
   // Set the z-velocity
-  ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+  ParallelForRNG(zbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     const int dom_lo_z = geomdata.Domain().smallEnd()[2];
     const int dom_hi_z = geomdata.Domain().bigEnd()[2];
 
@@ -166,11 +166,11 @@ Problem::init_custom_pert(
     {
         z_vel_pert(i, j, k) = 0.0;
     }
-    else if (parms.W_0_Pert_Mag != 0.0)
+    else if (parms_d.W_0_Pert_Mag != 0.0)
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W_0_Pert_Mag;
-        z_vel_pert(i, j, k) = parms.W_0 + z_vel_prime;
+        Real z_vel_prime = (rand_double*2.0 - 1.0)*parms_d.W_0_Pert_Mag;
+        z_vel_pert(i, j, k) = parms_d.W_0 + z_vel_prime;
     }
   });
 }
