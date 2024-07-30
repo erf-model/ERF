@@ -25,7 +25,7 @@ TEST = TRUE
 USE_ASSERTION = TRUE
 
 # Incompressible Solver
-USE_POISSON_SOLVE = TRUE
+#USE_POISSON_SOLVE = TRUE
 
 # GNU Make
 Bpack := ./Make.package

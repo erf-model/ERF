@@ -257,12 +257,24 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
    |  Image taken from `DeLeon et al. (2018)`            |
    +-----------------------------------------------------+
 
-Two different types of perturbation are currently available, ``source``, adopted from `DeLeon et al. (2018)`_
+Two different types of perturbation methods are currently available, ``source`` and ``direct``. Both methods uses the formulation introduced by `DeLeon et al. (2018)`_
 
 ..
    _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
 
-and ``direct``, adopted from `Munoz-Esparza et al. (2015)`_. The ``source`` option applies the perturbation amplitude range, :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. It's important to note that while this perturbation starts as white noise, it becomes colored noise due to the eddy viscosity turbulence closure. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the :math:`\rho \theta field`.
+The ``source`` option applies the perturbation amplitude range, :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the :math:`\rho \theta` field.
+
+The perturbation update interval is determined by the equation,
+
+.. math::
+
+   \frac{t_p \langle U(z) \rangle_{PB}}{D_{PB}} = 1,
+
+The change in the perturbation is defined as,
+
+.. math::
+
+   {Ri}_{PB} = \frac{g \beta \Delta \overline{\phi} H_{PB}}{{\langle U(z) \rangle}^2_{PB}}.
 
 The current implementation only supports West and South face perturbations, specified by ``erf.perturbation_direction``, where the 3 integer inputs represent the `x`, `y`, and `z` directions, respectively. The flow perturbation method requires the dimensions of an individual box input through ``erf.perturbation_box_dim``, with 3 integer inputs representing :math:`nx_{pb}`, :math:`ny_{pb}`, and :math:`nz_{pb}`, respectively. Following the guidance of `Ma and Senocak (2023)`_,
 
@@ -287,27 +299,15 @@ The specification of the number of layers and the offset into the domain of the 
 
 Before delving into the details, it's important to note that the two methods are interchangeable. While we adhere to the guidelines from the referenced publications, the use of ``direct`` type forcing is not restricted to having unity cell height, nor is ``source`` type forcing limited to boxes. We have generalized the perturbation methods to allow for flexibility in mixing and matching different types of turbulence generation.
 
+A net-zero energy enforcement is applied over the perturbation boxes to ensures the synthetic method does not introduce excess energy into the system at each iteration.
+
 Source type forcing
 -------------------
-
-The perturbation update interval is determined by the equation,
-
-.. math::
-
-   \frac{t_p \langle U(z) \rangle_{PB}}{D_{PB}} = 1,
-
-The change in the perturbation is defined as,
-
-.. math::
-
-   {Ri}_{PB} = \frac{g \beta \Delta \overline{\phi} H_{PB}}{{\langle U(z) \rangle}^2_{PB}}.
-
 The magnitude of the perturbation, ignoring the advection and diffusion effects in the transport equation can be made through a proportionality ratio between the update time and change in the box temperature,
 
 .. math::
 
    \Phi_{PB} \propto \frac{\Delta \overline{\phi}}{t_p}
-
 
 and the perturbation amplitude is determined by the equation,
 
@@ -328,24 +328,20 @@ The ``source`` type forcing can adopt the box perturbation method by having the 
 
           erf.perturbation_nondimensional = 0.042 # Ri
           erf.perturbation_T_infinity = 300.0
-          erf.perturbation_T_intensity = 0.1
+          #erf.perturbation_T_intensity = 0.1
 
-The primary purpose of the box perturbation method is not merely to perturb the temperature field in a box format. The key difference between the box and cell perturbation methods lies in how the perturbation is introduced into the temperature source term. Both methods use white noise to generate perturbations, but through the eddy diffusivity scheme and temperature transport, this white noise transforms into colored noise. Although the exact nature of the colored noise is unknown, this method effectively initiates perturbations that develop downstream. While colored noise can be directly added in the cell perturbation method, introducing it directly into the temperature field can cause simulation instability.
+The box perturbation method (BPM) perturbs the temperature field :math:`\rho \theta` in a volume (box) format. Each box computes a perturbation update time and amplitude, then independently update at its respective update interval during runtime. A single perturbation amplitude is seen by the computational cells that falls within this box. Pseudo-random perturbations (ie. white noise) is applied over the range :math: `[-\phi, +\phi` then introduced to the ⍴θ field via source term. As temperature is transported and through the action of the subgrid-scale (SGS) filter for eddy viscosity, white noise temperature perturbations become colored noise in the velocity field.
 
 Direct type forcing
 -------------------
 
-The perturbation update interval is determined by the equation,
+The ``direct`` method can also be used to effectly trip turbulence into the doamin. Minute differences exists between the ``direct`` and ``source`` method, with the primary one being the perturbation amplitude is directly solved from the Richardson number relationship as,
+
 .. math::
 
-   \frac{t_p U_{1}}{d_{c}}
+   \Phi_{PB} = \frac{Ri_{PB} {\langle U(z) \rangle}^2_{PB}}{g \beta H_{PB}}.
 
-and the perturbation amplitude is determined by the equation,
-.. math::
-
-   Ec = \frac{{U_g}^2}{\rho c_p \theta_{pm}}.
-
-The ``direct`` type forcing can adopt the cell perturbation method by having the following inputs list.
+To activate the ``direct`` type forcing, set the following inputs list.
 ::
 
           erf.inlet_perturbation_type = "direct"
@@ -354,12 +350,3 @@ The ``direct`` type forcing can adopt the cell perturbation method by having the
           erf.perturbation_box_dims = 8 8 1
           erf.perturbation_layers = 3
           erf.perturbation_offset = 1
-
-          erf.perturbation_nondimensional = 0.16 #Ec
-          erf.perturbation_rho_0 = 1.0
-          erf.perturbation_cp = 1250
-
-From `Munoz-Esparza et al. (2015)`_ the choice of the Eckert number is 0.16.
-
-..
-   _`Munoz-Esparza et al. (2015)`: https://doi.org/10.1063/1.4913572

@@ -23,6 +23,9 @@ struct TurbulentPerturbation {
 
     // Initializing Perturbation Region
     // Currently only support perturbation in the x and y direction
+    // This portion of the code is only called once for initialiation,
+    // therefore efficiency is not required. Dont spend too much time
+    // here other than to correctly setup the perturbation box region
     void init_tpi (const int lev,
                    const amrex::IntVect& nx,
                    const amrex::GpuArray<amrex::Real,3> dx,
@@ -45,8 +48,6 @@ struct TurbulentPerturbation {
         pp.query("perturbation_nondimensional",tpi_nonDim);
         pp.query("perturbation_T_infinity",tpi_Tinf);
         pp.query("perturbation_T_intensity",tpi_Ti);
-        pp.query("perturbation_rho_0",tpi_rho);
-        pp.query("perturbation_cp",tpi_cp);
 
         // Check variables message
         if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
@@ -55,37 +56,79 @@ struct TurbulentPerturbation {
             if (tpi_boxDim[i] == 0) { amrex::Abort("Please provide valid dimensions for perturbation boxes."); }
         }
         if (tpi_nonDim < 0.) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = 0.042)"); }
-        if (tpi_Tinf < 0.) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0)"); }
+        if (tpi_Tinf < 0.) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0 = T_infty)"); }
         if (tpi_Ti < 0.) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-1.0)"); }
-        if (tpi_rho < 0.) { amrex::Abort("Please provide a valid density (ie. rho_0)"); }
-        if (tpi_cp < 0.) { amrex::Abort("Please provide a valid specific head capacity"); }
 
-        // Creating perturbation region
-        amrex::IntVect regionLo;
-        amrex::IntVect regionHi;
-        amrex::IntVect boxSize(tpi_boxDim[0],tpi_boxDim[1],tpi_boxDim[2]); // boxSize for individual boxes
+        // Creating perturbation regions and initializing with generic size. Temporary size for now
+        amrex::Box lo_x_bx(amrex::IntVect(0,0,0), amrex::IntVect(1,1,1), amrex::IntVect(0,0,0));
+        amrex::Box hi_x_bx(amrex::IntVect(0,0,0), amrex::IntVect(1,1,1), amrex::IntVect(0,0,0));
+        amrex::Box lo_y_bx(amrex::IntVect(0,0,0), amrex::IntVect(1,1,1), amrex::IntVect(0,0,0));
+        amrex::Box hi_y_bx(amrex::IntVect(0,0,0), amrex::IntVect(1,1,1), amrex::IntVect(0,0,0));
 
-        // X-direction perturbation
-        if (tpi_direction[0]) {
-            amrex::IntVect tmpLo(0+tpi_offset, 0, 0);
-            amrex::IntVect tmpHi(((tpi_layers*tpi_boxDim[0])-1)+tpi_offset, nx[1], nx[2]);
-            regionLo = tmpLo;
-            regionHi = tmpHi;
+        // Create a temporary box list to accumulate all the perturbation regions
+        amrex::BoxList tmp_bl;
+
+        // boxSize for individual boxes
+        amrex::IntVect boxSize(tpi_boxDim[0],tpi_boxDim[1],tpi_boxDim[2]);
+
+        // Starting logic to set the size of the perturbation region(s)
+        amrex::PrintToFile("BoxPerturbationOutput") << "Setting perturbation region in:";
+        // ***** X-direction perturbation *****
+        if (tpi_direction[0]) { // West
+            lo_x_bx.setSmall(amrex::IntVect(tpi_offset, tpi_direction[1]*tpi_offset, 0));
+            lo_x_bx.setBig(amrex::IntVect((tpi_layers*tpi_boxDim[0]-1)+tpi_offset, nx[1]-(tpi_direction[4]*tpi_offset), nx[2]));
+            amrex::PrintToFile("BoxPerturbationOutput") << " West face";
         }
 
-        // Y-direction Perturbation
-        if (tpi_direction[1]) {
-            amrex::IntVect tmpLo(0, 0+tpi_offset, 0);
-            amrex::IntVect tmpHi(nx[0], ((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, nx[2]);
-            regionLo = tmpLo;
-            regionHi = tmpHi;
+        if (tpi_direction[3]) { // East
+            hi_x_bx.setSmall(amrex::IntVect(nx[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), tpi_direction[1]*tpi_offset, 0));
+            hi_x_bx.setBig(amrex::IntVect(nx[0]-tpi_offset, nx[1]-(tpi_direction[4]*tpi_offset), nx[2]));
+            amrex::PrintToFile("BoxPerturbationOutput") << " East face";
         }
 
-        if(tpi_direction[2]) { amrex::Abort("Currently not supporting z-direction flow perturbation"); }
+        // ***** Y-direction Perturbation *****
+        if (tpi_direction[1]) { // North
+            lo_y_bx.setSmall(amrex::IntVect(tpi_direction[0]*tpi_offset, tpi_offset, 0));
+            lo_y_bx.setBig(amrex::IntVect(nx[0]-tpi_direction[3]*tpi_offset, ((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, nx[2]));
+            amrex::PrintToFile("BoxPerturbationOutput") << " North face";
+        }
+
+        if (tpi_direction[4]) { // South
+            hi_y_bx.setSmall(amrex::IntVect(tpi_direction[0]*tpi_offset, nx[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), 0));
+            hi_y_bx.setBig(amrex::IntVect(nx[0]-tpi_direction[3]*tpi_offset, nx[1]-tpi_offset, nx[2]));
+            amrex::PrintToFile("BoxPerturbationOutput") << " South face";
+        }
+
+        if (tpi_direction[2] || tpi_direction[5]) { amrex::Abort("Currently not supporting z-direction flow perturbation"); }
+
+        // Performing box union for touching perturbation regions to avoid overlapping sections (double counting at corners)
+        if (tpi_direction[0] && tpi_direction[1]) {  // Reshaping South smallEnd
+            amrex::Box lo_x_lo_y_u = lo_x_bx & lo_y_bx;
+            lo_y_bx.setSmall(amrex::IntVect(lo_x_lo_y_u.bigEnd(0)+1, lo_x_lo_y_u.smallEnd(1), lo_x_lo_y_u.smallEnd(2)));
+        }
+
+        if (tpi_direction[3] && tpi_direction[1]) { // Reshaping South bigEnd
+             amrex::Box hi_x_lo_y_u = hi_x_bx & lo_y_bx;
+             lo_y_bx.setBig(amrex::IntVect(hi_x_lo_y_u.smallEnd(0)-1, hi_x_lo_y_u.bigEnd(1), hi_x_lo_y_u.bigEnd(2)));
+        }
+
+        if (tpi_direction[0] && tpi_direction[4]) {  // Reshaping North smallEnd
+            amrex::Box lo_x_hi_y_u = lo_x_bx & hi_y_bx;
+            hi_y_bx.setSmall(amrex::IntVect(lo_x_hi_y_u.bigEnd(0)+1, lo_x_hi_y_u.smallEnd(1), lo_x_hi_y_u.smallEnd(2)));
+        }
+
+        if (tpi_direction[3] && tpi_direction[4]) { // Reshaping North bigEnd
+             amrex::Box hi_x_hi_y_u = hi_x_bx & hi_y_bx;
+             hi_y_bx.setBig(amrex::IntVect(hi_x_hi_y_u.smallEnd(0)-1, hi_x_hi_y_u.bigEnd(1), hi_x_hi_y_u.bigEnd(2)));
+        }
 
         // Creating structure box array for conserved quantity
-        amrex::Box tmp_bx(regionLo, regionHi, amrex::IntVect(0,0,0));
-        amrex::BoxArray tmp_ba(tmp_bx);
+        if (tpi_direction[0]) { tmp_bl.push_back(lo_x_bx); }
+        if (tpi_direction[1]) { tmp_bl.push_back(lo_y_bx); }
+        if (tpi_direction[3]) { tmp_bl.push_back(hi_x_bx); }
+        if (tpi_direction[4]) { tmp_bl.push_back(hi_y_bx); }
+        amrex::PrintToFile("BoxPerturbationOutput") << "\nBoxList: " << tmp_bl << "\n";
+        amrex::BoxArray tmp_ba(tmp_bl);
         tmp_ba.maxSize(boxSize);
         pb_ba.push_back(tmp_ba);
 
@@ -125,8 +168,6 @@ struct TurbulentPerturbation {
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_nondimensional: " << tpi_nonDim << "\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_T_infinity: " << tpi_Tinf << "\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_T_intensity: " << tpi_Ti << "\n";
-        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_rho_0: " << tpi_rho << "\n";
-        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_cp: " << tpi_cp << "\n\n";
 
         amrex::PrintToFile("BoxPerturbationOutput") << "Reference length per box = " << tpi_lref << "\n\n";
 
@@ -220,7 +261,7 @@ struct TurbulentPerturbation {
         }
     }
 
-//#define INDEX_PERTURB
+#define INDEX_PERTURB
 
     // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
     // This function does per cell application within the box union. Random perturbation
@@ -247,6 +288,68 @@ struct TurbulentPerturbation {
             }
         }
     }
+
+    // Quality of life function definitions
+    amrex::Real* get_pb_mag() { return pb_mag.data(); }
+    amrex::Real* get_pb_netZero() { return pb_netZero.data(); }
+
+    // Output debug message into a file
+    void debug (amrex::Real time)
+    {
+        amrex::PrintToFile("BoxPerturbationOutput") << "#################### PB output at time = "
+            << time << " ####################\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << " Using type: " <<  pt_type << "\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << " Net: " << tpi_net_buoyant << " Adjust : " <<  tpi_pert_adjust << "\n";
+        for (int i = 0; i < pb_mag.size(); i++) {
+            amrex::PrintToFile("BoxPerturbationOutput") << "[" << i
+                << "] pb_Umag=" << pb_mag[i]
+                << " | pb_interval=" << pb_interval[i]
+                << " (" << pb_local_etime[i]
+                << ") | pb_amp=" << pb_amp[i] << "\n";
+        }
+        amrex::PrintToFile("BoxPerturbationOutput") << "\n";
+    }
+
+    std::string pp_prefix {"erf"};
+
+    int pt_type; // TODO: May need to pass in solverChoice to replace this
+
+    // Public data members
+    amrex::Vector<amrex::BoxArray> pb_ba;  // PB box array
+    amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
+
+    // Perturbation amplitude cell storage
+    // This is after random assignment of equation (10) in Ma and Senocak 2023
+    amrex::MultiFab pb_cell;
+
+  private:
+
+    // Private data members
+    int tpi_layers;                   // Number of layers of perturbation boxes
+    int tpi_offset;                   // Cells to offset the start of the perturbation region
+
+    amrex::Vector<int> tpi_boxDim;    // Dimensions of each perturbation box
+    amrex::Vector<int> tpi_direction; // Direction of the peturbation
+
+    // Richardson Formulation
+    amrex::Real tpi_nonDim;           // Richardson number
+    amrex::Real tpi_Ti;               // Temperature intensity value
+    amrex::Real tpi_Tinf;             // Reference temperature [K]
+
+    // Physical dimensions
+    amrex::Real tpi_Hpb;              // PB height [m]
+    amrex::Real tpi_Lpb;              // PB length [m]
+    amrex::Real tpi_Wpb;              // PB width  [m]
+    amrex::Real tpi_lref;             // PB reference length [m]
+
+    amrex::Real tpi_net_buoyant;      // Perturbation net-zero calculation storage
+    amrex::Real tpi_pert_adjust;      // Perturbation adjust for net-zero per cell adjustment
+
+    // Perturbation data arrays
+    amrex::Vector<amrex::Real> pb_interval;    // PB update time [s]
+    amrex::Vector<amrex::Real> pb_local_etime; // PB local elapsed time [s]
+    amrex::Vector<amrex::Real> pb_amp;         // PB perturbation amplitude Ri:[K]
+    amrex::Vector<amrex::Real> pb_netZero;     // PB array used for net zero sum calculation
 
     // Assigns pseudo-random (ie. white noise) perturbation to a storage cell, this
     // value is then held constant for the duration of the update interval and assigned onto
@@ -435,103 +538,6 @@ struct TurbulentPerturbation {
         #endif
     }
 
-    // This emulates calc_tpi_meanMag_perBox() but is heavily simplified for
-    // Eckert number formulation
-    void calc_tpi_meanMag_firstCell (const int boxIdx,
-                                     const int lev,
-                                     amrex::MultiFab& mf_xvel,
-                                     amrex::MultiFab& mf_yvel)
-    {
-        // Creating local copy of PB box array and magnitude
-        const amrex::BoxArray m_pb_ba = pb_ba[lev];
-        amrex::Real* m_pb_mag = get_pb_mag();
-
-        // Storage of averages per PB
-        // Index: 0=u (vol/slab_lo), 1=v (vol/slab_lo)
-        amrex::Gpu::DeviceVector<amrex::Real> tmp_d(2,0.);
-        amrex::Real* tmp = tmp_d.data();
-
-        // Averaging u components
-        for (amrex::MFIter mfi(mf_xvel, TileNoZ()) ; mfi.isValid(); ++mfi) {
-            const amrex::Box &vbx = mfi.validbox();
-            // This is hardcoded so that it's always on the 1st cell level (May need to generalize for EB)
-            amrex::Box pbx(amrex::IntVect(m_pb_ba[boxIdx].smallEnd(0),m_pb_ba[boxIdx].smallEnd(1),0),
-                           amrex::IntVect(m_pb_ba[boxIdx].bigEnd(0)  ,m_pb_ba[boxIdx].bigEnd(1)  ,1),
-                           vbx.ixType());
-            amrex::Box ubx = pbx & vbx;
-
-            // Operation over box union
-            if (ubx.ok()) {
-                const amrex::Array4<const amrex::Real> &xvel_arry = mf_xvel.array(mfi);
-                int npts = ubx.numPts();
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k), handler);
-                });
-                tmp[0] /= (amrex::Real) npts;
-            } // if
-        } // MFIter
-
-        // Averaging v components
-        for (amrex::MFIter mfi(mf_yvel, TileNoZ()) ; mfi.isValid(); ++mfi) {
-            const amrex::Box &vbx = mfi.validbox();
-            // This is hardcoded so that it's always on the 1st cell level (May need to generalize for EB)
-            amrex::Box pbx(amrex::IntVect(m_pb_ba[boxIdx].smallEnd(0),m_pb_ba[boxIdx].smallEnd(1),0),
-                           amrex::IntVect(m_pb_ba[boxIdx].bigEnd(0)  ,m_pb_ba[boxIdx].bigEnd(1)  ,1),
-                           vbx.ixType());
-            amrex::Box ubx = pbx & vbx;
-
-            // Operation over box union
-            if (ubx.ok()) {
-                const amrex::Array4<const amrex::Real> &yvel_arry = mf_yvel.array(mfi);
-                int npts = ubx.numPts();
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k), handler);
-                });
-                tmp[1] /= (amrex::Real) npts;
-            } // if
-        } // MFIter
-
-        // Computing the average magnitude within 1st z level slab
-        m_pb_mag[boxIdx] = sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1]);
-    }
-
-    // Quality of life function definitions
-    amrex::Real* get_pb_mag() { return pb_mag.data(); }
-    amrex::Real* get_pb_netZero() { return pb_netZero.data(); }
-
-    // Output debug message into a file
-    void debug (amrex::Real time)
-    {
-        amrex::PrintToFile("BoxPerturbationOutput") << "#################### PB output at time = "
-            << time << " ####################\n";
-        amrex::PrintToFile("BoxPerturbationOutput") << " Using type: " <<  pt_type << "\n";
-        amrex::PrintToFile("BoxPerturbationOutput") << " Net: " << tpi_net_buoyant << " Adjust : " <<  tpi_pert_adjust << "\n";
-        for (int i = 0; i < pb_mag.size(); i++) {
-            amrex::PrintToFile("BoxPerturbationOutput") << "[" << i
-                << "] pb_Umag=" << pb_mag[i]
-                << " | pb_interval=" << pb_interval[i]
-                << " (" << pb_local_etime[i]
-                << ") | pb_amp=" << pb_amp[i] << "\n";
-        }
-        amrex::PrintToFile("BoxPerturbationOutput") << "\n";
-    }
-
-    std::string pp_prefix {"erf"};
-
-    int pt_type; // HACK to store perturbation type
-
-    // Public data members
-    amrex::Vector<amrex::BoxArray> pb_ba;  // PB box array
-    amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
-
-    // Perturbation amplitude cell storage
-    // This is after random assignment of equation (10) in Ma and Senocak 2023
-    amrex::MultiFab pb_cell;
-
-  private:
-
     // Random number generation between range (used for interval calculation)
     amrex::Real RandomReal (const amrex::Real min, const amrex::Real max)
     {
@@ -539,37 +545,5 @@ struct TurbulentPerturbation {
         return min + r * (max - min);
     }
 
-    // Private data members
-    int tpi_layers;                   // Number of layers of perturbation boxes
-    int tpi_offset;                   // Cells to offset the start of the perturbation region
-
-    amrex::Vector<int> tpi_boxDim;    // Dimensions of each perturbation box
-    amrex::Vector<int> tpi_direction; // Direction of the peturbation
-
-    amrex::Real tpi_nonDim;           // Nondimensional Value
-
-    // Richardson Formulation
-    amrex::Real tpi_Ti;               // Temperature intensity value
-    amrex::Real tpi_Tinf;             // Reference temperature [K]
-
-    // Eckert Formulation
-    amrex::Real tpi_rho;              // Reference density
-    amrex::Real tpi_cp;               // Specific heat capaticty
-
-    // Physical dimensions
-    amrex::Real tpi_Hpb;              // PB height [m]
-    amrex::Real tpi_Lpb;              // PB length [m]
-    amrex::Real tpi_Wpb;              // PB width  [m]
-    amrex::Real tpi_lref;             // PB reference length [m]
-
-    amrex::Real tpi_pert_adjust;      // Perturbation adjust for net-zero condition
-    amrex::Real tpi_net_buoyant;
-
-    // Perturbation data arrays
-    amrex::Vector<amrex::Real> pb_interval;    // PB update time [s]
-    amrex::Vector<amrex::Real> pb_local_etime; // PB local elapsed time [s]
-    amrex::Vector<amrex::Real> pb_amp;         // PB perturbation amplitude Ri:[K] Ec:[K/s]
-
-    amrex::Vector<amrex::Real> pb_netZero;     // PB array used for net zero sum calculation
 };
 #endif

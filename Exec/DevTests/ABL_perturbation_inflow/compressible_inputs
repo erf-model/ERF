@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 stop_time = 60.0
-#max_step = 1
+max_step = 1
 
 amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
@@ -67,19 +67,15 @@ erf.buoyancy_type   = 1
 
 # Turbulent inflow generation
 erf.perturbation_type = "source"
-erf.perturbation_direction = 1 0 0
-erf.perturbation_layers = 3
-erf.perturbation_offset = 3
+#erf.perturbation_type = "direct"
+erf.perturbation_direction = 1 0 0 0 0 0
+erf.perturbation_layers = 1
+erf.perturbation_offset = 5
 
-erf.perturbation_box_dims = 16 16 8
+erf.perturbation_box_dims =  16 16 16
 erf.perturbation_nondimensional = 0.042 # Ri
 erf.perturbation_T_infinity = 300.0
-erf.perturbation_T_intensity = 0.1
-
-#erf.perturbation_type = "direct"
-#erf.perturbation_nondimensional = 0.16 #Ec
-#erf.perturbation_rho_0 = 1.0
-#erf.perturbation_cp = 1250
+#erf.perturbation_T_intensity = 0.1
 
 # Initial condition for the entire field
 erf.init_type = "input_sounding"
