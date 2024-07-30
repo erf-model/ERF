@@ -335,7 +335,7 @@ The box perturbation method (BPM) perturbs the temperature field :math:`\rho \th
 Direct type forcing
 -------------------
 
-The ``direct`` method can also be used to effectly trip turbulence into the doamin. Minute differences exists between the ``direct`` and ``source`` method, with the primary one being the perturbation amplitude is directly solved from the Richardson number relationship as,
+The ``direct`` method can also be used to effectively trip turbulence into the domain. Minute differences exists between the ``direct`` and ``source`` method, with the primary one being the perturbation amplitude is directly solved from the Richardson number relationship as,
 
 .. math::
 

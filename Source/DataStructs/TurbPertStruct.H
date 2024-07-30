@@ -23,7 +23,7 @@ struct TurbulentPerturbation {
 
     // Initializing Perturbation Region
     // Currently only support perturbation in the x and y direction
-    // This portion of the code is only called once for initialiation,
+    // This portion of the code is only called once for initialization,
     // therefore efficiency is not required. Dont spend too much time
     // here other than to correctly setup the perturbation box region
     void init_tpi (const int lev,
