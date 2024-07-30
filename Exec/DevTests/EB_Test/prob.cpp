@@ -81,7 +81,7 @@ Problem::init_custom_pert(
 
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-    ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Set scalar = 0 everywhere
         state_pert(i, j, k, RhoScalar_comp) = 0.0;
@@ -93,9 +93,9 @@ Problem::init_custom_pert(
       });
 
     // Set the x-velocity
-    ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        x_vel_pert(i, j, k) = parms.u_0;
+        x_vel_pert(i, j, k) = parms_d.u_0;
     });
 
     // Set the y-velocity

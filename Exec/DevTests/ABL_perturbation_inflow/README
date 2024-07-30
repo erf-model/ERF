@@ -5,3 +5,9 @@ boundary condition possibly specified by Monin Obukhov Similarity Theory (MOST).
 This version of the ABL problem initializes the data from an input sounding file,
 and initializes turbulence at the inflow. The target is to transition turbulence
 from coarse to fine grid interface.
+
+To run this test, please run the python script to generate the correct data input
+for ERF through, `python3 generateLogLawProfile.py`. Within the python file, please
+edit `Re_tau`, `height_end`, and `kinematic_viscosity` values to the target simulation.
+Once this is done, double check that the input file for ERF corresponds with the 
+files created by the python script.

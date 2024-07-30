@@ -12,7 +12,7 @@ amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
 Problem::Problem()
 {
   // Parse params
-  amrex::ParmParse pp("prob");
+  ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
 
   init_base_parms(parms.rho_0, parms.T_0);
@@ -40,9 +40,7 @@ Problem::init_custom_pert(
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-
-    // Geometry (note we must include these here to get the data on device)
-    ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // This version perturbs rho but not p -- TODO: CHECK THIS
         state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0 - p_hse(i,j,k);

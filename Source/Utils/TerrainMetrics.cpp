@@ -73,7 +73,8 @@ init_zlevels (Vector<Real>& zlevels_stag,
 
 void
 init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
-                   Vector<Real> const& z_levels_h)
+                   Vector<Real> const& z_levels_h,
+                   GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
 {
   // z_nd is nodal in all directions
   const Box& domain = geom.Domain();
@@ -397,9 +398,47 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
     }
   } //switch
 
-  // Fill ghost layers and corners (including periodic)
-  z_phys_nd.FillBoundary(geom.periodicity());
+    // Fill ghost layers and corners (including periodic)
+    z_phys_nd.FillBoundary(geom.periodicity());
 
+
+    if (phys_bc_type[Orientation(0,Orientation::low )] == ERF_BC::symmetry ||
+        phys_bc_type[Orientation(0,Orientation::high)] == ERF_BC::symmetry ||
+        phys_bc_type[Orientation(1,Orientation::low )] == ERF_BC::symmetry ||
+        phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry) {
+
+        const auto& dom_lo = lbound(convert(geom.Domain(),IntVect(1,1,1)));
+        const auto& dom_hi = ubound(convert(geom.Domain(),IntVect(1,1,1)));
+
+        for (MFIter mfi(z_phys_nd,true); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.growntilebox();
+            const Array4< Real> z_nd_arr = z_phys_nd.array(mfi);
+            if (phys_bc_type[Orientation(0,Orientation::low)] == ERF_BC::symmetry && bx.smallEnd(0) == dom_lo.x) {
+                ParallelFor(makeSlab(bx,0,1), [=] AMREX_GPU_DEVICE (int , int j, int k)
+                {
+                    z_nd_arr(dom_lo.x-1,j,k) = z_nd_arr(dom_lo.x+1,j,k);
+                });
+            }
+            if (phys_bc_type[Orientation(0,Orientation::high)] == ERF_BC::symmetry && bx.bigEnd(0) == dom_hi.x) {
+                ParallelFor(makeSlab(bx,0,1), [=] AMREX_GPU_DEVICE (int , int j, int k)
+                {
+                    z_nd_arr(dom_hi.x+1,j,k) = z_nd_arr(dom_hi.x-1,j,k);
+                });
+            }
+            if (phys_bc_type[Orientation(1,Orientation::low)] == ERF_BC::symmetry && bx.smallEnd(1) == dom_lo.y) {
+                ParallelFor(makeSlab(bx,1,1), [=] AMREX_GPU_DEVICE (int i, int  , int k)
+                {
+                    z_nd_arr(i,dom_lo.y-1,k) = z_nd_arr(i,dom_lo.y+1,k);
+                });
+            }
+            if (phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry && bx.bigEnd(1) == dom_hi.y) {
+                ParallelFor(makeSlab(bx,1,1), [=] AMREX_GPU_DEVICE (int i, int  , int k)
+                {
+                    z_nd_arr(i,dom_hi.y+1,k) = z_nd_arr(i,dom_hi.y-1,k);
+                });
+            }
+        }
+    }
 
   //********************************************************************************
   // Populate domain boundary cells in z-direction

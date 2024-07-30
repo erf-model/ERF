@@ -301,7 +301,7 @@ ERF::write_1D_profiles_stag (Real time)
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
  */
 void
-ERF::derive_diag_profiles_stag (Real time,
+ERF::derive_diag_profiles_stag (Real /*time*/,
                                 Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                                 Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
                                 Gpu::HostVector<Real>& h_avg_kturb,

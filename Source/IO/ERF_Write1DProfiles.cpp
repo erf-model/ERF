@@ -186,7 +186,7 @@ ERF::write_1D_profiles (Real time)
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
  */
 void
-ERF::derive_diag_profiles(Real time,
+ERF::derive_diag_profiles(Real /*time*/,
                           Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                           Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
                           Gpu::HostVector<Real>& h_avg_kturb,
@@ -242,6 +242,20 @@ ERF::derive_diag_profiles(Real time,
         h_avg_u[k] /= area_z; h_avg_v[k] /= area_z; h_avg_w[k] /= area_z;
     }
 
+    Gpu::DeviceVector<Real> d_avg_u(hu_size, Real(0.0));
+    Gpu::DeviceVector<Real> d_avg_v(hu_size, Real(0.0));
+    Gpu::DeviceVector<Real> d_avg_w(hu_size, Real(0.0));
+
+#if 0
+    auto* avg_u_ptr = d_avg_u.data();
+    auto* avg_v_ptr = d_avg_v.data();
+    auto* avg_w_ptr = d_avg_w.data();
+#endif
+
+    Gpu::copy(Gpu::hostToDevice, h_avg_u.begin(), h_avg_u.end(), d_avg_u.begin());
+    Gpu::copy(Gpu::hostToDevice, h_avg_v.begin(), h_avg_v.end(), d_avg_v.begin());
+    Gpu::copy(Gpu::hostToDevice, h_avg_w.begin(), h_avg_w.end(), d_avg_w.begin());
+
     int nvars = vars_new[lev][Vars::cons].nComp();
     MultiFab mf_cons(vars_new[lev][Vars::cons], make_alias, 0, nvars);
 
@@ -273,15 +287,15 @@ ERF::derive_diag_profiles(Real time,
                 ksgs = cons_arr(i,j,k,RhoQKE_comp) / cons_arr(i,j,k,Rho_comp);
             }
             fab_arr(i, j, k, 2) = ksgs;
-            Real kturb = 0.0;
 #if 1
+            Real kturb = 0.0;
             if (l_use_Turb) kturb = eta_arr(i,j,k,EddyDiff::Mom_h);
             fab_arr(i, j, k, 3) = kturb;
 #else
             // Here we hijack the "Kturb" variable name to print out the resolved kinetic energy
-            Real upert = u_cc_arr(i,j,k) - h_avg_u[k];
-            Real vpert = v_cc_arr(i,j,k) - h_avg_v[k];
-            Real wpert = w_cc_arr(i,j,k) - h_avg_w[k];
+            Real upert = u_cc_arr(i,j,k) - avg_u_ptr[k];
+            Real vpert = v_cc_arr(i,j,k) - avg_v_ptr[k];
+            Real wpert = w_cc_arr(i,j,k) - avg_w_ptr[k];
             fab_arr(i, j, k, 3) = 0.5 * (upert*upert + vpert*vpert + wpert*wpert);
 #endif
             fab_arr(i, j, k, 4) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u

@@ -1,7 +1,7 @@
-#include <ERF.H>
-#include <WindFarm.H>
 #include <Fitch.H>
 #include <IndexDefines.H>
+#include <ERF_Constants.H>
+#include <Interpolation_1D.H>
 
 using namespace amrex;
 
@@ -15,7 +15,7 @@ Real compute_A(const Real z,
     Real d  = std::min(std::fabs(z - hub_height), rotor_rad);
     Real theta = std::acos(d/rotor_rad);
     Real A_s = rotor_rad*rotor_rad*theta - d*std::pow(rotor_rad*rotor_rad - d*d, 0.5);
-    Real A = M_PI*rotor_rad*rotor_rad/2.0 - A_s;
+    Real A = PI*rotor_rad*rotor_rad/2.0 - A_s;
 
     return A;
 }
@@ -44,22 +44,26 @@ Real compute_Aijk(const Real z_k,
 }
 
 
-void fitch_advance (int lev,
-                    const Geometry& geom,
-                    const Real& dt_advance,
-                    MultiFab& cons_in,
-                    MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
-                    MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb)
+void
+Fitch::advance (const Geometry& geom,
+                const Real& dt_advance,
+                MultiFab& cons_in,
+                MultiFab& mf_vars_fitch,
+                MultiFab& U_old,
+                MultiFab& V_old,
+                MultiFab& W_old,
+                const MultiFab& mf_Nturb)
 {
-    fitch_source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_fitch, mf_Nturb);
-    fitch_update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
+    source_terms_cellcentered(geom, cons_in, mf_vars_fitch, U_old, V_old, W_old, mf_Nturb);
+    update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
 }
 
 
-void fitch_update (const Real& dt_advance,
-                  MultiFab& cons_in,
-                  MultiFab& U_old, MultiFab& V_old,
-                  const MultiFab& mf_vars_fitch)
+void
+Fitch::update (const Real& dt_advance,
+               MultiFab& cons_in,
+               MultiFab& U_old, MultiFab& V_old,
+               const MultiFab& mf_vars_fitch)
 {
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -89,22 +93,23 @@ void fitch_update (const Real& dt_advance,
     }
 }
 
-void fitch_source_terms_cellcentered (const Geometry& geom,
-                                      const MultiFab& cons_in,
-                                      const MultiFab& U_old, const MultiFab& V_old, const MultiFab& W_old,
-                                      MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb)
+void
+Fitch::source_terms_cellcentered (const Geometry& geom,
+                                  const MultiFab& cons_in,
+                                  MultiFab& mf_vars_fitch,
+                                  const MultiFab& U_old,
+                                  const MultiFab& V_old,
+                                  const MultiFab& W_old,
+                                  const MultiFab& mf_Nturb)
 {
 
+  get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+                  wind_speed, thrust_coeff, power);
+
   auto dx = geom.CellSizeArray();
-  auto ProbHiArr = geom.ProbHiArray();
-  auto ProbLoArr = geom.ProbLoArray();
 
   // Domain valid box
   const amrex::Box& domain = geom.Domain();
-  int domlo_x = domain.smallEnd(0);
-  int domhi_x = domain.bigEnd(0) + 1;
-  int domlo_y = domain.smallEnd(1);
-  int domhi_y = domain.bigEnd(1) + 1;
   int domlo_z = domain.smallEnd(2);
   int domhi_z = domain.bigEnd(2) + 1;
 
@@ -116,33 +121,28 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
   mf_vars_fitch.setVal(0.0);
   Real d_hub_height = hub_height;
   Real d_rotor_rad = rotor_rad;
+     Gpu::DeviceVector<Real> d_wind_speed(wind_speed.size());
+    Gpu::DeviceVector<Real> d_thrust_coeff(thrust_coeff.size());
+
+  // Copy data from host vectors to device vectors
+    Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
+    Gpu::copy(Gpu::hostToDevice, thrust_coeff.begin(), thrust_coeff.end(), d_thrust_coeff.begin());
 
   for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box& bx = mfi.tilebox();
         const Box& gbx = mfi.growntilebox(1);
-        auto cons_array  = cons_in.array(mfi);
         auto fitch_array = mf_vars_fitch.array(mfi);
         auto Nturb_array = mf_Nturb.array(mfi);
         auto u_vel       = U_old.array(mfi);
         auto v_vel       = V_old.array(mfi);
         auto w_vel       = W_old.array(mfi);
 
-        amrex::IntVect lo = bx.smallEnd();
-
         const Real* wind_speed_d     = d_wind_speed.dataPtr();
         const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
         const int n_spec_table = d_wind_speed.size();
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
-            int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
-
-
-            Real x = (ii+0.5) * dx[0];
-            Real y = (jj+0.5) * dx[1];
-            Real z = (kk+0.5) * dx[2];
 
             Real z_k   = kk*dx[2];
             Real z_kp1 = (kk+1)*dx[2];
@@ -168,6 +168,6 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
         });
     }
         //std::cout << "Checking sum here...." <<"\n";
-        //printf("%0.15g, %0.15g\n", *sum_area , M_PI*R*R);
+        //printf("%0.15g, %0.15g\n", *sum_area , PI*R*R);
         //exit(0);
 }

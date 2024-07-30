@@ -14,6 +14,7 @@
 
 #include <Utils.H>
 #include <TerrainMetrics.H>
+#include <Utils/ParFunctions.H>
 #include <memory>
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -211,15 +212,15 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Map factors
     // ********************************************************************************************
-    BoxList bl2d = ba.boxList();
-    for (auto& b : bl2d) {
+    BoxList bl2d_mf = ba.boxList();
+    for (auto& b : bl2d_mf) {
         b.setRange(2,0);
     }
-    BoxArray ba2d(std::move(bl2d));
+    BoxArray ba2d_mf(std::move(bl2d_mf));
 
-    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
-    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
-    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
+    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
     if (solverChoice.test_mapfactor) {
         mapfac_m[lev]->setVal(0.5);
         mapfac_u[lev]->setVal(0.5);
@@ -237,11 +238,15 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     if (solverChoice.windfarm_type == WindFarmType::Fitch){
         vars_windfarm[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-                Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
     if (solverChoice.windfarm_type == WindFarmType::EWP){
         vars_windfarm[lev].define(ba, dm, 3, ngrow_state); // dudt, dvdt, dTKEdt
-                Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+    }
+    if (solverChoice.windfarm_type == WindFarmType::SimpleAD) {
+        vars_windfarm[lev].define(ba, dm, 2, ngrow_state);// dudt, dvdt
+        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
 #endif
 
@@ -262,11 +267,18 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     Hwave_onegrid[lev] = std::make_unique<MultiFab>(ba2d_onegrid,dm_onegrid,1,IntVect(1,1,0));
     Lwave_onegrid[lev] = std::make_unique<MultiFab>(ba2d_onegrid,dm_onegrid,1,IntVect(1,1,0));
-    Hwave[lev] = std::make_unique<MultiFab>(ba2d,dm,1,IntVect(3,3,0));
-    Lwave[lev] = std::make_unique<MultiFab>(ba2d,dm,1,IntVect(3,3,0));
+
+    BoxList bl2d_wave = ba.boxList();
+    for (auto& b : bl2d_wave) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d_wave(std::move(bl2d_wave));
+
+    Hwave[lev] = std::make_unique<MultiFab>(ba2d_wave,dm,1,IntVect(3,3,0));
+    Lwave[lev] = std::make_unique<MultiFab>(ba2d_wave,dm,1,IntVect(3,3,0));
+
     std::cout<<ba_onegrid<<std::endl;
     std::cout<<ba2d_onegrid<<std::endl;
-    std::cout<<dm_onegrid<<std::endl;
     std::cout<<dm_onegrid<<std::endl;
 #endif
 
@@ -312,7 +324,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         solverChoice.pert_type == PerturbationType::perturbDirect)
     {
         if (lev == 0) {
-            turbPert.init_tpi(lev, geom[lev].Domain().bigEnd(), geom[lev].CellSizeArray());
+            turbPert.init_tpi(lev, geom[lev].Domain().bigEnd(), geom[lev].CellSizeArray(), ba, dm, ngrow_state);
         }
     }
 
@@ -323,12 +335,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     {
     lmask_lev[lev].resize(1);
     auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
-    BoxList bl2d = ba.boxList();
-    for (auto& b : bl2d) {
+    BoxList bl2d_mask = ba.boxList();
+    for (auto& b : bl2d_mask) {
         b.setRange(2,0);
     }
-    BoxArray ba2d(std::move(bl2d));
-    lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d,dm,1,ngv);
+    BoxArray ba2d_mask(std::move(bl2d_mask));
+    lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
     lmask_lev[lev][0]->setVal(1);
     lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
     }
@@ -353,25 +365,29 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     BoxArray ba23 = convert(ba, IntVect(0,1,1));
 
     if (l_use_diff) {
-        Tau11_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        Tau22_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        Tau33_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        Tau12_lev[lev] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,0) );
-        Tau13_lev[lev] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,0) );
-        Tau23_lev[lev] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,0) );
+        //
+        // NOTE: We require ghost cells in the vertical when allowing grids that don't
+        //       cover the entire vertical extent of the domain at this level
+        //
+        Tau11_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
+        Tau22_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
+        Tau33_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
+        Tau12_lev[lev] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
+        Tau13_lev[lev] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
+        Tau23_lev[lev] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
         if (l_use_terrain) {
-            Tau21_lev[lev] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,0) );
-            Tau31_lev[lev] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,0) );
-            Tau32_lev[lev] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,0) );
+            Tau21_lev[lev] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
+            Tau31_lev[lev] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
+            Tau32_lev[lev] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
         } else {
             Tau21_lev[lev] = nullptr;
             Tau31_lev[lev] = nullptr;
             Tau32_lev[lev] = nullptr;
         }
-        SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
+        SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
         SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
-        SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
         SFS_hfx1_lev[lev]->setVal(0.);
         SFS_hfx2_lev[lev]->setVal(0.);
         SFS_hfx3_lev[lev]->setVal(0.);
@@ -404,11 +420,9 @@ ERF::update_terrain_arrays (int lev, Real time)
 {
     if (solverChoice.use_terrain) {
 
-        if (lev == 0 && (init_type != "real" && init_type != "metgrid") ) {
-            prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-            init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag);
-        }
-
+        //
+        // First interpolate from coarser level if there is one
+        //
         if (lev > 0) {
             Vector<MultiFab*> fmf = {z_phys_nd[lev].get(), z_phys_nd[lev].get()};
             Vector<Real> ftime    = {t_old[lev], t_new[lev]};
@@ -425,24 +439,30 @@ ERF::update_terrain_arrays (int lev, Real time)
                                   geom[lev-1], geom[lev],
                                   null_bc, 0, null_bc, 0, refRatio(lev-1),
                                   mapper, domain_bcs_type, 0);
+        }
 
-            //
-            // Then if not using real/metgrid data, we
-            // 1) redefine the terrain at k=0 for every fine box which includes k=0
-            // 2) recreate z_phys_nd at every fine node using
-            // the data at the bottom of each fine grid
-            // which has been either been interpolated from the coarse grid (k>0)
-            // or set in init_custom_terrain (k=0)
-            //
+        //
+        // Then, if not using real/metgrid data,
+        // 1) redefine the terrain at k=0 for every fine box which includes k=0
+        // 2) recreate z_phys_nd at every fine node using
+        // the data at the bottom of each fine grid
+        // which has been either been interpolated from the coarse grid (k>0)
+        // or set in init_custom_terrain (k=0)
+        //
+        if (init_type != "real" && init_type != "metgrid") {
             prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-            if (init_type != "real" && init_type != "metgrid") {
-                init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag);
-            }
+
+            Vector<Real> zmax(1); // only reduce at k==0
+            reduce_to_max_per_level(zmax, z_phys_nd[lev]);
+            amrex::Print() << "Max terrain elevation = " << zmax[0] << std::endl;
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zlevels_stag[zlevels_stag.size()-1] > zmax[0],
+                "Terrain is taller than domain top!");
+
+            init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag,phys_bc_type);
         }
 
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
-
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
     }
 }
@@ -472,19 +492,31 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 void
 ERF::initialize_bcs (int lev)
 {
+    // Dirichlet BC data only lives on level 0
+    Real* u_bc_tmp(nullptr);
+    Real* v_bc_tmp(nullptr);
+    Real* w_bc_tmp(nullptr);
+    if (lev==0) {
+        u_bc_tmp = xvel_bc_data.data();
+        v_bc_tmp = yvel_bc_data.data();
+        w_bc_tmp = zvel_bc_data.data();
+    }
+
     physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                m_bc_extdir_vals, m_bc_neumann_vals,
                                                                z_phys_nd[lev], use_real_bcs);
     physbcs_u[lev]    = std::make_unique<ERFPhysBCFunct_u> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], use_real_bcs);
+                                                            z_phys_nd[lev], use_real_bcs, u_bc_tmp);
     physbcs_v[lev]    = std::make_unique<ERFPhysBCFunct_v> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], use_real_bcs);
+                                                            z_phys_nd[lev], use_real_bcs, v_bc_tmp);
     physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            solverChoice.terrain_type, z_phys_nd[lev], use_real_bcs);
+                                                            solverChoice.terrain_type, z_phys_nd[lev],
+                                                            use_real_bcs, w_bc_tmp);
     physbcs_w_no_terrain[lev]    = std::make_unique<ERFPhysBCFunct_w_no_terrain>
                                                            (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                            m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs);
+                                                            m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs,
+                                                            w_bc_tmp);
 }

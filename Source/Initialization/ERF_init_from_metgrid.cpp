@@ -138,7 +138,7 @@ ERF::init_from_metgrid (int lev)
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag);
+    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag, phys_bc_type);
 
     // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();
@@ -172,6 +172,7 @@ ERF::init_from_metgrid (int lev)
     } else {
         for (int it = 0; it < ntimes; ++it) sst_lev[lev][it] = nullptr;
     }
+
     if (flag_lmask[0]) {
         for (int it = 0; it < ntimes; ++it) {
             lmask_lev[lev][it] = std::make_unique<iMultiFab>(ba2d,dm,1,ngv);
@@ -190,9 +191,8 @@ ERF::init_from_metgrid (int lev)
             }
             lmask_lev[lev][it]->FillBoundary(geom[lev].periodicity());
         }
-    } else {
-        for (int it = 0; it < ntimes; ++it) lmask_lev[lev][it] = nullptr;
     }
+
     lat_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
     for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         Box gtbx = mfi.growntilebox();
@@ -207,6 +207,7 @@ ERF::init_from_metgrid (int lev)
             dst_arr(i,j,0) = src_arr(li,lj,0);
         });
     }
+
     lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
     for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         Box gtbx = mfi.growntilebox();

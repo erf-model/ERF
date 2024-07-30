@@ -96,10 +96,19 @@ jobs:
 
         pushd ${{runner.workspace}}/ERF/build-${{matrix.os}};
         # make -j ${{env.NPROCS}};
-        make -j 2;
+        make -j 2 2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.os}}-output.txt;
 
         ccache -s
         du -hs ~/.cache/ccache
+
+    - name: Report
+      run: |
+        egrep "warning:|error:" ${{runner.workspace}}/build-${{matrix.os}}-output.txt \
+          | egrep -v "Submodules/amrex" | egrep -v "lto-wrapper: warning:" | sort | uniq \
+          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt
+        cat ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt
+        export return=$(tail -n 1 ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt | awk '{print $2}')
+        exit ${return}
 
     # - name: Regression Tests
     #   run: |

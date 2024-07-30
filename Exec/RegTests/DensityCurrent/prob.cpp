@@ -58,7 +58,7 @@ Problem::init_custom_pert(
     const Real rdOcp = sc.rdOcp;
 
     if (z_cc) {
-      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+      ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo = geomdata.ProbLo();
@@ -90,7 +90,7 @@ Problem::init_custom_pert(
         }
       });
   } else {
-      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+      ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo = geomdata.ProbLo();
@@ -126,19 +126,19 @@ Problem::init_custom_pert(
   const Real u0 = parms.U_0;
 
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       x_vel_pert(i, j, k) = u0;
   });
 
   // Set the y-velocity
-  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       y_vel_pert(i, j, k) = 0.0;
   });
 
   // Set the z-velocity
-  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       z_vel_pert(i, j, k) = 0.0;
   });
