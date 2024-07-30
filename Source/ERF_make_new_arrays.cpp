@@ -359,6 +359,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type        != LESType::None)   ||
                            (solverChoice.turbChoice[lev].pbl_type        != PBLType::None) );
     bool l_use_ddorf   = (  solverChoice.turbChoice[lev].les_type        == LESType::Deardorff);
+    bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
@@ -384,14 +385,23 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau31_lev[lev] = nullptr;
             Tau32_lev[lev] = nullptr;
         }
-        SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
-        SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
-        SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
+        SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
+        SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
+        SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
         SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
         SFS_hfx1_lev[lev]->setVal(0.);
         SFS_hfx2_lev[lev]->setVal(0.);
         SFS_hfx3_lev[lev]->setVal(0.);
         SFS_diss_lev[lev]->setVal(0.);
+        if (l_use_moist) {
+            SFS_q1fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
+            SFS_q1fx3_lev[lev]->setVal(0.0);
+            SFS_q2fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
+            SFS_q2fx3_lev[lev]->setVal(0.0);
+        } else {
+            SFS_q1fx3_lev[lev] = nullptr;
+            SFS_q2fx3_lev[lev] = nullptr;
+        }
     } else {
         Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
         Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;

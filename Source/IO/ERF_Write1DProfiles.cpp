@@ -32,7 +32,7 @@ ERF::write_1D_profiles (Real time)
         Gpu::HostVector<Real> h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw;
         Gpu::HostVector<Real> h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw;
         Gpu::HostVector<Real> h_avg_tau11, h_avg_tau12, h_avg_tau13, h_avg_tau22, h_avg_tau23, h_avg_tau33;
-        Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
+        Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
 
         if (NumDataLogs() > 1) {
             derive_diag_profiles(time,
@@ -51,7 +51,7 @@ ERF::write_1D_profiles (Real time)
         if (NumDataLogs() > 3 && time > 0.) {
             derive_stress_profiles(h_avg_tau11, h_avg_tau12, h_avg_tau13,
                                    h_avg_tau22, h_avg_tau23, h_avg_tau33,
-                                   h_avg_sgshfx,
+                                   h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx,
                                    h_avg_sgsdiss);
         }
 
@@ -150,9 +150,11 @@ ERF::write_1D_profiles (Real time)
                       }
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                                << h_avg_tau11[k] << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "
-                                << h_avg_tau22[k] << " " << h_avg_tau23[k] << " " << h_avg_tau33[k] << " "
-                                << h_avg_sgshfx[k] << " " << h_avg_sgsdiss[k]
+                                << h_avg_tau11[k]  << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "
+                                << h_avg_tau22[k]  << " " << h_avg_tau23[k] << " " << h_avg_tau33[k] << " "
+                                << h_avg_sgshfx[k] << " "
+                                << h_avg_sgsq1fx[k] << " " << h_avg_sgsq2fx[k] << " "
+                                << h_avg_sgsdiss[k]
                                 << std::endl;
                   } // loop over z
                 } // if good
@@ -456,12 +458,15 @@ void
 ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<Real>& h_avg_tau12,
                              Gpu::HostVector<Real>& h_avg_tau13, Gpu::HostVector<Real>& h_avg_tau22,
                              Gpu::HostVector<Real>& h_avg_tau23, Gpu::HostVector<Real>& h_avg_tau33,
-                             Gpu::HostVector<Real>& h_avg_hfx3,  Gpu::HostVector<Real>& h_avg_diss)
+                             Gpu::HostVector<Real>& h_avg_hfx3,  Gpu::HostVector<Real>& h_avg_q1fx3,
+                             Gpu::HostVector<Real>& h_avg_q2fx3, Gpu::HostVector<Real>& h_avg_diss)
 {
     int lev = 0;
 
     // This will hold the stress tensor components
-    MultiFab mf_out(grids[lev], dmap[lev], 8, 0);
+    MultiFab mf_out(grids[lev], dmap[lev], 10, 0);
+
+    bool l_use_moist   = ( solverChoice.moisture_type != MoistureType::None );
 
     for ( MFIter mfi(mf_out,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -481,6 +486,10 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
         //const Array4<const Real>& hfx1_arr = SFS_hfx1_lev[lev]->const_array(mfi);
         //const Array4<const Real>& hfx2_arr = SFS_hfx2_lev[lev]->const_array(mfi);
         const Array4<const Real>& hfx3_arr = SFS_hfx3_lev[lev]->const_array(mfi);
+        const Array4<const Real>& q1fx3_arr = (l_use_moist) ? SFS_q1fx3_lev[lev]->const_array(mfi) :
+                                                              Array4<const Real>{};
+        const Array4<const Real>& q2fx3_arr = (l_use_moist) ? SFS_q2fx3_lev[lev]->const_array(mfi) :
+                                                              Array4<const Real>{};
         const Array4<const Real>& diss_arr = SFS_diss_lev[lev]->const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -494,8 +503,10 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
             fab_arr(i, j, k, 4) = 0.25 * ( tau23_arr(i,j,k  ) + tau23_arr(i,j+1,k)
                                          + tau23_arr(i,j,k+1) + tau23_arr(i,j+1,k+1) );
             fab_arr(i, j, k, 5) = tau33_arr(i,j,k);
-            fab_arr(i, j, k, 6) =  hfx3_arr(i,j,k);
-            fab_arr(i, j, k, 7) =  diss_arr(i,j,k);
+            fab_arr(i, j, k, 6) = 0.5 * ( hfx3_arr(i,j,k) + hfx3_arr(i,j,k+1) );
+            fab_arr(i, j, k, 7) = (l_use_moist) ? 0.5 * ( q1fx3_arr(i,j,k) + q1fx3_arr(i,j,k+1) ) : 0.0;
+            fab_arr(i, j, k, 8) = (l_use_moist) ? 0.5 * ( q2fx3_arr(i,j,k) + q2fx3_arr(i,j,k+1) ) : 0.0;
+            fab_arr(i, j, k, 9) =  diss_arr(i,j,k);
         });
     }
 
@@ -509,7 +520,9 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
     h_avg_tau23 = sumToLine(mf_out,4,1,domain,zdir);
     h_avg_tau33 = sumToLine(mf_out,5,1,domain,zdir);
     h_avg_hfx3  = sumToLine(mf_out,6,1,domain,zdir);
-    h_avg_diss  = sumToLine(mf_out,7,1,domain,zdir);
+    h_avg_q1fx3 = sumToLine(mf_out,7,1,domain,zdir);
+    h_avg_q2fx3 = sumToLine(mf_out,8,1,domain,zdir);
+    h_avg_diss  = sumToLine(mf_out,9,1,domain,zdir);
 
     int ht_size =  h_avg_tau11.size();
 
@@ -517,8 +530,10 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
     for (int k = 0; k < ht_size; ++k) {
         h_avg_tau11[k] /= area_z; h_avg_tau12[k] /= area_z; h_avg_tau13[k] /= area_z;
-        h_avg_tau22[k] /= area_z; h_avg_tau23[k] /= area_z; h_avg_tau33[k] /= area_z;
+        h_avg_tau22[k] /= area_z; h_avg_tau23[k] /= area_z;
+        h_avg_tau33[k] /= area_z;
         h_avg_hfx3[k] /= area_z;
+        h_avg_q1fx3[k] /= area_z; h_avg_q2fx3[k] /= area_z;
         h_avg_diss[k] /= area_z;
     }
 }
