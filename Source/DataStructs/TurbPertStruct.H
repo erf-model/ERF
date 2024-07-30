@@ -261,7 +261,7 @@ struct TurbulentPerturbation {
         }
     }
 
-#define INDEX_PERTURB
+//#define INDEX_PERTURB
 
     // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
     // This function does per cell application within the box union. Random perturbation

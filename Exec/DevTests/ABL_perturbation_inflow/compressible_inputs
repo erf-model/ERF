@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 stop_time = 60.0
-max_step = 1
+#max_step = 1
 
 amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
@@ -19,13 +19,13 @@ geometry.is_periodic = 0 1 0
 xlo.type = "Inflow"
 xhi.type = "Outflow"
 zhi.type = "SlipWall"
-#zlo.type = "NoSlipWall"
+zlo.type = "NoSlipWall"
 
-zlo.type = "Most"
-erf.most.flux_type = "custom"
-erf.most.ustar  = 0.0395   # z=10.
-erf.most.tstar  = 0. # theta flux
-erf.most.qstar  = 0. # qv    flux
+#zlo.type = "Most"
+#erf.most.flux_type = "custom"
+#erf.most.ustar  = 0.0395   # z=10.
+#erf.most.tstar  = 0. # theta flux
+#erf.most.qstar  = 0. # qv    flux
 
 xlo.density =   1.0
 xlo.theta   = 300.0
@@ -69,10 +69,10 @@ erf.buoyancy_type   = 1
 erf.perturbation_type = "source"
 #erf.perturbation_type = "direct"
 erf.perturbation_direction = 1 0 0 0 0 0
-erf.perturbation_layers = 1
+erf.perturbation_layers = 3
 erf.perturbation_offset = 5
 
-erf.perturbation_box_dims =  16 16 16
+erf.perturbation_box_dims =  16 16 8
 erf.perturbation_nondimensional = 0.042 # Ri
 erf.perturbation_T_infinity = 300.0
 #erf.perturbation_T_intensity = 0.1
