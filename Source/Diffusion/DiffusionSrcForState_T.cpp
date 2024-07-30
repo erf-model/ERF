@@ -27,7 +27,9 @@ using namespace amrex;
  * @param[in]  mf_m map factor at cell center
  * @param[in]  mf_u map factor at x-face
  * @param[in]  mf_v map factor at y-face
- * @param[in]  hfx_z heat flux in z-dir
+ * @param[inout]  hfx_z heat flux in z-dir
+ * @param[inout]  qfx1_z heat flux in z-dir
+ * @param[out]    qfx2_z heat flux in z-dir
  * @param[in]  diss dissipation of TKE
  * @param[in]  mu_turb turbulent viscosity
  * @param[in]  diffChoice container of diffusion parameters
