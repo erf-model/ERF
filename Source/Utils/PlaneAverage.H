@@ -111,8 +111,10 @@ PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
     m_ncell_line = dom_hi[m_axis] - dom_lo[m_axis] + 1 + m_ixtype[m_axis];
 
     m_ncell_plane = 1;
+    auto period = m_geom.periodicity();
     for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-       if (i != m_axis) m_ncell_plane *= (dom_hi[i] - dom_lo[i] + 1 + m_ixtype[m_axis]);
+      int p_fac = (!period.isPeriodic(i)) ? 1 : 0;
+       if (i != m_axis) m_ncell_plane *= (dom_hi[i] - dom_lo[i] + 1 + p_fac*m_ixtype[i]);
     }
 
     m_line_average.resize(static_cast<size_t>(m_ncell_line) * m_ncomp, 0.0);
@@ -202,9 +204,9 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
         const amrex::Array4<const amrex::Real>& fab_arr  = mfab.const_array(mfi);
         const amrex::Array4<const int        >& mask_arr = mask->const_array(mfi);
 
-        ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
-                    AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
-                                      amrex::Gpu::Handler const& handler) noexcept
+        amrex::ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
+                           AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
+                                             amrex::Gpu::Handler const& handler) noexcept
         {
             // Loop over the direction perpendicular to the plane.
             // This reduces the atomic pressure on the destination arrays.
@@ -215,10 +217,12 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
                     for (int i = lbx.smallEnd(0); i <= lbx.bigEnd(0); ++i) {
                         int ind = idxOp.getIndx(i, j, k) + offset;
                         for (int n = 0; n < ncomp; ++n) {
-                            if (mask_arr(i,j,k)) {
-                                amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
-                                                            fab_arr(i, j, k, n) * denom, handler);
-                            }
+                            // NOTE: This factor is to avoid an if statment that will break
+                            //       the devicereducesum since all threads won't participate.
+                            //       This more performent than Gpu::Atomic::Add.
+                            amrex::Real fac = (mask_arr(i,j,k)) ? 1.0 : 0.0;
+                            amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
+                                                        fab_arr(i, j, k, n) * denom * fac, handler);
                         }
                     }
                 }

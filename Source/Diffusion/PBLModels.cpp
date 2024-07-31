@@ -98,12 +98,15 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                     AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
                     AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
 
-                    if (sbx.contains(i,j,k)) {
-                        const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
-                        const Real dz = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
-                        Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz, handler);
-                        Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k)*dz, handler);
-                    }
+                    // NOTE: This factor is to avoid an if statment that will break
+                    //       the devicereducesum since all threads won't participate.
+                    //       This more performent than Gpu::Atomic::Add.
+                    Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
+                    const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
+                    const Real dz = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
+                    Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz*fac, handler);
+                    Gpu::deviceReduceSum(&qint(i,j,0,1),      qvel(i,j,k)*dz*fac, handler);
+
                 });
             } else {
                 ParallelFor(Gpu::KernelInfo().setReduction(true), bx,
@@ -115,11 +118,14 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                     AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
 
                     // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
-                    if (sbx.contains(i,j,k)) {
-                        const Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
-                        Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k), handler);
-                        Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k), handler);
-                    }
+
+                    // NOTE: This factor is to avoid an if statment that will break
+                    //       the devicereducesum since all threads won't participate.
+                    //       This more performent than Gpu::Atomic::Add.
+                    Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
+                    const Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
+                    Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac, handler);
+                    Gpu::deviceReduceSum(&qint(i,j,0,1),      qvel(i,j,k)*fac, handler);
                 });
             }
 
@@ -157,7 +163,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
                 // Spatially varying MOST
                 Real surface_heat_flux = -u_star_arr(i,j,0) * t_star_arr(i,j,0);
-                Real theta0            = tm_arr(i,j,0); // TODO: IS THIS ACTUALLY RHOTHETA
+                Real theta0            = tm_arr(i,j,0);
                 Real l_obukhov;
                 if (std::abs(surface_heat_flux) > eps) {
                     l_obukhov = ( theta0 * u_star_arr(i,j,0) * u_star_arr(i,j,0) ) /
