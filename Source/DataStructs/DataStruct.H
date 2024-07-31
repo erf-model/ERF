@@ -430,10 +430,14 @@ struct SolverChoice {
         amrex::Real latitude = 90.0;
         pp.query("latitude", latitude);
 
+        pp.query("coriolis_3d", coriolis_3d);
+
         // Convert to radians
         latitude *= (PI/180.);
         sinphi = std::sin(latitude);
-        cosphi = std::cos(latitude);
+        if (coriolis_3d) {
+            cosphi = std::cos(latitude);
+        }
 
         amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
 
@@ -478,6 +482,7 @@ struct SolverChoice {
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
+    bool        coriolis_3d            = true;
 
     bool        rayleigh_damp_U        = false;
     bool        rayleigh_damp_V        = false;
@@ -503,7 +508,7 @@ struct SolverChoice {
 
     // Coriolis forcing
     amrex::Real coriolis_factor = 0.0;
-    amrex::Real cosphi          = 0.0 ;
+    amrex::Real cosphi          = 0.0;
     amrex::Real sinphi          = 0.0;
 
     // User-specified forcings in problem definition
