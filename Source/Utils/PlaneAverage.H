@@ -188,6 +188,8 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
     amrex::Real* line_avg = lavg.data();
     const int ncomp = m_ncomp;
 
+    amrex::Box domain = amrex::convert(m_geom.Domain(),m_ixtype);
+
     amrex::IntVect ng = amrex::IntVect(0);
     int offset = m_ng[m_axis];
     if (m_inc_ghost) ng[m_axis] = offset;
@@ -198,19 +200,21 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (amrex::MFIter mfi(mfab, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        amrex::Box bx  = mfi.tilebox(m_ixtype, ng);
-        amrex::Box pbx = PerpendicularBox<IndexSelector>(bx, amrex::IntVect(0));
+        amrex::Box tbx  = mfi.tilebox();
+        if (tbx.smallEnd(m_axis) == domain.smallEnd(m_axis)) tbx.growLo(m_axis,offset);
+        if (tbx.bigEnd  (m_axis) == domain.bigEnd  (m_axis)) tbx.growHi(m_axis,offset);
+        amrex::Box pbx = PerpendicularBox<IndexSelector>(tbx, amrex::IntVect(0));
 
         const amrex::Array4<const amrex::Real>& fab_arr  = mfab.const_array(mfi);
         const amrex::Array4<const int        >& mask_arr = mask->const_array(mfi);
 
         amrex::ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
-                           AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
-                                             amrex::Gpu::Handler const& handler) noexcept
+                    AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
+                                      amrex::Gpu::Handler const& handler) noexcept
         {
             // Loop over the direction perpendicular to the plane.
             // This reduces the atomic pressure on the destination arrays.
-            amrex::Box lbx = ParallelBox<IndexSelector>(bx, amrex::IntVect{p_i, p_j, p_k});
+            amrex::Box lbx = ParallelBox<IndexSelector>(tbx, amrex::IntVect{p_i, p_j, p_k});
 
             for (int k = lbx.smallEnd(2); k <= lbx.bigEnd(2); ++k) {
                 for (int j = lbx.smallEnd(1); j <= lbx.bigEnd(1); ++j) {
@@ -222,7 +226,7 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
                             //       This more performent than Gpu::Atomic::Add.
                             amrex::Real fac = (mask_arr(i,j,k)) ? 1.0 : 0.0;
                             amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
-                                                        fab_arr(i, j, k, n) * denom * fac, handler);
+                                                            fab_arr(i, j, k, n) * denom * fac, handler);
                         }
                     }
                 }
