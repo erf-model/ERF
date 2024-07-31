@@ -93,7 +93,7 @@ void make_mom_sources (int /*level*/,
     // Flag for Geostrophic forcing
     // *****************************************************************************
     auto abl_geo_forcing  = solverChoice.abl_geo_forcing;
-    auto geostrophic_wind = solverChoice.custom_geostrophic_profile;
+    auto geo_wind_profile = solverChoice.custom_geostrophic_profile;
 
     // *****************************************************************************
     // Data for Rayleigh damping
@@ -286,20 +286,18 @@ void make_mom_sources (int /*level*/,
         // *****************************************************************************
         // Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
-        if (geostrophic_wind) {
+        if (geo_wind_profile) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                xmom_src_arr(i, j, k) += -0.376E-4 * (rho_on_u_face * dptr_v_geos[k] - rho_v_loc);
+                xmom_src_arr(i, j, k) -= coriolis_factor * rho_on_u_face * dptr_v_geos[k] * sinphi;
             });
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                ymom_src_arr(i, j, k) += 0.376E-4 * (rho_on_v_face * dptr_u_geos[k] - rho_u_loc);
+                ymom_src_arr(i, j, k) += coriolis_factor * rho_on_v_face * dptr_u_geos[k] * sinphi;
             });
-        } // geostrophic_wind
+        } // geo_wind_profile
 
         // *****************************************************************************
         // Add custom SUBSIDENCE terms
