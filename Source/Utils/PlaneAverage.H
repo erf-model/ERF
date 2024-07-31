@@ -221,9 +221,9 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
                     for (int i = lbx.smallEnd(0); i <= lbx.bigEnd(0); ++i) {
                         int ind = idxOp.getIndx(i, j, k) + offset;
                         for (int n = 0; n < ncomp; ++n) {
-                            // NOTE: This factor is to avoid an if statment that will break
+                            // NOTE: This factor is to avoid an if statement that will break
                             //       the devicereducesum since all threads won't participate.
-                            //       This more performent than Gpu::Atomic::Add.
+                            //       This more performant than Gpu::Atomic::Add.
                             amrex::Real fac = (mask_arr(i,j,k)) ? 1.0 : 0.0;
                             amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
                                                             fab_arr(i, j, k, n) * denom * fac, handler);
