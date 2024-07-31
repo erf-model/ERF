@@ -36,6 +36,7 @@ struct TurbulentPerturbation {
     {
         // Initialization for some 0 dependent terms
         tpi_Ti = 0.;
+        tpi_Tinf = 300.;
 
         amrex::ParmParse pp(pp_prefix);
 
@@ -65,7 +66,7 @@ struct TurbulentPerturbation {
         amrex::Box lo_y_bx(amrex::IntVect(0,0,0), amrex::IntVect(1,1,1), amrex::IntVect(0,0,0));
         amrex::Box hi_y_bx(amrex::IntVect(0,0,0), amrex::IntVect(1,1,1), amrex::IntVect(0,0,0));
 
-        // Create a temporary box list to accumulate all the perturbation regions
+        // Create a temporary box list to accumulate all the perturbation regions after box modification
         amrex::BoxList tmp_bl;
 
         // boxSize for individual boxes
@@ -101,7 +102,7 @@ struct TurbulentPerturbation {
 
         if (tpi_direction[2] || tpi_direction[5]) { amrex::Abort("Currently not supporting z-direction flow perturbation"); }
 
-        // Performing box union for touching perturbation regions to avoid overlapping sections (double counting at corners)
+        // Performing box union for intersecting perturbation regions to avoid overlapping sections (double counting at corners)
         if (tpi_direction[0] && tpi_direction[1]) {  // Reshaping South smallEnd
             amrex::Box lo_x_lo_y_u = lo_x_bx & lo_y_bx;
             lo_y_bx.setSmall(amrex::IntVect(lo_x_lo_y_u.bigEnd(0)+1, lo_x_lo_y_u.smallEnd(1), lo_x_lo_y_u.smallEnd(2)));
@@ -161,16 +162,12 @@ struct TurbulentPerturbation {
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_direction: " << tpi_direction[0] << " "
                                                                                  << tpi_direction[1] << " "
                                                                                  << tpi_direction[2] << "\n\n";
-
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_layers: " << tpi_layers << "\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_offset: " << tpi_offset << "\n\n";
-
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_nondimensional: " << tpi_nonDim << "\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_T_infinity: " << tpi_Tinf << "\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_T_intensity: " << tpi_Ti << "\n";
-
         amrex::PrintToFile("BoxPerturbationOutput") << "Reference length per box = " << tpi_lref << "\n\n";
-
         amrex::PrintToFile("BoxPerturbationOutput") << "Turbulent perturbation BoxArray:\n" << pb_ba[lev] << "\n";
     }
 
@@ -251,7 +248,7 @@ struct TurbulentPerturbation {
         if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
 
         // Ma and Senocak (2023) Eq. 8, solving for delta phi
-        if (g != 0) pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
+        pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
 
         if (pt_type == 0) {
             // Performing this step converts the perturbation proportionality into
