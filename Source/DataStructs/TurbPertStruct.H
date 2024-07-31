@@ -337,7 +337,7 @@ struct TurbulentPerturbation {
         amrex::Real g = CONST_GRAV;
         if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
 
-        // Ma and Senocak (2023) Eq. 8, solving for delta phi 
+        // Ma and Senocak (2023) Eq. 8, solving for delta phi
         pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
 
         if (pt_type == 0) {
