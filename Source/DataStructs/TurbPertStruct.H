@@ -235,29 +235,6 @@ struct TurbulentPerturbation {
         }
     }
 
-    // Perturbation amplitude calculation
-    void calc_tpi_amp (const int boxIdx, const amrex::Real interval)
-    {
-        amrex::Real Um = pb_mag[boxIdx];
-        pb_amp[boxIdx] = 0.; // Safety step
-
-        amrex::Real beta = 1./tpi_Tinf; // Thermal expansion coefficient
-
-        // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
-        amrex::Real g = CONST_GRAV;
-        if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
-
-        // Ma and Senocak (2023) Eq. 8, solving for delta phi
-        pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
-
-        if (pt_type == 0) {
-            // Performing this step converts the perturbation proportionality into
-            // the forcing term
-            // Ma & Senocak (2023) Eq. 7
-            pb_amp[boxIdx] /= interval;
-        }
-    }
-
 //#define INDEX_PERTURB
 
     // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
@@ -347,6 +324,29 @@ struct TurbulentPerturbation {
     amrex::Vector<amrex::Real> pb_local_etime; // PB local elapsed time [s]
     amrex::Vector<amrex::Real> pb_amp;         // PB perturbation amplitude Ri:[K]
     amrex::Vector<amrex::Real> pb_netZero;     // PB array used for net zero sum calculation
+
+    // Perturbation amplitude calculation
+    void calc_tpi_amp (const int boxIdx, const amrex::Real interval)
+    {
+        amrex::Real Um = pb_mag[boxIdx];
+        pb_amp[boxIdx] = 0.; // Safety step
+
+        amrex::Real beta = 1./tpi_Tinf; // Thermal expansion coefficient
+
+        // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
+        amrex::Real g = CONST_GRAV;
+        if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
+
+        // Ma and Senocak (2023) Eq. 8, solving for delta phi 
+        pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
+
+        if (pt_type == 0) {
+            // Performing this step converts the perturbation proportionality into
+            // the forcing term
+            // Ma & Senocak (2023) Eq. 7
+            pb_amp[boxIdx] /= interval;
+        }
+    }
 
     // Assigns pseudo-random (ie. white noise) perturbation to a storage cell, this
     // value is then held constant for the duration of the update interval and assigned onto
