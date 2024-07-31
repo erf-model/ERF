@@ -376,6 +376,7 @@ struct TurbulentPerturbation {
         amrex::Real* m_pb_netZero = get_pb_netZero();
 
         // Create device array for summation
+        amrex::Vector<amrex::Real> tmp_h(1,0.);
         amrex::Gpu::DeviceVector<amrex::Real> tmp_d(1,0.);
         amrex::Real* tmp = tmp_d.data();
 
@@ -386,15 +387,16 @@ struct TurbulentPerturbation {
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                 const amrex::Array4<const amrex::Real> &pert_cell = pb_cell.array(mfi);
-                int npts = ubx.numPts(); // Used in normalization
+                int npts = ubx.numPts();
+                amrex::Real norm = 1.0 / (amrex::Real) npts;
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[0], pert_cell(i,j,k), handler);
+                    amrex::Gpu::deviceReduceSum(&tmp[0], pert_cell(i,j,k)*norm, handler);
                 });
-                tmp[0] /= (amrex::Real) npts;
+                amrex::Gpu::copy(amrex::Gpu::deviceToHost, tmp_d.begin(), tmp_d.end(), tmp_h.begin());
 
                 // Assigning onto storage array
-                m_pb_netZero[boxIdx] = tmp[0];
+                m_pb_netZero[boxIdx] = tmp_h[0];
             }
         }
     }
@@ -434,10 +436,12 @@ struct TurbulentPerturbation {
         // Creating local copy of PB box array and magnitude
         const amrex::BoxArray m_pb_ba = pb_ba[lev];
         amrex::Real* m_pb_mag = get_pb_mag();
+        m_pb_mag[boxIdx] = 0.; // Safety step
 
         // Storage of averages per PB
         // Index: 0=u (vol/slab_lo), 1=v (vol/slab_lo)
         //        2=u (slab_hi),     3=v (slab_hi)
+        amrex::Vector<amrex::Real> tmp_h(4,0.);
         amrex::Gpu::DeviceVector<amrex::Real> tmp_d(4,0.);
         amrex::Real* tmp = tmp_d.data();
 
@@ -453,11 +457,11 @@ struct TurbulentPerturbation {
 
                 #ifdef USE_VOLUME_AVERAGE
                 int npts = ubx.numPts();
+                amrex::Real norm = 1.0 / (amrex::Real) npts;
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k), handler);
+                    amrex::Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k)*norm, handler);
                 });
-                tmp[0] /= (amrex::Real) npts;
                 #endif // USE_VOLUME_AVERAGE
 
                 #ifdef USE_SLAB_AVERAGE
@@ -465,20 +469,20 @@ struct TurbulentPerturbation {
                 amrex::Box ubxSlab_hi = makeSlab(ubx,2,ubx.bigEnd(2));
                 int npts_lo = ubxSlab_lo.numPts();
                 int npts_hi = ubxSlab_hi.numPts();
+                amrex::Real norm_lo = 1.0 / (amrex::Real) npts_lo;
+                amrex::Real norm_hi = 1.0 / (amrex::Real) npts_hi;
 
                 // Average u in the low slab
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k), handler);
+                    amrex::Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k)*norm_lo, handler);
                 });
-                tmp[0] /= (amrex::Real) npts_lo;
 
                 // Average u in the high slab
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[2], xvel_arry(i,j,k), handler);
+                    amrex::Gpu::deviceReduceSum(&tmp[2], xvel_arry(i,j,k)*norm_hi, handler);
                 });
-                tmp[2] /= (amrex::Real) npts_hi;
                 #endif // USE_SLAB_AVERAGE
             } // if
         } // MFIter
@@ -495,11 +499,11 @@ struct TurbulentPerturbation {
 
                 #ifdef USE_VOLUME_AVERAGE
                 int npts = ubx.numPts();
+                amrex::Real norm = 1.0 / (amrex::Real) npts;
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k), handler);
+                    amrex::Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k)*norm, handler);
                 });
-                tmp[1] /= (amrex::Real) npts;
                 #endif // USE_VOLUME_AVERAGE
 
                 #ifdef USE_SLAB_AVERAGE
@@ -507,31 +511,34 @@ struct TurbulentPerturbation {
                 amrex::Box ubxSlab_hi = makeSlab(ubx,2,ubx.bigEnd(2));
                 int npts_lo = ubxSlab_lo.numPts();
                 int npts_hi = ubxSlab_hi.numPts();
+                amrex::Real norm_lo = 1.0 / (amrex::Real) npts_lo;
+                amrex::Real norm_hi = 1.0 / (amrex::Real) npts_hi;
 
                 // Average v in the low slab
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k), handler);
+                    amrex::Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k)*norm_lo, handler);
                 });
-                tmp[1] /= (amrex::Real) npts_lo;
 
                 // Average v in the high slab
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[3], yvel_arry(i,j,k), handler);
+                    amrex::Gpu::deviceReduceSum(&tmp[3], yvel_arry(i,j,k)*norm_hi, handler);
                 });
-                tmp[3] /= (amrex::Real) npts_hi;
                 #endif // USE_SLAB_AVERAGE
             } // if
         } // MFIter
 
+        // Copy from device back to host
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, tmp_d.begin(), tmp_d.end(), tmp_h.begin());
+
         // Computing the average magnitude within PB
-        #ifdef USE_SLAB_AVERAGE
-        m_pb_mag[boxIdx] = 0.5*(sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1]) + sqrt(tmp[2]*tmp[2] + tmp[3]*tmp[3]));
+        #ifdef USE_VOLUME_AVERAGE
+        m_pb_mag[boxIdx] = sqrt(tmp_h[0]*tmp_h[0] + tmp_h[1]*tmp_h[1]);
         #endif
 
-        #ifdef USE_VOLUME_AVERAGE
-        m_pb_mag[boxIdx] = sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1]);
+        #ifdef USE_SLAB_AVERAGE
+        m_pb_mag[boxIdx] = 0.5*(sqrt(tmp_h[0]*tmp_h[0] + tmp_h[1]*tmp_h[1]) + sqrt(tmp_h[2]*tmp_h[2] + tmp_h[3]*tmp_h[3]));
         #endif
     }
 
