@@ -12,7 +12,7 @@ USE_GPROF     = FALSE
 
 # Performance
 USE_MPI  = TRUE
-USE_OMP  = FALSE
+USE_OMP  = TRUE
 
 USE_CUDA = FALSE
 USE_HIP  = FALSE
@@ -25,7 +25,7 @@ TEST = TRUE
 USE_ASSERTION = TRUE
 
 # Incompressible Solver
-USE_POISSON_SOLVE = TRUE
+#USE_POISSON_SOLVE = TRUE
 
 # GNU Make
 Bpack := ./Make.package

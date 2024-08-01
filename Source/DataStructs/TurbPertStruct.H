@@ -263,68 +263,6 @@ struct TurbulentPerturbation {
         }
     }
 
-    // Quality of life function definitions
-    amrex::Real* get_pb_mag() { return pb_mag.data(); }
-    amrex::Real* get_pb_netZero() { return pb_netZero.data(); }
-
-    // Output debug message into a file
-    void debug (amrex::Real time)
-    {
-        amrex::PrintToFile("BoxPerturbationOutput") << "#################### PB output at time = "
-            << time << " ####################\n";
-        amrex::PrintToFile("BoxPerturbationOutput") << " Using type: " <<  pt_type << "\n";
-        amrex::PrintToFile("BoxPerturbationOutput") << " Net: " << tpi_net_buoyant << " Adjust : " <<  tpi_pert_adjust << "\n";
-        for (int i = 0; i < pb_mag.size(); i++) {
-            amrex::PrintToFile("BoxPerturbationOutput") << "[" << i
-                << "] pb_Umag=" << pb_mag[i]
-                << " | pb_interval=" << pb_interval[i]
-                << " (" << pb_local_etime[i]
-                << ") | pb_amp=" << pb_amp[i] << "\n";
-        }
-        amrex::PrintToFile("BoxPerturbationOutput") << "\n";
-    }
-
-    std::string pp_prefix {"erf"};
-
-    int pt_type; // TODO: May need to pass in solverChoice to replace this
-
-    // Public data members
-    amrex::Vector<amrex::BoxArray> pb_ba;  // PB box array
-    amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
-
-    // Perturbation amplitude cell storage
-    // This is after random assignment of equation (10) in Ma and Senocak 2023
-    amrex::MultiFab pb_cell;
-
-  private:
-
-    // Private data members
-    int tpi_layers;                   // Number of layers of perturbation boxes
-    int tpi_offset;                   // Cells to offset the start of the perturbation region
-
-    amrex::Vector<int> tpi_boxDim;    // Dimensions of each perturbation box
-    amrex::Vector<int> tpi_direction; // Direction of the peturbation
-
-    // Richardson Formulation
-    amrex::Real tpi_nonDim;           // Richardson number
-    amrex::Real tpi_Ti;               // Temperature intensity value
-    amrex::Real tpi_Tinf;             // Reference temperature [K]
-
-    // Physical dimensions
-    amrex::Real tpi_Hpb;              // PB height [m]
-    amrex::Real tpi_Lpb;              // PB length [m]
-    amrex::Real tpi_Wpb;              // PB width  [m]
-    amrex::Real tpi_lref;             // PB reference length [m]
-
-    amrex::Real tpi_net_buoyant;      // Perturbation net-zero calculation storage
-    amrex::Real tpi_pert_adjust;      // Perturbation adjust for net-zero per cell adjustment
-
-    // Perturbation data arrays
-    amrex::Vector<amrex::Real> pb_interval;    // PB update time [s]
-    amrex::Vector<amrex::Real> pb_local_etime; // PB local elapsed time [s]
-    amrex::Vector<amrex::Real> pb_amp;         // PB perturbation amplitude Ri:[K]
-    amrex::Vector<amrex::Real> pb_netZero;     // PB array used for net zero sum calculation
-
     // Perturbation amplitude calculation
     void calc_tpi_amp (const int boxIdx, const amrex::Real interval)
     {
@@ -541,6 +479,68 @@ struct TurbulentPerturbation {
         m_pb_mag[boxIdx] = 0.5*(sqrt(tmp_h[0]*tmp_h[0] + tmp_h[1]*tmp_h[1]) + sqrt(tmp_h[2]*tmp_h[2] + tmp_h[3]*tmp_h[3]));
         #endif
     }
+
+    // Quality of life function definitions
+    amrex::Real* get_pb_mag() { return pb_mag.data(); }
+    amrex::Real* get_pb_netZero() { return pb_netZero.data(); }
+
+    // Output debug message into a file
+    void debug (amrex::Real time)
+    {
+        amrex::PrintToFile("BoxPerturbationOutput") << "#################### PB output at time = "
+            << time << " ####################\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << " Using type: " <<  pt_type << "\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << " Net: " << tpi_net_buoyant << " Adjust : " <<  tpi_pert_adjust << "\n";
+        for (int i = 0; i < pb_mag.size(); i++) {
+            amrex::PrintToFile("BoxPerturbationOutput") << "[" << i
+                << "] pb_Umag=" << pb_mag[i]
+                << " | pb_interval=" << pb_interval[i]
+                << " (" << pb_local_etime[i]
+                << ") | pb_amp=" << pb_amp[i] << "\n";
+        }
+        amrex::PrintToFile("BoxPerturbationOutput") << "\n";
+    }
+
+    std::string pp_prefix {"erf"};
+
+    int pt_type; // TODO: May need to pass in solverChoice to replace this
+
+    // Public data members
+    amrex::Vector<amrex::BoxArray> pb_ba;  // PB box array
+    amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
+
+    // Perturbation amplitude cell storage
+    // This is after random assignment of equation (10) in Ma and Senocak 2023
+    amrex::MultiFab pb_cell;
+
+  private:
+
+    // Private data members
+    int tpi_layers;                   // Number of layers of perturbation boxes
+    int tpi_offset;                   // Cells to offset the start of the perturbation region
+
+    amrex::Vector<int> tpi_boxDim;    // Dimensions of each perturbation box
+    amrex::Vector<int> tpi_direction; // Direction of the peturbation
+
+    // Richardson Formulation
+    amrex::Real tpi_nonDim;           // Richardson number
+    amrex::Real tpi_Ti;               // Temperature intensity value
+    amrex::Real tpi_Tinf;             // Reference temperature [K]
+
+    // Physical dimensions
+    amrex::Real tpi_Hpb;              // PB height [m]
+    amrex::Real tpi_Lpb;              // PB length [m]
+    amrex::Real tpi_Wpb;              // PB width  [m]
+    amrex::Real tpi_lref;             // PB reference length [m]
+
+    amrex::Real tpi_net_buoyant;      // Perturbation net-zero calculation storage
+    amrex::Real tpi_pert_adjust;      // Perturbation adjust for net-zero per cell adjustment
+
+    // Perturbation data arrays
+    amrex::Vector<amrex::Real> pb_interval;    // PB update time [s]
+    amrex::Vector<amrex::Real> pb_local_etime; // PB local elapsed time [s]
+    amrex::Vector<amrex::Real> pb_amp;         // PB perturbation amplitude Ri:[K]
+    amrex::Vector<amrex::Real> pb_netZero;     // PB array used for net zero sum calculation
 
     // Random number generation between range (used for interval calculation)
     amrex::Real RandomReal (const amrex::Real min, const amrex::Real max)
