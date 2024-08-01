@@ -41,7 +41,7 @@ erf.dynamicViscosity = 0.001
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 0       # timesteps between computing mass
-erf.pert_interval  = 1     # timesteps between perturbation output message XXX
+erf.pert_interval  = 100     # timesteps between perturbation output message XXX
 erf.v              = 0       # verbosity in ERF.cpp XXX
 amr.v              = 0       # verbosity in Amr.cpp
 
