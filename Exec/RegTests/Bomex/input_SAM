@@ -56,6 +56,10 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
 
+erf.use_coriolis    = true
+erf.coriolis_3d     = false
+erf.latitude        = 14.982176712702886  # f = 0.376e-4 1/s
+    
 erf.dycore_horiz_adv_type    = Upwind_3rd
 erf.dycore_vert_adv_type     = Upwind_3rd
 erf.dryscal_horiz_adv_type   = Upwind_3rd
