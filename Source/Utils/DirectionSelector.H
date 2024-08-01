@@ -63,7 +63,7 @@ PerpendicularBox (const amrex::Box& bx, const amrex::IntVect& iv)
         plane_hi = {bx.bigEnd(0), bx.bigEnd(1), iv[2]};
     }
 
-    amrex::Box pbx(plane_lo, plane_hi);
+    amrex::Box pbx(plane_lo, plane_hi, bx.type());
 
     return pbx;
 }
@@ -95,7 +95,7 @@ ParallelBox (const amrex::Box& bx, const amrex::IntVect& iv)
         line_hi = {iv[0], iv[1], bx.bigEnd(2)};
     }
 
-    amrex::Box lbx(line_lo, line_hi);
+    amrex::Box lbx(line_lo, line_hi, bx.type());
 
     return lbx;
 }
