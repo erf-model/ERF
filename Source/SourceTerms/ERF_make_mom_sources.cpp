@@ -151,8 +151,8 @@ void make_mom_sources (int /*level*/,
         Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
         Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
 
-        u_ave.line_average(0 , u_plane_h);
-        v_ave.line_average(0 , v_plane_h);
+        u_ave.line_average(0, u_plane_h);
+        v_ave.line_average(0, v_plane_h);
 
         Gpu::copyAsync(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
         Gpu::copyAsync(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
