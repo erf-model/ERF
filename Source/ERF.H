@@ -982,6 +982,9 @@ private:
     amrex::Vector<           amrex::Vector<amrex::Real> > h_v_geos;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_v_geos;
 
+    // Function to read and populate above host vectors (if input file exists)
+    void init_geo_wind_profile (const std::string input_file);
+
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
 
