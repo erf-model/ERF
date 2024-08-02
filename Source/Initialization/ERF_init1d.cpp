@@ -416,7 +416,6 @@ void ERF::init_geo_wind_profile(const std::string input_file,
 {
     const int klo = 0;
     const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
-    const int Nz = geom.Domain().size()[AMREX_SPACEDIM-1];
     const amrex::Real dz = geom.CellSize()[AMREX_SPACEDIM-1];
 
     const bool grid_stretch = (zlevels_stag.size() > 0);
