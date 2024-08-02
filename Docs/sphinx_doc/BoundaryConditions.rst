@@ -300,7 +300,7 @@ The ``erf.perturbation_T_intensity`` tag can be turned on or off by providing a 
 .. math::
    g = \frac{{Ri}_{PB} {\langle U(z) \rangle}^2_{PB}}{\beta \Delta \phi H_{pb}}.
 
-Using this pseduo-gravity value effectively modifies negates the perturbation method such that the temperature gradient as,
+Using this pseudo-gravity value effectively modifies negates the Richardson number for mulation in the perturbation method and the temperature gradient becomes,
 
 .. math::
    \Delta \phi = T_{i} T_{\infty},
