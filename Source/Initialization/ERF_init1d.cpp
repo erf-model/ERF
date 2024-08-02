@@ -404,7 +404,12 @@ ERF::erf_enforce_hse (int lev,
     pres.FillBoundary(geom[lev].periodicity());
 }
 
-void ERF::init_geo_wind_profile(const std::string input_file)
+void ERF::init_geo_wind_profile(const std::string input_file,
+                                Vector<Real>& u_geos,
+                                Gpu::DeviceVector<Real>& d_u_geos,
+                                Vector<Real>& v_geos,
+                                Gpu::DeviceVector<Real>& d_v_geos,
+                                const Geometry& geom)
 {
     amrex::Print() << "Reading geostrophic wind profile from " << input_file << std::endl;
 }

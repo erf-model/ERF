@@ -768,7 +768,12 @@ ERF::InitData ()
                                                  h_v_geos[lev], d_v_geos[lev],
                                                  geom[lev], z_phys_cc[lev]);
             } else {
-                init_geo_wind_profile(solverChoice.abl_geo_wind_table);
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_terrain == 0,
+                    "1-D geostrophic wind profile input is not defined for terrain");
+                init_geo_wind_profile(solverChoice.abl_geo_wind_table,
+                                      h_u_geos[lev], d_u_geos[lev],
+                                      h_v_geos[lev], d_v_geos[lev],
+                                      geom[lev]);
             }
         }
     }
