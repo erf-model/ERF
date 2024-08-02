@@ -409,7 +409,8 @@ void ERF::init_geo_wind_profile(const std::string input_file,
                                 Gpu::DeviceVector<Real>& d_u_geos,
                                 Vector<Real>& v_geos,
                                 Gpu::DeviceVector<Real>& d_v_geos,
-                                const Geometry& geom)
+                                const Geometry& geom,
+                                const Vector<Real>& zlevels_stag)
 {
     amrex::Print() << "Reading geostrophic wind profile from " << input_file << std::endl;
 }
