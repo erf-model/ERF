@@ -46,18 +46,16 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
         // If perturbDirect is selected, directly add the computed perturbation
         // on the conserved field
-        // XXX Currently gives "Erroneous arithmetic operation" error
-        /*
         if (solverChoice.pert_type == PerturbationType::perturbDirect)
         {
             auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
             for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
                 Box bx  = mfi.tilebox();
-                const Array4<Real> & cell_data  = S_old.array(mfi);
-                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data);
+                const Array4<Real> &cell_data  = S_old.array(mfi);
+                const Array4<const Real> &pert_cell = turbPert.pb_cell.array(mfi);
+                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
             }
         }
-        */
     }
 
     // configure ABLMost params if used MostWall boundary condition

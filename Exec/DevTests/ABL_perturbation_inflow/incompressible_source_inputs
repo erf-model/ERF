@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-stop_time = 60.0
+stop_time = 180.0
 #max_step = 5
 
 erf.incompressible = 1
@@ -9,8 +9,8 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 #Larger problem
-geometry.prob_extent =  40     5     10
-amr.n_cell           = 256    32     64
+geometry.prob_extent =  80   2.5     10
+amr.n_cell           = 512    16     64
 
 # Quick debug problem
 #geometry.prob_extent =  20     5     10
@@ -40,8 +40,8 @@ erf.cfl = 0.5
 erf.dynamicViscosity = 0.001
 
 # DIAGNOSTICS & VERBOSITY
-erf.sum_interval   = 1       # timesteps between computing mass
-erf.pert_interval  = 1       # timesteps between perturbation output message XXX
+erf.sum_interval   = 0       # timesteps between computing mass
+erf.pert_interval  = 1     # timesteps between perturbation output message XXX
 erf.v              = 0       # verbosity in ERF.cpp XXX
 amr.v              = 0       # verbosity in Amr.cpp
 
@@ -50,8 +50,8 @@ amr.max_level       = 0      # maximum level number allowed
 
 # PLOTFILES
 erf.plot_file_1     = plt    # prefix of plotfile name
-#erf.plot_per_1      = 0.1
-erf.plot_int_1      = 5
+#erf.plot_per_1      = 1.0
+erf.plot_per_1      = 0.1
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # CHECKPOINT FILES
@@ -69,14 +69,16 @@ erf.buoyancy_type   = 2
 
 # Turbulent inflow generation
 erf.perturbation_type = "source"
-erf.perturbation_direction = 1 0 0
+#erf.perturbation_type = "direct"
+erf.perturbation_direction = 1 0 0 0 0 0
 erf.perturbation_layers = 3
-erf.perturbation_offset = 3
+erf.perturbation_offset = 5
 
-erf.perturbation_box_dims = 8 8 4
-erf.perturbation_nondimensional = 0.042 # Ri
+erf.perturbation_box_dims =  8 8 4
+#erf.perturbation_nondimensional = 0.042 # Ri
+erf.perturbation_nondimensional = 0.1
 erf.perturbation_T_infinity = 300.0
-erf.perturbation_T_intensity = 0.1
+#erf.perturbation_T_intensity = 0.1
 
 # Initial condition for the entire field
 #erf.init_type = "uniform"
