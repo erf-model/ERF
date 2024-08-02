@@ -242,7 +242,7 @@ The sponge data is input as a text file with 3 columns containing :math:`z, u, v
 Inflow turbulence generation
 ---------------------------
 
-ERF provides the capability to apply a perturbation zone at the inflow domain boundary to mechanically trip turbulence within the domain. The current version of the turbulence generation techniques allows for `x` and `y` (horizontal) direction perturbations.
+ERF provides the capability to apply a perturbation zone at the inflow domain boundary to mechanically trip turbulence within the domain. The current version of the turbulence generation techniques allows for `x` and `y` (horizontal) direction perturbations. In Figure 2, as the bulk flow passes through the buoyant region, it becomes perturbed. This perturbation, combined with a short development fetch, quickly leads to the evolution of turbulence.
 
 .. |PBinflw| image:: figures/PBIllustration.png
            :width: 600
@@ -257,7 +257,7 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
    |  Image taken from `DeLeon et al. (2018)`            |
    +-----------------------------------------------------+
 
-Two different types of perturbation methods are currently available, ``source`` and ``direct``. Both methods uses the formulation introduced by `DeLeon et al. (2018)`_. The ``source`` option applies the perturbation amplitude range, :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the :math:`\rho \theta` field.
+Two different types of perturbation methods are currently available, ``source`` and ``direct``. Both methods uses the formulation introduced by `DeLeon et al. (2018)`_. The ``source`` option applies the perturbation amplitude range, :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the :math:`\rho \theta` field. With should note that while both methods effectively generates turbulence downstream, the ladder approach is more unstable and requires more fine tuning.
 
 ..
   _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
@@ -274,13 +274,13 @@ The change in the perturbation amplitude is defined as,
 
    {Ri}_{PB} = \frac{g \beta \Delta \overline{\phi} H_{PB}}{{\langle U(z) \rangle}^2_{PB}}.
 
-The current implementation only supports West, South, East, and North face perturbations, specified by ``erf.perturbation_direction``, where the six integer inputs represent the west, south, bottom, east, north, and top domain face perturbations, respectively. Note that while the top and bottom options are included, triggering these will abort the program. In addition to the direction of perturbation, the flow perturbation method requires the dimensions of an individual box, specified through erf.perturbation_box_dim, with three integer inputs representing :math:`{Nx}_{pb}`, :math:`{Ny}_{pb}`, and :math:`{Nz}_{pb}`, respectively. Following the guidance of `Ma and Senocak (2023)`_, the general rule of thumb is to use :math:`H_{PB} = 1/8 \delta` as the height of the perturbation box, where :math:`\delta` is the boundary layer height. The length of the box in the x-direction should be :math:`L_{PB} = 2H_{PB}`. Depending on the direction of the bulk flow, the width of the box in the y-direction should be defined as :math:`W_{PB} = L_{PB} \tan{(\theta_{inflow})}`.
+The current implementation supports lateral boundary perturbations, specified by ``erf.perturbation_direction``, where the six integer inputs represent the west, south, bottom, east, north, and top domain face perturbations, respectively. Note that while the top and bottom options are included, triggering either options will abort the program.
+
+In addition to the direction of perturbation, the flow perturbation method requires the dimensions of an individual box, specified through ``erf.perturbation_box_dim``, with three integer inputs representing :math:`{Nx}_{pb}`, :math:`{Ny}_{pb}`, and :math:`{Nz}_{pb}`, respectively. Following the guidance of `Ma and Senocak (2023)`_, the general rule of thumb is to use :math:`H_{PB} = 1/8 \delta` as the height of the perturbation box, where :math:`\delta` is the boundary layer height. The length of the box in the x-direction should be :math:`L_{PB} = 2H_{PB}`. Depending on the direction of the bulk flow, the width of the box in the y-direction should be defined as :math:`W_{PB} = L_{PB} \tan{(\theta_{inflow})}`. The current implementation only accepts integer entries. Therefore, considering the domain size and mesh resolution, the dimensions of a single box can be determined.
 
 .. _`Ma and Senocak (2023)`: https://link.springer.com/article/10.1007/s10546-023-00786-1
 
-Note that the current implementation only accepts integer entries. Therefore, considering the domain size and mesh resolution, the dimensions of a single box can be determined.
-
-The specification of the number of layers and the offset into the domain of the perturbation boxes can be made through ``erf.perturbation_layers`` and ``erf.perturbation_offset``, respectively. Below is an example of the required input tags to setup a simulation with an inflow perturbation simulation.
+Specification of the number of layers and the offset into the domain of the perturbation boxes can be made through ``erf.perturbation_layers`` and ``erf.perturbation_offset``, respectively. Below is an example of the required input tags to setup a simulation with an inflow perturbation simulation.
 
 ::
 
@@ -295,9 +295,21 @@ The specification of the number of layers and the offset into the domain of the 
           erf.perturbation_T_infinity = 300.0
           #erf.perturbation_T_intensity = 0.1
 
-The ``erf.perturbation_T_intensity`` tag can be turned on or off by providing a value or commenting it out. When a value is provided, a pseudo-gravity value is used (solved from the Richardson formulation) to normalize the scales of the problem. While this generates quick turbulence, it should be used as a sanity check rather than a runtime strategy for turbulence generation. Additionally, a net-zero energy enforcement is applied over the perturbation boxes to ensure that the synthetic method does not introduce excess energy into the system at each iteration. Below, we provide a detailed description of the two different types of perturbation methods currently existing within ERF.
+The ``erf.perturbation_T_intensity`` tag can be turned on or off by providing a value or commenting it out. When a value is provided (recommended 0.1-0.25 max), a pseudo-gravity value is used (solved from the Richardson formulation) to normalize the scales of the problem, and is represented as,
 
-Examples are provided within ``Exec/DevTests/ABL_perturbation_inflow/`` to set up a turbulent open channel flow using inflow/outflow boundary conditions with the aforementioned turbulent inflow generation technique to trigger turbulence within the simulation domain.
+.. math::
+   g = \frac{{Ri}_{PB} {\langle U(z) \rangle}^2_{PB}}{\beta \Delta \phi H_{pb}}.
+
+Using this pseudo-gravity value effectively negates the Richardson number formulation, and the temperature gradient becomes,
+
+.. math::
+   \Delta \phi = T_{i} T_{\infty},
+
+where :math:`T_{i}` is the temperature intensity, and :math:`T_{\infty}` is the background temperature.
+
+While this generates quick turbulence, it should be used as a sanity check rather than a runtime strategy for turbulence generation, therefore it is not recommended. Additionally, a net-zero energy enforcement is applied over the perturbation boxes to ensure that the synthetic method does not introduce excess energy into the system at each iteration. Below, we provide a detailed description of the two different types of perturbation methods currently existing within ERF.
+
+Examples are provided within ``Exec/DevTests/ABL_perturbation_inflow/`` to set up a turbulent open channel flow using inflow/outflow boundary conditions with the aforementioned turbulent inflow generation technique to trigger turbulence downstream.
 
 Source type forcing
 -------------------
@@ -326,11 +338,10 @@ and the perturbation amplitude is then computed through,
 
           erf.perturbation_nondimensional = 0.042 # Ri
           erf.perturbation_T_infinity = 300.0
-          #erf.perturbation_T_intensity = 0.1
 
-The box perturbation method (BPM) perturbs the temperature field :math:`\rho \theta` in a volume (box) format. Each box computes a perturbation update time and amplitude, then independently update at its respective update interval during runtime. A single perturbation amplitude is seen by the computational cells that falls within this box. A pseudo-random perturbations (ie. white noise) is applied over the range :math: `[-\phi, +\phi]` then introduced to the :math:`\rho \theta` field via source term (:math:`F_{\rho \theta}`). As temperature is transported and through the action of the subgrid-scale (SGS) filter for eddy viscosity, white noise temperature perturbations become colored noise in the velocity field.
+The box perturbation method (BPM) perturbs the temperature field :math:`\rho \theta` in a volume (box) format. Each box computes a perturbation update time and amplitude, then independently update at its respective update interval during runtime. A single perturbation amplitude is seen by the computational cells that falls within this box. A pseudo-random perturbations (ie. white noise) is applied over the range :math:`[-\phi, +\phi]` then introduced to the :math:`\rho \theta` field via source term (:math:`F_{\rho \theta}`). As temperature is transported and through the action of the subgrid-scale (SGS) filter for eddy viscosity, white noise temperature perturbations become colored noise in the velocity field.
 
-Using the source term to perturb the momentum field through buoyancy coupling requires more time compared to the "direct" perturbation method. Turbulence onset can be triggered by adjusting the size of the perturbation box, as the amplitude is heavily influenced by having the two dimensional scales of the perturbation box in the denominator. While there is a general rule of thumb for this method, a sensitivity test should be performed to correctly perturb the momentum field to match the turbulence for a specific problem.
+Using the source term to perturb the momentum field through buoyancy coupling requires more time compared to the "direct" perturbation method. Turbulence onset can be triggered by adjusting the size of the perturbation box, as the amplitude is heavily influenced by having the two dimensional scales of the perturbation box in the denominator.
 
 Direct type forcing
 -------------------
@@ -352,4 +363,5 @@ To activate the ``direct`` type forcing, set the following inputs list.
 
           erf.perturbation_nondimensional = 0.042 # Ri
           erf.perturbation_T_infinity = 300.0
-          #erf.perturbation_T_intensity = 0.1
+
+We want to note that the ``direct`` perturbation method is sensitive to the temperature amplitude computed through the equation above, and is subject to crash the simulation when this amplitude is too large.
