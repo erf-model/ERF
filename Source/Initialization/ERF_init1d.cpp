@@ -433,9 +433,11 @@ void ERF::init_geo_wind_profile(const std::string input_file,
     std::string line;
     Vector<Real> z_inp, Ug_inp, Vg_inp;
     Real z, Ug, Vg;
+    amrex::Print() << "z  Ug  Vg" << std::endl;
     while(std::getline(profile_reader, line)) {
         std::istringstream iss(line);
         iss >> z >> Ug >> Vg;
+        amrex::Print() << z << " " << Ug << " " << Vg << std::endl;
         z_inp.push_back(z);
         Ug_inp.push_back(Ug);
         Vg_inp.push_back(Vg);
