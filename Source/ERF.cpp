@@ -1255,7 +1255,6 @@ ERF::init_only (int lev, Real time)
         solverChoice.pert_type == PerturbationType::perturbDirect) {
         if (lev == 0) {
             turbPert_update(lev, 0.);
-            turbPert_amplitude(lev);
         }
     }
 }
