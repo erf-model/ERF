@@ -295,19 +295,19 @@ Specification of the number of layers and the offset into the domain of the pert
           erf.perturbation_T_infinity = 300.0
           #erf.perturbation_T_intensity = 0.1
 
-The ``erf.perturbation_T_intensity`` tag can be turned on or off by providing a value or commenting it out. When a value is provided (recommended 10% to 20%), a pseudo-gravity value is used (solved from the Richardson formulation) to normalize the scales of the problem, and is represented as,
+The ``erf.perturbation_T_intensity`` tag can be turned on or off by providing a value or commenting it out. When a value is provided (recommended 0.1-0.25 max), a pseudo-gravity value is used (solved from the Richardson formulation) to normalize the scales of the problem, and is represented as,
 
 .. math::
    g = \frac{{Ri}_{PB} {\langle U(z) \rangle}^2_{PB}}{\beta \Delta \phi H_{pb}}.
 
-Using this pseudo-gravity value effectively modifies negates the Richardson number for mulation in the perturbation method and the temperature gradient becomes,
+Using this pseudo-gravity value effectively negates the Richardson number formulation, and the temperature gradient becomes,
 
 .. math::
    \Delta \phi = T_{i} T_{\infty},
 
 where :math:`T_{i}` is the temperature intensity, and :math:`T_{\infty}` is the background temperature.
 
-While this generates quick turbulence, it should be used as a sanity check rather than a runtime strategy for turbulence generation, therefore it is not a recommended. Additionally, a net-zero energy enforcement is applied over the perturbation boxes to ensure that the synthetic method does not introduce excess energy into the system at each iteration. Below, we provide a detailed description of the two different types of perturbation methods currently existing within ERF.
+While this generates quick turbulence, it should be used as a sanity check rather than a runtime strategy for turbulence generation, therefore it is not recommended. Additionally, a net-zero energy enforcement is applied over the perturbation boxes to ensure that the synthetic method does not introduce excess energy into the system at each iteration. Below, we provide a detailed description of the two different types of perturbation methods currently existing within ERF.
 
 Examples are provided within ``Exec/DevTests/ABL_perturbation_inflow/`` to set up a turbulent open channel flow using inflow/outflow boundary conditions with the aforementioned turbulent inflow generation technique to trigger turbulence downstream.
 
