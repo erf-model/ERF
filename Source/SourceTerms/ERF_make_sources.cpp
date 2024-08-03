@@ -352,7 +352,7 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.pert_type == PerturbationType::perturbSource) {
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
-            const amrex::Array4<const amrex::Real> &pert_cell = turbPert.pb_cell.array(mfi);
+            const amrex::Array4<const amrex::Real>& pert_cell = turbPert.pb_cell.const_array(mfi);
             turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src, pert_cell); // Applied as source term
         }
     } // mfi
