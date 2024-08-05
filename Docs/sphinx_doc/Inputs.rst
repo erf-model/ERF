@@ -692,7 +692,11 @@ The requested output files have the following columns:
 
   #. SGS stress tensor component, :math:`\tau_{33}` (m2/s2)
 
-  #. SGS heat flux, :math:`\tau_{\theta w}` (K m/s)
+  #. *SGS heat flux*, :math:`\tau_{\theta w}` (K m/s) -- *staggered*
+
+  #. *SGS water vapor flux*, :math:`\tau_{q_v w}` (K m/s) -- *staggered*
+
+  #. *SGS cloud water flux*, :math:`\tau_{q_c w}` (K m/s) -- *staggered*
 
   #. SGS turbulence dissipation, :math:`\epsilon` (m2/s3)
 

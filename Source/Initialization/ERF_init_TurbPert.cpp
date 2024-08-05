@@ -25,10 +25,19 @@ ERF::turbPert_update (const int lev, const Real local_dt)
     MultiFab::Copy (xvel_data, lev_new[Vars::xvel], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab::Copy (yvel_data, lev_new[Vars::yvel], 0, 0, 1, lev_new[Vars::yvel].nGrowVect());
 
+    // This logic is done once then stored within TurbPertStruct.H
+    turbPert.pt_type = -1;
+    if (solverChoice.pert_type == PerturbationType::perturbSource) {
+        turbPert.pt_type = 0;
+    } else if (solverChoice.pert_type == PerturbationType::perturbDirect) {
+        turbPert.pt_type = 1;
+    }
+    AMREX_ALWAYS_ASSERT(turbPert.pt_type >= 0);
+
     // Computing perturbation update time
     turbPert.calc_tpi_update(lev, local_dt, xvel_data, yvel_data, cons_data);
 
-    Print() << "Successfully initialized turbulent perturbation update time and amplitude\n";
+    Print() << "Successfully initialized turbulent perturbation update time and amplitude with type: "<< turbPert.pt_type <<"\n";
 }
 
 // Calculate the perturbation region amplitude.
