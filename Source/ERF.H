@@ -989,7 +989,7 @@ private:
                                 amrex::Vector<amrex::Real>& v_geos,
                                 amrex::Gpu::DeviceVector<amrex::Real>& v_geos_d,
                                 const amrex::Geometry& geom,
-                                const amrex::Vector<amrex::Real>& zlevels_stag);
+                                const amrex::Vector<amrex::Real>& zlev_stag);
 
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
