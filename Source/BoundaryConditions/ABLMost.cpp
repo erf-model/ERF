@@ -317,7 +317,7 @@ ABLMost::compute_most_bcs (const int& lev,
                         lsm_flux_arr(i,j,klo) = Tflux;
                     }
                     else if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
-                        hfx_arr(i,j,klo-1) = Tflux;
+                        hfx_arr(i,j,klo) = Tflux;
                     }
                 });
 
