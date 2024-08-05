@@ -344,6 +344,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lmask_lev[lev][0]->setVal(1);
     lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
     }
+
+    // Read in tables needed for windfarm simulations
+    // fill in Nturb multifab - number of turbines in each mesh cell
+    // write out the vtk files for wind turbine location and/or
+    // actuator disks
+    #ifdef ERF_USE_WINDFARM
+        init_windfarm(lev);
+    #endif
 }
 
 void
