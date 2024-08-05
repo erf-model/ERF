@@ -309,7 +309,7 @@ where :math:`T_{i}` is the temperature intensity, and :math:`T_{\infty}` is the 
 
 While this generates quick turbulence, it should be used as a sanity check rather than a runtime strategy for turbulence generation, therefore it is not recommended. Additionally, a net-zero energy enforcement is applied over the perturbation boxes to ensure that the synthetic method does not introduce excess energy into the system at each iteration. Below, we provide a detailed description of the two different types of perturbation methods currently existing within ERF.
 
-Examples are provided within ``Exec/DevTests/ABL_perturbation_inflow/`` to set up a turbulent open channel flow using inflow/outflow boundary conditions with the aforementioned turbulent inflow generation technique to trigger turbulence downstream.
+Examples are provided within ``Exec/RegTests/TurbulentInflow/`` to set up a turbulent open channel flow using inflow/outflow boundary conditions with the aforementioned turbulent inflow generation technique to trigger turbulence downstream.
 
 Source type forcing
 -------------------
