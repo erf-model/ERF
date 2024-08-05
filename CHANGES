@@ -1,4 +1,23 @@
-# 24.05
+# 24.08
+    -- AMReX submodule set to 24.08 release hash (ac5dde3)
+
+    -- Fix diffusion stencil with Dirichlet boundary (#1723)
+
+    -- Turbulent inflow perturbation (#1722/#1721/#1716/#1695)
+
+    -- BOMEX regtest (#1714/#1707)
+
+    -- Output SGS fluxes (#1713)
+
+    -- Wind model for SAD (#1667)
+
+    -- ERF container (#1703)
+
+    -- Inflow face prescribed from a data file (#1698)
+
+    -- YSU PBL updates (#1694)
+
+# 24.06
     -- AMReX submodule set to 24.06 release hash (f141191)
 
     -- SAM microphysics corrections (#1634/#1629)
