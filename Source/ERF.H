@@ -985,9 +985,9 @@ private:
     // Function to read and populate above host vectors (if input file exists)
     void init_geo_wind_profile (const std::string input_file,
                                 amrex::Vector<amrex::Real>& u_geos,
-                                amrex::Gpu::DeviceVector<amrex::Real>& d_u_geos,
+                                amrex::Gpu::DeviceVector<amrex::Real>& u_geos_d,
                                 amrex::Vector<amrex::Real>& v_geos,
-                                amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
+                                amrex::Gpu::DeviceVector<amrex::Real>& v_geos_d,
                                 const amrex::Geometry& geom,
                                 const amrex::Vector<amrex::Real>& zlevels_stag);
 

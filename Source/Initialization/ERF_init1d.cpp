@@ -408,9 +408,9 @@ ERF::erf_enforce_hse (int lev,
 
 void ERF::init_geo_wind_profile(const std::string input_file,
                                 Vector<Real>& u_geos,
-                                Gpu::DeviceVector<Real>& d_u_geos,
+                                Gpu::DeviceVector<Real>& u_geos_d,
                                 Vector<Real>& v_geos,
-                                Gpu::DeviceVector<Real>& d_v_geos,
+                                Gpu::DeviceVector<Real>& v_geos_d,
                                 const Geometry& geom,
                                 const Vector<Real>& zlevels_stag)
 {
@@ -456,8 +456,8 @@ void ERF::init_geo_wind_profile(const std::string input_file,
     }
 
     // Copy from host version to device version
-    Gpu::copy(Gpu::hostToDevice, u_geos.begin(), u_geos.end(), d_u_geos.begin());
-    Gpu::copy(Gpu::hostToDevice, v_geos.begin(), v_geos.end(), d_v_geos.begin());
+    Gpu::copy(Gpu::hostToDevice, u_geos.begin(), u_geos.end(), u_geos_d.begin());
+    Gpu::copy(Gpu::hostToDevice, v_geos.begin(), v_geos.end(), v_geos_d.begin());
 
     profile_reader.close();
 }
