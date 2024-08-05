@@ -19,17 +19,17 @@ USE_HIP  = FALSE
 USE_SYCL = FALSE
 
 # Debugging
-#DEBUG = TRUE
+DEBUG = FALSE
 
 TEST = TRUE
 USE_ASSERTION = TRUE
 
 # Incompressible Solver
-#USE_POISSON_SOLVE = TRUE
+USE_POISSON_SOLVE = FALSE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DevTests/ABL_perturbation_inflow
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/TurbulentInflow
 include $(ERF_HOME)/Exec/Make.ERF
