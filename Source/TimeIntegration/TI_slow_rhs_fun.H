@@ -33,8 +33,8 @@
             }
         }
 
-        Real* dptr_u_geos = solverChoice.custom_geostrophic_profile ? d_u_geos[level].data(): nullptr;
-        Real* dptr_v_geos = solverChoice.custom_geostrophic_profile ? d_v_geos[level].data(): nullptr;
+        Real* dptr_u_geos = solverChoice.have_geo_wind_profile ? d_u_geos[level].data(): nullptr;
+        Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
 
         // Construct the source terms for the cell-centered (conserved) variables
         make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
@@ -404,8 +404,8 @@
             }
         }
 
-        Real* dptr_u_geos = solverChoice.custom_geostrophic_profile ? d_u_geos[level].data(): nullptr;
-        Real* dptr_v_geos = solverChoice.custom_geostrophic_profile ? d_v_geos[level].data(): nullptr;
+        Real* dptr_u_geos = solverChoice.have_geo_wind_profile ? d_u_geos[level].data(): nullptr;
+        Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
 
         make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
 #if defined(ERF_USE_RRTMGP)
