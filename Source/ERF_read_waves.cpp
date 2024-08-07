@@ -17,12 +17,15 @@ using namespace amrex;
 void
 ERF::read_waves (int lev)
 {
+         double clkStart, timedif;
+         clkStart = (double) clock() / CLOCKS_PER_SEC;
+
     for ( MFIter mfi(*Hwave_onegrid[lev],false); mfi.isValid(); ++mfi)
     {
 
          const auto & bx = mfi.validbox();
 
-         amrex::Print() <<  " HERE " << bx << std::endl;
+         amrex::Print() <<  " Just called ERF::read_waves to receive from WW3 " << bx << std::endl;
          amrex::Array4<Real> my_H_arr = Hwave_onegrid[lev]->array(mfi);
          amrex::Array4<Real> my_L_arr = Lwave_onegrid[lev]->array(mfi);
 
@@ -76,10 +79,6 @@ ERF::read_waves (int lev)
                  }
              }
 
-    amrex::Real myclock = ParallelDescriptor::second();
-
-    amrex::AllPrintToFile("recv_from_ww3_timer.txt") << "It took " << myclock << " seconds to finish receiving from ww3" << std::endl;
-
              amrex::AllPrintToFile("output_HS_cpp.txt")<<FArrayBox(my_H_arr)<<std::endl;
              amrex::AllPrintToFile("output_L_cpp.txt")<<FArrayBox(my_L_arr)<<std::endl;
 
@@ -87,6 +86,7 @@ ERF::read_waves (int lev)
     }
 
 
+         amrex::Print() <<  " Just called received HS and LM from WW3 "  << std::endl;
     //May need to be Redistribute
     //    ParallelCopy(Hwave[lev],Hwave_onegrid[lev],0,0,1,0);
     Hwave[lev]->ParallelCopy(*Hwave_onegrid[lev]);
@@ -107,7 +107,13 @@ ERF::read_waves (int lev)
             }
         });
     }
+         //    amrex::Real myclock = ParallelDescriptor::second();
 
+        //     amrex::AllPrintToFile("timer.txt") << "At " << myclock << " seconds, I reached the end of read_waves" << std::endl;
+
+    timedif = ( ((double) clock()) / CLOCKS_PER_SEC) - clkStart;
+
+     amrex::AllPrintToFile("timer.txt") << "It took " << timedif << " seconds to reach the end of read_waves" << std::endl;
 }
 
 void
@@ -124,8 +130,9 @@ ERF::send_to_ww3 (int lev)
     if (dz < 10){
         k_ref = std::floor( (10 / dz) - 0.5 );
     }
-    double clkStart2, timedif2;
-    clkStart2 = (double) clock() / CLOCKS_PER_SEC;
+    double clkStart, timedif;
+    clkStart = (double) clock() / CLOCKS_PER_SEC;
+
     // Access xvel, yvel from ABL
     MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
 
@@ -229,15 +236,17 @@ ERF::send_to_ww3 (int lev)
     dm_onegrid.define(pmap);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-            magnitude(i,j,k)  = std::sqrt( pow(u(i,j,k), 2) + pow(v(i,j,k), 2) );
+ 
+ //           magnitude(i,j,k)  = std::sqrt( pow(u(i,j,k), 2) + pow(v(i,j,k), 2) );
 
             double u_val = u(i, j, k);
             double v_val = v(i, j, k);
+
             if ( u_val == 0 ) {
                 u_val = std::max( u_val, 1e-15 );  // Ensure u_val is non-zero
             }
 
+            magnitude(i,j,k) = std::sqrt( pow(u_val, 2) + pow(v_val, 2) );
 
             if ( u_val < 0 && v_val > 0 || u_val < 0 && v_val < 0 ) {
 
@@ -275,15 +284,11 @@ ERF::send_to_ww3 (int lev)
     indices[counter] = iv;
     ++counter;
     }
-    timedif2 = ( ((double) clock()) / CLOCKS_PER_SEC) - clkStart2;
-    amrex::AllPrintToFile("timer.txt") << "It took " << (double) timedif2 << " seconds to reach the part before sending" << std::endl;
-    //amrex::Print() << "It took " << (double) timedif2 << " seconds to reach the part before sending" << std::endl;
-
-    double clkStart, timedif;
-    clkStart = (double) clock() / CLOCKS_PER_SEC;
+//    timedif2 = ( ((double) clock()) / CLOCKS_PER_SEC) - clkStart2;
+//    amrex::AllPrintToFile("timer.txt") << "It took " << (double) timedif2 << " seconds to reach the part before sending" << std::endl;
+//amrex::Print() << "It took " << (double) timedif2 << " seconds to reach the part before sending" << std::endl;
 
 // Print magnitude values and corresponding IntVect indices
-
 for (int j = 0; j < n_elements; ++j) {
     amrex::AllPrintToFile("debug_send.txt")
         << "dz, k_ref " << dz << ", " << k_ref << " "
@@ -305,7 +310,7 @@ for (int j = 0; j < n_elements; ++j) {
          }
 
 
-         amrex::Print()<< "We are sending " << n_elements << std::endl;
+         amrex::Print()<< "Sending" << n_elements << "from ERF::send_to_ww3 now" << std::endl;
 
          if (amrex::MPMD::MyProc() == this_root) {
              if (rank_offset == 0) // First program
@@ -325,14 +330,10 @@ MPI_Send(theta_values.data(), n_elements, MPI_DOUBLE, other_root, 14, MPI_COMM_W
          }
     timedif = ( ((double) clock()) / CLOCKS_PER_SEC) - clkStart; 
 
-    amrex::Real myclock = ParallelDescriptor::second(); 
-	
-    amrex::AllPrintToFile("send_to_ww3_timer.txt") << "It took " << myclock << " seconds to reach the end of send_to_ww3 using amrex::ParallelDescriptor to time" << std::endl;
-    amrex::AllPrintToFile("timer.txt") << "It took " << timedif << " seconds to send WW3 these arrays via MPI_Send" << std::endl; 
-  // amrex::Print() << "It took " << myclock  << " seconds to send WW3 these arrays via MPI_Send" << std::endl;
+// amrex::Real myclock = ParallelDescriptor::second(); 	
+//    amrex::AllPrintToFile("timer.txt") << "At " << myclock << " seconds I reached the end of send_to_ww3" << std::endl;
 
-         //count_send = count_send + 1;
-         //amrex::AllPrintToFile("count_sends.txt")  <<  " Sending to WW3 : " << count_send << std::endl;
+     amrex::AllPrintToFile("timer.txt") << "It took " << timedif << " seconds to reach the end of send_to_WW3" << std::endl; 
 
 
 }
