@@ -207,7 +207,8 @@ ERF::derive_diag_profiles(Real /*time*/,
     // We assume that this is always called at level 0
     int lev = 0;
 
-    bool l_use_Turb = (solverChoice.turbChoice[lev].les_type != LESType::None);
+    bool l_use_kturb = ((solverChoice.turbChoice[lev].les_type != LESType::None) ||
+                        (solverChoice.turbChoice[lev].pbl_type != PBLType::None));
     bool l_use_KE   = (solverChoice.turbChoice[lev].les_type == LESType::Deardorff);
     bool l_use_QKE  = solverChoice.turbChoice[lev].use_QKE && solverChoice.turbChoice[lev].advect_QKE;
 
@@ -274,8 +275,8 @@ ERF::derive_diag_profiles(Real /*time*/,
         const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
         const Array4<Real>& cons_arr = mf_cons.array(mfi);
         const Array4<Real>&   p0_arr = p_hse.array(mfi);
-        const Array4<const Real>& eta_arr = (l_use_Turb) ? eddyDiffs_lev[lev]->const_array(mfi) :
-                                                           Array4<const Real>{};
+        const Array4<const Real>& eta_arr = (l_use_kturb) ? eddyDiffs_lev[lev]->const_array(mfi) :
+                                                            Array4<const Real>{};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -291,7 +292,7 @@ ERF::derive_diag_profiles(Real /*time*/,
             fab_arr(i, j, k, 2) = ksgs;
 #if 1
             Real kturb = 0.0;
-            if (l_use_Turb) kturb = eta_arr(i,j,k,EddyDiff::Mom_h);
+            if (l_use_kturb) kturb = eta_arr(i,j,k,EddyDiff::Mom_v);
             fab_arr(i, j, k, 3) = kturb;
 #else
             // Here we hijack the "Kturb" variable name to print out the resolved kinetic energy
