@@ -1,4 +1,4 @@
-set(erf_exe_name erf_abl_perturbation_inflow)
+set(erf_exe_name erf_turbulent_inflow)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

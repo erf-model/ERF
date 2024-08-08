@@ -61,10 +61,10 @@ struct TurbulentPerturbation {
         if (tpi_Ti < 0.) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-1.0)"); }
 
         // Creating perturbation regions and initializing with generic size. Temporary size for now
-        amrex::Box lo_x_bx(amrex::IntVect(0,0,0), amrex::IntVect(1,1,1), amrex::IntVect(0,0,0));
-        amrex::Box hi_x_bx(amrex::IntVect(0,0,0), amrex::IntVect(1,1,1), amrex::IntVect(0,0,0));
-        amrex::Box lo_y_bx(amrex::IntVect(0,0,0), amrex::IntVect(1,1,1), amrex::IntVect(0,0,0));
-        amrex::Box hi_y_bx(amrex::IntVect(0,0,0), amrex::IntVect(1,1,1), amrex::IntVect(0,0,0));
+        amrex::Box lo_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
+        amrex::Box hi_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
+        amrex::Box lo_y_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
+        amrex::Box hi_y_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
 
         // Create a temporary box list to accumulate all the perturbation regions after box modification
         amrex::BoxList tmp_bl;
@@ -156,12 +156,14 @@ struct TurbulentPerturbation {
         tpi_net_buoyant = 0.;
 
         // Function check point message
-        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_box_dims: " << tpi_boxDim[0] << " "
-                                                                                << tpi_boxDim[1] << " "
-                                                                                << tpi_boxDim[2] << "\n";
-        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_direction: " << tpi_direction[0] << " "
-                                                                                 << tpi_direction[1] << " "
-                                                                                 << tpi_direction[2] << "\n\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_box_dims: "
+                                                    << tpi_boxDim[0] << " "
+                                                    << tpi_boxDim[1] << " "
+                                                    << tpi_boxDim[2] << "\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_direction: "
+                                                    << tpi_direction[0] << " "
+                                                    << tpi_direction[1] << " "
+                                                    << tpi_direction[2] << "\n\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_layers: " << tpi_layers << "\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_offset: " << tpi_offset << "\n\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_nondimensional: " << tpi_nonDim << "\n";
@@ -197,7 +199,7 @@ struct TurbulentPerturbation {
             if ( pb_interval[boxIdx] <= pb_local_etime[boxIdx] ) {
 
                 // Compute mean velocity of each perturbation box
-                calc_tpi_meanMag_perBox(boxIdx, lev, mf_xvel, mf_yvel);
+                calc_tpi_meanMag_perBox(boxIdx, lev, mf_cons, mf_xvel, mf_yvel);
 
                 // Only the rank owning the box will be able to access the storage location
                 // Done for parallelism to avoid Inf being stored in array
@@ -235,24 +237,22 @@ struct TurbulentPerturbation {
         }
     }
 
-//#define INDEX_PERTURB
-
     // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
     // This function does per cell application within the box union. Random perturbation
     // is assigned in calc_tpi_update.
-    void apply_tpi (const int lev,
-                    const amrex::Box& vbx,                     // box union from upper level
-                    const int comp,                            // Component to modify
-                    const amrex::IndexType m_ixtype,           // IntVect type of src_arr
-                    const amrex::Array4<amrex::Real> &src_arr, // Array to apply perturbation
-                    const amrex::Array4<amrex::Real const> pert_cell)
+    void apply_tpi (const int& lev,
+                    const amrex::Box& vbx,                      // box union from upper level
+                    const int& comp,                            // Component to modify
+                    const amrex::IndexType& m_ixtype,           // IntVect type of src_arr
+                    const amrex::Array4<amrex::Real>& src_arr,  // Array to apply perturbation
+                    const amrex::Array4<amrex::Real const>& pert_cell)
     {
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-            amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
+            amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                 ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    src_arr(i,j,k,comp) += pert_cell(i,j,k,0);
+                    src_arr(i,j,k,comp) += pert_cell(i,j,k);
 
                     // For box region debug only
                     #ifdef INDEX_PERTURB
@@ -264,7 +264,8 @@ struct TurbulentPerturbation {
     }
 
     // Perturbation amplitude calculation
-    void calc_tpi_amp (const int boxIdx, const amrex::Real interval)
+    void calc_tpi_amp (const int& boxIdx,
+                       const amrex::Real& interval)
     {
         amrex::Real Um = pb_mag[boxIdx];
         pb_amp[boxIdx] = 0.; // Safety step
@@ -289,84 +290,87 @@ struct TurbulentPerturbation {
     // Assigns pseudo-random (ie. white noise) perturbation to a storage cell, this
     // value is then held constant for the duration of the update interval and assigned onto
     // the source term
-    void pseudoRandomPert (const int boxIdx, const int lev, const amrex::IndexType m_ixtype)
+    void pseudoRandomPert (const int& boxIdx,
+                           const int& lev,
+                           const amrex::IndexType& m_ixtype)
     {
         for (amrex::MFIter mfi(pb_cell,TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box vbx = mfi.validbox();
-            amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
+            amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                 amrex::Real amp_copy = pb_amp[boxIdx];
-                const amrex::Array4<amrex::Real> &pert_cell = pb_cell.array(mfi);
+                const amrex::Array4<amrex::Real>& pert_cell = pb_cell.array(mfi);
                 ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
                     amrex::Real rand_double = amrex::Random(engine);
-                    pert_cell(i,j,k,0) = (rand_double*2.0 - 1.0) * amp_copy;
+                    pert_cell(i,j,k) = (rand_double*2.0 - 1.0) * amp_copy;
                 });
             }
         }
     }
 
     // Checks for net-zero buoyant force introduction into the system
-    void netZeroBuoyantAdd (const int boxIdx, const int lev)
+    void netZeroBuoyantAdd (const int& boxIdx,
+                            const int& lev)
     {
         // Creating local copy of PB box array and magnitude
         const amrex::BoxArray m_pb_ba = pb_ba[lev];
         amrex::Real* m_pb_netZero = get_pb_netZero();
 
         // Create device array for summation
-        amrex::Vector<amrex::Real> tmp_h(1,0.);
-        amrex::Gpu::DeviceVector<amrex::Real> tmp_d(1,0.);
-        amrex::Real* tmp = tmp_d.data();
+        amrex::Vector<amrex::Real> avg_h(1,0.);
+        amrex::Gpu::DeviceVector<amrex::Real> avg_d(1,0.);
+        amrex::Real* avg = avg_d.data();
 
         // Iterates through the cells of each box and sum the white noise perturbation
         for (amrex::MFIter mfi(pb_cell, TileNoZ()) ; mfi.isValid(); ++mfi) {
-            const amrex::Box &vbx = mfi.validbox();
-            amrex::Box pbx = convert(m_pb_ba[boxIdx], vbx.ixType());
+            const amrex::Box& vbx = mfi.validbox();
+            amrex::Box pbx = amrex::convert(m_pb_ba[boxIdx], vbx.ixType());
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
-                const amrex::Array4<const amrex::Real> &pert_cell = pb_cell.array(mfi);
+                const amrex::Array4<const amrex::Real>& pert_cell = pb_cell.const_array(mfi);
                 int npts = ubx.numPts();
                 amrex::Real norm = 1.0 / (amrex::Real) npts;
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[0], pert_cell(i,j,k)*norm, handler);
+                    amrex::Gpu::deviceReduceSum(&avg[0], pert_cell(i,j,k)*norm, handler);
                 });
-                amrex::Gpu::copy(amrex::Gpu::deviceToHost, tmp_d.begin(), tmp_d.end(), tmp_h.begin());
+                amrex::Gpu::copy(amrex::Gpu::deviceToHost, avg_d.begin(), avg_d.end(), avg_h.begin());
 
                 // Assigning onto storage array
-                m_pb_netZero[boxIdx] = tmp_h[0];
+                m_pb_netZero[boxIdx] = avg_h[0];
             }
         }
     }
 
     // If it's not a net-zero buoyant force, then adjust all cell by a normalized value
     // to achieve this logic
-    void netZeroBuoyantAdjust (const int boxIdx, const int lev)
+    void netZeroBuoyantAdjust (const int& boxIdx,
+                               const int& lev)
     {
         // Creating local copy of PB box array and magnitude
         const amrex::BoxArray m_pb_ba = pb_ba[lev];
         for (amrex::MFIter mfi(pb_cell, TileNoZ()) ; mfi.isValid(); ++mfi) {
-            const amrex::Box &vbx = mfi.validbox();
-            amrex::Box pbx = convert(m_pb_ba[boxIdx], vbx.ixType());
+            const amrex::Box& vbx = mfi.validbox();
+            amrex::Box pbx = amrex::convert(m_pb_ba[boxIdx], vbx.ixType());
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                const amrex::Real adjust = tpi_pert_adjust;
-               const amrex::Array4<amrex::Real> &pert_cell = pb_cell.array(mfi);
+               const amrex::Array4<amrex::Real>& pert_cell = pb_cell.array(mfi);
                ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                   pert_cell(i,j,k,0) -= adjust;
+                   pert_cell(i,j,k) -= adjust;
                });
             }
         }
     }
 
 // TODO: Test the difference between these two for Source term perturbation
-//#define USE_SLAB_AVERAGE
 #define USE_VOLUME_AVERAGE
-
     // Perturbation box mean velocity magnitude calculation
     // This is pulled into the structure to also utilize during runtime
-    void calc_tpi_meanMag_perBox (const int boxIdx,
-                                  const int lev,
+    void calc_tpi_meanMag_perBox (const int& boxIdx,
+                                  const int& lev,
+                                  amrex::MultiFab& mf_cons,
                                   amrex::MultiFab& mf_xvel,
                                   amrex::MultiFab& mf_yvel)
 
@@ -379,32 +383,45 @@ struct TurbulentPerturbation {
         // Storage of averages per PB
         // Index: 0=u (vol/slab_lo), 1=v (vol/slab_lo)
         //        2=u (slab_hi),     3=v (slab_hi)
-        amrex::Vector<amrex::Real> tmp_h(4,0.);
-        amrex::Gpu::DeviceVector<amrex::Real> tmp_d(4,0.);
-        amrex::Real* tmp = tmp_d.data();
+        int n_avg = 4;
+        amrex::Vector<amrex::Real> avg_h(n_avg,0.);
+        amrex::Gpu::DeviceVector<amrex::Real> avg_d(n_avg,0.);
+        amrex::Real* avg = avg_d.data();
 
-        // Averaging u components
-        for (amrex::MFIter mfi(mf_xvel, TileNoZ()) ; mfi.isValid(); ++mfi) {
-            const amrex::Box &vbx = mfi.validbox();
-            amrex::Box pbx = convert(m_pb_ba[boxIdx], vbx.ixType());
-            amrex::Box ubx = pbx & vbx;
+        // Averaging u & v components in single MFIter
+        for (amrex::MFIter mfi(mf_cons, TileNoZ()); mfi.isValid(); ++mfi) {
 
-            // Operation over box union
-            if (ubx.ok()) {
-                const amrex::Array4<const amrex::Real> &xvel_arry = mf_xvel.array(mfi);
+            // CC valid box (inherited from mf_cons)
+            const amrex::Box& vbx = mfi.validbox();
+
+            // Box logic for u velocity
+            auto ixtype_u    = mf_xvel.boxArray().ixType();
+            amrex::Box vbx_u = amrex::convert(vbx,ixtype_u);
+            amrex::Box pbx_u = amrex::convert(m_pb_ba[boxIdx], ixtype_u);
+            amrex::Box ubx_u = pbx_u & vbx_u;
+
+            // Box logic for v velocity
+            auto ixtype_v    = mf_yvel.boxArray().ixType();
+            amrex::Box vbx_v = amrex::convert(vbx,ixtype_v);
+            amrex::Box pbx_v = amrex::convert(m_pb_ba[boxIdx], ixtype_v);
+            amrex::Box ubx_v = pbx_v & vbx_v;
+
+            // Operation over box union (U)
+            if (ubx_u.ok()) {
+                const amrex::Array4<const amrex::Real>& xvel_arry = mf_xvel.const_array(mfi);
 
                 #ifdef USE_VOLUME_AVERAGE
-                int npts = ubx.numPts();
+                int npts = ubx_u.numPts();
                 amrex::Real norm = 1.0 / (amrex::Real) npts;
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx_u, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k)*norm, handler);
+                    amrex::Gpu::deviceReduceSum(&avg[0], xvel_arry(i,j,k)*norm, handler);
                 });
                 #endif // USE_VOLUME_AVERAGE
 
                 #ifdef USE_SLAB_AVERAGE
-                amrex::Box ubxSlab_lo = makeSlab(ubx,2,ubx.smallEnd(2));
-                amrex::Box ubxSlab_hi = makeSlab(ubx,2,ubx.bigEnd(2));
+                amrex::Box ubxSlab_lo = makeSlab(ubx_u,2,ubx_u.smallEnd(2));
+                amrex::Box ubxSlab_hi = makeSlab(ubx_u,2,ubx_u.bigEnd(2));
                 int npts_lo = ubxSlab_lo.numPts();
                 int npts_hi = ubxSlab_hi.numPts();
                 amrex::Real norm_lo = 1.0 / (amrex::Real) npts_lo;
@@ -413,40 +430,33 @@ struct TurbulentPerturbation {
                 // Average u in the low slab
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k)*norm_lo, handler);
+                    amrex::Gpu::deviceReduceSum(&avg[0], xvel_arry(i,j,k)*norm_lo, handler);
                 });
 
                 // Average u in the high slab
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[2], xvel_arry(i,j,k)*norm_hi, handler);
+                    amrex::Gpu::deviceReduceSum(&avg[2], xvel_arry(i,j,k)*norm_hi, handler);
                 });
                 #endif // USE_SLAB_AVERAGE
             } // if
-        } // MFIter
 
-        // Averaging v components
-        for (amrex::MFIter mfi(mf_yvel, TileNoZ()); mfi.isValid(); ++mfi) {
-            amrex::Box const& vbx = mfi.validbox();
-            amrex::Box pbx = convert(m_pb_ba[boxIdx], vbx.ixType());
-            amrex::Box ubx = pbx & vbx;
-
-            // Operation over box union
-            if (ubx.ok()) {
-                const amrex::Array4<const amrex::Real> &yvel_arry = mf_yvel.array(mfi);
+            // Operation over box union (V)
+            if (ubx_v.ok()) {
+                const amrex::Array4<const amrex::Real>& yvel_arry = mf_yvel.const_array(mfi);
 
                 #ifdef USE_VOLUME_AVERAGE
-                int npts = ubx.numPts();
+                int npts = ubx_v.numPts();
                 amrex::Real norm = 1.0 / (amrex::Real) npts;
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx_v, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k)*norm, handler);
+                    amrex::Gpu::deviceReduceSum(&avg[1], yvel_arry(i,j,k)*norm, handler);
                 });
                 #endif // USE_VOLUME_AVERAGE
 
                 #ifdef USE_SLAB_AVERAGE
-                amrex::Box ubxSlab_lo = makeSlab(ubx,2,ubx.smallEnd(2));
-                amrex::Box ubxSlab_hi = makeSlab(ubx,2,ubx.bigEnd(2));
+                amrex::Box ubxSlab_lo = makeSlab(ubx_v,2,ubx_v.smallEnd(2));
+                amrex::Box ubxSlab_hi = makeSlab(ubx_v,2,ubx_v.bigEnd(2));
                 int npts_lo = ubxSlab_lo.numPts();
                 int npts_hi = ubxSlab_hi.numPts();
                 amrex::Real norm_lo = 1.0 / (amrex::Real) npts_lo;
@@ -455,28 +465,29 @@ struct TurbulentPerturbation {
                 // Average v in the low slab
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k)*norm_lo, handler);
+                    amrex::Gpu::deviceReduceSum(&avg[1], yvel_arry(i,j,k)*norm_lo, handler);
                 });
 
                 // Average v in the high slab
                 ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&tmp[3], yvel_arry(i,j,k)*norm_hi, handler);
+                    amrex::Gpu::deviceReduceSum(&avg[3], yvel_arry(i,j,k)*norm_hi, handler);
                 });
                 #endif // USE_SLAB_AVERAGE
             } // if
         } // MFIter
 
         // Copy from device back to host
-        amrex::Gpu::copy(amrex::Gpu::deviceToHost, tmp_d.begin(), tmp_d.end(), tmp_h.begin());
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, avg_d.begin(), avg_d.end(), avg_h.begin());
 
         // Computing the average magnitude within PB
         #ifdef USE_VOLUME_AVERAGE
-        m_pb_mag[boxIdx] = sqrt(tmp_h[0]*tmp_h[0] + tmp_h[1]*tmp_h[1]);
+        m_pb_mag[boxIdx] = sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1]);
         #endif
 
         #ifdef USE_SLAB_AVERAGE
-        m_pb_mag[boxIdx] = 0.5*(sqrt(tmp_h[0]*tmp_h[0] + tmp_h[1]*tmp_h[1]) + sqrt(tmp_h[2]*tmp_h[2] + tmp_h[3]*tmp_h[3]));
+        m_pb_mag[boxIdx] = 0.5*( sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1])
+                               + sqrt(avg_h[2]*avg_h[2] + avg_h[3]*avg_h[3]));
         #endif
     }
 
