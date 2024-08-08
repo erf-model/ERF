@@ -236,9 +236,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                           + 3. * cell_prim(i, j, k  , prim_index)
                                                      - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
-                                                          - 3. * cell_prim(i, j, k  , prim_index)
-                                                     + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                                          - 3. * cell_prim(i, j, k-1, prim_index)
+                                                     + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
@@ -303,9 +303,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                           + 3. * cell_prim(i, j, k  , prim_index)
                                                      - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
-                                                          - 3. * cell_prim(i, j, k  , prim_index)
-                                                     + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                                          - 3. * cell_prim(i, j, k-1, prim_index)
+                                                     + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
@@ -366,9 +366,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                           + 3. * cell_prim(i, j, k  , prim_index)
                                                      - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
-                                                          - 3. * cell_prim(i, j, k  , prim_index)
-                                                     + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                                          - 3. * cell_prim(i, j, k-1, prim_index)
+                                                     + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
@@ -428,9 +428,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                           + 3. * cell_prim(i, j, k  , prim_index)
                                                      - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
-                                                          - 3. * cell_prim(i, j, k  , prim_index)
-                                                     + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                                          - 3. * cell_prim(i, j, k-1, prim_index)
+                                                     + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
