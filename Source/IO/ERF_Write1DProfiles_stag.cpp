@@ -91,10 +91,10 @@ ERF::write_1D_profiles_stag (Real time)
                   data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << unstag_size * dx[2] << " "
                             << 0 << " " << 0 << " " << h_avg_w[unstag_size+1] << " "
-                            << 0 << " " << 0 << " " << 0
-                            << 0 << " " << 0 << " " << 0
-                            << 0 << " " << 0 << " " << 0
-                            << 0
+                            << 0 << " " << 0 << " " << 0 << " " // rho, theta, ksgs
+                            << 0 << " " << 0 << " " << 0 << " " // Kturb, qv, qc
+                            << 0 << " " << 0 << " " << 0 << " " // qr, qi, qs
+                            << 0                                // qg
                             << std::endl;
                 } // if good
             } // NumDataLogs
