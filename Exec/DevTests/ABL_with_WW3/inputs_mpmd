@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 5
+max_step = 8
 
 amrex.fpe_trap_invalid = 0
 
@@ -16,7 +16,7 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 1  # fixed time step depending on grid resolution
-erf.max_step=1
+erf.max_step=8
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp

@@ -310,7 +310,7 @@ for (int j = 0; j < n_elements; ++j) {
          }
 
 
-         amrex::Print()<< "Sending" << n_elements << "from ERF::send_to_ww3 now" << std::endl;
+         amrex::Print()<< "Sending " << n_elements << " from ERF::send_to_ww3 now" << std::endl;
 
          if (amrex::MPMD::MyProc() == this_root) {
              if (rank_offset == 0) // First program
