@@ -70,6 +70,10 @@ public:
             amrex::Abort("Undefined MOST flux type!");
         }
 
+        // Check if we do stress rotations for terrain
+        pp.query("most.terrain_rotate",m_rotate);
+        if (m_rotate) AMREX_ASSERT_WITH_MESSAGE((z_phys_nd[0].get()), "Stress rotations are only valid with terrain!");
+
         // Get surface temperature
         auto erf_st = pp.query("most.surf_temp", surf_temp);
 
@@ -252,6 +256,7 @@ public:
                      amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                      amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                      amrex::MultiFab* heat_flux,
+                     amrex::MultiFab* qv_flux,
                      amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
@@ -261,6 +266,7 @@ public:
                       amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                       amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                       amrex::MultiFab* heat_flux,
+                      amrex::MultiFab* qv_flux,
                       amrex::MultiFab* z_phys,
                       const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);
@@ -316,6 +322,8 @@ public:
     const amrex::FArrayBox*
     get_z0 (const int& lev) {return &z_0[lev];}
 
+
+
     enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
         DONELAN,        ///< Donelan functional form
@@ -343,6 +351,7 @@ public:
 private:
     bool use_moisture;
     bool m_exp_most = false;
+    bool m_rotate   = false;
     amrex::Real z0_const{0.1};
     amrex::Real surf_temp;
     amrex::Real surf_heating_rate{0};
@@ -371,6 +380,8 @@ private:
     amrex::Vector<amrex::MultiFab*>  m_Hwave_lev;
     amrex::Vector<amrex::MultiFab*>  m_Lwave_lev;
     amrex::Vector<amrex::MultiFab*>  m_eddyDiffs_lev;
+
+    amrex::Array2D<amrex::Real,0,2,0,2> m_rot_mat;
 };
 
 #endif /* ABLMOST_H */
