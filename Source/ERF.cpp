@@ -933,8 +933,11 @@ ERF::InitData ()
 
 #ifdef ERF_USE_WW3_COUPLING
     int lev = 0;
-    read_waves(lev);
+    amrex::Print() <<  " About to call send_to_ww3 from ERF.cpp" << std::endl;
     send_to_ww3(lev);
+    amrex::Print() <<  " About to call read_waves from ERF.cpp"  << std::endl;
+    read_waves(lev);
+   // send_to_ww3(lev);
 #endif
 
     // Configure ABLMost params if used MostWall boundary condition
@@ -1250,12 +1253,6 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
-
-    // Initialize wind farm
-
-#ifdef ERF_USE_WINDFARM
-    init_windfarm(lev);
-#endif
 
    if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
         input_sponge(lev);

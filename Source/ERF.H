@@ -11,6 +11,7 @@
 
 #include <AMReX_AmrCore.H>
 #include <AMReX_BCRec.H>
+#include <AMReX_Print.H>
 
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_ParmParse.H>
@@ -256,9 +257,14 @@ public:
     amrex::Real estTimeStep (int lev, long& dt_fast_ratio) const;
 
 #ifdef ERF_USE_WW3_COUPLING
-    void read_waves (int lev);
+    //amrex::Print() <<  " About to call send_to_ww3 from ERF.H" << std::endl;
+    void send_to_ww3(int lev);
+    //amrex::Print() <<  " About to call read_waves from ERF.H" << std::endl;
+    void read_waves(int lev);
+    //void send_to_ww3 (int lev);
+    //void read_waves (int lev);
 
-    void send_to_ww3 (int lev);
+    //void send_to_ww3 (int lev);
 #endif
 
     // Interface for advancing the data at one level by one "slow" timestep
