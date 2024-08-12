@@ -7,8 +7,8 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 #Larger problem
-geometry.prob_extent =  40   2.5     10
-amr.n_cell           = 256    16     64
+geometry.prob_extent =  80   2.5     10
+amr.n_cell           = 512    16     64
 
 # Quick debug problem
 #geometry.prob_extent =  20     5     10
@@ -68,11 +68,10 @@ erf.buoyancy_type   = 1
 erf.perturbation_type = "source"
 erf.perturbation_direction = 1 0 0 0 0 0
 erf.perturbation_layers = 3
-erf.perturbation_offset = 3
+erf.perturbation_offset = 0
 
-erf.perturbation_box_dims = 8 8 4
-#erf.perturbation_nondimensional = 0.042 # Ri
-erf.perturbation_nondimensional = 0.1 # Ri
+erf.perturbation_box_dims = 16 16 8
+erf.perturbation_nondimensional = 0.042 # Ri
 erf.perturbation_T_infinity = 300.0
 
 # Initial condition for the entire field
