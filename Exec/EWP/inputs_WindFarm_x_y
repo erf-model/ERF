@@ -10,7 +10,7 @@ geometry.prob_extent =  200150   202637  1000
 amr.n_cell           =   50     50       40
 
 # WINDFARM PARAMETRIZATION PARAMETERS
-erf.windfarm_type = "Fitch"
+erf.windfarm_type = "EWP"
 erf.windfarm_loc_type = "x_y"
 erf.windfarm_loc_table = "windturbines_loc_x_y_WindFarm.txt"
 erf.windfarm_spec_table = "windturbines_spec_WindFarm.tbl"
@@ -69,8 +69,6 @@ erf.dynamicViscosity = 100.0
 erf.pbl_type        = "None"
 
 erf.init_type = "uniform"
-
-erf.windfarm_type = "EWP"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

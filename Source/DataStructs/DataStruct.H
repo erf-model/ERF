@@ -38,7 +38,7 @@ enum struct MoistureType {
 };
 
 enum struct WindFarmType {
-    Fitch, EWP, None
+    Fitch, EWP, SimpleAD, None
 };
 
 enum struct WindFarmLocType{
@@ -249,7 +249,7 @@ struct SolverChoice {
             amrex::Print() << "Perturb temperature via direct field add\n";
         } else if (!turb_pert_type_string.compare("None")) {
             pert_type = PerturbationType::None;
-            amrex::Print() << "No perturbation method selected\n";
+            amrex::Print() << "No inflow perturbation method selected\n";
         } else {
             amrex::Abort("Dont know this perturbation_type");
         }
@@ -279,6 +279,10 @@ struct SolverChoice {
         pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
 
+        have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
+            "Should not have both abl_geo_wind_table and custom_geostrophic_profile set.");
+
         pp.query("Ave_Plane", ave_plane);
 
         pp.query("mp_clouds", do_cloud);
@@ -293,6 +297,9 @@ struct SolverChoice {
                                       "Numerical diffusion coefficient must be between 0 & 1.");
             NumDiffCoeff *= std::pow(2.0,-6);
         }
+
+        // Use monotonic advection?
+        pp.query("use_mono_adv",use_mono_adv);
 
            advChoice.init_params();
           diffChoice.init_params();
@@ -332,6 +339,9 @@ struct SolverChoice {
         }
         else if (windfarm_type_string == "EWP") {
             windfarm_type = WindFarmType::EWP;
+        }
+        else if (windfarm_type_string == "SimpleActuatorDisk") {
+            windfarm_type = WindFarmType::SimpleAD;
         }
         else if (windfarm_type_string != "None") {
             amrex::Abort("Are you using windfarms? Dont know this windfarm_type. windfarm_type"
@@ -424,25 +434,32 @@ struct SolverChoice {
         amrex::Real latitude = 90.0;
         pp.query("latitude", latitude);
 
+        pp.query("coriolis_3d", coriolis_3d);
+
         // Convert to radians
         latitude *= (PI/180.);
         sinphi = std::sin(latitude);
-        cosphi = std::cos(latitude);
+        if (coriolis_3d) {
+            cosphi = std::cos(latitude);
+        }
 
         amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
 
-        if (abl_driver_type == ABLDriverType::GeostrophicWind)
-        {
+        if (abl_driver_type == ABLDriverType::GeostrophicWind) {
             // Read in the geostrophic wind -- we only use this to construct
             //     the forcing term so no need to keep it
             amrex::Vector<amrex::Real> abl_geo_wind(3);
             pp.queryarr("abl_geo_wind",abl_geo_wind);
 
-            abl_geo_forcing = {
-                -coriolis_factor * (abl_geo_wind[1]*sinphi - abl_geo_wind[2]*cosphi),
-                 coriolis_factor *  abl_geo_wind[0]*sinphi,
-                -coriolis_factor *  abl_geo_wind[0]*cosphi
-            };
+            if(!pp.query("abl_geo_wind_table",abl_geo_wind_table)) {
+                abl_geo_forcing = {
+                    -coriolis_factor * (abl_geo_wind[1]*sinphi - abl_geo_wind[2]*cosphi),
+                     coriolis_factor *  abl_geo_wind[0]*sinphi,
+                    -coriolis_factor *  abl_geo_wind[0]*cosphi
+                };
+            } else {
+                amrex::Print() << "NOTE: abl_geo_wind_table provided, ignoring input abl_geo_wind" << std::endl;
+            }
         }
     }
 
@@ -472,6 +489,7 @@ struct SolverChoice {
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
+    bool        coriolis_3d            = true;
 
     bool        rayleigh_damp_U        = false;
     bool        rayleigh_damp_V        = false;
@@ -497,7 +515,7 @@ struct SolverChoice {
 
     // Coriolis forcing
     amrex::Real coriolis_factor = 0.0;
-    amrex::Real cosphi          = 0.0 ;
+    amrex::Real cosphi          = 0.0;
     amrex::Real sinphi          = 0.0;
 
     // User-specified forcings in problem definition
@@ -520,6 +538,9 @@ struct SolverChoice {
     bool use_NumDiff{false};
     amrex::Real NumDiffCoeff{0.};
 
+    // Monotonic advection limiter
+    bool use_mono_adv{false};
+
     CouplingType coupling_type;
     TerrainType  terrain_type;
     MoistureType moisture_type;
@@ -530,6 +551,8 @@ struct SolverChoice {
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
+    std::string abl_geo_wind_table;
+    bool have_geo_wind_profile {false};
 
     int ave_plane {2};
     // Microphysics params

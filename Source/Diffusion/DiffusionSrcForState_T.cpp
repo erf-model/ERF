@@ -27,7 +27,9 @@ using namespace amrex;
  * @param[in]  mf_m map factor at cell center
  * @param[in]  mf_u map factor at x-face
  * @param[in]  mf_v map factor at y-face
- * @param[in]  hfx_z heat flux in z-dir
+ * @param[inout]  hfx_z heat flux in z-dir
+ * @param[inout]  qfx1_z heat flux in z-dir
+ * @param[out]    qfx2_z heat flux in z-dir
  * @param[in]  diss dissipation of TKE
  * @param[in]  mu_turb turbulent viscosity
  * @param[in]  diffChoice container of diffusion parameters
@@ -60,6 +62,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const Array4<const Real>& mf_u,
                         const Array4<const Real>& mf_v,
                               Array4<      Real>& hfx_z,
+                              Array4<      Real>& /*qfx1_z*/,
+                              Array4<      Real>& /*qfx2_z*/,
                               Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,
                         const DiffChoice &diffChoice,
@@ -248,8 +252,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_zeta = az(i,j,k);
 
             Real GradCz;
-            bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+            bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
+                                    && k == 0);
+            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim) )
+                                    && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -258,16 +266,16 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                         + 3. * cell_prim(i, j, k  , prim_index)
                                    - (1./3.) * cell_prim(i, j, k+1, prim_index) );
             } else if (ext_dir_on_zhi) {
-                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
-                                        - 3. * cell_prim(i, j, k  , prim_index)
-                                   + (1./3.) * cell_prim(i, j, k+1, prim_index) );
+                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                        - 3. * cell_prim(i, j, k-1, prim_index)
+                                   + (1./3.) * cell_prim(i, j, k-2, prim_index) );
             } else {
                 GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }
@@ -323,8 +331,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_zeta = az(i,j,k);
 
             Real GradCz;
-            bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+            bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
+                                    && k == 0);
+            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -333,9 +345,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                         + 3. * cell_prim(i, j, k  , prim_index)
                                    - (1./3.) * cell_prim(i, j, k+1, prim_index) );
             } else if (ext_dir_on_zhi) {
-                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
-                                        - 3. * cell_prim(i, j, k  , prim_index)
-                                   + (1./3.) * cell_prim(i, j, k+1, prim_index) );
+                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                        - 3. * cell_prim(i, j, k-1, prim_index)
+                                   + (1./3.) * cell_prim(i, j, k-2, prim_index) );
             } else {
                 GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
@@ -343,7 +355,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
                 Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }
@@ -395,8 +407,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_zeta = az(i,j,k);
 
             Real GradCz;
-            bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+            bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
+                                    && k == 0);
+            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -405,16 +421,16 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                         + 3. * cell_prim(i, j, k  , prim_index)
                                    - (1./3.) * cell_prim(i, j, k+1, prim_index) );
             } else if (ext_dir_on_zhi) {
-                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
-                                        - 3. * cell_prim(i, j, k  , prim_index)
-                                   + (1./3.) * cell_prim(i, j, k+1, prim_index) );
+                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                        - 3. * cell_prim(i, j, k-1, prim_index)
+                                   + (1./3.) * cell_prim(i, j, k-2, prim_index) );
             } else {
                 GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }
@@ -466,8 +482,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,cellSizeInv,z_nd);
 
             Real GradCz;
-            bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+            bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
+                                    && k == 0);
+            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -476,9 +496,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                         + 3. * cell_prim(i, j, k  , prim_index)
                                    - (1./3.) * cell_prim(i, j, k+1, prim_index) );
             } else if (ext_dir_on_zhi) {
-                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
-                                        - 3. * cell_prim(i, j, k  , prim_index)
-                                   + (1./3.) * cell_prim(i, j, k+1, prim_index) );
+                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                        - 3. * cell_prim(i, j, k-1, prim_index)
+                                   + (1./3.) * cell_prim(i, j, k-2, prim_index) );
             } else {
                 GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
@@ -486,7 +506,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
                 Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }

@@ -48,6 +48,9 @@
 #include "EulerianMicrophysics.H"
 #include "LagrangianMicrophysics.H"
 #include "LandSurface.H"
+#ifdef ERF_USE_WINDFARM
+#include "WindFarm.H"
+#endif
 
 #ifdef ERF_USE_RRTMGP
 #include "Radiation.H"
@@ -163,19 +166,19 @@ public:
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 
     void derive_diag_profiles (amrex::Real time,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_kturb,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_Kmv , amrex::Gpu::HostVector<amrex::Real>& h_avg_Khv,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_qr  ,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_wqr ,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_qg  ,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_ww,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_uth , amrex::Gpu::HostVector<amrex::Real>& h_avg_vth,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_wth, amrex::Gpu::HostVector<amrex::Real>& h_avg_thth,
@@ -185,19 +188,19 @@ public:
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_pu, amrex::Gpu::HostVector<amrex::Real>& h_avg_pv,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_pw, amrex::Gpu::HostVector<amrex::Real>& h_avg_wthv);
     void derive_diag_profiles_stag (amrex::Real time,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_kturb,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_Kmv , amrex::Gpu::HostVector<amrex::Real>& h_avg_Khv,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_qr  ,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_wqr ,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_qg  ,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_ww,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_uth , amrex::Gpu::HostVector<amrex::Real>& h_avg_vth,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_wth, amrex::Gpu::HostVector<amrex::Real>& h_avg_thth,
@@ -210,11 +213,13 @@ public:
     void derive_stress_profiles (amrex::Gpu::HostVector<amrex::Real>& h_avg_tau11, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau12,
                                  amrex::Gpu::HostVector<amrex::Real>& h_avg_tau13, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau22,
                                  amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
-                                 amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
+                                 amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_q1fx3,
+                                 amrex::Gpu::HostVector<amrex::Real>& h_avg_q2fx3, amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
     void derive_stress_profiles_stag (amrex::Gpu::HostVector<amrex::Real>& h_avg_tau11, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau12,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_tau13, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau22,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
-                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_q1fx3,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_q2fx3, amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
 
     // Perform the volume-weighted sum
     amrex::Real
@@ -391,14 +396,11 @@ public:
 
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
-    void init_windfarm_lat_lon(const int lev,
-                               const std::string windfarm_loc_table,
-                               amrex::Vector<amrex::Real>& xloc,
-                               amrex::Vector<amrex::Real>& yloc);
-    void init_windfarm_x_y(const int lev,
-                               const std::string windfarm_loc_table,
-                               amrex::Vector<amrex::Real>& xloc,
-                               amrex::Vector<amrex::Real>& yloc);
+    void advance_windfarm (const amrex::Geometry& a_geom,
+                       const amrex::Real& dt_advance,
+                       amrex::MultiFab& cons_in,
+                       amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
+                       amrex::MultiFab& mf_vars_windfarm, const amrex::MultiFab& mf_Nturb);
 #endif
 
 #ifdef ERF_USE_EB
@@ -455,6 +457,11 @@ private:
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
+
+#ifdef ERF_USE_WINDFARM
+    // Initialize the windfarm object
+    void initializeWindFarm (const int&);
+#endif
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
@@ -586,6 +593,14 @@ private:
     // Struct for working with the sponge data we take as an input
     InputSpongeData input_sponge_data;
 
+    // Vector (6 planes) of DeviceVectors (ncell in plane) for Dirichlet BC data
+    amrex::Gpu::DeviceVector<amrex::Real> xvel_bc_data;
+    amrex::Gpu::DeviceVector<amrex::Real> yvel_bc_data;
+    amrex::Gpu::DeviceVector<amrex::Real> zvel_bc_data;
+
+    // Function to read and populate above vectors (if input file exists)
+    void init_Dirichlet_bc_data (const std::string input_file);
+
     // write checkpoint file to disk
     void WriteCheckpointFile () const;
 
@@ -669,9 +684,12 @@ private:
 
     // Variables for wind farm parametrization models
 
+#ifdef ERF_USE_WINDFARM
+    std::unique_ptr<WindFarm> windfarm;
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
                                                   // EWP:                 dudt, dvdt, dTKEdt
+#endif
 
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
@@ -709,6 +727,8 @@ private:
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_diss_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q1fx3_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
     // Terrain / grid stretching
     amrex::Vector<amrex::Real> zlevels_stag; // nominal height levels
@@ -967,6 +987,15 @@ private:
 
     amrex::Vector<           amrex::Vector<amrex::Real> > h_v_geos;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_v_geos;
+
+    // Function to read and populate above host vectors (if input file exists)
+    void init_geo_wind_profile (const std::string input_file,
+                                amrex::Vector<amrex::Real>& u_geos,
+                                amrex::Gpu::DeviceVector<amrex::Real>& u_geos_d,
+                                amrex::Vector<amrex::Real>& v_geos,
+                                amrex::Gpu::DeviceVector<amrex::Real>& v_geos_d,
+                                const amrex::Geometry& geom,
+                                const amrex::Vector<amrex::Real>& zlev_stag);
 
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;

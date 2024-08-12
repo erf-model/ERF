@@ -563,7 +563,7 @@ List of Parameters
 | Parameter                     | Definition       | Acceptable     | Default        |
 |                               |                  | Values         |                |
 +===============================+==================+================+================+
-| **erf.datalog**               | Output           | Up to four     | NONE           |
+| **erf.data_log**              | Output           | Up to four     | NONE           |
 |                               | filename(s)      | strings        |                |
 +-------------------------------+------------------+----------------+----------------+
 | **erf.profile_int**           | Interval (number)| Integer        | -1             |
@@ -692,7 +692,11 @@ The requested output files have the following columns:
 
   #. SGS stress tensor component, :math:`\tau_{33}` (m2/s2)
 
-  #. SGS heat flux, :math:`\tau_{\theta w}` (K m/s)
+  #. *SGS heat flux*, :math:`\tau_{\theta w}` (K m/s) -- *staggered*
+
+  #. *SGS water vapor flux*, :math:`\tau_{q_v w}` (K m/s) -- *staggered*
+
+  #. *SGS cloud water flux*, :math:`\tau_{q_c w}` (K m/s) -- *staggered*
 
   #. SGS turbulence dissipation, :math:`\epsilon` (m2/s3)
 
@@ -915,6 +919,15 @@ List of Parameters
 |                                  | abl.driver_type = |                   |             |
 |                                  | GeostrophicWind)  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
+| **erf.abl_geo_wind_table**       | Path to text file | String            | None        |
+|                                  | containing a      |                   |             |
+|                                  | geostrophic wind  |                   |             |
+|                                  | profile           |                   |             |
+|                                  | (with z, Ug, and  |                   |             |
+|                                  |  Vg whtiespace    |                   |             |
+|                                  |  delimited        |                   |             |
+|                                  |  columns)         |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
 | **erf.use_gravity**              | Include gravity   | true / false      | false       |
 |                                  | in momentum       |                   |             |
 |                                  | update?  If true, |                   |             |
@@ -951,6 +964,28 @@ function(s).
 |                                            | temperature source|                   |             |
 |                                            | term              |                   |             |
 +--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_custom_moisture_forcing**        | Apply the         | true or false     | false       |
+|                                            | user-defined      |                   |             |
+|                                            | qv source         |                   |             |
+|                                            | term              |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_custom_w_subsidence**            | Apply the         | true or false     | false       |
+|                                            | user-defined      |                   |             |
+|                                            | vertical velocity |                   |             |
+|                                            | profile for use in|                   |             |
+|                                            | calculating       |                   |             |
+|                                            | subsidence source |                   |             |
+|                                            | terms             |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_custom_geostrophic_profile**     | Apply the         | true or false     | false       |
+|                                            | user-defined      |                   |             |
+|                                            | geostrophic wind  |                   |             |
+|                                            | profile           |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+
+Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
+with an ``erf.abl_geo_wind_table``.
+
 
 Initialization
 ==============
@@ -1057,6 +1092,11 @@ methods for defining how the terrain-fitted coordinates given the topography:
 - Sullivan Terrain Following (name TBD):
     The influence of the terrain decreases with the cube of height.
 
+A custom surface definition may be provided through the ``erf.terrain_file_name`` parameter.
+The specified input text file should have three space-delimited columns for x, y, and z coordinates,
+which will dictate the location of surface *nodes*. All surface nodes within the computational
+domain must be specified within the text file, but may be specified in any order.
+
 List of Parameters
 ------------------
 
@@ -1073,7 +1113,8 @@ List of Parameters
 |                             | following          | 1,                 |            |
 |                             |                    | 2                  |            |
 +-----------------------------+--------------------+--------------------+------------+
-
+| **erf.terrain_file_name**   | filename           | String             | NONE       |
++-----------------------------+--------------------+--------------------+------------+
 
 Examples of Usage
 -----------------

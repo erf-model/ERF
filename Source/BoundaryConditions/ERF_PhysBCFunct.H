@@ -83,15 +83,17 @@ public:
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> bc_neumann_vals,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                      const bool use_real_bcs)
+                      const bool use_real_bcs,
+                      amrex::Real* u_bc_data)
         : m_lev(lev), m_geom(geom),
           m_domain_bcs_type(domain_bcs_type),
           m_domain_bcs_type_d(domain_bcs_type_d),
           m_bc_extdir_vals(bc_extdir_vals),
           m_bc_neumann_vals(bc_neumann_vals),
           m_z_phys_nd(z_phys_nd.get()),
-          m_use_real_bcs(use_real_bcs)
-    {}
+          m_use_real_bcs(use_real_bcs),
+          m_u_bc_data(u_bc_data)
+    { }
 
     ~ERFPhysBCFunct_u () {}
 
@@ -125,6 +127,7 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> m_bc_neumann_vals;
     amrex::MultiFab* m_z_phys_nd;
     bool                 m_use_real_bcs;
+    amrex::Real* m_u_bc_data;
 };
 
 class ERFPhysBCFunct_v
@@ -136,15 +139,17 @@ public:
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> bc_neumann_vals,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                      const bool use_real_bcs)
+                      const bool use_real_bcs,
+                      amrex::Real* v_bc_data)
         : m_lev(lev),
           m_geom(geom), m_domain_bcs_type(domain_bcs_type),
           m_domain_bcs_type_d(domain_bcs_type_d),
           m_bc_extdir_vals(bc_extdir_vals),
           m_bc_neumann_vals(bc_neumann_vals),
           m_z_phys_nd(z_phys_nd.get()),
-          m_use_real_bcs(use_real_bcs)
-    {}
+          m_use_real_bcs(use_real_bcs),
+          m_v_bc_data(v_bc_data)
+    { }
 
     ~ERFPhysBCFunct_v () {}
 
@@ -179,6 +184,7 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> m_bc_neumann_vals;
     amrex::MultiFab* m_z_phys_nd;
     bool                 m_use_real_bcs;
+    amrex::Real* m_v_bc_data;
 };
 
 class ERFPhysBCFunct_w
@@ -190,7 +196,8 @@ public:
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> bc_neumann_vals,
                       const TerrainType& terrain_type, std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                      const bool use_real_bcs)
+                      const bool use_real_bcs,
+                      amrex::Real* w_bc_data)
         : m_lev(lev),
           m_geom(geom), m_domain_bcs_type(domain_bcs_type),
           m_domain_bcs_type_d(domain_bcs_type_d),
@@ -198,8 +205,9 @@ public:
           m_bc_neumann_vals(bc_neumann_vals),
           m_terrain_type(terrain_type),
           m_z_phys_nd(z_phys_nd.get()),
-          m_use_real_bcs(use_real_bcs)
-    {}
+          m_use_real_bcs(use_real_bcs),
+          m_w_bc_data(w_bc_data)
+    { }
 
     ~ERFPhysBCFunct_w () {}
 
@@ -242,6 +250,7 @@ private:
     TerrainType          m_terrain_type;
     amrex::MultiFab* m_z_phys_nd;
     bool                 m_use_real_bcs;
+    amrex::Real* m_w_bc_data;
 };
 
 class ERFPhysBCFunct_w_no_terrain
@@ -253,14 +262,16 @@ public:
                       const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> bc_neumann_vals,
-                      const bool use_real_bcs)
+                      const bool use_real_bcs,
+                      amrex::Real* w_bc_data)
         : m_lev(lev),
           m_geom(geom), m_domain_bcs_type(domain_bcs_type),
           m_domain_bcs_type_d(domain_bcs_type_d),
           m_bc_extdir_vals(bc_extdir_vals),
           m_bc_neumann_vals(bc_neumann_vals),
-          m_use_real_bcs(use_real_bcs)
-    {}
+          m_use_real_bcs(use_real_bcs),
+          m_w_bc_data(w_bc_data)
+    { }
 
     ~ERFPhysBCFunct_w_no_terrain () {}
 
@@ -292,6 +303,7 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> m_bc_neumann_vals;
     bool                 m_use_real_bcs;
+    amrex::Real* m_w_bc_data;
 };
 
 #endif

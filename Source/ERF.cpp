@@ -138,6 +138,10 @@ ERF::ERF ()
     ReadParameters();
     initializeMicrophysics(nlevs_max);
 
+#ifdef ERF_USE_WINDFARM
+    initializeWindFarm(nlevs_max);
+#endif
+
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
@@ -152,12 +156,12 @@ ERF::ERF ()
 
         int nz = geom[0].Domain().length(2) + 1; // staggered
         if (std::fabs(zlevels_stag[nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
-            Print() << "WARNING: prob_hi[2]=" << geom[0].ProbHi(2)
+            Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)
                 << " does not match highest requested z level " << zlevels_stag[nz-1]
                 << std::endl;
         }
         if (std::fabs(zlevels_stag[0]-geom[0].ProbLo(2)) > 1.0e-4) {
-            Print() << "WARNING: prob_lo[2]=" << geom[0].ProbLo(2)
+            Print() << "Note: prob_lo[2]=" << geom[0].ProbLo(2)
                 << " does not match lowest requested level " << zlevels_stag[0]
                 << std::endl;
         }
@@ -189,7 +193,6 @@ ERF::ERF ()
 #ifdef ERF_USE_POISSON_SOLVE
     pp_inc.resize(nlevs_max);
 #endif
-
 
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
@@ -223,6 +226,8 @@ ERF::ERF ()
     Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
     SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
+    SFS_q1fx3_lev.resize(nlevs_max);
+    SFS_q2fx3_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
 
@@ -745,7 +750,7 @@ ERF::InitData ()
         }
     }
 
-    if (solverChoice.custom_geostrophic_profile)
+    if (solverChoice.have_geo_wind_profile)
     {
         h_u_geos.resize(max_level+1, Vector<Real>(0));
         d_u_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
@@ -757,10 +762,21 @@ ERF::InitData ()
             d_u_geos[lev].resize(domlen, 0.0_rt);
             h_v_geos[lev].resize(domlen, 0.0_rt);
             d_v_geos[lev].resize(domlen, 0.0_rt);
-            prob->update_geostrophic_profile(t_new[0],
-                                          h_u_geos[lev], d_u_geos[lev],
-                                          h_v_geos[lev], d_v_geos[lev],
-                                          geom[lev], z_phys_cc[lev]);
+            if (solverChoice.custom_geostrophic_profile) {
+                prob->update_geostrophic_profile(t_new[0],
+                                                 h_u_geos[lev], d_u_geos[lev],
+                                                 h_v_geos[lev], d_v_geos[lev],
+                                                 geom[lev], z_phys_cc[lev]);
+            } else {
+                if (solverChoice.use_terrain > 0) {
+                    amrex::Print() << "Note: 1-D geostrophic wind profile input is only defined for grid stretching, not real terrain" << std::endl;
+                }
+                init_geo_wind_profile(solverChoice.abl_geo_wind_table,
+                                      h_u_geos[lev], d_u_geos[lev],
+                                      h_v_geos[lev], d_v_geos[lev],
+                                      geom[lev],
+                                      zlevels_stag);
+            }
         }
     }
 
@@ -1130,6 +1146,15 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
     return;
 }
 
+
+#ifdef ERF_USE_WINDFARM
+void
+ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
+{
+    windfarm = std::make_unique<WindFarm>(a_nlevsmax, solverChoice.windfarm_type);
+}
+#endif
+
 void
 ERF::restart ()
 {
@@ -1228,12 +1253,6 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
-
-    // Initialize wind farm
-
-#ifdef ERF_USE_WINDFARM
-    init_windfarm(lev);
-#endif
 
    if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
         input_sponge(lev);
@@ -1924,6 +1943,8 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
     SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
+    SFS_q1fx3_lev.resize(nlevs_max);
+    SFS_q2fx3_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
 

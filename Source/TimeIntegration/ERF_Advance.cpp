@@ -41,19 +41,19 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
         if (solverChoice.pert_type == PerturbationType::perturbSource ||
             solverChoice.pert_type == PerturbationType::perturbDirect)
         {
-            turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old);
+            turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
         }
 
         // If perturbDirect is selected, directly add the computed perturbation
         // on the conserved field
-        // XXX Currently gives "Erroneous arithmetic operation" error
         if (solverChoice.pert_type == PerturbationType::perturbDirect)
         {
             auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
             for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
                 Box bx  = mfi.tilebox();
-                const Array4<Real> & cell_data  = S_old.array(mfi);
-                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data);
+                const Array4<Real> &cell_data  = S_old.array(mfi);
+                const Array4<const Real> &pert_cell = turbPert.pb_cell.array(mfi);
+                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
             }
         }
     }
@@ -90,10 +90,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
         if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0]));
     }
 
+
 #if defined(ERF_USE_WINDFARM)
     if (solverChoice.windfarm_type != WindFarmType::None) {
-        advance_windfarm(lev, Geom(lev), dt_lev, S_old,
-                         U_old, V_old, W_old, vars_windfarm[lev], Nturb[lev], solverChoice);
+        advance_windfarm(Geom(lev), dt_lev, S_old,
+                         U_old, V_old, W_old, vars_windfarm[lev], Nturb[lev]);
     }
 
 #endif

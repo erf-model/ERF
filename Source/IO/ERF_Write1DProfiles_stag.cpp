@@ -32,7 +32,7 @@ ERF::write_1D_profiles_stag (Real time)
     {
         // Define the 1d arrays we will need
         Gpu::HostVector<Real> h_avg_u, h_avg_v, h_avg_w;
-        Gpu::HostVector<Real> h_avg_rho, h_avg_th, h_avg_ksgs, h_avg_kturb;
+        Gpu::HostVector<Real> h_avg_rho, h_avg_th, h_avg_ksgs, h_avg_Kmv, h_avg_Khv;
         Gpu::HostVector<Real> h_avg_qv, h_avg_qc, h_avg_qr, h_avg_wqv, h_avg_wqc, h_avg_wqr, h_avg_qi, h_avg_qs, h_avg_qg;
         Gpu::HostVector<Real> h_avg_wthv;
         Gpu::HostVector<Real> h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth;
@@ -40,12 +40,13 @@ ERF::write_1D_profiles_stag (Real time)
         Gpu::HostVector<Real> h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw;
         Gpu::HostVector<Real> h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw;
         Gpu::HostVector<Real> h_avg_tau11, h_avg_tau12, h_avg_tau13, h_avg_tau22, h_avg_tau23, h_avg_tau33;
-        Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
+        Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
 
         if (NumDataLogs() > 1) {
             derive_diag_profiles_stag(time,
                                       h_avg_u, h_avg_v, h_avg_w,
-                                      h_avg_rho, h_avg_th, h_avg_ksgs, h_avg_kturb,
+                                      h_avg_rho, h_avg_th, h_avg_ksgs,
+                                      h_avg_Kmv, h_avg_Khv,
                                       h_avg_qv, h_avg_qc, h_avg_qr,
                                       h_avg_wqv, h_avg_wqc, h_avg_wqr,
                                       h_avg_qi, h_avg_qs, h_avg_qg,
@@ -59,7 +60,7 @@ ERF::write_1D_profiles_stag (Real time)
         if (NumDataLogs() > 3 && time > 0.) {
             derive_stress_profiles_stag(h_avg_tau11, h_avg_tau12, h_avg_tau13,
                                         h_avg_tau22, h_avg_tau23, h_avg_tau33,
-                                        h_avg_sgshfx,
+                                        h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx,
                                         h_avg_sgsdiss);
         }
 
@@ -72,29 +73,25 @@ ERF::write_1D_profiles_stag (Real time)
                 if (data_log1.good()) {
                   // Write the quantities at this time
                   for (int k = 0; k < unstag_size; k++) {
-                      Real z;
-                      if (zlevels_stag.size() > 1) {
-                          z = zlevels_stag[k];
-                      } else {
-                          z = k * dx[2];
-                      }
+                      Real z = (zlevels_stag.size() > 1) ? zlevels_stag[k] : k * dx[2];
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                                << h_avg_u[k]     << " " << h_avg_v[k] << " " << h_avg_w[k]     << " "
-                                << h_avg_rho[k]   << " " << h_avg_th[k] << " " << h_avg_ksgs[k] << " "
-                                << h_avg_kturb[k] << " " << h_avg_qv[k] << " " << h_avg_qc[k]   << " "
-                                << h_avg_qr[k]    << " " << h_avg_qi[k] << " " << h_avg_qs[k]   << " "
-                                << h_avg_qg[k]
+                                << h_avg_u[k]   << " " << h_avg_v[k]   << " " << h_avg_w[k]     << " "
+                                << h_avg_rho[k] << " " << h_avg_th[k]  << " " << h_avg_ksgs[k] << " "
+                                << h_avg_Kmv[k] << " " << h_avg_Khv[k] << " "
+                                << h_avg_qv[k]  << " " << h_avg_qc[k]  << " " << h_avg_qr[k]    << " "
+                                << h_avg_qi[k]  << " " << h_avg_qs[k]  << " " << h_avg_qg[k]
                                 << std::endl;
                   } // loop over z
                   // Write top face values
+                  Real z = (zlevels_stag.size() > 1) ? zlevels_stag[unstag_size] : unstag_size * dx[2];
                   data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                            << std::setw(datwidth) << std::setprecision(datprecision) << unstag_size * dx[2] << " "
+                            << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                             << 0 << " " << 0 << " " << h_avg_w[unstag_size+1] << " "
-                            << 0 << " " << 0 << " " << 0
-                            << 0 << " " << 0 << " " << 0
-                            << 0 << " " << 0 << " " << 0
-                            << 0
+                            << 0 << " " << 0 << " " << 0 << " " // rho, theta, ksgs
+                            << 0 << " " << 0 << " "             // Kmv, Khv
+                            << 0 << " " << 0 << " " << 0 << " " // qv, qc, qr
+                            << 0 << " " << 0 << " " << 0        // qi, qs, qg
                             << std::endl;
                 } // if good
             } // NumDataLogs
@@ -142,12 +139,7 @@ ERF::write_1D_profiles_stag (Real time)
 
                   // For internal values, interpolate scalar quantities to faces
                   for (int k = 1; k < unstag_size; k++) {
-                      Real z;
-                      if (zlevels_stag.size() > 1) {
-                          z = zlevels_stag[k];
-                      } else {
-                          z = k * dx[2];
-                      }
+                      Real z = (zlevels_stag.size() > 1) ? zlevels_stag[k] : k * dx[2];
                       Real uface  = 0.5*(h_avg_u[k]  + h_avg_u[k-1]);
                       Real vface  = 0.5*(h_avg_v[k]  + h_avg_v[k-1]);
                       Real thface = 0.5*(h_avg_th[k] + h_avg_th[k-1]);
@@ -215,8 +207,9 @@ ERF::write_1D_profiles_stag (Real time)
                   Real uuface = 1.5*h_avg_uu[k-1] - 0.5*h_avg_uu[k-2];
                   Real vvface = 1.5*h_avg_vv[k-1] - 0.5*h_avg_vv[k-2];
                   Real thvface = thface * (1 + 0.61*qvface - qcface - qrface);
+                  Real z = (zlevels_stag.size() > 1) ? zlevels_stag[unstag_size] : unstag_size * dx[2];
                   data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                            << std::setw(datwidth) << std::setprecision(datprecision) << k * dx[2] << " "
+                            << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                             << 0                                     << " " // u'u'
                             << 0                                     << " " // u'v'
                             << h_avg_uw[k]   -      uface*h_avg_w[k] << " " // u'w'
@@ -250,25 +243,26 @@ ERF::write_1D_profiles_stag (Real time)
                 if (data_log3.good()) {
                   // Write the average stresses
                   for (int k = 0; k < unstag_size; k++) {
-                      Real z;
-                      if (zlevels_stag.size() > 1) {
-                          z = zlevels_stag[k];
-                      } else {
-                          z = k * dx[2];
-                      }
+                      Real z = (zlevels_stag.size() > 1) ? zlevels_stag[k] : k * dx[2];
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                                << h_avg_tau11[k] << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "
-                                << h_avg_tau22[k] << " " << h_avg_tau23[k] << " " << h_avg_tau33[k] << " "
-                                << h_avg_sgshfx[k] << " " << h_avg_sgsdiss[k]
+                                << h_avg_tau11[k]  << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "
+                                << h_avg_tau22[k]  << " " << h_avg_tau23[k] << " " << h_avg_tau33[k] << " "
+                                << h_avg_sgshfx[k] << " "
+                                << h_avg_sgsq1fx[k] << " " << h_avg_sgsq2fx[k] << " "
+                                << h_avg_sgsdiss[k]
                                 << std::endl;
                   } // loop over z
                   // Write top face values
+                  Real NANval = 0.0;
+                  Real z = (zlevels_stag.size() > 1) ? zlevels_stag[unstag_size] : unstag_size * dx[2];
                   data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                            << std::setw(datwidth) << std::setprecision(datprecision) << unstag_size * dx[2] << " "
-                            << 0 << " " << 0 << " " << h_avg_tau13[unstag_size] << " "
-                            << 0 << " " << h_avg_tau23[unstag_size] << " " << 0 << " "
-                            << 0 << " " << 0
+                            << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                            << NANval << " " << NANval << " " << h_avg_tau13[unstag_size] << " "
+                            << NANval << " " << h_avg_tau23[unstag_size] << " " << NANval << " "
+                            << h_avg_sgshfx[unstag_size] << " "
+                            << h_avg_sgsq1fx[unstag_size] << " " << h_avg_sgsq2fx[unstag_size] << " "
+                            << NANval
                             << std::endl;
                 } // if good
             } // if (NumDataLogs() > 3)
@@ -304,7 +298,7 @@ void
 ERF::derive_diag_profiles_stag (Real /*time*/,
                                 Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                                 Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
-                                Gpu::HostVector<Real>& h_avg_kturb,
+                                Gpu::HostVector<Real>& h_avg_Kmv , Gpu::HostVector<Real>& h_avg_Khv,
                                 Gpu::HostVector<Real>& h_avg_qv  , Gpu::HostVector<Real>& h_avg_qc , Gpu::HostVector<Real>& h_avg_qr,
                                 Gpu::HostVector<Real>& h_avg_wqv , Gpu::HostVector<Real>& h_avg_wqc, Gpu::HostVector<Real>& h_avg_wqr,
                                 Gpu::HostVector<Real>& h_avg_qi  , Gpu::HostVector<Real>& h_avg_qs , Gpu::HostVector<Real>& h_avg_qg,
@@ -320,16 +314,17 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
     // We assume that this is always called at level 0
     int lev = 0;
 
-    bool l_use_Turb = (solverChoice.turbChoice[lev].les_type != LESType::None);
+    bool l_use_kturb = ((solverChoice.turbChoice[lev].les_type != LESType::None) ||
+                        (solverChoice.turbChoice[lev].pbl_type != PBLType::None));
     bool l_use_KE   = (solverChoice.turbChoice[lev].les_type == LESType::Deardorff);
     bool l_use_QKE  = solverChoice.turbChoice[lev].use_QKE && solverChoice.turbChoice[lev].advect_QKE;
 
     // Note: "uiui" == u_i*u_i = u*u + v*v + w*w
-    // This will hold rho, theta, ksgs, kturb, uu, uv, vv, uth, vth,
-    //       indices:   0      1     2      3   4   5   6    7    8
+    // This will hold rho, theta, ksgs, Kmh, Kmv, uu, uv, vv, uth, vth,
+    //       indices:   0      1     2    3    4   5   6   7    8    9
     //                thth, uiuiu, uiuiv, p, pu, pv, qv, qc, qr, qi, qs, qg
-    //                   9     10     11 12  13  14  15  16  17  18  19  20
-    MultiFab mf_out(grids[lev], dmap[lev], 21, 0);
+    //                  10     11     12 13  14  15  16  17  18  19  20  21
+    MultiFab mf_out(grids[lev], dmap[lev], 22, 0);
 
     // This will hold uw, vw, ww, wth, uiuiw, pw, wqv, wqc, wqr, wthv
     //       indices:  0   1   2    3      4   5    6    7    8     9
@@ -366,8 +361,8 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
         const Array4<Real>& w_fc_arr =  w_fc.array(mfi);
         const Array4<Real>& cons_arr = mf_cons.array(mfi);
         const Array4<Real>&   p0_arr = p_hse.array(mfi);
-        const Array4<const Real>& eta_arr = (l_use_Turb) ? eddyDiffs_lev[lev]->const_array(mfi) :
-                                                           Array4<const Real>{};
+        const Array4<const Real>& eta_arr = (l_use_kturb) ? eddyDiffs_lev[lev]->const_array(mfi) :
+                                                            Array4<const Real>{};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -384,36 +379,40 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
                 ksgs = cons_arr(i,j,k,RhoQKE_comp) / cons_arr(i,j,k,Rho_comp);
             }
             fab_arr(i, j, k, 2) = ksgs;
-            Real kturb = 0.0;
-            if (l_use_Turb) kturb = eta_arr(i,j,k,EddyDiff::Mom_h);
-            fab_arr(i, j, k, 3) = kturb;
-            fab_arr(i, j, k, 4) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
-            fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
-            fab_arr(i, j, k, 6) = v_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // v*v
-            fab_arr(i, j, k, 7) = u_cc_arr(i,j,k) * theta;             // u*th
-            fab_arr(i, j, k, 8) = v_cc_arr(i,j,k) * theta;             // v*th
-            fab_arr(i, j, k, 9) = theta * theta;                       // th*th
+            if (l_use_kturb) {
+                fab_arr(i, j, k, 3) = eta_arr(i,j,k,EddyDiff::Mom_v); // Kmv
+                fab_arr(i, j, k, 4) = eta_arr(i,j,k,EddyDiff::Theta_v); // Khv
+            } else {
+                fab_arr(i, j, k, 3) = 0.0;
+                fab_arr(i, j, k, 4) = 0.0;
+            }
+            fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
+            fab_arr(i, j, k, 6) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
+            fab_arr(i, j, k, 7) = v_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // v*v
+            fab_arr(i, j, k, 8) = u_cc_arr(i,j,k) * theta;             // u*th
+            fab_arr(i, j, k, 9) = v_cc_arr(i,j,k) * theta;             // v*th
+            fab_arr(i, j, k,10) = theta * theta;                       // th*th
 
             Real wcc = 0.5 * (w_fc_arr(i,j,k) + w_fc_arr(i,j,k+1));
 
             // if the number of fields is changed above, then be sure to update
             // the following def!
-            Real uiui = fab_arr(i,j,k,4) + fab_arr(i,j,k,6) + wcc*wcc;
-            fab_arr(i, j, k,10) = uiui * u_cc_arr(i,j,k);           // (ui*ui)*u
-            fab_arr(i, j, k,11) = uiui * v_cc_arr(i,j,k);           // (ui*ui)*v
+            Real uiui = fab_arr(i,j,k,5) + fab_arr(i,j,k,7) + wcc*wcc;
+            fab_arr(i, j, k,11) = uiui * u_cc_arr(i,j,k);           // (ui*ui)*u
+            fab_arr(i, j, k,12) = uiui * v_cc_arr(i,j,k);           // (ui*ui)*v
 
             if (!use_moisture) {
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp));
                 p -= p0_arr(i,j,k);
-                fab_arr(i, j, k,12) = p;                       // p
-                fab_arr(i, j, k,13) = p * u_cc_arr(i,j,k);     // p*u
-                fab_arr(i, j, k,14) = p * v_cc_arr(i,j,k);     // p*v
-                fab_arr(i, j, k,15) = 0.;  // qv
-                fab_arr(i, j, k,16) = 0.;  // qc
-                fab_arr(i, j, k,17) = 0.;  // qr
-                fab_arr(i, j, k,18) = 0.;  // qi
-                fab_arr(i, j, k,19) = 0.;  // qs
-                fab_arr(i, j, k,20) = 0.;  // qg
+                fab_arr(i, j, k,13) = p;                       // p
+                fab_arr(i, j, k,14) = p * u_cc_arr(i,j,k);     // p*u
+                fab_arr(i, j, k,15) = p * v_cc_arr(i,j,k);     // p*v
+                fab_arr(i, j, k,16) = 0.;  // qv
+                fab_arr(i, j, k,17) = 0.;  // qc
+                fab_arr(i, j, k,18) = 0.;  // qr
+                fab_arr(i, j, k,19) = 0.;  // qi
+                fab_arr(i, j, k,20) = 0.;  // qs
+                fab_arr(i, j, k,21) = 0.;  // qg
             }
         });
 
@@ -475,20 +474,20 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
 
                 p -= p0_arr(i,j,k);
-                fab_arr(i, j, k,12) = p;                       // p
-                fab_arr(i, j, k,13) = p * u_cc_arr(i,j,k);     // p*u
-                fab_arr(i, j, k,14) = p * v_cc_arr(i,j,k);     // p*v
-                fab_arr(i, j, k,15) = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // qv
-                fab_arr(i, j, k,16) = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // qc
-                fab_arr(i, j, k,17) = cons_arr(i,j,k,RhoQr_comp) / cons_arr(i,j,k,Rho_comp);  // qr
+                fab_arr(i, j, k,13) = p;                       // p
+                fab_arr(i, j, k,14) = p * u_cc_arr(i,j,k);     // p*u
+                fab_arr(i, j, k,15) = p * v_cc_arr(i,j,k);     // p*v
+                fab_arr(i, j, k,16) = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // qv
+                fab_arr(i, j, k,17) = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // qc
+                fab_arr(i, j, k,18) = cons_arr(i,j,k,RhoQr_comp) / cons_arr(i,j,k,Rho_comp);  // qr
                 if (n_qstate > 3) {
-                    fab_arr(i, j, k,18) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
-                    fab_arr(i, j, k,19) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
-                    fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg
+                    fab_arr(i, j, k,19) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
+                    fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
+                    fab_arr(i, j, k,21) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg
                 } else {
-                    fab_arr(i, j, k,18) = 0.0;  // qi
-                    fab_arr(i, j, k,19) = 0.0;  // qs
-                    fab_arr(i, j, k,20) = 0.0;  // qg
+                    fab_arr(i, j, k,19) = 0.0;  // qi
+                    fab_arr(i, j, k,20) = 0.0;  // qs
+                    fab_arr(i, j, k,21) = 0.0;  // qg
                 }
             });
 
@@ -532,24 +531,25 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
     h_avg_rho   = sumToLine(mf_out, 0,1,domain,zdir);
     h_avg_th    = sumToLine(mf_out, 1,1,domain,zdir);
     h_avg_ksgs  = sumToLine(mf_out, 2,1,domain,zdir);
-    h_avg_kturb = sumToLine(mf_out, 3,1,domain,zdir);
-    h_avg_uu    = sumToLine(mf_out, 4,1,domain,zdir);
-    h_avg_uv    = sumToLine(mf_out, 5,1,domain,zdir);
-    h_avg_vv    = sumToLine(mf_out, 6,1,domain,zdir);
-    h_avg_uth   = sumToLine(mf_out, 7,1,domain,zdir);
-    h_avg_vth   = sumToLine(mf_out, 8,1,domain,zdir);
-    h_avg_thth  = sumToLine(mf_out, 9,1,domain,zdir);
-    h_avg_uiuiu = sumToLine(mf_out,10,1,domain,zdir);
-    h_avg_uiuiv = sumToLine(mf_out,11,1,domain,zdir);
-    h_avg_p     = sumToLine(mf_out,12,1,domain,zdir);
-    h_avg_pu    = sumToLine(mf_out,13,1,domain,zdir);
-    h_avg_pv    = sumToLine(mf_out,14,1,domain,zdir);
-    h_avg_qv    = sumToLine(mf_out,15,1,domain,zdir);
-    h_avg_qc    = sumToLine(mf_out,16,1,domain,zdir);
-    h_avg_qr    = sumToLine(mf_out,17,1,domain,zdir);
-    h_avg_qi    = sumToLine(mf_out,18,1,domain,zdir);
-    h_avg_qs    = sumToLine(mf_out,19,1,domain,zdir);
-    h_avg_qg    = sumToLine(mf_out,20,1,domain,zdir);
+    h_avg_Kmv   = sumToLine(mf_out, 3,1,domain,zdir);
+    h_avg_Khv   = sumToLine(mf_out, 4,1,domain,zdir);
+    h_avg_uu    = sumToLine(mf_out, 5,1,domain,zdir);
+    h_avg_uv    = sumToLine(mf_out, 6,1,domain,zdir);
+    h_avg_vv    = sumToLine(mf_out, 7,1,domain,zdir);
+    h_avg_uth   = sumToLine(mf_out, 8,1,domain,zdir);
+    h_avg_vth   = sumToLine(mf_out, 9,1,domain,zdir);
+    h_avg_thth  = sumToLine(mf_out,10,1,domain,zdir);
+    h_avg_uiuiu = sumToLine(mf_out,11,1,domain,zdir);
+    h_avg_uiuiv = sumToLine(mf_out,12,1,domain,zdir);
+    h_avg_p     = sumToLine(mf_out,13,1,domain,zdir);
+    h_avg_pu    = sumToLine(mf_out,14,1,domain,zdir);
+    h_avg_pv    = sumToLine(mf_out,15,1,domain,zdir);
+    h_avg_qv    = sumToLine(mf_out,16,1,domain,zdir);
+    h_avg_qc    = sumToLine(mf_out,17,1,domain,zdir);
+    h_avg_qr    = sumToLine(mf_out,18,1,domain,zdir);
+    h_avg_qi    = sumToLine(mf_out,19,1,domain,zdir);
+    h_avg_qs    = sumToLine(mf_out,20,1,domain,zdir);
+    h_avg_qg    = sumToLine(mf_out,21,1,domain,zdir);
 
     h_avg_uw    = sumToLine(mf_out_stag,0,1,stag_domain,zdir);
     h_avg_vw    = sumToLine(mf_out_stag,1,1,stag_domain,zdir);
@@ -570,7 +570,8 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
         h_avg_v[k]     /= area_z;
         h_avg_rho[k]   /= area_z;
         h_avg_ksgs[k]  /= area_z;
-        h_avg_kturb[k] /= area_z;
+        h_avg_Kmv[k]   /= area_z;
+        h_avg_Khv[k]   /= area_z;
         h_avg_th[k]    /= area_z;
         h_avg_thth[k]  /= area_z;
         h_avg_uu[k]    /= area_z;
@@ -610,15 +611,18 @@ void
 ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<Real>& h_avg_tau12,
                                   Gpu::HostVector<Real>& h_avg_tau13, Gpu::HostVector<Real>& h_avg_tau22,
                                   Gpu::HostVector<Real>& h_avg_tau23, Gpu::HostVector<Real>& h_avg_tau33,
-                                  Gpu::HostVector<Real>& h_avg_hfx3,  Gpu::HostVector<Real>& h_avg_diss)
+                                  Gpu::HostVector<Real>& h_avg_hfx3,  Gpu::HostVector<Real>& h_avg_q1fx3,
+                                  Gpu::HostVector<Real>& h_avg_q2fx3, Gpu::HostVector<Real>& h_avg_diss)
 {
     int lev = 0;
 
     // This will hold the stress tensor components
-    MultiFab mf_out(grids[lev], dmap[lev], 8, 0);
+    MultiFab mf_out(grids[lev], dmap[lev], 10, 0);
 
     // This will hold Tau13 and Tau23
-    MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 2, 0);
+    MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 5, 0);
+
+    bool l_use_moist   = ( solverChoice.moisture_type != MoistureType::None );
 
     for ( MFIter mfi(mf_out,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -639,6 +643,10 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
         //const Array4<const Real>& hfx1_arr = SFS_hfx1_lev[lev]->const_array(mfi);
         //const Array4<const Real>& hfx2_arr = SFS_hfx2_lev[lev]->const_array(mfi);
         const Array4<const Real>& hfx3_arr = SFS_hfx3_lev[lev]->const_array(mfi);
+        const Array4<const Real>& q1fx3_arr = (l_use_moist) ? SFS_q1fx3_lev[lev]->const_array(mfi) :
+                                                              Array4<const Real>{};
+        const Array4<const Real>& q2fx3_arr = (l_use_moist) ? SFS_q2fx3_lev[lev]->const_array(mfi) :
+                                                              Array4<const Real>{};
         const Array4<const Real>& diss_arr = SFS_diss_lev[lev]->const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -652,15 +660,22 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
 //          fab_arr(i, j, k, 4) = 0.25 * ( tau23_arr(i,j,k  ) + tau23_arr(i,j+1,k)
 //                                       + tau23_arr(i,j,k+1) + tau23_arr(i,j+1,k+1) );
             fab_arr(i, j, k, 5) = tau33_arr(i,j,k);
-            fab_arr(i, j, k, 6) =  hfx3_arr(i,j,k);
-            fab_arr(i, j, k, 7) =  diss_arr(i,j,k);
+//          fab_arr(i, j, k, 6) =  hfx3_arr(i,j,k);
+//          fab_arr(i, j, k, 7) =  (l_use_moist) ? q1fx3_arr(i,j,k) : 0.0;
+//          fab_arr(i, j, k, 8) =  (l_use_moist) ? q2fx3_arr(i,j,k) : 0.0;
+            fab_arr(i, j, k, 9) =  diss_arr(i,j,k);
         });
 
         const Box& zbx = mfi.tilebox(IntVect(0,0,1));
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            // average from edge to face center
             fab_arr_stag(i,j,k,0) = 0.5*(tau13_arr(i,j,k) + tau13_arr(i+1,j  ,k));
             fab_arr_stag(i,j,k,1) = 0.5*(tau23_arr(i,j,k) + tau23_arr(i  ,j+1,k));
+
+            fab_arr_stag(i,j,k,2) =  hfx3_arr(i,j,k);
+            fab_arr_stag(i,j,k,3) =  (l_use_moist) ? q1fx3_arr(i,j,k) : 0.0;
+            fab_arr_stag(i,j,k,4) =  (l_use_moist) ? q2fx3_arr(i,j,k) : 0.0;
         });
     }
 
@@ -675,11 +690,16 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
     h_avg_tau22 = sumToLine(mf_out,3,1,domain,zdir);
 //  h_avg_tau23 = sumToLine(mf_out,4,1,domain,zdir);
     h_avg_tau33 = sumToLine(mf_out,5,1,domain,zdir);
-    h_avg_hfx3  = sumToLine(mf_out,6,1,domain,zdir);
-    h_avg_diss  = sumToLine(mf_out,7,1,domain,zdir);
+//  h_avg_hfx3  = sumToLine(mf_out,6,1,domain,zdir);
+//  h_avg_q1fx3 = sumToLine(mf_out,7,1,domain,zdir);
+//  h_avg_q2fx3 = sumToLine(mf_out,8,1,domain,zdir);
+    h_avg_diss  = sumToLine(mf_out,9,1,domain,zdir);
 
     h_avg_tau13 = sumToLine(mf_out_stag,0,1,stag_domain,zdir);
     h_avg_tau23 = sumToLine(mf_out_stag,1,1,stag_domain,zdir);
+    h_avg_hfx3  = sumToLine(mf_out_stag,2,1,stag_domain,zdir);
+    h_avg_q1fx3 = sumToLine(mf_out_stag,3,1,stag_domain,zdir);
+    h_avg_q2fx3 = sumToLine(mf_out_stag,4,1,stag_domain,zdir);
 
     int ht_size =  h_avg_tau11.size(); // _un_staggered
 
@@ -687,12 +707,14 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
     for (int k = 0; k < ht_size; ++k) {
         h_avg_tau11[k] /= area_z; h_avg_tau12[k] /= area_z;
-        h_avg_tau22[k] /= area_z; h_avg_tau33[k] /= area_z;
-        h_avg_hfx3[k] /= area_z;
+        h_avg_tau22[k] /= area_z;
+        h_avg_tau33[k] /= area_z;
         h_avg_diss[k] /= area_z;
     }
     for (int k = 0; k < ht_size+1; ++k) { // staggered heights
         h_avg_tau13[k] /= area_z;
         h_avg_tau23[k] /= area_z;
+        h_avg_hfx3[k] /= area_z;
+        h_avg_q1fx3[k] /= area_z; h_avg_q2fx3[k] /= area_z;
     }
 }

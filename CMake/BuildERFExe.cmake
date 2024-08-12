@@ -187,6 +187,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Kessler/Init_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
+	   ${SRC_DIR}/WindFarmParametrization/Fitch/AdvanceFitch.cpp
+	   ${SRC_DIR}/WindFarmParametrization/EWP/AdvanceEWP.cpp
+	   ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/AdvanceSimpleAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/MM5.cpp
   )
@@ -233,7 +236,12 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Null)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SAM)
-  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Kessler)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Kessler) 
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/WindFarmParametrization)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/WindFarmParametrization/Null)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/WindFarmParametrization/Fitch)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/WindFarmParametrization/EWP)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel/Null)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel/SLM)
