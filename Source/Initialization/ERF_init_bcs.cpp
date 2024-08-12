@@ -19,7 +19,8 @@ using namespace amrex;
  */
 void ERF::init_bcs ()
 {
-    auto f = [this] (std::string const& bcid, Orientation ori)
+    bool rho_read = false;
+    auto f = [this,&rho_read] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
         m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  1.0;
@@ -184,7 +185,8 @@ void ERF::init_bcs ()
             }
 
             Real rho_in;
-            if (pp.query("density", rho_in))
+            rho_read = pp.query("density", rho_in);
+            if (rho_read)
             {
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
             }
@@ -453,7 +455,11 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                     }
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
-                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
+                        if (rho_read) {
+                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
+                        } else {
+                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir_prim);
+                        }
                     }
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
@@ -463,7 +469,11 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                     }
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
-                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
+                        if (rho_read) {
+                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
+                        } else {
+                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir_prim);
+                        }
                     }
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);

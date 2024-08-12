@@ -1251,12 +1251,6 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
 
-    // Initialize wind farm
-
-#ifdef ERF_USE_WINDFARM
-    init_windfarm(lev);
-#endif
-
    if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
         input_sponge(lev);
    }
