@@ -381,7 +381,7 @@ private:
     amrex::Vector<amrex::MultiFab*>  m_Lwave_lev;
     amrex::Vector<amrex::MultiFab*>  m_eddyDiffs_lev;
 
-    amrex::Array2D<amrex::Real,0,2,0,2> m_rot_mat;
+    //amrex::Array2D<amrex::Real,0,2,0,2> m_rot_mat;
 };
 
 #endif /* ABLMOST_H */
