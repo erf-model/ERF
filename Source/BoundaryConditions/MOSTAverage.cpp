@@ -65,8 +65,8 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         const int ncomp   = 1;
         IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-          m_fields[lev][0]   = &vars_old[lev][Vars::xvel];
-          m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
+          m_fields[lev][0] = &vars_old[lev][Vars::xvel];
+        m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         m_averages[lev][0]->setVal(1.E34);
       }
       { // Nodal in y

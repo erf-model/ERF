@@ -63,7 +63,7 @@ ComputeVerticalDerivativesPBL(int i, int j, int k,
 }
 
 /**
- * Function for computing the QKE source terms.
+ * Function for computing the QKE source terms (NN09, Eqn. 5).
  *
  * @param[in] u velocity in x-dir
  * @param[in] v velocity in y-dir
@@ -111,10 +111,13 @@ ComputeQKESourceTerms (int i, int j, int k,
                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                   dthetadz, dudz, dvdz);
 
-    // Production (We store mu_turb, which is 0.5*K_turb)
+    // Note: Transport terms due to turbulence and pressure are included when
+    // DiffusionSrcForState_* is called.
+
+    // Shear Production (Note: We store mu_turb, which is 0.5*K_turb)
     source_term += 4.0*K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
 
-    // Buoyancy
+    // Buoyancy (TODO: implement partial-condensation scheme)
     source_term -= 2.0*(CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
 
     // Dissipation

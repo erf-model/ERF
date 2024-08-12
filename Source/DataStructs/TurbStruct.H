@@ -281,7 +281,8 @@ struct TurbChoice {
 
     // PBL model
     PBLType pbl_type;
-    // Model coefficients - MYNN2.5
+
+    // Model coefficients - MYNN2.5 (from Nakanishi & Niino 2009 [NN09])
     amrex::Real pbl_mynn_A1 = 1.18;
     amrex::Real pbl_mynn_A2 = 0.665;
     amrex::Real pbl_mynn_B1 = 24.0;
