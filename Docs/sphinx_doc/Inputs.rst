@@ -919,6 +919,15 @@ List of Parameters
 |                                  | abl.driver_type = |                   |             |
 |                                  | GeostrophicWind)  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
+| **erf.abl_geo_wind_table**       | Path to text file | String            | None        |
+|                                  | containing a      |                   |             |
+|                                  | geostrophic wind  |                   |             |
+|                                  | profile           |                   |             |
+|                                  | (with z, Ug, and  |                   |             |
+|                                  |  Vg whtiespace    |                   |             |
+|                                  |  delimited        |                   |             |
+|                                  |  columns)         |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
 | **erf.use_gravity**              | Include gravity   | true / false      | false       |
 |                                  | in momentum       |                   |             |
 |                                  | update?  If true, |                   |             |
@@ -955,6 +964,28 @@ function(s).
 |                                            | temperature source|                   |             |
 |                                            | term              |                   |             |
 +--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_custom_moisture_forcing**        | Apply the         | true or false     | false       |
+|                                            | user-defined      |                   |             |
+|                                            | qv source         |                   |             |
+|                                            | term              |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_custom_w_subsidence**            | Apply the         | true or false     | false       |
+|                                            | user-defined      |                   |             |
+|                                            | vertical velocity |                   |             |
+|                                            | profile for use in|                   |             |
+|                                            | calculating       |                   |             |
+|                                            | subsidence source |                   |             |
+|                                            | terms             |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_custom_geostrophic_profile**     | Apply the         | true or false     | false       |
+|                                            | user-defined      |                   |             |
+|                                            | geostrophic wind  |                   |             |
+|                                            | profile           |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+
+Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
+with an ``erf.abl_geo_wind_table``.
+
 
 Initialization
 ==============
