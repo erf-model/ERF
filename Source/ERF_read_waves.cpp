@@ -122,7 +122,7 @@ ERF::send_to_ww3 (int lev)
     int ncomp = 1; // number components
     auto& lev_new = vars_new[lev];
     const double PI = 3.1415926535897932384626433832795028841971693993751058209;
-   
+
     int count_send = 0;
     int k_ref = 0;
     int nlevs_max = max_level + 1;
@@ -236,7 +236,7 @@ ERF::send_to_ww3 (int lev)
     dm_onegrid.define(pmap);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
- 
+
  //           magnitude(i,j,k)  = std::sqrt( pow(u(i,j,k), 2) + pow(v(i,j,k), 2) );
 
             double u_val = u(i, j, k);
@@ -328,12 +328,12 @@ MPI_Send(theta_values.data(), n_elements, MPI_DOUBLE, other_root, 14, MPI_COMM_W
                  //MPI_Recv(&ny, 1, MPI_INT, other_root, 6, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
              }
          }
-    timedif = ( ((double) clock()) / CLOCKS_PER_SEC) - clkStart; 
+    timedif = ( ((double) clock()) / CLOCKS_PER_SEC) - clkStart;
 
-// amrex::Real myclock = ParallelDescriptor::second(); 	
+// amrex::Real myclock = ParallelDescriptor::second();
 //    amrex::AllPrintToFile("timer.txt") << "At " << myclock << " seconds I reached the end of send_to_ww3" << std::endl;
 
-     amrex::AllPrintToFile("timer.txt") << "It took " << timedif << " seconds to reach the end of send_to_WW3" << std::endl; 
+     amrex::AllPrintToFile("timer.txt") << "It took " << timedif << " seconds to reach the end of send_to_WW3" << std::endl;
 
 
 }
