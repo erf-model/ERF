@@ -43,8 +43,9 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
         const Real C1 = turbChoice.pbl_mynn_C1;
         const Real C2 = turbChoice.pbl_mynn_C2;
         const Real C3 = turbChoice.pbl_mynn_C3;
-        //const Real C4 = turbChoice.pbl_mynn_C4;
+      //const Real C4 = turbChoice.pbl_mynn_C4;
         const Real C5 = turbChoice.pbl_mynn_C5;
+        auto level2   = turbChoice.pbl_mynn_level2;
 
         // Dirichlet flags to switch derivative stencil
         bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -213,29 +214,24 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 // Overall turbulent length scale (NN09, Eqn 52)
                 Real Lturb = 1.0 / (1.0/l_S + 1.0/l_T + 1.0/l_B);
 
-                const Real rho = cell_data(i,j,k,Rho_comp);
+                // Calculate nondimensional production terms
+                Real shearProd  = dudz*dudz + dvdz*dvdz;
+                Real buoyProd   = -(CONST_GRAV/theta0) * dthetadz;  // TODO: account for moisture
+                Real L2_over_q2 = Lturb*Lturb/(qvel(i,j,k)*qvel(i,j,k));
+                Real GM         = L2_over_q2 * shearProd;
+                Real GH         = L2_over_q2 * buoyProd;
 
-                // NOTE: Level 2 limiting from balance of production and dissipation.
-                //       K_turb has a setval of 0.0 when the MF is created (NOT EACH STEP).
-                //       We do this inline to avoid storing qe^2 at each cell.
-                // The level-2 equilibrium TKE per unit mass is qe^2 / 2,
-                // obtained from NN09 Eqn. 5 with the time-tendency and
-                // transport terms set to 0. See also Helfand and Labraga 1988,
-                // Eqn 2.1 (with X=0).
-                Real l_comb_old   = K_turb(i,j,k,EddyDiff::PBL_lengthscale);
-                Real shearProd    = dudz*dudz + dvdz*dvdz;
-                Real buoyProd     = -(CONST_GRAV/theta0) * dthetadz;  // TODO: account for moisture
-                Real lSM          = K_turb(i,j,k,EddyDiff::Mom_v)   / (qvel_old(i,j,k) + eps); // rho * L * SM
-                Real lSH          = K_turb(i,j,k,EddyDiff::Theta_v) / (qvel_old(i,j,k) + eps); // rho * L * SH
-                Real qe2          = B1 * l_comb_old * ( lSM * shearProd + lSH * buoyProd );
-                Real qe           = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2/rho);
-                Real alphac  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps); // == alpha_c (NN09, Eqn. 42)
+                // Equilibrium (Level-2) q calculation follows NN09, Appendix 2
+                Real Rf  = level2.calc_Rf(GM, GH);
+                Real SM2 = level2.calc_SM(Rf);
+                Real qe2 = B1*Lturb*Lturb*SM2*(1.0-Rf)*shearProd;
+                Real qe  = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
+
+                // Level 2 limiting (Helfand and Labraga 1988)
+                Real alphac  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
                 Real alphac2 = alphac * alphac;
 
                 // Compute non-dimensional parameters (notation follows NN09)
-                Real L2_over_q2   = Lturb*Lturb/(qvel(i,j,k)*qvel(i,j,k));
-                Real GM = L2_over_q2 * shearProd;
-                Real GH = L2_over_q2 * buoyProd;
                 Real Phi1 = 1.0  - alphac2*3.0*A2*B2*(1-C3)*GH;
                 Real Phi2 = 1.0  - alphac2*9.0*A1*A2*(1-C2)*GH;
                 Real Phi3 = Phi1 + alphac2*9.0*A2*A2*(1-C2)*(1-C5)*GH;
@@ -249,6 +245,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 Real SQ = 3.0 * SM; // revised in NN09
 
                 // Finally, compute the eddy viscosity/diffusivities
+                const Real rho = cell_data(i,j,k,Rho_comp);
                 K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lturb * qvel(i,j,k) * SM * 0.5; // 0.5 for mu_turb
                 K_turb(i,j,k,EddyDiff::Theta_v) = rho * Lturb * qvel(i,j,k) * SH;
                 K_turb(i,j,k,EddyDiff::QKE_v)   = rho * Lturb * qvel(i,j,k) * SQ;
