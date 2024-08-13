@@ -188,6 +188,10 @@ ABLMost::compute_fluxes (const int& lev,
 void
 ABLMost::impose_most_bcs (const int& lev,
                           const Vector<MultiFab*>& mfs,
+                          MultiFab* xxmom_flux,
+                          MultiFab* yymom_flux,
+                          MultiFab* zzmom_flux,
+                          MultiFab* xymom_flux, MultiFab* yxmom_flux,
                           MultiFab* xzmom_flux, MultiFab* zxmom_flux,
                           MultiFab* yzmom_flux, MultiFab* zymom_flux,
                           MultiFab* heat_flux,
@@ -198,6 +202,10 @@ ABLMost::impose_most_bcs (const int& lev,
     if (flux_type == FluxCalcType::MOENG) {
         moeng_flux flux_comp(klo);
         compute_most_bcs(lev, mfs,
+                         xxmom_flux,
+                         yymom_flux,
+                         zzmom_flux,
+                         xymom_flux, yxmom_flux,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
                          heat_flux, qv_flux,
@@ -205,6 +213,10 @@ ABLMost::impose_most_bcs (const int& lev,
     } else if (flux_type == FluxCalcType::DONELAN) {
         donelan_flux flux_comp(klo);
         compute_most_bcs(lev, mfs,
+                         xxmom_flux,
+                         yymom_flux,
+                         zzmom_flux,
+                         xymom_flux, yxmom_flux,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
                          heat_flux, qv_flux,
@@ -212,6 +224,10 @@ ABLMost::impose_most_bcs (const int& lev,
     } else {
         custom_flux flux_comp(klo);
         compute_most_bcs(lev, mfs,
+                         xxmom_flux,
+                         yymom_flux,
+                         zzmom_flux,
+                         xymom_flux, yxmom_flux,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
                          heat_flux, qv_flux,
@@ -232,6 +248,10 @@ template<typename FluxCalc>
 void
 ABLMost::compute_most_bcs (const int& lev,
                            const Vector<MultiFab*>& mfs,
+                           MultiFab* xxmom_flux,
+                           MultiFab* yymom_flux,
+                           MultiFab* zzmom_flux,
+                           MultiFab* xymom_flux, MultiFab* yxmom_flux,
                            MultiFab* xzmom_flux, MultiFab* zxmom_flux,
                            MultiFab* yzmom_flux, MultiFab* zymom_flux,
                            MultiFab* heat_flux,
@@ -253,18 +273,30 @@ ABLMost::compute_most_bcs (const int& lev,
 
         // Expose for GPU
         bool exp_most = m_exp_most;
+        bool rot_most = m_rotate;
 
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
         const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
 
-        auto t13_arr = (m_exp_most) ? xzmom_flux->array(mfi) : Array4<Real>{};
-        auto t23_arr = (m_exp_most) ? yzmom_flux->array(mfi) : Array4<Real>{};
-        auto t31_arr = (zxmom_flux && m_exp_most) ? zxmom_flux->array(mfi) : Array4<Real>{};
-        auto t32_arr = (zymom_flux && m_exp_most) ? zymom_flux->array(mfi) : Array4<Real>{};
-        auto hfx_arr = (m_exp_most) ? heat_flux->array(mfi) : Array4<Real>{};
-        auto qfx_arr = (m_exp_most && qv_flux) ? qv_flux->array(mfi) : Array4<Real>{};
+        auto t11_arr = (m_rotate) ? xxmom_flux->array(mfi) : Array4<Real>{};
+        auto t22_arr = (m_rotate) ? yymom_flux->array(mfi) : Array4<Real>{};
+        auto t33_arr = (m_rotate) ? zzmom_flux->array(mfi) : Array4<Real>{};
+        auto t12_arr = (m_rotate) ? xymom_flux->array(mfi) : Array4<Real>{};
+        auto t21_arr = (m_rotate) ? yxmom_flux->array(mfi) : Array4<Real>{};
+        amrex::ignore_unused(m_rotate,rot_most);
+        amrex::ignore_unused(xxmom_flux,yymom_flux,zzmom_flux,xymom_flux,yxmom_flux);
+        amrex::ignore_unused(t11_arr,t22_arr,t33_arr,t12_arr,t21_arr);
+
+        auto t13_arr = (m_exp_most)               ? xzmom_flux->array(mfi) : Array4<Real>{};
+        auto t31_arr = (m_exp_most && zxmom_flux) ? zxmom_flux->array(mfi) : Array4<Real>{};
+
+        auto t23_arr = (m_exp_most)               ? yzmom_flux->array(mfi) : Array4<Real>{};
+        auto t32_arr = (m_exp_most && zymom_flux) ? zymom_flux->array(mfi) : Array4<Real>{};
+
+        auto hfx_arr = (m_exp_most)            ? heat_flux->array(mfi) : Array4<Real>{};
+        auto qfx_arr = (m_exp_most && qv_flux) ? qv_flux->array(mfi)   : Array4<Real>{};
 
         const auto  eta_arr  = m_eddyDiffs_lev[lev]->array(mfi);
 
@@ -355,8 +387,8 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             umm_arr, um_arr, u_star_arr,
                                                             dest_arr);
                     if ((k == klo-1) && vbxx.contains(i,j,k) && exp_most) {
-                        t13_arr(i,j,klo) = -stressx;
-                        if (t31_arr) t31_arr(i,j,klo) = -stressx;
+                        t13_arr(i,j,klo) = stressx;
+                        if (t31_arr) t31_arr(i,j,klo) = stressx;
                     }
                     amrex::ignore_unused(stressx);
                 });
@@ -375,8 +407,8 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             umm_arr, vm_arr, u_star_arr,
                                                             dest_arr);
                     if ((k == klo-1) && vbxy.contains(i,j,k) && exp_most) {
-                        t23_arr(i,j,klo) = -stressy;
-                        if (t32_arr) t32_arr(i,j,klo) = -stressy;
+                        t23_arr(i,j,klo) = stressy;
+                        if (t32_arr) t32_arr(i,j,klo) = stressy;
                     }
                     amrex::ignore_unused(stressy);
                 });
