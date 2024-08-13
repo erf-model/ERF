@@ -142,32 +142,32 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                      return n*m;
                                  } );
 
-    ParallelDescriptor::ReduceRealMin(&min_par_mass,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMin(&min_t_coales,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMin(&min_par_radius,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMin(&min_multiplic,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMin(&min_par_vx,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMin(&min_par_vy,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMin(&min_par_vz,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMin(&min_term_v,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMin(&min_par_mass,1);
+    ParallelDescriptor::ReduceRealMin(&min_t_coales,1);
+    ParallelDescriptor::ReduceRealMin(&min_par_radius,1);
+    ParallelDescriptor::ReduceRealMin(&min_multiplic,1);
+    ParallelDescriptor::ReduceRealMin(&min_par_vx,1);
+    ParallelDescriptor::ReduceRealMin(&min_par_vy,1);
+    ParallelDescriptor::ReduceRealMin(&min_par_vz,1);
+    ParallelDescriptor::ReduceRealMin(&min_term_v,1);
 
-    ParallelDescriptor::ReduceRealMax(&max_par_mass,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMax(&max_t_coales,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMax(&max_par_radius,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMax(&max_multiplic,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMax(&max_par_vx,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMax(&max_par_vy,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMax(&max_par_vz,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMax(&max_term_v,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMax(&max_par_mass,1);
+    ParallelDescriptor::ReduceRealMax(&max_t_coales,1);
+    ParallelDescriptor::ReduceRealMax(&max_par_radius,1);
+    ParallelDescriptor::ReduceRealMax(&max_multiplic,1);
+    ParallelDescriptor::ReduceRealMax(&max_par_vx,1);
+    ParallelDescriptor::ReduceRealMax(&max_par_vy,1);
+    ParallelDescriptor::ReduceRealMax(&max_par_vz,1);
+    ParallelDescriptor::ReduceRealMax(&max_term_v,1);
 
-    ParallelDescriptor::ReduceRealSum(&avg_par_mass,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealSum(&avg_t_coales,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealSum(&avg_par_radius,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealSum(&avg_multiplic,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealSum(&avg_par_vx,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealSum(&avg_par_vy,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealSum(&avg_par_vz,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealSum(&avg_term_v,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(&avg_par_mass,1);
+    ParallelDescriptor::ReduceRealSum(&avg_t_coales,1);
+    ParallelDescriptor::ReduceRealSum(&avg_par_radius,1);
+    ParallelDescriptor::ReduceRealSum(&avg_multiplic,1);
+    ParallelDescriptor::ReduceRealSum(&avg_par_vx,1);
+    ParallelDescriptor::ReduceRealSum(&avg_par_vy,1);
+    ParallelDescriptor::ReduceRealSum(&avg_par_vz,1);
+    ParallelDescriptor::ReduceRealSum(&avg_term_v,1);
 
     if (num_total_particles > 0) {
         avg_par_mass /= num_total_particles;
@@ -208,9 +208,9 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                                return n*m;
                                            } );
     }
-    ParallelDescriptor::ReduceRealMin(min_mass_aerosols.data(),m_num_aerosols,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealMax(max_mass_aerosols.data(),m_num_aerosols,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealSum(avg_mass_aerosols.data(),m_num_aerosols,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMin(min_mass_aerosols.data(),m_num_aerosols);
+    ParallelDescriptor::ReduceRealMax(max_mass_aerosols.data(),m_num_aerosols);
+    ParallelDescriptor::ReduceRealSum(avg_mass_aerosols.data(),m_num_aerosols);
     for (int ia = 0; ia < m_num_aerosols; ia++) {
         if (num_total_particles > 0) {
             avg_mass_aerosols[ia] /= num_total_particles;
@@ -251,9 +251,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
 
     Long num_unconverged_particles = m_num_unconverged_particles;
     m_num_unconverged_particles = 0;
-    ParallelDescriptor::ReduceLongSum(  &num_unconverged_particles,
-                                        1,
-                                        ParallelDescriptor::IOProcessorNumber() );
+    ParallelDescriptor::ReduceLongSum( &num_unconverged_particles, 1 );
 
     if (num_unconverged_particles > 0) {
         Print() << "SuperDropletPC::MassChange(): Warning - "
