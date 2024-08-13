@@ -28,6 +28,7 @@ ComputeVerticalDerivativesPBL(int i, int j, int k,
                               amrex::Real& dudz,
                               amrex::Real& dvdz)
 {
+    // TODO: account for moisture
     if ( k==izmax && c_ext_dir_on_zhi ) {
         dthetadz = (1.0/3.0)*(-cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp)
                               - 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)

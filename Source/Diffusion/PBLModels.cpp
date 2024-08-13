@@ -175,7 +175,8 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 // Surface-layer length scale (NN09, Eqn. 53)
                 AMREX_ASSERT(l_obukhov != 0);
                 int lk = amrex::max(k,0);
-                const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr) : gdata.ProbLo(2) + (lk + 0.5)*gdata.CellSize(2);
+                const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr)
+                                              : gdata.ProbLo(2) + (lk + 0.5)*gdata.CellSize(2);
                 const Real zeta = zval/l_obukhov;
                 Real l_S;
                 if (zeta >= 1.0) {
@@ -210,7 +211,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 }
 
                 // Overall turbulent length scale (NN09, Eqn 52)
-                Real l_comb = 1.0 / (1.0/l_S + 1.0/l_T + 1.0/l_B);
+                Real Lturb = 1.0 / (1.0/l_S + 1.0/l_T + 1.0/l_B);
 
                 const Real rho = cell_data(i,j,k,Rho_comp);
 
@@ -228,31 +229,31 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 Real lSH          = K_turb(i,j,k,EddyDiff::Theta_v) / (qvel_old(i,j,k) + eps); // rho * L * SH
                 Real qe2          = B1 * l_comb_old * ( lSM * shearProd + lSH * buoyProd );
                 Real qe           = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2/rho);
-                Real one_m_alpha  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
-                Real one_m_alpha2 = one_m_alpha * one_m_alpha;
+                Real alphac  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps); // == alpha_c (NN09, Eqn. 42)
+                Real alphac2 = alphac * alphac;
 
-                // Compute non-dimensional parameters (notation follows NN04)
-                Real l2_over_q2   = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k));
-                Real GM = l2_over_q2 * shearProd;
-                Real GH = l2_over_q2 * buoyProd;
-                Real E1 = 1.0 + one_m_alpha2 * ( 6.0*A1*A1*GM - 9.0*A1*A2*(1.0-C2)*GH );
-                Real E2 = -one_m_alpha2 * ( 3.0*A1*(4.0*A1 + 3.0*A2*(1.0-C5))*(1.0-C2)*GH );
-                Real E3 = one_m_alpha2 * ( 6.0*A1*A2*GM );
-                Real E4 = 1.0 - one_m_alpha2 * ( 12.0*A1*A2*(1.0-C2)*GH + 3.0*A2*B2*(1.0-C3)*GH );
-                Real R1 = one_m_alpha * ( A1*(1.0-3.0*C1) );
-                Real R2 = one_m_alpha * A2;
+                // Compute non-dimensional parameters (notation follows NN09)
+                Real L2_over_q2   = Lturb*Lturb/(qvel(i,j,k)*qvel(i,j,k));
+                Real GM = L2_over_q2 * shearProd;
+                Real GH = L2_over_q2 * buoyProd;
+                Real Phi1 = 1.0  - alphac2*3.0*A2*B2*(1-C3)*GH;
+                Real Phi2 = 1.0  - alphac2*9.0*A1*A2*(1-C2)*GH;
+                Real Phi3 = Phi1 + alphac2*9.0*A2*A2*(1-C2)*(1-C5)*GH;
+                Real Phi4 = Phi1 - alphac2*12.0*A1*A2*(1-C2)*GH;
+                Real Phi5 = 6.0*alphac*A1*A1*GM;
+                Real D = Phi2*Phi4 + Phi5*Phi3;
 
                 // Level 2.5 stability functions
-                Real SM = (R2*E2 - R1*E4)/(E2*E3 - E1*E4);
-                Real SH = (R1*E3 - R2*E1)/(E2*E3 - E1*E4);
+                Real SM = alphac * A1 * (Phi3 - 3*C1*Phi4) / D;
+                Real SH = alphac * A2 * (Phi2 + 3*C1*Phi5) / D;
                 Real SQ = 3.0 * SM; // revised in NN09
 
                 // Finally, compute the eddy viscosity/diffusivities
-                K_turb(i,j,k,EddyDiff::Mom_v)   = rho * l_comb * qvel(i,j,k) * SM * 0.5; // 0.5 for mu_turb
-                K_turb(i,j,k,EddyDiff::Theta_v) = rho * l_comb * qvel(i,j,k) * SH;
-                K_turb(i,j,k,EddyDiff::QKE_v)   = rho * l_comb * qvel(i,j,k) * SQ;
+                K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lturb * qvel(i,j,k) * SM * 0.5; // 0.5 for mu_turb
+                K_turb(i,j,k,EddyDiff::Theta_v) = rho * Lturb * qvel(i,j,k) * SH;
+                K_turb(i,j,k,EddyDiff::QKE_v)   = rho * Lturb * qvel(i,j,k) * SQ;
 
-                K_turb(i,j,k,EddyDiff::PBL_lengthscale) = l_comb;
+                K_turb(i,j,k,EddyDiff::PBL_lengthscale) = Lturb;
                 // TODO: How should this be done for other components (scalars, moisture)
             });
         }
