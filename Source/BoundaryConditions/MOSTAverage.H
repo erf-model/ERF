@@ -30,7 +30,7 @@ public:
 
     // Delete the copy constructor
     MOSTAverage (const MOSTAverage& other) = delete;
-    //
+
     // Delete the copy assignment operator
     MOSTAverage& operator=(const MOSTAverage& other) = delete;
 
@@ -39,6 +39,9 @@ public:
                             amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim);
+
+    // Update the rotated fields
+    void set_rotated_fields (int lev);
 
     // Compute ncells per plane
     void set_plane_normalization ();
@@ -167,10 +170,11 @@ protected:
 
     // General vars for multiple or all policies
     //--------------------------------------------
-    int m_nvar{4};                                                   // 4 fields for U/V/T/Qv
-    int m_navg{5};                                                   // 5 averages for U/V/T/Qv/Umag
-    int m_maxlev{0};                                                 // Total number of levels
-    int m_policy{0};                                                 // Policy for type of averaging
+    int  m_nvar{5};                                                  // 5 fields for U/V/T/Qv/W
+    int  m_navg{5};                                                  // 5 averages for U/V/T/Qv/Umag
+    int  m_maxlev{0};                                                // Total number of levels
+    int  m_policy{0};                                                // Policy for type of averaging
+    bool m_rotate{false};                                            // Do vector rotations for terrain?
     amrex::Real m_zref{10.0};                                        // Height above surface for MOST BC
     std::string m_pp_prefix {"erf"};                                 // ParmParse prefix
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_x_pos;         // Ptr to 2D mf to hold x position (maxlev)
@@ -180,6 +184,7 @@ protected:
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_j_indx;       // Ptr to 2D imf to hold j indices (maxlev)
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_k_indx;       // Ptr to 2D imf to hold k indices (maxlev)
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_averages; // Ptr to 2D mf to hold averages (maxlev,navg)
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_rot_fields; // Rotated field data
 
     // Vars for planar average policy
     //--------------------------------------------

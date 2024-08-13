@@ -64,8 +64,13 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     }
 
 #ifdef ERF_USE_WW3_COUPLING
-    read_waves(lev);
+    amrex::Print() <<  " About to call send_to_ww3 from ERF_Timestep" << std::endl;
     send_to_ww3(lev);
+    amrex::Print() <<  " About to call read_waves from ERF_Timestep"  << std::endl;
+    read_waves(lev);
+    //send_to_ww3(lev);
+    //read_waves(lev);
+    //send_to_ww3(lev);
 #endif
 
     // Advance a single level for a single time step

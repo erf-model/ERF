@@ -1,13 +1,13 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 5
+max_step = 8
 
 amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  191  91    1024
-amr.n_cell           =  191  91       4
+geometry.prob_extent =  41     41     1024
+amr.n_cell           =  41     41        4
 
 geometry.is_periodic = 1 1 0
 
@@ -15,8 +15,8 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 10  # fixed time step depending on grid resolution
-erf.max_step=1
+erf.fixed_dt           = 1  # fixed time step depending on grid resolution
+erf.max_step=8
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp

@@ -191,6 +191,7 @@ ABLMost::impose_most_bcs (const int& lev,
                           MultiFab* xzmom_flux, MultiFab* zxmom_flux,
                           MultiFab* yzmom_flux, MultiFab* zymom_flux,
                           MultiFab* heat_flux,
+                          MultiFab* qv_flux,
                           MultiFab* z_phys)
 {
     const int klo = 0;
@@ -199,21 +200,21 @@ ABLMost::impose_most_bcs (const int& lev,
         compute_most_bcs(lev, mfs,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
-                         heat_flux,
+                         heat_flux, qv_flux,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else if (flux_type == FluxCalcType::DONELAN) {
         donelan_flux flux_comp(klo);
         compute_most_bcs(lev, mfs,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
-                         heat_flux,
+                         heat_flux, qv_flux,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else {
         custom_flux flux_comp(klo);
         compute_most_bcs(lev, mfs,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
-                         heat_flux,
+                         heat_flux, qv_flux,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     }
 }
@@ -234,6 +235,7 @@ ABLMost::compute_most_bcs (const int& lev,
                            MultiFab* xzmom_flux, MultiFab* zxmom_flux,
                            MultiFab* yzmom_flux, MultiFab* zymom_flux,
                            MultiFab* heat_flux,
+                           MultiFab* qv_flux,
                            MultiFab* z_phys,
                            const Real& dz_no_terrain,
                            const FluxCalc& flux_comp)
@@ -262,6 +264,7 @@ ABLMost::compute_most_bcs (const int& lev,
         auto t31_arr = (zxmom_flux && m_exp_most) ? zxmom_flux->array(mfi) : Array4<Real>{};
         auto t32_arr = (zymom_flux && m_exp_most) ? zymom_flux->array(mfi) : Array4<Real>{};
         auto hfx_arr = (m_exp_most) ? heat_flux->array(mfi) : Array4<Real>{};
+        auto qfx_arr = (m_exp_most && qv_flux) ? qv_flux->array(mfi) : Array4<Real>{};
 
         const auto  eta_arr  = m_eddyDiffs_lev[lev]->array(mfi);
 
@@ -332,7 +335,9 @@ ABLMost::compute_most_bcs (const int& lev,
                                                               cons_arr, velx_arr, vely_arr,
                                                               umm_arr, qm_arr, u_star_arr, q_star_arr, t_surf_arr,
                                                               dest_arr);
-                        amrex::ignore_unused(Qflux);
+                        if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
+                            qfx_arr(i,j,klo) = Qflux;
+                        }
                     });
                 }
 

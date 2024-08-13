@@ -850,8 +850,8 @@ List of Parameters
 | Parameter                        | Definition         | Acceptable          | Default     |
 |                                  |                    | Values              |             |
 +==================================+====================+=====================+=============+
-| **erf.pbl_type**                 | Name of PBL Scheme | "None", "MYNN2.5"   | "None"      |
-|                                  | to be used         |                     |             |
+| **erf.pbl_type**                 | Name of PBL Scheme | "None", "MYNN2.5",  | "None"      |
+|                                  | to be used         | "YSU"               |             |
 +----------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_A1**              | MYNN Constant A1   | Real                | 1.18        |
 +----------------------------------+--------------------+---------------------+-------------+
@@ -878,9 +878,24 @@ List of Parameters
 |                                  | turb. diffusion    |                     |             |
 |                                  | terms in QKE eqn.  |                     |             |
 +----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_over_land**        | Treat whole domain | bool                | 1           |
+|                                  | as being over land |                     |             |
+|                                  | for YSU PBL scheme |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_land_Ribcr**       | Over land critical | Real                | 0.25        |
+|                                  | Richardson number  |                     |             |
+|                                  | for YSU PBL Scheme |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_unst_Ribcr**       | Unstable critical  | Real                | 0.0         |
+|                                  | Richardson number  |                     |             |
+|                                  | for YSU PBL Scheme |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_coriolis_freq**    | Coriolis frq. used | Real                | 1.0e-4      |
+|                                  | for YSU PBL Scheme |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
 
-Note that the MYNN2.5 scheme must be used in conjunction with a MOST boundary condition
-at the surface (Zlo) boundary.
+Note that both PBL schemes must be used in conjunction with a MOST boundary condition
+at the surface (Zlo) boundary. The YSU scheme is work in progress currently.
 
 If the PBL scheme is activated, it determines the turbulent diffusivity in the vertical
 direction. If an LES model is also specified, it determines only the horizontal turbulent

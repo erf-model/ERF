@@ -145,21 +145,26 @@ class SuperDropletPC : public ERFPC
         /*! \brief Initialize super-droplets in domain */
         inline virtual void InitializeParticles (const MFPtr& a_ptr = nullptr) override
         {
-            InitializeParticles( m_initialization_type, a_ptr );
+            InitializeParticles( m_initialization_type, a_ptr, m_init_particle_box );
+        }
+
+        /*! \brief Initialize super-droplets in domain */
+        inline virtual void InitializeParticles (const std::string& a_type,
+                                                 const MFPtr& a_ptr = nullptr)
+        {
+            InitializeParticles( a_type, a_ptr, m_init_particle_box );
         }
 
         /*! \brief Initialize super-droplets in domain */
         virtual void InitializeParticles (  const std::string&,
-                                            const MFPtr& a_ptr = nullptr);
+                                            const MFPtr& a_ptr,
+                                            const amrex::RealBox& );
 
-        /*! \brief Particle initialization - uniform distribution */
-        inline void initializeParticlesUniformDistribution (const MFPtr& a_height = nullptr)
-        {
-            initializeParticlesUniformDistribution(a_height, m_init_particle_box);
-        }
-        /*! \brief Particle initialization - uniform distribution */
-        void initializeParticlesUniformDistribution (const MFPtr&,
-                                                     const amrex::RealBox& );
+        /*! \brief Set initial number of superdroplets per cell as a box with uniform density */
+        void setNumSDBoxDistribution( amrex::iMultiFab&,
+                                      const int,
+                                      const MFPtr&,
+                                      const amrex::RealBox& );
 
         /*! \brief Set super-droplets attributes from a given condensate mass density */
         virtual void SetAttributes (  amrex::MultiFab& );

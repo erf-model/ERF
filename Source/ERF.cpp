@@ -933,8 +933,11 @@ ERF::InitData ()
 
 #ifdef ERF_USE_WW3_COUPLING
     int lev = 0;
-    read_waves(lev);
+    amrex::Print() <<  " About to call send_to_ww3 from ERF.cpp" << std::endl;
     send_to_ww3(lev);
+    amrex::Print() <<  " About to call read_waves from ERF.cpp"  << std::endl;
+    read_waves(lev);
+   // send_to_ww3(lev);
 #endif
 
     // Configure ABLMost params if used MostWall boundary condition
