@@ -411,16 +411,16 @@ void ERF::init_geo_wind_profile(const std::string input_file,
                                 Gpu::DeviceVector<Real>& u_geos_d,
                                 Vector<Real>& v_geos,
                                 Gpu::DeviceVector<Real>& v_geos_d,
-                                const Geometry& geom,
+                                const Geometry& lgeom,
                                 const Vector<Real>& zlev_stag)
 {
     const int klo = 0;
-    const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
-    const amrex::Real dz = geom.CellSize()[AMREX_SPACEDIM-1];
+    const int khi = lgeom.Domain().bigEnd()[AMREX_SPACEDIM-1];
+    const amrex::Real dz = lgeom.CellSize()[AMREX_SPACEDIM-1];
 
     const bool grid_stretch = (zlev_stag.size() > 0);
-    const Real zbot = (grid_stretch) ? zlev_stag[klo]   : geom.ProbLo(AMREX_SPACEDIM-1);
-    const Real ztop = (grid_stretch) ? zlev_stag[khi+1] : geom.ProbHi(AMREX_SPACEDIM-1);
+    const Real zbot = (grid_stretch) ? zlev_stag[klo]   : lgeom.ProbLo(AMREX_SPACEDIM-1);
+    const Real ztop = (grid_stretch) ? zlev_stag[khi+1] : lgeom.ProbHi(AMREX_SPACEDIM-1);
 
     amrex::Print() << "Reading geostrophic wind profile from " << input_file << std::endl;
     std::ifstream profile_reader(input_file);
