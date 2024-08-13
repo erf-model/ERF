@@ -150,12 +150,13 @@ enum mathematicalBndryTypes : int {
     reflect_even =  1,
     foextrap     =  2,
     ext_dir      =  3,
-    MOST         =  101,
-    ext_dir_ingested =  102,
-    neumann          =  103,
-    neumann_int      =  104,
-    open             =  105,
-    hoextrapcc         =  106
+    MOST             =  101,
+    ext_dir_prim     =  102,
+    ext_dir_ingested =  103,
+    neumann          =  104,
+    neumann_int      =  105,
+    open             =  106,
+    hoextrapcc       =  107
 };
 }
 

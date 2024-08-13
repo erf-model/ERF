@@ -74,12 +74,12 @@ EWP::source_terms_cellcentered (const Geometry& geom,
   Real d_rotor_rad = rotor_rad;
   Real d_hub_height = hub_height;
 
-    Gpu::DeviceVector<Real> d_wind_speed(wind_speed.size());
-    Gpu::DeviceVector<Real> d_thrust_coeff(thrust_coeff.size());
+  Gpu::DeviceVector<Real> d_wind_speed(wind_speed.size());
+  Gpu::DeviceVector<Real> d_thrust_coeff(thrust_coeff.size());
 
   // Copy data from host vectors to device vectors
-    Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
-    Gpu::copy(Gpu::hostToDevice, thrust_coeff.begin(), thrust_coeff.end(), d_thrust_coeff.begin());
+  Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
+  Gpu::copy(Gpu::hostToDevice, thrust_coeff.begin(), thrust_coeff.end(), d_thrust_coeff.begin());
 
 
   // Domain valid box

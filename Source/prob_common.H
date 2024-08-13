@@ -142,7 +142,7 @@ public:
     }
 
     /**
-     * Function to update user-specified temperature source terms that can
+     * Function to update user-specified moisture source terms that can
      * vary with time and height.
      *
      * @param[in]  time             current time
@@ -169,7 +169,7 @@ public:
             for (int k = 0; k <= khi; k++)
             {
                 // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-                // set RHS term of RhoTheta equation based on time, z_cc here
+                // set RHS term of RhoQ1 equation based on time, z_cc here
                 qsrc[k] = 0.0;
             }
         }
@@ -179,8 +179,11 @@ public:
     }
 
     /**
-     * Function to update user-specified temperature source terms that can
-     * vary with time and height.
+     * Function to update the vertical velocity profile, used to add subsidence
+     * source terms for x-mom, y-mom, rho*theta, rho*Q1, and rho*Q2.
+     *
+     * TODO: Currently, this is only called by InitData, so there is no time
+     * dependence.
      *
      * @param[in]  time             current time
      * @param[out] wbar             w vel forcing profile
@@ -206,7 +209,7 @@ public:
             for (int k = 0; k <= khi; k++)
             {
                 // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-                // set RHS term of RhoTheta equation based on time, z_cc here
+                // set vertical velocity profile based on time, z_cc here
                 wbar[k] = 0.0;
             }
         }
@@ -216,8 +219,7 @@ public:
     }
 
     /**
-     * Function to update user-specified temperature source terms that can
-     * vary with time and height.
+     * Function to update user-specified geostrophic wind profile.
      *
      * @param[in]  time             current time
      * @param[out] u_geos           geostrophic wind profile
@@ -257,7 +259,7 @@ public:
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, v_geos.begin(), v_geos.end(), d_v_geos.begin());
     }
 
-     /**
+    /**
      * Function to perform custom initialization of terrain
      *
      * Note: Terrain functionality can also be used to provide grid stretching.

@@ -3,11 +3,17 @@ using one of two turbulence schemes (Smagorinsky or Deardorff) and the bottom
 boundary condition possibly specified by Monin Obukhov Similarity Theory (MOST).
 
 This version of the ABL problem initializes the data from an input sounding file,
-and initializes turbulence at the inflow. The target is to transition turbulence
-from coarse to fine grid interface.
+and a profile inflow using input inflow file. The target is to initiate a buoyant
+region near the inflow, and synthetically trigger turbulence downstream. The target
+is to transition turbulence from coarse to fine grid interface.
 
 To run this test, please run the python script to generate the correct data input
 for ERF through, `python3 generateLogLawProfile.py`. Within the python file, please
 edit `Re_tau`, `height_end`, and `kinematic_viscosity` values to the target simulation.
 Once this is done, double check that the input file for ERF corresponds with the 
 files created by the python script.
+
+A quick setup tip to run the perturbation method is included in,
+"InflowPerturbationGeneration_HowTo.pdf" For more detailed description of how to
+run a simulation using the turbulent inflow generation technique presented here, please visit:
+https://erf.readthedocs.io/en/latest/BoundaryConditions.html#inflow-turbulence-generation

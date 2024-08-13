@@ -165,19 +165,19 @@ public:
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 
     void derive_diag_profiles (amrex::Real time,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_kturb,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_Kmv , amrex::Gpu::HostVector<amrex::Real>& h_avg_Khv,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_qr  ,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_wqr ,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_qg  ,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_ww,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_uth , amrex::Gpu::HostVector<amrex::Real>& h_avg_vth,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_wth, amrex::Gpu::HostVector<amrex::Real>& h_avg_thth,
@@ -187,19 +187,19 @@ public:
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_pu, amrex::Gpu::HostVector<amrex::Real>& h_avg_pv,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_pw, amrex::Gpu::HostVector<amrex::Real>& h_avg_wthv);
     void derive_diag_profiles_stag (amrex::Real time,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_kturb,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_Kmv , amrex::Gpu::HostVector<amrex::Real>& h_avg_Khv,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_qr  ,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_wqr ,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_qg  ,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_ww,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_uth , amrex::Gpu::HostVector<amrex::Real>& h_avg_vth,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_wth, amrex::Gpu::HostVector<amrex::Real>& h_avg_thth,
@@ -981,6 +981,15 @@ private:
 
     amrex::Vector<           amrex::Vector<amrex::Real> > h_v_geos;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_v_geos;
+
+    // Function to read and populate above host vectors (if input file exists)
+    void init_geo_wind_profile (const std::string input_file,
+                                amrex::Vector<amrex::Real>& u_geos,
+                                amrex::Gpu::DeviceVector<amrex::Real>& u_geos_d,
+                                amrex::Vector<amrex::Real>& v_geos,
+                                amrex::Gpu::DeviceVector<amrex::Real>& v_geos_d,
+                                const amrex::Geometry& geom,
+                                const amrex::Vector<amrex::Real>& zlev_stag);
 
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;

@@ -279,6 +279,10 @@ struct SolverChoice {
         pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
 
+        have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
+            "Should not have both abl_geo_wind_table and custom_geostrophic_profile set.");
+
         pp.query("Ave_Plane", ave_plane);
 
         pp.query("mp_clouds", do_cloud);
@@ -441,18 +445,21 @@ struct SolverChoice {
 
         amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
 
-        if (abl_driver_type == ABLDriverType::GeostrophicWind)
-        {
+        if (abl_driver_type == ABLDriverType::GeostrophicWind) {
             // Read in the geostrophic wind -- we only use this to construct
             //     the forcing term so no need to keep it
             amrex::Vector<amrex::Real> abl_geo_wind(3);
             pp.queryarr("abl_geo_wind",abl_geo_wind);
 
-            abl_geo_forcing = {
-                -coriolis_factor * (abl_geo_wind[1]*sinphi - abl_geo_wind[2]*cosphi),
-                 coriolis_factor *  abl_geo_wind[0]*sinphi,
-                -coriolis_factor *  abl_geo_wind[0]*cosphi
-            };
+            if(!pp.query("abl_geo_wind_table",abl_geo_wind_table)) {
+                abl_geo_forcing = {
+                    -coriolis_factor * (abl_geo_wind[1]*sinphi - abl_geo_wind[2]*cosphi),
+                     coriolis_factor *  abl_geo_wind[0]*sinphi,
+                    -coriolis_factor *  abl_geo_wind[0]*cosphi
+                };
+            } else {
+                amrex::Print() << "NOTE: abl_geo_wind_table provided, ignoring input abl_geo_wind" << std::endl;
+            }
         }
     }
 
@@ -544,6 +551,8 @@ struct SolverChoice {
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
+    std::string abl_geo_wind_table;
+    bool have_geo_wind_profile {false};
 
     int ave_plane {2};
     // Microphysics params

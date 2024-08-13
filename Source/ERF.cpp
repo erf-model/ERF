@@ -750,7 +750,7 @@ ERF::InitData ()
         }
     }
 
-    if (solverChoice.custom_geostrophic_profile)
+    if (solverChoice.have_geo_wind_profile)
     {
         h_u_geos.resize(max_level+1, Vector<Real>(0));
         d_u_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
@@ -762,10 +762,21 @@ ERF::InitData ()
             d_u_geos[lev].resize(domlen, 0.0_rt);
             h_v_geos[lev].resize(domlen, 0.0_rt);
             d_v_geos[lev].resize(domlen, 0.0_rt);
-            prob->update_geostrophic_profile(t_new[0],
-                                          h_u_geos[lev], d_u_geos[lev],
-                                          h_v_geos[lev], d_v_geos[lev],
-                                          geom[lev], z_phys_cc[lev]);
+            if (solverChoice.custom_geostrophic_profile) {
+                prob->update_geostrophic_profile(t_new[0],
+                                                 h_u_geos[lev], d_u_geos[lev],
+                                                 h_v_geos[lev], d_v_geos[lev],
+                                                 geom[lev], z_phys_cc[lev]);
+            } else {
+                if (solverChoice.use_terrain > 0) {
+                    amrex::Print() << "Note: 1-D geostrophic wind profile input is only defined for grid stretching, not real terrain" << std::endl;
+                }
+                init_geo_wind_profile(solverChoice.abl_geo_wind_table,
+                                      h_u_geos[lev], d_u_geos[lev],
+                                      h_v_geos[lev], d_v_geos[lev],
+                                      geom[lev],
+                                      zlevels_stag);
+            }
         }
     }
 
@@ -1239,12 +1250,6 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
-
-    // Initialize wind farm
-
-#ifdef ERF_USE_WINDFARM
-    init_windfarm(lev);
-#endif
 
    if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
         input_sponge(lev);
