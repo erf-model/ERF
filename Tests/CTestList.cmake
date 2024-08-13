@@ -54,7 +54,7 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
 endfunction(add_test_r)
 
 # Debug regression test with lower tolerance
-function(add_test_r TEST_NAME TEST_EXE PLTFILE)
+function(add_test_d TEST_NAME TEST_EXE PLTFILE)
     setup_test()
 
     set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
