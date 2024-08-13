@@ -1,6 +1,8 @@
 #ifndef _TURB_STRUCT_H_
 #define _TURB_STRUCT_H_
 
+#include <MYNNStruct.H>
+
 enum struct LESType {
     None, Smagorinsky, Deardorff
 };
@@ -89,27 +91,8 @@ struct TurbChoice {
                     pp.query("pbl_mynn_C3", pbl_mynn_C3);
                     pp.query("pbl_mynn_C4", pbl_mynn_C4);
                     pp.query("pbl_mynn_C5", pbl_mynn_C5);
-
-                    // Calculate Level-2 closure coefficients
-                    const amrex::Real A1 = pbl_mynn_A1; // for convenience...
-                    const amrex::Real A2 = pbl_mynn_A2;
-                    const amrex::Real B1 = pbl_mynn_B1;
-                    const amrex::Real B2 = pbl_mynn_B2;
-                    const amrex::Real C1 = pbl_mynn_C1;
-                    const amrex::Real C2 = pbl_mynn_C2;
-                    const amrex::Real C3 = pbl_mynn_C3;
-                    const amrex::Real C5 = pbl_mynn_C5;
-                    const amrex::Real gam1 = pbl_mynn_gamma1;
-                    amrex::Real gam2 = (2.0*A1*(3.0-2.0*C2) + B2*(1.0-C3)) / B1;
-                    amrex::Real F1   = B1*(gam1-C1) + 2.0*A1*(3.0-2.0*C2) + 3.0*A2*(1.0-C2)*(1.0-C5);
-                    amrex::Real F2   = B1*(gam1+gam2) - 3.0*A1*(1.0-C2);
-                    amrex::Real Rf1  = B1*(gam1-C1)/F1;
-                    amrex::Real Rf2  = B1*gam1/F2;
-                    pbl_mynn_gamma2  = gam2;
-                    pbl_mynn_Rfc = gam1 / (gam1 + gam2);
-                    pbl_mynn_Ri1 = 0.5*A2*F2/(A1*F1);
-                    pbl_mynn_Ri2 = 0.5*Rf1/pbl_mynn_Ri1;
-                    pbl_mynn_Ri3 = (2.0*Rf2-Rf1)/pbl_mynn_Ri1;
+                    pbl_mynn_level2.init_coeffs(pbl_mynn_A1, pbl_mynn_A2, pbl_mynn_B1, pbl_mynn_B2,
+                                                pbl_mynn_C1, pbl_mynn_C2, pbl_mynn_C3, pbl_mynn_C4, pbl_mynn_C5);
                 }
             }
 
@@ -197,27 +180,8 @@ struct TurbChoice {
                     pp.query("pbl_mynn_C3", pbl_mynn_C3, lev);
                     pp.query("pbl_mynn_C4", pbl_mynn_C4, lev);
                     pp.query("pbl_mynn_C5", pbl_mynn_C5, lev);
-
-                    // Calculate Level-2 closure coefficients
-                    const amrex::Real A1 = pbl_mynn_A1; // for convenience...
-                    const amrex::Real A2 = pbl_mynn_A2;
-                    const amrex::Real B1 = pbl_mynn_B1;
-                    const amrex::Real B2 = pbl_mynn_B2;
-                    const amrex::Real C1 = pbl_mynn_C1;
-                    const amrex::Real C2 = pbl_mynn_C2;
-                    const amrex::Real C3 = pbl_mynn_C3;
-                    const amrex::Real C5 = pbl_mynn_C5;
-                    const amrex::Real gam1 = pbl_mynn_gamma1;
-                    amrex::Real gam2 = (2.0*A1*(3.0-2.0*C2) + B2*(1.0-C3)) / B1;
-                    amrex::Real F1   = B1*(gam1-C1) + 2.0*A1*(3.0-2.0*C2) + 3.0*A2*(1.0-C2)*(1.0-C5);
-                    amrex::Real F2   = B1*(gam1+gam2) - 3.0*A1*(1.0-C2);
-                    amrex::Real Rf1  = B1*(gam1-C1)/F1;
-                    amrex::Real Rf2  = B1*gam1/F2;
-                    pbl_mynn_gamma2  = gam2;
-                    pbl_mynn_Rfc = gam1 / (gam1 + gam2);
-                    pbl_mynn_Ri1 = 0.5*A2*F2/(A1*F1);
-                    pbl_mynn_Ri2 = 0.5*Rf1/pbl_mynn_Ri1;
-                    pbl_mynn_Ri3 = (2.0*Rf2-Rf1)/pbl_mynn_Ri1;
+                    pbl_mynn_level2.init_coeffs(pbl_mynn_A1, pbl_mynn_A2, pbl_mynn_B1, pbl_mynn_B2,
+                                                pbl_mynn_C1, pbl_mynn_C2, pbl_mynn_C3, pbl_mynn_C4, pbl_mynn_C5);
                 }
             }
 
@@ -325,6 +289,7 @@ struct TurbChoice {
     PBLType pbl_type;
 
     // Model coefficients - MYNN2.5 (from Nakanishi & Niino 2009 [NN09])
+    // TODO: Move to MYNNStruct.H
     amrex::Real pbl_mynn_A1 = 1.18;
     amrex::Real pbl_mynn_A2 = 0.665;
     amrex::Real pbl_mynn_B1 = 24.0;
@@ -334,10 +299,7 @@ struct TurbChoice {
     amrex::Real pbl_mynn_C3 = 0.352;
     amrex::Real pbl_mynn_C4 = 0.0;
     amrex::Real pbl_mynn_C5 = 0.2;
-    // - Level 2 coefficients for limiting
-    const amrex::Real pbl_mynn_gamma1 = 0.235;
-    amrex::Real pbl_mynn_gamma2, pbl_mynn_Rfc;
-    amrex::Real pbl_mynn_Ri1, pbl_mynn_Ri2, pbl_mynn_Ri3;
+    MYNNLevel2 pbl_mynn_level2;
 
     // Model coefficients - YSU
     // TODO: Add parmparse for all of these above
