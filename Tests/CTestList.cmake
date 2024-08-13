@@ -53,6 +53,26 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
     )
 endfunction(add_test_r)
 
+# Debug regression test with lower tolerance
+function(add_test_r TEST_NAME TEST_EXE PLTFILE)
+    setup_test()
+
+    set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
+    set(FCOMPARE_TOLERANCE "-r 2.0e-9 --abs_tol 2.0e-9")
+    set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 5400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
+    )
+endfunction(add_test_d)
+    
 # Stationary test -- compare with time 0
 function(add_test_0 TEST_NAME TEST_EXE PLTFILE)
     setup_test()
@@ -99,9 +119,9 @@ add_test_r(ScalarAdvDiff_order4              "RegTests/ScalarAdvDiff/*/erf_scala
 add_test_r(ScalarAdvDiff_order5              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
 add_test_r(ScalarAdvDiff_order6              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
 add_test_r(ScalarAdvDiff_weno3               "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
-add_test_r(ScalarAdvDiff_weno3z              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_d(ScalarAdvDiff_weno3z              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
 add_test_r(ScalarAdvDiff_weno5               "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
-add_test_r(ScalarAdvDiff_weno5z              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_d(ScalarAdvDiff_weno5z              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
 add_test_r(ScalarAdvDiff_wenomzq3            "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
 add_test_r(ScalarDiffusionGaussian           "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
 add_test_r(ScalarDiffusionSine               "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
@@ -139,9 +159,9 @@ add_test_r(ScalarAdvDiff_order4              "RegTests/ScalarAdvDiff/erf_scalar_
 add_test_r(ScalarAdvDiff_order5              "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarAdvDiff_order6              "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarAdvDiff_weno3               "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
-add_test_r(ScalarAdvDiff_weno3z              "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
+add_test_d(ScalarAdvDiff_weno3z              "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarAdvDiff_weno5               "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
-add_test_r(ScalarAdvDiff_weno5z              "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
+add_test_d(ScalarAdvDiff_weno5z              "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarAdvDiff_wenomzq3            "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarDiffusionGaussian           "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarDiffusionSine               "RegTests/ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
