@@ -93,7 +93,7 @@ void make_mom_sources (int /*level*/,
     // Flag for Geostrophic forcing
     // *****************************************************************************
     auto abl_geo_forcing  = solverChoice.abl_geo_forcing;
-    auto geo_wind_profile = solverChoice.custom_geostrophic_profile;
+    auto geo_wind_profile = solverChoice.have_geo_wind_profile;
 
     // *****************************************************************************
     // Data for Rayleigh damping

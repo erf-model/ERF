@@ -19,66 +19,45 @@ The following is an example ERF containerfile with filename ``erf_containerfile`
 
 .. code:: shell
 
-     1    FROM nvcr.io/nvidia/cuda:12.2.0-devel-ubuntu22.04
+     1  FROM nvcr.io/nvidia/cuda:12.2.0-devel-ubuntu22.04
      2
-     3    WORKDIR /app
-     4    ARG base_dir=/app/erf
-     5
-     6    RUN apt-get update -y && \
-     7        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-     8        g++-12 \
-     9        gcc-12 \
-    10        gfortran-12 \
-    11        git \
-    12        libtool \
-    13        make \
-    14        tar \
-    15        autoconf \
-    16        automake \
-    17        wget \
-    18        python3 \
-    19        cmake
-    20
-    21    # MPICH to be swapped out later for Cray MPI
-    22    ARG mpich_version=4.2.2
-    23    ARG mpich_dir=mpich-${mpich_version}
-    24
-    25    RUN wget https://www.mpich.org/static/downloads/$mpich_version/$mpich_dir.tar.gz && \
-    26        tar xzf $mpich_dir.tar.gz && \
-    27        cd $mpich_dir && \
-    28        ./configure CC=/usr/bin/gcc-12 CXX=/usr/bin/g++-12 F77=/usr/bin/gfortran-12 FC=/usr/bin/gfortran-12 && \
-    29        make -j8 && \
-    30        make install && \
-    31        make clean  && \
-    32        cd ..  && \
-    33        rm -rf $mpich_dir $mpich_dir.tar.gz
-    34
-    35    RUN mkdir ${base_dir}
-    36
-    37    ARG build_dir=MyBuild
-    38
-    39    RUN cd ${base_dir} && git clone --recursive https://github.com/erf-model/ERF.git && \
-    40      cd ERF && mkdir ${build_dir} && cd ${build_dir} && \
-    41      cmake \
-    42      -DCMAKE_C_COMPILER=mpicc \
-    43      -DCMAKE_CXX_COMPILER=mpicxx \
-    44      -DCMAKE_Fortran_COMPILER=mpif90 \
-    45      -DCMAKE_BUILD_TYPE:STRING=Release \
-    46      -DCMAKE_CUDA_ARCHITECTURES=80 \
-    47      -DERF_ENABLE_MPI:BOOL=ON \
-    48      -DERF_ENABLE_CUDA=ON \
-    49      .. && \
-    50      make -j8
+     3  WORKDIR /app
+     4
+     5  RUN apt-get update -y && \
+     6      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+     7      g++-12 gcc-12 gfortran-12 git libtool make tar autoconf automake wget python3 cmake
+     8
+     9  # MPICH to be swapped out later for Cray MPI
+    10
+    11  RUN wget https://www.mpich.org/static/downloads/4.2.2/mpich-4.2.2.tar.gz && \
+    12      tar xzf mpich-4.2.2.tar.gz && cd mpich-4.2.2 && \
+    13      ./configure CC=/usr/bin/gcc-12 CXX=/usr/bin/g++-12 F77=/usr/bin/gfortran-12 FC=/usr/bin/gfortran-12 && \
+    14      make -j8 && make install && \
+    15      cd .. && rm -rf mpich-4.2.2 mpich-4.2.2.tar.gz
+    16
+    17  RUN mkdir /app/erf && cd /app/erf && wget https://github.com/erf-model/ERF/archive/refs/tags/24.06.tar.gz && \
+    18    tar xzf 24.06.tar.gz && cd ERF-24.06/Submodules && \
+    19    wget https://github.com/AMReX-Codes/amrex/releases/download/24.06/amrex-24.06.tar.gz && \
+    20    tar xzf amrex-24.06.tar.gz && rmdir AMReX && mv amrex AMReX && cd .. && mkdir MyBuild && cd MyBuild && \
+    21    cmake \
+    22    -DCMAKE_C_COMPILER=mpicc \
+    23    -DCMAKE_CXX_COMPILER=mpicxx \
+    24    -DCMAKE_Fortran_COMPILER=mpif90 \
+    25    -DCMAKE_BUILD_TYPE:STRING=Release \
+    26    -DCMAKE_CUDA_ARCHITECTURES=80 \
+    27    -DERF_ENABLE_MPI:BOOL=ON \
+    28    -DERF_ENABLE_CUDA=ON \
+    29    .. && \
+    30    make -j8
 
 Line numbers were added for instructional purposes but should not appear in containerfile.
 The containerfile is available at https://github.com/erf-model/ERF/blob/development/Build/erf_containerfile
 
 * Line 1 downloads a container base image from NVIDIA's container registry that contains the Ubuntu 22.04 operating system and CUDA 12.2.0
 * Line 3 sets the working directory
-* Line 4 sets a value for the variable ``base_dir``
-* Lines 6-19 download the GNU 12 compilers and all the necessary utilities for building ERF in the container
-* Lines 21-33 download the MPICH source code and builds it.  At runtime this MPICH will get replaced by Perlmutter's Cray MPI
-* Lines 39-50 clone the ERF repo and build it with cmake/make
+* Lines 5-7 download the GNU 12 compilers and all the necessary utilities for building ERF in the container
+* Lines 11-15 download the MPICH source code and build it.  At runtime this MPICH will get replaced by Perlmutter's Cray MPI
+* Lines 17-30 wget the ERF and AMReX 24.06 tarballs and build with cmake/make
 
 
 
@@ -123,7 +102,7 @@ Submit the following slurm batch script in order to use the image in a job
 
   srun -N 1 -n 4 -c 32 --ntasks-per-node=4 --gpus-per-node=4 ./device_wrapper \
   podman-hpc run --rm --mpi --gpu -v /pscratch/sd/u/user/erf/abl:/run -w /run erf:1.00 \
-  /app/erf/ERF/MyBuild/Exec/ABL/erf_abl inputs_smagorinsky amrex.use_gpu_aware_mpi=0
+  /app/erf/ERF-24.06/MyBuild/Exec/ABL/erf_abl inputs_smagorinsky amrex.use_gpu_aware_mpi=0
 
 ``device_wrapper`` script:
 
@@ -142,7 +121,7 @@ Arguments for ``podman-hpc run`` used above
 * ``-v /pscratch/sd/u/user/erf/abl:/run`` mounts ``/pscratch/sd/u/user/erf/abl`` on Perlmutter onto ``/run`` in the container
 * ``-w /run`` makes the ``/run`` directory inside the container the working directory, i.e. any output from the ERF run will be written to the ``/run`` directory in the container, which will appear in the ``/pscratch/sd/u/user/erf/abl`` directory on Perlmutter.
 * ``erf:1.00`` container name and tag
-* ``/app/erf/ERF/MyBuild/Exec/ABL/erf_abl`` ERF binary in container
+* ``/app/erf/ERF-24.06/MyBuild/Exec/ABL/erf_abl`` ERF binary in container
 
 The remaining arguments are the normal ERF command line arguments.
 
@@ -195,7 +174,7 @@ Submit the following slurm batch script in order to use the image in a job
 
   srun -N 1 -n 4 -c 32 --ntasks-per-node=4 --gpus-per-node=4 ./device_wrapper \
   shifter \
-  /app/erf/ERF/MyBuild/Exec/ABL/erf_abl inputs_smagorinsky amrex.use_gpu_aware_mpi=0
+  /app/erf/ERF-24.06/MyBuild/Exec/ABL/erf_abl inputs_smagorinsky amrex.use_gpu_aware_mpi=0
 
 
 

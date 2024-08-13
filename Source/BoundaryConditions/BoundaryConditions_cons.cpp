@@ -62,11 +62,17 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 if (bc_ptr[icomp+n].lo(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][0];
+                } else if (bc_ptr[icomp+n].lo(0) == ERFBCType::ext_dir_prim) {
+                    Real rho = dest_arr(dom_lo.x,j,k,Rho_comp);
+                    dest_arr(i,j,k,icomp+n) = rho * l_bc_extdir_vals_d[icomp+n][0];
                 }
             },
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 if (bc_ptr[icomp+n].hi(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][3];
+                } else if (bc_ptr[icomp+n].hi(0) == ERFBCType::ext_dir_prim) {
+                    Real rho = dest_arr(dom_hi.x,j,k,Rho_comp);
+                    dest_arr(i,j,k,icomp+n) = rho * l_bc_extdir_vals_d[icomp+n][3];
                 }
             }
         );
@@ -80,11 +86,17 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 if (bc_ptr[icomp+n].lo(1) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][1];
+                } else if (bc_ptr[icomp+n].lo(1) == ERFBCType::ext_dir_prim) {
+                    Real rho = dest_arr(i,dom_lo.y,k,Rho_comp);
+                    dest_arr(i,j,k,icomp+n) = rho * l_bc_extdir_vals_d[icomp+n][1];
                 }
             },
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 if (bc_ptr[icomp+n].hi(1) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][4];
+                } else if (bc_ptr[icomp+n].hi(1) == ERFBCType::ext_dir_prim) {
+                    Real rho = dest_arr(i,dom_hi.y,k,Rho_comp);
+                    dest_arr(i,j,k,icomp+n) = rho * l_bc_extdir_vals_d[icomp+n][4];
                 }
             }
         );
@@ -236,12 +248,19 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
             bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 if (bc_ptr[icomp+n].lo(2) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][2];
+                } else if (bc_ptr[icomp+n].lo(2) == ERFBCType::ext_dir_prim) {
+                    Real rho = dest_arr(i,j,dom_lo.z,Rho_comp);
+                    dest_arr(i,j,k,icomp+n) = rho * l_bc_extdir_vals_d[icomp+n][2];
                 }
             },
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 if (bc_ptr[icomp+n].hi(2) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][5];
+                } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::ext_dir_prim) {
+                    Real rho = dest_arr(i,j,dom_hi.z,Rho_comp);
+                    dest_arr(i,j,k,icomp+n) = rho * l_bc_extdir_vals_d[icomp+n][5];
                 }
+
             }
         );
     }

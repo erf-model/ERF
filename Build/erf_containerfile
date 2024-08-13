@@ -5,43 +5,23 @@
 FROM nvcr.io/nvidia/cuda:12.2.0-devel-ubuntu22.04
 
 WORKDIR /app
-ARG base_dir=/app/erf
 
 RUN apt-get update -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    g++-12 \
-    gcc-12 \
-    gfortran-12 \
-    git \
-    libtool \
-    make \
-    tar \
-    autoconf \
-    automake \
-    wget \
-    python3 \
-    cmake
+    g++-12 gcc-12 gfortran-12 git libtool make tar autoconf automake wget python3 cmake
 
 # MPICH to be swapped out later for Cray MPI
-ARG mpich_version=4.2.2
-ARG mpich_dir=mpich-${mpich_version}
 
-RUN wget https://www.mpich.org/static/downloads/$mpich_version/$mpich_dir.tar.gz && \
-    tar xzf $mpich_dir.tar.gz && \
-    cd $mpich_dir && \
+RUN wget https://www.mpich.org/static/downloads/4.2.2/mpich-4.2.2.tar.gz && \
+    tar xzf mpich-4.2.2.tar.gz && cd mpich-4.2.2 && \
     ./configure CC=/usr/bin/gcc-12 CXX=/usr/bin/g++-12 F77=/usr/bin/gfortran-12 FC=/usr/bin/gfortran-12 && \
-    make -j8 && \
-    make install && \
-    make clean  && \
-    cd ..  && \
-    rm -rf $mpich_dir $mpich_dir.tar.gz
+    make -j8 && make install && \
+    cd .. && rm -rf mpich-4.2.2 mpich-4.2.2.tar.gz
 
-RUN mkdir ${base_dir}
-
-ARG build_dir=MyBuild
-
-RUN cd ${base_dir} && git clone --recursive https://github.com/erf-model/ERF.git && \
-  cd ERF && mkdir ${build_dir} && cd ${build_dir} && \
+RUN mkdir /app/erf && cd /app/erf && wget https://github.com/erf-model/ERF/archive/refs/tags/24.06.tar.gz && \
+  tar xzf 24.06.tar.gz && cd ERF-24.06/Submodules && \
+  wget https://github.com/AMReX-Codes/amrex/releases/download/24.06/amrex-24.06.tar.gz && \
+  tar xzf amrex-24.06.tar.gz && rmdir AMReX && mv amrex AMReX && cd .. && mkdir MyBuild && cd MyBuild && \
   cmake \
   -DCMAKE_C_COMPILER=mpicc \
   -DCMAKE_CXX_COMPILER=mpicxx \
@@ -52,4 +32,3 @@ RUN cd ${base_dir} && git clone --recursive https://github.com/erf-model/ERF.git
   -DERF_ENABLE_CUDA=ON \
   .. && \
   make -j8
-
