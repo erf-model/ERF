@@ -266,25 +266,52 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
     }
 }
 
-/*! Initialize super-droplets in domain given an initialization type */
-void SuperDropletPC::InitializeParticles (const std::string& a_initialization_type, /*!< init type */
-                                          const std::unique_ptr<amrex::MultiFab>& a_height_ptr /*!< terrain */)
+/*! Sets the initial number of the super-droplets per cell as a box with a uniform distribution */
+void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
+                                              const int a_n_per_cell, /*!< number of superdroplets per cell */
+                                              const MFPtr& a_height_ptr, /*!< terrain */
+                                              const RealBox& a_box /*!< box within which to initialize particles */ )
 {
-    BL_PROFILE("SuperDropletPC::initializeParticles");
+    BL_PROFILE("SuperDropletPC::setNumSDBoxDistribution()");
+    a_num_sd.setVal(0);
 
-    if (a_initialization_type == SupDropInit::init_uniform) {
-        initializeParticlesUniformDistribution( a_height_ptr, m_init_particle_box );
-    } else if (a_initialization_type == SupDropInit::init_null) {
-        initializeParticlesNull( a_height_ptr );
-    } else {
-        amrex::Print() << "Error: " << a_initialization_type
-                        << " is not a valid initialization for "
-                        << m_name << " particle species.\n";
-        amrex::Error("See error message!");
+    const auto dx = Geom(m_lev).CellSizeArray();
+    const auto plo = Geom(m_lev).ProbLoArray();
+
+    for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
+        const Box& tile_box  = mfi.tilebox();
+        auto num_superdroplets_arr = a_num_sd[mfi].array();
+        if (a_height_ptr) {
+            const auto height_arr = (*a_height_ptr)[mfi].array();
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real x = plo[0] + (i + 0.5)*dx[0];
+                Real y = plo[1] + (j + 0.5)*dx[1];
+                Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
+                                  height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
+                                  height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
+                                  height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+                if (a_box.contains(RealVect(x,y,z))) {
+                    num_superdroplets_arr(i,j,k) = a_n_per_cell;
+                }
+            });
+        } else {
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real x = plo[0] + (i + 0.5)*dx[0];
+                Real y = plo[1] + (j + 0.5)*dx[1];
+                Real z = plo[2] + (k + 0.5)*dx[2];
+                if (a_box.contains(RealVect(x,y,z))) {
+                    num_superdroplets_arr(i,j,k) = a_n_per_cell;
+                }
+            });
+        }
     }
+
     return;
 }
 
+/*! Initialize super-droplets in domain given an initialization type */
 /*! Uniform distribution: initializes super-droplets uniformly throughout the domain.
 
     + The number of physical particles per cell is computed from the initial number density
@@ -297,8 +324,9 @@ void SuperDropletPC::InitializeParticles (const std::string& a_initialization_ty
     + The initial particle radius is the "equivalent radius" for the condensate material given
       the initial mass.
 */
-void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_height_ptr, /*!< terrain */
-                                                             const RealBox& a_particle_init_domain /*!< box within which to initialize particles */ )
+void SuperDropletPC::InitializeParticles (const std::string& a_initialization_type, /*!< init type */
+                                          const MFPtr& a_height_ptr, /*!< terrain */
+                                          const RealBox& a_particle_init_domain /*!< box within which to initialize particles */ )
 {
     BL_PROFILE("SuperDropletPC::initializeParticlesUniformDistribution");
 
@@ -411,35 +439,19 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
     iMultiFab num_superdroplets( ParticleBoxArray(m_lev),
                                  ParticleDistributionMap(m_lev),
                                  1, 0 );
-    num_superdroplets.setVal(0);
-    for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
-        const Box& tile_box  = mfi.tilebox();
-        auto num_superdroplets_arr = num_superdroplets[mfi].array();
-        if (a_height_ptr) {
-            const auto height_arr = (*a_height_ptr)[mfi].array();
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real x = plo[0] + (i + 0.5)*dx[0];
-                Real y = plo[1] + (j + 0.5)*dx[1];
-                Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
-                                  height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
-                                  height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                  height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
-                if (a_particle_init_domain.contains(RealVect(x,y,z))) {
-                    num_superdroplets_arr(i,j,k) = num_sd_per_cell;
-                }
-            });
-        } else {
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real x = plo[0] + (i + 0.5)*dx[0];
-                Real y = plo[1] + (j + 0.5)*dx[1];
-                Real z = plo[2] + (k + 0.5)*dx[2];
-                if (a_particle_init_domain.contains(RealVect(x,y,z))) {
-                    num_superdroplets_arr(i,j,k) = num_sd_per_cell;
-                }
-            });
-        }
+
+    if (a_initialization_type == SupDropInit::init_uniform) {
+        setNumSDBoxDistribution( num_superdroplets,
+                                 num_sd_per_cell,
+                                 a_height_ptr,
+                                 a_particle_init_domain );
+    } else if (a_initialization_type == SupDropInit::init_null) {
+        num_superdroplets.setVal(0);
+    } else {
+        amrex::Print() << "Error: " << a_initialization_type
+                        << " is not a valid initialization for "
+                        << m_name << " particle species.\n";
+        amrex::Error("See error message!");
     }
 
     iMultiFab offsets( ParticleBoxArray(m_lev),
