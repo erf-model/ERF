@@ -11,6 +11,7 @@
 #include <ERF_Constants.H>
 #include <MOSTAverage.H>
 #include <MOSTStress.H>
+#include <TerrainMetrics.H>
 
 /** Monin-Obukhov surface layer profile
  *
@@ -60,16 +61,20 @@ public:
         pp.query("most.z0", z0_const);
 
         // Specify how to compute the flux
-        std::string flux_string{"moeng"};
-        pp.query("most.flux_type", flux_string);
-        if (flux_string == "donelan") {
-            flux_type = FluxCalcType::DONELAN;
-        } else if (flux_string == "moeng") {
-            flux_type = FluxCalcType::MOENG;
-        } else if (flux_string == "custom") {
-            flux_type = FluxCalcType::CUSTOM;
+        if (use_rot_most) {
+            flux_type = FluxCalcType::ROTATE;
         } else {
-            amrex::Abort("Undefined MOST flux type!");
+            std::string flux_string{"moeng"};
+            pp.query("most.flux_type", flux_string);
+            if (flux_string == "donelan") {
+                flux_type = FluxCalcType::DONELAN;
+            } else if (flux_string == "moeng") {
+                flux_type = FluxCalcType::MOENG;
+            } else if (flux_string == "custom") {
+                flux_type = FluxCalcType::CUSTOM;
+            } else {
+                amrex::Abort("Undefined MOST flux type!");
+            }
         }
 
         // Get surface temperature
@@ -257,8 +262,12 @@ public:
                      amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
                      amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                      amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
-                     amrex::MultiFab* heat_flux,
-                     amrex::MultiFab* qv_flux,
+                     amrex::MultiFab* xheat_flux,
+                     amrex::MultiFab* yheat_flux,
+                     amrex::MultiFab* zheat_flux,
+                     amrex::MultiFab* xqv_flux,
+                     amrex::MultiFab* yqv_flux,
+                     amrex::MultiFab* zqv_flux,
                      amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
@@ -271,10 +280,13 @@ public:
                       amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
                       amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                       amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
-                      amrex::MultiFab* heat_flux,
-                      amrex::MultiFab* qv_flux,
+                      amrex::MultiFab* xheat_flux,
+                      amrex::MultiFab* yheat_flux,
+                      amrex::MultiFab* zheat_flux,
+                      amrex::MultiFab* xqv_flux,
+                      amrex::MultiFab* yqv_flux,
+                      amrex::MultiFab* zqv_flux,
                       amrex::MultiFab* z_phys,
-                      const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);
 
     void
@@ -328,12 +340,129 @@ public:
     const amrex::FArrayBox*
     get_z0 (const int& lev) {return &z_0[lev];}
 
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    rotate_scalar_flux (const int& i,
+                        const int& j,
+                        const int& klo,
+                        const amrex::Real& flux,
+                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
+                        const amrex::Array4<const amrex::Real>& zphys_arr,
+                        const amrex::Array4<amrex::Real>& phi1_arr,
+                        const amrex::Array4<amrex::Real>& phi2_arr,
+                        const amrex::Array4<amrex::Real>& phi3_arr)
+    {
+        amrex::Real h_xi  = Compute_h_xi_AtCellCenter(i, j, klo, dxInv, zphys_arr);
+        amrex::Real h_eta = Compute_h_eta_AtCellCenter(i, j, klo, dxInv, zphys_arr);
+        amrex::Real InvNorm  = 1.0 / std::sqrt(1.0 + h_xi*h_xi + h_eta*h_eta);
+        phi1_arr(i,j,klo) = -h_xi  * flux * InvNorm;
+        phi2_arr(i,j,klo) = -h_eta * flux * InvNorm;
+        phi3_arr(i,j,klo) =          flux * InvNorm;
+    }
 
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    rotate_stress_tensor (const int& i,
+                          const int& j,
+                          const int& klo,
+                          const amrex::Real& flux,
+                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
+                          const amrex::Array4<const amrex::Real>& zphys_arr,
+                          const amrex::Array4<const amrex::Real>& u_arr,
+                          const amrex::Array4<const amrex::Real>& v_arr,
+                          const amrex::Array4<const amrex::Real>& w_arr,
+                          const amrex::Array4<amrex::Real>& tau11_arr,
+                          const amrex::Array4<amrex::Real>& tau22_arr,
+                          const amrex::Array4<amrex::Real>& tau33_arr,
+                          const amrex::Array4<amrex::Real>& tau12_arr,
+                          const amrex::Array4<amrex::Real>& tau21_arr,
+                          const amrex::Array4<amrex::Real>& tau13_arr,
+                          const amrex::Array4<amrex::Real>& tau31_arr,
+                          const amrex::Array4<amrex::Real>& tau23_arr,
+                          const amrex::Array4<amrex::Real>& tau32_arr)
+    {
+        // Unit-normal vetor
+        amrex::Array1D<amrex::Real,0,2> n_hat;
+
+        // Unit-tangent vectors
+        amrex::Array1D<amrex::Real,0,2> t_hat_1;
+        amrex::Array1D<amrex::Real,0,2> t_hat_2;
+        amrex::Array1D<amrex::Real,0,2> u_t_hat;
+
+        // Final basis vector for right-hand coord sys
+        amrex::Array1D<amrex::Real,0,2> a_hat;
+
+        // Rotation matrix
+        amrex::Array2D<amrex::Real,0,2,0,2> R_mat;
+
+        // Metric data
+        amrex::Real h_xi  = Compute_h_xi_AtIface(i, j, klo, dxInv, zphys_arr);
+        amrex::Real h_eta = Compute_h_eta_AtIface(i, j, klo, dxInv, zphys_arr);
+
+        // Populate the normal vector
+        amrex::Real Inormn = 1./std::sqrt(1.0 + h_xi*h_xi + h_eta*h_eta);
+        n_hat(0) = -Inormn*h_xi; n_hat(1) = -Inormn*h_eta; n_hat(2) = Inormn;
+
+        // Populate the tangent vectors
+        amrex::Real Inorm1 = 1./std::sqrt(1.0 + h_xi*h_xi);
+        amrex::Real Inorm2 = 1./std::sqrt(1.0 + h_eta*h_eta);
+        t_hat_1(0) = Inorm1;      t_hat_2(1) = Inorm2;
+        t_hat_1(2) = Inorm1*h_xi; t_hat_2(2) = Inorm2*h_eta;
+
+        // Populate the u_t vector
+        amrex::Real Norm_u_t = 0.0;
+        amrex::Real mag1 = (u_arr(i,j,klo) + h_xi *w_arr(i,j,klo))*Inorm1;
+        amrex::Real mag2 = (v_arr(i,j,klo) + h_eta*w_arr(i,j,klo))*Inorm2;
+        for (int icol(0); icol<3; ++icol) {
+            u_t_hat(icol) = mag1*t_hat_1(icol) + mag2*t_hat_2(icol);
+            Norm_u_t  += u_t_hat(icol)*u_t_hat(icol);
+        }
+        for (int icol(0); icol<3; ++icol) {
+            u_t_hat(icol) /= std::sqrt(Norm_u_t);
+        }
+
+        // Populate the a_hat vector
+        a_hat(0) =   n_hat(1)*u_t_hat(2) - n_hat(2)*u_t_hat(1);
+        a_hat(1) = -(n_hat(0)*u_t_hat(2) - n_hat(2)*u_t_hat(0));
+        a_hat(2) =   n_hat(1)*u_t_hat(1) - n_hat(1)*u_t_hat(0);
+
+        // Copy column vectors into R_mat
+        int jrow;
+        jrow = 0;
+        for (int icol(0); icol<3; ++icol) {
+            R_mat(icol,jrow) = u_t_hat(icol);
+        }
+        jrow = 1;
+        for (int icol(0); icol<3; ++icol) {
+            R_mat(icol,jrow) = a_hat(icol);
+        }
+        jrow = 2;
+        for (int icol(0); icol<3; ++icol) {
+            R_mat(icol,jrow) = n_hat(icol);
+        }
+
+        // Assign the stresses
+        tau11_arr(i,j,klo) = 2.0*R_mat(0,0)*R_mat(2,0)*flux;
+        tau22_arr(i,j,klo) = 2.0*R_mat(0,1)*R_mat(2,1)*flux;
+        tau33_arr(i,j,klo) = 2.0*R_mat(0,2)*R_mat(2,2)*flux;
+
+        tau12_arr(i,j,klo) = (R_mat(0,0)*R_mat(2,1) + R_mat(2,0)*R_mat(0,1))*flux;
+        tau21_arr(i,j,klo) = tau12_arr(i,j,klo);
+
+        tau13_arr(i,j,klo) = (R_mat(0,0)*R_mat(2,2) + R_mat(0,2)*R_mat(2,0))*flux;
+        tau31_arr(i,j,klo) = tau13_arr(i,j,klo);
+
+        tau23_arr(i,j,klo) = (R_mat(0,1)*R_mat(2,2) + R_mat(0,2)*R_mat(2,1))*flux;
+        tau32_arr(i,j,klo) = tau23_arr(i,j,klo);
+    }
 
     enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
         DONELAN,        ///< Donelan functional form
-        CUSTOM          ///< Custom constant flux functional form
+        CUSTOM,         ///< Custom constant flux functional form
+        ROTATE          ///< Terrain rotation flux functional form
     };
 
     enum struct ThetaCalcType {

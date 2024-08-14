@@ -1657,4 +1657,174 @@ private:
     const amrex::Real     eps = 1e-15;
     const amrex::Real eta_eps = 1e-8;
 };
+
+/**
+ * Rotate flux formulation
+ */
+struct rotate_flux
+{
+    rotate_flux (int l_zlo)
+      :  zlo(l_zlo) {}
+
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_q_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& n,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& /*exp_most*/,
+                    const amrex::Array4<const amrex::Real>& /*eta_arr*/,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& /*velx_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*qm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*q_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        int ic, jc;
+        ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
+        jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
+        ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
+        jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
+
+        // surface gradient equal to gradient at first zface
+        amrex::Real deltaz      = dz * (zlo - k);
+        amrex::Real rqvgrad  = ( cons_arr(ic,jc,zlo+1,RhoQ1_comp)
+                               - cons_arr(ic,jc,zlo  ,RhoQ1_comp) ) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoQ1_comp) - rqvgrad * deltaz;
+
+        // NOTE: this is the total stress
+        amrex::Real rho    = cons_arr(ic,jc,zlo,Rho_comp);
+        amrex::Real qstar  = 0.0; //q_star_arr(ic,jc,zlo);
+        amrex::Real moflux = (std::abs(qstar) > eps) ? -rho * qstar : 0.0;
+
+        return moflux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_t_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& n,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& /*exp_most*/,
+                    const amrex::Array4<const amrex::Real>& /*eta_arr*/,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& /*velx_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& tm_arr,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& t_star_arr,
+                    const amrex::Array4<const amrex::Real>& t_surf_arr,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        int ic, jc;
+        ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
+        jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
+        ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
+        jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
+
+        // surface gradient equal to gradient at first zface
+        amrex::Real deltaz      = dz * (zlo - k);
+        amrex::Real rthetagrad  = ( cons_arr(ic,jc,zlo+1,RhoTheta_comp)
+                                  - cons_arr(ic,jc,zlo  ,RhoTheta_comp) ) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - rthetagrad * deltaz;
+
+        // NOTE: this is the total stress
+        amrex::Real theta_mean = tm_arr(ic,jc,zlo);
+        amrex::Real theta_surf = t_surf_arr(ic,jc,zlo);
+        amrex::Real rho    = cons_arr(ic,jc,zlo,Rho_comp);
+        amrex::Real tstar  = t_star_arr(ic,jc,zlo);
+        amrex::Real moflux = (std::abs(tstar) > eps) ? -rho * tstar * (theta_mean-theta_surf) : 0.0;
+
+        return moflux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_u_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& /*exp_most*/,
+                    const amrex::Array4<const amrex::Real>& /*eta_arr*/,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*um_arr*/,
+                    const amrex::Array4<const amrex::Real>& u_star_arr,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        int ic, jc;
+        ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
+        jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
+        ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
+        jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
+
+        // surface gradient equal to gradient at first zface
+        amrex::Real deltaz    = dz * (zlo - k);
+        amrex::Real ugrad     = (velx_arr(i,j,zlo+1) - velx_arr(i,j,zlo)) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp) = velx_arr(i,j,zlo) - ugrad * deltaz;
+
+        // NOTE: this is the total stress
+        amrex::Real rho     = 0.5 *( cons_arr(ic-1,jc,zlo,Rho_comp)
+                                   + cons_arr(ic  ,jc,zlo,Rho_comp) );
+        amrex::Real ustar   = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
+        amrex::Real stressx = -rho * ustar * ustar;
+
+        return stressx;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_v_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& /*exp_most*/,
+                    const amrex::Array4<const amrex::Real>& /*eta_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*cons_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*velx_arr*/,
+                    const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        // surface gradient equal to gradient at first zface
+        amrex::Real deltaz    = dz * (zlo - k);
+        amrex::Real vgrad     = (vely_arr(i,j,zlo+1) - vely_arr(i,j,zlo)) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp) = vely_arr(i,j,zlo) - vgrad * deltaz;
+
+        // NOTE: this is the total stress
+        amrex::Real stressy = 0.0;
+
+        return stressy;
+    }
+
+private:
+    int zlo;
+    const amrex::Real     eps = 1e-15;
+    const amrex::Real eta_eps = 1e-8;
+};
 #endif
