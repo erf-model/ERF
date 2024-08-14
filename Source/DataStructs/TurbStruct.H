@@ -93,6 +93,11 @@ struct TurbChoice {
                     pp.query("pbl_mynn_C5", pbl_mynn_C5);
                     pbl_mynn_level2.init_coeffs(pbl_mynn_A1, pbl_mynn_A2, pbl_mynn_B1, pbl_mynn_B2,
                                                 pbl_mynn_C1, pbl_mynn_C2, pbl_mynn_C3, pbl_mynn_C4, pbl_mynn_C5);
+                } else if (pbl_type == PBLType::YSU) {
+                    pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
+                    pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
+                    pp.query("pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr);
+                    pp.query("pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr);
                 }
             }
 
@@ -182,6 +187,11 @@ struct TurbChoice {
                     pp.query("pbl_mynn_C5", pbl_mynn_C5, lev);
                     pbl_mynn_level2.init_coeffs(pbl_mynn_A1, pbl_mynn_A2, pbl_mynn_B1, pbl_mynn_B2,
                                                 pbl_mynn_C1, pbl_mynn_C2, pbl_mynn_C3, pbl_mynn_C4, pbl_mynn_C5);
+                } else if (pbl_type == PBLType::YSU) {
+                    pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
+                    pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
+                    pp.query("pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr);
+                    pp.query("pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr);
                 }
             }
 
@@ -256,6 +266,11 @@ struct TurbChoice {
             amrex::Print() << "pbl_mynn_C3                      : " << pbl_mynn_C3 << std::endl;
             amrex::Print() << "pbl_mynn_C4                      : " << pbl_mynn_C4 << std::endl;
             amrex::Print() << "pbl_mynn_C5                      : " << pbl_mynn_C5 << std::endl;
+        } else if (pbl_type == PBLType::YSU) {
+            amrex::Print() << "pbl_ysu_coriolis_freq            : " << pbl_ysu_coriolis_freq << std::endl;
+            amrex::Print() << "pbl_ysu_over_land                : " << pbl_ysu_over_land << std::endl;
+            amrex::Print() << "pbl_ysu_land_Ribcr               : " << pbl_ysu_land_Ribcr << std::endl;
+            amrex::Print() << "pbl_ysu_unst_Ribcr               : " << pbl_ysu_unst_Ribcr << std::endl;
         }
     }
 
@@ -304,7 +319,7 @@ struct TurbChoice {
     // Model coefficients - YSU
     // TODO: Add parmparse for all of these above
     amrex::Real pbl_ysu_coriolis_freq = 1.0e-4; // TODO: make this consistent with coriolis forcing (but note WRF always uses 1e-4)
-    bool        pbl_ysu_over_land = false; // TODO: pull from other inputs and make local
+    bool        pbl_ysu_over_land = true; // TODO: pull from other inputs and make local
     amrex::Real pbl_ysu_land_Ribcr = 0.25; // Critical Bulk Richardson number of Land for stable conditions
     amrex::Real pbl_ysu_unst_Ribcr = 0.0;  // Critical Bulk Richardson number for unstable conditions
 

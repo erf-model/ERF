@@ -936,8 +936,11 @@ ERF::InitData ()
 
 #ifdef ERF_USE_WW3_COUPLING
     int lev = 0;
-    read_waves(lev);
+    amrex::Print() <<  " About to call send_to_ww3 from ERF.cpp" << std::endl;
     send_to_ww3(lev);
+    amrex::Print() <<  " About to call read_waves from ERF.cpp"  << std::endl;
+    read_waves(lev);
+   // send_to_ww3(lev);
 #endif
 
     // Configure ABLMost params if used MostWall boundary condition
@@ -947,11 +950,16 @@ ERF::InitData ()
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
         bool use_exp_most = solverChoice.use_explicit_most;
+        bool use_rot_most = solverChoice.use_rotate_most;
         if (use_exp_most) {
             Print() << "Using MOST with explicitly included surface stresses" << std::endl;
+            if (use_rot_most) {
+                Print() << "Using MOST with surface stress rotations" << std::endl;
+            }
         }
 
-        m_most = std::make_unique<ABLMost>(geom, use_exp_most, vars_old, Theta_prim, Qv_prim, Qr_prim, z_phys_nd,
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most,
+                                           vars_old, Theta_prim, Qv_prim, Qr_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux, Hwave, Lwave, eddyDiffs_lev
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
@@ -1256,12 +1264,6 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
-
-    // Initialize wind farm
-
-#ifdef ERF_USE_WINDFARM
-    init_windfarm(lev);
-#endif
 
    if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
         input_sponge(lev);

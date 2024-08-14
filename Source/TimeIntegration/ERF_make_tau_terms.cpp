@@ -53,6 +53,7 @@ void erf_make_tau_terms (int level, int nrk,
 
     const bool use_most     = (most != nullptr);
     const bool exp_most     = (solverChoice.use_explicit_most);
+    const bool rot_most     = (solverChoice.use_rotate_most);
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
@@ -246,6 +247,10 @@ void erf_make_tau_terms (int level, int nrk,
                     // Don't overwrite modeled total stress value at boundary
                     tbxxz.setSmall(2,1);
                     tbxyz.setSmall(2,1);
+                    if (rot_most) {
+                        bxcc.setSmall(2,1);
+                        tbxxy.setSmall(2,1);
+                    }
                 }
 
                 // *****************************************************************************

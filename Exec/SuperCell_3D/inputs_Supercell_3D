@@ -1,24 +1,25 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 36000
-stop_time = 90000.0
+max_step = 40000
+stop_time = 10000.0
 
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 2048 1024 2048
 
+# PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = -75000. -50000.    0.
 geometry.prob_hi     =  75000. 50000. 24000.
-amr.n_cell           =  600    400    96    # dx=dy=dz=100 m
+amr.n_cell           =  600    400    96    # dx=dy=dz=250 m
 
 # periodic in x to match WRF setup
 # - as an alternative, could use symmetry at x=0 and outflow at x=25600
-geometry.is_periodic = 0 0 0
-xlo.type = "Open"
-xhi.type = "Open"
+geometry.is_periodic = 1 0 0
+#xlo.type = "Open"
+#xhi.type = "Open"
 ylo.type = "Open"
 yhi.type = "Open"
 zlo.type = "SlipWall"
-zhi.type = "Outflow"
+zhi.type = "HO_Outflow"
 
 # TIME STEP CONTROL
 erf.use_native_mri = 1
@@ -37,17 +38,18 @@ amr.max_level       = 0       # maximum level number allowed
 # CHECKPOINT FILES
 amr.check_file      = chk        # root name of checkpoint file
 amr.check_int       = 1000       # number of timesteps between checkpoints
-#amr.restart         = chk09000
+#amr.restart         = chk15000
 
 # PLOTFILES
 erf.plot_file_1         = plt        # root name of plotfile
-erf.plot_int_1          = 100         # number of timesteps between plotfiles
+erf.plot_int_1          = 240         # number of timesteps between plotfiles
 erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_velocity z_velocity pressure theta temp qv qc qrain rain_accum pert_dens
 
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.buoyancy_type = 1
 erf.use_coriolis = false
+erf.use_rayleigh_damping = false
 
 #erf.les_type = "Smagorinsky"
 erf.Cs              = 0.25
@@ -59,19 +61,26 @@ erf.les_type = "None"
 erf.molec_diff_type = "ConstantAlpha"
 #erf.molec_diff_type = "Constant"
 erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 200.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
-erf.alpha_T = 200.0 # [m^2/s]
-erf.alpha_C = 200.0
+erf.dynamicViscosity = 66.67 # [kg/(m-s)] ==> nu = 75.0 m^2/s
+erf.alpha_T = 66.67 # [m^2/s]
+erf.alpha_C = 66.67
 
 erf.moisture_model = "Kessler"
 erf.use_moist_background = true
 
-erf.dycore_horiz_adv_type    = "Centered_2nd"
-erf.dycore_vert_adv_type     = "Centered_2nd"
-erf.dryscal_horiz_adv_type   = "Centered_2nd"
-erf.dryscal_vert_adv_type    = "Centered_2nd"
-erf.moistscal_horiz_adv_type = "Centered_2nd"
-erf.moistscal_vert_adv_type  = "Centered_2nd"
+#erf.dycore_horiz_adv_type    = Upwind_3rd
+#erf.dycore_vert_adv_type     = Upwind_3rd
+#erf.dryscal_horiz_adv_type   = WENOZ5
+#erf.dryscal_vert_adv_type    = WENOZ5
+#erf.moistscal_horiz_adv_type = WENOZ5
+#erf.moistscal_vert_adv_type  = WENOZ5
+
+erf.dycore_horiz_adv_type    = Centered_4th
+erf.dycore_vert_adv_type     = Centered_4th
+erf.dryscal_horiz_adv_type   = Centered_4th
+erf.dryscal_vert_adv_type    = Centered_4th
+erf.moistscal_horiz_adv_type = Centered_4th
+erf.moistscal_vert_adv_type  = Centered_4th
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0
@@ -84,5 +93,5 @@ prob.y_c = 0.0
 prob.z_c = 2000.0
 prob.x_r = 10000.0
 prob.y_r = 10000.0
-prob.z_r = 1500.0
+prob.z_r = 2000.0
 prob.theta_c = 3.0

@@ -31,6 +31,7 @@ public:
     // Constructor
     explicit ABLMost (const amrex::Vector<amrex::Geometry>& geom,
                       bool& use_exp_most,
+                      bool& use_rot_most,
                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
@@ -46,6 +47,7 @@ public:
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
     : m_exp_most(use_exp_most),
+      m_rotate(use_rot_most),
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_geom(geom),
@@ -250,18 +252,28 @@ public:
     void
     impose_most_bcs (const int& lev,
                      const amrex::Vector<amrex::MultiFab*>& mfs,
+                     amrex::MultiFab* xxmom_flux,
+                     amrex::MultiFab* yymom_flux,
+                     amrex::MultiFab* zzmom_flux,
+                     amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
                      amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                      amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                      amrex::MultiFab* heat_flux,
+                     amrex::MultiFab* qv_flux,
                      amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
     void
     compute_most_bcs (const int& lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
+                      amrex::MultiFab* xxmom_flux,
+                      amrex::MultiFab* yymom_flux,
+                      amrex::MultiFab* zzmom_flux,
+                      amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
                       amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                       amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                       amrex::MultiFab* heat_flux,
+                      amrex::MultiFab* qv_flux,
                       amrex::MultiFab* z_phys,
                       const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);
@@ -321,6 +333,8 @@ public:
     const amrex::FArrayBox*
     get_z0 (const int& lev) {return &z_0[lev];}
 
+
+
     enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
         DONELAN,        ///< Donelan functional form
@@ -348,6 +362,7 @@ public:
 private:
     bool use_moisture;
     bool m_exp_most = false;
+    bool m_rotate   = false;
     amrex::Real z0_const{0.1};
     amrex::Real surf_temp;
     amrex::Real surf_heating_rate{0};
@@ -376,6 +391,8 @@ private:
     amrex::Vector<amrex::MultiFab*>  m_Hwave_lev;
     amrex::Vector<amrex::MultiFab*>  m_Lwave_lev;
     amrex::Vector<amrex::MultiFab*>  m_eddyDiffs_lev;
+
+    //amrex::Array2D<amrex::Real,0,2,0,2> m_rot_mat;
 };
 
 #endif /* ABLMOST_H */
