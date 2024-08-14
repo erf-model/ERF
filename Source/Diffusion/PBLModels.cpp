@@ -139,11 +139,11 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             Real d_kappa   = KAPPA;
             Real d_gravity = CONST_GRAV;
 
-            const auto& t_mean_mf = most->get_mac_avg(level,2); // This is theta
+            const auto& t_mean_mf = most->get_mac_avg(level,4); // This is theta_v
             const auto& u_star_mf = most->get_u_star(level);    // Use desired level
             const auto& t_star_mf = most->get_t_star(level);    // Use desired level
 
-            const auto& tm_arr     = t_mean_mf->array(mfi); // TODO: calculate theta_v
+            const auto& tm_arr     = t_mean_mf->array(mfi);
             const auto& u_star_arr = u_star_mf->array(mfi);
             const auto& t_star_arr = t_star_mf->array(mfi);
 
@@ -163,7 +163,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                                               dthetadz, dudz, dvdz);
 
                 // Spatially varying MOST
-                Real surface_heat_flux = -u_star_arr(i,j,0) * t_star_arr(i,j,0);
+                Real surface_heat_flux = -u_star_arr(i,j,0) * t_star_arr(i,j,0); // TODO: need to account for moisture
                 Real theta0            = tm_arr(i,j,0);
                 Real l_obukhov;
                 if (std::abs(surface_heat_flux) > eps) {

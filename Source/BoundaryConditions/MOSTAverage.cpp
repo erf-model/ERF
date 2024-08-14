@@ -753,6 +753,12 @@ MOSTAverage::compute_plane_averages(int lev)
             }
         }
     }
+    else // copy temperature
+    {
+        int iavg        = m_navg - 2;
+        denom[iavg]     = 1.0 / (Real)ncell_plane[iavg];
+        plane_avg[iavg] = plane_avg[2];
+    }
 
     //
     //------------------------------------------------------------------------
@@ -1035,6 +1041,12 @@ MOSTAverage::compute_region_averages(int lev)
             //***********************************************************************************
             averages[iavg]->FillBoundary(geom.periodicity());
         }
+    }
+    else // copy temperature
+    {
+        int iavg   = m_navg - 2;
+        IntVect ng = averages[iavg]->nGrowVect();
+        MultiFab::Copy(*(averages[iavg]),*(averages[2]),0,0,1,ng);
     }
 
     //
