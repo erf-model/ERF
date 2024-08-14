@@ -26,6 +26,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                               const Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
+                              bool use_moisture,
                               int level,
                               const BCRec* bc_ptr,
                               bool /*vert_only*/,
@@ -139,13 +140,17 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             Real d_kappa   = KAPPA;
             Real d_gravity = CONST_GRAV;
 
-            const auto& t_mean_mf = most->get_mac_avg(level,4); // This is theta_v
-            const auto& u_star_mf = most->get_u_star(level);    // Use desired level
-            const auto& t_star_mf = most->get_t_star(level);    // Use desired level
+            const auto& t_mean_mf = most->get_mac_avg(level,4); // theta_v
+            const auto& q_mean_mf = most->get_mac_avg(level,3); // q_v
+            const auto& u_star_mf = most->get_u_star(level);
+            const auto& t_star_mf = most->get_t_star(level);
+            const auto& q_star_mf = most->get_q_star(level);
 
             const auto& tm_arr     = t_mean_mf->array(mfi);
+            const auto& qm_arr     = t_mean_mf->array(mfi);
             const auto& u_star_arr = u_star_mf->array(mfi);
             const auto& t_star_arr = t_star_mf->array(mfi);
+            const auto& q_star_arr = (use_moisture) ? q_star_mf->array(mfi) : Array4<Real>{};
 
             const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};
 
@@ -163,12 +168,21 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                                               dthetadz, dudz, dvdz);
 
                 // Spatially varying MOST
-                Real surface_heat_flux = -u_star_arr(i,j,0) * t_star_arr(i,j,0); // TODO: need to account for moisture
-                Real theta0            = tm_arr(i,j,0);
+                Real theta0 = tm_arr(i,j,0);
+                Real qv0    = qm_arr(i,j,0);
+                Real surface_heat_flux = -u_star_arr(i,j,0) * t_star_arr(i,j,0);
+                Real surface_latent_heat{0};
+                if (use_moisture) {
+                    // Compute buoyancy flux (Stull Eqn. 4.4.5d)
+                    surface_latent_heat = -u_star_arr(i,j,0) * q_star_arr(i,j,0);
+                    surface_heat_flux *= (1.0 + 0.61*qv0);
+                    surface_heat_flux += 0.61 * theta0 * surface_latent_heat;
+                }
+
                 Real l_obukhov;
                 if (std::abs(surface_heat_flux) > eps) {
-                    l_obukhov = ( theta0 * u_star_arr(i,j,0) * u_star_arr(i,j,0) ) /
-                        ( d_kappa * d_gravity * t_star_arr(i,j,0) );
+                    l_obukhov = -( theta0 * u_star_arr(i,j,0)*u_star_arr(i,j,0)*u_star_arr(i,j,0) )
+                               / ( d_kappa * d_gravity * surface_heat_flux );
                 } else {
                     l_obukhov = std::numeric_limits<Real>::max();
                 }

@@ -304,6 +304,9 @@ public:
     get_t_star (const int& lev) { return t_star[lev].get(); }
 
     const amrex::MultiFab*
+    get_q_star (const int& lev) { return q_star[lev].get(); }
+
+    const amrex::MultiFab*
     get_olen (const int& lev) { return olen[lev].get(); }
 
     const amrex::MultiFab*

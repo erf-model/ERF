@@ -20,6 +20,7 @@ ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& 
                            const TurbChoice& turbChoice, const amrex::Real const_grav,
                            std::unique_ptr<ABLMost>& most,
                            const bool& exp_most,
+                           const bool& use_moisture,
                            int level,
                            const amrex::BCRec* bc_ptr,
                            bool vert_only = false);
