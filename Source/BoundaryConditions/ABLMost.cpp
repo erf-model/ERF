@@ -139,7 +139,7 @@ ABLMost::compute_fluxes (const int& lev,
 {
     // Pointers to the computed averages
     const auto *const tm_ptr  = m_ma.get_average(lev,2);
-    const auto *const umm_ptr = m_ma.get_average(lev,4);
+    const auto *const umm_ptr = m_ma.get_average(lev,5);
 
     for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
     {
@@ -272,7 +272,7 @@ ABLMost::compute_most_bcs (const int& lev,
         const auto *const v_mean     = m_ma.get_average(lev,1);
         const auto *const t_mean     = m_ma.get_average(lev,2);
         const auto *const q_mean     = m_ma.get_average(lev,3);
-        const auto *const u_mag_mean = m_ma.get_average(lev,4);
+        const auto *const u_mag_mean = m_ma.get_average(lev,5);
 
         const auto um_arr  = u_mean->array(mfi);
         const auto vm_arr  = v_mean->array(mfi);

@@ -281,7 +281,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const auto& vvel = yvel.const_array(mfi);
 
             const auto& z0_arr = most->get_z0(level)->const_array();
-            const auto& ws10av_arr = most->get_mac_avg(level,4)->const_array(mfi);
+            const auto& ws10av_arr = most->get_mac_avg(level,5)->const_array(mfi);
             const auto& t10av_arr  = most->get_mac_avg(level,2)->const_array(mfi);
             const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
             const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};
