@@ -316,6 +316,7 @@ struct surface_flux
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
+            // TODO: calculate virtual temperature flux if we have q*
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
                    (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
             zeta  = mdata.zref / Olen;
@@ -381,6 +382,7 @@ struct surface_flux_charnock
         do {
             ustar = u_star_arr(i,j,k);
             z0    = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
+            // TODO: calculate virtual temperature flux if we have q*
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
                    (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
             zeta  = mdata.zref / Olen;
@@ -448,6 +450,7 @@ struct surface_flux_mod_charnock
         do {
             ustar = u_star_arr(i,j,k);
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
+            // TODO: calculate virtual temperature flux if we have q*
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
                    (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
             zeta  = mdata.zref / Olen;
@@ -518,6 +521,7 @@ struct surface_flux_wave_coupled
             ustar = u_star_arr(i,j,k);
             z0    = std::min( std::max(1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/(Lwave_arr(i,j,k)+eps), 4.5 )
                                       + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
+            // TODO: calculate virtual temperature flux if we have q*
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
                    (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
             zeta  = mdata.zref / Olen;
@@ -586,6 +590,7 @@ struct surface_temp
             ustar = u_star_arr(i,j,k);
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+            // TODO: calculate virtual temperature flux if we have q*
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
                     (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
@@ -653,6 +658,7 @@ struct surface_temp_charnock
             z0    = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0) - psi_h);
+            // TODO: calculate virtual temperature flux if we have q*
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
                     (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
@@ -722,6 +728,7 @@ struct surface_temp_mod_charnock
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0) - psi_h);
+            // TODO: calculate virtual temperature flux if we have q*
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
                     (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
@@ -794,6 +801,7 @@ struct surface_temp_wave_coupled
                                       + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0) - psi_h);
+            // TODO: calculate virtual temperature flux if we have q*
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
                     (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
