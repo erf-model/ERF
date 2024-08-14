@@ -1,6 +1,20 @@
 #ifndef _PBLMODELS_H_
 #define _PBLMODELS_H_
 
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Thetav (int i, int j, int k,
+        const amrex::Array4<const amrex::Real>& cell_data,
+        const bool use_moisture)
+{
+    amrex::Real thetav = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
+    if (use_moisture) {
+        thetav *= (1.0 + 0.61 * cell_data(i,j,k,RhoQ1_comp) / cell_data(i,j,k,Rho_comp));
+    }
+    return thetav;
+}
+
 /**
  * Function for computing vertical derivatives for use in PBL model
  *
@@ -11,35 +25,35 @@
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-ComputeVerticalDerivativesPBL(int i, int j, int k,
-                              const amrex::Array4<const amrex::Real>& uvel,
-                              const amrex::Array4<const amrex::Real>& vvel,
-                              const amrex::Array4<const amrex::Real>& cell_data,
-                              const int izmin,
-                              const int izmax,
-                              const amrex::Real& dz_inv,
-                              const bool c_ext_dir_on_zlo,
-                              const bool c_ext_dir_on_zhi,
-                              const bool u_ext_dir_on_zlo,
-                              const bool u_ext_dir_on_zhi,
-                              const bool v_ext_dir_on_zlo,
-                              const bool v_ext_dir_on_zhi,
-                              amrex::Real& dthetadz,
-                              amrex::Real& dudz,
-                              amrex::Real& dvdz)
+ComputeVerticalDerivativesPBL (int i, int j, int k,
+                               const amrex::Array4<const amrex::Real>& uvel,
+                               const amrex::Array4<const amrex::Real>& vvel,
+                               const amrex::Array4<const amrex::Real>& cell_data,
+                               const int izmin,
+                               const int izmax,
+                               const amrex::Real& dz_inv,
+                               const bool c_ext_dir_on_zlo,
+                               const bool c_ext_dir_on_zhi,
+                               const bool u_ext_dir_on_zlo,
+                               const bool u_ext_dir_on_zhi,
+                               const bool v_ext_dir_on_zlo,
+                               const bool v_ext_dir_on_zhi,
+                               amrex::Real& dthetadz,
+                               amrex::Real& dudz,
+                               amrex::Real& dvdz,
+                               const bool use_moisture = false)
 {
-    // TODO: account for moisture
     if ( k==izmax && c_ext_dir_on_zhi ) {
-        dthetadz = (1.0/3.0)*(-cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp)
-                              - 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
-                              + 4.0 * cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp) )*dz_inv;
+        dthetadz = (1.0/3.0)*(       -Thetav(i,j,k-1,cell_data,use_moisture)
+                              - 3.0 * Thetav(i,j,k  ,cell_data,use_moisture)
+                              + 4.0 * Thetav(i,j,k+1,cell_data,use_moisture) )*dz_inv;
     } else if ( k==izmin && c_ext_dir_on_zlo ) {
-        dthetadz = (1.0/3.0)*( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                               + 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
-                               - 4.0 * cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dz_inv;
+        dthetadz = (1.0/3.0)*(        Thetav(i,j,k+1,cell_data,use_moisture)
+                              + 3.0 * Thetav(i,j,k  ,cell_data,use_moisture)
+                              - 4.0 * Thetav(i,j,k-1,cell_data,use_moisture) )*dz_inv;
     } else {
-        dthetadz = 0.5*( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                         - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dz_inv;
+        dthetadz = 0.5*(  Thetav(i,j,k+1,cell_data,use_moisture)
+                        - Thetav(i,j,k-1,cell_data,use_moisture) )*dz_inv;
     }
 
     if ( k==izmax && u_ext_dir_on_zhi ) {

@@ -165,7 +165,8 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                               u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                              dthetadz, dudz, dvdz);
+                                              dthetadz, dudz, dvdz,
+                                              use_moisture);
 
                 // Spatially varying MOST
                 Real theta0 = tm_arr(i,j,0);
@@ -230,7 +231,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
                 // Calculate nondimensional production terms
                 Real shearProd  = dudz*dudz + dvdz*dvdz;
-                Real buoyProd   = -(CONST_GRAV/theta0) * dthetadz;  // TODO: account for moisture
+                Real buoyProd   = -(CONST_GRAV/theta0) * dthetadz;
                 Real L2_over_q2 = Lturb*Lturb/(qvel(i,j,k)*qvel(i,j,k));
                 Real GM         = L2_over_q2 * shearProd;
                 Real GH         = L2_over_q2 * buoyProd;
