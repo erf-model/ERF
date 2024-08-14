@@ -123,7 +123,12 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         Real dy_turb = (lat[it] - lat_lo) * 111000.0 * 180.0/M_PI ;
         yloc.push_back(dy_turb);
         Real dx_turb = std::sqrt(std::pow(dist,2) - std::pow(dy_turb,2));
-        xloc.push_back(dx_turb);
+        if(delta_lon >= 0.0) {
+            xloc.push_back(dx_turb);
+        }
+        else {
+            xloc.push_back(-dx_turb);
+        }
     }
 }
 
