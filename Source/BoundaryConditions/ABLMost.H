@@ -383,7 +383,7 @@ public:
                           const amrex::Array4<amrex::Real>& tau23_arr,
                           const amrex::Array4<amrex::Real>& tau32_arr)
     {
-        // Unit-normal vetor
+        // Unit-normal vector
         amrex::Array1D<amrex::Real,0,2> n_hat;
 
         // Unit-tangent vectors
