@@ -16,6 +16,7 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           Vector<Vector<MultiFab>>& vars_old,
                           Vector<std::unique_ptr<MultiFab>>& Theta_prim,
                           Vector<std::unique_ptr<MultiFab>>& Qv_prim,
+                          Vector<std::unique_ptr<MultiFab>>& Qr_prim,
                           Vector<std::unique_ptr<MultiFab>>& z_phys_nd)
   : m_geom(std::move(geom))
 {
@@ -181,12 +182,14 @@ void
 MOSTAverage::update_field_ptrs(int lev,
                                Vector<Vector<MultiFab>>& vars_old,
                                Vector<std::unique_ptr<MultiFab>>& Theta_prim,
-                               Vector<std::unique_ptr<MultiFab>>& Qv_prim)
+                               Vector<std::unique_ptr<MultiFab>>& Qv_prim,
+                               Vector<std::unique_ptr<MultiFab>>& Qr_prim)
 {
     m_fields[lev][0] = &vars_old[lev][Vars::xvel];
     m_fields[lev][1] = &vars_old[lev][Vars::yvel];
     m_fields[lev][2] = Theta_prim[lev].get();
     m_fields[lev][3] = Qv_prim[lev].get();
+    m_fields[lev][4] = Qr_prim[lev].get();
 }
 
 
