@@ -140,23 +140,44 @@ void SuperDropletPC::readInputs ()
     }
 
     {
-        Vector<Real> particle_box_lo(AMREX_SPACEDIM);
-        Vector<Real> particle_box_hi(AMREX_SPACEDIM);
+        if (m_initialization_type == SupDropInit::init_uniform)
+        {
+            Vector<Real> particle_box_lo(AMREX_SPACEDIM);
+            Vector<Real> particle_box_hi(AMREX_SPACEDIM);
 
-        // Defaults
-        for (int i = 0; i < AMREX_SPACEDIM; i++) {
-            particle_box_lo[i] = Geom(0).ProbLo(i);
-            particle_box_hi[i] = Geom(0).ProbHi(i);
+            // Defaults
+            for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                particle_box_lo[i] = Geom(0).ProbLo(i);
+                particle_box_hi[i] = Geom(0).ProbHi(i);
+            }
+
+            pp.queryAdd("particle_box_lo", particle_box_lo, AMREX_SPACEDIM);
+            AMREX_ASSERT(particle_box_lo.size() == AMREX_SPACEDIM);
+
+            pp.queryAdd("particle_box_hi", particle_box_hi, AMREX_SPACEDIM);
+            AMREX_ASSERT(particle_box_hi.size() == AMREX_SPACEDIM);
+
+            m_init_particle_box.setLo(particle_box_lo);
+            m_init_particle_box.setHi(particle_box_hi);
+        } else if (m_initialization_type == SupDropInit::init_bubble){
+            Vector<Real> particle_bubble_center(AMREX_SPACEDIM);
+            Vector<Real> particle_bubble_radius(AMREX_SPACEDIM);
+
+            // Defaults
+            for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                particle_bubble_center[i] = Geom(0).ProbHi(i)/2;
+                particle_bubble_radius[i] = Geom(0).ProbHi(i)/2;
+            }
+
+            pp.queryAdd("particle_bubble_center", particle_bubble_center, AMREX_SPACEDIM);
+            AMREX_ASSERT(particle_bubble_center.size() == AMREX_SPACEDIM);
+
+            pp.queryAdd("particle_bubble_radius", particle_bubble_radius, AMREX_SPACEDIM);
+            AMREX_ASSERT(particle_bubble_radius.size() == AMREX_SPACEDIM);
+
+            m_init_particle_box.setLo(particle_bubble_radius);
+            m_init_particle_box.setHi(particle_bubble_center);
         }
-
-        pp.queryAdd("particle_box_lo", particle_box_lo, AMREX_SPACEDIM);
-        AMREX_ASSERT(particle_box_lo.size() == AMREX_SPACEDIM);
-
-        pp.queryAdd("particle_box_hi", particle_box_hi, AMREX_SPACEDIM);
-        AMREX_ASSERT(particle_box_hi.size() == AMREX_SPACEDIM);
-
-        m_init_particle_box.setLo(particle_box_lo);
-        m_init_particle_box.setHi(particle_box_hi);
     }
 
     for (int i = 0; i < m_num_aerosols; i++) {
@@ -311,6 +332,73 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd, /*!< integer 
     return;
 }
 
+/*! Sets the initial number of the super-droplets per cell as a bubble with a uniform distribution */
+void SuperDropletPC::setNumSDBubbleDistribution (iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
+                                              const int a_n_per_cell, /*!< number of superdroplets per cell */
+                                              const MFPtr& a_height_ptr, /*!< terrain */
+                                              const RealBox& a_box /*!< box within which to initialize particles */ )
+{
+    BL_PROFILE("SuperDropletPC::setNumSDBubbleDistribution()");
+    a_num_sd.setVal(0);
+
+    const auto dx = Geom(m_lev).CellSizeArray();
+    const auto plo = Geom(m_lev).ProbLoArray();
+
+    for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
+        const Box& tile_box  = mfi.tilebox();
+        auto num_superdroplets_arr = a_num_sd[mfi].array();
+        if (a_height_ptr) {
+            const auto height_arr = (*a_height_ptr)[mfi].array();
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real x = plo[0] + (i + 0.5)*dx[0];
+                Real y = plo[1] + (j + 0.5)*dx[1];
+                Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
+                                  height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
+                                  height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
+                                  height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+
+                // Extract bubble params from box parameters
+                const auto& x_r = a_box.lo();       // radius
+                const auto& x_c = a_box.hi();       // center
+
+                Real rad = 0.0;
+                if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
+                if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
+                if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+                rad = std::sqrt(rad);
+
+                if(rad <= 1.0){
+                    num_superdroplets_arr(i,j,k) = a_n_per_cell;
+                }
+            });
+        } else {
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real x = plo[0] + (i + 0.5)*dx[0];
+                Real y = plo[1] + (j + 0.5)*dx[1];
+                Real z = plo[2] + (k + 0.5)*dx[2];
+
+                // Extract bubble params from box parameters
+                const auto& x_r = a_box.lo();       // radius
+                const auto& x_c = a_box.hi();       // center
+
+                Real rad = 0.0;
+                if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
+                if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
+                if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+                rad = std::sqrt(rad);
+
+                if(rad <= 1.0){
+                    num_superdroplets_arr(i,j,k) = a_n_per_cell;
+                }
+            });
+        }
+    }
+
+    return;
+}
+
 /*! Initialize super-droplets in domain given an initialization type */
 /*! Uniform distribution: initializes super-droplets uniformly throughout the domain.
 
@@ -442,6 +530,11 @@ void SuperDropletPC::InitializeParticles (const std::string& a_initialization_ty
 
     if (a_initialization_type == SupDropInit::init_uniform) {
         setNumSDBoxDistribution( num_superdroplets,
+                                 num_sd_per_cell,
+                                 a_height_ptr,
+                                 a_particle_init_domain );
+    } else if (a_initialization_type == SupDropInit::init_bubble) {
+        setNumSDBubbleDistribution( num_superdroplets,
                                  num_sd_per_cell,
                                  a_height_ptr,
                                  a_particle_init_domain );
