@@ -170,7 +170,7 @@ protected:
     // General vars for multiple or all policies
     //--------------------------------------------
     int m_nvar{5};                                                   // 5 fields for U/V/T/Qv/Qr
-    int m_navg{5};                                                   // 5 averages for U/V/T/Qv/Umag
+    int m_navg{6};                                                   // 6 averages for U/V/T/Qv/Tv/Umag
     int m_maxlev{0};                                                 // Total number of levels
     int m_policy{0};                                                 // Policy for type of averaging
     amrex::Real m_zref{10.0};                                        // Height above surface for MOST BC

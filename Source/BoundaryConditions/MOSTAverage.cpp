@@ -97,16 +97,16 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         const int incomp  = 1;
         IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-          m_fields[lev][2] = Theta_prim[lev].get();
-        m_averages[lev][2] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-        m_averages[lev][2]->setVal(1.E34);
+        // Get field pointers
+        m_fields[lev][2] = Theta_prim[lev].get();
+        m_fields[lev][3] = Qv_prim[lev].get();
+        m_fields[lev][4] = Qr_prim[lev].get();
 
-          m_fields[lev][3] = Qv_prim[lev].get();
-        m_averages[lev][3] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-        m_averages[lev][3]->setVal(1.E34);
-
-        m_averages[lev][4] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-        m_averages[lev][4]->setVal(1.E34);
+        // Initialize remaining multifabs
+        for (int iavg(2); iavg < m_navg; ++iavg) {
+            m_averages[lev][iavg] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
+            m_averages[lev][iavg]->setVal(1.E34);
+        }
 
         if (m_z_phys_nd[0] && m_norm_vec && m_interp) {
             m_x_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -601,8 +601,11 @@ MOSTAverage::compute_plane_averages(int lev)
     Vector<Real> denom(plane_average.size(),0.0);
     Vector<Real> val_old(plane_average.size(),0.0);
 
+    //
+    //----------------------------------------------------------
     // Averages over all the fields
     //----------------------------------------------------------
+    //
     Box domain = geom.Domain();
 
     Array<int,AMREX_SPACEDIM> is_per = {0,0,0};
@@ -610,7 +613,8 @@ MOSTAverage::compute_plane_averages(int lev)
         if (geom.isPeriodic(idim)) is_per[idim] = 1;
     }
 
-    for (int imf(0); imf < m_nvar; ++imf) {
+    // Averages for U,V,T,Qv
+    for (int imf(0); imf < 4; ++imf) {
 
         // Continue if no valid Qv pointer
         if (!fields[imf]) continue;
@@ -668,6 +672,83 @@ MOSTAverage::compute_plane_averages(int lev)
                     int mi = i_arr ? i_arr(i,j,k) : i;
                     Real val = mf_arr(mi,mj,mk);
                     Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+                });
+            }
+        }
+    }
+
+    //
+    //------------------------------------------------------------------------
+    // Averages for virtual potential temperature
+    // (This is cell-centered so we don't need to worry about double-counting)
+    //------------------------------------------------------------------------
+    //
+    if (fields[3]) // We have water vapor
+    {
+        int iavg = m_navg - 2;
+        denom[iavg]   = 1.0 / (Real)ncell_plane[iavg];
+        val_old[iavg] = plane_average[iavg]*d_fact_old;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi)
+        {
+            Box pbx = mfi.tilebox();
+            pbx.setSmall(2,0); pbx.setBig(2,0);
+
+            const Array4<Real const>& T_mf_arr = fields[2]->const_array(mfi);
+            const Array4<Real const>& qv_mf_arr = (fields[3])? fields[3]->const_array(mfi) : Array4<const Real>{};
+            const Array4<Real const>& qr_mf_arr = (fields[4])? fields[4]->const_array(mfi) : Array4<const Real>{};
+
+            if (m_interp) {
+                const auto plo   = m_geom[lev].ProbLoArray();
+                const auto dxInv = m_geom[lev].InvCellSizeArray();
+                const auto z_phys_arr = z_phys->const_array(mfi);
+                auto x_pos_arr = x_pos->array(mfi);
+                auto y_pos_arr = y_pos->array(mfi);
+                auto z_pos_arr = z_pos->array(mfi);
+                ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
+                {
+                    Real T_interp{0};
+                    Real qv_interp{0};
+                    trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
+                                       &T_interp, T_mf_arr, z_phys_arr, plo, dxInv, 1);
+                    trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
+                                       &qv_interp, qv_mf_arr, z_phys_arr, plo, dxInv, 1);
+                    Real vfac;
+                    if (qr_mf_arr) {
+                        // We also have liquid water
+                        Real qr_interp{0};
+                        trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
+                                           &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
+                        vfac = 1.0 + 0.61*qv_interp - qr_interp;
+                    } else {
+                        vfac = 1.0 + 0.61*qv_interp;
+                    }
+                    const Real val = T_interp * vfac;
+                    Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+                });
+            } else {
+                auto k_arr = k_indx->const_array(mfi);
+                auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
+                auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+                ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
+                {
+                    int mk = k_arr(i,j,k);
+                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    int mi = i_arr ? i_arr(i,j,k) : i;
+                    Real vfac;
+                    if (qr_mf_arr) {
+                        // We also have liquid water
+                        vfac = 1.0 + 0.61*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
+                    } else {
+                        vfac = 1.0 + 0.61*qv_mf_arr(mi,mj,mk);
+                    }
+                    const Real val = T_mf_arr(mi,mj,mk) * vfac;
+                    Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
             }
         }
@@ -786,9 +867,12 @@ MOSTAverage::compute_region_averages(int lev)
     // Capture radius for device
     int d_radius = m_radius;
 
-    // Averages over all the fields
+    //
     //----------------------------------------------------------
-    for (int imf(0); imf < m_nvar; ++imf) {
+    // Averages for U,V,T,Qv
+    //----------------------------------------------------------
+    //
+    for (int imf(0); imf < 4; ++imf) {
 
         // Continue if no valid Qv pointer
         if (!fields[imf]) continue;
@@ -857,8 +941,107 @@ MOSTAverage::compute_region_averages(int lev)
         averages[imf]->FillBoundary(geom.periodicity());
     }
 
+    //
+    //----------------------------------------------------------
+    // Averages for virtual potential temperature
+    //----------------------------------------------------------
+    //
+    if (fields[3]) // We have water vapor
+    {
+        int iavg = m_navg - 2;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
+            Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
+
+            const Array4<Real const>& T_mf_arr = fields[2]->const_array(mfi);
+            const Array4<Real const>& qv_mf_arr = (fields[3])? fields[3]->const_array(mfi) : Array4<const Real>{};
+            const Array4<Real const>& qr_mf_arr = (fields[4])? fields[4]->const_array(mfi) : Array4<const Real>{};
+            auto ma_arr   = averages[iavg]->array(mfi);
+
+            if (m_interp) {
+                const auto plo   = geom.ProbLoArray();
+                const auto dx    = geom.CellSizeArray();
+                const auto dxInv = geom.InvCellSizeArray();
+                const auto z_phys_arr = z_phys->const_array(mfi);
+                auto x_pos_arr = x_pos->array(mfi);
+                auto y_pos_arr = y_pos->array(mfi);
+                auto z_pos_arr = z_pos->array(mfi);
+                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    ma_arr(i,j,k) *= d_fact_old;
+
+                    Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
+                    for (int lk(-d_radius); lk <= (d_radius); ++lk) {
+                      for (int lj(-d_radius); lj <= (d_radius); ++lj) {
+                        for (int li(-d_radius); li <= (d_radius); ++li) {
+                            Real T_interp{0};
+                            Real qv_interp{0};
+                            Real xp = x_pos_arr(i+li,j+lj,k);
+                            Real yp = y_pos_arr(i+li,j+lj,k);
+                            Real zp = z_pos_arr(i+li,j+lj,k) + met_h_zeta*lk*dx[2];
+                            trilinear_interp_T(xp, yp, zp, &T_interp,  T_mf_arr,  z_phys_arr, plo, dxInv, 1);
+                            trilinear_interp_T(xp, yp, zp, &qv_interp, qv_mf_arr, z_phys_arr, plo, dxInv, 1);
+                            Real vfac;
+                            if (qr_mf_arr) {
+                                // We also have liquid water
+                                Real qr_interp{0};
+                                trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
+                                                   &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
+                                vfac = 1.0 + 0.61*qv_interp - qr_interp;
+                            } else {
+                                vfac = 1.0 + 0.61*qv_interp;
+                            }
+                            const Real mag = T_interp * vfac;
+                            const Real val = denom * mag * d_fact_new;
+                            ma_arr(i,j,k) += val;
+                        }
+                      }
+                    }
+                });
+            } else {
+                auto k_arr = k_indx->const_array(mfi);
+                auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
+                auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    ma_arr(i,j,k) *= d_fact_old;
+
+                    int mk = k_arr(i,j,k);
+                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    int mi = i_arr ? i_arr(i,j,k) : i;
+                    for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
+                      for (int lj(mj-d_radius); lj <= (mj+d_radius); ++lj) {
+                        for (int li(mi-d_radius); li <= (mi+d_radius); ++li) {
+                            Real vfac;
+                            if (qr_mf_arr) {
+                                // We also have liquid water
+                                vfac = 1.0 + 0.61*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
+                            } else {
+                                vfac = 1.0 + 0.61*qv_mf_arr(li,lj,lk);
+                            }
+                            const Real mag = T_mf_arr(li,lj,lk) * vfac;
+                            const Real val = denom * mag * d_fact_new;
+                            ma_arr(i,j,k) += val;
+                        }
+                      }
+                    }
+                });
+            }
+
+            // Fill interior ghost cells and any ghost cells outside a periodic domain
+            //***********************************************************************************
+            averages[iavg]->FillBoundary(geom.periodicity());
+        }
+    }
+
+    //
+    //----------------------------------------------------------
     // Averages for the tangential velocity magnitude
     //----------------------------------------------------------
+    //
     {
         int imf  = 0;
         int iavg = m_navg - 1;
