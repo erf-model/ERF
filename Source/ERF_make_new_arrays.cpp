@@ -201,12 +201,15 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
         if (solverChoice.moisture_type != MoistureType::None) {
             Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
+            Qr_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
         } else {
             Qv_prim[lev]    = nullptr;
+            Qr_prim[lev]    = nullptr;
         }
     } else {
         Theta_prim[lev] = nullptr;
         Qv_prim[lev]    = nullptr;
+        Qr_prim[lev]    = nullptr;
     }
 
     // ********************************************************************************************
