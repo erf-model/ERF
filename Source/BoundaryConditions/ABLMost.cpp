@@ -287,6 +287,7 @@ ABLMost::compute_most_bcs (const int& lev,
     const int klo   = 0;
     const int icomp = 0;
     const auto& dxInv = m_geom[lev].InvCellSizeArray();
+    const auto& dz_no_terrain = m_geom[lev].CellSize(2);
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
         // TODO: No LSM lateral ghost cells, should this change?
@@ -368,8 +369,8 @@ ABLMost::compute_most_bcs (const int& lev,
                 int n = RhoTheta_comp;
                 ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dxInv[2];
-                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dxInv[2];
+                    Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
+                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
                     Real Tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz, dz1, exp_most, eta_arr,
                                                           cons_arr, velx_arr, vely_arr,
                                                           umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
@@ -419,8 +420,8 @@ ABLMost::compute_most_bcs (const int& lev,
 
                 ParallelFor(xb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dxInv[2];
-                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dxInv[2];
+                    Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
+                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
                     Real stressx = flux_comp.compute_u_flux(i, j, k, icomp, dz, dz1, exp_most, eta_arr,
                                                             cons_arr, velx_arr, vely_arr,
                                                             umm_arr, um_arr, u_star_arr,
@@ -448,8 +449,8 @@ ABLMost::compute_most_bcs (const int& lev,
 
                 ParallelFor(yb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dxInv[2];
-                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dxInv[2];
+                    Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
+                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
                     Real stressy = flux_comp.compute_v_flux(i, j, k, icomp, dz, dz1, exp_most, eta_arr,
                                                             cons_arr, velx_arr, vely_arr,
                                                             umm_arr, vm_arr, u_star_arr,
