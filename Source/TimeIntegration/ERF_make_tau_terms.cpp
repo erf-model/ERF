@@ -73,7 +73,7 @@ void erf_make_tau_terms (int level, int nrk,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        expr    = std::make_unique<MultiFab>(ba  , dm, 1, IntVect(1,1,0));
+        expr    = std::make_unique<MultiFab>(ba  , dm, 1, IntVect(1,1,1));
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);

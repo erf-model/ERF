@@ -114,7 +114,7 @@ the velocity field to create a provisional velocity, :math:`\mathbf{u}^*` at the
 then impose the constraint by solving the pressure Poisson equation for :math:`p^\prime`
 
 .. math::
-   \nabla \cdot (\frac{\overline{\rho}}{\rho} \nabla p^\prime = \nabla \cdot \mathbf{u}^*
+   \nabla \cdot ( \frac{\overline{\rho}}{\rho} \nabla p^\prime ) = \nabla \cdot ( \overline{\rho} \mathbf{u}^* )
 
 then setting
 
