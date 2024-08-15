@@ -267,6 +267,11 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 K_turb(i,j,k,EddyDiff::Theta_v) = rho * Lturb * qvel(i,j,k) * SH;
                 K_turb(i,j,k,EddyDiff::QKE_v)   = rho * Lturb * qvel(i,j,k) * SQ;
 
+                // TODO: implement partial-condensation scheme?
+                // Currently, implementation matches NN09 without rain (i.e.,
+                // the liquid water potential temperature is equal to the
+                // potential temperature.
+
                 // NN09 gives the total water content flux; this assumes that
                 // all the species have the same eddy diffusivity
                 if (update_moist_eddydiff) {

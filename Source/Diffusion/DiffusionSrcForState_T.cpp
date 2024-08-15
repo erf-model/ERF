@@ -38,6 +38,7 @@ using namespace amrex;
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
  * @param[in]  use_most whether we have turned on MOST BCs
+ * @param[in]  use_moisture whether we account for moisture in the QKE update
  */
 void
 DiffusionSrcForState_T (const Box& bx, const Box& domain,
@@ -71,7 +72,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const Array4<const Real>& tm_arr,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
-                        const bool use_most)
+                        const bool use_most,
+                        const bool use_moisture)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
@@ -656,7 +658,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         {
             const Real met_h_zeta = detJ(i,j,k);
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
-                                                                  mu_turb,cellSizeInv,domain,pbl_mynn_B1_l,tm_arr(i,j,0),
+                                                                  mu_turb,cellSizeInv,domain,
+                                                                  pbl_mynn_B1_l,tm_arr(i,j,0),
+                                                                  use_moisture,
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,

@@ -103,6 +103,7 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Box& domain,
                        amrex::Real pbl_mynn_B1_l,
                        const amrex::Real theta_mean,
+                       bool use_moisture,
                        bool c_ext_dir_on_zlo,
                        bool c_ext_dir_on_zhi,
                        bool u_ext_dir_on_zlo,
@@ -124,7 +125,8 @@ ComputeQKESourceTerms (int i, int j, int k,
                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                  dthetadz, dudz, dvdz);
+                                  dthetadz, dudz, dvdz,
+                                  use_moisture);
 
     // Note: Transport terms due to turbulence and pressure are included when
     // DiffusionSrcForState_* is called.
@@ -132,7 +134,7 @@ ComputeQKESourceTerms (int i, int j, int k,
     // Shear Production (Note: We store mu_turb, which is 0.5*K_turb)
     source_term += 4.0*K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
 
-    // Buoyancy (TODO: implement partial-condensation scheme)
+    // Buoyancy Production
     source_term -= 2.0*(CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
 
     // Dissipation
