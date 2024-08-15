@@ -139,8 +139,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
-    lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
-    lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
+    // Note that we need the ghost cells in the z-direction if we are doing any
+    // kind of domain decomposition in the vertical (at level 0 or above)
+    lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+    lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
 #ifdef ERF_USE_POISSON_SOLVE
     pp_inc[lev].define(ba, dm, 1, 1);
@@ -460,6 +462,8 @@ ERF::update_terrain_arrays (int lev, Real time)
         }
 
         //
+        // NOTE: we are not currently doing this as described -- we will simply use
+        //       the interpolation from coarse done above
         // Then, if not using real/metgrid data,
         // 1) redefine the terrain at k=0 for every fine box which includes k=0
         // 2) recreate z_phys_nd at every fine node using
@@ -467,17 +471,20 @@ ERF::update_terrain_arrays (int lev, Real time)
         // which has been either been interpolated from the coarse grid (k>0)
         // or set in init_custom_terrain (k=0)
         //
-        if (init_type != "real" && init_type != "metgrid") {
-            prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
+        if (lev == 0) {
+            if (init_type != "real" && init_type != "metgrid")
+            {
+                prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
 
-            Vector<Real> zmax(1); // only reduce at k==0
-            reduce_to_max_per_level(zmax, z_phys_nd[lev]);
-            amrex::Print() << "Max terrain elevation = " << zmax[0] << std::endl;
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zlevels_stag[zlevels_stag.size()-1] > zmax[0],
-                "Terrain is taller than domain top!");
+                Vector<Real> zmax(1); // only reduce at lev==0
+                reduce_to_max_per_level(zmax, z_phys_nd[lev]);
+                amrex::Print() << "Max terrain elevation = " << zmax[0] << std::endl;
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zlevels_stag[zlevels_stag.size()-1] > zmax[0],
+                    "Terrain is taller than domain top!");
 
-            init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag,phys_bc_type);
-        }
+                init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag,phys_bc_type);
+            } // init_type
+        } // lev == 0
 
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
