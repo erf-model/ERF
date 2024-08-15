@@ -147,7 +147,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const auto& q_star_mf = most->get_q_star(level);
 
             const auto& tm_arr     = t_mean_mf->array(mfi);
-            const auto& qm_arr     = t_mean_mf->array(mfi);
+            const auto& qm_arr     = q_mean_mf->array(mfi);
             const auto& u_star_arr = u_star_mf->array(mfi);
             const auto& t_star_arr = t_star_mf->array(mfi);
             const auto& q_star_arr = (use_moisture) ? q_star_mf->array(mfi) : Array4<Real>{};

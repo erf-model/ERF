@@ -9,7 +9,7 @@ struct MYNNLevel2 {
                       amrex::Real C1,
                       amrex::Real C2,
                       amrex::Real C3,
-                      amrex::Real C4,
+                      amrex::Real /*C4*/,
                       amrex::Real C5)
     {
         A1 = A1_lvl25;
