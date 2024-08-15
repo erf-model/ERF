@@ -110,8 +110,8 @@ The anelastic constraint has the form
    \nabla \cdot (\overline{\rho}  \mathbf{u}) = 0
 
 We take a predictor-corrector approach to solving this system, in which we first advance
-the velocity field to create a provisional velocity, :math:`\mathbf{u}^*: at the new time,
-then impose the constraint by solving the pressure Poisson equation for :math:`p^\prime`:
+the velocity field to create a provisional velocity, :math:`\mathbf{u}^*` at the new time,
+then impose the constraint by solving the pressure Poisson equation for :math:`p^\prime`
 
 .. math::
    \nabla \cdot (\frac{\overline{\rho}}{\rho} \nabla p^\prime = \nabla \cdot \mathbf{u}^*

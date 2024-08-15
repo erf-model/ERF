@@ -47,7 +47,7 @@ where :math:`\mathbf{S}` is the solution vector, we solve
 
   \mathbf{S}^{*}   &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^n)
 
-  \mathbf{S}^{n+1} &=& \mathbf{S}^n + \frac{\Delta t}{2} f(\mathbf{S}^{n}) + f(\mathbf{S}^{*})
+  \mathbf{S}^{n+1} &=& \mathbf{S}^n + \frac{\Delta t}{2} ( f(\mathbf{S}^{n}) + f(\mathbf{S}^{*}) )
 
 .. _AcousticSubstep:
 

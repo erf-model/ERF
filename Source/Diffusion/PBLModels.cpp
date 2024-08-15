@@ -26,6 +26,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                               const Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
+                              bool use_moisture,
                               int level,
                               const BCRec* bc_ptr,
                               bool /*vert_only*/,
@@ -43,8 +44,11 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
         const Real C1 = turbChoice.pbl_mynn_C1;
         const Real C2 = turbChoice.pbl_mynn_C2;
         const Real C3 = turbChoice.pbl_mynn_C3;
-        //const Real C4 = turbChoice.pbl_mynn_C4;
+      //const Real C4 = turbChoice.pbl_mynn_C4;
         const Real C5 = turbChoice.pbl_mynn_C5;
+        auto level2   = turbChoice.pbl_mynn_level2;
+
+        const bool update_moist_eddydiff = turbChoice.pbl_mynn_diffuse_moistvars;
 
         // Dirichlet flags to switch derivative stencil
         bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -138,13 +142,17 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             Real d_kappa   = KAPPA;
             Real d_gravity = CONST_GRAV;
 
-            const auto& t_mean_mf = most->get_mac_avg(level,2); // TODO: IS THIS ACTUALLY RHOTHETA
-            const auto& u_star_mf = most->get_u_star(level);    // Use desired level
-            const auto& t_star_mf = most->get_t_star(level);    // Use desired level
+            const auto& t_mean_mf = most->get_mac_avg(level,4); // theta_v
+            const auto& q_mean_mf = most->get_mac_avg(level,3); // q_v
+            const auto& u_star_mf = most->get_u_star(level);
+            const auto& t_star_mf = most->get_t_star(level);
+            const auto& q_star_mf = most->get_q_star(level);
 
-            const auto& tm_arr     = t_mean_mf->array(mfi); // TODO: IS THIS ACTUALLY RHOTHETA
+            const auto& tm_arr     = t_mean_mf->array(mfi);
+            const auto& qm_arr     = q_mean_mf->array(mfi);
             const auto& u_star_arr = u_star_mf->array(mfi);
             const auto& t_star_arr = t_star_mf->array(mfi);
+            const auto& q_star_arr = (use_moisture) ? q_star_mf->array(mfi) : Array4<Real>{};
 
             const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};
 
@@ -159,23 +167,34 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                               u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                              dthetadz, dudz, dvdz);
+                                              dthetadz, dudz, dvdz,
+                                              use_moisture);
 
                 // Spatially varying MOST
+                Real theta0 = tm_arr(i,j,0);
+                Real qv0    = qm_arr(i,j,0);
                 Real surface_heat_flux = -u_star_arr(i,j,0) * t_star_arr(i,j,0);
-                Real theta0            = tm_arr(i,j,0);
+                Real surface_latent_heat{0};
+                if (use_moisture) {
+                    // Compute buoyancy flux (Stull Eqn. 4.4.5d)
+                    surface_latent_heat = -u_star_arr(i,j,0) * q_star_arr(i,j,0);
+                    surface_heat_flux *= (1.0 + 0.61*qv0);
+                    surface_heat_flux += 0.61 * theta0 * surface_latent_heat;
+                }
+
                 Real l_obukhov;
                 if (std::abs(surface_heat_flux) > eps) {
-                    l_obukhov = ( theta0 * u_star_arr(i,j,0) * u_star_arr(i,j,0) ) /
-                        ( d_kappa * d_gravity * t_star_arr(i,j,0) );
+                    l_obukhov = -( theta0 * u_star_arr(i,j,0)*u_star_arr(i,j,0)*u_star_arr(i,j,0) )
+                               / ( d_kappa * d_gravity * surface_heat_flux );
                 } else {
                     l_obukhov = std::numeric_limits<Real>::max();
                 }
 
-                // First Length Scale
+                // Surface-layer length scale (NN09, Eqn. 53)
                 AMREX_ASSERT(l_obukhov != 0);
                 int lk = amrex::max(k,0);
-                const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr) : gdata.ProbLo(2) + (lk + 0.5)*gdata.CellSize(2);
+                const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr)
+                                              : gdata.ProbLo(2) + (lk + 0.5)*gdata.CellSize(2);
                 const Real zeta = zval/l_obukhov;
                 Real l_S;
                 if (zeta >= 1.0) {
@@ -186,7 +205,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                     l_S = KAPPA*zval*std::pow(1.0 - 100.0 * zeta, 0.2);
                 }
 
-                // Second Length Scale
+                // ABL-depth length scale (NN09, Eqn. 54)
                 Real l_T;
                 if (qint(i,j,0,1) > 0.0) {
                     l_T = 0.23*qint(i,j,0,0)/qint(i,j,0,1);
@@ -194,12 +213,12 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                     l_T = std::numeric_limits<Real>::max();
                 }
 
-                // Third Length Scale
+                // Buoyancy length scale (NN09, Eqn. 55)
                 Real l_B;
                 if (dthetadz > 0) {
                     Real N_brunt_vaisala = std::sqrt(CONST_GRAV/theta0 * dthetadz);
                     if (zeta < 0) {
-                        Real qc = CONST_GRAV/theta0 * surface_heat_flux * l_T;
+                        Real qc = CONST_GRAV/theta0 * surface_heat_flux * l_T; // velocity scale
                         qc = std::pow(qc,1.0/3.0);
                         l_B = (1.0 + 5.0*std::sqrt(qc/(N_brunt_vaisala * l_T))) * qvel(i,j,k)/N_brunt_vaisala;
                     } else {
@@ -209,45 +228,57 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                     l_B = std::numeric_limits<Real>::max();
                 }
 
-                // Overall Length Scale
-                Real l_comb = 1.0 / (1.0/l_S + 1.0/l_T + 1.0/l_B);
+                // Overall turbulent length scale (NN09, Eqn 52)
+                Real Lturb = 1.0 / (1.0/l_S + 1.0/l_T + 1.0/l_B);
 
-                // NOTE: Level 2 limiting from balance of production and dissipation.
-                //       K_turb has a setval of 0.0 when the MF is created (NOT EACH STEP).
-                //       We do this inline to avoid storing qe^2 at each cell.
-                Real l_comb_old   = K_turb(i,j,k,EddyDiff::PBL_lengthscale);
-                Real shearProd    = dudz*dudz + dvdz*dvdz;
-                Real buoyProd     = -(CONST_GRAV/theta0) * dthetadz;
-                Real lSM          = K_turb(i,j,k,EddyDiff::Mom_v)   / (qvel_old(i,j,k) + eps);
-                Real lSH          = K_turb(i,j,k,EddyDiff::Theta_v) / (qvel_old(i,j,k) + eps);
-                Real qe2          = B1 * l_comb_old * ( lSM * shearProd + lSH * buoyProd );
-                Real qe           = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
-                Real one_m_alpha  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
-                Real one_m_alpha2 = one_m_alpha * one_m_alpha;
+                // Calculate nondimensional production terms
+                Real shearProd  = dudz*dudz + dvdz*dvdz;
+                Real buoyProd   = -(CONST_GRAV/theta0) * dthetadz;
+                Real L2_over_q2 = Lturb*Lturb/(qvel(i,j,k)*qvel(i,j,k));
+                Real GM         = L2_over_q2 * shearProd;
+                Real GH         = L2_over_q2 * buoyProd;
 
-                // Compute non-dimensional parameters
-                Real l2_over_q2   = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k));
-                Real GM = l2_over_q2 * shearProd;
-                Real GH = l2_over_q2 * buoyProd;
-                Real E1 = 1.0 + one_m_alpha2 * ( 6.0*A1*A1*GM - 9.0*A1*A2*(1.0-C2)*GH );
-                Real E2 = one_m_alpha2 * ( -3.0*A1*(4.0*A1 + 3.0*A2*(1.0-C5))*(1.0-C2)*GH );
-                Real E3 = one_m_alpha2 * ( 6.0*A1*A2*GM );
-                Real E4 = 1.0 + one_m_alpha2 * ( -12.0*A1*A2*(1.0-C2)*GH - 3.0*A2*B2*(1.0-C3)*GH );
-                Real R1 = one_m_alpha * ( A1*(1.0-3.0*C1) );
-                Real R2 = one_m_alpha * A2;
+                // Equilibrium (Level-2) q calculation follows NN09, Appendix 2
+                Real Rf  = level2.calc_Rf(GM, GH);
+                Real SM2 = level2.calc_SM(Rf);
+                Real qe2 = B1*Lturb*Lturb*SM2*(1.0-Rf)*shearProd;
+                Real qe  = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
 
-                Real SM = (R2*E2 - R1*E4)/(E2*E3 - E1*E4);
-                Real SH = (R1*E3 - R2*E1)/(E2*E3 - E1*E4);
-                Real SQ = 3.0 * SM; // Nakanishi & Niino 2009
+                // Level 2 limiting (Helfand and Labraga 1988)
+                Real alphac  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
+                Real alphac2 = alphac * alphac;
+
+                // Compute non-dimensional parameters (notation follows NN09)
+                Real Phi1 = 1.0  - alphac2*3.0*A2*B2*(1-C3)*GH;
+                Real Phi2 = 1.0  - alphac2*9.0*A1*A2*(1-C2)*GH;
+                Real Phi3 = Phi1 + alphac2*9.0*A2*A2*(1-C2)*(1-C5)*GH;
+                Real Phi4 = Phi1 - alphac2*12.0*A1*A2*(1-C2)*GH;
+                Real Phi5 = 6.0*alphac*A1*A1*GM;
+                Real D = Phi2*Phi4 + Phi5*Phi3;
+
+                // Level 2.5 stability functions
+                Real SM = alphac * A1 * (Phi3 - 3*C1*Phi4) / D;
+                Real SH = alphac * A2 * (Phi2 + 3*C1*Phi5) / D;
+                Real SQ = 3.0 * SM; // revised in NN09
 
                 // Finally, compute the eddy viscosity/diffusivities
                 const Real rho = cell_data(i,j,k,Rho_comp);
-                K_turb(i,j,k,EddyDiff::Mom_v)   = rho * l_comb * qvel(i,j,k) * SM * 0.5; // 0.5 for mu_turb
-                K_turb(i,j,k,EddyDiff::Theta_v) = rho * l_comb * qvel(i,j,k) * SH;
-                K_turb(i,j,k,EddyDiff::QKE_v)   = rho * l_comb * qvel(i,j,k) * SQ;
+                K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lturb * qvel(i,j,k) * SM * 0.5; // 0.5 for mu_turb
+                K_turb(i,j,k,EddyDiff::Theta_v) = rho * Lturb * qvel(i,j,k) * SH;
+                K_turb(i,j,k,EddyDiff::QKE_v)   = rho * Lturb * qvel(i,j,k) * SQ;
 
-                K_turb(i,j,k,EddyDiff::PBL_lengthscale) = l_comb;
-                // TODO: How should this be done for other components (scalars, moisture)
+                // TODO: implement partial-condensation scheme?
+                // Currently, implementation matches NN09 without rain (i.e.,
+                // the liquid water potential temperature is equal to the
+                // potential temperature.
+
+                // NN09 gives the total water content flux; this assumes that
+                // all the species have the same eddy diffusivity
+                if (update_moist_eddydiff) {
+                    K_turb(i,j,k,EddyDiff::Q_v) = rho * Lturb * qvel(i,j,k) * SH;
+                }
+
+                K_turb(i,j,k,EddyDiff::PBL_lengthscale) = Lturb;
             });
         }
     } else if (turbChoice.pbl_type == PBLType::YSU) {
@@ -277,7 +308,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const auto& vvel = yvel.const_array(mfi);
 
             const auto& z0_arr = most->get_z0(level)->const_array();
-            const auto& ws10av_arr = most->get_mac_avg(level,4)->const_array(mfi);
+            const auto& ws10av_arr = most->get_mac_avg(level,5)->const_array(mfi);
             const auto& t10av_arr  = most->get_mac_avg(level,2)->const_array(mfi);
             const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
             const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};

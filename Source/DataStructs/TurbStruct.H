@@ -1,6 +1,8 @@
 #ifndef _TURB_STRUCT_H_
 #define _TURB_STRUCT_H_
 
+#include <MYNNStruct.H>
+
 enum struct LESType {
     None, Smagorinsky, Deardorff
 };
@@ -89,6 +91,9 @@ struct TurbChoice {
                     pp.query("pbl_mynn_C3", pbl_mynn_C3);
                     pp.query("pbl_mynn_C4", pbl_mynn_C4);
                     pp.query("pbl_mynn_C5", pbl_mynn_C5);
+                    pbl_mynn_level2.init_coeffs(pbl_mynn_A1, pbl_mynn_A2, pbl_mynn_B1, pbl_mynn_B2,
+                                                pbl_mynn_C1, pbl_mynn_C2, pbl_mynn_C3, pbl_mynn_C4, pbl_mynn_C5);
+                    pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn_diffuse_moistvars);
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
                     pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
@@ -181,6 +186,9 @@ struct TurbChoice {
                     pp.query("pbl_mynn_C3", pbl_mynn_C3, lev);
                     pp.query("pbl_mynn_C4", pbl_mynn_C4, lev);
                     pp.query("pbl_mynn_C5", pbl_mynn_C5, lev);
+                    pbl_mynn_level2.init_coeffs(pbl_mynn_A1, pbl_mynn_A2, pbl_mynn_B1, pbl_mynn_B2,
+                                                pbl_mynn_C1, pbl_mynn_C2, pbl_mynn_C3, pbl_mynn_C4, pbl_mynn_C5);
+                    pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn_diffuse_moistvars, lev);
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
                     pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
@@ -296,7 +304,11 @@ struct TurbChoice {
 
     // PBL model
     PBLType pbl_type;
-    // Model coefficients - MYNN2.5
+
+    bool pbl_mynn_diffuse_moistvars = false;
+
+    // Model coefficients - MYNN2.5 (from Nakanishi & Niino 2009 [NN09])
+    // TODO: Move to MYNNStruct.H
     amrex::Real pbl_mynn_A1 = 1.18;
     amrex::Real pbl_mynn_A2 = 0.665;
     amrex::Real pbl_mynn_B1 = 24.0;
@@ -306,6 +318,7 @@ struct TurbChoice {
     amrex::Real pbl_mynn_C3 = 0.352;
     amrex::Real pbl_mynn_C4 = 0.0;
     amrex::Real pbl_mynn_C5 = 0.2;
+    MYNNLevel2 pbl_mynn_level2;
 
     // Model coefficients - YSU
     // TODO: Add parmparse for all of these above
