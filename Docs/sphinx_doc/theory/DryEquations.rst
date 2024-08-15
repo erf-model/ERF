@@ -56,6 +56,9 @@ with
 
   \frac{d \overline{p}}{d z} = - \overline{\rho} g
 
+We note that there is an alternative option under development in ERF that solves the governing
+equations with an anelastic constraint rather than the fully compressible equations.  The equation set is described below.
+
 Assumptions
 ------------------------
 
@@ -91,3 +94,29 @@ and are defined on faces.
 
 :math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively,
 and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
+
+
+Anelastic Alternative
+---------------------
+
+There is an anelastic option under development, in which ERF solves the same four equations for mass,
+momentum, energy, and advected scalars, but accompanied by the anelastic constraint rather than the
+equation of state as given in the Diagnostic Relationship section above.  This option does not
+currently support terrain-fitted coordinates.
+
+The anelastic constraint has the form
+
+.. math::
+   \nabla \cdot (\overline{\rho}  \mathbf{u}) = 0
+
+We take a predictor-corrector approach to solving this system, in which we first advance
+the velocity field to create a provisional velocity, :math:`\mathbf{u}^*: at the new time,
+then impose the constraint by solving the pressure Poisson equation for :math:`p^\prime`:
+
+.. math::
+   \nabla \cdot (\frac{\overline{\rho}}{\rho} \nabla p^\prime = \nabla \cdot \mathbf{u}^*
+
+then setting
+
+.. math::
+    \mathbf{u}^{n+1} =  \mathbf{u}^* - \frac{1}{\rho} \nabla p^\prime
