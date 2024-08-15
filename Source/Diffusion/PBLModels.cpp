@@ -48,6 +48,8 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
         const Real C5 = turbChoice.pbl_mynn_C5;
         auto level2   = turbChoice.pbl_mynn_level2;
 
+        const bool update_moist_eddydiff = turbChoice.pbl_mynn_diffuse_moistvars;
+
         // Dirichlet flags to switch derivative stencil
         bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
         bool c_ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc].lo(5) == ERFBCType::ext_dir) );
@@ -265,8 +267,13 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 K_turb(i,j,k,EddyDiff::Theta_v) = rho * Lturb * qvel(i,j,k) * SH;
                 K_turb(i,j,k,EddyDiff::QKE_v)   = rho * Lturb * qvel(i,j,k) * SQ;
 
+                // NN09 gives the total water content flux; this assumes that
+                // all the species have the same eddy diffusivity
+                if (update_moist_eddydiff) {
+                    K_turb(i,j,k,EddyDiff::Q_v) = rho * Lturb * qvel(i,j,k) * SH;
+                }
+
                 K_turb(i,j,k,EddyDiff::PBL_lengthscale) = Lturb;
-                // TODO: How should this be done for other components (scalars, moisture)
             });
         }
     } else if (turbChoice.pbl_type == PBLType::YSU) {

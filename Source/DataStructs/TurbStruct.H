@@ -93,6 +93,7 @@ struct TurbChoice {
                     pp.query("pbl_mynn_C5", pbl_mynn_C5);
                     pbl_mynn_level2.init_coeffs(pbl_mynn_A1, pbl_mynn_A2, pbl_mynn_B1, pbl_mynn_B2,
                                                 pbl_mynn_C1, pbl_mynn_C2, pbl_mynn_C3, pbl_mynn_C4, pbl_mynn_C5);
+                    pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn_diffuse_moistvars);
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
                     pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
@@ -187,6 +188,7 @@ struct TurbChoice {
                     pp.query("pbl_mynn_C5", pbl_mynn_C5, lev);
                     pbl_mynn_level2.init_coeffs(pbl_mynn_A1, pbl_mynn_A2, pbl_mynn_B1, pbl_mynn_B2,
                                                 pbl_mynn_C1, pbl_mynn_C2, pbl_mynn_C3, pbl_mynn_C4, pbl_mynn_C5);
+                    pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn_diffuse_moistvars, lev);
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
                     pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
@@ -302,6 +304,8 @@ struct TurbChoice {
 
     // PBL model
     PBLType pbl_type;
+
+    bool pbl_mynn_diffuse_moistvars = false;
 
     // Model coefficients - MYNN2.5 (from Nakanishi & Niino 2009 [NN09])
     // TODO: Move to MYNNStruct.H

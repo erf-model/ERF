@@ -333,7 +333,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
             }
         }
 
-        // refactor the code to eliminate the need for ifdef's
         for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
             int offset = (EddyDiff::NumDiffs-1)/2;
             switch (n)
@@ -399,7 +398,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
-        // refactor the code to eliminate the need for ifdef's
         for (auto n = 0; n < (EddyDiff::NumDiffs-1)/2; ++n) {
             int offset = (EddyDiff::NumDiffs-1)/2;
             switch (n)
