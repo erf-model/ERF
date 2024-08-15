@@ -204,8 +204,14 @@ void
 WindFarm::fill_Nturb_multifab(const Geometry& geom,
                               MultiFab& mf_Nturb)
 {
-    Real* xloc_ptr     = xloc.data();
-    Real* yloc_ptr     = yloc.data();
+
+    amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
+    amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
+
+    Real* d_xloc_ptr     = d_xloc.data();
+    Real* d_yloc_ptr     = d_yloc.data();
 
     mf_Nturb.setVal(0);
 
@@ -229,8 +235,8 @@ WindFarm::fill_Nturb_multifab(const Geometry& geom,
             Real y2 = ProbLoArr[1] + (lj+1)*dx[1];
 
             for(int it=0; it<num_turb; it++){
-                if( xloc_ptr[it]+1e-12 > x1 and xloc_ptr[it]+1e-12 < x2 and
-                    yloc_ptr[it]+1e-12 > y1 and yloc_ptr[it]+1e-12 < y2){
+                if( d_xloc_ptr[it]+1e-12 > x1 and d_xloc_ptr[it]+1e-12 < x2 and
+                    d_yloc_ptr[it]+1e-12 > y1 and d_yloc_ptr[it]+1e-12 < y2){
                        Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
                 }
             }
