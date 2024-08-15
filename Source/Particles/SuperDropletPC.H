@@ -38,6 +38,8 @@ namespace SupDropInit
 {
     /*! Uniform distribution throughout domain */
     const std::string init_uniform = "uniform";
+    /*! Uniform distribution inside a bubble */
+    const std::string init_bubble = "bubble";
     /*! No particles are initialized; nucleation generates them */
     const std::string init_null = "null";
 
@@ -162,6 +164,12 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Set initial number of superdroplets per cell as a box with uniform density */
         void setNumSDBoxDistribution( amrex::iMultiFab&,
+                                      const int,
+                                      const MFPtr&,
+                                      const amrex::RealBox& );
+
+        /*! \brief Set initial number of superdroplets per cell as a bubble with uniform density */
+        void setNumSDBubbleDistribution( amrex::iMultiFab&,
                                       const int,
                                       const MFPtr&,
                                       const amrex::RealBox& );
