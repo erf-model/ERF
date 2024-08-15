@@ -85,8 +85,11 @@ struct adiabatic
                   const amrex::Array4<const amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& /*q_star_arr*/,
                   const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
@@ -128,8 +131,11 @@ struct adiabatic_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& /*q_star_arr*/,
                   const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
@@ -184,8 +190,11 @@ struct adiabatic_mod_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& /*q_star_arr*/,
                   const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
@@ -237,8 +246,11 @@ struct adiabatic_wave_coupled
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& /*q_star_arr*/,
                   const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& Hwave_arr,
@@ -299,8 +311,11 @@ struct surface_flux
                   const amrex::Array4<const amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
@@ -309,6 +324,7 @@ struct surface_flux
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real tflux = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
         amrex::Real psi_h = 0.0;
@@ -316,9 +332,8 @@ struct surface_flux
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            // TODO: calculate virtual temperature flux if we have q*
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                   (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) - 0.61*tm_arr(i,j,k)*ustar*q_star_arr(i,j,k);
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
@@ -363,8 +378,11 @@ struct surface_flux_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
@@ -373,6 +391,7 @@ struct surface_flux_charnock
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real tflux = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
@@ -382,9 +401,8 @@ struct surface_flux_charnock
         do {
             ustar = u_star_arr(i,j,k);
             z0    = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
-            // TODO: calculate virtual temperature flux if we have q*
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                   (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) - 0.61*tm_arr(i,j,k)*ustar*q_star_arr(i,j,k);
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
@@ -431,8 +449,11 @@ struct surface_flux_mod_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
@@ -441,6 +462,7 @@ struct surface_flux_mod_charnock
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real tflux = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
@@ -450,9 +472,8 @@ struct surface_flux_mod_charnock
         do {
             ustar = u_star_arr(i,j,k);
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
-            // TODO: calculate virtual temperature flux if we have q*
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                   (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) - 0.61*tm_arr(i,j,k)*ustar*q_star_arr(i,j,k);
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
@@ -496,8 +517,11 @@ struct surface_flux_wave_coupled
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& Hwave_arr,
@@ -506,6 +530,7 @@ struct surface_flux_wave_coupled
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real tflux = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
@@ -521,9 +546,8 @@ struct surface_flux_wave_coupled
             ustar = u_star_arr(i,j,k);
             z0    = std::min( std::max(1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/(Lwave_arr(i,j,k)+eps), 4.5 )
                                       + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
-            // TODO: calculate virtual temperature flux if we have q*
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                   (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) - 0.61*tm_arr(i,j,k)*ustar*q_star_arr(i,j,k);
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
@@ -570,8 +594,11 @@ struct surface_temp
                   const amrex::Array4<const amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
@@ -589,10 +616,10 @@ struct surface_temp
         do {
             ustar = u_star_arr(i,j,k);
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
-            // TODO: calculate virtual temperature flux if we have q*
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                    (mdata.kappa * mdata.gravity * tflux);
+                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
+            tflux *= (1 + 0.61*qvm_arr(i,j,k));
+            tflux += 0.61*tm_arr(i,j,k) * -ustar*q_star_arr(i,j,k); // ~= <w'Tv'>
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
@@ -636,9 +663,12 @@ struct surface_temp_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
@@ -657,10 +687,10 @@ struct surface_temp_charnock
             ustar = u_star_arr(i,j,k);
             z0    = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0) - psi_h);
-            // TODO: calculate virtual temperature flux if we have q*
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                    (mdata.kappa * mdata.gravity * tflux);
+                     (std::log(mdata.zref / z0) - psi_h); // <w'T'>
+            tflux *= (1 + 0.61*qvm_arr(i,j,k));
+            tflux += 0.61*tm_arr(i,j,k) * -ustar*q_star_arr(i,j,k); // ~= <w'Tv'>
+            Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
@@ -706,8 +736,11 @@ struct surface_temp_mod_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
@@ -727,10 +760,10 @@ struct surface_temp_mod_charnock
             ustar = u_star_arr(i,j,k);
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0) - psi_h);
-            // TODO: calculate virtual temperature flux if we have q*
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                    (mdata.kappa * mdata.gravity * tflux);
+                     (std::log(mdata.zref / z0) - psi_h); // <w'T'>
+            tflux *= (1 + 0.61*qvm_arr(i,j,k));
+            tflux += 0.61*tm_arr(i,j,k) * -ustar*q_star_arr(i,j,k); // ~= <w'Tv'>
+            Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
@@ -773,8 +806,11 @@ struct surface_temp_wave_coupled
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& Hwave_arr,
@@ -800,10 +836,10 @@ struct surface_temp_wave_coupled
             z0    = std::min( std::max(1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/(Lwave_arr(i,j,k)+eps), 4.5 )
                                       + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0) - psi_h);
-            // TODO: calculate virtual temperature flux if we have q*
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                    (mdata.kappa * mdata.gravity * tflux);
+                     (std::log(mdata.zref / z0) - psi_h); // <w'T'>
+            tflux *= (1 + 0.61*qvm_arr(i,j,k));
+            tflux += 0.61*tm_arr(i,j,k) * -ustar*q_star_arr(i,j,k); // ~= <w'Tv'>
+            Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);

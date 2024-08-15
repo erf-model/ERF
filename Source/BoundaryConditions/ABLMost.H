@@ -217,7 +217,7 @@ public:
             t_star[lev]->setVal(1.E34);
 
             q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-            q_star[lev]->setVal(1.E34);
+            q_star[lev]->setVal(0.0); // default to dry
 
             olen[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             olen[lev]->setVal(1.E34);
