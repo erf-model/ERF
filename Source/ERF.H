@@ -670,6 +670,7 @@ private:
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Qv_prim;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Qr_prim;
 
     // Scratch space for time integrator
     amrex::Vector<amrex::MultiFab> rU_old;
