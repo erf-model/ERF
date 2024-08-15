@@ -417,6 +417,10 @@ ERF::FillIntermediatePatch (int lev, Real time,
     // MOST boundary conditions
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs) {
         m_most->impose_most_bcs(lev,mfs_vel,
+                                Tau11_lev[lev].get(),
+                                Tau22_lev[lev].get(),
+                                Tau33_lev[lev].get(),
+                                Tau12_lev[lev].get(), Tau21_lev[lev].get(),
                                 Tau13_lev[lev].get(), Tau31_lev[lev].get(),
                                 Tau23_lev[lev].get(), Tau32_lev[lev].get(),
                                 SFS_hfx3_lev[lev].get(),

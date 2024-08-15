@@ -224,6 +224,13 @@ struct SolverChoice {
         // Flag to do explicit MOST formulation
         pp.query("use_explicit_most",use_explicit_most);
 
+        // Flag to do MOST rotations with terrain
+        pp.query("use_rotate_most",use_rotate_most);
+        if (use_rotate_most) {
+            AMREX_ASSERT_WITH_MESSAGE(use_terrain,"MOST stress rotations are only valid with terrain!");
+            AMREX_ASSERT_WITH_MESSAGE(use_explicit_most, "MOST Stress rotations are only valid with explicit MOST!");
+        }
+
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
         pp.query("abl_driver_type",abl_driver_type_string);
@@ -527,6 +534,9 @@ struct SolverChoice {
 
     // User specified MOST BC type
     bool use_explicit_most = false;
+
+    // MOST stress rotations
+    bool use_rotate_most = false;
 
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;

@@ -31,6 +31,7 @@ public:
     // Constructor
     explicit ABLMost (const amrex::Vector<amrex::Geometry>& geom,
                       bool& use_exp_most,
+                      bool& use_rot_most,
                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
@@ -45,6 +46,7 @@ public:
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
     : m_exp_most(use_exp_most),
+      m_rotate(use_rot_most),
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_geom(geom),
@@ -69,10 +71,6 @@ public:
         } else {
             amrex::Abort("Undefined MOST flux type!");
         }
-
-        // Check if we do stress rotations for terrain
-        pp.query("most.terrain_rotate",m_rotate);
-        if (m_rotate) AMREX_ASSERT_WITH_MESSAGE((z_phys_nd[0].get()), "Stress rotations are only valid with terrain!");
 
         // Get surface temperature
         auto erf_st = pp.query("most.surf_temp", surf_temp);
@@ -253,6 +251,10 @@ public:
     void
     impose_most_bcs (const int& lev,
                      const amrex::Vector<amrex::MultiFab*>& mfs,
+                     amrex::MultiFab* xxmom_flux,
+                     amrex::MultiFab* yymom_flux,
+                     amrex::MultiFab* zzmom_flux,
+                     amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
                      amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                      amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                      amrex::MultiFab* heat_flux,
@@ -263,6 +265,10 @@ public:
     void
     compute_most_bcs (const int& lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
+                      amrex::MultiFab* xxmom_flux,
+                      amrex::MultiFab* yymom_flux,
+                      amrex::MultiFab* zzmom_flux,
+                      amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
                       amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                       amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                       amrex::MultiFab* heat_flux,
