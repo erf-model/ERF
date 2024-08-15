@@ -1825,6 +1825,5 @@ struct rotate_flux
 private:
     int zlo;
     const amrex::Real     eps = 1e-15;
-    const amrex::Real eta_eps = 1e-8;
 };
 #endif
