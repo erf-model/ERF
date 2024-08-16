@@ -124,6 +124,9 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
             m_averages[lev][iavg]->setVal(1.E34);
         }
 
+        // Default to dry
+        m_averages[lev][3]->setVal(0.0);
+
         if (m_rotate) {
             m_rot_fields[lev][2] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
             m_rot_fields[lev][3] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);

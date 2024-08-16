@@ -138,8 +138,10 @@ ABLMost::compute_fluxes (const int& lev,
                          bool is_land)
 {
     // Pointers to the computed averages
-    const auto *const tm_ptr  = m_ma.get_average(lev,2);
-    const auto *const umm_ptr = m_ma.get_average(lev,5);
+    const auto *const tm_ptr  = m_ma.get_average(lev,2); // potential temperature
+    const auto *const qvm_ptr = m_ma.get_average(lev,3); // water vapor mixing ratio
+    const auto *const tvm_ptr = m_ma.get_average(lev,4); // virtual potential temperature
+    const auto *const umm_ptr = m_ma.get_average(lev,5); // horizontal velocity magnitude
 
     for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
     {
@@ -147,10 +149,13 @@ ABLMost::compute_fluxes (const int& lev,
 
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
+        auto q_star_arr = q_star[lev]->array(mfi);
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto olen_arr   = olen[lev]->array(mfi);
 
         const auto tm_arr  = tm_ptr->array(mfi);
+        const auto tvm_arr = tvm_ptr->array(mfi);
+        const auto qvm_arr = qvm_ptr->array(mfi);
         const auto umm_arr = umm_ptr->array(mfi);
         const auto z0_arr  = z_0[lev].array();
 
@@ -164,13 +169,13 @@ ABLMost::compute_fluxes (const int& lev,
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            if (is_land && lmask_arr(i,j,k) == 1) {
-                most_flux.iterate_flux(i, j, k, max_iters, z0_arr, umm_arr, tm_arr,
-                                       u_star_arr, t_star_arr, t_surf_arr, olen_arr,
-                                       Hwave_arr, Lwave_arr, eta_arr);
-            } else if (!is_land && lmask_arr(i,j,k) == 0) {
-                most_flux.iterate_flux(i, j, k, max_iters, z0_arr, umm_arr, tm_arr,
-                                       u_star_arr, t_star_arr, t_surf_arr, olen_arr,
+            if (( is_land && lmask_arr(i,j,k) == 1) ||
+                (!is_land && lmask_arr(i,j,k) == 0))
+            {
+                most_flux.iterate_flux(i, j, k, max_iters,
+                                       z0_arr, umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                       u_star_arr, t_star_arr, q_star_arr,  // to be updated
+                                       t_surf_arr, olen_arr,                // to be updated
                                        Hwave_arr, Lwave_arr, eta_arr);
             }
         });
