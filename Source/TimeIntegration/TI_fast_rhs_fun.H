@@ -15,8 +15,6 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         BL_PROFILE("fast_rhs_fun");
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
 
-        const bool l_use_moisture = (solverChoice.moisture_type != MoistureType::None);
-
         // Define beta_s here so that it is consistent between where we make the fast coefficients
         //    and where we use them
         // Per p2902 of Klemp-Skamarock-Dudhia-2007

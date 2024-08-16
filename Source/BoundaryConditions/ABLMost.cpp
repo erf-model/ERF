@@ -32,7 +32,8 @@ ABLMost::update_fluxes (const int& lev,
     // First iterate over land -- the only model for surface roughness
     // over land is RoughCalcType::CONSTANT
     // ***************************************************************
-    if (flux_type == FluxCalcType::MOENG) {
+    if (flux_type == FluxCalcType::MOENG ||
+        flux_type == FluxCalcType::ROTATE) {
         bool is_land = true;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
@@ -66,7 +67,8 @@ ABLMost::update_fluxes (const int& lev,
     // Next iterate over sea -- the models for surface roughness
     // over sea are CHARNOCK, MODIFIED_CHARNOCK or WAVE_COUPLED
     // ***************************************************************
-    if (flux_type == FluxCalcType::MOENG) {
+    if (flux_type == FluxCalcType::MOENG ||
+        flux_type == FluxCalcType::ROTATE) {
         bool is_land = false;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
@@ -199,8 +201,12 @@ ABLMost::impose_most_bcs (const int& lev,
                           MultiFab* xymom_flux, MultiFab* yxmom_flux,
                           MultiFab* xzmom_flux, MultiFab* zxmom_flux,
                           MultiFab* yzmom_flux, MultiFab* zymom_flux,
-                          MultiFab* heat_flux,
-                          MultiFab* qv_flux,
+                          MultiFab* xheat_flux,
+                          MultiFab* yheat_flux,
+                          MultiFab* zheat_flux,
+                          MultiFab* xqv_flux,
+                          MultiFab* yqv_flux,
+                          MultiFab* zqv_flux,
                           MultiFab* z_phys)
 {
     const int klo = 0;
@@ -213,8 +219,9 @@ ABLMost::impose_most_bcs (const int& lev,
                          xymom_flux, yxmom_flux,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
-                         heat_flux, qv_flux,
-                         z_phys, m_geom[lev].CellSize(2), flux_comp);
+                         xheat_flux, yheat_flux, zheat_flux,
+                         xqv_flux, yqv_flux, zqv_flux,
+                         z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::DONELAN) {
         donelan_flux flux_comp(klo);
         compute_most_bcs(lev, mfs,
@@ -224,8 +231,21 @@ ABLMost::impose_most_bcs (const int& lev,
                          xymom_flux, yxmom_flux,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
-                         heat_flux, qv_flux,
-                         z_phys, m_geom[lev].CellSize(2), flux_comp);
+                         xheat_flux, yheat_flux, zheat_flux,
+                         xqv_flux, yqv_flux, zqv_flux,
+                         z_phys, flux_comp);
+    } else if (flux_type == FluxCalcType::ROTATE) {
+        rotate_flux flux_comp(klo);
+        compute_most_bcs(lev, mfs,
+                         xxmom_flux,
+                         yymom_flux,
+                         zzmom_flux,
+                         xymom_flux, yxmom_flux,
+                         xzmom_flux, zxmom_flux,
+                         yzmom_flux, zymom_flux,
+                         xheat_flux, yheat_flux, zheat_flux,
+                         xqv_flux, yqv_flux, zqv_flux,
+                         z_phys, flux_comp);
     } else {
         custom_flux flux_comp(klo);
         compute_most_bcs(lev, mfs,
@@ -235,8 +255,9 @@ ABLMost::impose_most_bcs (const int& lev,
                          xymom_flux, yxmom_flux,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
-                         heat_flux, qv_flux,
-                         z_phys, m_geom[lev].CellSize(2), flux_comp);
+                         xheat_flux, yheat_flux, zheat_flux,
+                         xqv_flux, yqv_flux, zqv_flux,
+                         z_phys, flux_comp);
     }
 }
 
@@ -259,14 +280,19 @@ ABLMost::compute_most_bcs (const int& lev,
                            MultiFab* xymom_flux, MultiFab* yxmom_flux,
                            MultiFab* xzmom_flux, MultiFab* zxmom_flux,
                            MultiFab* yzmom_flux, MultiFab* zymom_flux,
-                           MultiFab* heat_flux,
-                           MultiFab* qv_flux,
+                           MultiFab* xheat_flux,
+                           MultiFab* yheat_flux,
+                           MultiFab* zheat_flux,
+                           MultiFab* xqv_flux,
+                           MultiFab* yqv_flux,
+                           MultiFab* zqv_flux,
                            MultiFab* z_phys,
-                           const Real& dz_no_terrain,
                            const FluxCalc& flux_comp)
 {
     const int klo   = 0;
     const int icomp = 0;
+    const auto& dxInv = m_geom[lev].InvCellSizeArray();
+    const auto& dz_no_terrain = m_geom[lev].CellSize(2);
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
         // TODO: No LSM lateral ghost cells, should this change?
@@ -284,27 +310,32 @@ ABLMost::compute_most_bcs (const int& lev,
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
         const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
+        const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
 
-        auto t11_arr = (m_rotate) ? xxmom_flux->array(mfi) : Array4<Real>{};
-        auto t22_arr = (m_rotate) ? yymom_flux->array(mfi) : Array4<Real>{};
-        auto t33_arr = (m_rotate) ? zzmom_flux->array(mfi) : Array4<Real>{};
-        auto t12_arr = (m_rotate) ? xymom_flux->array(mfi) : Array4<Real>{};
-        auto t21_arr = (m_rotate) ? yxmom_flux->array(mfi) : Array4<Real>{};
-        amrex::ignore_unused(m_rotate,rot_most);
-        amrex::ignore_unused(xxmom_flux,yymom_flux,zzmom_flux,xymom_flux,yxmom_flux);
-        amrex::ignore_unused(t11_arr,t22_arr,t33_arr,t12_arr,t21_arr);
-
+        // Explicit MOST vars
         auto t13_arr = (m_exp_most)               ? xzmom_flux->array(mfi) : Array4<Real>{};
         auto t31_arr = (m_exp_most && zxmom_flux) ? zxmom_flux->array(mfi) : Array4<Real>{};
 
         auto t23_arr = (m_exp_most)               ? yzmom_flux->array(mfi) : Array4<Real>{};
         auto t32_arr = (m_exp_most && zymom_flux) ? zymom_flux->array(mfi) : Array4<Real>{};
 
-        auto hfx_arr = (m_exp_most)            ? heat_flux->array(mfi) : Array4<Real>{};
-        auto qfx_arr = (m_exp_most && qv_flux) ? qv_flux->array(mfi)   : Array4<Real>{};
+        auto hfx3_arr = (m_exp_most)             ? zheat_flux->array(mfi) : Array4<Real>{};
+        auto qfx3_arr = (m_exp_most && zqv_flux) ? zqv_flux->array(mfi)   : Array4<Real>{};
 
+        // Rotated MOST vars
+        auto t11_arr = (m_rotate) ? xxmom_flux->array(mfi) : Array4<Real>{};
+        auto t22_arr = (m_rotate) ? yymom_flux->array(mfi) : Array4<Real>{};
+        auto t33_arr = (m_rotate) ? zzmom_flux->array(mfi) : Array4<Real>{};
+        auto t12_arr = (m_rotate) ? xymom_flux->array(mfi) : Array4<Real>{};
+        auto t21_arr = (m_rotate) ? yxmom_flux->array(mfi) : Array4<Real>{};
+
+        auto hfx1_arr = (m_rotate) ? xheat_flux->array(mfi) : Array4<Real>{};
+        auto hfx2_arr = (m_rotate) ? yheat_flux->array(mfi) : Array4<Real>{};
+        auto qfx1_arr = (m_rotate && xqv_flux) ? xqv_flux->array(mfi) : Array4<Real>{};
+        auto qfx2_arr = (m_rotate && yqv_flux) ? yqv_flux->array(mfi) : Array4<Real>{};
+
+        // Viscosity and terrain
         const auto  eta_arr  = m_eddyDiffs_lev[lev]->array(mfi);
-
         const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
 
         // Get average arrays
@@ -350,30 +381,39 @@ ABLMost::compute_most_bcs (const int& lev,
                                                           umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
                                                           dest_arr);
 
-
-                    // TODO: make sure not to double-count surface heat flux if using a LSM
-                    int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-                    if (is_land && lsm_flux_arr && vbx.contains(i,j,k)) {
-                        lsm_flux_arr(i,j,klo) = Tflux;
-                    }
-                    else if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
-                        hfx_arr(i,j,klo) = Tflux;
+                    if (rot_most) {
+                        rotate_scalar_flux(i, j, klo, Tflux, dxInv, zphys_arr,
+                                           hfx1_arr, hfx2_arr, hfx3_arr);
+                    } else {
+                        int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+                        if (is_land && lsm_flux_arr && vbx.contains(i,j,k)) {
+                            lsm_flux_arr(i,j,klo) = Tflux;
+                        }
+                        else if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
+                            hfx3_arr(i,j,klo) = Tflux;
+                        }
                     }
                 });
 
-                // TODO: Generalize MOST q flux with MOENG & DONELAN flux types
+                // TODO: Generalize MOST q flux
                 if ((flux_type == FluxCalcType::CUSTOM) && use_moisture) {
                     n = RhoQ1_comp;
                     ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
-                        Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
+                        Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dxInv[2];
+                        Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dxInv[2];
                         Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz, dz1, exp_most, eta_arr,
                                                               cons_arr, velx_arr, vely_arr,
                                                               umm_arr, qm_arr, u_star_arr, q_star_arr, t_surf_arr,
                                                               dest_arr);
-                        if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
-                            qfx_arr(i,j,klo) = Qflux;
+
+                        if (rot_most) {
+                                rotate_scalar_flux(i, j, klo, Qflux, dxInv, zphys_arr,
+                                                   qfx1_arr, qfx2_arr, qfx3_arr);
+                        } else {
+                            if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
+                                qfx3_arr(i,j,klo) = Qflux;
+                            }
                         }
                     });
                 }
@@ -391,11 +431,20 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             cons_arr, velx_arr, vely_arr,
                                                             umm_arr, um_arr, u_star_arr,
                                                             dest_arr);
-                    if ((k == klo-1) && vbxx.contains(i,j,k) && exp_most) {
-                        t13_arr(i,j,klo) = stressx;
-                        if (t31_arr) t31_arr(i,j,klo) = stressx;
+
+                    if (rot_most) {
+                        rotate_stress_tensor(i, j, klo, stressx, dxInv, zphys_arr,
+                                             velx_arr, vely_arr, velz_arr,
+                                             t11_arr, t22_arr, t33_arr,
+                                             t12_arr, t21_arr,
+                                             t13_arr, t31_arr,
+                                             t23_arr, t32_arr);
+                    } else {
+                        if ((k == klo-1) && vbxx.contains(i,j,k) && exp_most) {
+                            t13_arr(i,j,klo) = stressx;
+                            if (t31_arr) t31_arr(i,j,klo) = stressx;
+                        }
                     }
-                    amrex::ignore_unused(stressx);
                 });
 
             } else if (var_idx == Vars::yvel) {
@@ -411,11 +460,14 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             cons_arr, velx_arr, vely_arr,
                                                             umm_arr, vm_arr, u_star_arr,
                                                             dest_arr);
-                    if ((k == klo-1) && vbxy.contains(i,j,k) && exp_most) {
-                        t23_arr(i,j,klo) = stressy;
-                        if (t32_arr) t32_arr(i,j,klo) = stressy;
+
+                    // NOTE: One stress rotation for ALL the stress components
+                    if (!rot_most) {
+                        if ((k == klo-1) && vbxy.contains(i,j,k) && exp_most) {
+                            t23_arr(i,j,klo) = stressy;
+                            if (t32_arr) t32_arr(i,j,klo) = stressy;
+                        }
                     }
-                    amrex::ignore_unused(stressy);
                 });
             }
         } // var_idx
