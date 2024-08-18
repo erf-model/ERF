@@ -82,18 +82,18 @@ struct TurbChoice {
                 }
 
                 if (pbl_type == PBLType::MYNN25) {
-                    pp.query("pbl_mynn_A1", pbl_mynn_A1);
-                    pp.query("pbl_mynn_A2", pbl_mynn_A2);
-                    pp.query("pbl_mynn_B1", pbl_mynn_B1);
-                    pp.query("pbl_mynn_B2", pbl_mynn_B2);
-                    pp.query("pbl_mynn_C1", pbl_mynn_C1);
-                    pp.query("pbl_mynn_C2", pbl_mynn_C2);
-                    pp.query("pbl_mynn_C3", pbl_mynn_C3);
-                    pp.query("pbl_mynn_C4", pbl_mynn_C4);
-                    pp.query("pbl_mynn_C5", pbl_mynn_C5);
-                    pbl_mynn_level2.init_coeffs(pbl_mynn_A1, pbl_mynn_A2, pbl_mynn_B1, pbl_mynn_B2,
-                                                pbl_mynn_C1, pbl_mynn_C2, pbl_mynn_C3, pbl_mynn_C4, pbl_mynn_C5);
-                    pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn_diffuse_moistvars);
+                    pp.query("pbl_mynn_A1", pbl_mynn.A1);
+                    pp.query("pbl_mynn_A2", pbl_mynn.A2);
+                    pp.query("pbl_mynn_B1", pbl_mynn.B1);
+                    pp.query("pbl_mynn_B2", pbl_mynn.B2);
+                    pp.query("pbl_mynn_C1", pbl_mynn.C1);
+                    pp.query("pbl_mynn_C2", pbl_mynn.C2);
+                    pp.query("pbl_mynn_C3", pbl_mynn.C3);
+                    pp.query("pbl_mynn_C4", pbl_mynn.C4);
+                    pp.query("pbl_mynn_C5", pbl_mynn.C5);
+                    pbl_mynn_level2.init_coeffs(pbl_mynn.A1, pbl_mynn.A2, pbl_mynn.B1, pbl_mynn.B2,
+                                                pbl_mynn.C1, pbl_mynn.C2, pbl_mynn.C3, pbl_mynn.C4, pbl_mynn.C5);
+                    pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn.diffuse_moistvars);
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
                     pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
@@ -177,18 +177,18 @@ struct TurbChoice {
                 }
 
                 if (pbl_type == PBLType::MYNN25) {
-                    pp.query("pbl_mynn_A1", pbl_mynn_A1, lev);
-                    pp.query("pbl_mynn_A2", pbl_mynn_A2, lev);
-                    pp.query("pbl_mynn_B1", pbl_mynn_B1, lev);
-                    pp.query("pbl_mynn_B2", pbl_mynn_B2, lev);
-                    pp.query("pbl_mynn_C1", pbl_mynn_C1, lev);
-                    pp.query("pbl_mynn_C2", pbl_mynn_C2, lev);
-                    pp.query("pbl_mynn_C3", pbl_mynn_C3, lev);
-                    pp.query("pbl_mynn_C4", pbl_mynn_C4, lev);
-                    pp.query("pbl_mynn_C5", pbl_mynn_C5, lev);
-                    pbl_mynn_level2.init_coeffs(pbl_mynn_A1, pbl_mynn_A2, pbl_mynn_B1, pbl_mynn_B2,
-                                                pbl_mynn_C1, pbl_mynn_C2, pbl_mynn_C3, pbl_mynn_C4, pbl_mynn_C5);
-                    pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn_diffuse_moistvars, lev);
+                    pp.query("pbl_mynn_A1", pbl_mynn.A1, lev);
+                    pp.query("pbl_mynn_A2", pbl_mynn.A2, lev);
+                    pp.query("pbl_mynn_B1", pbl_mynn.B1, lev);
+                    pp.query("pbl_mynn_B2", pbl_mynn.B2, lev);
+                    pp.query("pbl_mynn_C1", pbl_mynn.C1, lev);
+                    pp.query("pbl_mynn_C2", pbl_mynn.C2, lev);
+                    pp.query("pbl_mynn_C3", pbl_mynn.C3, lev);
+                    pp.query("pbl_mynn_C4", pbl_mynn.C4, lev);
+                    pp.query("pbl_mynn_C5", pbl_mynn.C5, lev);
+                    pbl_mynn_level2.init_coeffs(pbl_mynn.A1, pbl_mynn.A2, pbl_mynn.B1, pbl_mynn.B2,
+                                                pbl_mynn.C1, pbl_mynn.C2, pbl_mynn.C3, pbl_mynn.C4, pbl_mynn.C5);
+                    pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn.diffuse_moistvars, lev);
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
                     pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
@@ -259,15 +259,15 @@ struct TurbChoice {
         }
 
         if (pbl_type == PBLType::MYNN25) {
-            amrex::Print() << "pbl_mynn_A1                      : " << pbl_mynn_A1 << std::endl;
-            amrex::Print() << "pbl_mynn_A2                      : " << pbl_mynn_A2 << std::endl;
-            amrex::Print() << "pbl_mynn_B1                      : " << pbl_mynn_B1 << std::endl;
-            amrex::Print() << "pbl_mynn_B2                      : " << pbl_mynn_B2 << std::endl;
-            amrex::Print() << "pbl_mynn_C1                      : " << pbl_mynn_C1 << std::endl;
-            amrex::Print() << "pbl_mynn_C2                      : " << pbl_mynn_C2 << std::endl;
-            amrex::Print() << "pbl_mynn_C3                      : " << pbl_mynn_C3 << std::endl;
-            amrex::Print() << "pbl_mynn_C4                      : " << pbl_mynn_C4 << std::endl;
-            amrex::Print() << "pbl_mynn_C5                      : " << pbl_mynn_C5 << std::endl;
+            amrex::Print() << "pbl_mynn_A1                      : " << pbl_mynn.A1 << std::endl;
+            amrex::Print() << "pbl_mynn_A2                      : " << pbl_mynn.A2 << std::endl;
+            amrex::Print() << "pbl_mynn_B1                      : " << pbl_mynn.B1 << std::endl;
+            amrex::Print() << "pbl_mynn_B2                      : " << pbl_mynn.B2 << std::endl;
+            amrex::Print() << "pbl_mynn_C1                      : " << pbl_mynn.C1 << std::endl;
+            amrex::Print() << "pbl_mynn_C2                      : " << pbl_mynn.C2 << std::endl;
+            amrex::Print() << "pbl_mynn_C3                      : " << pbl_mynn.C3 << std::endl;
+            amrex::Print() << "pbl_mynn_C4                      : " << pbl_mynn.C4 << std::endl;
+            amrex::Print() << "pbl_mynn_C5                      : " << pbl_mynn.C5 << std::endl;
         } else if (pbl_type == PBLType::YSU) {
             amrex::Print() << "pbl_ysu_coriolis_freq            : " << pbl_ysu_coriolis_freq << std::endl;
             amrex::Print() << "pbl_ysu_over_land                : " << pbl_ysu_over_land << std::endl;
@@ -305,20 +305,8 @@ struct TurbChoice {
     // PBL model
     PBLType pbl_type;
 
-    bool pbl_mynn_diffuse_moistvars = false;
-
-    // Model coefficients - MYNN2.5 (from Nakanishi & Niino 2009 [NN09])
-    // TODO: Move to MYNNStruct.H
-    amrex::Real pbl_mynn_A1 = 1.18;
-    amrex::Real pbl_mynn_A2 = 0.665;
-    amrex::Real pbl_mynn_B1 = 24.0;
-    amrex::Real pbl_mynn_B2 = 15.0;
-    amrex::Real pbl_mynn_C1 = 0.137;
-    amrex::Real pbl_mynn_C2 = 0.75;
-    amrex::Real pbl_mynn_C3 = 0.352;
-    amrex::Real pbl_mynn_C4 = 0.0;
-    amrex::Real pbl_mynn_C5 = 0.2;
-    MYNNLevel2 pbl_mynn_level2;
+    MYNNLevel25 pbl_mynn;
+    MYNNLevel2 pbl_mynn_level2; // for filtering
 
     // Model coefficients - YSU
     // TODO: Add parmparse for all of these above

@@ -37,18 +37,8 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
     // MYNN Level 2.5 PBL Model
     if (turbChoice.pbl_type == PBLType::MYNN25) {
 
-        const Real A1 = turbChoice.pbl_mynn_A1;
-        const Real A2 = turbChoice.pbl_mynn_A2;
-        const Real B1 = turbChoice.pbl_mynn_B1;
-        const Real B2 = turbChoice.pbl_mynn_B2;
-        const Real C1 = turbChoice.pbl_mynn_C1;
-        const Real C2 = turbChoice.pbl_mynn_C2;
-        const Real C3 = turbChoice.pbl_mynn_C3;
-      //const Real C4 = turbChoice.pbl_mynn_C4;
-        const Real C5 = turbChoice.pbl_mynn_C5;
+        auto mynn     = turbChoice.pbl_mynn;
         auto level2   = turbChoice.pbl_mynn_level2;
-
-        const bool update_moist_eddydiff = turbChoice.pbl_mynn_diffuse_moistvars;
 
         // Dirichlet flags to switch derivative stencil
         bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -241,25 +231,30 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 // Equilibrium (Level-2) q calculation follows NN09, Appendix 2
                 Real Rf  = level2.calc_Rf(GM, GH);
                 Real SM2 = level2.calc_SM(Rf);
-                Real qe2 = B1*Lturb*Lturb*SM2*(1.0-Rf)*shearProd;
+                Real qe2 = mynn.B1*Lturb*Lturb*SM2*(1.0-Rf)*shearProd;
                 Real qe  = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
 
                 // Level 2 limiting (Helfand and Labraga 1988)
                 Real alphac  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
-                Real alphac2 = alphac * alphac;
 
-                // Compute non-dimensional parameters (notation follows NN09)
-                Real Phi1 = 1.0  - alphac2*3.0*A2*B2*(1-C3)*GH;
-                Real Phi2 = 1.0  - alphac2*9.0*A1*A2*(1-C2)*GH;
-                Real Phi3 = Phi1 + alphac2*9.0*A2*A2*(1-C2)*(1-C5)*GH;
-                Real Phi4 = Phi1 - alphac2*12.0*A1*A2*(1-C2)*GH;
-                Real Phi5 = 6.0*alphac*A1*A1*GM;
-                Real D = Phi2*Phi4 + Phi5*Phi3;
+                if (  ((i== 0) && (j== 0) && (k== 0))
+                   || ((i==10) && (j==10) && (k== 0))
+                   )
+                {
+                    amrex::AllPrint() << "QKE"<<amrex::IntVect(i,j,k)<<" u*, T*, L, shearProd, buoyProd, qe, alphac : "
+                        << u_star_arr(i,j,0) << " "
+                        << t_star_arr(i,j,0) << " "
+                        << Lturb << " "
+                        << shearProd << " "
+                        << buoyProd << " "
+                        << qe << " "
+                        << alphac << " "
+                        << std::endl;
+                }
 
                 // Level 2.5 stability functions
-                Real SM = alphac * A1 * (Phi3 - 3*C1*Phi4) / D;
-                Real SH = alphac * A2 * (Phi2 + 3*C1*Phi5) / D;
-                Real SQ = 3.0 * SM; // revised in NN09
+                Real SM, SH, SQ;
+                mynn.calc_stability_funcs(SM,SH,SQ,GM,GH,alphac);
 
                 // Finally, compute the eddy viscosity/diffusivities
                 const Real rho = cell_data(i,j,k,Rho_comp);
@@ -274,7 +269,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
                 // NN09 gives the total water content flux; this assumes that
                 // all the species have the same eddy diffusivity
-                if (update_moist_eddydiff) {
+                if (mynn.diffuse_moistvars) {
                     K_turb(i,j,k,EddyDiff::Q_v) = rho * Lturb * qvel(i,j,k) * SH;
                 }
 
