@@ -418,7 +418,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                           false);
 
     // ********************************************************************************************
-    // Update the base state at this level by interpolation from coarser level AND copy 
+    // Update the base state at this level by interpolation from coarser level AND copy
     //    from previous (pre-regrid) base_state array
     // ********************************************************************************************
     if (lev > 0) {
