@@ -199,7 +199,7 @@ Problem::update_rhotheta_sources (
     if (z_phys_cc && zlevels.empty()) {
         amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
-        reduce_to_max_per_level(zlevels, z_phys_cc);
+        reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
     if (time < parms.restart_time) {

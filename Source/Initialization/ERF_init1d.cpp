@@ -78,7 +78,7 @@ ERF::setRayleighRefFromSounding (bool restarting)
         if (z_phys_cc[lev]) {
             // use_terrain=1
             // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
+            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
         } else {
             const auto *const prob_lo = geom[lev].ProbLo();
             const auto *const dx = geom[lev].CellSize();
@@ -174,7 +174,7 @@ ERF::setSpongeRefFromSounding (bool restarting)
         if (z_phys_cc[lev]) {
             // use_terrain=1
             // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
+            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
         } else {
             const auto *const prob_lo = geom[lev].ProbLo();
             const auto *const dx = geom[lev].CellSize();
