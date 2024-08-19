@@ -55,7 +55,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays, metric terms and base state.
     // *******************************************************************************************
-    init_stuff(lev, ba, dm, lev_new, lev_old);
+    init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev]);
 
     //********************************************************************************************
     // Land Surface Model
@@ -280,7 +280,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays, metric terms and base state.
     // *******************************************************************************************
-    init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev]);
+    init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev]);
 
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
@@ -317,10 +317,24 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
 
     // ********************************************************************************************
-    // Update the base state at this level
+    // Update the base state at this level by interpolation from coarser level
     // ********************************************************************************************
-    // base_state[lev].define(ba,dm,3,1);
-    // base_state[lev].setVal(0.);
+    // Interp all three components: rho, p, pi
+    int  icomp = 0; int bccomp = 0; int  ncomp = 3;
+
+    PhysBCFunctNoOp null_bc;
+    Interpolater* mapper = &cell_cons_interp;
+
+    Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
+    Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
+    Vector<Real> ftime    = {time, time};
+    Vector<Real> ctime    = {time, time};
+    InterpFromCoarseLevel(base_state[lev], time, base_state[lev-1],
+                          icomp, icomp, ncomp,
+                          geom[lev-1], geom[lev],
+                          null_bc, 0, null_bc, 0, refRatio(lev-1),
+                          mapper, domain_bcs_type, bccomp);
+
     initHSE(lev);
 
     // ********************************************************************************************
@@ -372,6 +386,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
     DistributionMapping dm_old(vars_new[lev][Vars::cons].DistributionMap());
 
+    // amrex::Print() <<"               OLD BA AT LEVEL " << lev << " " << ba_old << std::endl;
+
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
 
@@ -380,12 +396,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
+    MultiFab temp_base_state;
 
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays and metrics, and base state.
     // *******************************************************************************************
-    init_stuff(lev, ba, dm, temp_lev_new, temp_lev_old);
+    init_stuff(lev, ba, dm, temp_lev_new, temp_lev_old, temp_base_state);
 
     // *****************************************************************************************************
     // Initialize the boundary conditions (after initializing the terrain but before calling FillCoarsePatch
@@ -399,6 +416,31 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                           &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
                          {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
                           false);
+
+    // ********************************************************************************************
+    // Update the base state at this level by interpolation from coarser level AND copy 
+    //    from previous (pre-regrid) base_state array
+    // ********************************************************************************************
+    if (lev > 0) {
+        // Interp all three components: rho, p, pi
+        int  icomp = 0; int bccomp = 0; int  ncomp = 3;
+
+        PhysBCFunctNoOp null_bc;
+        Interpolater* mapper = &cell_cons_interp;
+
+        Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
+        Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
+        Vector<Real> ftime    = {time, time};
+        Vector<Real> ctime    = {time, time};
+        FillPatchTwoLevels(temp_base_state, time,
+                           cmf, ctime, fmf, ftime,
+                           icomp, icomp, ncomp, geom[lev-1], geom[lev],
+                           null_bc, 0, null_bc, 0, refRatio(lev-1),
+                           mapper, domain_bcs_type, bccomp);
+    }
+    std::swap(temp_base_state, base_state[lev]);
+
+    initHSE(lev);
 
     // ********************************************************************************************
     // Copy from new into old just in case
@@ -454,13 +496,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
-
-    // ********************************************************************************************
-    // Update the base state at this level
-    // ********************************************************************************************
-    // base_state[lev].define(ba,dm,3,1);
-    // base_state[lev].setVal(0.);
-    initHSE(lev);
 
     // ********************************************************************************************
     // Initialize the integrator class

@@ -25,7 +25,8 @@ using namespace amrex;
 
 void
 ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
-                 Vector<MultiFab>& lev_new, Vector<MultiFab>& lev_old)
+                 Vector<MultiFab>& lev_new, Vector<MultiFab>& lev_old,
+                 MultiFab& tmp_base_state)
 {
     if (lev == 0) {
         min_k_at_level[lev] = 0;
@@ -44,8 +45,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0 (in that order)
     // ********************************************************************************************
-    base_state[lev].define(ba,dm,3,1);
-    base_state[lev].setVal(0.);
+    tmp_base_state.define(ba,dm,3,1);
+    tmp_base_state.setVal(0.);
 
     if (solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::Static) {
         base_state_new[lev].define(ba,dm,3,1);

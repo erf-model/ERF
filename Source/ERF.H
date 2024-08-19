@@ -442,8 +442,8 @@ private:
     void init_uniform (int lev);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
-                     amrex::Vector<amrex::MultiFab>& lev_new,
-                     amrex::Vector<amrex::MultiFab>& lev_old);
+                     amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
+                     amrex::MultiFab& tmp_base_state);
 
     // Initialize the Turbulent perturbation
     void turbPert_update (const int lev, const amrex::Real dt);
