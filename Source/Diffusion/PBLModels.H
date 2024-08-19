@@ -1,19 +1,7 @@
 #ifndef _PBLMODELS_H_
 #define _PBLMODELS_H_
 
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-Thetav (int i, int j, int k,
-        const amrex::Array4<const amrex::Real>& cell_data,
-        const bool use_moisture)
-{
-    amrex::Real thetav = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
-    if (use_moisture) {
-        thetav *= (1.0 + 0.61 * cell_data(i,j,k,RhoQ1_comp) / cell_data(i,j,k,Rho_comp));
-    }
-    return thetav;
-}
+#include <Utils/Thetav.H>
 
 /**
  * Function for computing vertical derivatives for use in PBL model
