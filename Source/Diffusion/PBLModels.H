@@ -29,19 +29,19 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                amrex::Real& dthetadz,
                                amrex::Real& dudz,
                                amrex::Real& dvdz,
-                               const bool use_moisture = false)
+                               const int moist_flag = 0)
 {
     if ( k==izmax && c_ext_dir_on_zhi ) {
-        dthetadz = (1.0/3.0)*(       -Thetav(i,j,k-1,cell_data,use_moisture)
-                              - 3.0 * Thetav(i,j,k  ,cell_data,use_moisture)
-                              + 4.0 * Thetav(i,j,k+1,cell_data,use_moisture) )*dz_inv;
+        dthetadz = (1.0/3.0)*(       -Thetav(i,j,k-1,cell_data,moist_flag)
+                              - 3.0 * Thetav(i,j,k  ,cell_data,moist_flag)
+                              + 4.0 * Thetav(i,j,k+1,cell_data,moist_flag) )*dz_inv;
     } else if ( k==izmin && c_ext_dir_on_zlo ) {
-        dthetadz = (1.0/3.0)*(        Thetav(i,j,k+1,cell_data,use_moisture)
-                              + 3.0 * Thetav(i,j,k  ,cell_data,use_moisture)
-                              - 4.0 * Thetav(i,j,k-1,cell_data,use_moisture) )*dz_inv;
+        dthetadz = (1.0/3.0)*(        Thetav(i,j,k+1,cell_data,moist_flag)
+                              + 3.0 * Thetav(i,j,k  ,cell_data,moist_flag)
+                              - 4.0 * Thetav(i,j,k-1,cell_data,moist_flag) )*dz_inv;
     } else {
-        dthetadz = 0.5*(  Thetav(i,j,k+1,cell_data,use_moisture)
-                        - Thetav(i,j,k-1,cell_data,use_moisture) )*dz_inv;
+        dthetadz = 0.5*(  Thetav(i,j,k+1,cell_data,moist_flag)
+                        - Thetav(i,j,k-1,cell_data,moist_flag) )*dz_inv;
     }
 
     if ( k==izmax && u_ext_dir_on_zhi ) {
@@ -91,7 +91,7 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Box& domain,
                        amrex::Real pbl_mynn_B1_l,
                        const amrex::Real theta_mean,
-                       bool use_moisture,
+                       const int moist_flag,
                        bool c_ext_dir_on_zlo,
                        bool c_ext_dir_on_zhi,
                        bool u_ext_dir_on_zlo,
@@ -114,7 +114,7 @@ ComputeQKESourceTerms (int i, int j, int k,
                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                   dthetadz, dudz, dvdz,
-                                  use_moisture);
+                                  moist_flag);
 
     // Note: Transport terms due to turbulence and pressure are included when
     // DiffusionSrcForState_* is called.
