@@ -57,6 +57,7 @@ void erf_make_tau_terms (int level, int nrk,
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
+    const int domhi_z = domain.bigEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
@@ -371,6 +372,16 @@ void erf_make_tau_terms (int level, int nrk,
                 tbxxy.grow(IntVect(-1,-1,0));
                 tbxxz.grow(IntVect(-1,-1,0));
                 tbxyz.grow(IntVect(-1,-1,0));
+                if (tbxxy.smallEnd(2) > domlo_z) {
+                    tbxxy.growLo(2,-1);
+                    tbxxz.growLo(2,-1);
+                    tbxyz.growLo(2,-1);
+                }
+                if (tbxxy.bigEnd(2) < domhi_z) {
+                    tbxxy.growHi(2,-1);
+                    tbxxz.growHi(2,-1);
+                    tbxyz.growHi(2,-1);
+                }
 
                 if (!l_use_turb) {
                     ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
