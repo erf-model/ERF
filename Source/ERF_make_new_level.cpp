@@ -192,27 +192,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         zflux_imask[lev] = nullptr;
     }
 
-    //********************************************************************************************
-    // Microphysics
-    // *******************************************************************************************
-    int q_size  = micro->Get_Qmoist_Size(lev);
-    qmoist[lev].resize(q_size);
-    micro->Define(lev, solverChoice);
-    if (solverChoice.moisture_type != MoistureType::None)
-    {
-        micro->Init(lev, vars_new[lev][Vars::cons],
-                    grids[lev], Geom(lev), 0.0,
-                    z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
-    }
-    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
-    }
-
-    // ********************************************************************************************
-    // Initialize the integrator class
-    // ********************************************************************************************
-    initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
-
     // ********************************************************************************************
     // Initialize the data itself
     // If (init_type == "real") then we are initializing terrain and the initial data in
@@ -239,6 +218,27 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             init_only(lev, start_time);
         }
     }
+
+    //********************************************************************************************
+    // Microphysics
+    // *******************************************************************************************
+    int q_size  = micro->Get_Qmoist_Size(lev);
+    qmoist[lev].resize(q_size);
+    micro->Define(lev, solverChoice);
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        micro->Init(lev, vars_new[lev][Vars::cons],
+                    grids[lev], Geom(lev), 0.0,
+                    z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+    }
+    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
+    }
+
+    // ********************************************************************************************
+    // Initialize the integrator class
+    // ********************************************************************************************
+    initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
 
     // ********************************************************************************************
     // If we are making a new level then the FillPatcher for this level hasn't been allocated yet
