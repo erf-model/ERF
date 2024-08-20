@@ -58,7 +58,6 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFa
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(vmf[Vars::cons].boxArray());
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(vmf[Vars::cons].DistributionMap());
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
-    // amrex::Print() << "AT LEVEL " << lev << " BA FOR POISSON SOLVE " << vmf[Vars::cons].boxArray() << std::endl;
 
     MLABecLaplacian mlabec(geom_tmp, ba_tmp, dm_tmp, info);
 
@@ -79,11 +78,42 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFa
 
     MultiFab density(vmf[Vars::cons], make_alias, Rho_comp, 1);
     density.FillBoundary(geom_tmp[0].periodicity());
-    amrex::average_cellcenter_to_face(GetArrOfPtrs(inv_rho), density, geom_tmp[0]);
 
-    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-        inv_rho[idim].invert(l_dt, 0);
-    }
+    MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(density,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Array4<Real const> const& rho_arr     = density.const_array(mfi);
+        Array4<Real const> const& rho_0_arr   = r_hse.const_array(mfi);
+
+        Box const& bxx = mfi.nodaltilebox(0);
+        Array4<Real      > const& inv_rhox_arr = inv_rho[0].array(mfi);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rho_edge = Real(0.5) * (rho_arr(i,j,k) + rho_arr(i-1,j,k));
+            inv_rhox_arr(i,j,k) = l_dt * rho_0_arr(i,j,k) / rho_edge;
+        });
+
+        Box const& bxy = mfi.nodaltilebox(1);
+        Array4<Real      > const& inv_rhoy_arr = inv_rho[1].array(mfi);
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rho_edge = Real(0.5) * (rho_arr(i,j,k) + rho_arr(i,j-1,k));
+            inv_rhoy_arr(i,j,k) = l_dt * rho_0_arr(i,j,k) / rho_edge;
+        });
+
+        Box const& bxz = mfi.nodaltilebox(2);
+        Array4<Real      > const& inv_rhoz_arr = inv_rho[2].array(mfi);
+        ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rho_edge = Real(0.5) * (rho_arr(i,j,k) + rho_arr(i,j,k-1));
+            Real rho_0_edge = Real(0.5) * (rho_0_arr(i,j,k) + rho_0_arr(i,j,k-1));
+            inv_rhoz_arr(i,j,k) = l_dt * rho_0_edge / rho_edge;
+        });
+    } // mfi
 
     mlabec.setBCoeffs(0, GetArrOfConstPtrs(inv_rho));
 
@@ -114,13 +144,51 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFa
         fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
     }
 
-    // Define a single Array of MultiFabs to hold the velocity components
-    // Then define the RHS to be the divergence of the current velocities
-    Array<MultiFab const*, AMREX_SPACEDIM> u;
-    u[0] = &(vmf[Vars::xvel]);
-    u[1] = &(vmf[Vars::yvel]);
-    u[2] = &(vmf[Vars::zvel]);
-    computeDivergence(rhs[0], u, geom_tmp[0]);
+    Array<MultiFab,AMREX_SPACEDIM> rho0_u;
+    rho0_u[0].define(vmf[Vars::xvel].boxArray(),dm_tmp[0],1,0,MFInfo());
+    rho0_u[1].define(vmf[Vars::yvel].boxArray(),dm_tmp[0],1,0,MFInfo());
+    rho0_u[2].define(vmf[Vars::zvel].boxArray(),dm_tmp[0],1,0,MFInfo());
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(density,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Array4<Real const> const& rho0_arr  = r_hse.const_array(mfi);
+
+        Box const& bxx = mfi.nodaltilebox(0);
+        Array4<Real const> const&      u_arr = vmf[Vars::xvel].const_array(mfi);
+        Array4<Real      > const& rho0_u_arr = rho0_u[0].array(mfi);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rho0_u_arr(i,j,k) = u_arr(i,j,k) * rho0_arr(i,j,k);
+        });
+
+        Box const& bxy = mfi.nodaltilebox(1);
+        Array4<Real const> const&      v_arr = vmf[Vars::yvel].const_array(mfi);
+        Array4<Real      > const& rho0_v_arr = rho0_u[1].array(mfi);
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rho0_v_arr(i,j,k) = v_arr(i,j,k) * rho0_arr(i,j,k);
+        });
+
+        Box const& bxz = mfi.nodaltilebox(2);
+        Array4<Real const> const&      w_arr = vmf[Vars::zvel].const_array(mfi);
+        Array4<Real      > const& rho0_w_arr = rho0_u[2].array(mfi);
+        ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rho0_edge = Real(0.5) * (rho0_arr(i,j,k) + rho0_arr(i,j,k-1));
+            rho0_w_arr(i,j,k) = w_arr(i,j,k) * rho0_edge;
+        });
+    } // mfi
+
+    Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
+    rho0_u_const[0] = &rho0_u[0];
+    rho0_u_const[1] = &rho0_u[1];
+    rho0_u_const[2] = &rho0_u[2];
+
+    computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
+    Print() << "Max norm of divergence after  at level " << lev << " : " << rhs[0].norm0() << std::endl;
 
     // If all Neumann BCs, adjust RHS to make sure we can converge
     if (need_adjust_rhs)
@@ -151,18 +219,85 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFa
     MultiFab::Saxpy(pmf, 1.0, phi[0],0,0,1,0);
     pmf.FillBoundary(geom[lev].periodicity());
 
-    // Subtract (dt/rho) grad(phi) from the velocity components
-    MultiFab::Add(vmf[Vars::xvel], fluxes[0][0], 0,0,1,0);
-    MultiFab::Add(vmf[Vars::yvel], fluxes[0][1], 0,0,1,0);
-    MultiFab::Add(vmf[Vars::zvel], fluxes[0][2], 0,0,1,0);
+    // Subtract (dt rho0/rho) grad(phi) from the rho0-weighted velocity components
+    // MultiFab::Add(vmf[Vars::xvel], fluxes[0][0], 0,0,1,0);
+    // MultiFab::Add(vmf[Vars::yvel], fluxes[0][1], 0,0,1,0);
+    // MultiFab::Add(vmf[Vars::zvel], fluxes[0][2], 0,0,1,0);
+    MultiFab::Add(rho0_u[0], fluxes[0][0], 0,0,1,0);
+    MultiFab::Add(rho0_u[1], fluxes[0][1], 0,0,1,0);
+    MultiFab::Add(rho0_u[2], fluxes[0][2], 0,0,1,0);
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(density,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Array4<Real const> const& rho0_arr  = r_hse.const_array(mfi);
+
+        Box const& bxx = mfi.nodaltilebox(0);
+        Array4<Real      > const&      u_arr = vmf[Vars::xvel].array(mfi);
+        Array4<Real const> const& rho0_u_arr = rho0_u[0].array(mfi);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            u_arr(i,j,k) = rho0_u_arr(i,j,k) / rho0_arr(i,j,k);
+        });
+
+        Box const& bxy = mfi.nodaltilebox(1);
+        Array4<Real      > const&      v_arr = vmf[Vars::yvel].array(mfi);
+        Array4<Real const> const& rho0_v_arr = rho0_u[1].array(mfi);
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            v_arr(i,j,k) = rho0_v_arr(i,j,k) / rho0_arr(i,j,k);
+        });
+
+        Box const& bxz = mfi.nodaltilebox(2);
+        Array4<Real      > const&      w_arr = vmf[Vars::zvel].array(mfi);
+        Array4<Real const> const& rho0_w_arr = rho0_u[2].array(mfi);
+        ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rho0_edge = Real(0.5) * (rho0_arr(i,j,k) + rho0_arr(i,j,k-1));
+            w_arr(i,j,k) = rho0_w_arr(i,j,k) / rho0_edge;
+        });
+    } // mfi
 
 #if 0
-    // Confirm that the velocity is now divergence free
-    u[0] = &(vmf[Vars::xvel]);
-    u[1] = &(vmf[Vars::yvel]);
-    u[2] = &(vmf[Vars::zvel]);
-    rhs[0].setVal(0.0);
-    computeDivergence(rhs[0], u, geom_tmp[0]);
+    //
+    // BELOW IS SIMPLY VERIFYING THE DIVERGENCE AFTER THE SOLVE
+    //
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(density,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Array4<Real const> const& rho0_arr  = r_hse.const_array(mfi);
+
+        Box const& bxx = mfi.nodaltilebox(0);
+        Array4<Real const> const&      u_arr = vmf[Vars::xvel].const_array(mfi);
+        Array4<Real      > const& rho0_u_arr = rho0_u[0].array(mfi);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rho0_u_arr(i,j,k) = u_arr(i,j,k) * rho0_arr(i,j,k);
+        });
+
+        Box const& bxy = mfi.nodaltilebox(1);
+        Array4<Real const> const&      v_arr = vmf[Vars::yvel].const_array(mfi);
+        Array4<Real      > const& rho0_v_arr = rho0_u[1].array(mfi);
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rho0_v_arr(i,j,k) = v_arr(i,j,k) * rho0_arr(i,j,k);
+        });
+
+        Box const& bxz = mfi.nodaltilebox(2);
+        Array4<Real const> const&      w_arr = vmf[Vars::zvel].const_array(mfi);
+        Array4<Real      > const& rho0_w_arr = rho0_u[2].array(mfi);
+        ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real rho0_edge = Real(0.5) * (rho0_arr(i,j,k) + rho0_arr(i,j,k-1));
+            rho0_w_arr(i,j,k) = w_arr(i,j,k) * rho0_edge;
+        });
+    } // mfi
+
+    computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
     Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
 #endif
 }

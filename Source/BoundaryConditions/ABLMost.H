@@ -11,6 +11,7 @@
 #include <ERF_Constants.H>
 #include <MOSTAverage.H>
 #include <MOSTStress.H>
+#include <TerrainMetrics.H>
 
 /** Monin-Obukhov surface layer profile
  *
@@ -35,6 +36,7 @@ public:
                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                       amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_lev,
                       amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev,
@@ -50,7 +52,7 @@ public:
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_geom(geom),
-      m_ma(geom,vars_old,Theta_prim,Qv_prim,z_phys_nd)
+      m_ma(geom,vars_old,Theta_prim,Qv_prim,Qr_prim,z_phys_nd)
     {
         // We have a moisture model if Qv_prim is a valid pointer
         use_moisture = (Qv_prim[0].get());
@@ -60,16 +62,20 @@ public:
         pp.query("most.z0", z0_const);
 
         // Specify how to compute the flux
-        std::string flux_string{"moeng"};
-        pp.query("most.flux_type", flux_string);
-        if (flux_string == "donelan") {
-            flux_type = FluxCalcType::DONELAN;
-        } else if (flux_string == "moeng") {
-            flux_type = FluxCalcType::MOENG;
-        } else if (flux_string == "custom") {
-            flux_type = FluxCalcType::CUSTOM;
+        if (use_rot_most) {
+            flux_type = FluxCalcType::ROTATE;
         } else {
-            amrex::Abort("Undefined MOST flux type!");
+            std::string flux_string{"moeng"};
+            pp.query("most.flux_type", flux_string);
+            if (flux_string == "donelan") {
+                flux_type = FluxCalcType::DONELAN;
+            } else if (flux_string == "moeng") {
+                flux_type = FluxCalcType::MOENG;
+            } else if (flux_string == "custom") {
+                flux_type = FluxCalcType::CUSTOM;
+            } else {
+                amrex::Abort("Undefined MOST flux type!");
+            }
         }
 
         // Get surface temperature
@@ -216,7 +222,7 @@ public:
             t_star[lev]->setVal(1.E34);
 
             q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-            q_star[lev]->setVal(1.E34);
+            q_star[lev]->setVal(0.0); // default to dry
 
             olen[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             olen[lev]->setVal(1.E34);
@@ -257,8 +263,12 @@ public:
                      amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
                      amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                      amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
-                     amrex::MultiFab* heat_flux,
-                     amrex::MultiFab* qv_flux,
+                     amrex::MultiFab* xheat_flux,
+                     amrex::MultiFab* yheat_flux,
+                     amrex::MultiFab* zheat_flux,
+                     amrex::MultiFab* xqv_flux,
+                     amrex::MultiFab* yqv_flux,
+                     amrex::MultiFab* zqv_flux,
                      amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
@@ -271,10 +281,13 @@ public:
                       amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
                       amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                       amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
-                      amrex::MultiFab* heat_flux,
-                      amrex::MultiFab* qv_flux,
+                      amrex::MultiFab* xheat_flux,
+                      amrex::MultiFab* yheat_flux,
+                      amrex::MultiFab* zheat_flux,
+                      amrex::MultiFab* xqv_flux,
+                      amrex::MultiFab* yqv_flux,
+                      amrex::MultiFab* zqv_flux,
                       amrex::MultiFab* z_phys,
-                      const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);
 
     void
@@ -304,14 +317,18 @@ public:
     update_mac_ptrs (const int& lev,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
-                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim)
-    { m_ma.update_field_ptrs(lev,vars_old,Theta_prim,Qv_prim); }
+                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
+                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim)
+    { m_ma.update_field_ptrs(lev,vars_old,Theta_prim,Qv_prim,Qr_prim); }
 
     const amrex::MultiFab*
     get_u_star (const int& lev) { return u_star[lev].get(); }
 
     const amrex::MultiFab*
     get_t_star (const int& lev) { return t_star[lev].get(); }
+
+    const amrex::MultiFab*
+    get_q_star (const int& lev) { return q_star[lev].get(); }
 
     const amrex::MultiFab*
     get_olen (const int& lev) { return olen[lev].get(); }
@@ -328,12 +345,11 @@ public:
     const amrex::FArrayBox*
     get_z0 (const int& lev) {return &z_0[lev];}
 
-
-
     enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
         DONELAN,        ///< Donelan functional form
-        CUSTOM          ///< Custom constant flux functional form
+        CUSTOM,         ///< Custom constant flux functional form
+        ROTATE          ///< Terrain rotation flux functional form
     };
 
     enum struct ThetaCalcType {
@@ -386,8 +402,6 @@ private:
     amrex::Vector<amrex::MultiFab*>  m_Hwave_lev;
     amrex::Vector<amrex::MultiFab*>  m_Lwave_lev;
     amrex::Vector<amrex::MultiFab*>  m_eddyDiffs_lev;
-
-    //amrex::Array2D<amrex::Real,0,2,0,2> m_rot_mat;
 };
 
 #endif /* ABLMOST_H */

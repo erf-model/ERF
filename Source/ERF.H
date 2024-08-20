@@ -442,8 +442,8 @@ private:
     void init_uniform (int lev);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
-                     amrex::Vector<amrex::MultiFab>& lev_new,
-                     amrex::Vector<amrex::MultiFab>& lev_old);
+                     amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
+                     amrex::MultiFab& tmp_base_state);
 
     // Initialize the Turbulent perturbation
     void turbPert_update (const int lev, const amrex::Real dt);
@@ -670,6 +670,7 @@ private:
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Qv_prim;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Qr_prim;
 
     // Scratch space for time integrator
     amrex::Vector<amrex::MultiFab> rU_old;
@@ -727,7 +728,7 @@ private:
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_diss_lev;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q1fx3_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q1fx1_lev, SFS_q1fx2_lev, SFS_q1fx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
     // Terrain / grid stretching

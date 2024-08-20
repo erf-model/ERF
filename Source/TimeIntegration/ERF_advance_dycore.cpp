@@ -93,6 +93,7 @@ void ERF::advance_dycore(int level,
                            (tc.pbl_type        !=       PBLType::None) );
     bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
                            (tc.pbl_type != PBLType::None) );
+    bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
 
     const bool use_most = (m_most != nullptr);
     const bool exp_most = (solverChoice.use_explicit_most);
@@ -193,6 +194,8 @@ void ERF::advance_dycore(int level,
     MultiFab* Hfx1 = SFS_hfx1_lev[level].get();
     MultiFab* Hfx2 = SFS_hfx2_lev[level].get();
     MultiFab* Hfx3 = SFS_hfx3_lev[level].get();
+    MultiFab* Q1fx1 = SFS_q1fx1_lev[level].get();
+    MultiFab* Q1fx2 = SFS_q1fx2_lev[level].get();
     MultiFab* Q1fx3 = SFS_q1fx3_lev[level].get();
     MultiFab* Q2fx3 = SFS_q2fx3_lev[level].get();
     MultiFab* Diss = SFS_diss_lev[level].get();
@@ -219,7 +222,7 @@ void ERF::advance_dycore(int level,
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], tc, solverChoice.gravity,
-                                  m_most, exp_most, level, bc_ptr_d);
+                                  m_most, exp_most, l_use_moisture, level, bc_ptr_d);
     }
 
     // ***********************************************************************************************

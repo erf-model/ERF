@@ -86,7 +86,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
+                       MultiFab* Hfx1,
+                       MultiFab* Hfx2,
                        MultiFab* Hfx3,
+                       MultiFab* Q1fx1,
+                       MultiFab* Q1fx2,
                        MultiFab* Q1fx3,
                        MultiFab* Q2fx3,
                        MultiFab* Diss,
@@ -154,6 +158,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_use_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool l_use_most     = (most != nullptr);
     const bool l_exp_most     = (solverChoice.use_explicit_most);
+    const bool l_rot_most     = (solverChoice.use_rotate_most);
 
 #ifdef ERF_USE_POISSON_SOLVE
     const bool l_incompressible = solverChoice.incompressible[level];
@@ -237,6 +242,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #endif
     {
     std::array<FArrayBox,AMREX_SPACEDIM> flux;
+    std::array<FArrayBox,AMREX_SPACEDIM> flux_tmp;
 
     for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
@@ -312,9 +318,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             flux[dir].resize(surroundingNodes(bx,dir),2);
             flux[dir].setVal<RunOn::Device>(0.);
+            if (l_use_mono_adv) {
+                flux_tmp[dir].resize(surroundingNodes(bx,dir),2);
+                flux_tmp[dir].setVal<RunOn::Device>(0.);
+            }
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
+        Array4<Real> tmpx = (l_use_mono_adv) ? flux_tmp[0].array() : Array4<Real>{};
+        Array4<Real> tmpy = (l_use_mono_adv) ? flux_tmp[1].array() : Array4<Real>{};
+        Array4<Real> tmpz = (l_use_mono_adv) ? flux_tmp[2].array() : Array4<Real>{};
+        const GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_tmp_arr{{AMREX_D_DECL(tmpx,tmpy,tmpz)}};
 
         // *****************************************************************************
         // Perturbational pressure field
@@ -456,16 +470,22 @@ if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n"
                                detJ_arr, dxInv, mf_m,
                                l_horiz_adv_type, l_vert_adv_type,
                                l_horiz_upw_frac, l_vert_upw_frac,
-                               flx_arr, domain, bc_ptr_h);
+                               flx_arr, flx_tmp_arr, domain, bc_ptr_h);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
             Array4<Real> diffflux_y = dflux_y->array(mfi);
             Array4<Real> diffflux_z = dflux_z->array(mfi);
 
+            Array4<Real> hfx_x = Hfx1->array(mfi);
+            Array4<Real> hfx_y = Hfx2->array(mfi);
             Array4<Real> hfx_z = Hfx3->array(mfi);
-            Array4<Real> q1fx_z = (l_use_moisture) ? Q1fx3->array(mfi) : Array4<Real>{};
-            Array4<Real> q2fx_z = (l_use_moisture) ? Q2fx3->array(mfi) : Array4<Real>{};
+
+            Array4<Real> q1fx_x = (Q1fx1) ? Q1fx1->array(mfi) : Array4<Real>{};
+            Array4<Real> q1fx_y = (Q1fx2) ? Q1fx2->array(mfi) : Array4<Real>{};
+            Array4<Real> q1fx_z = (Q1fx3) ? Q1fx3->array(mfi) : Array4<Real>{};
+
+            Array4<Real> q2fx_z = (Q2fx3) ? Q2fx3->array(mfi) : Array4<Real>{};
             Array4<Real> diss  = Diss->array(mfi);
 
             const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
@@ -475,13 +495,13 @@ if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n"
             int n_comp  = end_comp - n_start + 1;
 
             if (l_use_terrain) {
-                DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_exp_most, u, v,
+                DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_exp_most, l_rot_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                       hfx_z, q1fx_z, q2fx_z, diss, mu_turb, dc, tc,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most);
+                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss, mu_turb, dc, tc,
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most, l_use_moisture);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, l_exp_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -489,7 +509,7 @@ if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n"
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, dc, tc,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most, l_use_moisture);
             }
         }
 

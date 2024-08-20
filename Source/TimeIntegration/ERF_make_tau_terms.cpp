@@ -57,6 +57,7 @@ void erf_make_tau_terms (int level, int nrk,
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
+    const int domhi_z = domain.bigEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
@@ -73,7 +74,7 @@ void erf_make_tau_terms (int level, int nrk,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        expr    = std::make_unique<MultiFab>(ba  , dm, 1, IntVect(1,1,0));
+        expr    = std::make_unique<MultiFab>(ba  , dm, 1, IntVect(1,1,1));
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
@@ -371,6 +372,16 @@ void erf_make_tau_terms (int level, int nrk,
                 tbxxy.grow(IntVect(-1,-1,0));
                 tbxxz.grow(IntVect(-1,-1,0));
                 tbxyz.grow(IntVect(-1,-1,0));
+                if (tbxxy.smallEnd(2) > domlo_z) {
+                    tbxxy.growLo(2,-1);
+                    tbxxz.growLo(2,-1);
+                    tbxyz.growLo(2,-1);
+                }
+                if (tbxxy.bigEnd(2) < domhi_z) {
+                    tbxxy.growHi(2,-1);
+                    tbxxz.growHi(2,-1);
+                    tbxyz.growHi(2,-1);
+                }
 
                 if (!l_use_turb) {
                     ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,

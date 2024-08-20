@@ -16,6 +16,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                               const Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
+                              bool use_moisture,
                               int level,
                               const BCRec* bc_ptr,
                               bool /*vert_only*/,
@@ -332,7 +333,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
             }
         }
 
-        // refactor the code to eliminate the need for ifdef's
         for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
             int offset = (EddyDiff::NumDiffs-1)/2;
             switch (n)
@@ -398,7 +398,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
-        // refactor the code to eliminate the need for ifdef's
         for (auto n = 0; n < (EddyDiff::NumDiffs-1)/2; ++n) {
             int offset = (EddyDiff::NumDiffs-1)/2;
             switch (n)
@@ -482,6 +481,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                 const TurbChoice& turbChoice, const Real const_grav,
                                 std::unique_ptr<ABLMost>& most,
                                 const bool& exp_most,
+                                const bool& use_moisture,
                                 int level,
                                 const BCRec* bc_ptr,
                                 bool vert_only)
@@ -521,6 +521,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     if (turbChoice.pbl_type != PBLType::None) {
         // NOTE: state_new is passed in for Cons_old (due to ptr swap in advance)
         ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
-                                     geom, turbChoice, most, level, bc_ptr, vert_only, z_phys_nd);
+                                     geom, turbChoice, most, use_moisture,
+                                     level, bc_ptr, vert_only, z_phys_nd);
     }
 }
