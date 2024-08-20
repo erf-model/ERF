@@ -209,24 +209,6 @@ ERF::initHSE (int lev)
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
-#if 0
-    if (lev > 0) {
-
-        // Interp all three components: rho, p, pi
-        int  icomp = 0; int bccomp = 0; int  ncomp = 3;
-
-        PhysBCFunctNoOp null_bc;
-        Real time = 0.;
-        Interpolater* mapper = &cell_cons_interp;
-
-        InterpFromCoarseLevel(base_state[lev], time, base_state[lev-1],
-                              icomp, icomp, ncomp,
-                              geom[lev-1], geom[lev],
-                              null_bc, 0, null_bc, 0, refRatio(lev-1),
-                              mapper, domain_bcs_type, bccomp);
-    }
-#endif
-
     // Initial r_hse may or may not be in HSE -- defined in prob.cpp
     if (solverChoice.use_moist_background){
         prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
@@ -330,6 +312,7 @@ ERF::erf_enforce_hse (int lev,
                 } else {
                     dz_loc = dz;
                 }
+
                 Real dens_interp = 0.5*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
                 pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
 

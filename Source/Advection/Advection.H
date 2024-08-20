@@ -49,6 +49,7 @@ void AdvectionSrcForScalars (const amrex::Real& dt,
                              const AdvType horiz_adv_type, const AdvType vert_adv_type,
                              const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                              const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr,
+                             const amrex::GpuArray<      amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_tmp_arr,
                              const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr_h);
 

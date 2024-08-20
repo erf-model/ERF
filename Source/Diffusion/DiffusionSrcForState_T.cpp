@@ -38,11 +38,13 @@ using namespace amrex;
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
  * @param[in]  use_most whether we have turned on MOST BCs
+ * @param[in]  use_moisture whether we account for moisture in the QKE update
  */
 void
 DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         int start_comp, int num_comp,
                         const bool& exp_most,
+                        const bool& rot_most,
                         const Array4<const Real>& u,
                         const Array4<const Real>& v,
                         const Array4<const Real>& cell_data,
@@ -61,8 +63,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const Array4<const Real>& mf_m,
                         const Array4<const Real>& mf_u,
                         const Array4<const Real>& mf_v,
+                              Array4<      Real>& hfx_x,
+                              Array4<      Real>& hfx_y,
                               Array4<      Real>& hfx_z,
-                              Array4<      Real>& /*qfx1_z*/,
+                              Array4<      Real>& qfx1_x,
+                              Array4<      Real>& qfx1_y,
+                              Array4<      Real>& qfx1_z,
                               Array4<      Real>& /*qfx2_z*/,
                               Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,
@@ -71,7 +77,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const Array4<const Real>& tm_arr,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
-                        const bool use_most)
+                        const bool use_most,
+                        const bool use_moisture)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
@@ -214,11 +221,20 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ax(i,j,k);
 
+            bool most_on_zlo    = ( use_most && rot_most &&
+                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
             Real GradCx =        dx_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i-1, j, k  , prim_index) );
 
-            xflux(i,j,k,qty_index) = -rhoAlpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
+            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                xflux(i,j,k,qty_index) = hfx_x(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                xflux(i,j,k,qty_index) = qfx1_x(i,j,0);
+            } else {
+                xflux(i,j,k,qty_index) = -rhoAlpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
+            }
         });
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -233,11 +249,20 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ay(i,j,k);
 
+            bool most_on_zlo    = ( use_most && rot_most &&
+                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
             Real GradCy =        dy_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i, j-1, k  , prim_index) );
 
-            yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
+            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                yflux(i,j,k,qty_index) = hfx_y(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                yflux(i,j,k,qty_index) = qfx1_y(i,j,0);
+            } else {
+                yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
+            }
         });
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -276,6 +301,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
             }
@@ -294,11 +321,20 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ax(i,j,k);
 
+            bool most_on_zlo    = ( use_most && rot_most &&
+                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
             Real GradCx =        dx_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i-1, j, k  , prim_index) );
 
-            xflux(i,j,k,qty_index) = -rhoAlpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
+            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                xflux(i,j,k,qty_index) = hfx_x(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                xflux(i,j,k,qty_index) = qfx1_x(i,j,0);
+            } else {
+                xflux(i,j,k,qty_index) = -rhoAlpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
+            }
         });
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -312,11 +348,20 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ay(i,j,k);
 
+            bool most_on_zlo    = ( use_most && rot_most &&
+                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
             Real GradCy =        dy_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i, j-1, k  , prim_index) );
 
-            yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
+            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                yflux(i,j,k,qty_index) = hfx_y(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                yflux(i,j,k,qty_index) = qfx1_y(i,j,0);
+            } else {
+                yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
+            }
         });
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -355,6 +400,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
             }
@@ -372,11 +419,20 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ax(i,j,k);
 
+            bool most_on_zlo    = ( use_most && rot_most &&
+                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
             Real GradCx =        dx_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i-1, j, k  , prim_index) );
 
-            xflux(i,j,k,qty_index) = -rhoAlpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
+            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                xflux(i,j,k,qty_index) = hfx_x(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                xflux(i,j,k,qty_index) = qfx1_x(i,j,0);
+            } else {
+                xflux(i,j,k,qty_index) = -rhoAlpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
+            }
         });
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -389,11 +445,20 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ay(i,j,k);
 
+            bool most_on_zlo    = ( use_most && rot_most &&
+                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
             Real GradCy =        dy_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i, j-1, k  , prim_index) );
 
-            yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
+            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                yflux(i,j,k,qty_index) = hfx_y(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                yflux(i,j,k,qty_index) = qfx1_y(i,j,0);
+            } else {
+                yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
+            }
         });
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -430,6 +495,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
             }
@@ -447,11 +514,20 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtIface(i,j,k,cellSizeInv,z_nd);
 
+            bool most_on_zlo    = ( use_most && rot_most &&
+                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
             Real GradCx =        dx_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i-1, j, k  , prim_index) );
 
-            xflux(i,j,k,qty_index) = -rhoAlpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
+            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                xflux(i,j,k,qty_index) = hfx_x(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                xflux(i,j,k,qty_index) = qfx1_x(i,j,0);
+            } else {
+              xflux(i,j,k,qty_index) = -rhoAlpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
+            }
         });
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -464,11 +540,20 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtJface(i,j,k,cellSizeInv,z_nd);
 
+            bool most_on_zlo    = ( use_most && rot_most &&
+                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
             Real GradCy =        dy_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i, j-1, k  , prim_index) );
 
-            yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
+            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                yflux(i,j,k,qty_index) = hfx_y(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                yflux(i,j,k,qty_index) = qfx1_y(i,j,0);
+            } else {
+                yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
+            }
         });
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -505,6 +590,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
+            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
             }
@@ -656,7 +743,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         {
             const Real met_h_zeta = detJ(i,j,k);
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
-                                                                  mu_turb,cellSizeInv,domain,pbl_mynn_B1_l,tm_arr(i,j,0),
+                                                                  mu_turb,cellSizeInv,domain,
+                                                                  pbl_mynn_B1_l,tm_arr(i,j,0),
+                                                                  use_moisture,
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,

@@ -7,7 +7,7 @@
 Time Advance
 ============
 
-To advance the solution in time, ERF uses a 3rd order Runge-Kutta method with acoustic sub-stepping
+To advance the fully compressible solution in time, ERF uses a 3rd order Runge-Kutta method with acoustic sub-stepping
 in each Runge-Kutta stage, following the approach of `Klemp, Skamarock and Dudhia (2007)`_
 
 .. _`Klemp, Skamarock and Dudhia (2007)`: https://journals.ametsoc.org/view/journals/mwre/135/8/mwr3440.1.xml
@@ -28,12 +28,33 @@ where :math:`\mathbf{S}` is the solution vector, we solve
 
   \mathbf{S}^{n+1} &=& \mathbf{S}^n +             \Delta t f(\mathbf{S}^{**})
 
+.. _AnelasticTimeAdvance:
+
+Anelastic Option
+---------------------
+
+When solving the anelastic rather than fully compressible equations, ERF uses a 2nd order Runge-Kutta method:
+
+Specifically, for
+
+.. math::
+
+  \frac{d \mathbf{S}}{dt} = f(\mathbf{S})
+
+where :math:`\mathbf{S}` is the solution vector, we solve
+
+.. math::
+
+  \mathbf{S}^{*}   &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^n)
+
+  \mathbf{S}^{n+1} &=& \mathbf{S}^n + \frac{\Delta t}{2} ( f(\mathbf{S}^{n}) + f(\mathbf{S}^{*}) )
+
 .. _AcousticSubstep:
 
 Acoustic Sub-stepping
 ---------------------
 
-We sub-step the acoustic modes within each Runge-Kutta stage.
+When solving the fully compressible equation set, we sub-step the acoustic modes within each Runge-Kutta stage.
 
 We first recall the equations in the following form,
 here defining :math:`\mathbf{R}` for each equation to include all additional terms that contribute to the time evolution.

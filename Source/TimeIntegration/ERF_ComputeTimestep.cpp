@@ -201,13 +201,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          // Incompressible (substepping is not allowed)
          if (l_incompressible) {
              return estdt_lowM;
-         }
-         // Compressible without substepping
-         else if (l_no_substepping) {
-             return estdt_comp;
-         }
-         // Compressible with substepping
-         else {
+
+         // Compressible with or without substepping
+         } else {
              return estdt_comp;
          }
      }

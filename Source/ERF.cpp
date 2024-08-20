@@ -226,7 +226,7 @@ ERF::ERF ()
     Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
     SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
-    SFS_q1fx3_lev.resize(nlevs_max);
+    SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
     SFS_q2fx3_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
@@ -295,6 +295,9 @@ ERF::ERF ()
 
     // Qv prim for MOST
     Qv_prim.resize(nlevs_max);
+
+    // Qr prim for MOST
+    Qr_prim.resize(nlevs_max);
 
     // Time averaged velocity field
     vel_t_avg.resize(nlevs_max);
@@ -956,7 +959,7 @@ ERF::InitData ()
         }
 
         m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most,
-                                           vars_old, Theta_prim, Qv_prim, z_phys_nd,
+                                           vars_old, Theta_prim, Qv_prim, Qr_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux, Hwave, Lwave, eddyDiffs_lev
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
@@ -974,11 +977,14 @@ ERF::InitData ()
             MultiFab::Divide(*Theta_prim[lev], S, Rho_comp     , 0, 1, ng);
             if (solverChoice.moisture_type != MoistureType::None) {
                 ng = Qv_prim[lev]->nGrowVect();
-                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,RhoQ1_comp+1);
+                int RhoQr_comp = (micro->Get_Qstate_Size() > 3) ? RhoQ4_comp : RhoQ3_comp;
+                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,RhoQr_comp+1);
                 MultiFab::Copy(  *Qv_prim[lev], Sm, RhoQ1_comp, 0, 1, ng);
+                MultiFab::Copy(  *Qr_prim[lev], Sm, RhoQr_comp, 0, 1, ng);
                 MultiFab::Divide(*Qv_prim[lev], Sm, Rho_comp  , 0, 1, ng);
+                MultiFab::Divide(*Qr_prim[lev], Sm, Rho_comp  , 0, 1, ng);
             }
-            m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim);
+            m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
             m_most->update_fluxes(lev, time);
         }
     }
@@ -1951,7 +1957,7 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
     SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
-    SFS_q1fx3_lev.resize(nlevs_max);
+    SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
     SFS_q2fx3_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);

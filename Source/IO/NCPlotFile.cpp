@@ -31,7 +31,7 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
      // total number of cells in this "domain" at this level
      std::vector<int> n_cells;
 
-     // number of points in each blocks at this level
+     // number of points in each block at this level
      std::vector<int> offset;
 
      // set the full IO path for NetCDF output
@@ -58,7 +58,7 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
      }
      for(auto ib=0; ib<nblocks; ib++) {
         auto npts_per_block = grids[lev][ib].length(0)*grids[lev][ib].length(1)*grids[lev][ib].length(2);
-        offset[dm[ib]] = offset[dm[ib]] + npts_per_block;
+        offset[dm[ib]] += npts_per_block;
      }
 
      // We only do single-level writes when using NetCDF format
@@ -232,17 +232,17 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
    for (MFIter fai(*plotMF[lev]); fai.isValid(); ++fai) {
        auto box = fai.validbox();
        if (subdomain.contains(box)) {
+           numpts = box.numPts();
            long unsigned diff = nfai*numpts;
            for(auto ip = 1; ip <= iproc; ++ip) diff += offset[ip-1];
-           numpts = box.numPts();
 
            for (int k(0); k < ncomp; ++k) {
               const auto *data = plotMF[lev]->get(fai).dataPtr(k);
               auto nc_plot_var = ncf.var(plot_var_names[k]);
               nc_plot_var.par_access(NC_INDEPENDENT);
               nc_plot_var.put(data, {diff}, {numpts});
-          }
-          nfai++;
+           }
+           nfai++;
        }
    }
    ncf.close();

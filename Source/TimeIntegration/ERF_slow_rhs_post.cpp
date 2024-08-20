@@ -61,7 +61,11 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const MultiFab& source,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
+                        MultiFab* Hfx1,
+                        MultiFab* Hfx2,
                         MultiFab* Hfx3,
+                        MultiFab* Q1fx1,
+                        MultiFab* Q1fx2,
                         MultiFab* Q1fx3,
                         MultiFab* Q2fx3,
                         MultiFab* Diss,
@@ -126,6 +130,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.pbl_type == PBLType::YSU );
     const bool l_use_moisture   = (solverChoice.moisture_type != MoistureType::None);
     const bool exp_most         = (solverChoice.use_explicit_most);
+    const bool rot_most         = (solverChoice.use_rotate_most);
 
     const Box& domain = geom.Domain();
 
@@ -201,7 +206,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     //    that we can fill the eddy viscosity in the ghost regions and
     //    not have to call a boundary filler on this data itself
     //
-    // LES - updates both horizontal and vertical eddy viscosity components
+    // LES - updates both horizontal and vertical eddy viscosityS_tmp components
     // PBL - only updates vertical eddy viscosity components so horizontal
     //       components come from the LES model or are left as zero.
     // *************************************************************************
@@ -214,6 +219,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 #endif
     {
       std::array<FArrayBox,AMREX_SPACEDIM> flux;
+      std::array<FArrayBox,AMREX_SPACEDIM> flux_tmp;
 
       int start_comp;
       int   num_comp;
@@ -228,9 +234,17 @@ void erf_slow_rhs_post (int level, int finest_level,
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             flux[dir].resize(surroundingNodes(tbx,dir),nvars);
             flux[dir].setVal<RunOn::Device>(0.);
+            if (l_use_mono_adv) {
+                flux_tmp[dir].resize(surroundingNodes(tbx,dir),nvars);
+                flux_tmp[dir].setVal<RunOn::Device>(0.);
+            }
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
+        Array4<Real> tmpx = (l_use_mono_adv) ? flux_tmp[0].array() : Array4<Real>{};
+        Array4<Real> tmpy = (l_use_mono_adv) ? flux_tmp[1].array() : Array4<Real>{};
+        Array4<Real> tmpz = (l_use_mono_adv) ? flux_tmp[2].array() : Array4<Real>{};
+        const GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_tmp_arr{{AMREX_D_DECL(tmpx,tmpy,tmpz)}};
 
         // *************************************************************************
         // Define Array4's
@@ -324,7 +338,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         AdvType horiz_adv_type, vert_adv_type;
         Real    horiz_upw_frac, vert_upw_frac;
 
-        Array4<Real> diffflux_x, diffflux_y, diffflux_z, hfx_z, q1fx_z, q2fx_z, diss;
+        Array4<Real> diffflux_x, diffflux_y, diffflux_z;
+        Array4<Real> hfx_x, hfx_y, hfx_z, diss;
+        Array4<Real> q1fx_x, q1fx_y, q1fx_z, q2fx_z;
         const bool use_most = (most != nullptr);
 
         if (l_use_diff) {
@@ -332,12 +348,15 @@ void erf_slow_rhs_post (int level, int finest_level,
             diffflux_y = dflux_y->array(mfi);
             diffflux_z = dflux_z->array(mfi);
 
+            hfx_x = Hfx1->array(mfi);
+            hfx_y = Hfx2->array(mfi);
             hfx_z = Hfx3->array(mfi);
-            if (l_use_moisture) {
-                q1fx_z = Q1fx3->array(mfi);
-                q2fx_z = Q2fx3->array(mfi);
-            }
             diss  = Diss->array(mfi);
+
+            if (Q1fx1) q1fx_x = Q1fx1->array(mfi);
+            if (Q1fx2) q1fx_y = Q1fx2->array(mfi);
+            if (Q1fx3) q1fx_z = Q1fx3->array(mfi);
+            if (Q2fx3) q2fx_z = Q2fx3->array(mfi);
         }
 
         //
@@ -381,27 +400,29 @@ void erf_slow_rhs_post (int level, int finest_level,
                                        detJ_arr, dxInv, mf_m,
                                        horiz_adv_type, vert_adv_type,
                                        horiz_upw_frac, vert_upw_frac,
-                                       flx_arr, domain, bc_ptr_h);
+                                       flx_arr, flx_tmp_arr, domain, bc_ptr_h);
 
                 if (l_use_diff) {
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
                     if (l_use_terrain) {
-                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, u, v,
+                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, rot_most, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                               hfx_z, q1fx_z, q2fx_z, diss,
-                                               mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
+                                               mu_turb, dc, tc,
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most, l_use_moisture);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_z, q1fx_z, q2fx_z, diss,
-                                               mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
+                                               mu_turb, dc, tc,
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most, l_use_moisture);
                     }
                 } // use_diff
             } // valid slow var

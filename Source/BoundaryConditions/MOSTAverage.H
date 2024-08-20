@@ -15,6 +15,7 @@ public:
                           amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
+                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
 
     // MOSTAverage() = default;
@@ -38,7 +39,8 @@ public:
     void update_field_ptrs (int lev,
                             amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
-                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim);
+                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
+                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim);
 
     // Update the rotated fields
     void set_rotated_fields (int lev);
@@ -170,8 +172,8 @@ protected:
 
     // General vars for multiple or all policies
     //--------------------------------------------
-    int  m_nvar{5};                                                  // 5 fields for U/V/T/Qv/W
-    int  m_navg{5};                                                  // 5 averages for U/V/T/Qv/Umag
+    int  m_nvar{6};                                                  // 6 fields for U/V/T/Qv/Qr/W
+    int  m_navg{6};                                                  // 6 averages for U/V/T/Qv/Tv/Umag
     int  m_maxlev{0};                                                // Total number of levels
     int  m_policy{0};                                                // Policy for type of averaging
     bool m_rotate{false};                                            // Do vector rotations for terrain?
