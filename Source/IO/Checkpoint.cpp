@@ -394,7 +394,7 @@ ERF::ReadCheckpointFile ()
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
            VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
-           update_terrain_arrays(lev, t_new[lev]);
+           update_terrain_arrays(lev);
         }
 
         // Read in the precipitation accumulation component
