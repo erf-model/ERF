@@ -98,7 +98,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                       (bc_ptr[BCVars::yvel_bc].hi(2) == ERFBCType::ext_dir_ingested) );
          zh_v_dir = ( zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2)) );
 
-
+    //***********************************************************************************
     // X-Dirichlet
     //***********************************************************************************
     if (xl_v_dir) {
@@ -181,6 +181,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         });
     }
 
+    //***********************************************************************************
     // Y-Dirichlet
     //***********************************************************************************
     if (yl_u_dir) {
@@ -263,6 +264,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         });
     }
 
+    //***********************************************************************************
     // Z-Dirichlet
     //***********************************************************************************
     if (zl_u_dir) {
@@ -312,7 +314,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             tau32(i,j,k) = tau23(i,j,k);
         });
     }
-    if (zh_v_dir) {
+    if (zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2))) {
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
         tbxyz.growHi(2,-1);
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -368,10 +370,11 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         });
     }
 
+    //***********************************************************************************
     // Z-lo w/out Z-Dirichlet (GradWz extrapolation)
     //***********************************************************************************
-    if (!zl_u_dir) {
-        Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
+    if (!zl_u_dir && (tbxxz.smallEnd(2) == domain_xz.smallEnd(2)) ) {
+        Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2));
         tbxxz.growLo(2,-1);
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradWz = 0.5  * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
@@ -387,7 +390,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             tau31(i,j,k) = tau13(i,j,k);
         });
     }
-    if (!zl_v_dir) {
+    if (!zl_v_dir && (tbxyz.smallEnd(2) == domain_yz.smallEnd(2))) {
         Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
         tbxyz.growLo(2,-1);
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -405,9 +408,10 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         });
     }
 
+    //***********************************************************************************
     // Z-hi w/out Z-Dirichlet (h_xi = h_eta = 0)
     //***********************************************************************************
-    if (!zh_u_dir) {
+    if (!zh_u_dir && (tbxxz.bigEnd(2) == domain_xz.bigEnd(2))) {
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -419,7 +423,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             tau31(i,j,k) = tau13(i,j,k);
         });
     }
-    if (!zh_v_dir) {
+    if (!zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2))) {
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
         tbxyz.growHi(2,-1);
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -432,6 +436,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         });
     }
 
+    //***********************************************************************************
     // Fill the interior cells
     //***********************************************************************************
     // Cell centered strains
