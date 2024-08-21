@@ -293,6 +293,8 @@ struct SolverChoice {
         pp.query("add_custom_w_subsidence", custom_w_subsidence);
         pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
+        pp.query("spatial_rhotheta_forcing", spatial_rhotheta_forcing);
+        pp.query("spatial_moisture_forcing", spatial_moisture_forcing);
 
         pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
 
@@ -567,6 +569,8 @@ struct SolverChoice {
     bool custom_w_subsidence      = false;
     bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
+    bool spatial_rhotheta_forcing = false;
+    bool spatial_moisture_forcing = false;
 
     // Do we use source terms to nudge the solution towards
     //    the time-varying data provided in input sounding files?

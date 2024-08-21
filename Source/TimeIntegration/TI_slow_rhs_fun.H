@@ -45,7 +45,7 @@
 #endif
                      fine_geom, solverChoice,
                      mapfac_u[level], mapfac_v[level],
-                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert);
 
@@ -417,7 +417,7 @@
 #endif
                      fine_geom, solverChoice,
                      mapfac_u[level], mapfac_v[level],
-                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert);
 

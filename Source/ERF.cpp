@@ -136,6 +136,9 @@ ERF::ERF_shared ()
     lsm_data.resize(nlevs_max);
     lsm_flux.resize(nlevs_max);
 
+    rhotheta_src.resize(nlevs_max);
+    rhoqt_src.resize(nlevs_max);
+
     ReadParameters();
     initializeMicrophysics(nlevs_max);
 
@@ -743,14 +746,24 @@ ERF::InitData ()
 
     if (solverChoice.custom_rhotheta_forcing)
     {
-        h_rhotheta_src.resize(max_level+1, Vector<Real>(0));
-        d_rhotheta_src.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        rhotheta_src.resize(max_level+1);
         for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2);
-            h_rhotheta_src[lev].resize(domlen, 0.0_rt);
-            d_rhotheta_src[lev].resize(domlen, 0.0_rt);
+            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
+            for (auto& b : bl_src) {
+                if (solverChoice.spatial_rhotheta_forcing)
+                {
+                    // define source only in X,Y if spatial, otherwise Z
+                    b.setRange(2, 0, 1);
+                } else {
+                    b.setRange(0, 0, 1);
+                    b.setRange(1, 0, 1);
+                }
+            }
+            BoxArray ba_src(std::move(bl_src));
+            rhotheta_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+            rhotheta_src[lev]->setVal(0.);
             prob->update_rhotheta_sources(t_new[0],
-                                          h_rhotheta_src[lev], d_rhotheta_src[lev],
+                                          rhotheta_src[lev].get(),
                                           geom[lev], z_phys_cc[lev]);
         }
     }
@@ -787,14 +800,24 @@ ERF::InitData ()
 
     if (solverChoice.custom_moisture_forcing)
     {
-        h_rhoqt_src.resize(max_level+1, Vector<Real>(0));
-        d_rhoqt_src.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        rhoqt_src.resize(max_level+1);
         for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2);
-            h_rhoqt_src[lev].resize(domlen, 0.0_rt);
-            d_rhoqt_src[lev].resize(domlen, 0.0_rt);
+            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
+            for (auto& b : bl_src) {
+                if (solverChoice.spatial_moisture_forcing)
+                {
+                    // define source only in X,Y if spatial, otherwise Z
+                    b.setRange(2, 0, 1);
+                } else {
+                    b.setRange(0, 0, 1);
+                    b.setRange(1, 0, 1);
+                }
+            }
+            BoxArray ba_src(std::move(bl_src));
+            rhoqt_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+            rhoqt_src[lev]->setVal(0.);
             prob->update_rhoqt_sources(t_new[0],
-                                       h_rhoqt_src[lev], d_rhoqt_src[lev],
+                                       rhoqt_src[lev].get(),
                                        geom[lev], z_phys_cc[lev]);
         }
     }

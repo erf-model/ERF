@@ -232,12 +232,11 @@ Problem::init_custom_pert (
 //=============================================================================
 void
 Problem::update_rhotheta_sources (const Real& /*time*/,
-                                  Vector<Real>& src,
-                                  Gpu::DeviceVector<Real>& d_src,
+                                  amrex::MultiFab* src,
                                   const Geometry& geom,
                                   std::unique_ptr<MultiFab>& z_phys_cc)
 {
-    if (src.empty()) return;
+    if (src->empty()) return;
 
     const int khi       = geom.Domain().bigEnd()[2];
     const Real* prob_lo = geom.ProbLo();
@@ -254,20 +253,28 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
     }
 
     // Only apply temperature source below nominal inversion height
-    for (int k = 0; k <= khi; k++) {
-        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
-        if (z_cc < parms.cutoff) {
-            src[k] = parms.advection_heating_rate;
-        } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
-            Real slope = -parms.advection_heating_rate / parms.cutoff_transition;
-            src[k] = (z_cc-parms.cutoff) * slope + parms.advection_heating_rate;
+    for ( amrex::MFIter mfi(*src, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        const auto &box = mfi.tilebox();
+        const Array4<Real>& src_arr = src->array(mfi);
+        if (box.length(2) == 1)
+        {
+            src->setVal(0.0);
         } else {
-            src[k] = 0.0;
+            bool use_zlevels = (z_phys_cc != nullptr);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real z_cc = (use_zlevels) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+                if (z_cc < parms.cutoff) {
+                    src_arr(i, j, k) = parms.advection_heating_rate;
+                } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
+                    Real slope = -parms.advection_heating_rate / parms.cutoff_transition;
+                    src_arr(i, j, k) = (z_cc-parms.cutoff) * slope + parms.advection_heating_rate;
+                } else {
+                    src_arr(i, j, k) = 0.0;
+                }
+            });
         }
     }
-
-    // Copy from host version to device version
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, src.begin(), src.end(), d_src.begin());
 }
 
 //=============================================================================
@@ -275,12 +282,11 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
 //=============================================================================
 void
 Problem::update_rhoqt_sources (const Real& /*time*/,
-                               Vector<Real>& qsrc,
-                               Gpu::DeviceVector<Real>& d_qsrc,
+                               amrex::MultiFab* qsrc,
                                const Geometry& geom,
                                std::unique_ptr<MultiFab>& z_phys_cc)
 {
-    if (qsrc.empty()) return;
+    if (qsrc->empty()) return;
 
     const int khi       = geom.Domain().bigEnd()[2];
     const Real* prob_lo = geom.ProbLo();
@@ -297,20 +303,29 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
     }
 
     // Only apply temperature source below nominal inversion height
-    for (int k = 0; k <= khi; k++) {
-        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
-        if (z_cc < parms.moisture_cutoff) {
-            qsrc[k] = parms.advection_moisture_rate;
-        } else if (z_cc < parms.moisture_cutoff+parms.moisture_cutoff_transition) {
-            Real slope = -parms.advection_moisture_rate / parms.moisture_cutoff_transition;
-            qsrc[k] = (z_cc-parms.moisture_cutoff) * slope + parms.advection_moisture_rate;
+    for ( amrex::MFIter mfi(*qsrc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        const auto &box = mfi.tilebox();
+        const Array4<Real>& qsrc_arr = qsrc->array(mfi);
+        if (box.length(2) == 1)
+        {
+            // spatially varying source not used in this problem
+            qsrc->setVal(0.0);
         } else {
-            qsrc[k] = 0.0;
+            bool use_zlevels = (z_phys_cc != nullptr);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real z_cc = (use_zlevels) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+                if (z_cc < parms.moisture_cutoff) {
+                    qsrc_arr(i, j, k) = parms.advection_moisture_rate;
+                } else if (z_cc < parms.moisture_cutoff+parms.moisture_cutoff_transition) {
+                    Real slope = -parms.advection_moisture_rate / parms.moisture_cutoff_transition;
+                    qsrc_arr(i, j, k) = (z_cc-parms.moisture_cutoff) * slope + parms.advection_moisture_rate;
+                } else {
+                    qsrc_arr(i, j, k) = 0.0;
+                }
+            });
         }
     }
-
-    // Copy from host version to device version
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, qsrc.begin(), qsrc.end(), d_qsrc.begin());
 }
 
 //=============================================================================

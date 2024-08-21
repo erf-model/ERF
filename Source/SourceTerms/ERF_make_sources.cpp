@@ -41,8 +41,8 @@ void make_sources (int level,
                    const SolverChoice& solverChoice,
                    std::unique_ptr<MultiFab>& mapfac_u,
                    std::unique_ptr<MultiFab>& mapfac_v,
-                   const Real* dptr_rhotheta_src,
-                   const Real* dptr_rhoqt_src,
+                   const MultiFab* rhotheta_src,
+                   const MultiFab* rhoqt_src,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
                    InputSoundingData& input_sounding_data,
@@ -216,17 +216,34 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.custom_rhotheta_forcing) {
             const int n = RhoTheta_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_src(i, j, k, n) += cell_data(i,j,k,nr) * dptr_rhotheta_src[k];
-                });
+            auto const& rhotheta_src_arr = rhotheta_src->const_array(mfi);
+            if (solverChoice.spatial_rhotheta_forcing)
+            {
+                if (solverChoice.custom_forcing_prim_vars) {
+                    const int nr = Rho_comp;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, 0, n) += cell_data(i,j,k,nr) * rhotheta_src_arr(i, j, 0);
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, 0, n) += rhotheta_src_arr(i, j, 0);
+                    });
+                }
             } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_src(i, j, k, n) += dptr_rhotheta_src[k];
-                });
+                if (solverChoice.custom_forcing_prim_vars) {
+                    const int nr = Rho_comp;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += cell_data(i,j,k,nr) * rhotheta_src_arr(0, 0, k);
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += rhotheta_src_arr(0, 0, k);
+                    });
+                }
             }
         }
 
@@ -235,17 +252,34 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.custom_moisture_forcing) {
             const int n = RhoQ1_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_src(i, j, k, n) += cell_data(i,j,k,nr) * dptr_rhoqt_src[k];
-                });
+            auto const& rhoqt_src_arr = rhoqt_src->const_array(mfi);
+            if (solverChoice.spatial_moisture_forcing)
+            {
+                if (solverChoice.custom_forcing_prim_vars) {
+                    const int nr = Rho_comp;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, 0, n) += cell_data(i,j,k,nr) * rhoqt_src_arr(i, j, 0);
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, 0, n) += rhoqt_src_arr(i, j, 0);
+                    });
+                }
             } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_src(i, j, k, n) += dptr_rhoqt_src[k];
-                });
+                if (solverChoice.custom_forcing_prim_vars) {
+                    const int nr = Rho_comp;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += cell_data(i,j,k,nr) * rhoqt_src_arr(0, 0, k);
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += rhoqt_src_arr(0, 0, k);
+                    });
+                }
             }
         }
 

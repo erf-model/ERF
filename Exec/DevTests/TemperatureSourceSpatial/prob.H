@@ -37,10 +37,11 @@ struct ProbParm : ProbParmDefaults {
   //==============================================
   // USER-DEFINED INPUTS
   // source terms
-  amrex::Real advection_heating_rate;
+  amrex::Real advection_heating_rate = 5.4e-5;
   amrex::Real restart_time = 9e9;
   amrex::Real cutoff = 500.0;
   amrex::Real cutoff_transition = 50.0;
+  amrex::Real advection_moisture_rate = 1.0e-8;
   //==============================================
 
   // helper vars
@@ -84,8 +85,14 @@ public:
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
+    void update_rhoqt_sources (
+        const amrex::Real& time,
+        amrex::MultiFab* qsrc,
+        const amrex::Geometry& geom,
+        std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
+
 protected:
-    std::string name() override { return "ABL"; }
+    std::string name() override { return "TemperatureSourceSpatial"; }
 
 private:
     ProbParm parms;

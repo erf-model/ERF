@@ -43,6 +43,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   //===========================================================================
   // READ USER-DEFINED INPUTS
   pp.get("advection_heating_rate", parms.advection_heating_rate);
+  pp.query("advection_moisture_rate", parms.advection_moisture_rate);
   pp.query("restart_time",parms.restart_time);
   pp.query("source_cutoff", parms.cutoff);
   pp.query("source_cutoff_transition", parms.cutoff_transition);
@@ -188,8 +189,6 @@ Problem::update_rhotheta_sources (
     if (src->empty()) return;
 
     const int khi              = geom.Domain().bigEnd()[2];
-    const amrex::Real* prob_lo = geom.ProbLo();
-    const auto dx              = geom.CellSize();
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
@@ -198,35 +197,92 @@ Problem::update_rhotheta_sources (
     if (z_phys_cc && zlevels.empty()) {
         amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
-        reduce_to_max_per_height(zlevels, z_phys_cc);
+        reduce_to_max_per_level(zlevels, z_phys_cc);
     }
 
-    if (time < parms.restart_time) {
-        // Uniform temperature source
-        src->setVal(parms.advection_heating_rate);
-    } else {
-        // Only apply temperature source below nominal inversion height
-        for ( amrex::MFIter mfi(*src, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    // Only apply temperature source below nominal inversion height
+    for ( amrex::MFIter mfi(*src, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        const auto &box = mfi.tilebox();
+        const Array4<Real>& src_arr = src->array(mfi);
+        if (box.length(2) == 1)
         {
-            const auto &box = mfi.tilebox();
-            const Array4<Real>& src_arr = src->array(mfi);
-            if (box.length(2) == 1)
-            {
-                // spatially varying source not used in this problem
-                src->setVal(0.0);
-            } else {
-                bool use_zlevels = (z_phys_cc != nullptr);
-                ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    const Real z_cc = (use_zlevels) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
-                    if (z_cc < parms.cutoff) {
-                        src_arr(i, j, k) = parms.advection_heating_rate;
-                    } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
-                        src_arr(i, j, k) = parms.advection_heating_rate * (z_cc-parms.cutoff)/parms.cutoff_transition;
-                    } else {
-                        src_arr(i, j, k) = 0.0;
-                    }
-                });
-            }
+            // if z dimension size is 1, then src is a spatially varying function over x,y at k=0
+            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                const Real* prob_lo = geom.ProbLo();
+                const Real* prob_hi = geom.ProbHi();
+                const Real* dx = geom.CellSize();
+                const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                const Real y = prob_lo[1] + (j + 0.5) * dx[1];
+
+                // Define a point (xc,yc,zc) at the center of the domain
+                const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
+                const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
+
+                const Real c = 2.0*dx[0];
+                const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
+
+                src_arr(i, j, 0) = parms_d.advection_heating_rate*exp(-r / (c*c));
+            });
+        } else {
+            // src is a function over Z
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                src_arr(i, j, k) = 0.0;
+            });
+        }
+    }
+}
+
+void
+Problem::update_rhoqt_sources (
+    const amrex::Real& time,
+    amrex::MultiFab* qsrc,
+    const amrex::Geometry& geom,
+    std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+{
+    if (qsrc->empty()) return;
+
+    const int khi              = geom.Domain().bigEnd()[2];
+
+    // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
+    // varies in time and or space, then the the height needs to be
+    // calculated at each time step. Here, we assume that only grid
+    // stretching exists.
+    if (z_phys_cc && zlevels.empty()) {
+        amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
+        zlevels.resize(khi+1);
+        reduce_to_max_per_level(zlevels, z_phys_cc);
+    }
+
+    // Only apply temperature source below nominal inversion height
+    for ( amrex::MFIter mfi(*qsrc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        const auto &box = mfi.tilebox();
+        const Array4<Real>& qsrc_arr = qsrc->array(mfi);
+        if (box.length(2) == 1)
+        {
+            // if z dimension size is 1, then src is a spatially varying function over x,y at k=0
+            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                const Real* prob_lo = geom.ProbLo();
+                const Real* prob_hi = geom.ProbHi();
+                const Real* dx = geom.CellSize();
+                const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                const Real y = prob_lo[1] + (j + 0.5) * dx[1];
+
+                // Define a point (xc,yc,zc) at the center of the domain
+                const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
+                const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
+
+                const Real c = 2.0*dx[0];
+                const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
+
+                qsrc_arr(i, j, 0) = parms_d.advection_moisture_rate*exp(-r / (c*c));
+            });
+        } else {
+            // src is a function over Z
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                qsrc_arr(i, j, k) = 0.0;
+            });
         }
     }
 }
