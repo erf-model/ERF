@@ -544,11 +544,12 @@ ABLMost::get_lsm_tsurf (const int& lev)
 
 void
 ABLMost::update_pblh (const int& lev,
-                      Vector<Vector<MultiFab>>& vars)
+                      Vector<Vector<MultiFab>>& vars,
+                       MultiFab* z_phys_cc)
 {
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
-        compute_pblh(lev, vars, estimator);
+        compute_pblh(lev, vars, z_phys_cc, estimator);
     } else if (pblh_type == PBLHeightCalcType::YSU) {
         amrex::Error("YSU PBLH calc not implemented yet");
     }
@@ -558,8 +559,12 @@ template <typename PBLHeightEstimator>
 void
 ABLMost::compute_pblh (const int& lev,
                        Vector<Vector<MultiFab>>& vars,
+                       MultiFab* z_phys_cc,
                        const PBLHeightEstimator& est)
 {
+    const int klo = 0;
+    const Real dz_no_terrain = m_geom[lev].CellSize(2);
+
     int moist_flag = 0;
     int n_qstate = vars[lev][Vars::cons].nComp() - (NVAR_max - NMOIST_max);
     if (n_qstate > 3) {
@@ -572,6 +577,8 @@ ABLMost::compute_pblh (const int& lev,
     {
         Box gtbx = mfi.growntilebox();
 
+        const auto zphys_arr = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<const Real>{};
+
         const auto cons_arr   = vars[lev][Vars::cons].const_array(mfi);
         const auto u_star_arr = u_star[lev]->const_array(mfi);
         const auto t_star_arr = t_star[lev]->const_array(mfi);
@@ -581,7 +588,10 @@ ABLMost::compute_pblh (const int& lev,
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            pblh_arr(i,j,k) = est.compute_pblh(i,j,k,cons_arr,u_star_arr,t_star_arr,lmask_arr,moist_flag);
+            pblh_arr(i,j,k) = est.compute_pblh(i,j,k,
+                                               dz_no_terrain,zphys_arr,
+                                               cons_arr,u_star_arr,t_star_arr,lmask_arr,
+                                               moist_flag);
         });
     }
 }

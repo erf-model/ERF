@@ -326,12 +326,14 @@ public:
     /* wrapper around compute_pblh */
     void
     update_pblh (const int& lev,
-                 amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars);
+                 amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
+                 amrex::MultiFab* z_phys_cc);
 
     template <typename PBLHeightEstimator>
     void
     compute_pblh (const int& lev,
                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
+                  amrex::MultiFab* z_phys_cc,
                   const PBLHeightEstimator& est);
 
     void

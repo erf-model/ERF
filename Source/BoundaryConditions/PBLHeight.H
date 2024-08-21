@@ -16,6 +16,8 @@ struct MYNNPBLH {
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real compute_pblh(int i, int j, int k,
+                             const amrex::Real dz,
+                             const amrex::Array4<const amrex::Real>& zphys_arr,
                              const amrex::Array4<const amrex::Real>& cons_arr,
                              const amrex::Array4<const amrex::Real>& u_star_arr,
                              const amrex::Array4<const amrex::Real>& t_star_arr,
