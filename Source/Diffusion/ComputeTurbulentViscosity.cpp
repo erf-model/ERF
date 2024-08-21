@@ -75,7 +75,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
       {
           // NOTE: This gets us the lateral ghost cells for lev>0; which
           //       have been filled from FP Two Levels.
-          Box bxcc  = mfi.growntilebox() & domain;
+          Box bxcc  = mfi.growntilebox(1) & domain;
 
           const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
           const Array4<Real>& hfx_x   = Hfx1.array(mfi);
