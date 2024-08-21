@@ -163,7 +163,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto bin_start = offsets[i_bin];
                 auto bin_stop = offsets[i_bin+1];
                 auto np_bin = bin_stop - bin_start;
-                Gpu::Atomic::Max(max_np_bin_ptr, np_bin);
+                Gpu::Atomic::Max(max_np_bin_ptr, static_cast<unsigned int>(np_bin));
             });
             Gpu::synchronize();
             auto max_np_bin = *(max_np_bin_d.copyToHost());
