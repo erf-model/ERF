@@ -336,21 +336,32 @@ WindFarm::write_actuator_disks_vtk(const Geometry& geom)
 
         int npts = 100;
         fprintf(file_actuator_disks_all, "%s %ld %s\n", "POINTS", xloc.size()*npts, "float");
-        fprintf(file_actuator_disks_in_dom, "%s %ld %s\n", "POINTS", xloc.size()*npts, "float");
         auto ProbLoArr = geom.ProbLoArray();
         auto ProbHiArr = geom.ProbHiArray();
         int num_turb_in_dom = 0;
+
+        // Find the number of turbines inside the specified computational domain
+
         for(int it=0; it<xloc.size(); it++){
+            Real x = xloc[it];
+            Real y = yloc[it];
+            if(x > ProbLoArr[0] and x < ProbHiArr[0] and y > ProbLoArr[1] and y < ProbHiArr[1]) {
+                num_turb_in_dom++;
+            }
+        }
+        fprintf(file_actuator_disks_in_dom, "%s %ld %s\n", "POINTS", num_turb_in_dom*npts, "float");
+
+        for(int it=0; it<xloc.size(); it++){
+            Real x;
+            x = xloc[it]+1e-12;
             for(int pt=0;pt<100;pt++){
-                Real x, y, z;
+                Real y, z;
                 Real theta = 2.0*M_PI/npts*pt;
-                x = xloc[it]+1e-12;
                 y = yloc[it]+rotor_rad*cos(theta);
                 z = hub_height+rotor_rad*sin(theta);
                 fprintf(file_actuator_disks_all, "%0.15g %0.15g %0.15g\n", x, y, z);
-                if(x > ProbLoArr[0] and x < ProbHiArr[0] and y > ProbLoArr[1] and y < ProbHiArr[1]) {
+                if(xloc[it] > ProbLoArr[0] and xloc[it] < ProbHiArr[0] and yloc[it] > ProbLoArr[1] and yloc[it] < ProbHiArr[1]) {
                     fprintf(file_actuator_disks_in_dom, "%0.15g %0.15g %0.15g\n", x, y, z);
-                    num_turb_in_dom++;
                 }
             }
         }
