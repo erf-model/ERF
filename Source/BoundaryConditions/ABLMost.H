@@ -12,8 +12,7 @@
 #include <MOSTAverage.H>
 #include <MOSTStress.H>
 #include <TerrainMetrics.H>
-
-#include <MYNNStruct.H>
+#include <PBLHeight.H>
 
 /** Monin-Obukhov surface layer profile
  *
