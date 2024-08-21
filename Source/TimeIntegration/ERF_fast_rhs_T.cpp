@@ -577,17 +577,22 @@ void erf_fast_rhs_T (int step, int nrk,
 
         {
         BL_PROFILE("fast_rhs_new_drhow_t");
+        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+              cur_zmom(i,j,k) = stage_zmom(i,j,k);
+        });
+
+        // If operating at lev > 0 where we don't touch the bottom or top boundary,
+        //    the z-momentum is given by interpolation from the coarser level so we
+        //    don't need to update that here
         if (tbz.smallEnd(2) > 0) {
             tbz.growLo(2,-1);
         }
         tbz.setBig(2,hi.z);
-        // If operating at lev > 0 where we don't touch the bottom or top boundary,
-        //    the z-momentum is given by interpolation from the coarser level so we
-        //    don't need to update that here
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
               Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
-              cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
+              cur_zmom(i,j,k) += wpp;
         });
         } // end profile
 

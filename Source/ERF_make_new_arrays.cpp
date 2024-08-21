@@ -26,7 +26,8 @@ using namespace amrex;
 void
 ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
                  Vector<MultiFab>& lev_new, Vector<MultiFab>& lev_old,
-                 MultiFab& tmp_base_state)
+                 MultiFab& tmp_base_state,
+                 std::unique_ptr<MultiFab>& tmp_zphys_nd)
 {
     if (lev == 0) {
         min_k_at_level[lev] = 0;
@@ -80,10 +81,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
         // We need this to be one greater than the ghost cells to handle levels > 0
         int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 2;
-        z_phys_nd[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
+        tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
+
         if (solverChoice.terrain_type != TerrainType::Static) {
-            z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
-            z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
+            z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
+            z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
         }
 
     } else {
@@ -437,7 +439,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     }
 
     if (l_use_kturb) {
-        eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
+        eddyDiffs_lev[lev] = std::make_unique<MultiFab>(ba, dm, EddyDiff::NumDiffs, 2);
         eddyDiffs_lev[lev]->setVal(0.0);
         if(l_use_ddorf) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
@@ -451,10 +453,9 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 }
 
 void
-ERF::update_terrain_arrays (int lev, Real time)
+ERF::init_zphys (int lev, Real time)
 {
     if (solverChoice.use_terrain) {
-
         //
         // First interpolate from coarser level if there is one
         //
@@ -477,7 +478,7 @@ ERF::update_terrain_arrays (int lev, Real time)
         }
 
         //
-        // NOTE: we are not currently doing this as described -- we will simply use
+        // NOTE: we are NOT currently doing this as described -- we will simply use
         //       the interpolation from coarse done above
         // Then, if not using real/metgrid data,
         // 1) redefine the terrain at k=0 for every fine box which includes k=0
@@ -500,7 +501,37 @@ ERF::update_terrain_arrays (int lev, Real time)
                 init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag,phys_bc_type);
             } // init_type
         } // lev == 0
+    }
+}
 
+void
+ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
+{
+    if (solverChoice.use_terrain && lev > 0) {
+
+        Vector<MultiFab*> fmf = {z_phys_nd[lev].get(), z_phys_nd[lev].get()};
+        Vector<MultiFab*> cmf = {z_phys_nd[lev-1].get(), z_phys_nd[lev-1].get()};
+        Vector<Real> ftime    = {time, time};
+        Vector<Real> ctime    = {time, time};
+
+        PhysBCFunctNoOp null_bc;
+        Interpolater* mapper = &node_bilinear_interp;
+
+        FillPatchTwoLevels(*temp_zphys_nd, time,
+                           cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           null_bc, 0, null_bc, 0, refRatio(lev-1),
+                           mapper, domain_bcs_type, 0);
+
+        std::swap(temp_zphys_nd, z_phys_nd[lev]);
+
+    } // use_terrain && lev > 0
+}
+
+void
+ERF::update_terrain_arrays (int lev)
+{
+    if (solverChoice.use_terrain) {
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);

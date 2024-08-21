@@ -75,7 +75,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
       {
           // NOTE: This gets us the lateral ghost cells for lev>0; which
           //       have been filled from FP Two Levels.
-          Box bxcc  = mfi.growntilebox() & domain;
+          Box bxcc  = mfi.growntilebox(1) & domain;
 
           const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
           const Array4<Real>& hfx_x   = Hfx1.array(mfi);
@@ -201,7 +201,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 }
-                Real E              = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
+                Real E              = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp),Real(0.0));
                 Real stratification = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
                 Real length;
                 if (stratification <= eps) {
