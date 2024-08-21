@@ -563,6 +563,7 @@ ABLMost::compute_pblh (const int& lev,
                        const PBLHeightEstimator& est)
 {
     const int klo = 0;
+    Box const& domain = m_geom[lev].Domain();
     const Real dz_no_terrain = m_geom[lev].CellSize(2);
 
     int moist_flag = 0;
@@ -573,25 +574,8 @@ ABLMost::compute_pblh (const int& lev,
         moist_flag = 1;
     }
 
-    for (MFIter mfi(*pblh[lev]); mfi.isValid(); ++mfi)
-    {
-        Box gtbx = mfi.growntilebox();
-
-        const auto zphys_arr = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<const Real>{};
-
-        const auto cons_arr   = vars[lev][Vars::cons].const_array(mfi);
-        const auto u_star_arr = u_star[lev]->const_array(mfi);
-        const auto t_star_arr = t_star[lev]->const_array(mfi);
-              auto pblh_arr   = pblh[lev]->array(mfi);
-
-        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->const_array(mfi) : Array4<int> {};
-
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            pblh_arr(i,j,k) = est.compute_pblh(i,j,k,
-                                               dz_no_terrain,zphys_arr,
-                                               cons_arr,u_star_arr,t_star_arr,lmask_arr,
-                                               moist_flag);
-        });
-    }
+    est.compute_pblh(domain,dz_no_terrain,z_phys_cc,
+                     pblh[lev].get(),u_star[lev].get(),t_star[lev].get(),
+                     vars[lev][Vars::cons],m_lmask_lev[lev][0],
+                     moist_flag);
 }
