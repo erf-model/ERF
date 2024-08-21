@@ -13,6 +13,8 @@
 #include <MOSTStress.H>
 #include <TerrainMetrics.H>
 
+#include <MYNNStruct.H>
+
 /** Monin-Obukhov surface layer profile
  *
  * van der Laan, P., Kelly, M. C., & Sørensen, N. N. (2017). A new k-epsilon
@@ -76,6 +78,27 @@ public:
             } else {
                 amrex::Abort("Undefined MOST flux type!");
             }
+        }
+
+        // Surface wind speed corrections
+        // - Include w* to handle free convection (Beljaars 1995, QJRMS)
+        pp.query("most.include_wstar", include_wstar);
+        // - include subgrid velocity scale to handle weak large-scale flow (Mahrt & Sun 1995, MWR)
+        pp.query("most.include_subgrid_vel", include_subgrid_vel);
+
+        std::string pblh_string{"none"};
+        pp.query("most.pblh_calc", pblh_string);
+        if (pblh_string == "none") {
+            pblh_type = PBLHeightCalcType::None;
+        } else if (pblh_string == "MYNN2.5") {
+            pblh_type = PBLHeightCalcType::MYNN25;
+        } else if (pblh_string == "YSU") {
+            pblh_type = PBLHeightCalcType::YSU;
+        } else {
+            amrex::Abort("Undefined PBLH calc type!");
+        }
+        if (include_wstar) {
+            AMREX_ALWAYS_ASSERT(pblh_type != PBLHeightCalcType::None);
         }
 
         // Get surface temperature
@@ -149,6 +172,7 @@ public:
         q_star.resize(nlevs);
         t_surf.resize(nlevs);
         olen.resize(nlevs);
+        pblh.resize(nlevs);
 
         // Get pointers to SST and LANDMASK data
         m_sst_lev.resize(nlevs);
@@ -219,13 +243,16 @@ public:
             u_star[lev]->setVal(1.E34);
 
             t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-            t_star[lev]->setVal(1.E34);
+            t_star[lev]->setVal(0.0); // default to neutral
 
             q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             q_star[lev]->setVal(0.0); // default to dry
 
             olen[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             olen[lev]->setVal(1.E34);
+
+            pblh[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+            pblh[lev]->setVal(1.E34);
 
             t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
 
@@ -271,7 +298,7 @@ public:
                      amrex::MultiFab* zqv_flux,
                      amrex::MultiFab* z_phys);
 
-    template<typename FluxCalc>
+    template <typename FluxCalc>
     void
     compute_most_bcs (const int& lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
@@ -296,6 +323,17 @@ public:
 
     void
     get_lsm_tsurf (const int& lev);
+
+    /* wrapper around compute_pblh */
+    void
+    update_pblh (const int& lev,
+                 amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars);
+
+    template <typename PBLHeightEstimator>
+    void
+    compute_pblh (const int& lev,
+                  amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
+                  const PBLHeightEstimator& est);
 
     void
     update_surf_temp (const amrex::Real& time)
@@ -334,6 +372,9 @@ public:
     get_olen (const int& lev) { return olen[lev].get(); }
 
     const amrex::MultiFab*
+    get_pblh (const int& lev) { return pblh[lev].get(); }
+
+    const amrex::MultiFab*
     get_mac_avg (const int& lev, int comp) { return m_ma.get_average(lev,comp); }
 
     const amrex::MultiFab*
@@ -365,15 +406,22 @@ public:
         WAVE_COUPLED
     };
 
+    enum struct PBLHeightCalcType {
+        None, MYNN25, YSU
+    };
+
     FluxCalcType   flux_type{FluxCalcType::MOENG};
     ThetaCalcType theta_type{ThetaCalcType::ADIABATIC};
     RoughCalcType rough_type_land{RoughCalcType::CONSTANT};
     RoughCalcType rough_type_sea{RoughCalcType::CHARNOCK};
+    PBLHeightCalcType pblh_type{PBLHeightCalcType::None};
 
 private:
     bool use_moisture;
     bool m_exp_most = false;
     bool m_rotate   = false;
+    bool include_wstar = false;
+    bool include_subgrid_vel = false;
     amrex::Real z0_const{0.1};
     amrex::Real surf_temp;
     amrex::Real surf_heating_rate{0};
@@ -393,6 +441,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> olen;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pblh;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
 
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_sst_lev;

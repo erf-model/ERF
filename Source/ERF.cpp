@@ -985,6 +985,7 @@ ERF::InitData ()
                 MultiFab::Divide(*Qr_prim[lev], Sm, Rho_comp  , 0, 1, ng);
             }
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
+            m_most->update_pblh(lev, vars_new);
             m_most->update_fluxes(lev, time);
         }
     }

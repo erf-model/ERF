@@ -1,5 +1,4 @@
 #include <ABLMost.H>
-#include <MOSTAverage.H>
 
 using namespace amrex;
 
@@ -154,6 +153,7 @@ ABLMost::compute_fluxes (const int& lev,
         auto q_star_arr = q_star[lev]->array(mfi);
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto olen_arr   = olen[lev]->array(mfi);
+        auto pblh_arr   = pblh[lev]->array(mfi);
 
         const auto tm_arr  = tm_ptr->array(mfi);
         const auto tvm_arr = tvm_ptr->array(mfi);
@@ -270,7 +270,7 @@ ABLMost::impose_most_bcs (const int& lev,
  * @param[in] eddyDiffs Diffusion coefficients from turbulence model
  * @param[in] flux_comp structure to compute fluxes
  */
-template<typename FluxCalc>
+template <typename FluxCalc>
 void
 ABLMost::compute_most_bcs (const int& lev,
                            const Vector<MultiFab*>& mfs,
@@ -538,6 +538,50 @@ ABLMost::get_lsm_tsurf (const int& lev)
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 t_surf_arr(i,j,k) = lsm_arr(li,lj,k);
             }
+        });
+    }
+}
+
+void
+ABLMost::update_pblh (const int& lev,
+                      Vector<Vector<MultiFab>>& vars)
+{
+    if (pblh_type == PBLHeightCalcType::MYNN25) {
+        MYNNPBLH estimator;
+        compute_pblh(lev, vars, estimator);
+    } else if (pblh_type == PBLHeightCalcType::YSU) {
+        amrex::Error("YSU PBLH calc not implemented yet");
+    }
+}
+
+template <typename PBLHeightEstimator>
+void
+ABLMost::compute_pblh (const int& lev,
+                       Vector<Vector<MultiFab>>& vars,
+                       const PBLHeightEstimator& est)
+{
+    int moist_flag = 0;
+    int n_qstate = vars[lev][Vars::cons].nComp() - (NVAR_max - NMOIST_max);
+    if (n_qstate > 3) {
+        moist_flag = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
+    } else if (n_qstate > 0) {
+        moist_flag = 1;
+    }
+
+    for (MFIter mfi(*pblh[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        const auto cons_arr   = vars[lev][Vars::cons].const_array(mfi);
+        const auto u_star_arr = u_star[lev]->const_array(mfi);
+        const auto t_star_arr = t_star[lev]->const_array(mfi);
+              auto pblh_arr   = pblh[lev]->array(mfi);
+
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->const_array(mfi) : Array4<int> {};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            pblh_arr(i,j,k) = est.compute_pblh(i,j,k,cons_arr,u_star_arr,t_star_arr,lmask_arr,moist_flag);
         });
     }
 }

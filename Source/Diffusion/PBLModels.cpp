@@ -57,10 +57,10 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
         for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
             const Box &bx = mfi.growntilebox(1);
-            const Array4<Real const> &cell_data     = cons_in.array(mfi);
-            const Array4<Real      > &K_turb = eddyViscosity.array(mfi);
-            const Array4<Real const> &uvel = xvel.array(mfi);
-            const Array4<Real const> &vvel = yvel.array(mfi);
+            const Array4<Real const> &cell_data = cons_in.array(mfi);
+            const Array4<Real      > &K_turb    = eddyViscosity.array(mfi);
+            const Array4<Real const> &uvel      = xvel.array(mfi);
+            const Array4<Real const> &vvel      = yvel.array(mfi);
 
             // Compute some quantities that are constant in each column
             // Sbox is shrunk to only include the interior of the domain in the vertical direction to compute integrals
@@ -137,14 +137,16 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const auto& u_star_mf = most->get_u_star(level);
             const auto& t_star_mf = most->get_t_star(level);
             const auto& q_star_mf = most->get_q_star(level);
+            const auto& pblh_mf   = most->get_pblh(level);
 
-            const auto& tm_arr     = t_mean_mf->array(mfi);
-            const auto& qm_arr     = q_mean_mf->array(mfi);
-            const auto& u_star_arr = u_star_mf->array(mfi);
-            const auto& t_star_arr = t_star_mf->array(mfi);
-            const auto& q_star_arr = (use_moisture) ? q_star_mf->array(mfi) : Array4<Real>{};
+            const auto& tm_arr     = t_mean_mf->const_array(mfi);
+            const auto& qm_arr     = q_mean_mf->const_array(mfi);
+            const auto& u_star_arr = u_star_mf->const_array(mfi);
+            const auto& t_star_arr = t_star_mf->const_array(mfi);
+            const auto& q_star_arr = (use_moisture) ? q_star_mf->const_array(mfi) : Array4<Real>{};
+                  auto  pblh_arr   = pblh_mf->array(mfi);
 
-            const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};
+            const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->const_array(mfi) : Array4<Real>{};
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
