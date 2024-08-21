@@ -447,6 +447,19 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
             mf_comp ++;
         }
+
+        if(containerHasElement(plot_var_names, "SMark") and solverChoice.windfarm_type == WindFarmType::SimpleAD) {
+             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat  = mf[lev].array(mfi);
+                const Array4<Real const>& SMark_array = SMark[lev].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i, j, k, mf_comp) = SMark_array(i,j,k,0);
+                });
+            }
+            mf_comp ++;
+        }
 #endif
 
         int klo = geom[lev].Domain().smallEnd(2);

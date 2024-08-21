@@ -122,6 +122,7 @@ ERF::ERF ()
 #ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
     vars_windfarm.resize(nlevs_max);
+    SMark.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)

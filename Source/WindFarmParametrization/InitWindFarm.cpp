@@ -246,6 +246,58 @@ WindFarm::fill_Nturb_multifab(const Geometry& geom,
 
 
 void
+WindFarm::fill_SMark_multifab(const Geometry& geom,
+                              MultiFab& mf_SMark,
+                              const Real& sampling_distance_by_D)
+{
+    amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
+    amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
+
+    Real d_rotor_rad = rotor_rad;
+    Real d_hub_height = hub_height;
+    Real d_sampling_distance = sampling_distance_by_D*2.0*rotor_rad;
+
+    Real* d_xloc_ptr     = d_xloc.data();
+    Real* d_yloc_ptr     = d_yloc.data();
+
+    mf_SMark.setVal(0);
+
+    int i_lo = geom.Domain().smallEnd(0); int i_hi = geom.Domain().bigEnd(0);
+    int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
+    int k_lo = geom.Domain().smallEnd(2); int k_hi = geom.Domain().bigEnd(2);
+    auto dx = geom.CellSizeArray();
+    auto ProbLoArr = geom.ProbLoArray();
+    int num_turb = xloc.size();
+
+     // Initialize wind farm
+    for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx     = mfi.tilebox();
+        auto  SMark_array = mf_SMark.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            int ii = amrex::min(amrex::max(i, i_lo), i_hi);
+            int jj = amrex::min(amrex::max(j, j_lo), j_hi);
+            int kk = amrex::min(amrex::max(k, k_lo), k_hi);
+
+            Real x1 = ProbLoArr[0] + ii*dx[0];
+            Real x2 = ProbLoArr[0] + (ii+1)*dx[0];
+
+            Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
+            Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
+
+            for(int it=0; it<num_turb; it++){
+                if(d_xloc_ptr[it]-d_sampling_distance+1e-12 > x1 and d_xloc_ptr[it]-d_sampling_distance+1e-12 < x2) {
+                   if(std::pow((y-d_yloc_ptr[it])*(y-d_yloc_ptr[it]) + (z-d_hub_height)*(z-d_hub_height),0.5) < d_rotor_rad) {
+                       SMark_array(i,j,k,0) = it;
+                    }
+                }
+            }
+        });
+    }
+}
+
+void
 WindFarm::write_turbine_locations_vtk()
 {
     if (ParallelDescriptor::IOProcessor()){
@@ -265,17 +317,29 @@ WindFarm::write_turbine_locations_vtk()
 
 
 void
-WindFarm::write_actuator_disks_vtk()
+WindFarm::write_actuator_disks_vtk(const Geometry& geom)
 {
+
     if (ParallelDescriptor::IOProcessor()){
-        FILE* file_actuator_disks;
-        file_actuator_disks = fopen("actuator_disks.vtk","w");
-        fprintf(file_actuator_disks, "%s\n","# vtk DataFile Version 3.0");
-        fprintf(file_actuator_disks, "%s\n","Actuator Disks");
-        fprintf(file_actuator_disks, "%s\n","ASCII");
-        fprintf(file_actuator_disks, "%s\n","DATASET POLYDATA");
+        FILE *file_actuator_disks_all, *file_actuator_disks_in_dom;
+        file_actuator_disks_all = fopen("actuator_disks_all.vtk","w");
+        fprintf(file_actuator_disks_all, "%s\n","# vtk DataFile Version 3.0");
+        fprintf(file_actuator_disks_all, "%s\n","Actuator Disks");
+        fprintf(file_actuator_disks_all, "%s\n","ASCII");
+        fprintf(file_actuator_disks_all, "%s\n","DATASET POLYDATA");
+
+        file_actuator_disks_in_dom = fopen("actuator_disks_in_dom.vtk","w");
+        fprintf(file_actuator_disks_in_dom, "%s\n","# vtk DataFile Version 3.0");
+        fprintf(file_actuator_disks_in_dom, "%s\n","Actuator Disks");
+        fprintf(file_actuator_disks_in_dom, "%s\n","ASCII");
+        fprintf(file_actuator_disks_in_dom, "%s\n","DATASET POLYDATA");
+
         int npts = 100;
-        fprintf(file_actuator_disks, "%s %ld %s\n", "POINTS", xloc.size()*npts, "float");
+        fprintf(file_actuator_disks_all, "%s %ld %s\n", "POINTS", xloc.size()*npts, "float");
+        fprintf(file_actuator_disks_in_dom, "%s %ld %s\n", "POINTS", xloc.size()*npts, "float");
+        auto ProbLoArr = geom.ProbLoArray();
+        auto ProbHiArr = geom.ProbHiArray();
+        int num_turb_in_dom = 0;
         for(int it=0; it<xloc.size(); it++){
             for(int pt=0;pt<100;pt++){
                 Real x, y, z;
@@ -283,19 +347,34 @@ WindFarm::write_actuator_disks_vtk()
                 x = xloc[it]+1e-12;
                 y = yloc[it]+rotor_rad*cos(theta);
                 z = hub_height+rotor_rad*sin(theta);
-                fprintf(file_actuator_disks, "%0.15g %0.15g %0.15g\n", x, y, z);
+                fprintf(file_actuator_disks_all, "%0.15g %0.15g %0.15g\n", x, y, z);
+                if(x > ProbLoArr[0] and x < ProbHiArr[0] and y > ProbLoArr[1] and y < ProbHiArr[1]) {
+                    fprintf(file_actuator_disks_in_dom, "%0.15g %0.15g %0.15g\n", x, y, z);
+                    num_turb_in_dom++;
+                }
             }
         }
-        fprintf(file_actuator_disks, "%s %ld %ld\n", "LINES", xloc.size()*(npts-1), static_cast<long int>(xloc.size()*(npts-1)*3));
+        fprintf(file_actuator_disks_all, "%s %ld %ld\n", "LINES", xloc.size()*(npts-1), static_cast<long int>(xloc.size()*(npts-1)*3));
+        fprintf(file_actuator_disks_in_dom, "%s %ld %ld\n", "LINES", num_turb_in_dom*(npts-1), static_cast<long int>(num_turb_in_dom*(npts-1)*3));
         for(int it=0; it<xloc.size(); it++){
             for(int pt=0;pt<99;pt++){
-                fprintf(file_actuator_disks, "%ld %ld %ld\n",
+                fprintf(file_actuator_disks_all, "%ld %ld %ld\n",
                                              static_cast<long int>(2),
                                              static_cast<long int>(it*npts+pt),
                                              static_cast<long int>(it*npts+pt+1));
             }
         }
-        fclose(file_actuator_disks);
+         for(int it=0; it<num_turb_in_dom; it++){
+            for(int pt=0;pt<99;pt++){
+                fprintf(file_actuator_disks_in_dom, "%ld %ld %ld\n",
+                                             static_cast<long int>(2),
+                                             static_cast<long int>(it*npts+pt),
+                                             static_cast<long int>(it*npts+pt+1));
+            }
+        }
+
+        fclose(file_actuator_disks_all);
+        fclose(file_actuator_disks_in_dom);
     }
 }
 

@@ -372,6 +372,18 @@ struct SolverChoice {
         pp.query("windfarm_loc_table",  windfarm_loc_table);
         pp.query("windfarm_spec_table", windfarm_spec_table);
 
+        // Sampling distance upstream of the turbine to find the
+        // incoming free stream velocity as a factor of the diameter of the
+        // turbine. ie. the sampling distance will be this number multiplied
+        // by the diameter of the turbine
+        pp.query("sampling_distance_by_D", sampling_distance_by_D);
+        if(windfarm_type==WindFarmType::SimpleAD and sampling_distance_by_D < 0.0) {
+             amrex::Abort("To use simplified actuator disks, you need to provide a variable "
+                           "erf.sampling_distance_by_D in the inputs which specifies the upstream "
+                           "distance as a factor of the turbine diameter at which the incoming free stream "
+                           "velocity will be computed at");
+        }
+
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
     }
@@ -572,5 +584,6 @@ struct SolverChoice {
 
     amrex::Real latitude_lo=-1e10, longitude_lo=-1e10;
     std::string windfarm_loc_table, windfarm_spec_table;
+    amrex::Real sampling_distance_by_D=-1.0;
 };
 #endif
