@@ -75,6 +75,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     const Real dy_inv = cellSizeInv[1];
     const Real dz_inv = cellSizeInv[2];
 
+    const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
     bool l_use_QKE       = turbChoice.use_QKE && turbChoice.advect_QKE;
@@ -199,24 +200,58 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
 
+            bool ext_dir_on_xlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir_prim))
+                                    && k == dom_lo.x);
+            bool ext_dir_on_xhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.x+1);
+
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
                               + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
-            xflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_u(i,j,0);
+            if (ext_dir_on_xlo) {
+                xflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
+                                                           + 3. * cell_prim(i  , j, k, prim_index)
+                                                      - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv;
+            } else if (ext_dir_on_xhi) {
+                xflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
+                                                           - 3. * cell_prim(i-1, j, k, prim_index)
+                                                      + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv;
+            } else {
+                xflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_u(i,j,0);
+            }
         });
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
 
+            bool ext_dir_on_ylo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir_prim))
+                                    && k == dom_lo.y);
+            bool ext_dir_on_yhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.y+1);
+
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
                               + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
-            yflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_v(i,j,0);
+            if (ext_dir_on_ylo) {
+                yflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
+                                                           + 3. * cell_prim(i, j  , k, prim_index)
+                                                      - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
+            } else if (ext_dir_on_yhi) {
+                yflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
+                                                           - 3. * cell_prim(i, j-1, k, prim_index)
+                                                      + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv;
+            } else {
+                yflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_v(i,j,0);
+            }
         });
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -230,21 +265,21 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim))
+                                    && k == dom_lo.z);
+            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
-                                                          + 3. * cell_prim(i, j, k  , prim_index)
-                                                     - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+                                                           + 3. * cell_prim(i, j, k  , prim_index)
+                                                      - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
-                                                          - 3. * cell_prim(i, j, k-1, prim_index)
-                                                     + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
+                                                           - 3. * cell_prim(i, j, k-1, prim_index)
+                                                      + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
             } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
@@ -272,22 +307,56 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
 
+            bool ext_dir_on_xlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir_prim))
+                                    && k == dom_lo.x);
+            bool ext_dir_on_xhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.x+1);
+
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
                               + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
-            xflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_u(i,j,0);
+            if (ext_dir_on_xlo) {
+                xflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
+                                                           + 3. * cell_prim(i  , j, k, prim_index)
+                                                      - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv;
+            } else if (ext_dir_on_xhi) {
+                xflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
+                                                           - 3. * cell_prim(i-1, j, k, prim_index)
+                                                      + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv;
+            } else {
+                xflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_u(i,j,0);
+            }
         });
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
 
+            bool ext_dir_on_ylo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir_prim))
+                                    && k == dom_lo.y);
+            bool ext_dir_on_yhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.y+1);
+
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
                               + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
-            yflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_v(i,j,0);
+            if (ext_dir_on_ylo) {
+                yflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
+                                                           + 3. * cell_prim(i, j  , k, prim_index)
+                                                      - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
+            } else if (ext_dir_on_yhi) {
+                yflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
+                                                           - 3. * cell_prim(i, j-1, k, prim_index)
+                                                      + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv;
+            } else {
+                yflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_v(i,j,0);
+            }
         });
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -301,20 +370,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim))
+            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
-                                                          + 3. * cell_prim(i, j, k  , prim_index)
-                                                     - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+                                                           + 3. * cell_prim(i, j, k  , prim_index)
+                                                      - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
-                                                          - 3. * cell_prim(i, j, k-1, prim_index)
-                                                     + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
+                                                           - 3. * cell_prim(i, j, k-1, prim_index)
+                                                      + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
             } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
@@ -342,20 +411,54 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
 
+            bool ext_dir_on_xlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir_prim))
+                                    && k == dom_lo.x);
+            bool ext_dir_on_xhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.x+1);
+
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
-            xflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_u(i,j,0);
+            if (ext_dir_on_xlo) {
+                xflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
+                                                           + 3. * cell_prim(i  , j, k, prim_index)
+                                                      - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv;
+            } else if (ext_dir_on_xhi) {
+                xflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
+                                                           - 3. * cell_prim(i-1, j, k, prim_index)
+                                                      + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv;
+            } else {
+                xflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_u(i,j,0);
+            }
         });
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
 
+            bool ext_dir_on_ylo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir_prim))
+                                    && k == dom_lo.y);
+            bool ext_dir_on_yhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.y+1);
+
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
-            yflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_v(i,j,0);
+            if (ext_dir_on_ylo) {
+                yflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
+                                                           + 3. * cell_prim(i, j  , k, prim_index)
+                                                      - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
+            } else if (ext_dir_on_yhi) {
+                yflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
+                                                           - 3. * cell_prim(i, j-1, k, prim_index)
+                                                      + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv;
+            } else {
+                yflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_v(i,j,0);
+            }
         });
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -368,20 +471,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim))
+            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
-                                                          + 3. * cell_prim(i, j, k  , prim_index)
-                                                     - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+                                                           + 3. * cell_prim(i, j, k  , prim_index)
+                                                      - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
-                                                          - 3. * cell_prim(i, j, k-1, prim_index)
-                                                     + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
+                                                           - 3. * cell_prim(i, j, k-1, prim_index)
+                                                      + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
             } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
@@ -410,18 +513,52 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
 
+            bool ext_dir_on_xlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir_prim))
+                                    && k == dom_lo.x);
+            bool ext_dir_on_xhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.x+1);
+
             Real rhoAlpha = d_alpha_eff[prim_index];
 
-            xflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_u(i,j,0);
+            if (ext_dir_on_xlo) {
+                xflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
+                                                           + 3. * cell_prim(i  , j, k, prim_index)
+                                                      - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv;
+            } else if (ext_dir_on_xhi) {
+                xflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
+                                                           - 3. * cell_prim(i-1, j, k, prim_index)
+                                                      + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv;
+            } else {
+                xflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_u(i,j,0);
+            }
         });
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
 
+            bool ext_dir_on_ylo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir_prim))
+                                    && k == dom_lo.y);
+            bool ext_dir_on_yhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir_prim))
+                                    && k == dom_hi.y+1);
+
             Real rhoAlpha = d_alpha_eff[prim_index];
 
-            yflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_v(i,j,0);
+            if (ext_dir_on_ylo) {
+                yflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
+                                                           + 3. * cell_prim(i, j  , k, prim_index)
+                                                      - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
+            } else if (ext_dir_on_yhi) {
+                yflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
+                                                           - 3. * cell_prim(i, j-1, k, prim_index)
+                                                      + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv;
+            } else {
+                yflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_v(i,j,0);
+            }
         });
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -433,20 +570,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim))
+            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
-                                                          + 3. * cell_prim(i, j, k  , prim_index)
-                                                     - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+                                                           + 3. * cell_prim(i, j, k  , prim_index)
+                                                      - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
-                                                          - 3. * cell_prim(i, j, k-1, prim_index)
-                                                     + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
+                                                           - 3. * cell_prim(i, j, k-1, prim_index)
+                                                      + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
             } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
