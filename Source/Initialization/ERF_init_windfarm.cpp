@@ -33,10 +33,10 @@ ERF::init_windfarm (int lev)
     windfarm->write_turbine_locations_vtk();
 
     if(solverChoice.windfarm_type == WindFarmType::SimpleAD) {
+        windfarm->fill_SMark_multifab(geom[lev], SMark[lev], solverChoice.sampling_distance_by_D);
         windfarm->write_actuator_disks_vtk(geom[lev]);
     }
 
-    windfarm->fill_SMark_multifab(geom[lev], SMark[lev], solverChoice.sampling_distance_by_D);
 }
 
 void
