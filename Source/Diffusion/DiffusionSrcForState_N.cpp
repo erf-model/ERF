@@ -202,10 +202,10 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_xlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.x);
+                                    && i == dom_lo.x);
             bool ext_dir_on_xhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.x+1);
+                                    && i == dom_hi.x+1);
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
@@ -231,10 +231,10 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_ylo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.y);
+                                    && j == dom_lo.y);
             bool ext_dir_on_yhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.y+1);
+                                    && j == dom_hi.y+1);
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
@@ -270,7 +270,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) &&
+                                    k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -309,10 +310,10 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_xlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.x);
+                                    && i == dom_lo.x);
             bool ext_dir_on_xhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.x+1);
+                                    && i == dom_hi.x+1);
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
@@ -337,10 +338,10 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_ylo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.y);
+                                    && j == dom_lo.y);
             bool ext_dir_on_yhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.y+1);
+                                    && j == dom_hi.y+1);
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
@@ -369,12 +370,13 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == 0);
+                                    && k == dom_lo.z);
             bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) &&
+                                    k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -413,10 +415,10 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_xlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.x);
+                                    && i == dom_lo.x);
             bool ext_dir_on_xhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.x+1);
+                                    && i == dom_hi.x+1);
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
@@ -440,10 +442,10 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_ylo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.y);
+                                    && j == dom_lo.y);
             bool ext_dir_on_yhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.y+1);
+                                    && j == dom_hi.y+1);
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
@@ -470,12 +472,13 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == 0);
+                                    && k == dom_lo.z);
             bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) &&
+                                    k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -515,10 +518,10 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_xlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(0) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.x);
+                                    && i == dom_lo.x);
             bool ext_dir_on_xhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(0) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.x+1);
+                                    && i == dom_hi.x+1);
 
             Real rhoAlpha = d_alpha_eff[prim_index];
 
@@ -541,10 +544,10 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_ylo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(1) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.y);
+                                    && j == dom_lo.y);
             bool ext_dir_on_yhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(1) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.y+1);
+                                    && j == dom_hi.y+1);
 
             Real rhoAlpha = d_alpha_eff[prim_index];
 
@@ -569,12 +572,13 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == 0);
+                                    && k == dom_lo.z);
             bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[BCVars::cons_bc+qty_index].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) &&
+                                    k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
