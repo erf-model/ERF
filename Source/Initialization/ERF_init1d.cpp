@@ -61,14 +61,14 @@ ERF::setRayleighRefFromSounding (bool restarting)
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
     if (restarting) {
-        input_sounding_data.read_from_file(input_sounding_file, geom[0], zlevels_stag);
+        input_sounding_data.read_from_file(input_sounding_file[0], geom[0], zlevels_stag, 0);
     }
 
-    const Real* z_inp_sound     = input_sounding_data.z_inp_sound.dataPtr();
-    const Real* U_inp_sound     = input_sounding_data.U_inp_sound.dataPtr();
-    const Real* V_inp_sound     = input_sounding_data.V_inp_sound.dataPtr();
-    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound.dataPtr();
-    const int   inp_sound_size  = input_sounding_data.size();
+    const Real* z_inp_sound     = input_sounding_data.z_inp_sound[0].dataPtr();
+    const Real* U_inp_sound     = input_sounding_data.U_inp_sound[0].dataPtr();
+    const Real* V_inp_sound     = input_sounding_data.V_inp_sound[0].dataPtr();
+    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound[0].dataPtr();
+    const int   inp_sound_size  = input_sounding_data.size(0);
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
@@ -153,7 +153,6 @@ ERF::initSponge ()
 void
 ERF::setSpongeRefFromSounding (bool restarting)
 {
-
     // If we are restarting then we haven't read the input_sponge file yet
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
