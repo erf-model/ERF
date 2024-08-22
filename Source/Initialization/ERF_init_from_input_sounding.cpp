@@ -50,16 +50,21 @@ ERF::init_from_input_sounding (int lev)
 {
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
-        if (input_sounding_file.empty())
+        if (input_sounding_file.empty()) {
             Error("input_sounding file name must be provided via input");
+        }
+
+        input_sounding_data.resize_arrays(n_sounding_files);
 
         // this will interpolate the input profiles to the nominal height levels
         // (ranging from 0 to the domain top)
-        input_sounding_data.read_from_file(input_sounding_file, geom[lev], zlevels_stag);
+        for (int n = 0; n < n_sounding_files; n++) {
+            input_sounding_data.read_from_file(input_sounding_file[n], geom[lev], zlevels_stag, n);
+        }
 
         // this will calculate the hydrostatically balanced density and pressure
         // profiles following WRF ideal.exe
-        if (init_sounding_ideal) input_sounding_data.calc_rho_p();
+        if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);
     }
 
     auto& lev_new = vars_new[lev];
@@ -136,10 +141,10 @@ init_bx_scalars_from_input_sounding (const Box &bx,
                                      const bool& l_moist,
                                      InputSoundingData const &inputSoundingData)
 {
-    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
-    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
-    const int   inp_sound_size  = inputSoundingData.size();
+    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
+    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d[0].dataPtr();
+    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d[0].dataPtr();
+    const int   inp_sound_size  = inputSoundingData.size(0);
 
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
@@ -200,11 +205,11 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          const bool& l_moist,
                                          InputSoundingData const &inputSoundingData)
 {
-    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
+    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
     const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
-    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
-    const int   inp_sound_size  = inputSoundingData.size();
+    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d[0].dataPtr();
+    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d[0].dataPtr();
+    const int   inp_sound_size  = inputSoundingData.size(0);
 
     // Geometry
     int ktop = bx.bigEnd(2);
@@ -280,10 +285,10 @@ init_bx_velocities_from_input_sounding (const Box &bx,
                                         Array4<const Real> const &z_nd_arr,
                                         InputSoundingData const &inputSoundingData)
 {
-    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
-    const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d.dataPtr();
-    const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d.dataPtr();
-    const int   inp_sound_size  = inputSoundingData.size();
+    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
+    const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d[0].dataPtr();
+    const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d[0].dataPtr();
+    const int   inp_sound_size  = inputSoundingData.size(0);
 
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();

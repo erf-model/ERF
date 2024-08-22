@@ -947,7 +947,10 @@ private:
     int real_set_width{0};
 
     // Text input_sounding file
-    static std::string input_sounding_file;
+    static amrex::Vector<std::string> input_sounding_file;
+    static amrex::Vector<amrex::Real> input_sounding_time;
+    int n_sounding_files = 1;
+    int n_sounding_times = 1;
 
     // Text input_sponge file
     static std::string input_sponge_file;
