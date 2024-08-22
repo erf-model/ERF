@@ -21,9 +21,26 @@ struct InputSoundingData {
 public:
     InputSoundingData () {}
 
+    void resize_arrays (int nt) {
+        ntimes = nt;
+
+        z_inp_sound.resize(ntimes);
+        theta_inp_sound.resize(ntimes);
+        qv_inp_sound.resize(ntimes);
+        U_inp_sound.resize(ntimes);
+        V_inp_sound.resize(ntimes);
+
+        z_inp_sound_d.resize(ntimes);
+        theta_inp_sound_d.resize(ntimes);
+        qv_inp_sound_d.resize(ntimes);
+        U_inp_sound_d.resize(ntimes);
+        V_inp_sound_d.resize(ntimes);
+    }
+
     void read_from_file (const std::string input_sounding_file,
                          const amrex::Geometry &geom,
-                         const amrex::Vector<amrex::Real>& zlevels_stag)
+                         const amrex::Vector<amrex::Real>& zlevels_stag,
+                         int itime)
     {
         const int klo = 0;
         const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
@@ -34,11 +51,11 @@ public:
         const amrex::Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom.ProbLo(AMREX_SPACEDIM-1);
         const amrex::Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom.ProbHi(AMREX_SPACEDIM-1);
 
-        z_inp_sound.resize(Nz+2);
-        theta_inp_sound.resize(Nz+2);
-        qv_inp_sound.resize(Nz+2);
-        U_inp_sound.resize(Nz+2);
-        V_inp_sound.resize(Nz+2);
+        z_inp_sound[itime].resize(Nz+2);
+        theta_inp_sound[itime].resize(Nz+2);
+        qv_inp_sound[itime].resize(Nz+2);
+        U_inp_sound[itime].resize(Nz+2);
+        V_inp_sound[itime].resize(Nz+2);
 
         // Read the input_sounding file
         amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
@@ -94,33 +111,33 @@ public:
             // At this point, we have an input_sounding from zbot up to
             // z_inp_sound_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
             const int Ninp = z_inp_sound_tmp.size();
-            z_inp_sound[0]     = zbot;
-            theta_inp_sound[0] = theta_inp_sound_tmp[0];
-            qv_inp_sound[0]    = qv_inp_sound_tmp[0];
-            U_inp_sound[0]     = U_inp_sound_tmp[0];
-            V_inp_sound[0]     = V_inp_sound_tmp[0];
+            z_inp_sound[itime][0]     = zbot;
+            theta_inp_sound[itime][0] = theta_inp_sound_tmp[0];
+            qv_inp_sound[itime][0]    = qv_inp_sound_tmp[0];
+            U_inp_sound[itime][0]     = U_inp_sound_tmp[0];
+            V_inp_sound[itime][0]     = V_inp_sound_tmp[0];
             for (int k=0; k < Nz; ++k) {
-                z_inp_sound[k+1] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
+                z_inp_sound[itime][k+1] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
                                                  : zbot + (k + 0.5) * dz;
-                theta_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(), theta_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
-                   qv_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),    qv_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
-                    U_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     U_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
-                    V_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     V_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
+                theta_inp_sound[itime][k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(), theta_inp_sound_tmp.dataPtr(), z_inp_sound[itime][k+1], Ninp);
+                   qv_inp_sound[itime][k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),    qv_inp_sound_tmp.dataPtr(), z_inp_sound[itime][k+1], Ninp);
+                    U_inp_sound[itime][k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     U_inp_sound_tmp.dataPtr(), z_inp_sound[itime][k+1], Ninp);
+                    V_inp_sound[itime][k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     V_inp_sound_tmp.dataPtr(), z_inp_sound[itime][k+1], Ninp);
             }
-            z_inp_sound[Nz+1]     = ztop;
-            theta_inp_sound[Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(), theta_inp_sound_tmp.dataPtr(), ztop, Ninp);
-               qv_inp_sound[Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),    qv_inp_sound_tmp.dataPtr(), ztop, Ninp);
-                U_inp_sound[Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     U_inp_sound_tmp.dataPtr(), ztop, Ninp);
-                V_inp_sound[Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     V_inp_sound_tmp.dataPtr(), ztop, Ninp);
+            z_inp_sound[itime][Nz+1]     = ztop;
+            theta_inp_sound[itime][Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(), theta_inp_sound_tmp.dataPtr(), ztop, Ninp);
+               qv_inp_sound[itime][Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),    qv_inp_sound_tmp.dataPtr(), ztop, Ninp);
+                U_inp_sound[itime][Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     U_inp_sound_tmp.dataPtr(), ztop, Ninp);
+                V_inp_sound[itime][Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     V_inp_sound_tmp.dataPtr(), ztop, Ninp);
         }
 
-        amrex::Print() << "Successfully read the input_sounding file..." << std::endl;
+        amrex::Print() << "Successfully read the " << itime << "th input_sounding file..." << std::endl;
         input_sounding_reader.close();
 
-        host_to_device();
+        host_to_device(itime);
     }
 
-    void calc_rho_p ()
+    void calc_rho_p (int itime)
     {
         /* Calculate density and pressure, roughly following the procedure in
          * WRF dyn_em/module_initialize_ideal.F. We integrate hydrostatically
@@ -128,7 +145,7 @@ public:
          * and moist pressure.
          */
         const int maxiter = 10;
-        const int Ninp = size();
+        const int Ninp = size(itime);
         pm_integ.resize(Ninp);
         rhod_integ.resize(Ninp);
 
@@ -149,42 +166,42 @@ public:
 
         // integrate from surface to domain top
         amrex::Real dz;
-#if 1   // Printing
+#if 0   // Printing
         // In this absence of moisture, this moist profile will match the
         // following dry profile
         amrex::Print() << "z  p_m  rho_d  theta  qv  U  V" << std::endl;
-        amrex::Print() << z_inp_sound[0]
+        amrex::Print() << z_inp_sound[itime][0]
                        << " " << pm_integ[0]
                        << " " << rhod_integ[0]
-                       << " " << theta_inp_sound[0]
-                       << " " << qv_inp_sound[0]
-                       << " " << U_inp_sound[0]
-                       << " " << V_inp_sound[0]
+                       << " " << theta_inp_sound[itime][0]
+                       << " " << qv_inp_sound[itime][0]
+                       << " " << U_inp_sound[itime][0]
+                       << " " << V_inp_sound[itime][0]
                        << std::endl;
 #endif
-        for (int k=1; k < size(); ++k)
+        for (int k=1; k < size(itime); ++k)
         {
-            dz = z_inp_sound[k] - z_inp_sound[k-1];
+            dz = z_inp_sound[itime][k] - z_inp_sound[itime][k-1];
             rhod_integ[k] = rhod_integ[k-1]; // guess
             for (int it=0; it < maxiter; ++it)
             {
-                amrex::Real rho_tot_hi = rhod_integ[k  ] * (1. + qv_inp_sound[k  ]);
-                amrex::Real rho_tot_lo = rhod_integ[k-1] * (1. + qv_inp_sound[k-1]);
+                amrex::Real rho_tot_hi = rhod_integ[k  ] * (1. + qv_inp_sound[itime][k  ]);
+                amrex::Real rho_tot_lo = rhod_integ[k-1] * (1. + qv_inp_sound[itime][k-1]);
                 pm_integ[k] = pm_integ[k-1] - 0.5*dz*(rho_tot_hi + rho_tot_lo)*CONST_GRAV;
                 AMREX_ALWAYS_ASSERT(pm_integ[k] > 0);
-                rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[k],
+                rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
                                                       pm_integ[k],
                                                       R_d/Cp_d,
-                                                      qv_inp_sound[k]);
+                                                      qv_inp_sound[itime][k]);
             }
-#if 1       // Printing
-            amrex::Print() << z_inp_sound[k]
+#if 0       // Printing
+            amrex::Print() << z_inp_sound[itime][k]
                            << " " << pm_integ[k]
                            << " " << rhod_integ[k]
-                           << " " << theta_inp_sound[k]
-                           << " " << qv_inp_sound[k]
-                           << " " << U_inp_sound[k]
-                           << " " << V_inp_sound[k]
+                           << " " << theta_inp_sound[itime][k]
+                           << " " << qv_inp_sound[itime][k]
+                           << " " << U_inp_sound[itime][k]
+                           << " " << V_inp_sound[itime][k]
                            << std::endl;
 #endif
         }
@@ -192,39 +209,39 @@ public:
         // column is stored in pm_integ[0], rhod_integ[0]
 
         // update
-        host_to_device();
+        host_to_device(itime);
     }
 
-    void host_to_device ()
+    void host_to_device (int itime)
     {
-        const int Ninp = size();
-        z_inp_sound_d.resize(Ninp);
-        theta_inp_sound_d.resize(Ninp);
-        qv_inp_sound_d.resize(Ninp);
-        U_inp_sound_d.resize(Ninp);
-        V_inp_sound_d.resize(Ninp);
+        const int Ninp = size(itime);
+        z_inp_sound_d[itime].resize(Ninp);
+        theta_inp_sound_d[itime].resize(Ninp);
+        qv_inp_sound_d[itime].resize(Ninp);
+        U_inp_sound_d[itime].resize(Ninp);
+        V_inp_sound_d[itime].resize(Ninp);
 
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         z_inp_sound.begin(), z_inp_sound.end(),
-                         z_inp_sound_d.begin());
+                         z_inp_sound[itime].begin(), z_inp_sound[itime].end(),
+                         z_inp_sound_d[itime].begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         theta_inp_sound.begin(), theta_inp_sound.end(),
-                         theta_inp_sound_d.begin());
+                         theta_inp_sound[itime].begin(), theta_inp_sound[itime].end(),
+                         theta_inp_sound_d[itime].begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         qv_inp_sound.begin(), qv_inp_sound.end(),
-                         qv_inp_sound_d.begin());
+                         qv_inp_sound[itime].begin(), qv_inp_sound[itime].end(),
+                         qv_inp_sound_d[itime].begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         U_inp_sound.begin(), U_inp_sound.end(),
-                         U_inp_sound_d.begin());
+                         U_inp_sound[itime].begin(), U_inp_sound[itime].end(),
+                         U_inp_sound_d[itime].begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         V_inp_sound.begin(), V_inp_sound.end(),
-                         V_inp_sound_d.begin());
+                         V_inp_sound[itime].begin(), V_inp_sound[itime].end(),
+                         V_inp_sound_d[itime].begin());
 
         if (rhod_integ.size() > 0)
         {
             //amrex::Print() << "Copying rho_d, p_d to device" << std::endl;
-            rho_inp_sound_d.resize(size()+2);
-            p_inp_sound_d.resize(size()+2);
+            rho_inp_sound_d.resize(size(itime)+2);
+            p_inp_sound_d.resize(size(itime)+2);
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              rhod_integ.begin(), rhod_integ.end(),
                              rho_inp_sound_d.begin());
@@ -234,20 +251,27 @@ public:
         }
     }
 
-    int size () const
+    int size (int itime) const
     {
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == theta_inp_sound.size());
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == qv_inp_sound.size());
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == U_inp_sound.size());
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == V_inp_sound.size());
-        return z_inp_sound.size();
+        AMREX_ALWAYS_ASSERT(z_inp_sound[itime].size() == theta_inp_sound[itime].size());
+        AMREX_ALWAYS_ASSERT(z_inp_sound[itime].size() == qv_inp_sound[itime].size());
+        AMREX_ALWAYS_ASSERT(z_inp_sound[itime].size() == U_inp_sound[itime].size());
+        AMREX_ALWAYS_ASSERT(z_inp_sound[itime].size() == V_inp_sound[itime].size());
+        return z_inp_sound[itime].size();
     }
 
     // Members
+    int ntimes;
+
     // - read from file
     amrex::Real press_ref_inp_sound, theta_ref_inp_sound, qv_ref_inp_sound; // input
-    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, qv_inp_sound, U_inp_sound, V_inp_sound;
-    amrex::Gpu::DeviceVector<amrex::Real> z_inp_sound_d, theta_inp_sound_d, qv_inp_sound_d, U_inp_sound_d, V_inp_sound_d;
+
+    // This is a vector (over time) of Vectors
+    amrex::Vector<amrex::Vector<amrex::Real>> z_inp_sound, theta_inp_sound, qv_inp_sound, U_inp_sound, V_inp_sound;
+
+    // This is a vector (over time) of DeviceVectors
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> z_inp_sound_d, theta_inp_sound_d, qv_inp_sound_d, U_inp_sound_d, V_inp_sound_d;
+
     // - moist profiles
     amrex::Vector<amrex::Real> pm_integ; // from integrating up air column
     // - dry profiles
