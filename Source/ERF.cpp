@@ -65,7 +65,8 @@ Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via inpu
 std::string ERF::nc_bdy_file; // Must provide via input
 
 // Text input_sounding file
-std::string ERF::input_sounding_file = "input_sounding";
+Vector<std::string> ERF::input_sounding_file = {};
+Vector<Real> ERF::input_sounding_time = {};
 
 // Text input_sponge file
 std::string ERF::input_sponge_file = "input_sponge_file.txt";
@@ -1426,8 +1427,35 @@ ERF::ReadParameters ()
         pp.query("nc_bdy_file", nc_bdy_file);
 #endif
 
-        // Text input_sounding file
-        pp.query("input_sounding_file", input_sounding_file);
+        // Read in input_sounding filename
+        n_sounding_files = pp.countval("input_sounding_file");
+        if (n_sounding_files > 0) {
+            input_sounding_file.resize(n_sounding_files);
+            pp.queryarr("input_sounding_file", input_sounding_file, 0, n_sounding_files);
+        } else {
+            n_sounding_files = 1;
+            input_sounding_file.resize(n_sounding_files);
+            input_sounding_file[0] = "input_sounding";
+        }
+
+        // Read in input_sounding times
+        n_sounding_times = pp.countval("input_sounding_time");
+
+        if (n_sounding_times > 0) {
+            input_sounding_time.resize(n_sounding_times);
+            pp.queryarr("input_sounding_time", input_sounding_time, 0, n_sounding_times);
+        } else {
+            n_sounding_times = 1;
+            input_sounding_time.resize(n_sounding_times);
+            input_sounding_time[0] = 0.0;
+        }
+
+        // If we have more files than times or times than files we just use the minimum
+        int n = std::min(n_sounding_times, n_sounding_files);
+        n_sounding_files = n;
+        n_sounding_times = n;
+        input_sounding_file.resize(n);
+        input_sounding_time.resize(n);
 
         // Text input_sounding file
         pp.query("input_sponge_file", input_sponge_file);
