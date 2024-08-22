@@ -79,11 +79,8 @@ public:
             }
         }
 
-        // Surface wind speed corrections
-        // - Include w* to handle free convection (Beljaars 1995, QJRMS)
+        // Include w* to handle free convection (Beljaars 1995, QJRMS)
         pp.query("most.include_wstar", include_wstar);
-        // - include subgrid velocity scale to handle weak large-scale flow (Mahrt & Sun 1995, MWR)
-        pp.query("most.include_subgrid_vel", include_subgrid_vel);
 
         std::string pblh_string{"none"};
         pp.query("most.pblh_calc", pblh_string);
@@ -95,9 +92,6 @@ public:
             pblh_type = PBLHeightCalcType::YSU;
         } else {
             amrex::Abort("Undefined PBLH calc type!");
-        }
-        if (include_wstar) {
-            AMREX_ALWAYS_ASSERT(pblh_type != PBLHeightCalcType::None);
         }
 
         // Get surface temperature
@@ -270,6 +264,12 @@ public:
                 t_surf[lev]->setVal(0.0);
             }
         }// lev
+
+        if (include_wstar) {
+            AMREX_ALWAYS_ASSERT(pblh_type != PBLHeightCalcType::None);
+            // associate wstar pointers w/ MOSTAverage instance
+            m_ma.set_wstar_ptrs(w_star);
+        }
     }
 
     void
@@ -434,7 +434,6 @@ private:
     bool m_exp_most = false;
     bool m_rotate   = false;
     bool include_wstar = false;
-    bool include_subgrid_vel = false;
     amrex::Real z0_const{0.1};
     amrex::Real surf_temp;
     amrex::Real surf_heating_rate{0};

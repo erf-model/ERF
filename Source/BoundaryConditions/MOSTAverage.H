@@ -42,6 +42,9 @@ public:
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim);
 
+    // Set pointer to wstar if using Beljaars correction
+    void set_wstar_ptrs (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& w_star);
+
     // Update the rotated fields
     void set_rotated_fields (int lev);
 
@@ -210,5 +213,12 @@ protected:
     amrex::Vector<int> m_t_init;                                     // Flag to specify if averages are initialized
     amrex::Real m_time_window{1.0e-16};                              // Width of the exp filter function
     amrex::Real m_fact_new, m_fact_old;                              // Time average factors for new and old means
+
+    // Low-speed velocity corrections
+    //--------------------------------------------
+    bool include_wstar       = false;
+    bool include_subgrid_vel = false;
+    amrex::Vector<amrex::MultiFab*> m_wstar;                         // Ptr to 2D mf to hold wstar (maxlev)
+    amrex::Vector<amrex::Real> m_Vsg;                                // Subgrid velocity scale (Mahrt & Sun 1995 MWR)
 };
 #endif
