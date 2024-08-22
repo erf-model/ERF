@@ -211,42 +211,61 @@ struct MYNNPBLH {
                         amrex::Real maxtke = 0.5 * cons_arr(i,j,0  ,RhoQKE_comp) / cons_arr(i,j,0  ,Rho_comp);
                         // - threshold is 5% of max TKE (Kosovic & Curry 2000, JAS)
                         amrex::Real TKEeps = 0.05 * maxtke;
-                        TKEeps = amrex::max(TKEeps, 0.02); // WRF v4.6.1;
+                        TKEeps = amrex::max(TKEeps, 0.02); // min val from WRF v4.6.1
 
                         if ((tke1 <= TKEeps) && (tke > TKEeps))
                         {
                             // Interpolate to get lowest height where TKE -> 0
                             pblh_tke_arr(i,j,0) = (k+0.5)*dz_no_terrain
                                                 + dz_no_terrain/(tke1-tke) * (TKEeps - tke);
-                            amrex::Print() << "Interpolating PBLH_TKE"<<amrex::IntVect(i,j,k)<<" = " << pblh_tke_arr(i,j,0) << std::endl;
                         }
                     }
                 });
             }
         }// MFIter
 
+        //
+        // Calculate hybrid PBL height
+        //
         for (amrex::MFIter mfi(*pblh); mfi.isValid(); ++mfi)
         {
-            const auto pblh_arr    = pblh->const_array(mfi);
-            const auto pblh_tke_arr= pblh_tke.array(mfi);
-            const auto min_thv_arr = min_thetav.const_array(mfi);
-            const auto u_star_arr  = u_star->const_array(mfi);
-            const auto t_star_arr  = t_star->const_array(mfi);
-            const auto lmask_arr   = (lmask) ? lmask->const_array(mfi) : amrex::Array4<int> {};
+            const auto cons_arr = cons.const_array(mfi);
+            auto pblh_tke_arr = pblh_tke.array(mfi);
+            auto pblh_arr     = pblh->array(mfi);
 
             amrex::Box gtbx = mfi.growntilebox();
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                amrex::Real hfx = -u_star_arr(i,j,k) * t_star_arr(i,j,k);
-                amrex::Print() << "Estimated PBLH" << amrex::IntVect(i,j,k)
-                    << " = " << pblh_arr(i,j,k) << " " << pblh_tke_arr(i,j,k)
-                    << " with thetav_min, hfx = " << min_thv_arr(i,j,k) << " " << hfx << std::endl;
+                //
+                // Clip PBLH_TKE to more realistic values
+                //
+                // Note from WRF MYNN-EDMF: TKE-based PBLH can be very large in cells
+                //   with convective precipiation (> 8km!), so an artificial limit is
+                //   imposed to not let PBLH_TKE exceed the theta_v-based PBL height
+                //   +/- 350 m. This has no impact on 98-99% of the domain, but is the
+                //   simplest patch that adequately addresses these extremely large
+                //   PBLHs.
+                amrex::Real zi = pblh_arr(i,j,0);
+                pblh_tke_arr(i,j,0) = amrex::max(
+                    amrex::min(pblh_tke_arr(i,j,0), zi+350.),
+                    amrex::max(zi-350., 10.));
+
+                //
+                // Finally, blend between the two PBLH estimates
+                //
+                amrex::Real maxqke = cons_arr(i,j,0  ,RhoQKE_comp) / cons_arr(i,j,0  ,Rho_comp);
+                if (maxqke > 0.05) {
+                    amrex::Real wt = 0.5*std::tanh((zi - sbl_lim)/sbl_damp) + 0.5;
+                    pblh_arr(i,j,0) = (1.-wt)*pblh_tke_arr(i,j,0) + wt*pblh_arr(i,j,0);
+                }
             });
         }//MFIter
     }
 
-    amrex::Real thetamin_height  = 200.0; // [m]
-    amrex::Real theta_incr_land  = 1.25;  // [K]
-    amrex::Real theta_incr_water = 1.0;   // [K]
+    static constexpr amrex::Real thetamin_height  = 200.0; // [m] height below which min thetav is determined
+    static constexpr amrex::Real theta_incr_land  = 1.25;  // [K] theta increase that determines the height of the capping inversion over land
+    static constexpr amrex::Real theta_incr_water = 1.0;   // [K] theta increase that determines the height of the capping inversion over water
+    static constexpr amrex::Real sbl_lim          = 200.0; // [m] upper limit of the stable BL height
+    static constexpr amrex::Real sbl_damp         = 400.0; // [m] transition length for blending
 };
 #endif
