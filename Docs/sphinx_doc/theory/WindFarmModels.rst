@@ -121,8 +121,7 @@ The EWP model does not have a concept of intersected area by the turbine rotor l
    intersected area (see Fig. :numref:`fig:WindTurbine_Fitch`).
 
 .. _`Volker et al. 2015`: https://gmd.copernicus.org/articles/8/3715/2015/
-.. _`Volker et al. 2017`: https://iopscience.iop.org/article/10.1088/1748-9326/aa5d86
-
+.. _`Volker et al. 2017`: https://iopscience.iop.org/article/10.1088/1748-9326/aa5d86/pdf
 
 .. _Inputs:
 
