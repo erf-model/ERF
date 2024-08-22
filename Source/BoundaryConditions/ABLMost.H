@@ -167,6 +167,7 @@ public:
         int nlevs = m_geom.size();
         z_0.resize(nlevs);
         u_star.resize(nlevs);
+        w_star.resize(nlevs);
         t_star.resize(nlevs);
         q_star.resize(nlevs);
         t_surf.resize(nlevs);
@@ -240,6 +241,9 @@ public:
             //--------------------------------------------------------
             u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             u_star[lev]->setVal(1.E34);
+
+            w_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+            w_star[lev]->setVal(1.E34);
 
             t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             t_star[lev]->setVal(0.0); // default to neutral
@@ -360,8 +364,16 @@ public:
                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim)
     { m_ma.update_field_ptrs(lev,vars_old,Theta_prim,Qv_prim,Qr_prim); }
 
+    void
+    calc_wstar(const int lev,
+               const amrex::MultiFab& cons,
+               const int moist_flag = 0);
+
     const amrex::MultiFab*
     get_u_star (const int& lev) { return u_star[lev].get(); }
+
+    const amrex::MultiFab*
+    get_w_star (const int& lev) { return w_star[lev].get(); }
 
     const amrex::MultiFab*
     get_t_star (const int& lev) { return t_star[lev].get(); }
@@ -439,6 +451,7 @@ private:
 
     MOSTAverage m_ma;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> w_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> olen;

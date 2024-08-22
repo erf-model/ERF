@@ -574,4 +574,40 @@ ABLMost::compute_pblh (const int& lev,
                      pblh[lev].get(),u_star[lev].get(),t_star[lev].get(),
                      vars[lev][Vars::cons],m_lmask_lev[lev][0],
                      moist_flag);
+
+    // Calculate convective velocity scale using mixing height from PBL scheme
+    // TODO: can/should we apply this in LES mode?
+    if (include_wstar) {
+        calc_wstar(lev, vars[lev][Vars::cons], moist_flag);
+    }
+
+}
+
+void ABLMost::calc_wstar(const int lev,
+                         const amrex::MultiFab& cons,
+                         const int moist_flag)
+{
+    for (amrex::MFIter mfi(*w_star[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        auto wst_arr        = w_star[lev]->array(mfi);
+        const auto ust_arr  = u_star[lev]->const_array(mfi);
+        const auto tst_arr  = t_star[lev]->const_array(mfi);
+        const auto qst_arr  = q_star[lev]->array(mfi);
+        const auto pblh_arr = pblh[lev]->const_array(mfi);
+        const auto cons_arr = cons.const_array(mfi);
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            amrex::Real hfx = -ust_arr(i,j,k)*tst_arr(i,j,k);
+            amrex::Real Tv = Thetav(i,j,k,cons_arr,moist_flag);
+            if (moist_flag > 0) {
+                Real th = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
+                Real qv = cons_arr(i,j,k,RhoQ1_comp)    / cons_arr(i,j,k,Rho_comp);
+                hfx = hfx*(1 + 0.61*qv) + 0.61*th*(-ust_arr(i,j,k)*qst_arr(i,j,k));
+            }
+            wst_arr(i,j,k) = std::cbrt(CONST_GRAV / Tv * pblh_arr(i,j,k) * hfx);
+        });
+    }
 }
