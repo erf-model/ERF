@@ -10,15 +10,16 @@ struct MYNNPBLH {
      * Diagnose the PBL height
      *
      * Approach follows WRF, which uses a hybrid of the theta-increase
-     * method for CBLs and a TKE threshold method for SBLs.
+     * method for CBLs and a TKE threshold method for SBLs. The TKE method is
+     * focused on PBL heights below ~500 m; above 1 km, the tanh blending makes
+     * the TKE-based contribution negligible.
      *
      * See Nielsen-Gammon et al. 2008, JAS
      *     Banta 2008, Acta Geophys.
      */
     AMREX_GPU_HOST
     AMREX_FORCE_INLINE
-    void compute_pblh(const amrex::Box& domain,
-                      const amrex::Real dz_no_terrain,
+    void compute_pblh(const amrex::Geometry& geom,
                       const amrex::MultiFab* z_phys_cc,
                       amrex::MultiFab* pblh,
                       const amrex::MultiFab* u_star,
@@ -40,13 +41,9 @@ struct MYNNPBLH {
 #endif
 
         // Create 2D multifabs like pblh
-        const amrex::BoxArray ba             = pblh->boxArray();
-        const amrex::DistributionMapping& dm = pblh->DistributionMap();
-        //const amrex::IntVect ng              = pblh->nGrowVect();
-        // - should only need 1 layer; also, z_phys_cc is created with ng=1 and
-        //   looping over a larger box can cause the z_phys_cc array to take
-        //   the wrong stride
-        const amrex::IntVect ng(1,1,0);
+        auto const& ba = pblh->boxArray();
+        auto const& dm = pblh->DistributionMap();
+        auto const& ng = pblh->nGrowVect();
 
         amrex::MultiFab min_thetav(ba,dm,1,ng);
         min_thetav.setVal(1.E34);
@@ -56,31 +53,45 @@ struct MYNNPBLH {
 
         pblh->setVal(0);
 
-        // Now, loop over columns
+        // Now, loop over columns...
         for (amrex::MFIter mfi(cons,TileNoZ()); mfi.isValid(); ++mfi)
         {
             amrex::Box gtbx = mfi.tilebox();
             gtbx.grow(ng); // grow in x,y only
             gtbx.setBig(2,gtbx.bigEnd(2)-1); // only loop to nz-1
 
-            auto min_thv_arr = min_thetav.array(mfi);
-            auto pblh_arr    = pblh->array(mfi);
+            auto min_thv_arr  = min_thetav.array(mfi);
+            auto pblh_arr     = pblh->array(mfi);
+            auto pblh_tke_arr = pblh_tke.array(mfi);
 
             const auto cons_arr  = cons.const_array(mfi);
             const auto lmask_arr = (lmask) ? lmask->const_array(mfi) : amrex::Array4<int> {};
 
-            // Find thetav-increase based PBL height (best for CBLs)
-            // - WITH terrain/grid stretching
+            // -----------------------------------------------------
+            // WITH terrain/grid stretching
             // -----------------------------------------------------
             if (z_phys_cc)
             {
                 const auto zphys_arr = z_phys_cc->const_array(mfi);
 
+                // Need to sort out ghost cell differences (z_phys_cc has ng=1)
+                const amrex::Box& domain = geom.Domain();
+                amrex::IntVect ng_zphys = z_phys_cc->nGrowVect();
+
+                int imin = domain.smallEnd(0); if (geom.isPeriodic(0)) imin -= ng_zphys[0];
+                int jmin = domain.smallEnd(1); if (geom.isPeriodic(1)) jmin -= ng_zphys[1];
+
+                int imax = domain.bigEnd(0); if (geom.isPeriodic(0)) imax += ng_zphys[0];
+                int jmax = domain.bigEnd(1); if (geom.isPeriodic(1)) jmax += ng_zphys[1];
+
                 // Find minimum thetav in the surface layer (this updates
                 // ghost cells, too)
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    if (zphys_arr(i,j,k) < thetamin_height) {
+                    int ii = amrex::max(amrex::min(i,imax),imin);
+                    int jj = amrex::max(amrex::min(j,jmax),jmin);
+
+                    if (zphys_arr(ii,jj,k) < thetamin_height) {
                         amrex::Real thv = Thetav(i,j,k,cons_arr,moist_flag);
                         if (min_thv_arr(i,j,0) > thv) min_thv_arr(i,j,0) = thv;
                     }
@@ -89,31 +100,64 @@ struct MYNNPBLH {
                 // This depends on TileNoZ and k increasing monotonically
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
+                    int ii = amrex::max(amrex::min(i,imax),imin);
+                    int jj = amrex::max(amrex::min(j,jmax),jmin);
+
                     if (pblh_arr(i,j,0) == 0)
                     {
+                        //
+                        // Find PBL height based on thetav increase (best for CBLs)
+                        //
                         amrex::Real thv  = Thetav(i,j,k  ,cons_arr,moist_flag);
                         amrex::Real thv1 = Thetav(i,j,k+1,cons_arr,moist_flag);
+
                         int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                         if (is_land && (thv1 >= min_thv_arr(i,j,0) + theta_incr_land)
                                     && (thv  <  min_thv_arr(i,j,0) + theta_incr_land))
                         {
-                            pblh_arr(i,j,0) = zphys_arr(i,j,k)
-                                            + (zphys_arr(i,j,k+1)-zphys_arr(i,j,k))/(thv1-thv)*(min_thv_arr(i,j,0) + theta_incr_land - thv);
+                            // Interpolate to get lowest height where theta = min_theta + theta_incr
+                            pblh_arr(i,j,0) = zphys_arr(ii,jj,k)
+                                            + (zphys_arr(ii,jj,k+1)-zphys_arr(ii,jj,k))/(thv1-thv)
+                                              * (min_thv_arr(i,j,0) + theta_incr_land - thv);
                         }
                         else if (!is_land && (thv1 >= min_thv_arr(i,j,0) + theta_incr_water)
                                           && (thv  <  min_thv_arr(i,j,0) + theta_incr_water))
                         {
-                            pblh_arr(i,j,0) = zphys_arr(i,j,k)
-                                            + (zphys_arr(i,j,k+1)-zphys_arr(i,j,k))/(thv1-thv)*(min_thv_arr(i,j,0) + theta_incr_water - thv);
+                            // Interpolate to get lowest height where theta = min_theta + theta_incr
+                            pblh_arr(i,j,0) = zphys_arr(ii,jj,k)
+                                            + (zphys_arr(ii,jj,k+1)-zphys_arr(ii,jj,k))/(thv1-thv)
+                                              * (min_thv_arr(i,j,0) + theta_incr_water - thv);
+                        }
+                    }
+                    if (pblh_tke_arr(i,j,0) == 0)
+                    {
+                        //
+                        // Find PBL height based on TKE (for SBLs only)
+                        //
+                        amrex::Real tke    = 0.5 * cons_arr(i,j,k  ,RhoQKE_comp) / cons_arr(i,j,k  ,Rho_comp);
+                        amrex::Real tke1   = 0.5 * cons_arr(i,j,k+1,RhoQKE_comp) / cons_arr(i,j,k+1,Rho_comp);
+                        amrex::Real maxtke = 0.5 * cons_arr(i,j,0  ,RhoQKE_comp) / cons_arr(i,j,0  ,Rho_comp);
+                        // - threshold is 5% of max TKE (Kosovic & Curry 2000, JAS)
+                        amrex::Real TKEeps = 0.05 * maxtke;
+                        TKEeps = amrex::max(TKEeps, 0.02); // WRF v4.6.1
+
+                        if ((tke1 <= TKEeps) && (tke > TKEeps))
+                        {
+                            // Interpolate to get lowest height where TKE -> 0
+                            pblh_tke_arr(i,j,0) = zphys_arr(ii,jj,k)
+                                                + (zphys_arr(ii,jj,k+1)-zphys_arr(ii,jj,k))/(tke1-tke)
+                                                  * (TKEeps - tke);
                         }
                     }
                 });
             }
-            // Find thetav-increase based PBL height (best for CBLs)
-            // - NO terrain
-            // -----------------------------------------------------
             else
+            // -----------------------------------------------------
+            // NO terrain
+            // -----------------------------------------------------
             {
+                const amrex::Real dz_no_terrain = geom.CellSize(2);
+
                 // Find minimum thetav in the surface layer (this updates
                 // ghost cells, too)
                 // - box size is known a priori
@@ -133,28 +177,58 @@ struct MYNNPBLH {
                 {
                     if (pblh_arr(i,j,0) == 0)
                     {
+                        //
+                        // Find PBL height based on thetav increase (best for CBLs)
+                        //
                         amrex::Real thv  = Thetav(i,j,k  ,cons_arr,moist_flag);
                         amrex::Real thv1 = Thetav(i,j,k+1,cons_arr,moist_flag);
+
                         int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                         if (is_land && (thv1 >= min_thv_arr(i,j,0) + theta_incr_land)
                                     && (thv  <  min_thv_arr(i,j,0) + theta_incr_land))
                         {
-                            pblh_arr(i,j,0) = (k+0.5)*dz_no_terrain + dz_no_terrain/(thv1-thv)*(min_thv_arr(i,j,0) + theta_incr_land - thv);
+                            // Interpolate to get lowest height where theta = min_theta + theta_incr
+                            pblh_arr(i,j,0) = (k+0.5)*dz_no_terrain
+                                            + dz_no_terrain/(thv1-thv)
+                                              * (min_thv_arr(i,j,0) + theta_incr_land - thv);
                         }
                         else if (!is_land && (thv1 >= min_thv_arr(i,j,0) + theta_incr_water)
                                           && (thv  <  min_thv_arr(i,j,0) + theta_incr_water))
                         {
-                            pblh_arr(i,j,0) = (k+0.5)*dz_no_terrain + dz_no_terrain/(thv1-thv)*(min_thv_arr(i,j,0) + theta_incr_water - thv);
+                            // Interpolate to get lowest height where theta = min_theta + theta_incr
+                            pblh_arr(i,j,0) = (k+0.5)*dz_no_terrain
+                                            + dz_no_terrain/(thv1-thv)
+                                              * (min_thv_arr(i,j,0) + theta_incr_water - thv);
+                        }
+                    }
+                    if (pblh_tke_arr(i,j,0) == 0)
+                    {
+                        //
+                        // Find PBL height based on TKE (for SBLs only)
+                        //
+                        amrex::Real tke    = 0.5 * cons_arr(i,j,k  ,RhoQKE_comp) / cons_arr(i,j,k  ,Rho_comp);
+                        amrex::Real tke1   = 0.5 * cons_arr(i,j,k+1,RhoQKE_comp) / cons_arr(i,j,k+1,Rho_comp);
+                        amrex::Real maxtke = 0.5 * cons_arr(i,j,0  ,RhoQKE_comp) / cons_arr(i,j,0  ,Rho_comp);
+                        // - threshold is 5% of max TKE (Kosovic & Curry 2000, JAS)
+                        amrex::Real TKEeps = 0.05 * maxtke;
+                        TKEeps = amrex::max(TKEeps, 0.02); // WRF v4.6.1;
+
+                        if ((tke1 <= TKEeps) && (tke > TKEeps))
+                        {
+                            // Interpolate to get lowest height where TKE -> 0
+                            pblh_tke_arr(i,j,0) = (k+0.5)*dz_no_terrain
+                                                + dz_no_terrain/(tke1-tke) * (TKEeps - tke);
+                            amrex::Print() << "Interpolating PBLH_TKE"<<amrex::IntVect(i,j,k)<<" = " << pblh_tke_arr(i,j,0) << std::endl;
                         }
                     }
                 });
             }
-
-        }
+        }// MFIter
 
         for (amrex::MFIter mfi(*pblh); mfi.isValid(); ++mfi)
         {
             const auto pblh_arr    = pblh->const_array(mfi);
+            const auto pblh_tke_arr= pblh_tke.array(mfi);
             const auto min_thv_arr = min_thetav.const_array(mfi);
             const auto u_star_arr  = u_star->const_array(mfi);
             const auto t_star_arr  = t_star->const_array(mfi);
@@ -164,7 +238,8 @@ struct MYNNPBLH {
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 amrex::Real hfx = -u_star_arr(i,j,k) * t_star_arr(i,j,k);
-                amrex::Print() << "Estimated PBLH" << amrex::IntVect(i,j,k) << " = " << pblh_arr(i,j,k)
+                amrex::Print() << "Estimated PBLH" << amrex::IntVect(i,j,k)
+                    << " = " << pblh_arr(i,j,k) << " " << pblh_tke_arr(i,j,k)
                     << " with thetav_min, hfx = " << min_thv_arr(i,j,k) << " " << hfx << std::endl;
             });
         }//MFIter

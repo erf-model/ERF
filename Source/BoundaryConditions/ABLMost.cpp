@@ -562,10 +562,6 @@ ABLMost::compute_pblh (const int& lev,
                        MultiFab* z_phys_cc,
                        const PBLHeightEstimator& est)
 {
-    const int klo = 0;
-    Box const& domain = m_geom[lev].Domain();
-    const Real dz_no_terrain = m_geom[lev].CellSize(2);
-
     int moist_flag = 0;
     int n_qstate = vars[lev][Vars::cons].nComp() - (NVAR_max - NMOIST_max);
     if (n_qstate > 3) {
@@ -574,7 +570,7 @@ ABLMost::compute_pblh (const int& lev,
         moist_flag = 1;
     }
 
-    est.compute_pblh(domain,dz_no_terrain,z_phys_cc,
+    est.compute_pblh(m_geom[lev],z_phys_cc,
                      pblh[lev].get(),u_star[lev].get(),t_star[lev].get(),
                      vars[lev][Vars::cons],m_lmask_lev[lev][0],
                      moist_flag);
