@@ -144,7 +144,6 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const auto& u_star_arr = u_star_mf->const_array(mfi);
             const auto& t_star_arr = t_star_mf->const_array(mfi);
             const auto& q_star_arr = (use_moisture) ? q_star_mf->const_array(mfi) : Array4<Real>{};
-                  auto  pblh_arr   = pblh_mf->array(mfi);
 
             const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->const_array(mfi) : Array4<Real>{};
 
