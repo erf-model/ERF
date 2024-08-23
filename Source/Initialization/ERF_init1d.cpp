@@ -61,7 +61,7 @@ ERF::setRayleighRefFromSounding (bool restarting)
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
     if (restarting) {
-        input_sounding_data.read_from_file(input_sounding_file[0], geom[0], zlevels_stag, 0);
+        input_sounding_data.read_from_file(geom[0], zlevels_stag, 0);
     }
 
     const Real* z_inp_sound     = input_sounding_data.z_inp_sound[0].dataPtr();
@@ -157,7 +157,7 @@ ERF::setSpongeRefFromSounding (bool restarting)
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
     if (restarting) {
-        input_sponge_data.read_from_file(input_sponge_file, geom[0], zlevels_stag);
+        input_sponge_data.read_from_file(geom[0], zlevels_stag);
     }
 
     const Real* z_inp_sponge     = input_sponge_data.z_inp_sponge.dataPtr();
