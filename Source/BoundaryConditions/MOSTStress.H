@@ -1213,7 +1213,7 @@ struct donelan_flux
 
         if (exp_most) {
             // surface gradient equal to gradient at first zface
-            amrex::Real rqvgrad = ( cons_arr(ic,jc,zlo+1,RhoQ1_comp) - cons_arr(ic,jc,zlo  ,RhoQ1_comp) ) / (0.5*(dz+dz1));
+            amrex::Real rqvgrad = (cons_arr(ic,jc,zlo+1,RhoQ1_comp) - cons_arr(ic,jc,zlo  ,RhoQ1_comp)) / (0.5*(dz+dz1));
             dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoQ1_comp) - rqvgrad * deltaz;
         } else {
             int ie, je;
@@ -1223,7 +1223,7 @@ struct donelan_flux
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
             eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
-            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp) + moflux*rho/eta*deltaz;
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
         }
 
         return moflux;
@@ -1280,12 +1280,12 @@ struct donelan_flux
             je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
             ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-            eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
             // Note: Kh = eta/rho
             //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
             // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp) + moflux*rho/eta*deltaz;
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
         }
 
         return moflux;
