@@ -286,6 +286,8 @@ struct SolverChoice {
         pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
 
+        pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
+
         have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
             "Should not have both abl_geo_wind_table and custom_geostrophic_profile set.");
@@ -543,6 +545,10 @@ struct SolverChoice {
     bool custom_w_subsidence      = false;
     bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
+
+    // Do we use source terms to nudge the solution towards
+    //    the time-varying data provided in input sounding files?
+    bool nudging_from_input_sounding = false;
 
     // User specified MOST BC type
     bool use_explicit_most = false;

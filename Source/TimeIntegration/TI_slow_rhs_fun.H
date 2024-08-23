@@ -37,7 +37,7 @@
         Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
 
         // Construct the source terms for the cell-centered (conserved) variables
-        make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
+        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src,
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level].get(),
 #endif
@@ -45,7 +45,7 @@
                      mapfac_u[level], mapfac_v[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     turbPert);
+                     input_sounding_data, turbPert);
 
         // Moving terrain
         if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
@@ -108,13 +108,14 @@
             MultiFab* p0_new = &p_hse_new;
 
             int n_qstate = micro->Get_Qstate_Size();
-            make_mom_sources(level, nrk, slow_dt, S_data, S_prim,
+            make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              xvel_new, yvel_new,
                              xmom_src, ymom_src, zmom_src,
                              r0_new, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
-                             d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev, n_qstate);
+                             d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                             input_sounding_data, n_qstate);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -211,13 +212,14 @@
         } else { // If not moving_terrain
 
             int n_qstate = micro->Get_Qstate_Size();
-            make_mom_sources(level, nrk, slow_dt, S_data, S_prim,
+            make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              xvel_new, yvel_new,
                              xmom_src, ymom_src, zmom_src,
                              r0, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
-                             d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev, n_qstate);
+                             d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                             input_sounding_data, n_qstate);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -407,7 +409,7 @@
         Real* dptr_u_geos = solverChoice.have_geo_wind_profile ? d_u_geos[level].data(): nullptr;
         Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
 
-        make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
+        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src,
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level],
 #endif
@@ -415,16 +417,17 @@
                      mapfac_u[level], mapfac_v[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     turbPert);
+                     input_sounding_data, turbPert);
 
         int n_qstate = micro->Get_Qstate_Size();
-        make_mom_sources(level, nrk, slow_dt, S_data, S_prim,
+        make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                          xvel_new, yvel_new,
                          xmom_src, ymom_src, zmom_src,
                          r0, fine_geom, solverChoice,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
-                         d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev, n_qstate);
+                         d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                         input_sounding_data, n_qstate);
 
         erf_slow_rhs_pre(level, finest_level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
