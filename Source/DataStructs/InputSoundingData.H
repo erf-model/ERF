@@ -20,10 +20,45 @@
  */
 struct InputSoundingData {
 public:
-    InputSoundingData () {}
+    InputSoundingData ()
+    {
+        amrex::ParmParse pp("erf");
+        pp.query("tau_nudging", tau_nudging);
 
-    void resize_arrays (int nt) {
-        ntimes = nt;
+        // Read in input_sounding filename
+        n_sounding_files = pp.countval("input_sounding_file");
+        if (n_sounding_files > 0) {
+            input_sounding_file.resize(n_sounding_files);
+            pp.queryarr("input_sounding_file", input_sounding_file, 0, n_sounding_files);
+        } else {
+            n_sounding_files = 1;
+            input_sounding_file.resize(n_sounding_files);
+            input_sounding_file[0] = "input_sounding";
+        }
+
+        // Read in input_sounding times
+        n_sounding_times = pp.countval("input_sounding_time");
+
+        if (n_sounding_times > 0) {
+            input_sounding_time.resize(n_sounding_times);
+            pp.queryarr("input_sounding_time", input_sounding_time, 0, n_sounding_times);
+        } else {
+            n_sounding_times = 1;
+            input_sounding_time.resize(n_sounding_times);
+            input_sounding_time[0] = 0.0;
+        }
+
+        // If we have more files than times or times than files we just use the minimum
+        int n = std::min(n_sounding_times, n_sounding_files);
+        n_sounding_files = n;
+        n_sounding_times = n;
+        input_sounding_file.resize(n);
+        input_sounding_time.resize(n);
+    }
+
+    void resize_arrays ()
+    {
+        ntimes = n_sounding_files;
 
         z_inp_sound.resize(ntimes);
         theta_inp_sound.resize(ntimes);
@@ -38,8 +73,7 @@ public:
         V_inp_sound_d.resize(ntimes);
     }
 
-    void read_from_file (const std::string input_sounding_file,
-                         const amrex::Geometry &geom,
+    void read_from_file (const amrex::Geometry &geom,
                          const amrex::Vector<amrex::Real>& zlevels_stag,
                          int itime)
     {
@@ -59,8 +93,8 @@ public:
         V_inp_sound[itime].resize(Nz+2);
 
         // Read the input_sounding file
-        amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
-        std::ifstream input_sounding_reader(input_sounding_file);
+        amrex::Print() << "input_sounding file location : " << input_sounding_file[itime] << std::endl;
+        std::ifstream input_sounding_reader(input_sounding_file[itime]);
         if(!input_sounding_reader.is_open()) {
             amrex::Error("Error opening the input_sounding file\n");
         }
@@ -263,6 +297,13 @@ public:
 
     // Members
     int ntimes;
+
+    amrex::Real tau_nudging = 5.0; // time scale used for nudging
+
+    amrex::Vector<std::string> input_sounding_file = {};
+    amrex::Vector<amrex::Real> input_sounding_time = {};
+    int n_sounding_files = 0;
+    int n_sounding_times = 0;
 
     // - read from file
     amrex::Real press_ref_inp_sound, theta_ref_inp_sound, qv_ref_inp_sound; // input

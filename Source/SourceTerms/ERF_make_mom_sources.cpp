@@ -58,7 +58,6 @@ void make_mom_sources (int /*level*/,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        InputSoundingData& input_sounding_data,
-                       Vector<Real>& input_sounding_time,
                        int n_qstate)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
@@ -78,7 +77,7 @@ void make_mom_sources (int /*level*/,
     //    3. Rayleigh damping   for (xmom,ymom,zmom)
     //    4. Constant / height-dependent geostrophic forcing
     //    5. subsidence
-    //    6. direct nudging towards input sounding data
+    //    6. nudging towards input sounding data
     //    7. numerical diffusion for (xmom,ymom,zmom)
     //    8. sponge
     // *****************************************************************************
@@ -348,7 +347,7 @@ void make_mom_sources (int /*level*/,
         }
 
         // *************************************************************************************
-        // 6. Add direct nudging towards value specified in input sounding
+        // 6. Add nudging towards value specified in input sounding
         // *************************************************************************************
         if (solverChoice.nudging_from_input_sounding)
         {
@@ -357,16 +356,19 @@ void make_mom_sources (int /*level*/,
             Real coeff_n   = Real(1.0);
             Real coeff_np1 = Real(0.0);
 
-            int n_sounding_times = input_sounding_time.size();
+            Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
+
+            int n_sounding_times = input_sounding_data.input_sounding_time.size();
 
             for (int nt = 1; nt < n_sounding_times; nt++) {
-                if (time > input_sounding_time[nt]) itime_n = nt;
+                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
             }
             if (itime_n == n_sounding_times-1) {
                 itime_np1 = itime_n;
             } else {
                 itime_np1 = itime_n+1;
-                coeff_np1 = (time - input_sounding_time[itime_n]) / (input_sounding_time[itime_np1] - input_sounding_time[itime_n]);
+                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
+                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
                 coeff_n   = Real(1.0) - coeff_np1;
             }
 
@@ -377,7 +379,7 @@ void make_mom_sources (int /*level*/,
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real nudge_u = (coeff_n*u_inp_sound_n[k] + coeff_np1*u_inp_sound_np1[k]) - (dptr_u_plane(k)/dptr_r_plane(k));
-                nudge_u *= 0.2;
+                nudge_u *= tau_inv;
                 xmom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_u;
             });
 
@@ -386,7 +388,7 @@ void make_mom_sources (int /*level*/,
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real nudge_v = (coeff_n*v_inp_sound_n[k] + coeff_np1*v_inp_sound_np1[k]) - (dptr_v_plane(k)/dptr_r_plane(k));
-                nudge_v *= 0.2;
+                nudge_v *= tau_inv;
                 ymom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_v;
             });
         }

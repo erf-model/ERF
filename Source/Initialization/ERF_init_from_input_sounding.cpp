@@ -50,16 +50,16 @@ ERF::init_from_input_sounding (int lev)
 {
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
-        if (input_sounding_file.empty()) {
+        if (input_sounding_data.input_sounding_file.empty()) {
             Error("input_sounding file name must be provided via input");
         }
 
-        input_sounding_data.resize_arrays(n_sounding_files);
+        input_sounding_data.resize_arrays();
 
         // this will interpolate the input profiles to the nominal height levels
         // (ranging from 0 to the domain top)
-        for (int n = 0; n < n_sounding_files; n++) {
-            input_sounding_data.read_from_file(input_sounding_file[n], geom[lev], zlevels_stag, n);
+        for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
+            input_sounding_data.read_from_file(geom[lev], zlevels_stag, n);
         }
 
         // this will calculate the hydrostatically balanced density and pressure

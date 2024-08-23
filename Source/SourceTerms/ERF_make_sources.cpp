@@ -46,7 +46,6 @@ void make_sources (int level,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
                    InputSoundingData& input_sounding_data,
-                   Vector<Real>& input_sounding_time,
                    TurbulentPerturbation& turbPert)
 {
     BL_PROFILE_REGION("erf_make_sources()");
@@ -165,7 +164,7 @@ void make_sources (int level,
     //    6. numerical diffusion for (rho theta)
     //    7. sponging
     //    8. turbulent perturbation
-    //    9. direct nudging towards input sounding values (only for theta)
+    //    9. nudging towards input sounding values (only for theta)
     // *****************************************************************************
 
     // ***********************************************************************************************
@@ -362,7 +361,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 9. Add direct nudging towards value specified in input sounding
+        // 9. Add nudging towards value specified in input sounding
         // *************************************************************************************
         if (solverChoice.nudging_from_input_sounding)
         {
@@ -371,16 +370,19 @@ void make_sources (int level,
             Real coeff_n   = Real(1.0);
             Real coeff_np1 = Real(0.0);
 
-            int n_sounding_times = input_sounding_time.size();
+            Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
+
+            int n_sounding_times = input_sounding_data.input_sounding_time.size();
 
             for (int nt = 1; nt < n_sounding_times; nt++) {
-                if (time > input_sounding_time[nt]) itime_n = nt;
+                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
             }
             if (itime_n == n_sounding_times-1) {
                 itime_np1 = itime_n;
             } else {
                 itime_np1 = itime_n+1;
-                coeff_np1 = (time - input_sounding_time[itime_n]) / (input_sounding_time[itime_np1] - input_sounding_time[itime_n]);
+                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
+                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
                 coeff_n   = Real(1.0) - coeff_np1;
             }
 
@@ -393,7 +395,7 @@ void make_sources (int level,
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real nudge = (coeff_n*theta_inp_sound_n[k] + coeff_np1*theta_inp_sound_np1[k]) - (dptr_t_plane(k)/dptr_r_plane(k));
-                nudge *= 0.2;
+                nudge *= tau_inv;
                 cell_src(i, j, k, n) += cell_data(i, j, k, nr) * nudge;
             });
         }
