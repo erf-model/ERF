@@ -61,14 +61,14 @@ ERF::setRayleighRefFromSounding (bool restarting)
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
     if (restarting) {
-        input_sounding_data.read_from_file(input_sounding_file, geom[0], zlevels_stag);
+        input_sounding_data.read_from_file(input_sounding_file[0], geom[0], zlevels_stag, 0);
     }
 
-    const Real* z_inp_sound     = input_sounding_data.z_inp_sound.dataPtr();
-    const Real* U_inp_sound     = input_sounding_data.U_inp_sound.dataPtr();
-    const Real* V_inp_sound     = input_sounding_data.V_inp_sound.dataPtr();
-    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound.dataPtr();
-    const int   inp_sound_size  = input_sounding_data.size();
+    const Real* z_inp_sound     = input_sounding_data.z_inp_sound[0].dataPtr();
+    const Real* U_inp_sound     = input_sounding_data.U_inp_sound[0].dataPtr();
+    const Real* V_inp_sound     = input_sounding_data.V_inp_sound[0].dataPtr();
+    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound[0].dataPtr();
+    const int   inp_sound_size  = input_sounding_data.size(0);
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
@@ -153,7 +153,6 @@ ERF::initSponge ()
 void
 ERF::setSpongeRefFromSounding (bool restarting)
 {
-
     // If we are restarting then we haven't read the input_sponge file yet
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
@@ -208,24 +207,6 @@ ERF::initHSE (int lev)
     MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
-
-#if 0
-    if (lev > 0) {
-
-        // Interp all three components: rho, p, pi
-        int  icomp = 0; int bccomp = 0; int  ncomp = 3;
-
-        PhysBCFunctNoOp null_bc;
-        Real time = 0.;
-        Interpolater* mapper = &cell_cons_interp;
-
-        InterpFromCoarseLevel(base_state[lev], time, base_state[lev-1],
-                              icomp, icomp, ncomp,
-                              geom[lev-1], geom[lev],
-                              null_bc, 0, null_bc, 0, refRatio(lev-1),
-                              mapper, domain_bcs_type, bccomp);
-    }
-#endif
 
     // Initial r_hse may or may not be in HSE -- defined in prob.cpp
     if (solverChoice.use_moist_background){
@@ -330,6 +311,7 @@ ERF::erf_enforce_hse (int lev,
                 } else {
                     dz_loc = dz;
                 }
+
                 Real dens_interp = 0.5*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
                 pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
 

@@ -427,7 +427,9 @@ private:
 
     void update_diffusive_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
-    void update_terrain_arrays (int lev, amrex::Real time);
+    void init_zphys            (int lev, amrex::Real time);
+    void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
+    void update_terrain_arrays (int lev);
 
     void Construct_ERFFillPatchers (int lev);
 
@@ -442,8 +444,9 @@ private:
     void init_uniform (int lev);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
-                     amrex::Vector<amrex::MultiFab>& lev_new,
-                     amrex::Vector<amrex::MultiFab>& lev_old);
+                     amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
+                     amrex::MultiFab& tmp_base_state,
+                     std::unique_ptr<amrex::MultiFab>& tmp_zphys_nd);
 
     // Initialize the Turbulent perturbation
     void turbPert_update (const int lev, const amrex::Real dt);
@@ -944,7 +947,10 @@ private:
     int real_set_width{0};
 
     // Text input_sounding file
-    static std::string input_sounding_file;
+    static amrex::Vector<std::string> input_sounding_file;
+    static amrex::Vector<amrex::Real> input_sounding_time;
+    int n_sounding_files = 1;
+    int n_sounding_times = 1;
 
     // Text input_sponge file
     static std::string input_sponge_file;

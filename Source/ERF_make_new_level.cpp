@@ -55,7 +55,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays, metric terms and base state.
     // *******************************************************************************************
-    init_stuff(lev, ba, dm, lev_new, lev_old);
+    init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
 
     //********************************************************************************************
     // Land Surface Model
@@ -192,6 +192,31 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         zflux_imask[lev] = nullptr;
     }
 
+    // ********************************************************************************************
+    // Initialize the integrator class
+    // ********************************************************************************************
+    initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
+
+    // ********************************************************************************************
+    // Initialize the data itself
+    // If (init_type == "real") then we are initializing terrain and the initial data in
+    //                          the same call so we must call init_only before update_terrain_arrays
+    // If (init_type != "real") then we want to initialize the terrain before the initial data
+    //                          since we may need to use the grid information before constructing
+    //                          initial idealized data
+    // ********************************************************************************************
+    if (restart_chkfile.empty()) {
+        if ((init_type == "real") || (init_type == "metgrid")) {
+            init_only(lev, start_time);
+            init_zphys(lev, time);
+            update_terrain_arrays(lev);
+        } else {
+            init_zphys(lev, time);
+            update_terrain_arrays(lev);
+            init_only(lev, start_time);
+        }
+    }
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -206,38 +231,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
-    }
-
-    // ********************************************************************************************
-    // Initialize the integrator class
-    // ********************************************************************************************
-    initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
-
-    // ********************************************************************************************
-    // Initialize the data itself
-    // If (init_type == "real") then we are initializing terrain and the initial data in
-    //                          the same call so we must call init_only before update_terrain_arrays
-    // If (init_type != "real") then we want to initialize the terrain before the initial data
-    //                          since we may need to use the grid information before constructing
-    //                          initial idealized data
-    // ********************************************************************************************
-    if ((init_type == "real") || (init_type == "metgrid")) {
-
-        // If called from restart, the data structures for terrain-related quantities
-        //    are built in the ReadCheckpoint routine.  Otherwise we build them here.
-        if (restart_chkfile.empty()) {
-            init_only(lev, start_time);
-            update_terrain_arrays(lev, time);
-        }
-
-    } else {
-        // Build the data structures for terrain-related quantities
-        update_terrain_arrays(lev, time);
-
-        // Initialize the solution data itself
-        if (restart_chkfile.empty()) {
-            init_only(lev, start_time);
-        }
     }
 
     // ********************************************************************************************
@@ -280,7 +273,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays, metric terms and base state.
     // *******************************************************************************************
-    init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev]);
+    init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
 
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
@@ -288,7 +281,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Build the data structures for terrain-related quantities
     // ********************************************************************************************
-    update_terrain_arrays(lev, time);
+    init_zphys(lev, time);
+    update_terrain_arrays(lev);
 
     //
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
@@ -317,10 +311,24 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
 
     // ********************************************************************************************
-    // Update the base state at this level
+    // Update the base state at this level by interpolation from coarser level
     // ********************************************************************************************
-    // base_state[lev].define(ba,dm,3,1);
-    // base_state[lev].setVal(0.);
+    // Interp all three components: rho, p, pi
+    int  icomp = 0; int bccomp = 0; int  ncomp = 3;
+
+    PhysBCFunctNoOp null_bc;
+    Interpolater* mapper = &cell_cons_interp;
+
+    Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
+    Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
+    Vector<Real> ftime    = {time, time};
+    Vector<Real> ctime    = {time, time};
+    InterpFromCoarseLevel(base_state[lev], time, base_state[lev-1],
+                          icomp, icomp, ncomp,
+                          geom[lev-1], geom[lev],
+                          null_bc, 0, null_bc, 0, refRatio(lev-1),
+                          mapper, domain_bcs_type, bccomp);
+
     initHSE(lev);
 
     // ********************************************************************************************
@@ -369,8 +377,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 {
     // amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
 
+    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::Moving);
+
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
     DistributionMapping dm_old(vars_new[lev][Vars::cons].DistributionMap());
+
+    // amrex::Print() <<"               OLD BA AT LEVEL " << lev << " " << ba_old << std::endl;
 
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
@@ -380,12 +392,31 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
+    MultiFab temp_base_state;
+
+    std::unique_ptr<MultiFab> temp_zphys_nd;
 
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays and metrics, and base state.
     // *******************************************************************************************
-    init_stuff(lev, ba, dm, temp_lev_new, temp_lev_old);
+    init_stuff(lev, ba, dm, temp_lev_new, temp_lev_old, temp_base_state, temp_zphys_nd);
+
+    // ********************************************************************************************
+    // Build the data structures for terrain-related quantities
+    // ********************************************************************************************
+    remake_zphys(lev, time, temp_zphys_nd);
+    update_terrain_arrays(lev);
+
+    //
+    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    //
+    if (solverChoice.use_terrain != 0) {
+        for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
+            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
+        }
+    }
 
     // *****************************************************************************************************
     // Initialize the boundary conditions (after initializing the terrain but before calling FillCoarsePatch
@@ -399,6 +430,34 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                           &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
                          {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
                           false);
+
+    // ********************************************************************************************
+    // Update the base state at this level by interpolation from coarser level AND copy
+    //    from previous (pre-regrid) base_state array
+    // ********************************************************************************************
+    if (lev > 0) {
+        // Interp all three components: rho, p, pi
+        int  icomp = 0; int bccomp = 0; int  ncomp = 3;
+
+        PhysBCFunctNoOp null_bc;
+        Interpolater* mapper = &cell_cons_interp;
+
+        Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
+        Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
+        Vector<Real> ftime    = {time, time};
+        Vector<Real> ctime    = {time, time};
+        FillPatchTwoLevels(temp_base_state, time,
+                           cmf, ctime, fmf, ftime,
+                           icomp, icomp, ncomp, geom[lev-1], geom[lev],
+                           null_bc, 0, null_bc, 0, refRatio(lev-1),
+                           mapper, domain_bcs_type, bccomp);
+    }
+    std::swap(temp_base_state, base_state[lev]);
+
+    // ********************************************************************************************
+    // Enforce HSE on new grids
+    // ********************************************************************************************
+    initHSE(lev);
 
     // ********************************************************************************************
     // Copy from new into old just in case
@@ -424,21 +483,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
 
-    // ********************************************************************************************
-    // Build the data structures for terrain-related quantities
-    // ********************************************************************************************
-    update_terrain_arrays(lev, time);
-
-    //
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
-    //
-    if (solverChoice.use_terrain != 0) {
-        for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
-            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
-        }
-    }
-
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -454,13 +498,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
-
-    // ********************************************************************************************
-    // Update the base state at this level
-    // ********************************************************************************************
-    // base_state[lev].define(ba,dm,3,1);
-    // base_state[lev].setVal(0.);
-    initHSE(lev);
 
     // ********************************************************************************************
     // Initialize the integrator class
