@@ -137,8 +137,18 @@ public:
             pp.query("most.modified_charnock_depth",depth);
         } else if (rough_sea_string == "wave_coupled") {
             rough_type_sea = RoughCalcType::WAVE_COUPLED;
+        } else if (rough_sea_string == "constant") {
+            rough_type_sea = RoughCalcType::CONSTANT;
         } else {
             amrex::Abort("Undefined MOST roughness type for sea!");
+        }
+
+        // Check if there is a user-specified roughness file to be read
+        std::string fname;
+        bool read_z0 = false;
+        if ( (flux_type == FluxCalcType::MOENG) ||
+             (flux_type == FluxCalcType::ROTATE) ) {
+            read_z0 = pp.query("most.roughness_file_name", fname);
         }
 
         // Size the MOST params for all levels
@@ -207,11 +217,16 @@ public:
 
             // Z0 heights FAB
             //--------------------------------------------------------
+            amrex::Arena* Arena_Used = amrex::The_Arena();
+#ifdef AMREX_USE_GPU
+            Arena_Used = amrex::The_Pinned_Arena();
+#endif
             amrex::Box bx = amrex::grow(m_geom[lev].Domain(),ng);
             bx.setSmall(2,0);
             bx.setBig(2,0);
-            z_0[lev].resize(bx,1);
+            z_0[lev].resize(bx,1,Arena_Used);
             z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
+            if (read_z0) read_custom_roughness(lev,fname);
 
             // 2D MFs for U*, T*, T_surf
             //--------------------------------------------------------
@@ -296,6 +311,10 @@ public:
 
     void
     get_lsm_tsurf (const int& lev);
+
+    void
+    read_custom_roughness (const int& lev,
+                           const std::string& fname);
 
     void
     update_surf_temp (const amrex::Real& time)
