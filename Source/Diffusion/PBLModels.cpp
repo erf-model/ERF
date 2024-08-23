@@ -239,21 +239,6 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 // Level 2 limiting (Helfand and Labraga 1988)
                 Real alphac  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
 
-                if (  ((i== 0) && (j== 0) && (k== 0))
-                   || ((i==10) && (j==10) && (k== 0))
-                   )
-                {
-                    amrex::AllPrint() << "QKE"<<amrex::IntVect(i,j,k)<<" u*, T*, L, shearProd, buoyProd, qe, alphac : "
-                        << u_star_arr(i,j,0) << " "
-                        << t_star_arr(i,j,0) << " "
-                        << Lturb << " "
-                        << shearProd << " "
-                        << buoyProd << " "
-                        << qe << " "
-                        << alphac << " "
-                        << std::endl;
-                }
-
                 // Level 2.5 stability functions
                 Real SM, SH, SQ;
                 mynn.calc_stability_funcs(SM,SH,SQ,GM,GH,alphac);
