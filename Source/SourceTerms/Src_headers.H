@@ -3,6 +3,7 @@
 
 #include <AMReX_MultiFab.H>
 #include "DataStruct.H"
+#include "InputSoundingData.H"
 #include "TurbPertStruct.H"
 
 #ifdef ERF_USE_EB
@@ -23,7 +24,7 @@ void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
                     const int& qstate_size);
 
 void make_sources (int level, int nrk,
-                   amrex::Real dt,
+                   amrex::Real dt, amrex::Real time,
                    amrex::Vector<amrex::MultiFab>& S_data,
                    const amrex::MultiFab& S_prim,
                          amrex::MultiFab& cc_source,
@@ -38,10 +39,12 @@ void make_sources (int level, int nrk,
                    const amrex::Real* dptr_rhoqt_src,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                   InputSoundingData& input_sounding_data,
+                   amrex::Vector<amrex::Real>& input_sounding_time,
                    TurbulentPerturbation& turbPert);
 
 void make_mom_sources (int level, int nrk,
-                       amrex::Real dt,
+                       amrex::Real dt, amrex::Real time,
                        amrex::Vector<amrex::MultiFab>& S_data,
                        const amrex::MultiFab& S_prim,
                        const amrex::MultiFab& xvel,
@@ -60,6 +63,8 @@ void make_mom_sources (int level, int nrk,
                        const amrex::Real* dptr_wbar_sub,
                        const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
+                       InputSoundingData& input_sounding_data,
+                       amrex::Vector<amrex::Real>& input_sounding_time,
                        const int n_qstate);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,

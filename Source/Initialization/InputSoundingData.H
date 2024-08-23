@@ -9,6 +9,7 @@
 #include <AMReX_Gpu.H>
 #include <AMReX_Geometry.H>
 
+#include <EOS.H>
 #include <ERF_Constants.H>
 #include <Interpolation_1D.H>
 
