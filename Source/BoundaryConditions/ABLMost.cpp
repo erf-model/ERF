@@ -607,6 +607,10 @@ void ABLMost::calc_wstar(const int lev,
                 Real qv = cons_arr(i,j,k,RhoQ1_comp)    / cons_arr(i,j,k,Rho_comp);
                 hfx = hfx*(1 + 0.61*qv) + 0.61*th*(-ust_arr(i,j,k)*qst_arr(i,j,k));
             }
+            // NOTE: WRF MYNN-EDMF uses the following definition over water but
+            //   assumes that thermal plumes can exceed the PBLH over land.
+            //   They increase the height scale by placing a _lower_ limit on
+            //   zi of 4 km (not done here).
             wst_arr(i,j,k) = std::cbrt(CONST_GRAV / Tv * pblh_arr(i,j,k) * hfx);
         });
     }
