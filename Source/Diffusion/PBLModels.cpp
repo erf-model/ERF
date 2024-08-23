@@ -258,6 +258,10 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 Real SM, SH, SQ;
                 mynn.calc_stability_funcs(SM,SH,SQ,GM,GH,alphac);
 
+                // Clip SM, SH following WRF
+                SM = amrex::min(amrex::max(SM,mynn.SMmin), mynn.SMmax);
+                SH = amrex::min(amrex::max(SH,mynn.SHmin), mynn.SHmax);
+
                 // Finally, compute the eddy viscosity/diffusivities
                 const Real rho = cell_data(i,j,k,Rho_comp);
                 K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lturb * qvel(i,j,k) * SM * 0.5; // 0.5 for mu_turb

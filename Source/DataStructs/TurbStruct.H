@@ -94,6 +94,10 @@ struct TurbChoice {
                     pbl_mynn_level2.init_coeffs(pbl_mynn.A1, pbl_mynn.A2, pbl_mynn.B1, pbl_mynn.B2,
                                                 pbl_mynn.C1, pbl_mynn.C2, pbl_mynn.C3, pbl_mynn.C4, pbl_mynn.C5);
                     pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn.diffuse_moistvars);
+                    pp.query("pbl_mynn_SMmin", pbl_mynn.SMmin);
+                    pp.query("pbl_mynn_SMmax", pbl_mynn.SMmax);
+                    pp.query("pbl_mynn_SHmin", pbl_mynn.SHmin);
+                    pp.query("pbl_mynn_SHmax", pbl_mynn.SHmax);
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
                     pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
@@ -189,6 +193,10 @@ struct TurbChoice {
                     pbl_mynn_level2.init_coeffs(pbl_mynn.A1, pbl_mynn.A2, pbl_mynn.B1, pbl_mynn.B2,
                                                 pbl_mynn.C1, pbl_mynn.C2, pbl_mynn.C3, pbl_mynn.C4, pbl_mynn.C5);
                     pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn.diffuse_moistvars, lev);
+                    pp.query("pbl_mynn_SMmin", pbl_mynn.SMmin);
+                    pp.query("pbl_mynn_SMmax", pbl_mynn.SMmax);
+                    pp.query("pbl_mynn_SHmin", pbl_mynn.SHmin);
+                    pp.query("pbl_mynn_SHmax", pbl_mynn.SHmax);
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
                     pp.query("pbl_ysu_over_land", pbl_ysu_over_land);

@@ -48,6 +48,12 @@ struct MYNNLevel25 {
     amrex::Real C3 = 0.352;
     amrex::Real C4 = 0.0;
     amrex::Real C5 = 0.2;
+
+    // Clipping (defaults from WRF v4.5.0 onward)
+    amrex::Real SMmin = 0.0;
+    amrex::Real SMmax = 1.0e34;
+    amrex::Real SHmin = 0.0;
+    amrex::Real SHmax = 4.0;
 };
 
 struct MYNNLevel2 {
