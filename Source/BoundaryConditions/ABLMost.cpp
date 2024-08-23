@@ -613,3 +613,102 @@ void ABLMost::calc_wstar(const int lev,
         });
     }
 }
+
+ABLMost::read_custom_roughness (const int& lev,
+                                const std::string& fname)
+{
+    // Read the file if we are on the coarsest level
+    if (lev==0) {
+        // Only the ioproc reads the file and broadcasts
+        if (ParallelDescriptor::IOProcessor()) {
+            Print()<<"Reading MOST roughness file: "<< fname << std::endl;
+            std::ifstream file(fname);
+            Gpu::HostVector<Real> m_x,m_y,m_z0;
+            Real value1,value2,value3;
+            while(file>>value1>>value2>>value3){
+                m_x.push_back(value1);
+                m_y.push_back(value2);
+                m_z0.push_back(value3);
+            }
+            file.close();
+
+            // Copy data to the GPU
+            int nnode = m_x.size();
+            Gpu::DeviceVector<Real> d_x(nnode),d_y(nnode),d_z0(nnode);
+            Gpu::copy(Gpu::hostToDevice, m_x.begin(), m_x.end(), d_x.begin());
+            Gpu::copy(Gpu::hostToDevice, m_y.begin(), m_y.end(), d_y.begin());
+            Gpu::copy(Gpu::hostToDevice, m_z0.begin(), m_z0.end(), d_z0.begin());
+            Real* xp  = d_x.data();
+            Real* yp  = d_y.data();
+            Real* z0p = d_z0.data();
+
+            // Populate z_phys data
+            Real tol = 1.0e-4;
+            auto dx = m_geom[lev].CellSizeArray();
+            auto ProbLoArr = m_geom[lev].ProbLoArray();
+            int ilo = m_geom[lev].Domain().smallEnd(0);
+            int jlo = m_geom[lev].Domain().smallEnd(1);
+            int klo = 0;
+            int ihi = m_geom[lev].Domain().bigEnd(0);
+            int jhi = m_geom[lev].Domain().bigEnd(1);
+
+            // Grown box with no z range
+            Box xybx = z_0[lev].box();
+            xybx.setRange(2,0);
+
+            Array4<Real> const& z0_arr = z_0[lev].array();
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+            {
+                // Clip indices for ghost-cells
+                int ii = amrex::min(amrex::max(i,ilo),ihi);
+                int jj = amrex::min(amrex::max(j,jlo),jhi);
+
+                // Location of nodes
+                Real x = ProbLoArr[0]  + ii  * dx[0];
+                Real y = ProbLoArr[1]  + jj  * dx[1];
+                int inode = ii + jj * (ihi-ilo+2); // stride is Nx+1
+                if (std::sqrt(std::pow(x-xp[inode],2)+std::pow(y-yp[inode],2)) < tol) {
+                    z0_arr(i,j,klo) = z0p[inode];
+                } else {
+                    // Unexpected list order, do brute force search
+                    Real z0loc = 0.0;
+                    bool found = false;
+                    for (int n=0; n<nnode; ++n) {
+                        Real delta=std::sqrt(std::pow(x-xp[n],2)+std::pow(y-yp[n],2));
+                        if (delta < tol) {
+                            found = true;
+                            z0loc = z0p[n];
+                            break;
+                        }
+                    }
+                    AMREX_ASSERT_WITH_MESSAGE(found, "Location read from terrain file does not match the grid!");
+                    amrex::ignore_unused(found);
+                    z0_arr(i,j,klo) = z0loc;
+                }
+            });
+        } // Is ioproc
+
+        int ioproc = ParallelDescriptor::IOProcessorNumber();
+        ParallelDescriptor::Barrier();
+        ParallelDescriptor::Bcast(z_0[lev].dataPtr(),z_0[lev].box().numPts(),ioproc);
+    } else {
+        // Create a BC mapper that uses FOEXTRAP at domain bndry
+        Vector<int> bc_lo(3,ERFBCType::foextrap);
+        Vector<int> bc_hi(3,ERFBCType::foextrap);
+        Vector<BCRec> bcr; bcr.push_back(BCRec(bc_lo.data(),bc_hi.data()));
+
+        // Create ref ratio
+        IntVect ratio;
+        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+            ratio[idim] = m_geom[lev].Domain().length(idim) / m_geom[0].Domain().length(idim);
+        }
+
+        // Create interp object and interpolate from the coarsest grid
+        Interpolater* interp = &cell_cons_interp;
+        interp->interp(z_0[0]  , 0,
+                       z_0[lev], 0,
+                       1, z_0[lev].box(),
+                       ratio, m_geom[0], m_geom[lev],
+                       bcr, 0, 0, RunOn::Gpu);
+    }
+}
