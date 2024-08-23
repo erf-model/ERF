@@ -946,15 +946,6 @@ private:
     int real_width{0};
     int real_set_width{0};
 
-    // Text input_sounding file
-    static amrex::Vector<std::string> input_sounding_file;
-    static amrex::Vector<amrex::Real> input_sounding_time;
-    int n_sounding_files = 1;
-    int n_sounding_times = 1;
-
-    // Text input_sponge file
-    static std::string input_sponge_file;
-
     // Flag to trigger initialization from input_sounding like WRF's ideal.exe
     // used with init_type == "input_sounding"
     static bool init_sounding_ideal;
