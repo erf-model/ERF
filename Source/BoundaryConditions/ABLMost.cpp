@@ -153,7 +153,6 @@ ABLMost::compute_fluxes (const int& lev,
         auto q_star_arr = q_star[lev]->array(mfi);
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto olen_arr   = olen[lev]->array(mfi);
-        auto pblh_arr   = pblh[lev]->array(mfi);
 
         const auto tm_arr  = tm_ptr->array(mfi);
         const auto tvm_arr = tvm_ptr->array(mfi);
@@ -570,8 +569,7 @@ ABLMost::compute_pblh (const int& lev,
         moist_flag = 1;
     }
 
-    est.compute_pblh(m_geom[lev],z_phys_cc,
-                     pblh[lev].get(),u_star[lev].get(),t_star[lev].get(),
+    est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),
                      vars[lev][Vars::cons],m_lmask_lev[lev][0],
                      moist_flag);
 

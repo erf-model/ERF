@@ -893,6 +893,8 @@ MOSTAverage::compute_plane_averages (int lev)
         denom[iavg]   = 1.0 / (Real)ncell_plane[iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
+        const Real beta = m_wstar_beta;
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -925,7 +927,7 @@ MOSTAverage::compute_plane_averages (int lev)
                                             &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                     trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
                                             &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
-                    const Real wst = (wstar_arr) ? m_wstar_beta*wstar_arr(i,j,k) : 0.0;
+                    const Real wst = (wstar_arr) ? beta*wstar_arr(i,j,k) : 0.0;
                     const Real val = std::sqrt(u_interp*u_interp + v_interp*v_interp
                                                + wst*wst + m_Vsg[lev]*m_Vsg[lev]);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -942,7 +944,7 @@ MOSTAverage::compute_plane_averages (int lev)
                     int mi = i_arr ? i_arr(i,j,k) : i;
                     const Real u_val = 0.5 * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
                     const Real v_val = 0.5 * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
-                    const Real wst = (wstar_arr) ? m_wstar_beta*wstar_arr(i,j,k) : 0.0;
+                    const Real wst = (wstar_arr) ? beta*wstar_arr(i,j,k) : 0.0;
                     const Real val = std::sqrt(u_val*u_val + v_val*v_val
                                                + wst*wst + m_Vsg[lev]*m_Vsg[lev]);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1189,6 +1191,8 @@ MOSTAverage::compute_region_averages (int lev)
         int imf  = 0;
         int iavg = m_navg - 1;
 
+        const Real beta = m_wstar_beta;
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -1226,7 +1230,7 @@ MOSTAverage::compute_region_averages (int lev)
                             Real zp = z_pos_arr(i+li,j+lj,k) + met_h_zeta*lk*dx[2];
                             trilinear_interp_T(xp, yp, zp, &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                             trilinear_interp_T(xp, yp, zp, &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
-                            const Real wst = (wstar_arr) ? m_wstar_beta*wstar_arr(i,j,k) : 0.0;
+                            const Real wst = (wstar_arr) ? beta*wstar_arr(i,j,k) : 0.0;
                             const Real mag = std::sqrt(u_interp*u_interp + v_interp*v_interp
                                                        + wst*wst + m_Vsg[lev]*m_Vsg[lev]);
                             Real val = denom * mag * d_fact_new;
@@ -1251,7 +1255,7 @@ MOSTAverage::compute_region_averages (int lev)
                         for (int li(mi-d_radius); li <= (mi+d_radius); ++li) {
                             const Real u_val = 0.5 * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
                             const Real v_val = 0.5 * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
-                            const Real wst = (wstar_arr) ? m_wstar_beta*wstar_arr(i,j,k) : 0.0;
+                            const Real wst = (wstar_arr) ? beta*wstar_arr(i,j,k) : 0.0;
                             const Real mag   = std::sqrt(u_val*u_val + v_val*v_val
                                                          + wst*wst + m_Vsg[lev]*m_Vsg[lev]);
                             Real val = denom * mag * d_fact_new;

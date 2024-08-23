@@ -22,8 +22,6 @@ struct MYNNPBLH {
     void compute_pblh(const amrex::Geometry& geom,
                       const amrex::MultiFab* z_phys_cc,
                       amrex::MultiFab* pblh,
-                      const amrex::MultiFab* u_star,
-                      const amrex::MultiFab* t_star,
                       const amrex::MultiFab& cons,
                       const amrex::iMultiFab* lmask,
                       const int moist_flag) const
@@ -234,7 +232,7 @@ struct MYNNPBLH {
             auto pblh_arr     = pblh->array(mfi);
 
             amrex::Box gtbx = mfi.growntilebox();
-            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
                 //
                 // Clip PBLH_TKE to more realistic values
