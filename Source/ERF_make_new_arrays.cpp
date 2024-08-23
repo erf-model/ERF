@@ -337,7 +337,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     //
-    // Define the land mask here and set it to all land
+    // Define the land mask here and set it to all land by default
     // NOTE: the logic below will BREAK if we have any grids not touching the bottom boundary
     //
     {

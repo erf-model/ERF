@@ -933,6 +933,25 @@ ERF::InitData ()
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
+
+    }
+
+    // Allow idealized cases over water, used to set lmask
+    ParmParse pp("erf");
+    int is_land;
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        if (pp.query("is_land", is_land, lev)) {
+            if (is_land == 1) {
+                amrex::Print() << "Level " << lev << " is land" << std::endl;
+            } else if (is_land == 0) {
+                amrex::Print() << "Level " << lev << " is water" << std::endl;
+            } else {
+                Error("is_land should be 0 or 1");
+            }
+            lmask_lev[lev][0]->setVal(is_land);
+            lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        }
     }
 
 #ifdef ERF_USE_WW3_COUPLING
@@ -1040,7 +1059,6 @@ ERF::InitData ()
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...
-    ParmParse pp("erf");
     if (pp.contains("data_log"))
     {
         int num_datalogs = pp.countval("data_log");
