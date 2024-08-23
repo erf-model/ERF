@@ -42,6 +42,7 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     m_rot_fields.resize(m_maxlev);
     m_averages.resize(m_maxlev);
     m_z_phys_nd.resize(m_maxlev);
+    m_wstar.resize(m_maxlev);
 
     m_k_in.resize(m_maxlev);
 
@@ -242,7 +243,6 @@ MOSTAverage::update_field_ptrs (int lev,
 void
 MOSTAverage::set_wstar_ptrs(Vector<std::unique_ptr<MultiFab>>& w_star)
 {
-    m_wstar.resize(m_maxlev);
     for (int lev(0); lev < m_maxlev; lev++) {
         m_wstar[lev] = w_star[lev].get();
     }
