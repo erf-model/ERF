@@ -137,7 +137,7 @@ struct MYNNPBLH {
                         amrex::Real maxtke = 0.5 * cons_arr(i,j,0  ,RhoQKE_comp) / cons_arr(i,j,0  ,Rho_comp);
                         // - threshold is 5% of max TKE (Kosovic & Curry 2000, JAS)
                         amrex::Real TKEeps = 0.05 * maxtke;
-                        TKEeps = amrex::max(TKEeps, 0.02); // WRF v4.6.1
+                        TKEeps = amrex::max(TKEeps, 0.02); // min val from WRF
 
                         if ((tke1 <= TKEeps) && (tke > TKEeps))
                         {
@@ -209,7 +209,7 @@ struct MYNNPBLH {
                         amrex::Real maxtke = 0.5 * cons_arr(i,j,0  ,RhoQKE_comp) / cons_arr(i,j,0  ,Rho_comp);
                         // - threshold is 5% of max TKE (Kosovic & Curry 2000, JAS)
                         amrex::Real TKEeps = 0.05 * maxtke;
-                        TKEeps = amrex::max(TKEeps, 0.02); // min val from WRF v4.6.1
+                        TKEeps = amrex::max(TKEeps, 0.02); // min val from WRF
 
                         if ((tke1 <= TKEeps) && (tke > TKEeps))
                         {
