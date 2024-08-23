@@ -220,6 +220,6 @@ protected:
     bool include_subgrid_vel = false;
     amrex::Real m_wstar_beta = 1.2;                                  // Empirical parameter from Beljaars 1995 QJRMS
     amrex::Vector<amrex::MultiFab*> m_wstar;                         // Ptr to 2D mf to hold wstar (maxlev)
-    amrex::Gpu::DeviceVector<amrex::Real> d_Vsg;                     // Subgrid velocity scale (Mahrt & Sun 1995 MWR)
+    amrex::Vector<amrex::Real> m_Vsg;                                // Subgrid velocity scale (Mahrt & Sun 1995 MWR)
 };
 #endif
