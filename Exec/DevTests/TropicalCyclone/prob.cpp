@@ -69,7 +69,7 @@ Problem::init_custom_pert(
   // Get vortex location
   const Real Xc = parms.Xc_0;
   const Real Yc = parms.Yc_0;
-  const Real v_max = parms.VMAX; 
+  const Real v_max = parms.VMAX;
   const Real R_max = parms.RMAX;
   const Real R_0 = parms.RZERO;
   const Real z_0 = parms.ZZERO;
