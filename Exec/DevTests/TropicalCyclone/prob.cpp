@@ -39,12 +39,12 @@ Problem::init_custom_pert(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
-    const Box& zbx,
+    const Box& /*zbx*/,
     Array4<Real const> const& /*state*/,
     Array4<Real      > const& state_pert,
     Array4<Real      > const& x_vel_pert,
     Array4<Real      > const& y_vel_pert,
-    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& /*z_vel_pert*/,
     Array4<Real> const& r_hse,
     Array4<Real> const&,
     Array4<Real const> const&,
@@ -53,7 +53,7 @@ Problem::init_custom_pert(
     Array4<Real const> const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
-    const SolverChoice& sc)
+    const SolverChoice& /*sc*/)
 {
 
 // QKE for PBL
