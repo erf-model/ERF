@@ -614,6 +614,7 @@ void ABLMost::calc_wstar(const int lev,
     }
 }
 
+void
 ABLMost::read_custom_roughness (const int& lev,
                                 const std::string& fname)
 {
