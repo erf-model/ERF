@@ -38,7 +38,7 @@ using namespace amrex;
  */
 
 void make_mom_sources (int /*level*/,
-                       int /*nrk*/, Real dt,
+                       int /*nrk*/, Real dt, Real time,
                        Vector<MultiFab>& S_data,
                        const  MultiFab & S_prim,
                        const  MultiFab & /*xvel*/,
@@ -57,6 +57,7 @@ void make_mom_sources (int /*level*/,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
+                       InputSoundingData& input_sounding_data,
                        int n_qstate)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
@@ -76,8 +77,9 @@ void make_mom_sources (int /*level*/,
     //    3. Rayleigh damping   for (xmom,ymom,zmom)
     //    4. Constant / height-dependent geostrophic forcing
     //    5. subsidence
-    //    6. numerical diffusion for (xmom,ymom,zmom)
-    //    7. sponge
+    //    6. nudging towards input sounding data
+    //    7. numerical diffusion for (xmom,ymom,zmom)
+    //    8. sponge
     // *****************************************************************************
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
 
@@ -113,7 +115,8 @@ void make_mom_sources (int /*level*/,
     Table1D<Real>     dptr_r_plane, dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> r_plane_tab,  u_plane_tab,  v_plane_tab;
 
-    if (dptr_wbar_sub) {
+    if (dptr_wbar_sub || solverChoice.nudging_from_input_sounding)
+    {
         // Rho
         PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
         r_ave.compute_averages(ZDir(), r_ave.field());
@@ -183,7 +186,7 @@ void make_mom_sources (int /*level*/,
     }
 
     // *****************************************************************************
-    // Create the BUOYANCY forcing term in the z-direction
+    // 1. Create the BUOYANCY forcing term in the z-direction
     // *****************************************************************************
     make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, r0, n_qstate);
 
@@ -212,7 +215,7 @@ void make_mom_sources (int /*level*/,
         const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
         // *****************************************************************************
-        // Add CORIOLIS forcing (this assumes east is +x, north is +y)
+        // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis) {
             ParallelFor(tbx, tby, tbz,
@@ -235,7 +238,7 @@ void make_mom_sources (int /*level*/,
         } // use_coriolis
 
         // *****************************************************************************
-        // Add RAYLEIGH damping
+        // 3. Add RAYLEIGH damping
         // *****************************************************************************
         if (rayleigh_damp_U) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -265,7 +268,7 @@ void make_mom_sources (int /*level*/,
         }
 
         // *****************************************************************************
-        // Add constant GEOSTROPHIC forcing
+        // 4. Add constant GEOSTROPHIC forcing
         // *****************************************************************************
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -284,7 +287,7 @@ void make_mom_sources (int /*level*/,
         });
 
         // *****************************************************************************
-        // Add height-dependent GEOSTROPHIC forcing
+        // 4. Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
         if (geo_wind_profile) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -300,7 +303,7 @@ void make_mom_sources (int /*level*/,
         } // geo_wind_profile
 
         // *****************************************************************************
-        // Add custom SUBSIDENCE terms
+        // 5. Add custom SUBSIDENCE terms
         // *****************************************************************************
         if (solverChoice.custom_w_subsidence) {
             if (solverChoice.custom_forcing_prim_vars) {
@@ -343,8 +346,55 @@ void make_mom_sources (int /*level*/,
             }
         }
 
+        // *************************************************************************************
+        // 6. Add nudging towards value specified in input sounding
+        // *************************************************************************************
+        if (solverChoice.nudging_from_input_sounding)
+        {
+            int itime_n    = 0;
+            int itime_np1  = 0;
+            Real coeff_n   = Real(1.0);
+            Real coeff_np1 = Real(0.0);
+
+            Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
+
+            int n_sounding_times = input_sounding_data.input_sounding_time.size();
+
+            for (int nt = 1; nt < n_sounding_times; nt++) {
+                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
+            }
+            if (itime_n == n_sounding_times-1) {
+                itime_np1 = itime_n;
+            } else {
+                itime_np1 = itime_n+1;
+                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
+                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
+                coeff_n   = Real(1.0) - coeff_np1;
+            }
+
+            int nr = Rho_comp;
+
+            const Real* u_inp_sound_n   = input_sounding_data.U_inp_sound_d[itime_n].dataPtr();
+            const Real* u_inp_sound_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr();
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real nudge_u = (coeff_n*u_inp_sound_n[k] + coeff_np1*u_inp_sound_np1[k]) - (dptr_u_plane(k)/dptr_r_plane(k));
+                nudge_u *= tau_inv;
+                xmom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_u;
+            });
+
+            const Real* v_inp_sound_n   = input_sounding_data.V_inp_sound_d[itime_n].dataPtr();
+            const Real* v_inp_sound_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr();
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real nudge_v = (coeff_n*v_inp_sound_n[k] + coeff_np1*v_inp_sound_np1[k]) - (dptr_v_plane(k)/dptr_r_plane(k));
+                nudge_v *= tau_inv;
+                ymom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_v;
+            });
+        }
+
         // *****************************************************************************
-        // Add NUMERICAL DIFFUSION terms
+        // 7. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
         if (l_use_ndiff) {
             NumericalDiffusion(tbx, 0, 1, dt, solverChoice.NumDiffCoeff,
@@ -356,7 +406,7 @@ void make_mom_sources (int /*level*/,
         }
 
         // *****************************************************************************
-        // Add SPONGING
+        // 8. Add SPONGING
         // *****************************************************************************
         if(solverChoice.spongeChoice.sponge_type == "input_sponge")
         {

@@ -11,9 +11,6 @@ ifeq ($(USE_WINDFARM),TRUE)
 CEXE_sources += ERF_init_windfarm.cpp
 endif
 
-CEXE_headers += InputSoundingData.H
-CEXE_headers += InputSpongeData.H
-
 ifeq ($(USE_NETCDF),TRUE)
 CEXE_headers += Metgrid_utils.H
 CEXE_sources += ERF_init_from_wrfinput.cpp

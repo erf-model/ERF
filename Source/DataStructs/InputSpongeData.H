@@ -18,10 +18,14 @@
  */
 struct InputSpongeData {
 public:
-    InputSpongeData () {}
+    InputSpongeData ()
+    {
+        // Text input_sounding file
+        amrex::ParmParse pp("erf");
+        pp.query("input_sponge_file", input_sponge_file);
+    }
 
-    void read_from_file (const std::string input_sponge_file,
-                         const amrex::Geometry &geom,
+    void read_from_file (const amrex::Geometry &geom,
                          const amrex::Vector<amrex::Real>& zlevels_stag)
     {
         const int klo = 0;
@@ -103,6 +107,9 @@ public:
     }
 
     // Members
+
+    std::string input_sponge_file = "input_sponge_file.txt";
+
     // - read from file
     amrex::Vector<amrex::Real> z_inp_sponge, U_inp_sponge, V_inp_sponge;
 };

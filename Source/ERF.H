@@ -946,12 +946,6 @@ private:
     int real_width{0};
     int real_set_width{0};
 
-    // Text input_sounding file
-    static std::string input_sounding_file;
-
-    // Text input_sponge file
-    static std::string input_sponge_file;
-
     // Flag to trigger initialization from input_sounding like WRF's ideal.exe
     // used with init_type == "input_sounding"
     static bool init_sounding_ideal;
