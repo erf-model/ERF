@@ -71,7 +71,7 @@ ABLMost::update_fluxes (const int& lev,
         bool is_land = false;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                surface_flux_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
+                surface_flux_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a, cnk_visc);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_flux_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
@@ -86,7 +86,7 @@ ABLMost::update_fluxes (const int& lev,
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                surface_temp_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
+                surface_temp_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a, cnk_visc);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_temp_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
@@ -100,7 +100,7 @@ ABLMost::update_fluxes (const int& lev,
 
         } else if (theta_type == ThetaCalcType::ADIABATIC) {
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                adiabatic_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
+                adiabatic_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a, cnk_visc);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 adiabatic_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);

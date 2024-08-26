@@ -149,6 +149,16 @@ public:
         if (rough_sea_string == "charnock") {
             rough_type_sea = RoughCalcType::CHARNOCK;
             pp.query("most.charnock_constant",cnk_a);
+            pp.query("most.charnock_viscosity",cnk_visc);
+            if (cnk_a > 0) {
+                amrex::Print() << "Using Charnock relation with C_a=" << cnk_a
+                    << (cnk_visc? " and viscosity" : "")
+                    << std::endl;
+            } else {
+                amrex::Print() << "Using Charnock relation with variable Charnock parameter (COARE3.0)"
+                    << (cnk_visc? " and viscosity" : "")
+                    << std::endl;
+            }
         } else if (rough_sea_string == "modified_charnock") {
             rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
             pp.query("most.modified_charnock_depth",depth);
@@ -462,6 +472,7 @@ private:
     amrex::Real custom_tstar{0};
     amrex::Real custom_qstar{0};
     amrex::Real cnk_a{0.0185};
+    bool        cnk_visc{false};
     amrex::Real depth{30.0};
     amrex::Real m_start_bdy_time;
     amrex::Real m_bdy_time_interval;
