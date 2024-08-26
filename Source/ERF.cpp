@@ -64,12 +64,6 @@ Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via inpu
 // NetCDF wrfbdy (lateral boundary) file
 std::string ERF::nc_bdy_file; // Must provide via input
 
-// Text input_sounding file
-std::string ERF::input_sounding_file = "input_sounding";
-
-// Text input_sponge file
-std::string ERF::input_sponge_file = "input_sponge_file.txt";
-
 // Flag to trigger initialization from input_sounding like WRF's ideal.exe
 bool ERF::init_sounding_ideal = false;
 
@@ -1427,12 +1421,6 @@ ERF::ReadParameters ()
         // NetCDF wrfbdy lateral boundary file
         pp.query("nc_bdy_file", nc_bdy_file);
 #endif
-
-        // Text input_sounding file
-        pp.query("input_sounding_file", input_sounding_file);
-
-        // Text input_sounding file
-        pp.query("input_sponge_file", input_sponge_file);
 
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);

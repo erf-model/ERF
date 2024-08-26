@@ -23,7 +23,7 @@ xlo.theta = 1.
 xlo.scalar = 0.
 
 # TIME STEP CONTROL
-erf.cfl = 0.9
+erf.cfl = 0.5
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

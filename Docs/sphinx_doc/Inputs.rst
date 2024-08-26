@@ -919,46 +919,65 @@ Forcing Terms
 List of Parameters
 ------------------
 
-+----------------------------------+-------------------+-------------------+-------------+
-| Parameter                        | Definition        | Acceptable        | Default     |
-|                                  |                   | Values            |             |
-+==================================+===================+===================+=============+
-| **erf.abl_driver_type**          | Type of external  | None,             | None        |
-|                                  | forcing term      | PressureGradient  |             |
-|                                  |                   | GeostrophicWind   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.abl_pressure_grad**        | Pressure gradient | 3 Reals           | (0.,0.,0.)  |
-|                                  | forcing term      |                   |             |
-|                                  | (only if          |                   |             |
-|                                  | abl.driver_type = |                   |             |
-|                                  | PressureGradient) |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.abl_geo_wind**             | Geostrophic       | 3 Reals           | (0.,0.,0.)  |
-|                                  | forcing term      |                   |             |
-|                                  | (only if          |                   |             |
-|                                  | abl.driver_type = |                   |             |
-|                                  | GeostrophicWind)  |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.abl_geo_wind_table**       | Path to text file | String            | None        |
-|                                  | containing a      |                   |             |
-|                                  | geostrophic wind  |                   |             |
-|                                  | profile           |                   |             |
-|                                  | (with z, Ug, and  |                   |             |
-|                                  |  Vg whtiespace    |                   |             |
-|                                  |  delimited        |                   |             |
-|                                  |  columns)         |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_gravity**              | Include gravity   | true / false      | false       |
-|                                  | in momentum       |                   |             |
-|                                  | update?  If true, |                   |             |
-|                                  | there is buoyancy |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_coriolis**             | Include Coriolis  | true / false      | false       |
-|                                  | forcing           |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_rayleigh_damping**     | Include explicit  | true / false      | false       |
-|                                  | Rayleigh damping  |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
++-------------------------------------+------------------------+-------------------+---------------------+
+| Parameter                           | Definition             | Acceptable        | Default             |
+|                                     |                        | Values            |                     |
++=====================================+========================+===================+=====================+
+| **erf.abl_driver_type**             | Type of external       | None,             | None                |
+|                                     | forcing term           | PressureGradient  |                     |
+|                                     |                        | GeostrophicWind   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.abl_pressure_grad**           | Pressure gradient      | 3 Reals           | (0.,0.,0.)          |
+|                                     | forcing term           |                   |                     |
+|                                     | (only if               |                   |                     |
+|                                     | abl.driver_type =      |                   |                     |
+|                                     | PressureGradient)      |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.abl_geo_wind**                | Geostrophic            | 3 Reals           | (0.,0.,0.)          |
+|                                     | forcing term           |                   |                     |
+|                                     | (only if               |                   |                     |
+|                                     | abl.driver_type =      |                   |                     |
+|                                     | GeostrophicWind)       |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.abl_geo_wind_table**          | Path to text file      | String            | None                |
+|                                     | containing a           |                   |                     |
+|                                     | geostrophic wind       |                   |                     |
+|                                     | profile                |                   |                     |
+|                                     | (with z, Ug, and       |                   |                     |
+|                                     |  Vg whtiespace         |                   |                     |
+|                                     |  delimited             |                   |                     |
+|                                     |  columns)              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_gravity**                 | Include gravity        | true / false      | false               |
+|                                     | in momentum            |                   |                     |
+|                                     | update?  If true,      |                   |                     |
+|                                     | there is buoyancy      |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_coriolis**                | Include Coriolis       | true / false      | false               |
+|                                     | forcing                |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_rayleigh_damping**        | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping       |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_from_input_sounding** | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping       |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding_file |
+|                                     | input sounding file(s) |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.input_sounding_time**         | Time(s) of the         | Real(s)           | false               |
+|                                     | input sounding file(s) |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.tau_nudging**                 | Time scale for         | Real              | 5.0                 |
+|                                     | nudging                |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+
+If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding
+file is available.  If there is only one, and no specification of time is made, it is assumed that
+the one file corresponds to time = 0.0.   If the final time supplied in
+``input_*_sounding_*_time``  is less than the final time in the calculation, the final sounding supplied
+in ``input_*_sounding_*_file`` will be used for all times later than the final value in
+in ``input_*_sounding_*_time``.
 
 In addition, custom forcings or tendencies may be defined on a problem-specific
 basis. This affords additional flexibility in defining the RHS source term as
@@ -1015,9 +1034,16 @@ ERF can be initialized in different ways. These are listed below:
 - Custom initialization:
     Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are meant for demonstration and do not include any terrain or map scale factors.
 - Initialization using a NetCDF file:
-    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesoscale data. This is a more realistic problem with real atmospheric data used for initialization. The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.  These problems are run with both terrain and map scale factors.
+    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data.
+The state and velocity components of the ERF domain are ingested from the mesoscale data.
+This is a more realistic problem with real atmospheric data used for initialization.
+The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.
+These problems are run with both terrain and map scale factors.
 - Initialization using an ``input_sounding`` file:
-    Problems in ERF can be initialized using an ``input_sounding`` file containing the vertical profile. This file has the same format as used by ``ideal.exe`` executable in WRF. Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed. This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state and does not include terrain or map scale factors.
+    Problems in ERF can be initialized using an ``input_sounding`` file containing the vertical profile.
+This file has the same format as used by ``ideal.exe`` executable in WRF.
+Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed.
+This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state and does not include terrain or map scale factors.
 
 In addition, there is a run-time option to project the initial velocity field to make it divergence-free.  To take
 advantage of this option, the code must be built with ``USE_POISSON_SOLVE = TRUE`` in the GNUmakefile if using gmake, or with
