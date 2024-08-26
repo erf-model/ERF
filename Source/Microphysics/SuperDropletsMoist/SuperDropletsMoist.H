@@ -47,7 +47,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         SuperDropletsMoist()
         {
             m_qmoist_size = 7;
-            m_qstate_size = 2;
+            m_qstate_size = 3; // qv, qc, qr
             m_name = "super_droplets_moisture";
         }
 
@@ -125,7 +125,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief compute condensate mixing ratio */
-        virtual void computeQc ();
+        virtual void computeQcQr ();
 
         /*! \brief compute qt (total) */
         virtual void computeQt ();
@@ -150,6 +150,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
 
         amrex::Real m_fac_cond; /*!< latent heat factor */
+
+        amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
 
         /*! let initial superdroplets "relax" to a physically-appropriate size? */
         bool m_init_phase_change;

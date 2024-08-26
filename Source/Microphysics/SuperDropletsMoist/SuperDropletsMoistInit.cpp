@@ -30,6 +30,10 @@ void SuperDropletsMoist::readInputs ()
     m_init_type = SupDropInit::init_uniform;
     pp.query("initial_distribution_type", m_init_type);
 
+    // minimum radius for rain
+    m_r_rain = 4.0e-5; // 40 micrometers
+    pp.query("radius_raindrop", m_r_rain);
+
     // get aerosol names
     m_aerosols.clear();
     std::string aerosol_input = "aerosols";
@@ -117,6 +121,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
 
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
+                   << "    cloud/rain radius: " << m_r_rain << " [m]\n"
                    << "    include phase change: "
                    << (m_flag_phase_change ? "true" : "false") << "\n"
                    << "    include particle advection: "
@@ -166,7 +171,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         }
     }
 
-    computeQc();
+    computeQcQr();
     computeQt();
 
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
@@ -183,6 +188,5 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
 
     return;
 }
-
 
 #endif

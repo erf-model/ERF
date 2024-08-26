@@ -1053,10 +1053,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
         }
             else if(solverChoice.moisture_type == MoistureType::SuperDroplets) {
-                if (containerHasElement(plot_var_names, "qrain")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][4]),0,mf_comp,1,0);
-                    mf_comp += 1;
-                }
                 if (containerHasElement(plot_var_names, "rain_accum")) {
                     MultiFab::Copy(mf[lev],*(qmoist[lev][6]),0,mf_comp,1,0);
                     mf_comp += 1;

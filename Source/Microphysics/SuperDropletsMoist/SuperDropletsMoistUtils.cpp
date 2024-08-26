@@ -21,6 +21,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
         auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->array(mfi);
         auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
         auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
+        auto q_r_arr = m_mic_fab_vars[MicVar_SD::q_r]->const_array(mfi);
         auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
 
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -28,7 +29,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
             rho_arr(i,j,k) = states_arr(i,j,k,Rho_comp);
             theta_arr(i,j,k) = states_arr(i,j,k,RhoTheta_comp)/states_arr(i,j,k,Rho_comp);
             q_v_arr(i,j,k) = states_arr(i,j,k,RhoQ1_comp) / states_arr(i,j,k,Rho_comp);
-            q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k);
+            q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k) + q_r_arr(i,j,k);
         });
     }
 
@@ -72,6 +73,7 @@ void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conse
         auto states_arr = a_cons_vars.array(mfi);
         auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
         auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
+        auto q_r_arr = m_mic_fab_vars[MicVar_SD::q_r]->const_array(mfi);
         auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->const_array(mfi);
 
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -79,6 +81,7 @@ void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conse
             states_arr(i,j,k,RhoTheta_comp) = states_arr(i,j,k,Rho_comp)*theta_arr(i,j,k);
             states_arr(i,j,k,RhoQ1_comp) = states_arr(i,j,k,Rho_comp)*q_v_arr(i,j,k);
             states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
+            states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
         });
     }
 
@@ -95,7 +98,7 @@ void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars)
  *  from microphysics variables */
 void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
 {
-    computeQc();
+    computeQcQr();
     computeQt();
     rainAccumulation();
     Copy_Micro_to_State(a_cons_vars);
@@ -144,10 +147,12 @@ void SuperDropletsMoist::ratioToDensity (  MultiFab& a_var, /*!< Multifab */
 }
 
 /*! compute condensate mixing ratio */
-void SuperDropletsMoist::computeQc ()
+void SuperDropletsMoist::computeQcQr ()
 {
-    m_super_droplets->massDensityCondensate(*(m_mic_fab_vars[MicVar_SD::q_c]));
+    m_super_droplets->massDensityCondensate(*(m_mic_fab_vars[MicVar_SD::q_c]), 0, m_r_rain);
+    m_super_droplets->massDensityCondensate(*(m_mic_fab_vars[MicVar_SD::q_r]), m_r_rain, 1.0);
     densityToRatio(*(m_mic_fab_vars[MicVar_SD::q_c]));
+    densityToRatio(*(m_mic_fab_vars[MicVar_SD::q_r]));
 }
 
 /*! compute qt (total) */
@@ -159,11 +164,12 @@ void SuperDropletsMoist::computeQt ()
         bx.grow(m_mic_fab_vars[MicVar_SD::q_t]->nGrowVect());
 
         auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
+        auto q_r_arr = m_mic_fab_vars[MicVar_SD::q_r]->const_array(mfi);
         auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
         auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->array(mfi);
 
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        { q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k); });
+        { q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k) + q_r_arr(i,j,k); });
     }
 }
 

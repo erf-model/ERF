@@ -61,7 +61,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                                         a_z );
 
         // Compute new condensate mixing ratio
-        computeQc();
+        computeQcQr();
 
         if (a_update_qv) {
             // Update vapour mixing ratio
@@ -70,27 +70,32 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                 Box bx = mfi.tilebox();
                 bx.grow(m_mic_fab_vars[MicVar_SD::q_v]->nGrowVect());
 
-                auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->const_array(mfi);
-                auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
+                auto qt_arr = m_mic_fab_vars[MicVar_SD::q_t]->const_array(mfi);
+                auto qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
                 auto dqc_arr = m_mic_fab_vars[MicVar_SD::dqcdt]->array(mfi);
-                auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
+                auto qc_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
+                auto qr_arr = m_mic_fab_vars[MicVar_SD::q_r]->array(mfi);
                 auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
                 auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->array(mfi);
 
                 auto fac_cond = m_fac_cond;
                 ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    auto old_qv = q_v_arr(i,j,k);
-                    if (q_c_arr(i,j,k) >= q_t_arr(i,j,k)) {
-                        q_c_arr(i,j,k) = q_t_arr(i,j,k);
-                        q_v_arr(i,j,k) = 0.0;
+                    AMREX_ALWAYS_ASSERT(qr_arr(i,j,k) >= 0.0);
+                    auto old_qv = qv_arr(i,j,k);
+                    auto qw = qc_arr(i,j,k) + qr_arr(i,j,k);
+                    if (qw > qt_arr(i,j,k)) {
+                        qv_arr(i,j,k) = 0.0;
+                        qc_arr(i,j,k) = qt_arr(i,j,k) - qr_arr(i,j,k);
                     } else {
-                        q_v_arr(i,j,k) = q_t_arr(i,j,k) - q_c_arr(i,j,k);
+                        qv_arr(i,j,k) = qt_arr(i,j,k) - (qc_arr(i,j,k) + qr_arr(i,j,k));
                     }
-                    dqc_arr(i,j,k) = - (q_v_arr(i,j,k) - old_qv) / dt_s;
+                    AMREX_ALWAYS_ASSERT(qv_arr(i,j,k) >= 0.0);
+                    AMREX_ALWAYS_ASSERT(qc_arr(i,j,k) >= 0.0);
+                    dqc_arr(i,j,k) = - (qv_arr(i,j,k) - old_qv) / dt_s;
 
                     auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
-                    theta_arr(i,j,k) += theta_over_T * fac_cond * (old_qv-q_v_arr(i,j,k));
+                    theta_arr(i,j,k) += theta_over_T * fac_cond * (old_qv-qv_arr(i,j,k));
                 });
 
             }
