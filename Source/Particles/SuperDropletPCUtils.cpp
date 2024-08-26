@@ -149,8 +149,10 @@ void SuperDropletPC::massDensity ( MultiFab&  a_mf,  /*!< Mass density multifab 
 
 /*! Computes the mass density of the condensate over a mesh: this does
     include the aerosol mass*/
-void SuperDropletPC::massDensityCondensate ( MultiFab&  a_mf,  /*!< Mass density multifab */
-                                             const int& a_comp /*!< Multifab component to fill with mass density */) const
+void SuperDropletPC::massDensityCondensate ( MultiFab&  a_mf, /*!< Mass density multifab */
+                                             const Real a_rmin, /*!< minimum radius */
+                                             const Real a_rmax, /*!< maximum radius */
+                                             const int& a_comp /*!< Multifab component to fill with mass density */ ) const
 {
     BL_PROFILE("SuperDropletPC::massDensity()");
 
@@ -174,14 +176,19 @@ void SuperDropletPC::massDensityCondensate ( MultiFab&  a_mf,  /*!< Mass density
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
-                    auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                    auto par_mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
-                    ParticleReal solute_mass = 0.0;
-                    for (int ai = 0; ai < num_aerosols; ai++) {
-                        solute_mass += (ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::ncomps+ai][i]);
+                    auto radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
+                    if ((radius < a_rmin) || (radius >= a_rmax)) {
+                        return 0.0;
+                    } else {
+                        auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                        auto par_mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
+                        ParticleReal solute_mass = 0.0;
+                        for (int ai = 0; ai < num_aerosols; ai++) {
+                            solute_mass += (ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::ncomps+ai][i]);
+                        }
+                        ParticleReal condensate_mass = std::max(0.0, par_mass-solute_mass);
+                        return num_par*condensate_mass*inv_cell_volume;
                     }
-                    ParticleReal condensate_mass = std::max(0.0, par_mass-solute_mass);
-                    return num_par*condensate_mass*inv_cell_volume;
                 });
         });
 
