@@ -143,13 +143,11 @@ void Radiation::initialize (const MultiFab& cons_in,
     ParmParse pp("erf");
     pp.query("fixed_total_solar_irradiance", fixed_total_solar_irradiance);
     pp.query("radiation_uniform_angle"     , uniform_angle);
+    pp.query("moisture_model", moisture_type); // TODO: get from SolverChoice?
+    has_qmoist = (moisture_type != "None");
 
-    for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.tilebox();
-        nlev = box3d.length(2);
-        ncol = box3d.length(0)*box3d.length(1);
-    }
-
+    nlev = geom.Domain().length(2);
+    ncol = geom.Domain().length(0) * geom.Domain().length(1);
     ngas = active_gases.size();
 
     // initialize cloud, aerosol, and radiation
@@ -187,15 +185,15 @@ void Radiation::initialize (const MultiFab& cons_in,
     zi   = real2d("zi", ncol, nlev);
 
     // Get the temperature, density, theta, qt and qp from input
-    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();
         auto nx = box3d.length(0);
 
         auto states_array = cons_in.array(mfi);
-        auto qt_array = (qmoist[0]) ? qmoist[0]->array(mfi) : Array4<Real> {};
-        auto qv_array = (qmoist[1]) ? qmoist[1]->array(mfi) : Array4<Real> {};
-        auto qc_array = (qmoist[2]) ? qmoist[2]->array(mfi) : Array4<Real> {};
-        auto qi_array = (qmoist.size()>=8) ? qmoist[3]->array(mfi) : Array4<Real> {};
+        auto qt_array = (has_qmoist) ? qmoist[0]->array(mfi) : Array4<Real> {};
+        auto qv_array = (has_qmoist) ? qmoist[1]->array(mfi) : Array4<Real> {};
+        auto qc_array = (has_qmoist) ? qmoist[2]->array(mfi) : Array4<Real> {};
+        auto qi_array = (has_qmoist && qmoist.size()>=8) ? qmoist[3]->array(mfi) : Array4<Real> {};
 
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -254,7 +252,7 @@ void Radiation::initialize (const MultiFab& cons_in,
 
     optics.initialize(ngas, nmodes, naer, nswbands, nlwbands,
                       ncol, nlev, nrh, top_lev, aero_names, zi,
-                      pmid, pint, tmid, qt, geom_radius);
+                      pmid, pdel, tmid, qt, geom_radius);
 
     amrex::Print() << "LW coefficients file: " << rrtmgp_coefficients_file_lw
                    << "\nSW coefficients file: " << rrtmgp_coefficients_file_sw
@@ -417,13 +415,15 @@ void Radiation::run ()
         int1d nnight("nnight",1);
         yakl::memset(nday, 0);
         yakl::memset(nnight, 0);
-        for (auto icol=1; icol<ncol; ++icol) {
+        for (auto icol=1; icol<=ncol; ++icol) {
             if (day_indices(icol) > 0) nday(1)++;
             if (night_indices(icol) > 0) nnight(1)++;
         }
 
+        AMREX_ASSERT(nday(1) + nnight(1) == ncol);
+
         // get aerosol optics
-        do_aerosol_rad = true;
+        do_aerosol_rad = false; // TODO: this causes issues if enabled
         {
             // Get gas concentrations
             get_gas_vmr(active_gases, gas_vmr);
@@ -451,7 +451,7 @@ void Radiation::run ()
 
                 parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilay)
                 {
-                    for (auto ibnd = 1; ibnd < nswbands; ++ibnd) {
+                    for (auto ibnd = 1; ibnd <= nswbands; ++ibnd) {
                         aer_tau_bnd_sw_1d(ibnd) = aer_tau_bnd_sw(icol,ilay,ibnd);
                         aer_ssa_bnd_sw_1d(ibnd) = aer_ssa_bnd_sw(icol,ilay,ibnd);
                         aer_asm_bnd_sw_1d(ibnd) = aer_asm_bnd_sw(icol,ilay,ibnd);
@@ -459,7 +459,7 @@ void Radiation::run ()
                     internal::reordered(aer_tau_bnd_sw_1d, rrtmg_to_rrtmgp, aer_tau_bnd_sw_o_1d);
                     internal::reordered(aer_ssa_bnd_sw_1d, rrtmg_to_rrtmgp, aer_ssa_bnd_sw_o_1d);
                     internal::reordered(aer_asm_bnd_sw_1d, rrtmg_to_rrtmgp, aer_asm_bnd_sw_o_1d);
-                    for (auto ibnd = 1; ibnd < nswbands; ++ibnd) {
+                    for (auto ibnd = 1; ibnd <= nswbands; ++ibnd) {
                         aer_tau_bnd_sw(icol,ilay,ibnd) = aer_tau_bnd_sw_o_1d(ibnd);
                         aer_ssa_bnd_sw(icol,ilay,ibnd) = aer_ssa_bnd_sw_o_1d(ibnd);
                         aer_asm_bnd_sw(icol,ilay,ibnd) = aer_asm_bnd_sw_o_1d(ibnd);
@@ -636,6 +636,8 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
         if (night_indices(icol) > 0) nnight(1)++;
     });
 
+    AMREX_ASSERT(nday(1) + nnight(1) == ncol);
+
     intHost1d num_day("num_day",1);
     intHost1d num_night("num_night",1);
     nday.deep_copy_to(num_day);
@@ -651,19 +653,37 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
     }
 
     // Compress to daytime-only arrays
-    parallel_for(SimpleBounds<3>(num_day(1), nlev, nswgpts), YAKL_LAMBDA (int iday, int ilev, int igpt)
+    parallel_for(SimpleBounds<2>(num_day(1), nlev), YAKL_LAMBDA (int iday, int ilev)
     {
+        // 2D arrays
         auto icol = day_indices(iday);
         tmid_day(iday,ilev) = tmid(icol,ilev);
         pmid_day(iday,ilev) = pmid(icol,ilev);
         pint_day(iday,ilev) = pint(icol,ilev);
-        albedo_dir_day(igpt,iday) = albedo_dir(igpt,icol);
-        albedo_dif_day(igpt,iday) = albedo_dif(igpt,icol);
+    });
+    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int iday)
+    {
+        // copy extra level for pmid
+        auto icol = day_indices(iday);
+        pint_day(iday,nlev+1) = pint(icol,nlev+1);
+
         coszrs_day(iday) = coszrs(icol);
+        AMREX_ASSERT(coszrs_day(iday) > 0.0);
+    });
+    parallel_for(SimpleBounds<3>(num_day(1), nlev, nswgpts), YAKL_LAMBDA (int iday, int ilev, int igpt)
+    {
+        auto icol = day_indices(iday);
         gas_vmr_day(igpt,iday,ilev) = gas_vmr(igpt,icol,ilev);
         cld_tau_gpt_day(iday,ilev,igpt) = cld_tau_gpt(icol,ilev,igpt);
         cld_ssa_gpt_day(iday,ilev,igpt) = cld_ssa_gpt(icol,ilev,igpt);
         cld_asm_gpt_day(iday,ilev,igpt) = cld_asm_gpt(icol,ilev,igpt);
+    });
+    parallel_for(SimpleBounds<2>(num_day(1), nswbands), YAKL_LAMBDA (int iday, int ibnd)
+    {
+        // albedo dims: [nswbands, ncol]
+        auto icol = day_indices(iday);
+        albedo_dir_day(ibnd,iday) = albedo_dir(ibnd,icol);
+        albedo_dif_day(ibnd,iday) = albedo_dif(ibnd,icol);
     });
 
     parallel_for(SimpleBounds<3>(num_day(1), nlev, nswbands), YAKL_LAMBDA (int iday, int ilev, int ibnd)
@@ -689,7 +709,7 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
     yakl::memset(cld_asm_gpt_rad, 0.);
 
     yakl::memset(aer_tau_bnd_rad, 0.);
-    yakl::memset(aer_ssa_bnd_rad, 0);
+    yakl::memset(aer_ssa_bnd_rad, 0.);
     yakl::memset(aer_asm_bnd_rad, 0.);
 
     parallel_for(SimpleBounds<3>(num_day(1), nlev, nswgpts), YAKL_LAMBDA (int iday, int ilev, int igpt)

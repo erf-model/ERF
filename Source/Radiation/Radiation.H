@@ -113,6 +113,9 @@ class Radiation {
     amrex::MultiFab* m_lsm_fluxes = nullptr;
     amrex::MultiFab* m_lsm_zenith = nullptr;
 
+    std::string moisture_type = "None";
+    bool has_qmoist;
+
     // Specified uniform angle for radiation
     amrex::Real uniform_angle = 78.463;
 

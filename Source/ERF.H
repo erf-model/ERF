@@ -885,6 +885,9 @@ private:
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
+#ifdef ERF_USE_RRTMGP
+                                                    ,"qsrc_sw", "qsrc_lw"
+#endif
                                                    };
 
     // algorithm choices

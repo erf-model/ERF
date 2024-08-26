@@ -13,14 +13,14 @@ void Optics::initialize (int ngas, int nmodes, int num_aeros,
                          int nswbands, int nlwbands,
                          int ncol, int nlev, int nrh, int top_lev,
                          const std::vector<std::string>& aero_names,
-                         const real2d& zi, const real2d& pmid, const real2d& pint,
+                         const real2d& zi, const real2d& pmid, const real2d& pdel,
                          const real2d& temp, const real2d& qi,
                          const real2d& geom_radius)
 {
     cloud_optics.initialize();
     aero_optics.initialize(ngas, nmodes, num_aeros,
                            nswbands, nlwbands, ncol, nlev, nrh, top_lev,
-                           aero_names, zi, pmid, pint, temp, qi, geom_radius);
+                           aero_names, zi, pmid, pdel, temp, qi, geom_radius);
 }
 
 void Optics::finalize ()
