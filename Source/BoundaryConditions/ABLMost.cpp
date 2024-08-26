@@ -64,7 +64,7 @@ ABLMost::update_fluxes (const int& lev,
     // ***************************************************************
     // Iterate the fluxes if moeng type
     // Next iterate over sea -- the models for surface roughness
-    // over sea are CHARNOCK, MODIFIED_CHARNOCK or WAVE_COUPLED
+    // over sea are CHARNOCK, DONELAN, MODIFIED_CHARNOCK or WAVE_COUPLED
     // ***************************************************************
     if (flux_type == FluxCalcType::MOENG ||
         flux_type == FluxCalcType::ROTATE) {
@@ -75,6 +75,9 @@ ABLMost::update_fluxes (const int& lev,
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_flux_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::DONELAN) {
+                surface_flux_donelan most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 surface_flux_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
@@ -91,6 +94,9 @@ ABLMost::update_fluxes (const int& lev,
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_temp_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::DONELAN) {
+                surface_temp_donelan most_flux(m_ma.get_zref(), surf_temp_flux);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 surface_temp_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
@@ -104,6 +110,9 @@ ABLMost::update_fluxes (const int& lev,
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 adiabatic_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::DONELAN) {
+                adiabatic_donelan most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 adiabatic_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);

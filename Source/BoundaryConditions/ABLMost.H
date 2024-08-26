@@ -162,6 +162,8 @@ public:
         } else if (rough_sea_string == "coare3.0") {
             rough_type_sea = RoughCalcType::CHARNOCK;
             cnk_a = -1;
+        } else if (rough_sea_string == "donelan") {
+            rough_type_sea = RoughCalcType::DONELAN;
         } else if (rough_sea_string == "modified_charnock") {
             rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
             pp.query("most.modified_charnock_depth",depth);
@@ -449,6 +451,7 @@ public:
         CONSTANT = 0,      ///< Constant z0
         CHARNOCK,
         MODIFIED_CHARNOCK,
+        DONELAN,
         WAVE_COUPLED
     };
 
