@@ -3,6 +3,7 @@
 
 #include <ERF_Constants.H>
 #include <IndexDefines.H>
+#include <MOSTRoughness.H>
 
 /**
  * Structure of plain old data relevant to MOST BCs
@@ -137,7 +138,6 @@ struct adiabatic_charnock
         mdata.zref = zref;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_a = cnk_a;
-        mdata.Cnk_b = (cnk_a > 0) ? 1.0 : 0.11; // latter is for COARE3.0
         mdata.visc = cnk_visc;
     }
 
@@ -171,16 +171,12 @@ struct adiabatic_charnock
             ustar = u_star_arr(i,j,k);
             if (mdata.Cnk_a > 0) {
                 z0 = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
+                if (mdata.visc) {
+                    z0 += air_viscosity(tm_arr(i,j,k)) / std::max(ustar, 0.05);
+                }
             } else {
-                // COARE3.0, following WRF
-                amrex::Real ws10m = umm*std::log(10./1e-4) / std::log(mdata.zref/1e-4);
-                amrex::Real Czc = 0.011 + 0.007*std::min(std::max((ws10m-10.)/8., 0.), 1.0);
-                z0 = (Czc / mdata.gravity) * ustar * ustar;
+                z0 = COARE3_roughness(mdata.zref, umm, ustar);
             }
-            if (mdata.visc) {
-                z0 += mdata.Cnk_b * air_viscosity(tm_arr(i,j,k)) / std::max(ustar, 0.05);
-            }
-            z0 = std::min(std::max(z0, 1.27e-7), 2.85e-3);
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
@@ -402,7 +398,6 @@ struct surface_flux_charnock
         mdata.zref = zref;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_a = cnk_a;
-        mdata.Cnk_b = (cnk_a > 0) ? 1.0 : 0.11; // latter is for COARE3.0
         mdata.visc = cnk_visc;
     }
 
@@ -441,16 +436,12 @@ struct surface_flux_charnock
             ustar = u_star_arr(i,j,k);
             if (mdata.Cnk_a > 0) {
                 z0 = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
+                if (mdata.visc) {
+                    z0 += air_viscosity(tm_arr(i,j,k)) / std::max(ustar, 0.05);
+                }
             } else {
-                // COARE3.0, following WRF
-                amrex::Real ws10m = umm*std::log(10./1e-4) / std::log(mdata.zref/1e-4);
-                amrex::Real Czc = 0.011 + 0.007*std::min(std::max((ws10m-10.)/8., 0.), 1.0);
-                z0 = (Czc / mdata.gravity) * ustar * ustar;
+                z0 = COARE3_roughness(mdata.zref, umm, ustar);
             }
-            if (mdata.visc) {
-                z0 += mdata.Cnk_b * air_viscosity(tm_arr(i,j,k)) / std::max(ustar, 0.05);
-            }
-            z0 = std::min(std::max(z0, 1.27e-7), 2.85e-3);
             tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) - 0.61*tm_arr(i,j,k)*ustar*q_star_arr(i,j,k);
             Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
@@ -705,7 +696,6 @@ struct surface_temp_charnock
         mdata.zref = zref;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_a = cnk_a;
-        mdata.Cnk_b = (cnk_a > 0) ? 1.0 : 0.11; // latter is for COARE3.0
         mdata.visc = cnk_visc;
     }
 
@@ -744,16 +734,12 @@ struct surface_temp_charnock
             ustar = u_star_arr(i,j,k);
             if (mdata.Cnk_a > 0) {
                 z0 = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
+                if (mdata.visc) {
+                    z0 += air_viscosity(tm_arr(i,j,k)) / std::max(ustar, 0.05);
+                }
             } else {
-                // COARE3.0, following WRF
-                amrex::Real ws10m = umm*std::log(10./1e-4) / std::log(mdata.zref/1e-4);
-                amrex::Real Czc = 0.011 + 0.007*std::min(std::max((ws10m-10.)/8., 0.), 1.0);
-                z0 = (Czc / mdata.gravity) * ustar * ustar;
+                z0 = COARE3_roughness(mdata.zref, umm, ustar);
             }
-            if (mdata.visc) {
-                z0 += mdata.Cnk_b * air_viscosity(tm_arr(i,j,k)) / std::max(ustar, 0.05);
-            }
-            z0 = std::min(std::max(z0, 1.27e-7), 2.85e-3);
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0) - psi_h); // <w'T'>
             tflux *= (1 + 0.61*qvm_arr(i,j,k));

@@ -159,6 +159,9 @@ public:
                     << (cnk_visc? " and viscosity" : "")
                     << std::endl;
             }
+        } else if (rough_sea_string == "coare3.0") {
+            rough_type_sea = RoughCalcType::CHARNOCK;
+            cnk_a = -1;
         } else if (rough_sea_string == "modified_charnock") {
             rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
             pp.query("most.modified_charnock_depth",depth);
