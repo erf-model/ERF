@@ -661,7 +661,7 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
         pmid_day(iday,ilev) = pmid(icol,ilev);
         pint_day(iday,ilev) = pint(icol,ilev);
     });
-    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int iday)
+    parallel_for(SimpleBounds<1>(num_day(1)), YAKL_LAMBDA (int iday)
     {
         // copy extra level for pmid
         auto icol = day_indices(iday);
@@ -729,7 +729,7 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
     });
 
     // Do shortwave radiative transfer calculations
-    radiation.run_shortwave_rrtmgp(ngas, num_day(1), nlev, gas_vmr_rad, pmid,
+    radiation.run_shortwave_rrtmgp(ngas, num_day(1), nlev, gas_vmr_rad, pmid_day,
                                    tmid_day, pint_day, coszrs_day, albedo_dir_day, albedo_dif_day,
                                    cld_tau_gpt_rad, cld_ssa_gpt_rad, cld_asm_gpt_rad, aer_tau_bnd_rad, aer_ssa_bnd_rad, aer_asm_bnd_rad,
                                    fluxes_allsky_day.flux_up    , fluxes_allsky_day.flux_dn    , fluxes_allsky_day.flux_net    , fluxes_allsky_day.flux_dn_dir    ,
