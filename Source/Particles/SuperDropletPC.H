@@ -251,6 +251,8 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute the particle effective radius on a mesh */
         virtual void effectiveRadius ( amrex::MultiFab&, const int& a_comp=0 ) const;
 
+        /*! \brief Applies boundary treatment to the particle container */
+        virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>& );
 
     protected:
 

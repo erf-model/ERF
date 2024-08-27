@@ -33,9 +33,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const auto dx = geom.CellSizeArray();
     const auto domain = geom.Domain();
-    const int k_lo = domain.smallEnd(2);
 
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
@@ -75,7 +73,6 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
 
         TerminalVelocity<ParticleReal> term_vel { m_vapour_mat->density() };
         auto term_vel_type = m_term_vel_type;
@@ -144,21 +141,11 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 }
             }
 
-            // check for ground impact
-            auto iv = getParticleCell(p, plo, dxi, domain);
-            auto z_ground = plo[2];
-            if (use_terrain) { z_ground = zheight(iv[0],iv[1],k_lo); }
-            if (p.pos(2) < z_ground) {
-                p.pos(2) = z_ground - 0.01*dx[2];
-                v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = 0.0;
-                v_ptr[2][i] = vterm_ptr[i] = 0.0;
-                mult_ptr[i] = 0.0;
-                supdrop_mass_ptr[i] = 0.0;
-            }
-
         });
         Gpu::synchronize();
     }
+
+    applyBoundaryTreatment(a_lev, a_z_phys_nd);
 
     Redistribute();
 }
