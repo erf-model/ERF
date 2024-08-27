@@ -8,25 +8,21 @@
 #include "prob_common.H"
 
 struct ProbParm : ProbParmDefaults {
-  amrex::Real rho_0 = 1.0;
-  amrex::Real Theta_0 = 300.0;
-  amrex::Real QKE_0   = 0.1;
-
-  amrex::Real Xc_0  = 0;
-  amrex::Real Yc_0  = 0;
-  amrex::Real VMAX  = 15;    // Maximum horizontal velocity in vortex
-  amrex::Real RMAX  = 100;   // Radius of maximum winds
-  amrex::Real RZERO = 800;  // Radius of zero wind speed
-  amrex::Real ZZERO = 2000; // Height of zero wind speed
-
-  amrex::Real T_0 = 300.0;
-  amrex::Real U_0 = 0.0;
-  amrex::Real V_0 = 0.0;
-  amrex::Real W_0 = 0.0;
-
-  // rayleigh damping
-  amrex::Real dampcoef = 0.2; // inverse time scale [1/s]
-  amrex::Real zdamp = 500.0; // damping depth [m] from model top
+    amrex::Real QKE_0   = 0.1;
+    
+    amrex::Real Xc_0  = 0.0;
+    amrex::Real Yc_0  = 0.0;
+    amrex::Real VMAX  = 15.0;   // Maximum horizontal velocity in vortex
+    amrex::Real RMAX  = 100.0;  // Radius of maximum winds
+    amrex::Real RZERO = 800.0;  // Radius of zero wind speed
+    amrex::Real ZZERO = 2000.0; // Height of zero wind speed
+    
+    // rayleigh damping
+    amrex::Real U_0 = 0.0;
+    amrex::Real V_0 = 0.0;
+    amrex::Real W_0 = 0.0;
+    amrex::Real dampcoef = 0.2; // inverse time scale [1/s]
+    amrex::Real zdamp = 500.0; // damping depth [m] from model top
 
 }; // namespace ProbParm
 
@@ -59,7 +55,7 @@ public:
         const SolverChoice& sc) override;
 
 protected:
-    std::string name() override { return "ABL test"; }
+    std::string name() override { return "Tropical Cyclone"; }
 
 private:
     ProbParm parms;
