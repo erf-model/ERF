@@ -54,9 +54,10 @@ struct MYNNPBLH {
         // Now, loop over columns...
         for (amrex::MFIter mfi(cons,TileNoZ()); mfi.isValid(); ++mfi)
         {
-            amrex::Box gtbx = mfi.tilebox();
-            gtbx.grow(ng); // grow in x,y only
-            gtbx.setBig(2,gtbx.bigEnd(2)-1); // only loop to nz-1
+            const amrex::Box& domain = geom.Domain();
+            amrex::Box gtbx = mfi.growntilebox();
+            gtbx.setSmall(2,domain.smallEnd(2)); // don't loop over ghost cells
+            gtbx.setBig(2,domain.bigEnd(2));     // in z
 
             auto min_thv_arr  = min_thetav.array(mfi);
             auto pblh_arr     = pblh->array(mfi);
@@ -73,14 +74,10 @@ struct MYNNPBLH {
                 const auto zphys_arr = z_phys_cc->const_array(mfi);
 
                 // Need to sort out ghost cell differences (z_phys_cc has ng=1)
-                const amrex::Box& domain = geom.Domain();
-                amrex::IntVect ng_zphys = z_phys_cc->nGrowVect();
-
-                int imin = domain.smallEnd(0); if (geom.isPeriodic(0)) imin -= ng_zphys[0];
-                int jmin = domain.smallEnd(1); if (geom.isPeriodic(1)) jmin -= ng_zphys[1];
-
-                int imax = domain.bigEnd(0); if (geom.isPeriodic(0)) imax += ng_zphys[0];
-                int jmax = domain.bigEnd(1); if (geom.isPeriodic(1)) jmax += ng_zphys[1];
+                int imin = lbound(zphys_arr).x;
+                int jmin = lbound(zphys_arr).y;
+                int imax = ubound(zphys_arr).x;
+                int jmax = ubound(zphys_arr).y;
 
                 // Find minimum thetav in the surface layer (this updates
                 // ghost cells, too)
