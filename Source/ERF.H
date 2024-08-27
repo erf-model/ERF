@@ -693,6 +693,10 @@ private:
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
                                                   // EWP:                 dudt, dvdt, dTKEdt
+
+    amrex::Vector<amrex::MultiFab> SMark; // A multifab that holds an integer corresponding
+                                                   // to the number of the wind turbine to sample
+                                                   // velocity upstream of the turbine
 #endif
 
     LandSurface lsm;
@@ -867,7 +871,7 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
-                                                    "eq_pot_temp", "num_turb",
+                                                    "eq_pot_temp", "num_turb", "SMark",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
