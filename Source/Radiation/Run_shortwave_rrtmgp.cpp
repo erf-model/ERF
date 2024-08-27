@@ -1,4 +1,5 @@
 #include "Rrtmgp.H"
+#include <AMReX_BLassert.H>
 
 void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
                                    const real3d& gas_vmr, const real2d& pmid      , const real2d& tmid      , const real2d& pint,
@@ -40,6 +41,18 @@ void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
     top_at_1_g.deep_copy_to(top_at_1_h);
     top_at_1 = top_at_1_h(1);
     real2d toa_flux("toa_flux", ncol, nswgpts);
+
+#ifdef AMREX_DEBUG
+    // print extra info from RRTMGP
+    k_dist_sw.print_norms();
+
+    // check pressure is within bounds
+    real pint_min = yakl::intrinsics::minval<real>(pint);
+    real pint_max = yakl::intrinsics::maxval<real>(pint);
+    AMREX_ASSERT(pint_max < k_dist_sw.get_press_max());
+    AMREX_ASSERT(pint_min > k_dist_sw.get_press_min());
+#endif
+
     k_dist_sw.gas_optics(ncol, nlay, top_at_1, pmid, pint, tmid, gas_concs, combined_optics, toa_flux);
 
     // Apply TOA flux scaling

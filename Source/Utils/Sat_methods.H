@@ -49,7 +49,7 @@ public:
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void wv_sat_qsat_water (const amrex::Real& t, const amrex::Real& p,
-                                   amrex::Real es, amrex::Real qs, const int idx = 1) {
+                                   amrex::Real &es, amrex::Real &qs, const int idx = 1) {
         // Purpose:
         //   Calculate SVP over water at a given temperature, and then
         //   calculate and return saturation specific humidity.
@@ -64,7 +64,7 @@ public:
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void wv_sat_qsat_ice (const amrex::Real& t, const amrex::Real& p,
-                                 amrex::Real es, amrex::Real qs, const int idx = 1) {
+                                 amrex::Real &es, amrex::Real &qs, const int idx = 1) {
         // Purpose:
         //   Calculate SVP over ice at a given temperature, and then
         //   calculate and return saturation specific humidity.
@@ -79,7 +79,7 @@ public:
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void wv_sat_qsat_trans (const amrex::Real& t, const amrex::Real& p,
-                                   amrex::Real es, amrex::Real qs, const int idx = 1) {
+                                   amrex::Real &es, amrex::Real &qs, const int idx = 1) {
         // Purpose:
         //   Calculate SVP over ice at a given temperature, and then
         //   calculate and return saturation specific humidity.

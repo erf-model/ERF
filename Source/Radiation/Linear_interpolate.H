@@ -252,6 +252,7 @@ class LinInterp
         parallel_for(SimpleBounds<1>(nout), YAKL_LAMBDA (int j)
         {
             int count = 0;
+            amrex::ignore_unused(count);
             if (interp_wgts.jjm(j) == 0 || interp_wgts.jjp(j) == 0) count +=  1;
             auto frac = interp_wgts.wgts(j) + interp_wgts.wgtn(j);
             if ((frac < 0.9 || frac > 1.1) && extrap_method != 0)
