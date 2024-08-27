@@ -18,7 +18,7 @@ COARE3_roughness (amrex::Real zref,
 }
 
 /**
- * Updated Donelan 2004 as found in AHW 
+ * Updated Donelan 2004 as found in AHW
  *
  * Matches implementations in WRF phys/physics_mmm/sf_sfclayrev.F90 and
  * phys/module_sf_mynn.F

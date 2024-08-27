@@ -9,14 +9,14 @@
 
 struct ProbParm : ProbParmDefaults {
     amrex::Real QKE_0   = 0.1;
-    
+
     amrex::Real Xc_0  = 0.0;
     amrex::Real Yc_0  = 0.0;
     amrex::Real VMAX  = 15.0;   // Maximum horizontal velocity in vortex
     amrex::Real RMAX  = 100.0;  // Radius of maximum winds
     amrex::Real RZERO = 800.0;  // Radius of zero wind speed
     amrex::Real ZZERO = 2000.0; // Height of zero wind speed
-    
+
     // rayleigh damping
     amrex::Real U_0 = 0.0;
     amrex::Real V_0 = 0.0;

@@ -27,10 +27,10 @@ Problem::Problem()
     pp.query("RMAX", parms.RMAX);
     pp.query("RZERO", parms.RZERO);
     pp.query("ZZERO", parms.ZZERO);
-  
+
     pp.query("dampcoef", parms.dampcoef);
     pp.query("zdamp", parms.zdamp);
-  
+
     init_base_parms(parms.rho_0, parms.T_0);
 }
 
@@ -85,11 +85,11 @@ Problem::init_custom_pert(
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
-    
+
         const Real x = prob_lo[0] + i * dx[0]; // face center
         const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
         const Real z = prob_lo[2] + (k + 0.5) * dx[2]; // cell center
-    
+
         if (z > z_0) {
             x_vel_pert(i, j, k) = 0.0;
         } else {
@@ -115,11 +115,11 @@ Problem::init_custom_pert(
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
-    
+
         const Real x = prob_lo[0] + (i + 0.5) * dx[0]; // cell center
         const Real y = prob_lo[1] + j * dx[1]; // face center
         const Real z = prob_lo[2] + (k + 0.5) * dx[2]; // cell center
-    
+
         if (z > z_0) {
             y_vel_pert(i, j, k) = 0.0;
         } else {
