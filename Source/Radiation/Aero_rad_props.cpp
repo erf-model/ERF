@@ -139,7 +139,7 @@ void AerRadProps::aer_rad_props_sw (const int& list_idx, const real& dt, const i
         });
 
         //Quit if tropopause is not found
-        if (yakl::intrinsics::any(trop_level) == -1) {
+        if (yakl::intrinsics::any(yakl::componentwise::operator==(trop_level, -1))) {
             amrex::Print() << "aer_rad_props.F90: subr aer_rad_props_sw: tropopause not found\n";
         }
     }
@@ -413,7 +413,7 @@ void AerRadProps::aer_rad_props_lw (const bool& is_cmip6_volc,
         });
 
         // Quit if tropopause is not found
-        if (yakl::intrinsics::any(trop_level) == -1)
+        if (yakl::intrinsics::any(yakl::componentwise::operator==(trop_level, -1)))
             amrex::Print() << "aer_rad_props_lw: tropopause not found\n";
 
         // If tropopause is found, update taus with 50% contributuions from the volcanic input

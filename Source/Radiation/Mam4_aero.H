@@ -255,7 +255,7 @@ class Mam4_aer {
 
             // get mode properties
             real dgnum, dgnumhi, dgnumlo, sigmag;
-            mam_consti.get_mode_props(list_idx, n-1, dgnum, dgnumhi, dgnumlo, sigmag=sigmag);
+            mam_consti.get_mode_props(list_idx, n-1, dgnum, dgnumhi, dgnumlo, sigmag);
 
             // get mode number mixing ratio
             mam_consti.rad_cnst_get_mode_num(list_idx, n-1, "a", mode_num);
@@ -335,6 +335,7 @@ class Mam4_aer {
         std::string spectype;          // species type
         real hygro_aer;
         real volf;
+        amrex::ignore_unused(volf);
 
         real2d dgnumwet("dgnumwet", ncol,nlev);     // number mode wet diameter
         real2d qaerwat("qaerwat", ncol,nlev);      // aerosol water (g/g)
@@ -596,6 +597,7 @@ class Mam4_aer {
         constexpr int nerrmax_dopaer=1000;
         int nerr_dopaer = 0;
         real volf;   // volume fraction of insoluble aerosol
+        amrex::ignore_unused(volf);
 
         // initialize output variables
         yakl::memset(tauxar, 0.);
