@@ -329,7 +329,7 @@ for another module as appropriate, see Kestrel user documentation for more detai
 
   make realclean; make -j COMP=cray
 
-To run on GPUs on Kestrel, note that the machine has seperate login nodes for GPU use and GPU jobs should only
+To run on GPUs on Kestrel, note that the machine has separate login nodes for GPU use and GPU jobs should only
 be started from GPU login nodes (accessed via ``kestrel-gpu.hpc.nrel.gov``). For compiling and running on GPUs,
 the following commands can be used to set up your environment: ::
 
