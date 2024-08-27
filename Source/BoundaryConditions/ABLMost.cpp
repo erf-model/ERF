@@ -172,7 +172,7 @@ ABLMost::compute_fluxes (const int& lev,
         // Wave properties if they exist
         const auto Hwave_arr = (m_Hwave_lev[lev]) ? m_Hwave_lev[lev]->array(mfi) : Array4<Real> {};
         const auto Lwave_arr = (m_Lwave_lev[lev]) ? m_Lwave_lev[lev]->array(mfi) : Array4<Real> {};
-        const auto eta_arr   = m_eddyDiffs_lev[lev]->array(mfi);
+        const auto eta_arr   = (m_eddyDiffs_lev[lev]) ? m_eddyDiffs_lev[lev]->array(mfi) : Array4<Real> {};
 
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
                                                        Array4<int> {};
@@ -343,8 +343,8 @@ ABLMost::compute_most_bcs (const int& lev,
         auto qfx2_arr = (m_rotate && yqv_flux) ? yqv_flux->array(mfi) : Array4<Real>{};
 
         // Viscosity and terrain
-        const auto  eta_arr  = m_eddyDiffs_lev[lev]->array(mfi);
-        const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
+        const auto  eta_arr  = (!m_exp_most) ? m_eddyDiffs_lev[lev]->array(mfi) : Array4<const Real>{};
+        const auto zphys_arr = (z_phys)      ? z_phys->const_array(mfi)         : Array4<const Real>{};
 
         // Get average arrays
         const auto *const u_mean     = m_ma.get_average(lev,0);
