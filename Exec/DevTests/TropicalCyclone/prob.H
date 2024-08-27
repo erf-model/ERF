@@ -12,10 +12,10 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real Theta_0 = 300.0;
   amrex::Real QKE_0   = 0.1;
 
-  amrex::Real Xc_0 = 1000;
-  amrex::Real Yc_0 = 1000;
-  amrex::Real VMAX = 15;    // Maximum horizontal velocity in vortex
-  amrex::Real RMAX = 100;   // Radius of maximum winds
+  amrex::Real Xc_0  = 0;
+  amrex::Real Yc_0  = 0;
+  amrex::Real VMAX  = 15;    // Maximum horizontal velocity in vortex
+  amrex::Real RMAX  = 100;   // Radius of maximum winds
   amrex::Real RZERO = 800;  // Radius of zero wind speed
   amrex::Real ZZERO = 2000; // Height of zero wind speed
 
