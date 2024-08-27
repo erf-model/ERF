@@ -329,13 +329,21 @@ for another module as appropriate, see Kestrel user documentation for more detai
 
   make realclean; make -j COMP=cray
 
-For compiling and running on GPUs, the following commands can be used to set up your environment: ::
+To run on GPUs on Kestrel, note that the machine has seperate login nodes for GPU use and GPU jobs should only
+be started from GPU login nodes (accessed via ``kestrel-gpu.hpc.nrel.gov``). For compiling and running on GPUs,
+the following commands can be used to set up your environment: ::
 
-  module restore; module load PrgEnv-gnu/8.5.0; module load cray-libsci/23.05.1.4; module load cmake; module load cuda/12.3; module load cray-mpich/8.1.28; module load craype/2.7.30;
+  module purge;
+  module load PrgEnv-gnu/8.5.0;
+  module load cuda/12.3;
+  module load craype-x86-milan;
 
-And then compile: ::
+And then compile (for example, in ``ERF/Exec/ABL``): ::
 
   make realclean; make -j COMP=gnu USE_CUDA=TRUE
+
+As a word of warning, system updates on Kestrel periodically change the necessary modules that must be loaded
+in order to build and run ERF, so these instructions may become out of date.
 
 When running on Kestrel, GPU node hours are charged allocation units (AUs) at 10 times the rate of CPU node hours.
 For ERF, the performance running on a Kestrel GPU node with 4 GPUs is typically 10-20x running on a CPU node
