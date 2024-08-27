@@ -1247,6 +1247,17 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp += 1;
         }
 #endif
+
+#ifdef ERF_USE_RRTMGP
+    if (containerHasElement(plot_var_names, "qsrc_sw")) {
+        MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 0, mf_comp, 1, 0);
+        mf_comp += 1;
+    }
+    if (containerHasElement(plot_var_names, "qsrc_lw")) {
+        MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 1, mf_comp, 1, 0);
+        mf_comp += 1;
+    }
+#endif
     }
 
 #ifdef EB_USE_EB

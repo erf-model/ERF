@@ -122,7 +122,7 @@ class PhysProp {
 
     // Look for filename in the global list of unique filenames (module data uniquefilenames).
     // If found, return it's index in the list.  Otherwise return -1.
-    int physprop_get_id (std::string filename)
+    int physprop_get_id (std::string filename) const
     {
         auto physprop_id = -1;
         auto numphysprops = uniquefilenames.size();
@@ -135,308 +135,308 @@ class PhysProp {
         return physprop_id;
     }
 
-    void get_sourcefile (int& id, std::string& sourcefile)
+    void get_sourcefile (int& id, std::string& sourcefile) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_sourcefile: illegal ID value %d\n", id);
         sourcefile = physprop[id].sourcefile;
     }
 
-    void get_opticstype (int& id, std::string& opticstype)
+    void get_opticstype (int& id, std::string& opticstype) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_opticstype: illegal ID value %d\n", id);
         opticstype  = physprop[id].opticsmethod;
     }
 
-    void get_sw_hygro_ext (int& id, real2d& sw_hygro_ext)
+    void get_sw_hygro_ext (int& id, real2d& sw_hygro_ext) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_sw_hygro_ext: illegal ID value %d\n", id);
         sw_hygro_ext = physprop[id].sw_hygro_ext;
     }
 
-    void get_sw_hygro_ssa (int& id, real2d& sw_hygro_ssa)
+    void get_sw_hygro_ssa (int& id, real2d& sw_hygro_ssa) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_sw_hygro_ssa: illegal ID value %d\n", id);
         sw_hygro_ssa = physprop[id].sw_hygro_ssa;
     }
 
-    void get_sw_hygro_asm (int& id, real2d& sw_hygro_asm)
+    void get_sw_hygro_asm (int& id, real2d& sw_hygro_asm) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_sw_hygro_asm: illegal ID value %d\n", id);
         sw_hygro_asm = physprop[id].sw_hygro_asm;
     }
 
-    void get_lw_hygro_abs (int& id, real2d& lw_hygro_abs)
+    void get_lw_hygro_abs (int& id, real2d& lw_hygro_abs) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_lw_hygro_abs: illegal ID value %d\n", id);
         lw_hygro_abs = physprop[id].lw_hygro_abs;
     }
 
-    void get_sw_nonhygro_ext (int& id, real1d& sw_nonhygro_ext)
+    void get_sw_nonhygro_ext (int& id, real1d& sw_nonhygro_ext) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_sw_nonhygro_ext: illegal ID value %d\n", id);
         sw_nonhygro_ext = physprop[id].sw_nonhygro_ext;
     }
 
-    void get_sw_nonhygro_ssa (int& id, real1d& sw_nonhygro_ssa)
+    void get_sw_nonhygro_ssa (int& id, real1d& sw_nonhygro_ssa) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_sw_nonhygro_ssa: illegal ID value %d\n", id);
         sw_nonhygro_ssa = physprop[id].sw_nonhygro_ssa;
     }
 
-    void get_sw_nonhygro_asm (int& id, real1d& sw_nonhygro_asm)
+    void get_sw_nonhygro_asm (int& id, real1d& sw_nonhygro_asm) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_sw_nonhygro_asm: illegal ID value %d\n", id);
         sw_nonhygro_asm = physprop[id].sw_nonhygro_asm;
     }
 
-    void get_sw_nonhygro_scat (int& id, real1d& sw_nonhygro_scat)
+    void get_sw_nonhygro_scat (int& id, real1d& sw_nonhygro_scat) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_sw_nonhygro_scat: illegal ID value %d\n", id);
         sw_nonhygro_scat = physprop[id].sw_nonhygro_scat;
     }
 
-    void get_sw_nonhygro_ascat (int& id, real1d& sw_nonhygro_ascat)
+    void get_sw_nonhygro_ascat (int& id, real1d& sw_nonhygro_ascat) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_sw_nonhygro_ascat: illegal ID value %d\n", id);
         sw_nonhygro_ascat = physprop[id].sw_nonhygro_ascat;
     }
 
-    void get_lw_abs (int& id, real1d& lw_abs)
+    void get_lw_abs (int& id, real1d& lw_abs) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_lw_abs: illegal ID value %d\n", id);
         lw_abs = physprop[id].lw_abs;
     }
 
-    void get_ref_real_aer_sw (int& id, real1d& ref_real_aer_sw)
+    void get_ref_real_aer_sw (int& id, real1d& ref_real_aer_sw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_ref_real_aer_sw: illegal ID value %d\n", id);
         ref_real_aer_sw = physprop[id].refindex_real_aer_sw;
     }
 
-    void get_ref_real_aer_lw (int& id, real1d& ref_real_aer_lw)
+    void get_ref_real_aer_lw (int& id, real1d& ref_real_aer_lw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_ref_real_aer_lw: illegal ID value %d\n", id);
         ref_real_aer_lw = physprop[id].refindex_real_aer_lw;
     }
 
-    void get_ref_im_aer_sw (int& id, real1d& ref_im_aer_sw)
+    void get_ref_im_aer_sw (int& id, real1d& ref_im_aer_sw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_ref_im_aer_sw: illegal ID value %d\n", id);
         ref_im_aer_sw = physprop[id].refindex_im_aer_sw;
     }
 
-    void get_ref_im_aer_lw (int& id, real1d& ref_im_aer_lw)
+    void get_ref_im_aer_lw (int& id, real1d& ref_im_aer_lw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_ref_im_aer_lw: illegal ID value %d\n", id);
         ref_im_aer_lw = physprop[id].refindex_im_aer_lw;
     }
 
-    void get_r_sw_ext (int& id, real2d& r_sw_ext)
+    void get_r_sw_ext (int& id, real2d& r_sw_ext) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_r_sw_ext: illegal ID value %d\n", id);
         r_sw_ext = physprop[id].r_sw_ext;
     }
 
-    void get_r_sw_scat (int& id, real2d& r_sw_scat)
+    void get_r_sw_scat (int& id, real2d& r_sw_scat) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_r_sw_scat: illegal ID value %d\n", id);
         r_sw_scat = physprop[id].r_sw_scat;
     }
 
-    void get_r_sw_ascat (int& id, real2d& r_sw_ascat)
+    void get_r_sw_ascat (int& id, real2d& r_sw_ascat) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_r_sw_ascat: illegal ID value %d\n", id);
         r_sw_ascat = physprop[id].r_sw_ascat;
     }
 
-    void get_r_lw_abs (int& id, real2d& r_lw_abs)
+    void get_r_lw_abs (int& id, real2d& r_lw_abs) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_r_lw_abs: illegal ID value %d\n", id);
         r_lw_abs = physprop[id].r_lw_abs;
     }
 
-    void get_mu (int& id, real1d& mu)
+    void get_mu (int& id, real1d& mu) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_mu: illegal ID value %d\n", id);
         mu = physprop[id].mu;
     }
 
-    void get_extpsw (int& id, real4d& extpsw)
+    void get_extpsw (int& id, real4d& extpsw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_expsw: illegal ID value %d\n", id);
         extpsw = physprop[id].extpsw;
     }
 
-    void get_abspsw (int& id, real4d& abspsw)
+    void get_abspsw (int& id, real4d& abspsw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_abspsw: illegal ID value %d\n", id);
         abspsw = physprop[id].abspsw;
     }
 
-    void get_asmpsw (int& id, real4d& asmpsw)
+    void get_asmpsw (int& id, real4d& asmpsw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_asmpsw: illegal ID value %d\n", id);
         asmpsw = physprop[id].asmpsw;
     }
 
-    void get_absplw (int& id, real4d& absplw)
+    void get_absplw (int& id, real4d& absplw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_absplw: illegal ID value %d\n", id);
         absplw = physprop[id].absplw;
     }
 
-    void get_refrtabsw (int& id, real2d& refrtabsw)
+    void get_refrtabsw (int& id, real2d& refrtabsw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_refrtabsw: illegal ID value %d\n", id);
         refrtabsw = physprop[id].refrtabsw;
     }
 
-    void get_refitabsw (int& id, real2d& refitabsw)
+    void get_refitabsw (int& id, real2d& refitabsw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_refitabsw: illegal ID value %d\n", id);
         refitabsw = physprop[id].refitabsw;
     }
 
-    void get_refrtablw (int& id, real2d& refrtablw)
+    void get_refrtablw (int& id, real2d& refrtablw) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_refrtablw: illegal ID value %d\n", id);
         refrtablw = physprop[id].refrtablw;
     }
 
-    void get_refitablw (int& id, real2d& refitablw)
+    void get_refitablw (int& id, real2d& refitablw) const
     {
         if (id < 0 || id > physprop.size())
             printf("ger_refitablw: illegal ID value %d\n", id);
         refitablw = physprop[id].refitablw;
     }
 
-    void get_aername(int& id, std::string& aername)
+    void get_aername(int& id, std::string& aername) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_aername: illegal ID value %d\n", id);
         aername = physprop[id].aername;
     }
 
-    void get_density_aer(int& id, real& density_aer)
+    void get_density_aer(int& id, real& density_aer) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_density_aer: illegal ID value %d\n", id);
         density_aer = physprop[id].density_aer;
     }
 
-    void get_hygro_aer (int& id, real& hygro_aer)
+    void get_hygro_aer (int& id, real& hygro_aer) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_hygro_aer: illegal ID value %d\n", id);
         hygro_aer = physprop[id].hygro_aer;
     }
 
-    void get_dryrad_aer (int& id, real& dryrad_aer)
+    void get_dryrad_aer (int& id, real& dryrad_aer) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_dryrad_aer: illegal ID value %d\n", id);
         dryrad_aer = physprop[id].dryrad_aer;
     }
 
-    void get_dispersion_aer (int& id, real& dispersion_aer)
+    void get_dispersion_aer (int& id, real& dispersion_aer) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_dispersion_aer: illegal ID value %d\n", id);
         dispersion_aer = physprop[id].dispersion_aer;
     }
 
-    void get_num_to_mass_aer (int& id, real& num_to_mass_aer)
+    void get_num_to_mass_aer (int& id, real& num_to_mass_aer) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_num_to_mass_aer: illegal ID value %d\n", id);
         num_to_mass_aer = physprop[id].num_to_mass_aer;
     }
 
-    void get_ncoef (int& id, int& ncoef)
+    void get_ncoef (int& id, int& ncoef) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_ncoef: illegal ID value %d\n", id);
         ncoef = physprop[id].ncoef;
     }
 
-    void get_prefr (int& id, int& prefr)
+    void get_prefr (int& id, int& prefr) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_prefr: illegal ID value %d\n", id);
         prefr = physprop[id].prefr;
     }
 
-    void get_prefi (int& id, int& prefi)
+    void get_prefi (int& id, int& prefi) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_prefi: illegal ID value %d\n", id);
         prefi = physprop[id].prefi;
     }
 
-    void get_sigmag (int& id, real& sigmag)
+    void get_sigmag (int& id, real& sigmag) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_sigmag: illegal ID value %d\n", id);
         sigmag = physprop[id].sigmag;
     }
 
-    void get_dgnum (int& id, real& dgnum)
+    void get_dgnum (int& id, real& dgnum) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_dgnum: illegal ID value %d\n", id);
         dgnum = physprop[id].dgnum;
     }
 
-    void get_dgnumlo (int& id, real& dgnumlo)
+    void get_dgnumlo (int& id, real& dgnumlo) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_dgnumlo: illegal ID value %d\n", id);
         dgnumlo = physprop[id].dgnumlo;
     }
 
-    void get_dgnumhi (int& id, real& dgnumhi)
+    void get_dgnumhi (int& id, real& dgnumhi) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_dgnumhi: illegal ID value %d\n", id);
         dgnumhi = physprop[id].dgnumhi;
     }
 
-    void get_rhcrystal (int& id, real& rhcrystal)
+    void get_rhcrystal (int& id, real& rhcrystal) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_rhcrystal: illegal ID value %d\n", id);
         rhcrystal = physprop[id].rhcrystal;
     }
 
-    void get_rhdeliques (int& id, real& rhdeliques)
+    void get_rhdeliques (int& id, real& rhdeliques) const
     {
         if (id < 0 || id > physprop.size())
             printf("get_rhdeliques: illegal ID value %d\n", id);
