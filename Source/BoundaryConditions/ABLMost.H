@@ -183,6 +183,29 @@ public:
             read_z0 = pp.query("most.roughness_file_name", fname);
         }
 
+        // Do we have a time-varying surface roughness that needs to be saved?
+        const int nghost = 0; // ghost cells not included
+        const int lev = 0;
+        int lmask_min = amrex::ReduceMin(*lmask_lev[lev][0].get(), nghost,
+                [=] AMREX_GPU_HOST_DEVICE (amrex::Box const& bx, amrex::Array4<int const> const& lm_arr) -> int
+        {
+            int locmin = std::numeric_limits<int>::max();
+            const auto lo = lbound(bx);
+            const auto hi = ubound(bx);
+            for (int j = lo.y; j <= hi.y; ++j) {
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    locmin = std::min(locmin, lm_arr(i,j,0));
+                }
+            }
+            return locmin;
+        });
+        amrex::ParallelDescriptor::ReduceIntMin(lmask_min);
+
+        m_var_z0 = (lmask_min < 1) & (rough_type_sea != RoughCalcType::CONSTANT);
+        if (m_var_z0) {
+            amrex::Print() << "Variable sea roughness (type " << rough_sea_string << ")" << std::endl;
+        }
+
         // Size the MOST params for all levels
         int nlevs = m_geom.size();
         z_0.resize(nlevs);
@@ -434,6 +457,8 @@ public:
     const amrex::FArrayBox*
     get_z0 (const int& lev) {return &z_0[lev];}
 
+    bool have_variable_sea_roughness() { return m_var_z0; }
+
     enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
         DONELAN,        ///< Donelan functional form
@@ -484,6 +509,7 @@ private:
     amrex::Real m_bdy_time_interval;
     amrex::Vector<amrex::Geometry>  m_geom;
     amrex::Vector<amrex::FArrayBox> z_0;
+    bool m_var_z0{false};
 
     MOSTAverage m_ma;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;

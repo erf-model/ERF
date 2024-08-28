@@ -980,6 +980,12 @@ ERF::InitData ()
 #endif
                                            );
 
+
+        if (restart_chkfile != "") {
+            // Update surface fields if needed
+            ReadCheckpointFileMOST();
+        }
+
         // We now configure ABLMost params here so that we can print the averages at t=0
         // Note we don't fill ghost cells here because this is just for diagnostics
         for (int lev = 0; lev <= finest_level; ++lev)
@@ -999,8 +1005,14 @@ ERF::InitData ()
                 MultiFab::Divide(*Qr_prim[lev], Sm, Rho_comp  , 0, 1, ng);
             }
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
-            m_most->update_pblh(lev, vars_new, z_phys_cc[lev].get());
-            m_most->update_fluxes(lev, time);
+
+            if (restart_chkfile == "") {
+                // Only do this if starting from scratch; if restarting, then
+                // we don't want to call update_fluxes multiple times because
+                // it will change u* and theta* from their previous values
+                m_most->update_pblh(lev, vars_new, z_phys_cc[lev].get());
+                m_most->update_fluxes(lev, time);
+            }
         }
     }
 
