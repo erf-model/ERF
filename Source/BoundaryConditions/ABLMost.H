@@ -185,8 +185,8 @@ public:
 
         // Do we have a time-varying surface roughness that needs to be saved?
         const int nghost = 0; // ghost cells not included
-        const int lev = 0;
-        int lmask_min = amrex::ReduceMin(*lmask_lev[lev][0].get(), nghost,
+        const int level = 0;
+        int lmask_min = amrex::ReduceMin(*lmask_lev[level][0].get(), nghost,
                 [=] AMREX_GPU_HOST_DEVICE (amrex::Box const& bx, amrex::Array4<int const> const& lm_arr) -> int
         {
             int locmin = std::numeric_limits<int>::max();
