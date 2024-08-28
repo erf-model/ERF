@@ -883,9 +883,11 @@ List of Parameters
 |                                    | turb. diffusion    |                     |             |
 |                                    | terms in QKE eqn.  |                     |             |
 +------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_ysu_over_land**          | Treat whole domain | bool                | 1           |
-|                                    | as being over land |                     |             |
-|                                    | for YSU PBL scheme |                     |             |
+| **erf.pbl_ysu_force_over_water**   | Treat whole domain | bool                | 0           |
+|                                    | as over water for  |                     |             |
+|                                    | YSU PBL scheme     |                     |             |
+|                                    | regardless of      |                     |             |
+|                                    | LSM/other inputs   |                     |             |
 +------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_ysu_land_Ribcr**         | Over land critical | Real                | 0.25        |
 |                                    | Richardson number  |                     |             |

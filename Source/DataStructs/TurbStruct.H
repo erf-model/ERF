@@ -96,7 +96,7 @@ struct TurbChoice {
                     pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn_diffuse_moistvars);
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
-                    pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
+                    pp.query("pbl_ysu_force_over_water", pbl_ysu_force_over_water);
                     pp.query("pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr);
                     pp.query("pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr);
                 }
@@ -191,7 +191,7 @@ struct TurbChoice {
                     pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn_diffuse_moistvars, lev);
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
-                    pp.query("pbl_ysu_over_land", pbl_ysu_over_land);
+                    pp.query("pbl_ysu_force_over_water", pbl_ysu_force_over_water);
                     pp.query("pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr);
                     pp.query("pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr);
                 }
@@ -270,7 +270,7 @@ struct TurbChoice {
             amrex::Print() << "pbl_mynn_C5                      : " << pbl_mynn_C5 << std::endl;
         } else if (pbl_type == PBLType::YSU) {
             amrex::Print() << "pbl_ysu_coriolis_freq            : " << pbl_ysu_coriolis_freq << std::endl;
-            amrex::Print() << "pbl_ysu_over_land                : " << pbl_ysu_over_land << std::endl;
+            amrex::Print() << "pbl_ysu_force_over_water         : " << pbl_ysu_force_over_water << std::endl;
             amrex::Print() << "pbl_ysu_land_Ribcr               : " << pbl_ysu_land_Ribcr << std::endl;
             amrex::Print() << "pbl_ysu_unst_Ribcr               : " << pbl_ysu_unst_Ribcr << std::endl;
         }
@@ -323,7 +323,7 @@ struct TurbChoice {
     // Model coefficients - YSU
     // TODO: Add parmparse for all of these above
     amrex::Real pbl_ysu_coriolis_freq = 1.0e-4; // TODO: make this consistent with coriolis forcing (but note WRF always uses 1e-4)
-    bool        pbl_ysu_over_land = true; // TODO: pull from other inputs and make local
+    bool        pbl_ysu_force_over_water = false; // Force YSU to act as if it is over water regardless of other inputs (for testing)
     amrex::Real pbl_ysu_land_Ribcr = 0.25; // Critical Bulk Richardson number of Land for stable conditions
     amrex::Real pbl_ysu_unst_Ribcr = 0.0;  // Critical Bulk Richardson number for unstable conditions
 
