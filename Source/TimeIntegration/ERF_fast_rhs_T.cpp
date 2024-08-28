@@ -515,22 +515,32 @@ void erf_fast_rhs_T (int step, int nrk,
         auto const lo = lbound(bx);
         auto const hi = ubound(bx);
 
+        const Box& domain = geom.Domain();
+        auto const domlo = lbound(domain);
+        auto const domhi = ubound(domain);
+
+        // dt is the timestep for the RK stage, so dtau = facinv * dt
+        Real dt = dtau / facinv;
+
         {
         BL_PROFILE("fast_rhs_b2d_loop_t");
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            // w_klo = 0  w_khi = 0
-            RHS_a(i,j,lo.z  ) =  0.0;
-            RHS_a(i,j,hi.z+1) =  0.0;
+            // w_klo, w_khi given by specified Dirichlet values
+            RHS_a(i,j,lo.z  ) = dt * slow_rhs_rho_w(i,j,lo.z);
+            RHS_a(i,j,hi.z+1) = dt * slow_rhs_rho_w(i,j,hi.z+1);
 
-            // w = 0 at k = lo.z
-            soln_a(i,j,lo.z) = 0.;
+            // w = specified Dirichlet value at k = lo.z
+            soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
             for (int k = lo.z+1; k <= hi.z+1; k++) {
                 soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
             }
+
+            cur_zmom(i,j,lo.z  ) = stage_zmom(i,j,lo.z  ) + soln_a(i,j,lo.z  );
             cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
+
             for (int k = hi.z; k >= lo.z; k--) {
                 soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
             }
@@ -539,7 +549,7 @@ void erf_fast_rhs_T (int step, int nrk,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                RHS_a(i,j,lo.z) =  0.0;
+                RHS_a(i,j,lo.z) = dt * slow_rhs_rho_w(i,j,lo.z);
                soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
            }
         }
@@ -547,7 +557,7 @@ void erf_fast_rhs_T (int step, int nrk,
         for (int j = lo.y; j <= hi.y; ++j) {
              AMREX_PRAGMA_SIMD
              for (int i = lo.x; i <= hi.x; ++i) {
-                 RHS_a (i,j,hi.z+1) =  0.0;
+                 RHS_a(i,j,hi.z+1) = dt * slow_rhs_rho_w(i,j,hi.z+1);
              }
         }
         for (int k = lo.z+1; k <= hi.z+1; ++k) {
@@ -566,35 +576,34 @@ void erf_fast_rhs_T (int step, int nrk,
                  }
              }
         }
-        for (int j = lo.y; j <= hi.y; ++j) {
-             AMREX_PRAGMA_SIMD
-             for (int i = lo.x; i <= hi.x; ++i) {
-                cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
+        if (hi.z == domhi.z) {
+            for (int j = lo.y; j <= hi.y; ++j) {
+                 AMREX_PRAGMA_SIMD
+                 for (int i = lo.x; i <= hi.x; ++i) {
+                    Real wpp = WFromOmega(i,j,hi.z+1,soln_a(i,j,hi.z+1),new_drho_u,new_drho_v,z_nd,dxInv);
+                    cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + wpp;
+                }
             }
         }
 #endif
         } // end profile
 
-        {
-        BL_PROFILE("fast_rhs_new_drhow_t");
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
               cur_zmom(i,j,k) = stage_zmom(i,j,k);
         });
 
-        // If operating at lev > 0 where we don't touch the bottom or top boundary,
-        //    the z-momentum is given by interpolation from the coarser level so we
-        //    don't need to update that here
-        if (tbz.smallEnd(2) > 0) {
-            tbz.growLo(2,-1);
+        if (lo.z == domlo.z) {
+            tbz.setSmall(2,domlo.z+1);
         }
-        tbz.setBig(2,hi.z);
+        if (hi.z == domhi.z) {
+            tbz.setBig(2,domhi.z);
+        }
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
               Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
               cur_zmom(i,j,k) += wpp;
         });
-        } // end profile
 
         // **************************************************************************
         // Define updates in the RHS of rho and (rho theta)
