@@ -741,6 +741,10 @@ List of Parameters
 |                                  | advection scheme   |                     |              |
 |                                  | for scalars        |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
+| **erf.use_mono_adv**             | Use order reduction| true/false          | false        |
+|                                  | for scalar         |                     |              |
+|                                  | boundedness        |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
 
 The allowed advection types for the dycore variables are
 "Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
@@ -762,6 +766,12 @@ schemes are as follows when using efficient advection option: roughly 30% for Ce
 and Centered_6th, 35% for Upwind_5th, roughly 45% for WENO5 and WENOZ5, and roughly 60% for
 Upwind_3rd, WENO3, WENOZ3, and WENOMZQ3.
 
+The monotonic advection option is an order reduction technique adapted from the PINACLES
+software developed at PNNL by K. Pressel et al.; see `pnnl/pinacles github <https://github.com/pnnl/pinacles>`_.
+When this flag is enabled, ERF will compute global mins and maxes for the scalar variables
+and then test whether the selected advection operator (e.g., centered, upwind, or WENO)
+will break these bounds. If boundedness is broken, the fluxes are recomputed with a
+0-th order upwind approach.
 
 
 Diffusive Physics
@@ -846,58 +856,65 @@ PBL Scheme
 List of Parameters
 ------------------
 
-+------------------------------------+--------------------+---------------------+-------------+
-| Parameter                          | Definition         | Acceptable          | Default     |
-|                                    |                    | Values              |             |
-+====================================+====================+=====================+=============+
-| **erf.pbl_type**                   | Name of PBL Scheme | "None", "MYNN2.5",  | "None"      |
-|                                    | to be used         | "YSU"               |             |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_A1**                | MYNN Constant A1   | Real                | 1.18        |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_A2**                | MYNN Constant A2   | Real                | 0.665       |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_B1**                | MYNN Constant B1   | Real                | 24.0        |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_B2**                | MYNN Constant B2   | Real                | 15.0        |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C1**                | MYNN Constant C1   | Real                | 0.137       |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C2**                | MYNN Constant C1   | Real                | 0.75        |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C3**                | MYNN Constant C3   | Real                | 0.352       |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C4**                | MYNN Constant C4   | Real                | 0.0         |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C5**                | MYNN Constant C5   | Real                | 0.2         |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_diffuse_moistvars** | Diffuse moisture   | bool                | 0           |
-|                                    | variables using    |                     |             |
-|                                    | modeled eddy       |                     |             |
-|                                    | diffusivity        |                     |             |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.advect_QKE**                 | Include advection  | bool                | 1           |
-|                                    | terms in QKE eqn   |                     |             |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.diffuse_QKE_3D**             | Include horizontal | bool                | 0           |
-|                                    | turb. diffusion    |                     |             |
-|                                    | terms in QKE eqn.  |                     |             |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_ysu_over_land**          | Treat whole domain | bool                | 1           |
-|                                    | as being over land |                     |             |
-|                                    | for YSU PBL scheme |                     |             |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_ysu_land_Ribcr**         | Over land critical | Real                | 0.25        |
-|                                    | Richardson number  |                     |             |
-|                                    | for YSU PBL Scheme |                     |             |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_ysu_unst_Ribcr**         | Unstable critical  | Real                | 0.0         |
-|                                    | Richardson number  |                     |             |
-|                                    | for YSU PBL Scheme |                     |             |
-+------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_ysu_coriolis_freq**      | Coriolis frq. used | Real                | 1.0e-4      |
-|                                    | for YSU PBL Scheme |                     |             |
-+------------------------------------+--------------------+---------------------+-------------+
++-----------------------------------------+--------------------+---------------------+-------------+
+| Parameter                               | Definition         | Acceptable          | Default     |
+|                                         |                    | Values              |             |
++=========================================+====================+=====================+=============+
+| **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN2.5",  | "None"      |
+|                                         | to be used         | "YSU"               |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_A1**                     | MYNN Constant A1   | Real                | 1.18        |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_A2**                     | MYNN Constant A2   | Real                | 0.665       |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_B1**                     | MYNN Constant B1   | Real                | 24.0        |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_B2**                     | MYNN Constant B2   | Real                | 15.0        |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_C1**                     | MYNN Constant C1   | Real                | 0.137       |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_C2**                     | MYNN Constant C1   | Real                | 0.75        |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_C3**                     | MYNN Constant C3   | Real                | 0.352       |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_C4**                     | MYNN Constant C4   | Real                | 0.0         |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_C5**                     | MYNN Constant C5   | Real                | 0.2         |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_diffuse_moistvars**      | Diffuse moisture   | bool                | 0           |
+|                                         | variables using    |                     |             |
+|                                         | modeled eddy       |                     |             |
+|                                         | diffusivity        |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.advect_QKE**                      | Include advection  | bool                | 1           |
+|                                         | terms in QKE eqn   |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.diffuse_QKE_3D**                  | Include horizontal | bool                | 0           |
+|                                         | turb. diffusion    |                     |             |
+|                                         | terms in QKE eqn.  |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_force_over_water**        | Treat whole domain | bool                | 0           |
+|                                         | as over water for  |                     |             |
+|                                         | YSU PBL scheme     |                     |             |
+|                                         | regardless of      |                     |             |
+|                                         | LSM/other inputs   |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_land_Ribcr**              | Over land critical | Real                | 0.25        |
+|                                         | Richardson number  |                     |             |
+|                                         | for YSU PBL Scheme |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_unst_Ribcr**              | Unstable critical  | Real                | 0.0         |
+|                                         | Richardson number  |                     |             |
+|                                         | for YSU PBL Scheme |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_coriolis_freq**           | Coriolis frq. used | Real                | 1.0e-4      |
+|                                         | for YSU PBL Scheme |                     |             |
+|                                         | (1e-4 in WRF)      |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_use_consistent_coriolis** | Ignore above param | Bool                | 0           |
+|                                         | and use the value  |                     |             |
+|                                         | from ERF coriolis  |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 
 Note that both PBL schemes must be used in conjunction with a MOST boundary condition
 at the surface (Zlo) boundary. The YSU scheme is work in progress currently.
