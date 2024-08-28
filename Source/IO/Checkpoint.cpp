@@ -223,7 +223,7 @@ ERF::WriteCheckpointFile () const
             MultiFab z0(ba2d,dmap[lev],1,ng);
             for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                z0[mfi].copy(*(m_most->get_z0(lev)), bx);
+                z0[mfi].copy<RunOn::Host>(*(m_most->get_z0(lev)), bx);
             }
             VisMF::Write(z0, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
         }
@@ -609,7 +609,7 @@ ERF::ReadCheckpointFileMOST ()
             auto z0 = const_cast<FArrayBox*>(m_most->get_z0(lev));
             for (amrex::MFIter mfi(z0_in); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                z0->copy(z0_in[mfi], bx);
+                z0->copy<RunOn::Host>(z0_in[mfi], bx);
             }
         }
     }
