@@ -741,6 +741,10 @@ List of Parameters
 |                                  | advection scheme   |                     |              |
 |                                  | for scalars        |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
+| **erf.use_mono_adv**             | Use order reduction| true/false          | false        |
+|                                  | for scalar         |                     |              |
+|                                  | boundedness        |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
 
 The allowed advection types for the dycore variables are
 "Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
@@ -762,6 +766,12 @@ schemes are as follows when using efficient advection option: roughly 30% for Ce
 and Centered_6th, 35% for Upwind_5th, roughly 45% for WENO5 and WENOZ5, and roughly 60% for
 Upwind_3rd, WENO3, WENOZ3, and WENOMZQ3.
 
+The monotonic advection option is an order reduction technique adapted from the PINACLES
+software developed at PNNL by K. Pressel et al.; see `pnnl/pinacles github <https://github.com/pnnl/pinacles>`_.
+When this flag is enabled, ERF will compute global mins and maxes for the scalar variables
+and then test whether the selected advection operator (e.g., centered, upwind, or WENO)
+will break these bounds. If boundedness is broken, the fluxes are recomputed with a
+0-th order upwind approach.
 
 
 Diffusive Physics
