@@ -225,7 +225,7 @@ void make_fast_coeffs (int /*level*/,
 
           // UNLESS if at the top of the domain and the boundary is outflow,
           //     we will use a homogeneous Neumann condition
-          if ( (hi.z = domhi.z) &&
+          if ( (hi.z == domhi.z) &&
                (phys_bc_type[5] == ERF_BC::outflow or phys_bc_type[5] == ERF_BC::ho_outflow) )
           {
               coeffA_a(i,j,hi.z+1) =  -1.0;
@@ -241,6 +241,7 @@ void make_fast_coeffs (int /*level*/,
           }
         });
 #else
+        // If at the bottom of the grid, we will set w to a specified Dirichlet value
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
@@ -253,13 +254,18 @@ void make_fast_coeffs (int /*level*/,
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
 
+                // If at the top of the grid, we will set w to a specified Dirichlet value
                 coeffA_a(i,j,hi.z+1) =  0.0;
-                if (phys_bc_type[5] == ERF_BC::outflow or phys_bc_type[5] == ERF_BC::ho_outflow)
+                coeffB_a(i,j,hi.z+1) =  1.0;
+                coeffC_a(i,j,hi.z+1) =  0.0;
+
+                // UNLESS if at the top of the domain and the boundary is outflow,
+                //     we will use a homogeneous Neumann condition
+                if ( (hi.z == domhi.z) &&
+                     (phys_bc_type[5] == ERF_BC::outflow or phys_bc_type[5] == ERF_BC::ho_outflow) )
                 {
                     coeffA_a(i,j,hi.z+1) =  -1.0;
                 }
-                coeffB_a(i,j,hi.z+1) =  1.0;
-                coeffC_a(i,j,hi.z+1) =  0.0;
             }
         }
         for (int k = lo.z+1; k <= hi.z+1; ++k) {
