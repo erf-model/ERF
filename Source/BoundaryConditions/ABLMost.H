@@ -81,7 +81,7 @@ public:
         }
 
         // Include w* to handle free convection (Beljaars 1995, QJRMS)
-        pp.query("most.include_wstar", include_wstar);
+        pp.query("most.include_wstar", m_include_wstar);
 
         std::string pblh_string{"none"};
         pp.query("most.pblh_calc", pblh_string);
@@ -318,12 +318,6 @@ public:
                 t_surf[lev]->setVal(0.0);
             }
         }// lev
-
-        if (include_wstar) {
-            AMREX_ALWAYS_ASSERT(pblh_type != PBLHeightCalcType::None);
-            // associate wstar pointers w/ MOSTAverage instance
-            m_ma.set_wstar_ptrs(w_star);
-        }
     }
 
     void
@@ -422,11 +416,6 @@ public:
                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim)
     { m_ma.update_field_ptrs(lev,vars_old,Theta_prim,Qv_prim,Qr_prim); }
 
-    void
-    calc_wstar(const int lev,
-               const amrex::MultiFab& cons,
-               const int moist_flag = 0);
-
     const amrex::MultiFab*
     get_u_star (const int& lev) { return u_star[lev].get(); }
 
@@ -494,7 +483,7 @@ private:
     bool use_moisture;
     bool m_exp_most = false;
     bool m_rotate   = false;
-    bool include_wstar = false;
+    bool m_include_wstar = false;
     amrex::Real z0_const{0.1};
     amrex::Real surf_temp;
     amrex::Real surf_heating_rate{0};

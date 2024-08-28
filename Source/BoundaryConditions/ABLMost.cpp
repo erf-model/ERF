@@ -169,11 +169,17 @@ ABLMost::compute_fluxes (const int& lev,
         const auto umm_arr = umm_ptr->array(mfi);
         const auto z0_arr  = z_0[lev].array();
 
+        // PBL height if we need to calculate wstar for the Beljaars correction
+        // TODO: can/should we apply this in LES mode?
+        const auto w_star_arr = (m_include_wstar) ? w_star[lev].get()->array(mfi) : Array4<Real> {};
+        const auto pblh_arr   = (m_include_wstar) ? pblh[lev].get()->array(mfi) : Array4<Real> {};
+
         // Wave properties if they exist
         const auto Hwave_arr = (m_Hwave_lev[lev]) ? m_Hwave_lev[lev]->array(mfi) : Array4<Real> {};
         const auto Lwave_arr = (m_Lwave_lev[lev]) ? m_Lwave_lev[lev]->array(mfi) : Array4<Real> {};
         const auto eta_arr   = (m_eddyDiffs_lev[lev]) ? m_eddyDiffs_lev[lev]->array(mfi) : Array4<Real> {};
 
+        // Land mask array if it exists
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
                                                        Array4<int> {};
 
@@ -184,9 +190,10 @@ ABLMost::compute_fluxes (const int& lev,
             {
                 most_flux.iterate_flux(i, j, k, max_iters,
                                        z0_arr, umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                       u_star_arr, t_star_arr, q_star_arr,  // to be updated
-                                       t_surf_arr, olen_arr,                // to be updated
-                                       Hwave_arr, Lwave_arr, eta_arr);
+                                       u_star_arr, w_star_arr,  // to be updated
+                                       t_star_arr, q_star_arr,  // to be updated
+                                       t_surf_arr, olen_arr,    // to be updated
+                                       pblh_arr, Hwave_arr, Lwave_arr, eta_arr);
             }
         });
     }
@@ -581,46 +588,6 @@ ABLMost::compute_pblh (const int& lev,
     est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),
                      vars[lev][Vars::cons],m_lmask_lev[lev][0],
                      moist_flag);
-
-    // Calculate convective velocity scale using mixing height from PBL scheme
-    // TODO: can/should we apply this in LES mode?
-    if (include_wstar) {
-        calc_wstar(lev, vars[lev][Vars::cons], moist_flag);
-    }
-
-}
-
-void ABLMost::calc_wstar(const int lev,
-                         const amrex::MultiFab& cons,
-                         const int moist_flag)
-{
-    for (amrex::MFIter mfi(*w_star[lev]); mfi.isValid(); ++mfi)
-    {
-        Box gtbx = mfi.growntilebox();
-
-        auto wst_arr        = w_star[lev]->array(mfi);
-        const auto ust_arr  = u_star[lev]->const_array(mfi);
-        const auto tst_arr  = t_star[lev]->const_array(mfi);
-        const auto qst_arr  = q_star[lev]->array(mfi);
-        const auto pblh_arr = pblh[lev]->const_array(mfi);
-        const auto cons_arr = cons.const_array(mfi);
-
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            amrex::Real hfx = -ust_arr(i,j,k)*tst_arr(i,j,k);
-            amrex::Real Tv = Thetav(i,j,k,cons_arr,moist_flag);
-            if (moist_flag > 0) {
-                Real th = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
-                Real qv = cons_arr(i,j,k,RhoQ1_comp)    / cons_arr(i,j,k,Rho_comp);
-                hfx = hfx*(1 + 0.61*qv) + 0.61*th*(-ust_arr(i,j,k)*qst_arr(i,j,k));
-            }
-            // NOTE: WRF MYNN-EDMF uses the following definition over water but
-            //   assumes that thermal plumes can exceed the PBLH over land.
-            //   They increase the height scale by placing a _lower_ limit on
-            //   zi of 4 km (not done here).
-            wst_arr(i,j,k) = std::cbrt(CONST_GRAV / Tv * pblh_arr(i,j,k) * hfx);
-        });
-    }
 }
 
 void
