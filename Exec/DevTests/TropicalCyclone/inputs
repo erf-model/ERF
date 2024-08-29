@@ -62,6 +62,7 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta QK
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.pbl_type = "MYNN2.5"
+erf.advect_QKE = false
 erf.les_type = "None"
 erf.molec_diff_type = "None"
 #erf.molec_diff_type  = "Constant"

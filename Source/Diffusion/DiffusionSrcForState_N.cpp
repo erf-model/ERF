@@ -76,7 +76,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    bool l_use_QKE       = turbChoice.use_QKE && turbChoice.advect_QKE;
+    bool l_use_QKE       = turbChoice.use_QKE;
     bool l_use_deardorff = (turbChoice.les_type == LESType::Deardorff);
     Real l_inv_theta0    = 1.0 / turbChoice.theta_ref;
     Real l_abs_g         = std::abs(grav_gpu[2]);
@@ -682,6 +682,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            // This computes shear production, buoyancy production, and
+            // dissipation terms only.
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
                                                                   mu_turb,cellSizeInv,domain,
                                                                   pbl_mynn_B1_l,tm_arr(i,j,0),

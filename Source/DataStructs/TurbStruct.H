@@ -110,8 +110,12 @@ struct TurbChoice {
             // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
             if (pbl_type == PBLType::MYNN25) {
                 use_QKE = true;
-                pp.query("diffuse_QKE_3D", diffuse_QKE_3D);
-                pp.query("advect_QKE", advect_QKE);
+                pp.query("advect_QKE", advect_QKE);         // Whether to include advection term in transport eqn
+                pp.query("diffuse_QKE_3D", diffuse_QKE_3D); // Note: This only controls whether numerical diffusion is
+                                                            //   added to QKE; the vertical diffusion operator is
+                                                            //   always calculated and gives
+                                                            //       d/dz[K d(qke)/dz] = d/dz<w'(qke)'>,
+                                                            //   which is the turbulent transport of QKE.
             }
 
             // LES constants...
@@ -210,8 +214,8 @@ struct TurbChoice {
             // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
             if (pbl_type == PBLType::MYNN25) {
                 use_QKE = true;
-                pp.query("diffuse_QKE_3D", diffuse_QKE_3D, lev);
                 pp.query("advect_QKE"    , advect_QKE, lev);
+                pp.query("diffuse_QKE_3D", diffuse_QKE_3D, lev);
             }
 
             // LES constants...

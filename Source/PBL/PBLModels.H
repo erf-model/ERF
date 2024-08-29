@@ -180,7 +180,7 @@ ComputeQKESourceTerms (int i, int j, int k,
                                   moist_flag);
 
     // Note: Transport terms due to turbulence and pressure are included when
-    // DiffusionSrcForState_* is called.
+    // DiffusionSrcForState_* is called from ERF_slow_rhs_post.
 
     // Shear Production (Note: We store mu_turb, which is 0.5*K_turb)
     source_term += 4.0*K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);

@@ -119,7 +119,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
-    const bool l_use_QKE        = tc.use_QKE && tc.advect_QKE;
+    const bool l_use_QKE        = tc.use_QKE;
+    const bool l_advect_QKE     = tc.use_QKE && tc.advect_QKE;
     const bool l_use_deardorff  = (tc.les_type == LESType::Deardorff);
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
@@ -393,13 +394,17 @@ void erf_slow_rhs_post (int level, int finest_level,
                     num_comp = 1;
                 }
 
-                AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                       cur_cons, cur_prim, cell_rhs,
-                                       l_use_mono_adv, max_s_ptr, min_s_ptr,
-                                       detJ_arr, dxInv, mf_m,
-                                       horiz_adv_type, vert_adv_type,
-                                       horiz_upw_frac, vert_upw_frac,
-                                       flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                if (( ivar != RhoQKE_comp                 ) ||
+                    ((ivar == RhoQKE_comp) && l_advect_QKE))
+                {
+                    AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                           cur_cons, cur_prim, cell_rhs,
+                                           l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                           detJ_arr, dxInv, mf_m,
+                                           horiz_adv_type, vert_adv_type,
+                                           horiz_upw_frac, vert_upw_frac,
+                                           flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                }
 
                 if (l_use_diff) {
 

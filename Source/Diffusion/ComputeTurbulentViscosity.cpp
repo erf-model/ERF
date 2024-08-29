@@ -237,7 +237,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     Real* fac_ptr = d_Factors.data();
 
     bool use_KE  = (turbChoice.les_type == LESType::Deardorff);
-    bool use_QKE = (turbChoice.use_QKE && turbChoice.diffuse_QKE_3D);
+    bool use_QKE = turbChoice.use_QKE;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
