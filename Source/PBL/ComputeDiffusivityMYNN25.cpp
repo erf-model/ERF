@@ -72,8 +72,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         if (use_terrain) {
             const Array4<Real const> &z_nd_arr = z_phys_nd->array(mfi);
             const auto invCellSize = geom.InvCellSizeArray();
-            ParallelFor(Gpu::KernelInfo().setReduction(true), bx,
-                               [=] AMREX_GPU_DEVICE (int i, int j, int k, Gpu::Handler const& handler) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
                 qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
@@ -86,13 +85,12 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                 Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                 const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
                 const Real dz = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
-                Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz*fac, handler);
-                Gpu::deviceReduceSum(&qint(i,j,0,1),      qvel(i,j,k)*dz*fac, handler);
+                Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz*fac);
+                Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*dz*fac);
 
             });
         } else {
-            ParallelFor(Gpu::KernelInfo().setReduction(true), bx,
-                               [=] AMREX_GPU_DEVICE (int i, int j, int k, Gpu::Handler const& handler) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
                 qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
                 qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
@@ -106,8 +104,8 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                 //       This more performant than Gpu::Atomic::Add.
                 Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                 const Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
-                Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac, handler);
-                Gpu::deviceReduceSum(&qint(i,j,0,1),      qvel(i,j,k)*fac, handler);
+                Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac);
+                Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*fac);
             });
         }
 
