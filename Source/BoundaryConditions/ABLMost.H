@@ -440,7 +440,7 @@ public:
     get_lmask(const int& lev) {return m_lmask_lev[lev][0];}
 
     int
-    lmask_min_reduce (amrex::iMultiFab& lmask, int& nghost)
+    lmask_min_reduce (amrex::iMultiFab& lmask, const int& nghost)
     {
         int lmask_min = amrex::ReduceMin(lmask, nghost,
                                          [=] AMREX_GPU_HOST_DEVICE (amrex::Box const& bx, amrex::Array4<int const> const& lm_arr) -> int
