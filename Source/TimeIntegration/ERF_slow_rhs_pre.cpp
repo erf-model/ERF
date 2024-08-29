@@ -234,6 +234,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
     Real* max_s_ptr = max_scal_d.data();
     Real* min_s_ptr = min_scal_d.data();
 
+    // This is just cautionary to deal with grid boundaries that aren't domain boundaries
+    S_rhs[IntVars::zmom].setVal(0.0);
+
     // *****************************************************************************
     // Define updates and fluxes in the current RK stage
     // *****************************************************************************
@@ -251,9 +254,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
 
-        // We don't compute a source term for z-momentum on the bottom or top boundary
-        tbz.growLo(2,-1);
-        tbz.growHi(2,-1);
+        // We don't compute a source term for z-momentum on the bottom or top domain boundary
+        if (tbz.smallEnd(2) == domain.smallEnd(2)) {
+            tbz.growLo(2,-1);
+        }
+        if (tbz.bigEnd(2) == domain.bigEnd(2)+1) {
+            tbz.growHi(2,-1);
+        }
 
         const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
@@ -365,7 +372,7 @@ if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n"
         // *****************************************************************************
         {
         BL_PROFILE("slow_rhs_making_omega");
-            Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,0));
+            Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,1));
             // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
             if (l_use_terrain) {
 
@@ -393,7 +400,7 @@ if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n"
                     });
                 } else {
                     Box gbxo_mid = gbxo;
-                    if (gbxo_mid.smallEnd(2) <= 0) {
+                    if (gbxo_mid.smallEnd(2) <= domain.smallEnd(2)) {
                         gbxo_mid.setSmall(2,1);
                     }
                     if (gbxo_mid.bigEnd(2) >= domain.bigEnd(2)+1) {
@@ -545,15 +552,9 @@ if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n"
         // *****************************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *****************************************************************************
-        int lo_z_face;
-        int hi_z_face;
-        if (level == 0) {
-            lo_z_face = domain.smallEnd(2);
-            hi_z_face = domain.bigEnd(2)+1;
-        } else {
-            lo_z_face = mfi.validbox().smallEnd(2);
-            hi_z_face = mfi.validbox().bigEnd(2)+1;
-        }
+        int lo_z_face = domain.smallEnd(2);
+        int hi_z_face = domain.bigEnd(2)+1;
+
         AdvectionSrcForMom(bx, tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
                            cell_data, u, v, w,
@@ -725,21 +726,6 @@ if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n"
             });
         }
         }
-
-        // *****************************************************************************
-        // Zero out source term for z-momentum at top and bottom of grid
-        // *****************************************************************************
-        Box b2d = tbz;
-        b2d.setSmall(2,lo_z_face);
-        b2d.setBig(2,lo_z_face);
-        // Enforce no forcing term at top and bottom boundaries of this grid
-        // We do this even when not at top or bottom of the domain because
-        //    z-vel on the coarse/fine boundary is given by the coarse value
-        //    (suitably interpolated tangentially and in time)
-        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-            rho_w_rhs(i,j,lo_z_face) = 0.;
-            rho_w_rhs(i,j,hi_z_face) = 0.;
-        });
 
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // z-momentum equation

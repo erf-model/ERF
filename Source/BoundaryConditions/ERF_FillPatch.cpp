@@ -443,7 +443,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         if (!solverChoice.use_NumDiff) {
             ngu = IntVect(1,1,1);
             ngv = IntVect(1,1,1);
-            ngw = IntVect(1,1,0);
+            ngw = IntVect(1,1,1);
         }
         VelocityToMomentum(*mfs_vel[Vars::xvel], ngu,
                            *mfs_vel[Vars::yvel], ngv,

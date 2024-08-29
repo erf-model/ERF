@@ -56,7 +56,7 @@ public:
 
     void impose_lateral_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
-                                  int icomp, int ncomp, int bccomp);
+                                  int icomp, int ncomp, int bccomp, int ngz);
     void impose_vertical_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,

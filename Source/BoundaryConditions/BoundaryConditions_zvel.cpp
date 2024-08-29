@@ -209,15 +209,9 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // Bottom boundary
     // *******************************************************
 
-    // At the bottom boundary we always assert no normal flow
-    if (m_lev == 0) {
-        AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].lo(2) == ERFBCType::ext_dir);
-    } else {
-       // If we do not reach to the top or bottom boundary then the z-vel should be
-       //    filled by interpolation from the coarser grid using ERF_FillPatcher.
-    }
-
+    // *******************************************************
     // Moving terrain
+    // *******************************************************
     if (l_use_terrain && l_moving_terrain)
     {
         //************************************************************
@@ -254,15 +248,6 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // *******************************************************
     // Top boundary
     // *******************************************************
-
-    if (m_lev == 0) {
-       AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir ||
-                           bc_ptr_w_h[0].hi(2) == ERFBCType::neumann_int);
-    } else {
-       // If we do not reach to the top or bottom boundary then the z-vel should be
-       //    filled by interpolation from the coarser grid using ERF_FillPatcher.
-    }
-
 
     // NOTE: if we set SlipWall at top, that generates ERFBCType::ext_dir which sets w=0 here
     // NOTE: if we set  Outflow at top, that generates ERFBCType::foextrap which doesn't touch w here
