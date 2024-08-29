@@ -3,13 +3,9 @@
 
 #include <MYNNStruct.H>
 
-enum struct LESType {
-    None, Smagorinsky, Deardorff
-};
+AMREX_ENUM(LESType, None, Smagorinsky, Deardorff);
 
-enum struct PBLType {
-    None, MYNN25, YSU
-};
+AMREX_ENUM(PBLType, None, MYNN25, YSU);
 
 template <typename T>
 void query_one_or_per_level(const amrex::ParmParse& pp, const char* query_string, T& query_var, const int lev, const int maxlev)
@@ -22,7 +18,7 @@ void query_one_or_per_level(const amrex::ParmParse& pp, const char* query_string
     } else if (count == maxlev + 1) {
         pp.query(query_string, query_var, lev);
     } else {
-        amrex::Error("For parmparse variable " + std::string(query_string)
+        amrex::Error("For parmparse variable " + pp.prefixedName(query_string)
                      + ": if specified, specify once total or once for each level");
     }
 }
@@ -38,29 +34,11 @@ struct TurbChoice {
 
         // Which LES closure?
         std::string les_type_string = "None";
-        query_one_or_per_level(pp, "les_type", les_type_string, lev, max_level);
-        if (!les_type_string.compare("Smagorinsky")) {
-            les_type = LESType::Smagorinsky;
-        } else if (!les_type_string.compare("Deardorff")) {
-            les_type = LESType::Deardorff;
-        } else if (!les_type_string.compare("None")) {
-            les_type = LESType::None; // Means DNS
-        } else {
-            amrex::Error("Don't know this les_type");
-        }
+        query_one_or_per_level(pp, "les_type", les_type, lev, max_level);
 
         // Which PBL Closure
         static std::string pbl_type_string = "None";
-        query_one_or_per_level(pp, "pbl_type", pbl_type_string, lev, max_level);
-        if (pbl_type_string == "MYNN2.5") {
-            pbl_type = PBLType::MYNN25;
-        } else if (pbl_type_string == "YSU") {
-            pbl_type = PBLType::YSU;
-        } else if (pbl_type_string == "None") {
-            pbl_type = PBLType::None;
-        } else {
-            amrex::Error("Don't know this pbl_type");
-        }
+        query_one_or_per_level(pp, "pbl_type", pbl_type, lev, max_level);
 
         // Do some more stuff for PBL Modeling
         if (pbl_type != PBLType::None) {
