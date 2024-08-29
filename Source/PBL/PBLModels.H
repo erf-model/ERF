@@ -1,7 +1,7 @@
 #ifndef _PBLMODELS_H_
 #define _PBLMODELS_H_
 
-#include <Utils/Thetav.H>
+#include <Thetav.H>
 
 /**
  * Function for computing vertical derivatives for use in PBL model
