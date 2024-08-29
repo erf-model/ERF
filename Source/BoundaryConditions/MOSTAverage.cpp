@@ -864,9 +864,11 @@ MOSTAverage::compute_plane_averages (int lev)
     }
     else // copy temperature
     {
-        int iavg        = m_navg - 2;
-        denom[iavg]     = 1.0 / (Real)ncell_plane[iavg];
-        plane_avg[iavg] = plane_avg[2];
+        int iavg    = m_navg - 2;
+        denom[iavg] = 1.0 / (Real)ncell_plane[iavg];
+        // plane_avg[iavg] = plane_avg[2]
+        Gpu::copy(Gpu::deviceToDevice, pavg.begin() + 2, pavg.begin() + 3,
+                  pavg.begin() + iavg);
     }
 
     //

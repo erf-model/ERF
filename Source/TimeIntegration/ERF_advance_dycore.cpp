@@ -214,7 +214,7 @@ void ERF::advance_dycore(int level,
     if (l_use_kturb)
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
-        const BCRec* bc_ptr_d = domain_bcs_type_d.data();
+        const BCRec* bc_ptr_h = domain_bcs_type.data();
         ComputeTurbulentViscosity(xvel_old, yvel_old,
                                   *Tau11_lev[level].get(), *Tau22_lev[level].get(), *Tau33_lev[level].get(),
                                   *Tau12_lev[level].get(), *Tau13_lev[level].get(), *Tau23_lev[level].get(),
@@ -222,7 +222,7 @@ void ERF::advance_dycore(int level,
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], tc, solverChoice.gravity,
-                                  m_most, exp_most, l_use_moisture, level, bc_ptr_d);
+                                  m_most, exp_most, l_use_moisture, level, bc_ptr_h);
     }
 
     // ***********************************************************************************************
