@@ -250,7 +250,7 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
     if (z_phys_cc && zlevels.empty()) {
         Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
-        reduce_to_max_per_level(zlevels, z_phys_cc);
+        reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
     // Only apply temperature source below nominal inversion height
@@ -293,7 +293,7 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
     if (z_phys_cc && zlevels.empty()) {
         Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
-        reduce_to_max_per_level(zlevels, z_phys_cc);
+        reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
     // Only apply temperature source below nominal inversion height
@@ -336,7 +336,7 @@ Problem::update_w_subsidence (const Real& /*time*/,
     if (z_phys_cc && zlevels.empty()) {
         Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
-        reduce_to_max_per_level(zlevels, z_phys_cc);
+        reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
     // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
@@ -384,7 +384,7 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
     if (z_phys_cc && zlevels.empty()) {
         Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
-        reduce_to_max_per_level(zlevels, z_phys_cc);
+        reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
     // const Real coriolis = 2.0 * 2.0 * PI / 86400.0; // 0.376E-4;

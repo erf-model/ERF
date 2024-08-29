@@ -210,5 +210,10 @@ protected:
     amrex::Vector<int> m_t_init;                                     // Flag to specify if averages are initialized
     amrex::Real m_time_window{1.0e-16};                              // Width of the exp filter function
     amrex::Real m_fact_new, m_fact_old;                              // Time average factors for new and old means
+
+    // Surface velocity correction
+    //--------------------------------------------
+    bool include_subgrid_vel = false;
+    amrex::Vector<amrex::Real> m_Vsg;                                // Subgrid velocity scale (Mahrt & Sun 1995 MWR)
 };
 #endif

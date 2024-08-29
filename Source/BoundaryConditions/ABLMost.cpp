@@ -1,7 +1,4 @@
 #include <ABLMost.H>
-#include <MOSTAverage.H>
-#include <IndexDefines.H>
-#include <AMReX_Interpolater.H>
 
 using namespace amrex;
 
@@ -67,17 +64,20 @@ ABLMost::update_fluxes (const int& lev,
     // ***************************************************************
     // Iterate the fluxes if moeng type
     // Next iterate over sea -- the models for surface roughness
-    // over sea are CHARNOCK, MODIFIED_CHARNOCK or WAVE_COUPLED
+    // over sea are CHARNOCK, DONELAN, MODIFIED_CHARNOCK or WAVE_COUPLED
     // ***************************************************************
     if (flux_type == FluxCalcType::MOENG ||
         flux_type == FluxCalcType::ROTATE) {
         bool is_land = false;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                surface_flux_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
+                surface_flux_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a, cnk_visc);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_flux_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::DONELAN) {
+                surface_flux_donelan most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 surface_flux_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
@@ -89,10 +89,13 @@ ABLMost::update_fluxes (const int& lev,
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                surface_temp_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
+                surface_temp_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a, cnk_visc);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_temp_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::DONELAN) {
+                surface_temp_donelan most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 surface_temp_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
@@ -103,10 +106,13 @@ ABLMost::update_fluxes (const int& lev,
 
         } else if (theta_type == ThetaCalcType::ADIABATIC) {
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                adiabatic_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
+                adiabatic_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a, cnk_visc);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 adiabatic_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::DONELAN) {
+                adiabatic_donelan most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 adiabatic_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
@@ -163,11 +169,17 @@ ABLMost::compute_fluxes (const int& lev,
         const auto umm_arr = umm_ptr->array(mfi);
         const auto z0_arr  = z_0[lev].array();
 
+        // PBL height if we need to calculate wstar for the Beljaars correction
+        // TODO: can/should we apply this in LES mode?
+        const auto w_star_arr = (m_include_wstar) ? w_star[lev].get()->array(mfi) : Array4<Real> {};
+        const auto pblh_arr   = (m_include_wstar) ? pblh[lev].get()->array(mfi) : Array4<Real> {};
+
         // Wave properties if they exist
         const auto Hwave_arr = (m_Hwave_lev[lev]) ? m_Hwave_lev[lev]->array(mfi) : Array4<Real> {};
         const auto Lwave_arr = (m_Lwave_lev[lev]) ? m_Lwave_lev[lev]->array(mfi) : Array4<Real> {};
-        const auto eta_arr   = m_eddyDiffs_lev[lev]->array(mfi);
+        const auto eta_arr   = (m_eddyDiffs_lev[lev]) ? m_eddyDiffs_lev[lev]->array(mfi) : Array4<Real> {};
 
+        // Land mask array if it exists
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
                                                        Array4<int> {};
 
@@ -178,9 +190,10 @@ ABLMost::compute_fluxes (const int& lev,
             {
                 most_flux.iterate_flux(i, j, k, max_iters,
                                        z0_arr, umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                       u_star_arr, t_star_arr, q_star_arr,  // to be updated
-                                       t_surf_arr, olen_arr,                // to be updated
-                                       Hwave_arr, Lwave_arr, eta_arr);
+                                       u_star_arr, w_star_arr,  // to be updated
+                                       t_star_arr, q_star_arr,  // to be updated
+                                       t_surf_arr, olen_arr,    // to be updated
+                                       pblh_arr, Hwave_arr, Lwave_arr, eta_arr);
             }
         });
     }
@@ -272,7 +285,7 @@ ABLMost::impose_most_bcs (const int& lev,
  * @param[in] eddyDiffs Diffusion coefficients from turbulence model
  * @param[in] flux_comp structure to compute fluxes
  */
-template<typename FluxCalc>
+template <typename FluxCalc>
 void
 ABLMost::compute_most_bcs (const int& lev,
                            const Vector<MultiFab*>& mfs,
@@ -337,8 +350,8 @@ ABLMost::compute_most_bcs (const int& lev,
         auto qfx2_arr = (m_rotate && yqv_flux) ? yqv_flux->array(mfi) : Array4<Real>{};
 
         // Viscosity and terrain
-        const auto  eta_arr  = m_eddyDiffs_lev[lev]->array(mfi);
-        const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
+        const auto  eta_arr  = (!m_exp_most) ? m_eddyDiffs_lev[lev]->array(mfi) : Array4<const Real>{};
+        const auto zphys_arr = (z_phys)      ? z_phys->const_array(mfi)         : Array4<const Real>{};
 
         // Get average arrays
         const auto *const u_mean     = m_ma.get_average(lev,0);
@@ -542,6 +555,39 @@ ABLMost::get_lsm_tsurf (const int& lev)
             }
         });
     }
+}
+
+void
+ABLMost::update_pblh (const int& lev,
+                      Vector<Vector<MultiFab>>& vars,
+                       MultiFab* z_phys_cc)
+{
+    if (pblh_type == PBLHeightCalcType::MYNN25) {
+        MYNNPBLH estimator;
+        compute_pblh(lev, vars, z_phys_cc, estimator);
+    } else if (pblh_type == PBLHeightCalcType::YSU) {
+        amrex::Error("YSU PBLH calc not implemented yet");
+    }
+}
+
+template <typename PBLHeightEstimator>
+void
+ABLMost::compute_pblh (const int& lev,
+                       Vector<Vector<MultiFab>>& vars,
+                       MultiFab* z_phys_cc,
+                       const PBLHeightEstimator& est)
+{
+    int moist_flag = 0;
+    int n_qstate = vars[lev][Vars::cons].nComp() - (NVAR_max - NMOIST_max);
+    if (n_qstate > 3) {
+        moist_flag = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
+    } else if (n_qstate > 0) {
+        moist_flag = 1;
+    }
+
+    est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),
+                     vars[lev][Vars::cons],m_lmask_lev[lev][0],
+                     moist_flag);
 }
 
 void
