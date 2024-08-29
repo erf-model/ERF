@@ -26,6 +26,8 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
     auto mynn     = turbChoice.pbl_mynn;
     auto level2   = turbChoice.pbl_mynn_level2;
 
+    Real Lt_alpha = (mynn.config == MYNNConfigType::CHEN2021) ? 0.1 : 0.23;
+
     // Dirichlet flags to switch derivative stencil
     bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
     bool c_ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc].lo(5) == ERFBCType::ext_dir) );
@@ -184,7 +186,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             // ABL-depth length scale (NN09, Eqn. 54)
             Real l_T;
             if (qint(i,j,0,1) > 0.0) {
-                l_T = 0.23*qint(i,j,0,0)/qint(i,j,0,1);
+                l_T = Lt_alpha*qint(i,j,0,0)/qint(i,j,0,1);
             } else {
                 l_T = std::numeric_limits<Real>::max();
             }
@@ -204,20 +206,26 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                 l_B = std::numeric_limits<Real>::max();
             }
 
-            // Overall turbulent length scale (NN09, Eqn 52)
-            Real Lturb = 1.0 / (1.0/l_S + 1.0/l_T + 1.0/l_B);
+            // Master length scale
+            Real Lm;
+            if (mynn.config == MYNNConfigType::CHEN2021) {
+                Lm = std::pow(1.0/(l_S*l_S) + 1.0/(l_T*l_T) + 1.0/(l_B*l_B), -0.5);
+            } else {
+                // NN09, Eqn 52
+                Lm = 1.0 / (1.0/l_S + 1.0/l_T + 1.0/l_B);
+            }
 
             // Calculate nondimensional production terms
             Real shearProd  = dudz*dudz + dvdz*dvdz;
             Real buoyProd   = -(CONST_GRAV/theta0) * dthetadz;
-            Real L2_over_q2 = Lturb*Lturb/(qvel(i,j,k)*qvel(i,j,k));
+            Real L2_over_q2 = Lm*Lm/(qvel(i,j,k)*qvel(i,j,k));
             Real GM         = L2_over_q2 * shearProd;
             Real GH         = L2_over_q2 * buoyProd;
 
             // Equilibrium (Level-2) q calculation follows NN09, Appendix 2
             Real Rf  = level2.calc_Rf(GM, GH);
             Real SM2 = level2.calc_SM(Rf);
-            Real qe2 = mynn.B1*Lturb*Lturb*SM2*(1.0-Rf)*shearProd;
+            Real qe2 = mynn.B1*Lm*Lm*SM2*(1.0-Rf)*shearProd;
             Real qe  = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
 
             // Level 2 limiting (Helfand and Labraga 1988)
@@ -233,9 +241,9 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Finally, compute the eddy viscosity/diffusivities
             const Real rho = cell_data(i,j,k,Rho_comp);
-            K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lturb * qvel(i,j,k) * SM * 0.5; // 0.5 for mu_turb
-            K_turb(i,j,k,EddyDiff::Theta_v) = rho * Lturb * qvel(i,j,k) * SH;
-            K_turb(i,j,k,EddyDiff::QKE_v)   = rho * Lturb * qvel(i,j,k) * SQ;
+            K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lm * qvel(i,j,k) * SM * 0.5; // 0.5 for mu_turb
+            K_turb(i,j,k,EddyDiff::Theta_v) = rho * Lm * qvel(i,j,k) * SH;
+            K_turb(i,j,k,EddyDiff::QKE_v)   = rho * Lm * qvel(i,j,k) * SQ;
 
             // TODO: implement partial-condensation scheme?
             // Currently, implementation matches NN09 without rain (i.e.,
@@ -245,10 +253,10 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             // NN09 gives the total water content flux; this assumes that
             // all the species have the same eddy diffusivity
             if (mynn.diffuse_moistvars) {
-                K_turb(i,j,k,EddyDiff::Q_v) = rho * Lturb * qvel(i,j,k) * SH;
+                K_turb(i,j,k,EddyDiff::Q_v) = rho * Lm * qvel(i,j,k) * SH;
             }
 
-            K_turb(i,j,k,EddyDiff::PBL_lengthscale) = Lturb;
+            K_turb(i,j,k,EddyDiff::PBL_lengthscale) = Lm;
         });
     }
 }

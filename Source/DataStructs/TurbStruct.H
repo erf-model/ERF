@@ -98,6 +98,14 @@ struct TurbChoice {
                     pp.query("pbl_mynn_SMmax", pbl_mynn.SMmax);
                     pp.query("pbl_mynn_SHmin", pbl_mynn.SHmin);
                     pp.query("pbl_mynn_SHmax", pbl_mynn.SHmax);
+
+                    std::string mynn_cfg_string = "default";
+                    pp.query("pbl_mynn_config", mynn_cfg_string);
+                    if (!mynn_cfg_string.compare("ChenBryan2021")) {
+                        pbl_mynn.config = MYNNConfigType::CHEN2021;
+                    } else {
+                        pbl_mynn.config = MYNNConfigType::NN09;
+                    }
                 } else if (pbl_type == PBLType::YSU) {
                     pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
                     pp.query("pbl_ysu_use_consistent_coriolis", pbl_ysu_use_consistent_coriolis);

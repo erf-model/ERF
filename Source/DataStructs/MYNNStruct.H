@@ -1,6 +1,11 @@
 #ifndef _MYNN_STRUCT_H_
 #define _MYNN_STRUCT_H_
 
+enum struct MYNNConfigType {
+    NN09 = 0, // Nakanishi & Niino 2009, J Met Soc Japan
+    CHEN2021  // Chen & Bryan 2021, JAS
+};
+
 struct MYNNLevel25 {
 
     /*
@@ -32,8 +37,6 @@ struct MYNNLevel25 {
         SQ = 3.0 * SM; // revised in NN09
     }
 
-    bool diffuse_moistvars = false;
-
     // Closure coefficients (from Nakanishi & Niino 2009 [NN09])
     amrex::Real A1 = 1.18;
     amrex::Real A2 = 0.665;
@@ -50,6 +53,11 @@ struct MYNNLevel25 {
     amrex::Real SMmax = 1.0e34;
     amrex::Real SHmin = 0.0;
     amrex::Real SHmax = 4.0;
+
+    MYNNConfigType config;
+
+    // Calculate eddy diffusivity for moisture variables
+    bool diffuse_moistvars = false;
 };
 
 struct MYNNLevel2 {
