@@ -580,8 +580,7 @@ void erf_fast_rhs_T (int step, int nrk,
             for (int j = lo.y; j <= hi.y; ++j) {
                  AMREX_PRAGMA_SIMD
                  for (int i = lo.x; i <= hi.x; ++i) {
-                    Real wpp = WFromOmega(i,j,hi.z+1,soln_a(i,j,hi.z+1),new_drho_u,new_drho_v,z_nd,dxInv);
-                    cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + wpp;
+                    cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
                 }
             }
         }
