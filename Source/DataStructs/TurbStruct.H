@@ -11,6 +11,21 @@ enum struct PBLType {
     None, MYNN25, YSU
 };
 
+template <typename T>
+void query_one_or_per_level(const amrex::ParmParse& pp, const char* query_string, T& query_var, const int lev, const int maxlev)
+{
+    int count = pp.countval(query_string);
+    if (count == 0) {
+        return; // nothing to do
+    } else if (count == 1) {
+        pp.query(query_string, query_var);
+    } else if (count == maxlev + 1) {
+        pp.query(query_string, query_var, lev);
+    } else {
+        amrex::Error("For parmparse variable " + std::string(query_string)
+                     + ": if specified, specify once total or once for each level");
+    }
+}
 
 /**
  * Container holding quantities related to turbulence parametrizations
@@ -21,230 +36,100 @@ struct TurbChoice {
     {
         amrex::ParmParse pp(pp_prefix);
 
-        int nvals_les = pp.countval("les_type");
-        int nvals_pbl = pp.countval("pbl_type");
-
-        // If nvals_les and nvals_pbl are both zero then we skip everything below
-        if ( (nvals_les == 0) && (nvals_pbl == 0) ) {
-            les_type = LESType::None;
-            pbl_type = PBLType::None;
-            return;
-        }
-
-        // If nvals_les and nvals_pbl are both > 0 then they must be the same, and either 1 or max_levels
-        if ( (nvals_les > 0) && (nvals_pbl > 0) ) {
-            if (nvals_les != nvals_pbl) {
-                amrex::Error("If specifying both, we must specify the same number of values for les_type and pbl_type");
-            }
-            if (nvals_les != 1 && nvals_les != max_level+1) {
-                amrex::Error("If specifying both, we must either input one value for all levels, or one value per level");
-            }
-        }
-
-        // Here we cover the case where either one is 1 and the other is 0, or they both are = 1
-        if (nvals_les == 1 || nvals_pbl == 1) {
-
-            // Which LES closure?
-            std::string les_type_string = "None";
-            pp.query("les_type",les_type_string);
-
-            if (!les_type_string.compare("Smagorinsky")) {
-                les_type = LESType::Smagorinsky;
-            } else if (!les_type_string.compare("Deardorff")) {
-                les_type = LESType::Deardorff;
-            } else if (!les_type_string.compare("None")) {
-                les_type = LESType::None; // Means DNS
-            } else {
-                amrex::Error("Don't know this les_type");
-            }
-
-            // Which PBL Closure
-            static std::string pbl_type_string = "None";
-            pp.query("pbl_type",pbl_type_string);
-            if (pbl_type_string == "MYNN2.5") {
-                pbl_type = PBLType::MYNN25;
-            } else if (pbl_type_string == "YSU") {
-                pbl_type = PBLType::YSU;
-            } else if (pbl_type_string == "None") {
-                pbl_type = PBLType::None;
-            } else {
-                amrex::Error("Don't know this pbl_type");
-            }
-
-            // Do some more stuff for PBL Modeling
-            if (pbl_type != PBLType::None) {
-                // Check for compatibility between PBL, LES, Molec Transport
-                if (les_type == LESType::Deardorff) {
-                    amrex::Error("It is not recommended to use Deardorff LES and a PBL model");
-                } else if (les_type != LESType::None) {
-                    amrex::Print() << "Selected a PBL model and an LES model: " <<
-                    "Using PBL for vertical transport, LES for horizontal" << std::endl;
-                }
-
-                if (pbl_type == PBLType::MYNN25) {
-                    pp.query("pbl_mynn_A1", pbl_mynn.A1);
-                    pp.query("pbl_mynn_A2", pbl_mynn.A2);
-                    pp.query("pbl_mynn_B1", pbl_mynn.B1);
-                    pp.query("pbl_mynn_B2", pbl_mynn.B2);
-                    pp.query("pbl_mynn_C1", pbl_mynn.C1);
-                    pp.query("pbl_mynn_C2", pbl_mynn.C2);
-                    pp.query("pbl_mynn_C3", pbl_mynn.C3);
-                    pp.query("pbl_mynn_C4", pbl_mynn.C4);
-                    pp.query("pbl_mynn_C5", pbl_mynn.C5);
-                    pbl_mynn_level2.init_coeffs(pbl_mynn.A1, pbl_mynn.A2, pbl_mynn.B1, pbl_mynn.B2,
-                                                pbl_mynn.C1, pbl_mynn.C2, pbl_mynn.C3, pbl_mynn.C4, pbl_mynn.C5);
-                    pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn.diffuse_moistvars);
-                    pp.query("pbl_mynn_SMmin", pbl_mynn.SMmin);
-                    pp.query("pbl_mynn_SMmax", pbl_mynn.SMmax);
-                    pp.query("pbl_mynn_SHmin", pbl_mynn.SHmin);
-                    pp.query("pbl_mynn_SHmax", pbl_mynn.SHmax);
-
-                    std::string mynn_cfg_string = "default";
-                    pp.query("pbl_mynn_config", mynn_cfg_string);
-                    if (!mynn_cfg_string.compare("ChenBryan2021")) {
-                        pbl_mynn.config = MYNNConfigType::CHEN2021;
-                    } else {
-                        pbl_mynn.config = MYNNConfigType::NN09;
-                    }
-                } else if (pbl_type == PBLType::YSU) {
-                    pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
-                    pp.query("pbl_ysu_use_consistent_coriolis", pbl_ysu_use_consistent_coriolis);
-                    pp.query("pbl_ysu_force_over_water", pbl_ysu_force_over_water);
-                    pp.query("pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr);
-                    pp.query("pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr);
-                }
-            }
-
-            // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
-            if (pbl_type == PBLType::MYNN25) {
-                use_QKE = true;
-                pp.query("advect_QKE", advect_QKE);         // Whether to include advection term in transport eqn
-                pp.query("diffuse_QKE_3D", diffuse_QKE_3D); // Note: This only controls whether numerical diffusion is
-                                                            //   added to QKE; the vertical diffusion operator is
-                                                            //   always calculated and gives
-                                                            //       d/dz[K d(qke)/dz] = d/dz<w'(qke)'>,
-                                                            //   which is the turbulent transport of QKE.
-            }
-
-            // LES constants...
-            pp.query("Cs" , Cs);
-            pp.query("CI" , CI);
-            pp.query("Pr_t", Pr_t);
-            pp.query("Sc_t", Sc_t);
-
-            // Compute relevant forms of diffusion parameters
-            Pr_t_inv = amrex::Real(1.0) / Pr_t;
-            Sc_t_inv = amrex::Real(1.0) / Sc_t;
-
-            pp.query("Ce" , Ce);
-            pp.query("Ce_wall" , Ce_wall);
-            pp.query("sigma_k" , sigma_k);
-
-            if (les_type == LESType::Deardorff) {
-                pp.query("Ck" , Ck);
-            }
-
-            pp.query("theta_ref", theta_ref);
-
-            // Validate inputs
-            if (les_type == LESType::Smagorinsky) {
-                if (Cs == 0) {
-                    amrex::Error("Need to specify Cs for Smagorsinky LES");
-                }
-            }
-
-        // Here we cover the case where either one is > 1 and the other is 0, or they both are the same and > 1
+        // Which LES closure?
+        std::string les_type_string = "None";
+        query_one_or_per_level(pp, "les_type", les_type_string, lev, max_level);
+        if (!les_type_string.compare("Smagorinsky")) {
+            les_type = LESType::Smagorinsky;
+        } else if (!les_type_string.compare("Deardorff")) {
+            les_type = LESType::Deardorff;
+        } else if (!les_type_string.compare("None")) {
+            les_type = LESType::None; // Means DNS
         } else {
+            amrex::Error("Don't know this les_type");
+        }
 
-            // Which LES closure?
-            std::string les_type_string = "None";
-            pp.get("les_type", les_type_string, lev);
+        // Which PBL Closure
+        static std::string pbl_type_string = "None";
+        query_one_or_per_level(pp, "pbl_type", pbl_type_string, lev, max_level);
+        if (pbl_type_string == "MYNN2.5") {
+            pbl_type = PBLType::MYNN25;
+        } else if (pbl_type_string == "YSU") {
+            pbl_type = PBLType::YSU;
+        } else if (pbl_type_string == "None") {
+            pbl_type = PBLType::None;
+        } else {
+            amrex::Error("Don't know this pbl_type");
+        }
 
-            if (!les_type_string.compare("Smagorinsky")) {
-                les_type = LESType::Smagorinsky;
-            } else if (!les_type_string.compare("Deardorff")) {
-                les_type = LESType::Deardorff;
-            } else if (!les_type_string.compare("None")) {
-                les_type = LESType::None; // Means DNS
-            } else {
-                amrex::Error("Don't know this les_type");
-            }
-
-            // Which PBL Closure
-            static std::string pbl_type_string = "None";
-            pp.get("pbl_type", pbl_type_string, lev);
-            if (pbl_type_string == "MYNN2.5") {
-                pbl_type = PBLType::MYNN25;
-            } else if (pbl_type_string == "YSU") {
-                pbl_type = PBLType::YSU;
-            } else if (pbl_type_string == "None") {
-                pbl_type = PBLType::None;
-            } else {
-                amrex::Error("Don't know this pbl_type");
-            }
-
-            // Do some more stuff for PBL Modeling
-            if (pbl_type != PBLType::None) {
-                // Check for compatibility between PBL, LES, Molec Transport
-                if (les_type != LESType::None) {
-                    amrex::Print() << "Selected a PBL model and an LES model: " <<
+        // Do some more stuff for PBL Modeling
+        if (pbl_type != PBLType::None) {
+            // Check for compatibility between PBL, LES, Molec Transport
+            if (les_type != LESType::None) {
+                amrex::Print() << "Selected a PBL model and an LES model: " <<
                     "Using PBL for vertical transport, LES for horizontal" << std::endl;
-                } else if (les_type == LESType::Deardorff) {
-                    amrex::Error("It is not recommended to use Deardorff LES and a PBL model");
-                }
-
-                if (pbl_type == PBLType::MYNN25) {
-                    pp.query("pbl_mynn_A1", pbl_mynn.A1, lev);
-                    pp.query("pbl_mynn_A2", pbl_mynn.A2, lev);
-                    pp.query("pbl_mynn_B1", pbl_mynn.B1, lev);
-                    pp.query("pbl_mynn_B2", pbl_mynn.B2, lev);
-                    pp.query("pbl_mynn_C1", pbl_mynn.C1, lev);
-                    pp.query("pbl_mynn_C2", pbl_mynn.C2, lev);
-                    pp.query("pbl_mynn_C3", pbl_mynn.C3, lev);
-                    pp.query("pbl_mynn_C4", pbl_mynn.C4, lev);
-                    pp.query("pbl_mynn_C5", pbl_mynn.C5, lev);
-                    pbl_mynn_level2.init_coeffs(pbl_mynn.A1, pbl_mynn.A2, pbl_mynn.B1, pbl_mynn.B2,
-                                                pbl_mynn.C1, pbl_mynn.C2, pbl_mynn.C3, pbl_mynn.C4, pbl_mynn.C5);
-                    pp.query("pbl_mynn_diffuse_moistvars", pbl_mynn.diffuse_moistvars, lev);
-                    pp.query("pbl_mynn_SMmin", pbl_mynn.SMmin);
-                    pp.query("pbl_mynn_SMmax", pbl_mynn.SMmax);
-                    pp.query("pbl_mynn_SHmin", pbl_mynn.SHmin);
-                    pp.query("pbl_mynn_SHmax", pbl_mynn.SHmax);
-                } else if (pbl_type == PBLType::YSU) {
-                    pp.query("pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq);
-                    pp.query("pbl_ysu_use_consistent_coriolis", pbl_ysu_use_consistent_coriolis);
-                    pp.query("pbl_ysu_force_over_water", pbl_ysu_force_over_water);
-                    pp.query("pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr);
-                    pp.query("pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr);
-                }
+            } else if (les_type == LESType::Deardorff) {
+                amrex::Error("It is not recommended to use Deardorff LES and a PBL model");
             }
 
-            // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
             if (pbl_type == PBLType::MYNN25) {
-                use_QKE = true;
-                pp.query("advect_QKE"    , advect_QKE, lev);
-                pp.query("diffuse_QKE_3D", diffuse_QKE_3D, lev);
+                query_one_or_per_level(pp, "pbl_mynn_A1", pbl_mynn.A1, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_A2", pbl_mynn.A2, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_B1", pbl_mynn.B1, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_B2", pbl_mynn.B2, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_C1", pbl_mynn.C1, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_C2", pbl_mynn.C2, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_C3", pbl_mynn.C3, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_C4", pbl_mynn.C4, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_C5", pbl_mynn.C5, lev, max_level);
+                pbl_mynn_level2.init_coeffs(pbl_mynn.A1, pbl_mynn.A2, pbl_mynn.B1, pbl_mynn.B2,
+                                            pbl_mynn.C1, pbl_mynn.C2, pbl_mynn.C3, pbl_mynn.C4, pbl_mynn.C5);
+                query_one_or_per_level(pp, "pbl_mynn_diffuse_moistvars", pbl_mynn.diffuse_moistvars, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_SMmin", pbl_mynn.SMmin, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_SMmax", pbl_mynn.SMmax, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_SHmin", pbl_mynn.SHmin, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mynn_SHmax", pbl_mynn.SHmax, lev, max_level);
+            } else if (pbl_type == PBLType::YSU) {
+                query_one_or_per_level(pp, "pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq, lev, max_level);
+                query_one_or_per_level(pp, "pbl_ysu_use_consistent_coriolis", pbl_ysu_use_consistent_coriolis, lev, max_level);
+                query_one_or_per_level(pp, "pbl_ysu_force_over_water", pbl_ysu_force_over_water, lev, max_level);
+                query_one_or_per_level(pp, "pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr, lev, max_level);
+                query_one_or_per_level(pp, "pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr, lev, max_level);
             }
+        }
 
-            // LES constants...
-            pp.query("Cs"  ,Cs, lev);
-            pp.query("CI"  ,CI, lev);
-            pp.query("Pr_t",Pr_t, lev);
-            pp.query("Sc_t",Sc_t, lev);
+        // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
+        if (pbl_type == PBLType::MYNN25) {
+            use_QKE = true;
+            query_one_or_per_level(pp, "advect_QKE"    , advect_QKE, lev, max_level);
+            query_one_or_per_level(pp, "diffuse_QKE_3D", diffuse_QKE_3D, lev, max_level);
+        }
 
-            // Compute relevant forms of diffusion parameters
-            Pr_t_inv = amrex::Real(1.0) / Pr_t;
-            Sc_t_inv = amrex::Real(1.0) / Sc_t;
+        // LES constants...
+        query_one_or_per_level(pp, "Cs"  ,Cs, lev, max_level);
+        query_one_or_per_level(pp, "CI"  ,CI, lev, max_level);
+        query_one_or_per_level(pp, "Pr_t",Pr_t, lev, max_level);
+        query_one_or_per_level(pp, "Sc_t",Sc_t, lev, max_level);
 
-            pp.query("Ce"      , Ce, lev);
-            pp.query("Ce_wall" , Ce_wall, lev);
-            pp.query("sigma_k" , sigma_k, lev);
+        // Compute relevant forms of diffusion parameters
+        Pr_t_inv = amrex::Real(1.0) / Pr_t;
+        Sc_t_inv = amrex::Real(1.0) / Sc_t;
 
-            if (les_type == LESType::Deardorff) {
-                pp.query("Ck" , Ck, lev);
+        query_one_or_per_level(pp, "Ce"      , Ce, lev, max_level);
+        query_one_or_per_level(pp, "Ce_wall" , Ce_wall, lev, max_level);
+        query_one_or_per_level(pp, "sigma_k" , sigma_k, lev, max_level);
+
+        if (les_type == LESType::Deardorff) {
+            query_one_or_per_level(pp, "Ck" , Ck, lev, max_level);
+        }
+
+        query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
+
+        // Validate inputs
+        if (les_type == LESType::Smagorinsky) {
+            if (Cs == 0) {
+                amrex::Error("Need to specify Cs for Smagorsinky LES");
             }
-
-            pp.query("theta_ref", theta_ref, lev);
         }
     }
 
