@@ -1287,6 +1287,14 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         lsm.Plot_Lsm_Data(t_new[0], istep, refRatio());
     }
 
+#ifdef ERF_USE_RRTMGP
+    // write additional RRTMGP data
+    // TODO: currently single level only
+    if (which==1 && plot_rad) {
+        rad.writePlotfile(plot_file_1, t_new[0], istep[0]);
+    }
+#endif
+
     if (finest_level == 0)
     {
         if (plotfile_type == "amrex") {

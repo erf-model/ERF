@@ -717,6 +717,8 @@ private:
     // Containers for additional SLM inputs
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sw_lw_fluxes; // Direct SW (visible, NIR), Diffuse SW (visible, NIR), LW flux
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> solar_zenith; // Solar zenith angle
+
+    bool plot_rad = false;
 #endif
 
     // Fillpatcher classes for coarse-fine boundaries
