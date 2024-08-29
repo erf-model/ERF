@@ -295,6 +295,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const auto& ws10av_arr = most->get_mac_avg(level,5)->const_array(mfi);
             const auto& t10av_arr  = most->get_mac_avg(level,2)->const_array(mfi);
             const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
+            const auto& over_land_arr = (most->get_lmask(level)) ? most->get_lmask(level)->const_array(mfi) : Array4<int> {};
             const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};
             const Real most_zref = most->get_zref();
 
@@ -323,7 +324,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             // -- Diagnose PBL height - starting out assuming non-moist --
             // loop is only over i,j in order to find height at each x,y
             const Real f0 = turbChoice.pbl_ysu_coriolis_freq;
-            const bool over_land = turbChoice.pbl_ysu_over_land; // TODO: make this local and consistent
+            const bool force_over_water = turbChoice.pbl_ysu_force_over_water;
             const Real land_Ribcr = turbChoice.pbl_ysu_land_Ribcr;
             const Real unst_Ribcr = turbChoice.pbl_ysu_unst_Ribcr;
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
@@ -344,7 +345,8 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
                 // PBL Height: Stable Conditions
                 Real Rib_cr;
-                if (over_land) {
+                bool over_land = (over_land_arr) ? over_land_arr(i,j,0) : 1;
+                if (over_land && !force_over_water) {
                     Rib_cr = land_Ribcr;
                 } else { // over water
                     // Velocity at z=10 m comes from MOST -> currently the average using whatever averaging MOST uses.

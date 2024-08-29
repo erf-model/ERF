@@ -448,6 +448,9 @@ public:
 
     bool have_variable_sea_roughness() { return m_var_z0; }
 
+    const amrex::iMultiFab*
+    get_lmask(const int& lev) {return m_lmask_lev[lev][0];}
+
     enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
         DONELAN,        ///< Donelan functional form
