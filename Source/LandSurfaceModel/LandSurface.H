@@ -7,6 +7,10 @@
 #include <SLM.H>
 #include <MM5.H>
 
+#if ERF_USE_NOAH
+#include <NOAH.H>
+#endif
+
 class LandSurface {
 
 public:

@@ -41,7 +41,7 @@ enum struct WindFarmType {
 };
 
 enum struct LandSurfaceType {
-    SLM, MM5, None
+    SLM, MM5, None, NOAH
 };
 
 enum struct Coord {
@@ -123,6 +123,8 @@ struct SolverChoice {
             lsm_type = LandSurfaceType::SLM;
         } else if (lsm_model_string == "MM5") {
             lsm_type = LandSurfaceType::MM5;
+        } else if (lsm_model_string == "NOAH") {
+            lsm_type = LandSurfaceType::NOAH;
         } else {
             lsm_type = LandSurfaceType::None;
         }

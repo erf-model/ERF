@@ -1,0 +1,32 @@
+#ifndef NOAH_H
+#define NOAH_H
+
+#include <string>
+#include <vector>
+#include <memory>
+
+#include <AMReX_FArrayBox.H>
+#include <AMReX_Geometry.H>
+#include <AMReX_MultiFabUtil.H>
+
+#include <NullSurf.H>
+#include <ERF_Constants.H>
+#include <IndexDefines.H>
+#include <DataStruct.H>
+
+class NOAH : public NullSurf {
+public:
+    // Constructor
+    NOAH () {}
+
+    // Destructor
+    virtual ~NOAH () = default;
+
+    // Initialize data structures
+    void
+    Init (const amrex::MultiFab& cons_in,
+          const amrex::Geometry& geom,
+          const amrex::Real& dt) override;
+
+};
+#endif

@@ -162,6 +162,15 @@ include $(ERF_LSM_SLM_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_LSM_SLM_DIR)
 INCLUDE_LOCATIONS += $(ERF_LSM_SLM_DIR)
 
+# If using NOAH-MP model, then compile relevant source and headers
+ifeq ($(ERF_USE_NOAH), TRUE)
+	ERF_LSM_NOAH_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/NOAH
+	include $(ERF_LSM_NOAH_DIR)/Make.package
+	VPATH_LOCATIONS   += $(ERF_LSM_NOAH_DIR)
+	INCLUDE_LOCATIONS += $(ERF_LSM_NOAH_DIR)
+endif
+
+
 ERF_LSM_MM5_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/MM5
 include $(ERF_LSM_MM5_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_LSM_MM5_DIR)

@@ -75,6 +75,13 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
 
+  if(ERF_ENABLE_NOAH)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel/NOAH)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/LandSurfaceModel/NOAH/NOAH.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAH)
+  endif()
+
   if(ERF_ENABLE_RRTMGP)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Radiation/Init_rrtmgp.cpp
