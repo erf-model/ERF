@@ -100,6 +100,8 @@ public:
     ERF ();
     ~ERF () override;
 
+    void ERF_shared ();
+
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
     ERF (ERF&&)  noexcept = delete;
