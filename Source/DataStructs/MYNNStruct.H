@@ -34,10 +34,6 @@ struct MYNNLevel25 {
 
     bool diffuse_moistvars = false;
 
-    // Surface layer corrections
-    bool calc_wstar = true;
-    bool subgrid_wind = true;
-
     // Closure coefficients (from Nakanishi & Niino 2009 [NN09])
     amrex::Real A1 = 1.18;
     amrex::Real A2 = 0.665;

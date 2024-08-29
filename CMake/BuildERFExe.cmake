@@ -132,7 +132,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ComputeTurbulentViscosity.cpp
-       ${SRC_DIR}/Diffusion/PBLModels.cpp
        ${SRC_DIR}/Initialization/ERF_init_custom.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_hse.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_input_sounding.cpp
@@ -151,6 +150,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/IO/console_io.cpp
+       ${SRC_DIR}/PBL/ComputeDiffusivityMYNN25.cpp
+       ${SRC_DIR}/PBL/ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp	  
        ${SRC_DIR}/SourceTerms/ERF_make_buoyancy.cpp
@@ -229,6 +230,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Diffusion)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Initialization)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/PBL)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/SourceTerms)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Utils)
