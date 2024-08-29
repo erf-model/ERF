@@ -79,13 +79,14 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             Box sbx(bx.smallEnd(), bx.bigEnd());
             sbx.grow(2,-1);
             AMREX_ALWAYS_ASSERT(sbx.smallEnd(2) == dbx.smallEnd(2) && sbx.bigEnd(2) == dbx.bigEnd(2));
+            Print() << "sbx: " << sbx << "\n";
 
             const GeometryData gdata = geom.data();
 
             const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-            FArrayBox qintegral(xybx,2);
+            FArrayBox qintegral(xybx,2,The_Async_Arena());
             qintegral.setVal<RunOn::Device>(0.0);
-            FArrayBox qturb(bx,1); FArrayBox qturb_old(bx,1);
+            FArrayBox qturb(bx,1,The_Async_Arena()); FArrayBox qturb_old(bx,1,The_Async_Arena());
             const Array4<Real> qint = qintegral.array();
             const Array4<Real> qvel = qturb.array();
             const Array4<Real> qvel_old = qturb_old.array();
@@ -94,8 +95,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             if (use_terrain) {
                 const Array4<Real const> &z_nd_arr = z_phys_nd->array(mfi);
                 const auto invCellSize = geom.InvCellSizeArray();
-                ParallelFor(Gpu::KernelInfo().setReduction(true), bx,
-                                   [=] AMREX_GPU_DEVICE (int i, int j, int k, Gpu::Handler const& handler) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
                     qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
                     qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
@@ -108,13 +108,11 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                     Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                     const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
                     const Real dz = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
-                    Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz*fac, handler);
-                    Gpu::deviceReduceSum(&qint(i,j,0,1),      qvel(i,j,k)*dz*fac, handler);
-
+                    Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz*fac);
+                    Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*dz*fac);
                 });
             } else {
-                ParallelFor(Gpu::KernelInfo().setReduction(true), bx,
-                                   [=] AMREX_GPU_DEVICE (int i, int j, int k, Gpu::Handler const& handler) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
                     qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
                     qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
@@ -128,8 +126,8 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                     //       This more performant than Gpu::Atomic::Add.
                     Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                     const Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
-                    Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac, handler);
-                    Gpu::deviceReduceSum(&qint(i,j,0,1),      qvel(i,j,k)*fac, handler);
+                    Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac);
+                    Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*fac);
                 });
             }
 
