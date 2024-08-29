@@ -217,7 +217,43 @@ ERF::initHSE (int lev)
 
     // This integrates up through column to update p_hse, pi_hse;
     // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
-    erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+    if (lev == 0) {
+        BoxArray ba(base_state[lev].boxArray());
+        Box domain(geom[lev].Domain());
+        bool all_boxes_touch_bottom = true;
+        for (int i = 0; i < ba.size(); i++) {
+            if (ba[i].smallEnd(2) != domain.smallEnd(2)) {
+                all_boxes_touch_bottom = false;
+            }
+        }
+        if (all_boxes_touch_bottom) {
+            erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+        } else {
+            BoxArray ba_new(domain);
+            ChopGrids2D(0, ba_new, ParallelDescriptor::NProcs());
+
+            DistributionMapping dm_new(ba_new);
+
+            MultiFab new_base_state(ba_new, dm_new, 3, 1);
+            new_base_state.ParallelCopy(base_state[lev],0,0,3,1,1);
+
+            MultiFab r_hse_new (new_base_state, make_alias, 0, 1); // r_0  is first  component
+            MultiFab p_hse_new (new_base_state, make_alias, 1, 1); // p_0  is second component
+            MultiFab pi_hse_new(new_base_state, make_alias, 2, 1); // pi_0 is third  component
+
+            std::unique_ptr<MultiFab> z_phys_cc_new;
+            if (solverChoice.use_terrain) {
+                z_phys_cc_new = std::make_unique<MultiFab>(ba_new,dm_new,1,0);
+                z_phys_cc_new->ParallelCopy(*z_phys_cc[lev],0,0,1,1,1);
+            }
+
+            erf_enforce_hse(lev, r_hse_new, p_hse_new, pi_hse_new, z_phys_cc_new);
+            base_state[lev].ParallelCopy(new_base_state,0,0,3,1,1);
+        }
+    } else {
+        // This is ok because we have already FillPatched the ghost cell data from the coarser grid
+        erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+    }
 
 }
 
@@ -303,7 +339,7 @@ ERF::erf_enforce_hse (int lev,
                 pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
 
             } else {
-                // If klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
+                // If level > 0 and klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
                 //    filled from FillPatch-ing it.
                 Real dz_loc;
                 if (l_use_terrain) {
@@ -442,4 +478,41 @@ void ERF::init_geo_wind_profile(const std::string input_file,
     Gpu::copy(Gpu::hostToDevice, v_geos.begin(), v_geos.end(), v_geos_d.begin());
 
     profile_reader.close();
+}
+
+void
+ERF::ChopGrids2D (int lev, BoxArray& ba, int target_size) const
+{
+    IntVect chunk = max_grid_size[lev];
+    chunk.min(Geom(lev).Domain().length());
+
+    // Note that ba already satisfies the max_grid_size requirement and it's
+    // coarsenable if it's a fine level BoxArray.
+
+    while (ba.size() < target_size)
+    {
+        IntVect chunk_prev = chunk;
+
+        std::array<std::pair<int,int>,AMREX_SPACEDIM>
+            chunk_dir{std::make_pair(chunk[0],int(0)),
+                      std::make_pair(chunk[1],int(1))};
+        std::sort(chunk_dir.begin(), chunk_dir.end());
+
+        // We only decompose in and y
+        for (int idx = 1; idx >= 0; idx--) {
+            int idim = chunk_dir[idx].second;
+            int new_chunk_size = chunk[idim] / 2;
+            if (new_chunk_size != 0 &&
+                new_chunk_size%blocking_factor[lev][idim] == 0)
+            {
+                chunk[idim] = new_chunk_size;
+                ba.maxSize(chunk);
+                break;
+            }
+        }
+
+        if (chunk == chunk_prev) {
+            break;
+        }
+    }
 }

@@ -80,7 +80,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
 
                 if (!m_use_real_bcs)
                 {
-                    impose_lateral_cons_bcs(cons_arr,cbx1,domain,icomp,ncomp,bccomp);
+                    impose_lateral_cons_bcs(cons_arr,cbx1,domain,icomp,ncomp,bccomp,nghost[2]);
                 }
 
                 impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,bccomp);

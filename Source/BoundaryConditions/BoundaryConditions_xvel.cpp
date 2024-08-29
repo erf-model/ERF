@@ -172,9 +172,9 @@ void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                                                  const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                  int bccomp,
 #ifdef ERF_USE_TERRAIN_VELOCITY
-                                               const Real time)
+                                                 const Real time)
 #else
-                                               const Real /*time*/)
+                                                 const Real /*time*/)
 #endif
 {
     BL_PROFILE_VAR("impose_vertical_xvel_bcs()",impose_vertical_xvel_bcs);
