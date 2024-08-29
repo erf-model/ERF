@@ -1,19 +1,70 @@
 #ifndef _PBLMODELS_H_
 #define _PBLMODELS_H_
 
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-Thetav (int i, int j, int k,
-        const amrex::Array4<const amrex::Real>& cell_data,
-        const bool use_moisture)
-{
-    amrex::Real thetav = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
-    if (use_moisture) {
-        thetav *= (1.0 + 0.61 * cell_data(i,j,k,RhoQ1_comp) / cell_data(i,j,k,Rho_comp));
-    }
-    return thetav;
-}
+#include <Thetav.H>
+
+/**
+ * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
+ * Mellor-Yamada-Nakanishi-Niino Level 2.5 PBL scheme
+ *
+ * @param[in] xvel Velocity in x-dir
+ * @param[in] yvel Velocity in y-dir
+ * @param[in] cons_in Cell center conserved quantities
+ * @param[out] eddyViscosity Holds turbulent viscosity
+ * @param[in] geom Problem geometry
+ * @param[in] turbChoice Container with turbulence parameters
+ * @param[in] most Pointer to Monin-Obukhov class if instantiated
+ * @param[in] use_moisture If we have microphysics enabled
+ * @param[in] level Current level
+ * @param[in] bc_ptr Pointer to array with boundary condition info
+ * @param[in] vert_only Only compute vertical eddy diffusivities
+ * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ */
+void
+ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
+                          const amrex::MultiFab& yvel,
+                          const amrex::MultiFab& cons_in,
+                          amrex::MultiFab& eddyViscosity,
+                          const amrex::Geometry& geom,
+                          const TurbChoice& turbChoice,
+                          std::unique_ptr<ABLMost>& most,
+                          bool use_moisture,
+                          int level,
+                          const amrex::BCRec* bc_ptr,
+                          bool /*vert_only*/,
+                          const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
+/**
+ * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
+ * Yonsei University PBL scheme
+ *
+ * @param[in] xvel Velocity in x-dir
+ * @param[in] yvel Velocity in y-dir
+ * @param[in] cons_in Cell center conserved quantities
+ * @param[out] eddyViscosity Holds turbulent viscosity
+ * @param[in] geom Problem geometry
+ * @param[in] turbChoice Container with turbulence parameters
+ * @param[in] most Pointer to Monin-Obukhov class if instantiated
+ * @param[in] use_moisture If we have microphysics enabled
+ * @param[in] level Current level
+ * @param[in] bc_ptr Pointer to array with boundary condition info
+ * @param[in] vert_only Only compute vertical eddy diffusivities
+ * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ */
+void
+ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
+                       const amrex::MultiFab& yvel,
+                       const amrex::MultiFab& cons_in,
+                       amrex::MultiFab& eddyViscosity,
+                       const amrex::Geometry& geom,
+                       const TurbChoice& turbChoice,
+                       std::unique_ptr<ABLMost>& most,
+                       bool use_moisture,
+                       int level,
+                       const amrex::BCRec* bc_ptr,
+                       bool /*vert_only*/,
+                       const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
 
 /**
  * Function for computing vertical derivatives for use in PBL model
@@ -41,19 +92,19 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                amrex::Real& dthetadz,
                                amrex::Real& dudz,
                                amrex::Real& dvdz,
-                               const bool use_moisture = false)
+                               const int moist_flag = 0)
 {
     if ( k==izmax && c_ext_dir_on_zhi ) {
-        dthetadz = (1.0/3.0)*(       -Thetav(i,j,k-1,cell_data,use_moisture)
-                              - 3.0 * Thetav(i,j,k  ,cell_data,use_moisture)
-                              + 4.0 * Thetav(i,j,k+1,cell_data,use_moisture) )*dz_inv;
+        dthetadz = (1.0/3.0)*(       -Thetav(i,j,k-1,cell_data,moist_flag)
+                              - 3.0 * Thetav(i,j,k  ,cell_data,moist_flag)
+                              + 4.0 * Thetav(i,j,k+1,cell_data,moist_flag) )*dz_inv;
     } else if ( k==izmin && c_ext_dir_on_zlo ) {
-        dthetadz = (1.0/3.0)*(        Thetav(i,j,k+1,cell_data,use_moisture)
-                              + 3.0 * Thetav(i,j,k  ,cell_data,use_moisture)
-                              - 4.0 * Thetav(i,j,k-1,cell_data,use_moisture) )*dz_inv;
+        dthetadz = (1.0/3.0)*(        Thetav(i,j,k+1,cell_data,moist_flag)
+                              + 3.0 * Thetav(i,j,k  ,cell_data,moist_flag)
+                              - 4.0 * Thetav(i,j,k-1,cell_data,moist_flag) )*dz_inv;
     } else {
-        dthetadz = 0.5*(  Thetav(i,j,k+1,cell_data,use_moisture)
-                        - Thetav(i,j,k-1,cell_data,use_moisture) )*dz_inv;
+        dthetadz = 0.5*(  Thetav(i,j,k+1,cell_data,moist_flag)
+                        - Thetav(i,j,k-1,cell_data,moist_flag) )*dz_inv;
     }
 
     if ( k==izmax && u_ext_dir_on_zhi ) {
@@ -103,7 +154,7 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Box& domain,
                        amrex::Real pbl_mynn_B1_l,
                        const amrex::Real theta_mean,
-                       bool use_moisture,
+                       const int moist_flag,
                        bool c_ext_dir_on_zlo,
                        bool c_ext_dir_on_zhi,
                        bool u_ext_dir_on_zlo,
@@ -126,10 +177,10 @@ ComputeQKESourceTerms (int i, int j, int k,
                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                   dthetadz, dudz, dvdz,
-                                  use_moisture);
+                                  moist_flag);
 
     // Note: Transport terms due to turbulence and pressure are included when
-    // DiffusionSrcForState_* is called.
+    // DiffusionSrcForState_* is called from ERF_slow_rhs_post.
 
     // Shear Production (Note: We store mu_turb, which is 0.5*K_turb)
     source_term += 4.0*K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);

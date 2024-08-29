@@ -61,7 +61,10 @@ ERF::setRayleighRefFromSounding (bool restarting)
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
     if (restarting) {
-        input_sounding_data.read_from_file(geom[0], zlevels_stag, 0);
+        input_sounding_data.resize_arrays();
+        for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
+            input_sounding_data.read_from_file(geom[0], zlevels_stag, n);
+        }
     }
 
     const Real* z_inp_sound     = input_sounding_data.z_inp_sound[0].dataPtr();
@@ -78,7 +81,7 @@ ERF::setRayleighRefFromSounding (bool restarting)
         if (z_phys_cc[lev]) {
             // use_terrain=1
             // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
+            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
         } else {
             const auto *const prob_lo = geom[lev].ProbLo();
             const auto *const dx = geom[lev].CellSize();
@@ -173,7 +176,7 @@ ERF::setSpongeRefFromSounding (bool restarting)
         if (z_phys_cc[lev]) {
             // use_terrain=1
             // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
+            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
         } else {
             const auto *const prob_lo = geom[lev].ProbLo();
             const auto *const dx = geom[lev].CellSize();

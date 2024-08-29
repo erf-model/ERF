@@ -614,6 +614,9 @@ private:
     // read checkpoint file from disk
     void ReadCheckpointFile ();
 
+    // read checkpoint file from disk -- called after instantiating m_most
+    void ReadCheckpointFileMOST ();
+
     // Read the file passed to amr.restart and use it as an initial condition for
     // the current simulation. Supports a different number of components and
     // ghost cells.

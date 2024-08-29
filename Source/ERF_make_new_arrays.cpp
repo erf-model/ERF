@@ -338,7 +338,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     //
-    // Define the land mask here and set it to all land
+    // Define the land mask here and set it to all land by default
     // NOTE: the logic below will BREAK if we have any grids not touching the bottom boundary
     //
     {
@@ -494,7 +494,7 @@ ERF::init_zphys (int lev, Real time)
                 prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
 
                 Vector<Real> zmax(1); // only reduce at lev==0
-                reduce_to_max_per_level(zmax, z_phys_nd[lev]);
+                reduce_to_max_per_height(zmax, z_phys_nd[lev]);
                 amrex::Print() << "Max terrain elevation = " << zmax[0] << std::endl;
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zlevels_stag[zlevels_stag.size()-1] > zmax[0],
                     "Terrain is taller than domain top!");

@@ -3,24 +3,11 @@
 #include <ABLMost.H>
 #include <EddyViscosity.H>
 #include <Diffusion.H>
+#include <PBLModels.H>
 #include <TileNoZ.H>
 #include <TerrainMetrics.H>
 
 using namespace amrex;
-
-void
-ComputeTurbulentViscosityPBL (const MultiFab& xvel,
-                              const MultiFab& yvel,
-                              const MultiFab& cons_in,
-                              MultiFab& eddyViscosity,
-                              const Geometry& geom,
-                              const TurbChoice& turbChoice,
-                              std::unique_ptr<ABLMost>& most,
-                              bool use_moisture,
-                              int level,
-                              const BCRec* bc_ptr,
-                              bool /*vert_only*/,
-                              const std::unique_ptr<MultiFab>& z_phys_nd);
 
 /**
  * Function for computing the turbulent viscosity with LES.
@@ -250,7 +237,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     Real* fac_ptr = d_Factors.data();
 
     bool use_KE  = (turbChoice.les_type == LESType::Deardorff);
-    bool use_QKE = (turbChoice.use_QKE && turbChoice.diffuse_QKE_3D);
+    bool use_QKE = turbChoice.use_QKE;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -518,10 +505,14 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                      most, exp_most);
     }
 
-    if (turbChoice.pbl_type != PBLType::None) {
-        // NOTE: state_new is passed in for Cons_old (due to ptr swap in advance)
-        ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
-                                     geom, turbChoice, most, use_moisture,
-                                     level, bc_ptr, vert_only, z_phys_nd);
+    if (turbChoice.pbl_type == PBLType::MYNN25) {
+        ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
+                                 geom, turbChoice, most, use_moisture,
+                                 level, bc_ptr, vert_only, z_phys_nd);
+    } else if (turbChoice.pbl_type == PBLType::YSU) {
+        ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
+                              geom, turbChoice, most, use_moisture,
+                              level, bc_ptr, vert_only, z_phys_nd);
     }
+
 }

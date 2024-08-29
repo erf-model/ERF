@@ -6,12 +6,14 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_iMultiFab.H>
+#include <AMReX_Interpolater.H>
 
 #include <IndexDefines.H>
 #include <ERF_Constants.H>
 #include <MOSTAverage.H>
 #include <MOSTStress.H>
 #include <TerrainMetrics.H>
+#include <PBLHeight.H>
 
 /** Monin-Obukhov surface layer profile
  *
@@ -78,6 +80,21 @@ public:
             }
         }
 
+        // Include w* to handle free convection (Beljaars 1995, QJRMS)
+        pp.query("most.include_wstar", m_include_wstar);
+
+        std::string pblh_string{"none"};
+        pp.query("most.pblh_calc", pblh_string);
+        if (pblh_string == "none") {
+            pblh_type = PBLHeightCalcType::None;
+        } else if (pblh_string == "MYNN2.5") {
+            pblh_type = PBLHeightCalcType::MYNN25;
+        } else if (pblh_string == "YSU") {
+            pblh_type = PBLHeightCalcType::YSU;
+        } else {
+            amrex::Abort("Undefined PBLH calc type!");
+        }
+
         // Get surface temperature
         auto erf_st = pp.query("most.surf_temp", surf_temp);
 
@@ -132,6 +149,21 @@ public:
         if (rough_sea_string == "charnock") {
             rough_type_sea = RoughCalcType::CHARNOCK;
             pp.query("most.charnock_constant",cnk_a);
+            pp.query("most.charnock_viscosity",cnk_visc);
+            if (cnk_a > 0) {
+                amrex::Print() << "Using Charnock relation with C_a=" << cnk_a
+                    << (cnk_visc? " and viscosity" : "")
+                    << std::endl;
+            } else {
+                amrex::Print() << "Using Charnock relation with variable Charnock parameter (COARE3.0)"
+                    << (cnk_visc? " and viscosity" : "")
+                    << std::endl;
+            }
+        } else if (rough_sea_string == "coare3.0") {
+            rough_type_sea = RoughCalcType::CHARNOCK;
+            cnk_a = -1;
+        } else if (rough_sea_string == "donelan") {
+            rough_type_sea = RoughCalcType::DONELAN;
         } else if (rough_sea_string == "modified_charnock") {
             rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
             pp.query("most.modified_charnock_depth",depth);
@@ -151,14 +183,39 @@ public:
             read_z0 = pp.query("most.roughness_file_name", fname);
         }
 
+        // Do we have a time-varying surface roughness that needs to be saved?
+        const int nghost = 0; // ghost cells not included
+        const int level = 0;
+        int lmask_min = amrex::ReduceMin(*lmask_lev[level][0].get(), nghost,
+                [=] AMREX_GPU_HOST_DEVICE (amrex::Box const& bx, amrex::Array4<int const> const& lm_arr) -> int
+        {
+            int locmin = std::numeric_limits<int>::max();
+            const auto lo = lbound(bx);
+            const auto hi = ubound(bx);
+            for (int j = lo.y; j <= hi.y; ++j) {
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    locmin = std::min(locmin, lm_arr(i,j,0));
+                }
+            }
+            return locmin;
+        });
+        amrex::ParallelDescriptor::ReduceIntMin(lmask_min);
+
+        m_var_z0 = (lmask_min < 1) & (rough_type_sea != RoughCalcType::CONSTANT);
+        if (m_var_z0) {
+            amrex::Print() << "Variable sea roughness (type " << rough_sea_string << ")" << std::endl;
+        }
+
         // Size the MOST params for all levels
         int nlevs = m_geom.size();
         z_0.resize(nlevs);
         u_star.resize(nlevs);
+        w_star.resize(nlevs);
         t_star.resize(nlevs);
         q_star.resize(nlevs);
         t_surf.resize(nlevs);
         olen.resize(nlevs);
+        pblh.resize(nlevs);
 
         // Get pointers to SST and LANDMASK data
         m_sst_lev.resize(nlevs);
@@ -233,14 +290,20 @@ public:
             u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             u_star[lev]->setVal(1.E34);
 
+            w_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+            w_star[lev]->setVal(1.E34);
+
             t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-            t_star[lev]->setVal(1.E34);
+            t_star[lev]->setVal(0.0); // default to neutral
 
             q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             q_star[lev]->setVal(0.0); // default to dry
 
             olen[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             olen[lev]->setVal(1.E34);
+
+            pblh[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+            pblh[lev]->setVal(1.E34);
 
             t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
 
@@ -286,7 +349,7 @@ public:
                      amrex::MultiFab* zqv_flux,
                      amrex::MultiFab* z_phys);
 
-    template<typename FluxCalc>
+    template <typename FluxCalc>
     void
     compute_most_bcs (const int& lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
@@ -311,6 +374,19 @@ public:
 
     void
     get_lsm_tsurf (const int& lev);
+
+    /* wrapper around compute_pblh */
+    void
+    update_pblh (const int& lev,
+                 amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
+                 amrex::MultiFab* z_phys_cc);
+
+    template <typename PBLHeightEstimator>
+    void
+    compute_pblh (const int& lev,
+                  amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
+                  amrex::MultiFab* z_phys_cc,
+                  const PBLHeightEstimator& est);
 
     void
     read_custom_roughness (const int& lev,
@@ -344,6 +420,9 @@ public:
     get_u_star (const int& lev) { return u_star[lev].get(); }
 
     const amrex::MultiFab*
+    get_w_star (const int& lev) { return w_star[lev].get(); }
+
+    const amrex::MultiFab*
     get_t_star (const int& lev) { return t_star[lev].get(); }
 
     const amrex::MultiFab*
@@ -351,6 +430,9 @@ public:
 
     const amrex::MultiFab*
     get_olen (const int& lev) { return olen[lev].get(); }
+
+    const amrex::MultiFab*
+    get_pblh (const int& lev) { return pblh[lev].get(); }
 
     const amrex::MultiFab*
     get_mac_avg (const int& lev, int comp) { return m_ma.get_average(lev,comp); }
@@ -363,6 +445,8 @@ public:
 
     const amrex::FArrayBox*
     get_z0 (const int& lev) {return &z_0[lev];}
+
+    bool have_variable_sea_roughness() { return m_var_z0; }
 
     const amrex::iMultiFab*
     get_lmask(const int& lev) {return m_lmask_lev[lev][0];}
@@ -384,18 +468,25 @@ public:
         CONSTANT = 0,      ///< Constant z0
         CHARNOCK,
         MODIFIED_CHARNOCK,
+        DONELAN,
         WAVE_COUPLED
+    };
+
+    enum struct PBLHeightCalcType {
+        None, MYNN25, YSU
     };
 
     FluxCalcType   flux_type{FluxCalcType::MOENG};
     ThetaCalcType theta_type{ThetaCalcType::ADIABATIC};
     RoughCalcType rough_type_land{RoughCalcType::CONSTANT};
     RoughCalcType rough_type_sea{RoughCalcType::CHARNOCK};
+    PBLHeightCalcType pblh_type{PBLHeightCalcType::None};
 
 private:
     bool use_moisture;
     bool m_exp_most = false;
     bool m_rotate   = false;
+    bool m_include_wstar = false;
     amrex::Real z0_const{0.1};
     amrex::Real surf_temp;
     amrex::Real surf_heating_rate{0};
@@ -404,17 +495,21 @@ private:
     amrex::Real custom_tstar{0};
     amrex::Real custom_qstar{0};
     amrex::Real cnk_a{0.0185};
+    bool        cnk_visc{false};
     amrex::Real depth{30.0};
     amrex::Real m_start_bdy_time;
     amrex::Real m_bdy_time_interval;
     amrex::Vector<amrex::Geometry>  m_geom;
     amrex::Vector<amrex::FArrayBox> z_0;
+    bool m_var_z0{false};
 
     MOSTAverage m_ma;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> w_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> olen;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pblh;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
 
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_sst_lev;

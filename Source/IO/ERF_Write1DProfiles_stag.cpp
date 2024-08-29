@@ -317,7 +317,7 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
     bool l_use_kturb = ((solverChoice.turbChoice[lev].les_type != LESType::None) ||
                         (solverChoice.turbChoice[lev].pbl_type != PBLType::None));
     bool l_use_KE   = (solverChoice.turbChoice[lev].les_type == LESType::Deardorff);
-    bool l_use_QKE  = solverChoice.turbChoice[lev].use_QKE && solverChoice.turbChoice[lev].advect_QKE;
+    bool l_use_QKE  = solverChoice.turbChoice[lev].use_QKE;
 
     // Note: "uiui" == u_i*u_i = u*u + v*v + w*w
     // This will hold rho, theta, ksgs, Kmh, Kmv, uu, uv, vv, uth, vth,

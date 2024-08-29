@@ -35,7 +35,6 @@ using namespace amrex;
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
  * @param[in]  use_most whether we have turned on MOST BCs
- * @param[in]  use_moisture whether we account for moisture in the QKE update
  */
 void
 DiffusionSrcForState_N (const Box& bx, const Box& domain,
@@ -64,8 +63,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const Array4<const Real>& tm_arr,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
-                        const bool use_most,
-                        const bool use_moisture)
+                        const bool use_most)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_N()",DiffusionSrcForState_N);
 
@@ -78,7 +76,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    bool l_use_QKE       = turbChoice.use_QKE && turbChoice.advect_QKE;
+    bool l_use_QKE       = turbChoice.use_QKE;
     bool l_use_deardorff = (turbChoice.les_type == LESType::Deardorff);
     Real l_inv_theta0    = 1.0 / turbChoice.theta_ref;
     Real l_abs_g         = std::abs(grav_gpu[2]);
@@ -666,7 +664,16 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     // Using PBL
     if (l_use_QKE && start_comp <= RhoQKE_comp && end_comp >=RhoQKE_comp) {
         int qty_index = RhoQKE_comp;
-        auto pbl_mynn_B1_l = turbChoice.pbl_mynn_B1;
+        auto pbl_mynn_B1_l = turbChoice.pbl_mynn.B1;
+
+        int moist_flag = 0;
+        int n_qstate = cell_data.nComp() - (NVAR_max - NMOIST_max);
+        if (n_qstate > 3) {
+            moist_flag = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
+        } else if (n_qstate > 0) {
+            moist_flag = 1;
+        }
+
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -675,10 +682,12 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool u_ext_dir_on_zhi = ( (bc_ptr[BCVars::xvel_bc].lo(5) == ERFBCType::ext_dir) );
             bool v_ext_dir_on_zlo = ( (bc_ptr[BCVars::yvel_bc].lo(2) == ERFBCType::ext_dir) );
             bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
+
+            // This computes shear production, buoyancy production, and dissipation terms only.
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
                                                                   mu_turb,cellSizeInv,domain,
                                                                   pbl_mynn_B1_l,tm_arr(i,j,0),
-                                                                  use_moisture,
+                                                                  moist_flag,
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi);

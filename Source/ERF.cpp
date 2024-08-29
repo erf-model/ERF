@@ -933,6 +933,25 @@ ERF::InitData ()
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
+
+    }
+
+    // Allow idealized cases over water, used to set lmask
+    ParmParse pp("erf");
+    int is_land;
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        if (pp.query("is_land", is_land, lev)) {
+            if (is_land == 1) {
+                amrex::Print() << "Level " << lev << " is land" << std::endl;
+            } else if (is_land == 0) {
+                amrex::Print() << "Level " << lev << " is water" << std::endl;
+            } else {
+                Error("is_land should be 0 or 1");
+            }
+            lmask_lev[lev][0]->setVal(is_land);
+            lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        }
     }
 
 #ifdef ERF_USE_WW3_COUPLING
@@ -967,6 +986,12 @@ ERF::InitData ()
 #endif
                                            );
 
+
+        if (restart_chkfile != "") {
+            // Update surface fields if needed
+            ReadCheckpointFileMOST();
+        }
+
         // We now configure ABLMost params here so that we can print the averages at t=0
         // Note we don't fill ghost cells here because this is just for diagnostics
         for (int lev = 0; lev <= finest_level; ++lev)
@@ -986,7 +1011,14 @@ ERF::InitData ()
                 MultiFab::Divide(*Qr_prim[lev], Sm, Rho_comp  , 0, 1, ng);
             }
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
-            m_most->update_fluxes(lev, time);
+
+            if (restart_chkfile == "") {
+                // Only do this if starting from scratch; if restarting, then
+                // we don't want to call update_fluxes multiple times because
+                // it will change u* and theta* from their previous values
+                m_most->update_pblh(lev, vars_new, z_phys_cc[lev].get());
+                m_most->update_fluxes(lev, time);
+            }
         }
     }
 
@@ -1039,7 +1071,6 @@ ERF::InitData ()
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...
-    ParmParse pp("erf");
     if (pp.contains("data_log"))
     {
         int num_datalogs = pp.countval("data_log");

@@ -53,7 +53,6 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     m_j_indx.resize(m_maxlev);
     m_k_indx.resize(m_maxlev);
 
-
     for (int lev(0); lev < m_maxlev; lev++) {
       m_fields[lev].resize(m_nvar);
       m_rot_fields[lev].resize(m_nvar-1);
@@ -199,6 +198,22 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         // None of the averages are initialized
         m_t_init.resize(m_maxlev,0);
     }
+
+    // Corrections to the mean surface velocity
+    pp.query("most.include_subgrid_vel", include_subgrid_vel);
+    m_Vsg = Vector<Real>(m_maxlev, 0.0);
+    if (include_subgrid_vel) {
+        amrex::Print() << "Subgrid velocity scale correction (by level) : ";
+        for (int lev(0); lev < m_maxlev; lev++) {
+            const auto dxArr = m_geom[lev].CellSizeArray();
+            Real dx = std::sqrt(dxArr[0]*dxArr[1]);
+            if (dx > 5000.) {
+                m_Vsg[lev] = 0.32 * std::pow(dx/5000.-1, 0.33);
+            }
+            amrex::Print() << m_Vsg[lev];
+        }
+        amrex::Print() << std::endl;
+    }
 }
 
 
@@ -223,7 +238,6 @@ MOSTAverage::update_field_ptrs (int lev,
     m_fields[lev][4] = Qr_prim[lev].get();
     m_fields[lev][5] = &vars_old[lev][Vars::zvel];
 }
-
 
 /**
  * Function to set the rotated velocities.
@@ -869,6 +883,8 @@ MOSTAverage::compute_plane_averages (int lev)
         denom[iavg]   = 1.0 / (Real)ncell_plane[iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
+        const Real Vsg = m_Vsg[lev];
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -899,7 +915,7 @@ MOSTAverage::compute_plane_averages (int lev)
                                             &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                     trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
                                             &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
-                    const Real val   = std::sqrt(u_interp*u_interp + v_interp*v_interp);
+                    const Real val = std::sqrt(u_interp*u_interp + v_interp*v_interp + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
             } else {
@@ -914,7 +930,7 @@ MOSTAverage::compute_plane_averages (int lev)
                     int mi = i_arr ? i_arr(i,j,k) : i;
                     const Real u_val = 0.5 * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
                     const Real v_val = 0.5 * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
-                    const Real val   = std::sqrt(u_val*u_val + v_val*v_val);
+                    const Real val = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
             }
@@ -1159,6 +1175,8 @@ MOSTAverage::compute_region_averages (int lev)
         int imf  = 0;
         int iavg = m_navg - 1;
 
+        const Real Vsg = m_Vsg[lev];
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -1194,7 +1212,7 @@ MOSTAverage::compute_region_averages (int lev)
                             Real zp = z_pos_arr(i+li,j+lj,k) + met_h_zeta*lk*dx[2];
                             trilinear_interp_T(xp, yp, zp, &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                             trilinear_interp_T(xp, yp, zp, &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
-                            Real mag = std::sqrt(u_interp*u_interp + v_interp*v_interp);
+                            const Real mag = std::sqrt(u_interp*u_interp + v_interp*v_interp + Vsg*Vsg);
                             Real val = denom * mag * d_fact_new;
                             ma_arr(i,j,k) += val;
                         }
@@ -1217,7 +1235,7 @@ MOSTAverage::compute_region_averages (int lev)
                         for (int li(mi-d_radius); li <= (mi+d_radius); ++li) {
                             const Real u_val = 0.5 * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
                             const Real v_val = 0.5 * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
-                            const Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
+                            const Real mag   = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
                             Real val = denom * mag * d_fact_new;
                             ma_arr(i,j,k) += val;
                         }

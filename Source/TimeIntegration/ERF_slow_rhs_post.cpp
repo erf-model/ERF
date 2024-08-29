@@ -119,7 +119,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
-    const bool l_use_QKE        = tc.use_QKE && tc.advect_QKE;
+    const bool l_use_QKE        = tc.use_QKE;
+    const bool l_advect_QKE     = tc.use_QKE && tc.advect_QKE;
     const bool l_use_deardorff  = (tc.les_type == LESType::Deardorff);
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
@@ -128,7 +129,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
-    const bool l_use_moisture   = (solverChoice.moisture_type != MoistureType::None);
     const bool exp_most         = (solverChoice.use_explicit_most);
     const bool rot_most         = (solverChoice.use_rotate_most);
 
@@ -394,13 +394,17 @@ void erf_slow_rhs_post (int level, int finest_level,
                     num_comp = 1;
                 }
 
-                AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                       cur_cons, cur_prim, cell_rhs,
-                                       l_use_mono_adv, max_s_ptr, min_s_ptr,
-                                       detJ_arr, dxInv, mf_m,
-                                       horiz_adv_type, vert_adv_type,
-                                       horiz_upw_frac, vert_upw_frac,
-                                       flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                if (( ivar != RhoQKE_comp                 ) ||
+                    ((ivar == RhoQKE_comp) && l_advect_QKE))
+                {
+                    AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                           cur_cons, cur_prim, cell_rhs,
+                                           l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                           detJ_arr, dxInv, mf_m,
+                                           horiz_adv_type, vert_adv_type,
+                                           horiz_upw_frac, vert_upw_frac,
+                                           flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                }
 
                 if (l_use_diff) {
 
@@ -414,7 +418,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, dc, tc,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_most, l_use_moisture);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
                                                new_cons, cur_prim, cell_rhs,
@@ -422,7 +426,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, dc, tc,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_most, l_use_moisture);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
                     }
                 } // use_diff
             } // valid slow var
