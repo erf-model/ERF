@@ -126,7 +126,6 @@ struct adiabatic
 private:
     most_data mdata;
     similarity_funs sfuns;
-    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
