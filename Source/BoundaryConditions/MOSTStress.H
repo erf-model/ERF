@@ -6,8 +6,6 @@
 #include <MOSTRoughness.H>
 #include <Wstar.H>
 
-static constexpr amrex::Real WSMIN = 0.1; // minimum wind speed
-
 /**
  * Structure of plain old data relevant to MOST BCs
  */
@@ -27,7 +25,7 @@ public:
     amrex::Real Cnk_b;
     bool visc{false};                ///< Use viscous Charnock formulation
 
-    static constexpr amrex::Real Bjr_beta = 1.2; // Empirical parameter from Beljaars 1995 QJRMS
+    const amrex::Real Bjr_beta = 1.2; // Empirical parameter from Beljaars 1995 QJRMS
 };
 
 
@@ -128,6 +126,7 @@ struct adiabatic
 private:
     most_data mdata;
     similarity_funs sfuns;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -198,6 +197,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -260,6 +260,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -319,6 +320,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -387,6 +389,7 @@ private:
     const amrex::Real eps = 1e-15;
     const amrex::Real z0_eps = 1.0e-6;
     const amrex::Real z0_max = 0.1;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -464,6 +467,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -555,6 +559,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -638,6 +643,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -718,6 +724,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -807,6 +814,7 @@ private:
     const amrex::Real eps = 1e-15;
     const amrex::Real z0_eps = 1.0e-6;
     const amrex::Real z0_max = 0.1;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -886,6 +894,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -979,6 +988,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -1064,6 +1074,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -1146,6 +1157,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -1237,6 +1249,7 @@ private:
     const amrex::Real eps = 1e-15;
     const amrex::Real z0_eps = 1.0e-6;
     const amrex::Real z0_max = 0.1;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -1544,6 +1557,7 @@ private:
     int zlo;
     const amrex::Real     eps = 1e-15;
     const amrex::Real eta_eps = 1e-8;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
