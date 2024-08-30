@@ -185,20 +185,8 @@ public:
 
         // Do we have a time-varying surface roughness that needs to be saved?
         const int nghost = 0; // ghost cells not included
-        const int level = 0;
-        int lmask_min = amrex::ReduceMin(*lmask_lev[level][0].get(), nghost,
-                [=] AMREX_GPU_HOST_DEVICE (amrex::Box const& bx, amrex::Array4<int const> const& lm_arr) -> int
-        {
-            int locmin = std::numeric_limits<int>::max();
-            const auto lo = lbound(bx);
-            const auto hi = ubound(bx);
-            for (int j = lo.y; j <= hi.y; ++j) {
-                for (int i = lo.x; i <= hi.x; ++i) {
-                    locmin = std::min(locmin, lm_arr(i,j,0));
-                }
-            }
-            return locmin;
-        });
+        const int level  = 0;
+        int lmask_min = lmask_min_reduce(*lmask_lev[level][0].get(), nghost);
         amrex::ParallelDescriptor::ReduceIntMin(lmask_min);
 
         m_var_z0 = (lmask_min < 1) & (rough_type_sea != RoughCalcType::CONSTANT);
@@ -450,6 +438,26 @@ public:
 
     const amrex::iMultiFab*
     get_lmask(const int& lev) {return m_lmask_lev[lev][0];}
+
+    int
+    lmask_min_reduce (amrex::iMultiFab& lmask, const int& nghost)
+    {
+        int lmask_min = amrex::ReduceMin(lmask, nghost,
+                                         [=] AMREX_GPU_HOST_DEVICE (amrex::Box const& bx, amrex::Array4<int const> const& lm_arr) -> int
+        {
+            int locmin = std::numeric_limits<int>::max();
+            const auto lo = lbound(bx);
+            const auto hi = ubound(bx);
+            for (int j = lo.y; j <= hi.y; ++j) {
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    locmin = std::min(locmin, lm_arr(i,j,0));
+                }
+            }
+            return locmin;
+        });
+
+        return lmask_min;
+    }
 
     enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
