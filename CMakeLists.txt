@@ -13,6 +13,7 @@ option(ERF_ENABLE_DOCUMENTATION "Build documentation" OFF)
 option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_REGRESSION_TESTS_ONLY "Enable only regression tests" OFF)
+option(ERF_USE_INTERNAL_AMREX "Add AMReX as subproject" ON)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
 option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
@@ -64,13 +65,51 @@ endif()
 
 ########################### AMReX #####################################
 
-set(AMREX_SUBMOD_LOCATION "${CMAKE_SOURCE_DIR}/Submodules/AMReX")
-include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexOptions.cmake)
-list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
+if (${ERF_USE_INTERNAL_AMREX})
+    set(AMREX_SUBMOD_LOCATION "${CMAKE_SOURCE_DIR}/Submodules/AMReX")
+    include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexOptions.cmake)
+    list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
+#    if (ERF_ENABLE_CUDA AND (CMAKE_VERSION VERSION_LESS 3.20))
+#      include(AMReX_SetupCUDA)
+#    endif()
 
 ########################### AMReX #####################################
 
-add_subdirectory(${AMREX_SUBMOD_LOCATION})
+    add_subdirectory(${AMREX_SUBMOD_LOCATION})
+    set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
+      CACHE INTERNAL "Path to fcompare executable for regression tests")
+else()
+    set(CMAKE_PREFIX_PATH ${AMREX_DIR} ${CMAKE_PREFIX_PATH})
+    list(APPEND AMREX_COMPONENTS
+      "3D" "PIC" "PARTICLES" "PDOUBLE" "DOUBLE" "LSOLVERS")
+    if (ERF_ENABLE_MPI)
+      list(APPEND AMREX_COMPONENTS "MPI")
+    endif()
+    if (ERF_ENABLE_OPENMP)
+      list(APPEND AMREX_COMPONENTS "OMP")
+    endif()
+    if (ERF_ENABLE_CUDA)
+      list(APPEND AMREX_COMPONENTS "CUDA")
+    endif()
+    if (ERF_ENABLE_SYCL)
+      list(APPEND AMREX_COMPONENTS "SYCL")
+    endif()
+    if (ERF_ENABLE_ROCM)
+      list(APPEND AMREX_COMPONENTS "HIP")
+    endif()
+    if (ERF_ENABLE_HYPRE)
+      list(APPEND AMREX_COMPONENTS "HYPRE")
+    endif()
+    if (ERF_ENABLE_TINY_PROFILE)
+      list(APPEND AMREX_COMPONENTS "TINY_PROFILE")
+    endif()
+    separate_arguments(AMREX_COMPONENTS)
+    find_package(AMReX CONFIG REQUIRED
+      COMPONENTS ${AMREX_COMPONENTS})
+    message(STATUS "Found AMReX = ${AMReX_DIR}")
+    set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
+      CACHE INTERNAL "Path to fcompare executable for regression tests")
+endif()
 
 ########################## NETCDF ##################################
 

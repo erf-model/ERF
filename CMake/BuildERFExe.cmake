@@ -224,7 +224,7 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   #Link to amrex library
-  target_link_libraries_system(${erf_lib_name} PUBLIC amrex)
+  target_link_libraries_system(${erf_lib_name} PUBLIC AMReX::amrex)
   if(ERF_ENABLE_CUDA)
     set(pctargets "${erf_lib_name}")
     foreach(tgt IN LISTS pctargets)
