@@ -91,6 +91,12 @@ Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 //             - initializes BCRec boundary condition object
 ERF::ERF ()
 {
+    ERF_shared();
+}
+
+void
+ERF::ERF_shared ()
+{
     if (ParallelDescriptor::IOProcessor()) {
         const char* erf_hash = buildInfoGetGitHash(1);
         const char* amrex_hash = buildInfoGetGitHash(2);
@@ -1874,87 +1880,6 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 {
     SetParmParsePrefix(prefix);
 
-    if (ParallelDescriptor::IOProcessor()) {
-        const char* erf_hash = buildInfoGetGitHash(1);
-        const char* amrex_hash = buildInfoGetGitHash(2);
-        const char* buildgithash = buildInfoGetBuildGitHash();
-        const char* buildgitname = buildInfoGetBuildGitName();
-
-        if (strlen(erf_hash) > 0) {
-          Print() << "\n"
-                         << "ERF git hash: " << erf_hash << "\n";
-        }
-        if (strlen(amrex_hash) > 0) {
-          Print() << "AMReX git hash: " << amrex_hash << "\n";
-        }
-        if (strlen(buildgithash) > 0) {
-          Print() << buildgitname << " git hash: " << buildgithash << "\n";
-        }
-
-        Print() << "\n";
-    }
-
-    int nlevs_max = max_level + 1;
-
-#ifdef ERF_USE_WINDFARM
-    Nturb.resize(nlevs_max);
-    vars_windfarm.resize(nlevs_max);
-#endif
-
-#if defined(ERF_USE_RRTMGP)
-    qheating_rates.resize(nlevs_max);
-    sw_lw_fluxes.resize(nlevs_max);
-    solar_zenith.resize(nlevs_max);
-#endif
-
-    // NOTE: size micro before readparams (chooses the model at all levels)
-    lsm.ReSize(nlevs_max);
-    lsm_data.resize(nlevs_max);
-    lsm_flux.resize(nlevs_max);
-
-    ReadParameters();
-    initializeMicrophysics(nlevs_max);
-
-    const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
-    const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
-
-    prob = amrex_probinit(geom[0].ProbLo(), geom[0].ProbHi());
-
-    // Geometry on all levels has been defined already.
-
-    // No valid BoxArray and DistributionMapping have been defined.
-    // But the arrays for them have been resized.
-
-    istep.resize(nlevs_max, 0);
-    nsubsteps.resize(nlevs_max, 1);
-    for (int lev = 1; lev <= max_level; ++lev) {
-        nsubsteps[lev] = MaxRefRatio(lev-1);
-    }
-
-    t_new.resize(nlevs_max, 0.0);
-    t_old.resize(nlevs_max, -1.e100);
-    dt.resize(nlevs_max, 1.e100);
-    dt_mri_ratio.resize(nlevs_max, 1);
-
-    vars_new.resize(nlevs_max);
-    vars_old.resize(nlevs_max);
-
-    for (int lev = 0; lev < nlevs_max; ++lev) {
-        vars_new[lev].resize(Vars::NumTypes);
-        vars_old[lev].resize(Vars::NumTypes);
-    }
-
-    rU_new.resize(nlevs_max);
-    rV_new.resize(nlevs_max);
-    rW_new.resize(nlevs_max);
-
-    rU_old.resize(nlevs_max);
-    rV_old.resize(nlevs_max);
-    rW_old.resize(nlevs_max);
-
-    mri_integrator_mem.resize(nlevs_max);
-    physbcs.resize(nlevs_max);
-
     // Multiblock: public domain sizes (need to know which vars are nodal)
     Box nbx;
     domain_p.push_back(geom[0].Domain());
@@ -1965,69 +1890,11 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     nbx = convert(domain_p[0],IntVect(0,0,1));
     domain_p.push_back(nbx);
 
-    advflux_reg.resize(nlevs_max);
-
-    // Stresses
-    Tau11_lev.resize(nlevs_max); Tau22_lev.resize(nlevs_max); Tau33_lev.resize(nlevs_max);
-    Tau12_lev.resize(nlevs_max); Tau21_lev.resize(nlevs_max);
-    Tau13_lev.resize(nlevs_max); Tau31_lev.resize(nlevs_max);
-    Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
-    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
-    SFS_diss_lev.resize(nlevs_max);
-    SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
-    SFS_q2fx3_lev.resize(nlevs_max);
-    eddyDiffs_lev.resize(nlevs_max);
-    SmnSmn_lev.resize(nlevs_max);
-
-    // Sea surface temps
-    sst_lev.resize(nlevs_max);
-    lmask_lev.resize(nlevs_max);
-
-    // Metric terms
-    z_phys_nd.resize(nlevs_max);
-    z_phys_cc.resize(nlevs_max);
-    detJ_cc.resize(nlevs_max);
-    z_phys_nd_new.resize(nlevs_max);
-    detJ_cc_new.resize(nlevs_max);
-    z_phys_nd_src.resize(nlevs_max);
-    detJ_cc_src.resize(nlevs_max);
-    z_t_rk.resize(nlevs_max);
-
-    // Mapfactors
-    mapfac_m.resize(nlevs_max);
-    mapfac_u.resize(nlevs_max);
-    mapfac_v.resize(nlevs_max);
-
-    // Base state
-    base_state.resize(nlevs_max);
-    base_state_new.resize(nlevs_max);
-
-    // Wave coupling data
-    Hwave.resize(nlevs_max);
-    Lwave.resize(nlevs_max);
-    for (int lev = 0; lev < max_level; ++lev)
-    {
-        Hwave[lev] = nullptr;
-        Lwave[lev] = nullptr;
-    }
-
-    // Theta prim for MOST
-    Theta_prim.resize(nlevs_max);
-
-    // Time averaged velocity field
-    vel_t_avg.resize(nlevs_max);
-    t_avg_cnt.resize(nlevs_max);
-
-    // Initialize tagging criteria for mesh refinement
-    refinement_criteria_setup();
-
-    for (int lev = 0; lev < max_level; ++lev)
-    {
-       Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
-          ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
-    }
+    ERF_shared();
 }
+#endif
 
+#ifdef ERF_USE_MULTIBLOCK
 // advance solution over specified block steps
 void
 ERF::Evolve_MB (int MBstep, int max_block_step)
