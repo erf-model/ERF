@@ -1108,11 +1108,15 @@ List of Parameters
 Notes
 -----------------
 
-If **erf.init_type = ideal**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are horizontally homogeneous, i.e., there is variation only in the vertical direction.
+If **erf.init_type = ideal**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``.
+The mesoscale data are horizontally homogeneous, i.e., there is variation only in the vertical direction.
 
 If **erf.init_type = real**, the problem is initialized with mesoscale data contained in a NetCDF file,
-provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.
-In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**
+provided via ``erf.nc_init_file`` (e.g., "wrfinput_d01"). The mesoscale data are realistic with variation in all three directions.
+In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by ``erf.nc_bdy_file`` (e.g., "wrfbdy_d01"). 
+The extent of the relaxation zone may be controlled with ``erf.real_width`` (corresponding to WRF's **spec_bdy_width**) 
+and ``erf.real_set_width`` (corresponding to WRF's **spec_zone**, typically set to 1), which corresponds to a relaxation zone with a
+width of **real_width - real_set_width**.
 
 If **erf.init_type = input_sounding**, a WRF-style input sounding is read from
 ``erf.input_sounding_file``. This text file includes any set of levels that
