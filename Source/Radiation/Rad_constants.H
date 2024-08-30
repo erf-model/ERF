@@ -110,145 +110,155 @@ class RadConstants {
       centimeter
    };
 
-   // provide Solar Irradiance for each band in RRTMG
-   inline
-   static void get_solar_band_fraction_irrad(real1d& fractional_irradiance) {
-     real tsi = 0;  // total solar irradiance
-     for(auto i = 0; i < nswbands; ++i)
-       tsi = tsi + solar_ref_band_irradiance[i];
+    // provide Solar Irradiance for each band in RRTMG
+    inline
+    static void get_solar_band_fraction_irrad (real1d& fractional_irradiance)
+    {
+        real tsi = 0;  // total solar irradiance
+        for(auto i = 0; i < nswbands; ++i)
+            tsi = tsi + solar_ref_band_irradiance[i];
 
-     for(auto i = 0; i < nswbands; ++i)
-       fractional_irradiance(i) = solar_ref_band_irradiance[i] / tsi;
-   }
-
-   // provide Total Solar Irradiance assumed by RRTMG
-   inline
-   static void  get_ref_total_solar_irrad(real& tsi) {
-      tsi = 0;
-      for(auto i = 0; i < nswbands; ++i)
-        tsi = tsi + solar_ref_band_irradiance[i];
-   }
-
-   // solar irradiance in each band (W/m^2)
-   inline
-   static void get_ref_solar_band_irrad(real1d& band_irrad ) {
-     for(auto i = 0; i < nswbands; ++i)
-       band_irrad(i) = solar_ref_band_irradiance[i];
-   }
-
-   // number of solar (shortwave) bands in the rrtmg code
-   inline
-   static void get_number_sw_bands(int number_of_bands) {
-      number_of_bands = nswbands;
-   }
-
-   // provide spectral boundaries of each longwave band
-   inline
-   static void get_lw_spectral_boundaries(real1d& low_boundaries,
-                                          real1d& high_boundaries,
-                                          Units units) {
-      switch (units) {
-      case inv_cm:
-         for(auto i = 0; i < nlwbands; ++i) {
-           low_boundaries(i)  = wavenumber1_longwave[i];
-           high_boundaries(i) = wavenumber2_longwave[i];
-         }
-      case meter:
-         for(auto i = 0; i < nlwbands; ++i) {
-           low_boundaries(i)  = 1.e-2/wavenumber2_longwave[i];
-           high_boundaries(i) = 1.e-2/wavenumber1_longwave[i];
-         }
-      case nanometer:
-         for(auto i = 0; i < nlwbands; ++i) {
-           low_boundaries(i)  = 1.e7/wavenumber2_longwave[i];
-           high_boundaries(i) = 1.e7/wavenumber1_longwave[i];
-         }
-      case micrometer:
-         for(auto i = 0; i < nlwbands; ++i) {
-            low_boundaries(i)  = 1.e4/wavenumber2_longwave[i];
-            high_boundaries(i) = 1.e4/wavenumber1_longwave[i];
-         }
-      case centimeter:
-         for(auto i = 0; i < nlwbands; ++i) {
-            low_boundaries(i)  = 1./wavenumber2_longwave[i];
-            high_boundaries(i) = 1./wavenumber1_longwave[i];
-         }
-      default:
-         amrex::Print() << "get_lw_spectral_boundaries: spectral units not acceptable\n";
-      }
-   }
-
-   inline
-   static void get_lw_spectral_midpoints(real1d& band_midpoints, Units units) {
-      real1d lower_boundaries("lower_boundaries", nlwbands);
-      real1d upper_boundaries("upper_boundaries", nlwbands);
-      int iband;
-
-      // Get band boundaries
-      get_lw_spectral_boundaries(lower_boundaries, upper_boundaries, units);
-
-      // Get band midpoints
-      for(auto iband = 0; iband < nlwbands; ++iband) {
-         band_midpoints(iband) = 0.5*(lower_boundaries(iband) + upper_boundaries(iband));
-      }
-
-   }
-
-   // provide spectral boundaries of each shortwave band
-   inline
-   static void get_sw_spectral_boundaries(real1d& low_boundaries, real1d& high_boundaries, Units units) {
-     switch (units) {
-       case inv_cm:
-         for(auto i = 0; i < nswbands; ++i) {
-            low_boundaries(i) = wavenum_low[i];
-            high_boundaries(i) = wavenum_high[i];
-         }
-       case meter:
-         for(auto i = 0; i < nswbands; ++i) {
-           low_boundaries(i) = 1.e-2/wavenum_high[i];
-           high_boundaries(i) = 1.e-2/wavenum_low[i];
-         }
-       case nanometer:
-         for(auto i = 0; i < nswbands; ++i) {
-            low_boundaries(i) = 1.e7/wavenum_high[i];
-            high_boundaries(i) = 1.e7/wavenum_low[i];
-         }
-      case micrometer:
-         for(auto i = 0; i < nswbands; ++i) {
-            low_boundaries(i) = 1.e4/wavenum_high[i];
-            high_boundaries(i) = 1.e4/wavenum_low[i];
-         }
-      case centimeter:
-         for(auto i = 0; i < nswbands; ++i) {
-            low_boundaries(i)  = 1./wavenum_high[i];
-            high_boundaries(i) = 1./wavenum_low[i];
-         }
-      default:
-        amrex::Print() << "rad_constants.F90: spectral units not acceptable\n";
+        for(auto i = 0; i < nswbands; ++i)
+            fractional_irradiance(i) = solar_ref_band_irradiance[i] / tsi;
     }
-  }
 
-  inline
-  static void get_sw_spectral_midpoints(real1d& band_midpoints, Units units) {
-     real1d lower_boundaries("lower_boundaries", nswbands);
-     real1d upper_boundaries("upper_boundaries", nswbands);
+    // provide Total Solar Irradiance assumed by RRTMG
+    inline
+    static void  get_ref_total_solar_irrad (real& tsi)
+    {
+        tsi = 0;
+        for(auto i = 0; i < nswbands; ++i)
+            tsi = tsi + solar_ref_band_irradiance[i];
+    }
 
-     // Get band boundaries
-     get_sw_spectral_boundaries(lower_boundaries, upper_boundaries, units);
+    // solar irradiance in each band (W/m^2)
+    inline
+    static void get_ref_solar_band_irrad (real1d& band_irrad )
+    {
+        for(auto i = 0; i < nswbands; ++i)
+            band_irrad(i) = solar_ref_band_irradiance[i];
+    }
 
-     //Get band midpoints
-     for(auto iband = 0; iband < nswbands; ++iband) {
-        band_midpoints(iband) = 0.5 * (lower_boundaries(iband) + upper_boundaries(iband));
-     }
-  }
+    // number of solar (shortwave) bands in the rrtmg code
+    inline
+    static void get_number_sw_bands (int& number_of_bands)
+    {
+        number_of_bands = nswbands;
+    }
 
-  // return the index in the gaslist array of the specified gasname
-  inline
-  static int rad_gas_index(std::string gasname) {
-     for(auto igas = 0; igas < nradgas; ++igas) {
-        if (gaslist[igas] == gasname) return igas;
-     }
-     amrex::Print() << "rad_gas_index: can not find gas with name" << gasname << std::endl;
-  }
+    // provide spectral boundaries of each longwave band
+    inline
+    static void get_lw_spectral_boundaries (real1d& low_boundaries,
+                                           real1d& high_boundaries,
+                                           Units units)
+    {
+        switch (units) {
+        case inv_cm:
+            for(auto i = 0; i < nlwbands; ++i) {
+                low_boundaries(i)  = wavenumber1_longwave[i];
+                high_boundaries(i) = wavenumber2_longwave[i];
+            }
+        case meter:
+            for(auto i = 0; i < nlwbands; ++i) {
+                low_boundaries(i)  = 1.e-2/wavenumber2_longwave[i];
+                high_boundaries(i) = 1.e-2/wavenumber1_longwave[i];
+            }
+        case nanometer:
+            for(auto i = 0; i < nlwbands; ++i) {
+                low_boundaries(i)  = 1.e7/wavenumber2_longwave[i];
+                high_boundaries(i) = 1.e7/wavenumber1_longwave[i];
+            }
+        case micrometer:
+            for(auto i = 0; i < nlwbands; ++i) {
+                low_boundaries(i)  = 1.e4/wavenumber2_longwave[i];
+                high_boundaries(i) = 1.e4/wavenumber1_longwave[i];
+            }
+        case centimeter:
+            for(auto i = 0; i < nlwbands; ++i) {
+                low_boundaries(i)  = 1./wavenumber2_longwave[i];
+                high_boundaries(i) = 1./wavenumber1_longwave[i];
+            }
+        default:
+            amrex::Print() << "get_lw_spectral_boundaries: spectral units not acceptable\n";
+        }
+    }
+
+    inline
+    static void get_lw_spectral_midpoints (real1d& band_midpoints, Units units)
+    {
+        real1d lower_boundaries("lower_boundaries", nlwbands);
+        real1d upper_boundaries("upper_boundaries", nlwbands);
+        //int iband;
+
+        // Get band boundaries
+        get_lw_spectral_boundaries(lower_boundaries, upper_boundaries, units);
+
+        // Get band midpoints
+        for(auto iband = 0; iband < nlwbands; ++iband) {
+            band_midpoints(iband) = 0.5*(lower_boundaries(iband) + upper_boundaries(iband));
+        }
+
+    }
+
+    // provide spectral boundaries of each shortwave band
+    inline
+    static void get_sw_spectral_boundaries (real1d& low_boundaries, real1d& high_boundaries, Units units)
+    {
+        switch (units) {
+        case inv_cm:
+            for(auto i = 0; i < nswbands; ++i) {
+                low_boundaries(i) = wavenum_low[i];
+                high_boundaries(i) = wavenum_high[i];
+            }
+        case meter:
+            for(auto i = 0; i < nswbands; ++i) {
+                low_boundaries(i) = 1.e-2/wavenum_high[i];
+                high_boundaries(i) = 1.e-2/wavenum_low[i];
+            }
+        case nanometer:
+            for(auto i = 0; i < nswbands; ++i) {
+                low_boundaries(i) = 1.e7/wavenum_high[i];
+                high_boundaries(i) = 1.e7/wavenum_low[i];
+            }
+        case micrometer:
+            for(auto i = 0; i < nswbands; ++i) {
+                low_boundaries(i) = 1.e4/wavenum_high[i];
+                high_boundaries(i) = 1.e4/wavenum_low[i];
+            }
+        case centimeter:
+            for(auto i = 0; i < nswbands; ++i) {
+                low_boundaries(i)  = 1./wavenum_high[i];
+                high_boundaries(i) = 1./wavenum_low[i];
+            }
+        default:
+            amrex::Print() << "rad_constants.F90: spectral units not acceptable\n";
+        }
+    }
+
+    inline
+    static void get_sw_spectral_midpoints (real1d& band_midpoints, Units units)
+    {
+        real1d lower_boundaries("lower_boundaries", nswbands);
+        real1d upper_boundaries("upper_boundaries", nswbands);
+
+        // Get band boundaries
+        get_sw_spectral_boundaries(lower_boundaries, upper_boundaries, units);
+
+        //Get band midpoints
+        for(auto iband = 0; iband < nswbands; ++iband) {
+            band_midpoints(iband) = 0.5 * (lower_boundaries(iband) + upper_boundaries(iband));
+        }
+    }
+
+    // return the index in the gaslist array of the specified gasname
+    inline
+    static int rad_gas_index (std::string gasname)
+    {
+        for(auto igas = 0; igas < nradgas; ++igas) {
+            if (gaslist[igas] == gasname) return igas;
+        }
+        amrex::Abort("rad_gas_index: can not find gas with name " + gasname);
+        return -1;
+    }
 };
 #endif

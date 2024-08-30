@@ -15,6 +15,7 @@
 #include <DiffStruct.H>
 #include <SpongeStruct.H>
 #include <TurbStruct.H>
+#include <TurbPertStruct.H>
 
 enum struct ABLDriverType {
     None, PressureGradient, GeostrophicWind
@@ -28,12 +29,20 @@ enum struct TerrainType {
     Static, Moving
 };
 
+enum struct MoistureModelType{
+    Eulerian, Lagrangian, Undefined
+};
+
 enum struct MoistureType {
-    Kessler, SAM, FastEddy, Kessler_NoRain, None
+    Kessler, SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler_NoRain, None
 };
 
 enum struct WindFarmType {
-    Fitch
+    Fitch, EWP, SimpleAD, None
+};
+
+enum struct WindFarmLocType{
+    lat_lon, x_y, None
 };
 
 enum struct LandSurfaceType {
@@ -46,6 +55,14 @@ enum struct Coord {
 
 enum Rayleigh {
     tau, ubar, vbar, wbar, thetabar, nvars
+};
+
+enum Sponge {
+       ubar_sponge, vbar_sponge, nvars_sponge
+};
+
+enum struct PerturbationType {
+    perturbSource, perturbDirect, None
 };
 
 /**
@@ -87,12 +104,14 @@ struct SolverChoice {
         pp.query("moisture_model", moisture_model_string);
         if (moisture_model_string == "SAM") {
             moisture_type = MoistureType::SAM;
+        } else if (moisture_model_string == "SAM_NoIce") {
+            moisture_type = MoistureType::SAM_NoIce;
+        } else if (moisture_model_string == "SAM_NoPrecip_NoIce") {
+            moisture_type = MoistureType::SAM_NoPrecip_NoIce;
         } else if (moisture_model_string == "Kessler") {
             moisture_type = MoistureType::Kessler;
         }else if (moisture_model_string == "Kessler_NoRain") {
             moisture_type = MoistureType::Kessler_NoRain;
-        } else if (moisture_model_string == "FastEddy") {
-            moisture_type = MoistureType::FastEddy;
         } else {
             moisture_type = MoistureType::None;
         }
@@ -100,8 +119,10 @@ struct SolverChoice {
         // TODO: should we set default for dry??
         // Set a different default for moist vs dry
         if (moisture_type != MoistureType::None) {
-            if (moisture_type == MoistureType::FastEddy ||
-                moisture_type == MoistureType::SAM) {
+            if (moisture_type == MoistureType::Kessler_NoRain ||
+                moisture_type == MoistureType::SAM ||
+                moisture_type == MoistureType::SAM_NoIce ||
+                moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
                 buoyancy_type = 1; // asserted in make buoyancy
             } else {
                 buoyancy_type = 2; // uses Tprime
@@ -154,29 +175,61 @@ struct SolverChoice {
 #if defined(ERF_USE_POISSON_SOLVE)
         // Should we project the initial velocity field to make it divergence-free?
         pp.query("project_initial_velocity", project_initial_velocity);
+
+        int nvals_inc = pp.countval("incompressible");
+        AMREX_ALWAYS_ASSERT(nvals_inc == 0 || nvals_inc == 1 || nvals_inc >= max_level+1);
+        amrex::Vector<int> inc_in; inc_in.resize(nvals_inc);
+        pp.queryarr("incompressible",inc_in);
+        if (nvals_inc == 0) {
+            for (int i = 0; i <= max_level; ++i) incompressible.push_back(0);
+            amrex::Warning("NOTE: ERF was built with the Poisson solver but the incompressible flag was not set");
+        } else if (nvals_inc == 1) {
+            for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
+        } else {
+            for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
+        }
+
+        pp.query("constant_density", constant_density);
+        pp.query("project_every_stage", project_every_stage);
+        pp.query("ncorr", ncorr);
+        pp.query("poisson_abstol", poisson_abstol);
+        pp.query("poisson_reltol", poisson_reltol);
+#else
+        incompressible.resize(max_level+1);
+        for (int i = 0; i <= max_level; ++i) incompressible[i] = 0;
 #endif
 
         // Turn off acoustic substepping?
         pp.query("no_substepping", no_substepping);
-
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
-        pp.query("incompressible", incompressible);
 
-        // If this is set, it must be even
-        if (incompressible != 0 && no_substepping == 0)
-        {
-            amrex::Abort("If you specify incompressible, you must specific no_substepping");
+#if defined(ERF_USE_POISSON_SOLVE)
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (incompressible[lev] != 0 && no_substepping == 0)
+            {
+                amrex::Abort("If you specify incompressible, you must specific no_substepping");
+            }
         }
+#endif
 
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
 
-        // Include Rayleigh damping?
-        pp.query("use_rayleigh_damping", use_rayleigh_damping);
+        // Include Rayleigh damping (separate flags for each variable)
         pp.query("rayleigh_damp_U", rayleigh_damp_U);
         pp.query("rayleigh_damp_V", rayleigh_damp_V);
         pp.query("rayleigh_damp_W", rayleigh_damp_W);
         pp.query("rayleigh_damp_T", rayleigh_damp_T);
+
+        // Flag to do explicit MOST formulation
+        pp.query("use_explicit_most",use_explicit_most);
+
+        // Flag to do MOST rotations with terrain
+        pp.query("use_rotate_most",use_rotate_most);
+        if (use_rotate_most) {
+            AMREX_ASSERT_WITH_MESSAGE(use_terrain,"MOST stress rotations are only valid with terrain!");
+            AMREX_ASSERT_WITH_MESSAGE(use_explicit_most, "MOST Stress rotations are only valid with explicit MOST!");
+        }
 
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
@@ -186,10 +239,26 @@ struct SolverChoice {
             abl_driver_type = ABLDriverType::PressureGradient;
         } else if (!abl_driver_type_string.compare("GeostrophicWind")) {
             abl_driver_type = ABLDriverType::GeostrophicWind;
-        } else if (!abl_driver_type_string.compare("None")){
+        } else if (!abl_driver_type_string.compare("None")) {
             abl_driver_type = ABLDriverType::None; // No ABL driver for simulating classical fluid dynamics problems
         } else {
             amrex::Error("Don't know this abl_driver_type");
+        }
+
+        // Which type of inflow turbulent generation
+        static std::string turb_pert_type_string = "None";
+        pp.query("perturbation_type",turb_pert_type_string);
+        if (!turb_pert_type_string.compare("source")) {
+            pert_type = PerturbationType::perturbSource;
+            amrex::Print() << "Perturb temperature via source term\n";
+        } else if (!turb_pert_type_string.compare("direct")) {
+            pert_type = PerturbationType::perturbDirect;
+            amrex::Print() << "Perturb temperature via direct field add\n";
+        } else if (!turb_pert_type_string.compare("None")) {
+            pert_type = PerturbationType::None;
+            amrex::Print() << "No inflow perturbation method selected\n";
+        } else {
+            amrex::Abort("Dont know this perturbation_type");
         }
 
         amrex::Vector<amrex::Real> abl_pressure_grad_in = {0.0, 0.0, 0.0};
@@ -212,7 +281,16 @@ struct SolverChoice {
         }
 
         pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
+        pp.query("add_custom_moisture_forcing", custom_moisture_forcing);
+        pp.query("add_custom_w_subsidence", custom_w_subsidence);
+        pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
+
+        pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
+
+        have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
+            "Should not have both abl_geo_wind_table and custom_geostrophic_profile set.");
 
         pp.query("Ave_Plane", ave_plane);
 
@@ -229,6 +307,9 @@ struct SolverChoice {
             NumDiffCoeff *= std::pow(2.0,-6);
         }
 
+        // Use monotonic advection?
+        pp.query("use_mono_adv",use_mono_adv);
+
            advChoice.init_params();
           diffChoice.init_params();
         spongeChoice.init_params();
@@ -236,6 +317,27 @@ struct SolverChoice {
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level);
+        }
+
+        // YSU PBL: use consistent coriolis frequency
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (turbChoice[lev].pbl_ysu_use_consistent_coriolis) {
+                if (use_coriolis) {
+                    turbChoice[lev].pbl_ysu_coriolis_freq = coriolis_factor * sinphi;
+                    if (lev == 0) {
+                        amrex::Print() << "YSU PBL using ERF coriolis frequency: " << turbChoice[lev].pbl_ysu_coriolis_freq << std::endl;
+                    }
+                } else {
+                    amrex::Abort("YSU cannot use ERF coriolis frequency if not using coriolis");
+                }
+            }
+        }
+
+        // Warn for PBL models and moisture - these may not yet be compatible
+        for (int lev = 0; lev <= max_level; lev++) {
+            if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
+                amrex::Warning("\n*** WARNING: Moisture may not yet be compatible with PBL models, \n    proceed with caution ***");
+            }
         }
 
         // Which type of refinement
@@ -249,25 +351,68 @@ struct SolverChoice {
             amrex::Abort("Dont know this coupling_type");
         }
 
+        pp.query("latitude_lo",  latitude_lo);
+        pp.query("longitude_lo", longitude_lo);
+
         // Which type of windfarm model
-        static std::string windfarm_type_string = "Fitch";
+        static std::string windfarm_type_string = "None";
         pp.query("windfarm_type", windfarm_type_string);
         if (windfarm_type_string == "Fitch") {
             windfarm_type = WindFarmType::Fitch;
         }
-        else {
-            amrex::Abort("Dont know this windfarm_type. Currently the only option is Fitch.");
+        else if (windfarm_type_string == "EWP") {
+            windfarm_type = WindFarmType::EWP;
         }
+        else if (windfarm_type_string == "SimpleActuatorDisk") {
+            windfarm_type = WindFarmType::SimpleAD;
+        }
+        else if (windfarm_type_string != "None") {
+            amrex::Abort("Are you using windfarms? Dont know this windfarm_type. windfarm_type"
+                         " has to be Fitch or EWP or None.");
+        }
+
+        static std::string windfarm_loc_type_string = "None";
+        windfarm_loc_type = WindFarmLocType::None;
+        pp.query("windfarm_loc_type", windfarm_loc_type_string);
+        if (windfarm_loc_type_string == "lat_lon") {
+            windfarm_loc_type = WindFarmLocType::lat_lon;
+        }
+        else if (windfarm_loc_type_string == "x_y") {
+            windfarm_loc_type = WindFarmLocType::x_y;
+        }
+        else if (windfarm_loc_type_string != "None") {
+            amrex::Abort("Are you using windfarms? Dont know this windfarm_loc_type."
+                         " windfarm_loc_type has to be specified as lat_lon or x_y.");
+        }
+
+        pp.query("windfarm_loc_table",  windfarm_loc_table);
+        pp.query("windfarm_spec_table", windfarm_spec_table);
+
+        // Sampling distance upstream of the turbine to find the
+        // incoming free stream velocity as a factor of the diameter of the
+        // turbine. ie. the sampling distance will be this number multiplied
+        // by the diameter of the turbine
+        pp.query("sampling_distance_by_D", sampling_distance_by_D);
+        if(windfarm_type==WindFarmType::SimpleAD and sampling_distance_by_D < 0.0) {
+             amrex::Abort("To use simplified actuator disks, you need to provide a variable "
+                           "erf.sampling_distance_by_D in the inputs which specifies the upstream "
+                           "distance as a factor of the turbine diameter at which the incoming free stream "
+                           "velocity will be computed at");
+        }
+
+        // Test if time averaged data is to be output
+        pp.query("time_avg_vel",time_avg_vel);
     }
 
-    void display()
+    void display(int max_level)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "no_substepping              : " << no_substepping << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
-        amrex::Print() << "incompressible              : "  << incompressible << std::endl;
+        for (int lev = 0; lev <= max_level; lev++) {
+            amrex::Print() << "incompressible at level     : " << lev << " is " << incompressible[lev] << std::endl;
+        }
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
-        amrex::Print() << "use_rayleigh_damping        : " << use_rayleigh_damping << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
         if (coupling_type == CouplingType::TwoWay) {
@@ -299,11 +444,12 @@ struct SolverChoice {
             amrex::Print() << ")" << std::endl;
         }
 
+        amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;
+
            advChoice.display();
           diffChoice.display();
         spongeChoice.display();
 
-        int max_level = turbChoice.size()-1;
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].display(lev);
         }
@@ -323,23 +469,32 @@ struct SolverChoice {
         amrex::Real latitude = 90.0;
         pp.query("latitude", latitude);
 
+        pp.query("coriolis_3d", coriolis_3d);
+
         // Convert to radians
         latitude *= (PI/180.);
         sinphi = std::sin(latitude);
-        cosphi = std::cos(latitude);
+        if (coriolis_3d) {
+            cosphi = std::cos(latitude);
+        }
 
-        if (abl_driver_type == ABLDriverType::GeostrophicWind)
-        {
+        amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
+
+        if (abl_driver_type == ABLDriverType::GeostrophicWind) {
             // Read in the geostrophic wind -- we only use this to construct
             //     the forcing term so no need to keep it
             amrex::Vector<amrex::Real> abl_geo_wind(3);
             pp.queryarr("abl_geo_wind",abl_geo_wind);
 
-            abl_geo_forcing = {
-                -coriolis_factor * (abl_geo_wind[1]*sinphi - abl_geo_wind[2]*cosphi),
-                 coriolis_factor *  abl_geo_wind[0]*sinphi,
-                -coriolis_factor *  abl_geo_wind[0]*cosphi
-            };
+            if(!pp.query("abl_geo_wind_table",abl_geo_wind_table)) {
+                abl_geo_forcing = {
+                    -coriolis_factor * (abl_geo_wind[1]*sinphi - abl_geo_wind[2]*cosphi),
+                     coriolis_factor *  abl_geo_wind[0]*sinphi,
+                    -coriolis_factor *  abl_geo_wind[0]*cosphi
+                };
+            } else {
+                amrex::Print() << "NOTE: abl_geo_wind_table provided, ignoring input abl_geo_wind" << std::endl;
+            }
         }
     }
 
@@ -353,7 +508,13 @@ struct SolverChoice {
 
     int         no_substepping              = 0;
     int         force_stage1_single_substep = 1;
-    int         incompressible              = 0;
+
+    amrex::Vector<int> incompressible;
+    int         constant_density    = 0;
+    int         project_every_stage = 1;
+    int         ncorr               = 1;
+    amrex::Real poisson_abstol      = 1e-10;
+    amrex::Real poisson_reltol      = 1e-10;
 
     bool        test_mapfactor         = false;
 
@@ -363,11 +524,11 @@ struct SolverChoice {
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
-    bool        use_rayleigh_damping   = false;
+    bool        coriolis_3d            = true;
 
     bool        rayleigh_damp_U        = false;
     bool        rayleigh_damp_V        = false;
-    bool        rayleigh_damp_W        = true;
+    bool        rayleigh_damp_W        = false;
     bool        rayleigh_damp_T        = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
@@ -389,31 +550,60 @@ struct SolverChoice {
 
     // Coriolis forcing
     amrex::Real coriolis_factor = 0.0;
-    amrex::Real cosphi          = 0.0 ;
+    amrex::Real cosphi          = 0.0;
     amrex::Real sinphi          = 0.0;
 
     // User-specified forcings in problem definition
-    bool custom_rhotheta_forcing = false;
+    bool custom_rhotheta_forcing  = false;
+    bool custom_moisture_forcing  = false;
+    bool custom_w_subsidence      = false;
+    bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
+
+    // Do we use source terms to nudge the solution towards
+    //    the time-varying data provided in input sounding files?
+    bool nudging_from_input_sounding = false;
+
+    // User specified MOST BC type
+    bool use_explicit_most = false;
+
+    // MOST stress rotations
+    bool use_rotate_most = false;
+
+    // User wishes to output time averaged velocity fields
+    bool time_avg_vel = false;
+
+    // Type of perturbation
+    PerturbationType pert_type;
 
     // Numerical diffusion
     bool use_NumDiff{false};
     amrex::Real NumDiffCoeff{0.};
 
+    // Monotonic advection limiter
+    bool use_mono_adv{false};
+
     CouplingType coupling_type;
     TerrainType  terrain_type;
     MoistureType moisture_type;
     WindFarmType windfarm_type;
+    WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
+    std::string abl_geo_wind_table;
+    bool have_geo_wind_profile {false};
 
     int ave_plane {2};
     // Microphysics params
     bool do_cloud {true};
     bool do_precip {true};
     bool use_moist_background {false};
+
+    amrex::Real latitude_lo=-1e10, longitude_lo=-1e10;
+    std::string windfarm_loc_table, windfarm_spec_table;
+    amrex::Real sampling_distance_by_D=-1.0;
 };
 #endif

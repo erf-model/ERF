@@ -15,6 +15,7 @@ public:
                           amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
+                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
 
     // MOSTAverage() = default;
@@ -30,7 +31,7 @@ public:
 
     // Delete the copy constructor
     MOSTAverage (const MOSTAverage& other) = delete;
-    //
+
     // Delete the copy assignment operator
     MOSTAverage& operator=(const MOSTAverage& other) = delete;
 
@@ -38,7 +39,11 @@ public:
     void update_field_ptrs (int lev,
                             amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
-                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim);
+                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
+                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim);
+
+    // Update the rotated fields
+    void set_rotated_fields (int lev);
 
     // Compute ncells per plane
     void set_plane_normalization ();
@@ -131,6 +136,7 @@ public:
             }
         }
 
+        amrex::ignore_unused(found);
         AMREX_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
         const amrex::RealVect lx((xp - plo[0])*dxi[0] + 0.5,
@@ -162,14 +168,15 @@ protected:
     //--------------------------------------------
     const amrex::Vector<amrex::Geometry> m_geom;                     // Geometry at each level
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_fields;         // Ptr to fields to be averaged
-    amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain heigh coords
+    amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain height coords
 
     // General vars for multiple or all policies
     //--------------------------------------------
-    int m_nvar{4};                                                   // 4 fields for U/V/T/Qv
-    int m_navg{5};                                                   // 5 averages for U/V/T/Qv/Umag
-    int m_maxlev{0};                                                 // Total number of levels
-    int m_policy{0};                                                 // Policy for type of averaging
+    int  m_nvar{6};                                                  // 6 fields for U/V/T/Qv/Qr/W
+    int  m_navg{6};                                                  // 6 averages for U/V/T/Qv/Tv/Umag
+    int  m_maxlev{0};                                                // Total number of levels
+    int  m_policy{0};                                                // Policy for type of averaging
+    bool m_rotate{false};                                            // Do vector rotations for terrain?
     amrex::Real m_zref{10.0};                                        // Height above surface for MOST BC
     std::string m_pp_prefix {"erf"};                                 // ParmParse prefix
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_x_pos;         // Ptr to 2D mf to hold x position (maxlev)
@@ -179,6 +186,7 @@ protected:
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_j_indx;       // Ptr to 2D imf to hold j indices (maxlev)
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_k_indx;       // Ptr to 2D imf to hold k indices (maxlev)
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_averages; // Ptr to 2D mf to hold averages (maxlev,navg)
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_rot_fields; // Rotated field data
 
     // Vars for planar average policy
     //--------------------------------------------
@@ -202,5 +210,10 @@ protected:
     amrex::Vector<int> m_t_init;                                     // Flag to specify if averages are initialized
     amrex::Real m_time_window{1.0e-16};                              // Width of the exp filter function
     amrex::Real m_fact_new, m_fact_old;                              // Time average factors for new and old means
+
+    // Surface velocity correction
+    //--------------------------------------------
+    bool include_subgrid_vel = false;
+    amrex::Vector<amrex::Real> m_Vsg;                                // Subgrid velocity scale (Mahrt & Sun 1995 MWR)
 };
 #endif

@@ -1,6 +1,7 @@
 #include <NCWpsFile.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_IArrayBox.H>
+#include <Metgrid_utils.H>
 
 using namespace amrex;
 
@@ -19,11 +20,15 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
                    FArrayBox& NC_hgt_fab,  FArrayBox& NC_psfc_fab,
                    FArrayBox& NC_msfu_fab, FArrayBox& NC_msfv_fab,
                    FArrayBox& NC_msfm_fab, FArrayBox& NC_sst_fab,
-                   IArrayBox& NC_lmask_iab)
+                   FArrayBox& NC_LAT_fab,  FArrayBox& NC_LON_fab,
+                   IArrayBox& NC_lmask_iab,
+                   Real& Latitude,
+                   Real& Longitude,
+                   Geometry& geom)
 {
-    amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
+    Print() << "Loading header data from NetCDF file at level " << lev << std::endl;
 
-    if (amrex::ParallelDescriptor::IOProcessor()) {
+    if (ParallelDescriptor::IOProcessor()) {
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
         { // Global Attributes (int)
             std::vector<int> attr;
@@ -42,7 +47,7 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
             ncf.get_attr("FLAG_MAPFAC_V", attr); flag_msfv  = attr[0];
             ncf.get_attr("FLAG_MAPFAC_M", attr); flag_msfm  = attr[0];
             ncf.get_attr("FLAG_HGT_M", attr);    flag_hgt   = attr[0];
-            ncf.get_attr("FLAG_SST", attr);      flag_sst   = attr[0];
+            flag_sst = 0; //ncf.get_attr("FLAG_SST", attr);      flag_sst   = attr[0];
             ncf.get_attr("FLAG_LANDMASK", attr); flag_lmask = attr[0];
 
 
@@ -60,6 +65,23 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
             ncf.get_attr("DY", attr); NC_dy = attr[0];
         }
         ncf.close();
+
+        // Verify the inputs geometry matches what the NETCDF file has
+        Real tol   = 1.0e-3;
+        Real Len_x = NC_dx * Real(NC_nx-1);
+        Real Len_y = NC_dy * Real(NC_ny-1);
+        if (std::fabs(Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) > tol) {
+            Print() << "X problem extent " << (geom.ProbHi(0) - geom.ProbLo(0)) << " does not match NETCDF file "
+                    << Len_x << "!\n";
+            Print() << "dx: " << NC_dx << ' ' << "Nx: " << NC_nx-1 << "\n";
+            Abort("Domain specification error");
+        }
+        if (std::fabs(Len_y - (geom.ProbHi(1) - geom.ProbLo(1))) > tol) {
+            Print() << "Y problem extent " << (geom.ProbHi(1) - geom.ProbLo(1)) << " does not match NETCDF file "
+                    << Len_y << "!\n";
+            Print() << "dy: " << NC_dy << ' ' << "Ny: " << NC_ny-1 << "\n";
+            Abort("Domain specification error");
+        }
     }
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
     ParallelDescriptor::Bcast(&flag_psfc,    1, ioproc);
@@ -75,6 +97,8 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     ParallelDescriptor::Bcast(&NC_dx,        1, ioproc);
     ParallelDescriptor::Bcast(&NC_dy,        1, ioproc);
 
+    Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
+
     Vector<FArrayBox*>  NC_fabs;
     Vector<IArrayBox*>  NC_iabs;
     Vector<std::string> NC_fnames;
@@ -88,6 +112,8 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     NC_fabs.push_back(&NC_rhum_fab);      NC_fnames.push_back("RH");        NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_pres_fab);      NC_fnames.push_back("PRES");      NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_ght_fab);       NC_fnames.push_back("GHT");       NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_LAT_fab);       NC_fnames.push_back("XLAT_V");    NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+    NC_fabs.push_back(&NC_LON_fab);       NC_fnames.push_back("XLONG_U");   NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
 
     if (flag_psfc)  { NC_fabs.push_back(&NC_psfc_fab);      NC_fnames.push_back("PSFC");      NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
     if (flag_msfu)  { NC_fabs.push_back(&NC_msfu_fab);      NC_fnames.push_back("MAPFAC_U");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
@@ -99,29 +125,35 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     if (flag_lmask) { NC_iabs.push_back(&NC_lmask_iab);     NC_inames.push_back("LANDMASK");   NC_idim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
 
     // Read the netcdf file and fill these FABs
-    amrex::Print() << "Building initial FABS from file " << fname << std::endl;
-    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs);
+    std::string Lat_var_name = "XLAT_V";
+    std::string Lon_var_name = "XLONG_U";
+    Print() << "Building initial FABS from file " << fname << std::endl;
+    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, Latitude, Longitude,
+                                            Lat_var_name, Lon_var_name,
+                                            fname, NC_fnames, NC_fdim_types, NC_fabs);
 
     // Read the netcdf file and fill these IABs
-    amrex::Print() << "Building initial IABS from file " << fname << std::endl;
-    BuildFABsFromNetCDFFile<IArrayBox,int>(domain, fname, NC_inames, NC_idim_types, NC_iabs);
+    Print() << "Building initial IABS from file " << fname << std::endl;
+    BuildFABsFromNetCDFFile<IArrayBox,int>(domain, Latitude, Longitude,
+                                           Lat_var_name, Lon_var_name,
+                                           fname, NC_inames, NC_idim_types, NC_iabs);
 
     // TODO: FIND OUT IF WE NEED TO DIVIDE VELS BY MAPFAC
     //
     // Convert the velocities using the map factors
     //
     const Box& uubx = NC_xvel_fab.box();
-    const Array4<Real>    u_arr = NC_xvel_fab.array();
-    const Array4<Real> msfu_arr = NC_msfu_fab.array();
-    ParallelFor(uubx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    // const Array4<Real>    u_arr = NC_xvel_fab.array();
+    // const Array4<Real> msfu_arr = NC_msfu_fab.array();
+    ParallelFor(uubx, [=] AMREX_GPU_DEVICE (int , int , int )
     {
         // u_arr(i,j,k) /= msfu_arr(i,j,0);
     });
 
     const Box& vvbx = NC_yvel_fab.box();
-    const Array4<Real>    v_arr = NC_yvel_fab.array();
-    const Array4<Real> msfv_arr = NC_msfv_fab.array();
-    ParallelFor(vvbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    // const Array4<Real>    v_arr = NC_yvel_fab.array();
+    // const Array4<Real> msfv_arr = NC_msfv_fab.array();
+    ParallelFor(vvbx, [=] AMREX_GPU_DEVICE (int , int , int )
     {
         // v_arr(i,j,k) /= msfv_arr(i,j,0);
     });

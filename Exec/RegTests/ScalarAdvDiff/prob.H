@@ -14,6 +14,7 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real B_0   = 0.0;
   amrex::Real u_0   = 0.0;
   amrex::Real v_0   = 0.0;
+  amrex::Real w_0   = 0.0;
   amrex::Real rad_0 = 0.0;
   amrex::Real z0    = 0.1;  // Surface Roughness
   amrex::Real zRef  = 80.0; // Reference Height
@@ -38,10 +39,11 @@ public:
         const amrex::Box& xbx,
         const amrex::Box& ybx,
         const amrex::Box& zbx,
-        amrex::Array4<amrex::Real      > const& state,
-        amrex::Array4<amrex::Real      > const& x_vel,
-        amrex::Array4<amrex::Real      > const& y_vel,
-        amrex::Array4<amrex::Real      > const& z_vel,
+        amrex::Array4<amrex::Real const> const& state,
+        amrex::Array4<amrex::Real      > const& state_pert,
+        amrex::Array4<amrex::Real      > const& x_vel_pert,
+        amrex::Array4<amrex::Real      > const& y_vel_pert,
+        amrex::Array4<amrex::Real      > const& z_vel_pert,
         amrex::Array4<amrex::Real      > const& r_hse,
         amrex::Array4<amrex::Real      > const& p_hse,
         amrex::Array4<amrex::Real const> const& z_nd,

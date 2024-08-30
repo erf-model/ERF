@@ -31,7 +31,7 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -46,12 +46,24 @@ jobs:
         # Install MPI
         ${{matrix.install_deps}}
 
+    - name: Install CCache
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
+
+    - name: Set Up Cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        restore-keys: |
+             ccache-${{ github.workflow }}-${{ github.job }}-git-
+
     - name: Configure CMake
       run: |
         cmake \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
           -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_TESTS:BOOL=ON \
@@ -63,7 +75,25 @@ jobs:
 
     - name: Build
       run: |
-        cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}};
+        export CCACHE_COMPRESS=1
+        export CCACHE_COMPRESSLEVEL=10
+        export CCACHE_MAXSIZE=600M
+        ccache -z
+
+        cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}} \
+        2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
+
+        ccache -s
+        du -hs ~/.cache/ccache
+
+    - name: Report
+      run: |
+        egrep "warning:|error:" ${{runner.workspace}}/build-output.txt \
+          | egrep -v "Submodules/amrex" | egrep -v "lto-wrapper: warning:" | sort | uniq \
+          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
+        cat ${{runner.workspace}}/build-output-warnings.txt
+        export return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
+        exit ${return}
 
     - name: Regression Tests
       run: |
@@ -81,16 +111,31 @@ jobs:
     #     cd ..
     #     gcovr -g -k -r . --xml regressioncov.html  # -v
     # - name: Success artifacts
-    #   uses: actions/upload-artifact@v3
+    #   uses: actions/upload-artifact@v4
     #   if: success()
     #   with:
     #     name: build-and-test
     #     path: |
     #       ${{runner.workspace}}/ERF/regressioncov.html
     # - name: Failing test artifacts
-    #   uses: actions/upload-artifact@v3
+    #   uses: actions/upload-artifact@v4
     #   if: failure()
     #   with:
     #     name: build-and-test
     #     path: |
     #       ${{runner.workspace}}/ERF/regressioncov.html
+
+  save_pr_number:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save PR number
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          echo $PR_NUMBER > pr_number.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr_number
+          path: pr_number.txt
+          retention-days: 1

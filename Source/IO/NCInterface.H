@@ -231,26 +231,20 @@ public:
     //! Get the variable instance by name
     [[nodiscard]] NCVar var (const std::string&) const;
 
-    //! Define new group
-    [[nodiscard]] NCGroup def_group (const std::string&) const;
-
     //! Define new dimension
-    [[nodiscard]] NCDim def_dim (const std::string&, size_t len) const;
-
-    //! Define a scalar variable, i.e., 0-dimensional array
-    [[nodiscard]] NCVar def_scalar (const std::string& name, nc_type dtype) const;
+    void def_dim (const std::string&, size_t len) const;
 
     //! Define an array
-    [[nodiscard]] NCVar def_array (const std::string& name,
-                                   nc_type dtype,
-                                   const std::vector<std::string>&) const;
+    void def_array (const std::string& name,
+                    nc_type dtype,
+                    const std::vector<std::string>&) const;
 
     //! Define a variable (wrapper for def_array)
-    [[nodiscard]] NCVar def_var (const std::string& name,
-                                 const nc_type dtype,
-                                 const std::vector<std::string>& dnames) const
+    void def_var (const std::string& name,
+                  const nc_type dtype,
+                  const std::vector<std::string>& dnames) const
     {
-        return def_array(name, dtype, dnames);
+        def_array(name, dtype, dnames);
     }
 
     void put_attr (const std::string& name, const std::string& value) const;

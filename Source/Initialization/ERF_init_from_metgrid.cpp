@@ -17,12 +17,11 @@ ERF::init_from_metgrid (int lev)
 {
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     if (use_moisture) {
-        amrex::Print() << "Init with met_em with valid moisture model." << std::endl;
+        Print() << "Init with met_em with valid moisture model." << std::endl;
     } else {
-        amrex::Print() << "Init with met_em without moisture model." << std::endl;
+        Print() << "Init with met_em without moisture model." << std::endl;
     }
 
-    int nboxes = num_boxes_at_level[lev];
     int ntimes = num_files_at_level[lev];
 
     if (nc_init_file.empty())
@@ -51,6 +50,8 @@ ERF::init_from_metgrid (int lev)
     Vector<FArrayBox> NC_MSFV_fab;   NC_MSFV_fab.resize(ntimes);
     Vector<FArrayBox> NC_MSFM_fab;   NC_MSFM_fab.resize(ntimes);
     Vector<FArrayBox> NC_sst_fab;    NC_sst_fab.resize (ntimes);
+    Vector<FArrayBox> NC_LAT_fab;    NC_LAT_fab.resize (ntimes);
+    Vector<FArrayBox> NC_LON_fab;    NC_LON_fab.resize (ntimes);
 
     // *** IArrayBox's at this level for holding mask data
     Vector<IArrayBox> NC_lmask_iab; NC_lmask_iab.resize(ntimes);
@@ -87,7 +88,8 @@ ERF::init_from_metgrid (int lev)
                           NC_temp_fab[it], NC_rhum_fab[it], NC_pres_fab[it],
                           NC_ght_fab[it],  NC_hgt_fab[it],  NC_psfc_fab[it],
                           NC_MSFU_fab[it], NC_MSFV_fab[it], NC_MSFM_fab[it],
-                          NC_sst_fab[it],  NC_lmask_iab[it]);
+                          NC_sst_fab[it],  NC_LAT_fab[it],  NC_LON_fab[it],
+                          NC_lmask_iab[it], Latitude,       Longitude,       geom[lev]);
     } // it
 
     // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
@@ -136,9 +138,9 @@ ERF::init_from_metgrid (int lev)
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(geom[lev], *z_phys, zlevels_stag);
+    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag, phys_bc_type);
 
-    // Copy SST and LANDMASK data into MF and iMF data structures
+    // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();
     auto& dm = lev_new[Vars::cons].DistributionMap();
     auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
@@ -170,6 +172,7 @@ ERF::init_from_metgrid (int lev)
     } else {
         for (int it = 0; it < ntimes; ++it) sst_lev[lev][it] = nullptr;
     }
+
     if (flag_lmask[0]) {
         for (int it = 0; it < ntimes; ++it) {
             lmask_lev[lev][it] = std::make_unique<iMultiFab>(ba2d,dm,1,ngv);
@@ -188,8 +191,36 @@ ERF::init_from_metgrid (int lev)
             }
             lmask_lev[lev][it]->FillBoundary(geom[lev].periodicity());
         }
-    } else {
-        for (int it = 0; it < ntimes; ++it) lmask_lev[lev][it] = nullptr;
+    }
+
+    lat_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        Box gtbx = mfi.growntilebox();
+        FArrayBox& dst = (*(lat_m[lev]))[mfi];
+        FArrayBox& src = NC_LAT_fab[0];
+        const Array4<      Real>& dst_arr = dst.array();
+        const Array4<const Real>& src_arr = src.const_array();
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            dst_arr(i,j,0) = src_arr(li,lj,0);
+        });
+    }
+
+    lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        Box gtbx = mfi.growntilebox();
+        FArrayBox& dst = (*(lon_m[lev]))[mfi];
+        FArrayBox& src = NC_LON_fab[0];
+        const Array4<      Real>& dst_arr = dst.array();
+        const Array4<const Real>& src_arr = src.const_array();
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            dst_arr(i,j,0) = src_arr(li,lj,0);
+        });
     }
 
     for (int it = 0; it < ntimes; it++) {
@@ -204,6 +235,7 @@ ERF::init_from_metgrid (int lev)
 
     // This makes the Jacobian.
     make_J(geom[lev],*z_phys,  *detJ_cc[lev]);
+    make_areas(geom[lev],*z_phys,*ax[lev],*ay[lev],*az[lev]);
 
     // This defines z at w-cell faces.
     make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);
@@ -345,7 +377,7 @@ ERF::init_from_metgrid (int lev)
     // NOTE: We must guarantee one halo cell in the bdy file.
     //       Otherwise, we make the total width match the set width.
     if (real_width-1 <= real_set_width) real_width = real_set_width;
-    amrex::Print() << "Running with specification width: " << real_set_width
+    Print() << "Running with specification width: " << real_set_width
                    << " and relaxation width: " << real_width - real_set_width << std::endl;
 
     // Set up boxes for lateral boundary arrays.
@@ -416,7 +448,7 @@ ERF::init_from_metgrid (int lev)
                 bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
             } else {
 #ifndef AMREX_USE_GPU
-                amrex::Print() << "Unexpected ivar " << ivar << std::endl;
+                Print() << "Unexpected ivar " << ivar << std::endl;
 #endif
                 amrex::Abort("See Initialization/ERF_init_from_metgrid.cpp");
             }
@@ -466,25 +498,25 @@ ERF::init_from_metgrid (int lev)
             // west boundary
             ParallelFor(xlo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
+                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 xlo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at east boundary
             ParallelFor(xhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
+                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 xhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at south boundary
             ParallelFor(ylo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
+                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 ylo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at north boundary
             ParallelFor(yhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
+                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 yhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
 
@@ -543,16 +575,16 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
  * @param y_vel_fab FArrayBox holding the y-velocity data to initialize
  * @param z_vel_fab FArrayBox holding the z-velocity data to initialize
  * @param z_phys_nd_fab FArrayBox holding nodal z coordinate data for terrain
- * @param NC_hgt_fab Vector of FArrayBox obects holding metgrid data for terrain height
- * @param NC_ght_fab Vector of FArrayBox objects holding metgrid data for height of cell centers
- * @param NC_xvel_fab Vector of FArrayBox obects holding metgrid data for x-velocity
- * @param NC_yvel_fab Vector of FArrayBox obects holding metgrid data for y-velocity
- * @param NC_zvel_fab Vector of FArrayBox obects holding metgrid data for z-velocity
- * @param NC_temp_fab Vector of FArrayBox obects holding metgrid data for temperature
- * @param NC_rhum_fab Vector of FArrayBox obects holding metgrid data for relative humidity
- * @param NC_pres_fab Vector of FArrayBox obects holding metgrid data for pressure
- * @param theta_fab Vector of FArrayBox obects holding potential temperature calculated from temperature and pressure
- * @param mxrat_fab Vector of FArrayBox obects holding vapor mixing ratio calculated from relative humidity
+ * @param NC_hgt_fab  Vector of FArrayBox objects holding metgrid data for terrain height
+ * @param NC_ght_fab  Vector of FArrayBox objects holding metgrid data for height of cell centers
+ * @param NC_xvel_fab Vector of FArrayBox objects holding metgrid data for x-velocity
+ * @param NC_yvel_fab Vector of FArrayBox objects holding metgrid data for y-velocity
+ * @param NC_zvel_fab Vector of FArrayBox objects holding metgrid data for z-velocity
+ * @param NC_temp_fab Vector of FArrayBox objects holding metgrid data for temperature
+ * @param NC_rhum_fab Vector of FArrayBox objects holding metgrid data for relative humidity
+ * @param NC_pres_fab Vector of FArrayBox objects holding metgrid data for pressure
+ * @param theta_fab Vector of FArrayBox objects holding potential temperature calculated from temperature and pressure
+ * @param mxrat_fab Vector of FArrayBox objects holding vapor mixing ratio calculated from relative humidity
  * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
  */
 void
@@ -769,7 +801,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& p_hse_fab,
                               FArrayBox& pi_hse_fab,
                               FArrayBox& z_phys_cc_fab,
-                              const Vector<FArrayBox>& NC_ght_fab,
+                              const Vector<FArrayBox>& /*NC_ght_fab*/,
                               const Vector<FArrayBox>& NC_psfc_fab,
                               Vector<Vector<FArrayBox>>& fabs_for_bcs,
                               const amrex::Array4<const int>& mask_c_arr)
@@ -995,7 +1027,7 @@ init_msfs_from_metgrid (FArrayBox& msfu_fab,
             msfm_fab.template copy<RunOn::Device>(NC_MSFM_fab[it]);
         } else {
 #ifndef AMREX_USE_GPU
-            amrex::Print() << " MAPFAC_M not present in met_em files. Setting to 1.0" << std::endl;
+            Print() << " MAPFAC_M not present in met_em files. Setting to 1.0" << std::endl;
 #endif
             msfm_fab.template setVal<RunOn::Device>(1.0);
         }
@@ -1005,7 +1037,7 @@ init_msfs_from_metgrid (FArrayBox& msfu_fab,
             msfu_fab.template copy<RunOn::Device>(NC_MSFU_fab[it]);
         } else {
 #ifndef AMREX_USE_GPU
-            amrex::Print() << " MAPFAC_U not present in met_em files. Setting to 1.0" << std::endl;
+            Print() << " MAPFAC_U not present in met_em files. Setting to 1.0" << std::endl;
 #endif
             msfu_fab.template setVal<RunOn::Device>(1.0);
         }
@@ -1015,7 +1047,7 @@ init_msfs_from_metgrid (FArrayBox& msfu_fab,
             msfv_fab.template copy<RunOn::Device>(NC_MSFV_fab[it]);
         } else {
 #ifndef AMREX_USE_GPU
-            amrex::Print() << " MAPFAC_V not present in met_em files. Setting to 1.0" << std::endl;
+            Print() << " MAPFAC_V not present in met_em files. Setting to 1.0" << std::endl;
 #endif
             msfv_fab.template setVal<RunOn::Device>(1.0);
         }

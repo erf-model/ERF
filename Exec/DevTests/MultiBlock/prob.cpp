@@ -32,10 +32,11 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const&,
@@ -57,7 +58,7 @@ Problem::init_custom_pert(
   const Real dz        = geomdata.CellSize()[2];
   const Real prob_lo_z = geomdata.ProbLo()[2];
 
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
     const auto prob_lo  = geomdata.ProbLo();
@@ -69,44 +70,44 @@ Problem::init_custom_pert(
     const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
     Real L = std::sqrt(
-        std::pow((x - parms.x_c)/parms.x_r, 2) +
-        std::pow((z - parms.z_c)/parms.z_r, 2)
+        std::pow((x - parms_d.x_c)/parms_d.x_r, 2) +
+        std::pow((z - parms_d.z_c)/parms_d.z_r, 2)
     );
     if (L <= 1.0) {
-        Real dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
+        Real dT = parms_d.T_pert * (std::cos(PI*L) + 1.0)/2.0;
 
         // Note: dT is a temperature perturbation, theta_perturbed is base state + perturbation in theta
-        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms.C_p);
+        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms_d.C_p);
 
         // This version perturbs rho but not p
-        state(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
+        state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
     }
 
     // Set scalar = 0 everywhere
-    state(i, j, k, RhoScalar_comp) = 0.0;
+    state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
       if (use_moisture) {
-          state(i, j, k, RhoQ1_comp) = 0.0;
-          state(i, j, k, RhoQ2_comp) = 0.0;
+          state_pert(i, j, k, RhoQ1_comp) = 0.0;
+          state_pert(i, j, k, RhoQ2_comp) = 0.0;
       }
   });
 
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      x_vel(i, j, k) = parms.U_0;
+      x_vel_pert(i, j, k) = parms_d.U_0;
   });
 
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      y_vel(i, j, k) = 0.0;
+      y_vel_pert(i, j, k) = 0.0;
   });
 
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0;
+      z_vel_pert(i, j, k) = 0.0;
   });
 
   amrex::Gpu::streamSynchronize();

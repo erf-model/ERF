@@ -3,7 +3,7 @@
 Testing and Verification
 ------------------------
 
-Testing and verfication of ERF can be performed using CTest, which is included in the CMake build system. If one builds ERF with CMake, the testing suite, and the verification suite, can be enabled during the CMake configure step.
+Testing and verification of ERF can be performed using CTest, which is included in the CMake build system. If one builds ERF with CMake, the testing suite, and the verification suite, can be enabled during the CMake configure step.
 
 An example ``cmake`` configure command performed in the ``Build`` directory in ERF is shown below with options relevant to the testing suite:
 

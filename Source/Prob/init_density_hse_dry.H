@@ -2,7 +2,7 @@
  * Initialize hydrostatically balanced density
  *
  * Calls init_isentropic_hse_terrain() or init_isentropic_hse() for cases with
- * and without terrain. Hydrostatic equlibrium (HSE) is satisfied discretely.
+ * and without terrain. Hydrostatic equilibrium (HSE) is satisfied discretely.
  * Note that these routines presume that qv==0 when evaluating the EOS. Both
  * density and pressure in HSE are calculated but only the density is used at
  * this point.
@@ -15,7 +15,6 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
 {
     const amrex::Real prob_lo_z = geom.ProbLo()[2];
     const amrex::Real dz        = geom.CellSize()[2];
-    const int khi               = geom.Domain().bigEnd()[2];
 
     const amrex::Real T_sfc    = 300.;
     const amrex::Real rho_sfc  = p_0 / (R_d*T_sfc);
@@ -24,7 +23,10 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
     // use_terrain = 1
     if (z_phys_nd) {
 
-        if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
+        const int domlo_z = geom.Domain().smallEnd(2);
+        const int domhi_z = geom.Domain().bigEnd(2);
+
+        if (domhi_z > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
 
         for ( amrex::MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
         {
@@ -37,21 +39,36 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
             b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
             b2d.setRange(2,0);
 
+            const int klo = tbz.smallEnd(2);
+            const int khi = tbz.bigEnd(2)-1;
+
             amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
               amrex::Array1D<amrex::Real,0,255> r;;
               amrex::Array1D<amrex::Real,0,255> p;;
 
-              HSEutils::init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
+              if (klo == 0) {
+                  HSEutils::init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
+              } else {
+                  HSEutils::init_isentropic_hse_terrain(i,j,rho_arr(i,j,klo-1),Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
+              }
 
-              for (int k = 0; k <= khi; k++) {
+              for (int k = klo; k <= khi; k++) {
                  rho_arr(i,j,k) = r(k);
               }
-              rho_arr(i,j,   -1) = rho_arr(i,j,0);
-              rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
+
+              // Impose Neumann conditions at bottom and top of domain boundary
+              if (klo == domlo_z) {
+                  rho_arr(i,j,domlo_z-1) = rho_arr(i,j,domlo_z);
+              }
+              if (khi == domhi_z) {
+                  rho_arr(i,j,domhi_z+1) = rho_arr(i,j,domhi_z);
+              }
             });
         } // mfi
 
     } else { // use_terrain = 0
+
+        const int khi = geom.Domain().bigEnd(2);
 
         // These are at cell centers (unstaggered)
         amrex::Vector<amrex::Real> h_r(khi+2);

@@ -408,7 +408,7 @@ Test Location: `Tests/test_files/CouetteFlow`_
 
 Problem Location: `Exec/RegTests/CouetteFlow`_
 
-.. _`Exec/RegTests/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/CouetteFlow
+.. _`Exec/RegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
 
 Poiseuille Flow
 ---------------
@@ -424,7 +424,7 @@ Test Location: `Tests/test_files/PoiseuilleFlow`_
 
 Problem Location: `Exec/RegTests/PoiseuilleFlow`_
 
-.. _`Exec/RegTests/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/PoiseuilleFlow
+.. _`Exec/RegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
 
 Nonlinear Density Current
 ---------------------------
@@ -452,4 +452,4 @@ Test Location: `Tests/test_files/EkmanSpiral`_
 
 Problem Location: `Exec/RegTests/EkmanSpiral`_
 
-.. _`Exec/RegTests/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/EkmanSpiral_ideal
+.. _`Exec/RegTests/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/EkmanSpiral

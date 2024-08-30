@@ -78,7 +78,7 @@ namespace WRFBdyVars {
         T  = 3,
         QV    , // water vapor
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
-        PC    , // p_s - p_top = dry hydrostatic pressure diference between the surface and the model top
+        PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
         NumTypes
     };
 }
@@ -136,7 +136,7 @@ namespace EddyDiff {
 }
 
 enum struct ERF_BC {
-    symmetry, inflow, outflow, no_slip_wall, slip_wall, periodic, MOST, undefined
+    symmetry, inflow, outflow, ho_outflow, open, no_slip_wall, slip_wall, periodic, MOST, undefined
 };
 
 // NOTE: the first of these must match up with the BCType enum
@@ -150,10 +150,13 @@ enum mathematicalBndryTypes : int {
     reflect_even =  1,
     foextrap     =  2,
     ext_dir      =  3,
-    MOST         =  101,
-    ext_dir_ingested =  102,
-    neumann          =  103,
-    neumann_int      =  104
+    MOST             =  101,
+    ext_dir_prim     =  102,
+    ext_dir_ingested =  103,
+    neumann          =  104,
+    neumann_int      =  105,
+    open             =  106,
+    hoextrapcc       =  107
 };
 }
 

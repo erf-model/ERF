@@ -7,6 +7,8 @@
 #include <prob_common.H>
 #include <Utils/ParFunctions.H>
 
+#include <Interpolation_1D.H>
+
 using namespace amrex;
 
 /**
@@ -17,8 +19,6 @@ using namespace amrex;
 void
 ERF::initRayleigh ()
 {
-    AMREX_ALWAYS_ASSERT(solverChoice.use_rayleigh_damping);
-
     h_rayleigh_ptrs.resize(max_level+1);
     d_rayleigh_ptrs.resize(max_level+1);
 
@@ -41,8 +41,8 @@ ERF::initRayleigh ()
 
         // Copy from host vectors to device vectors
         for (int n = 0; n < Rayleigh::nvars; n++) {
-            amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][n].begin(), h_rayleigh_ptrs[lev][n].end(),
-                             d_rayleigh_ptrs[lev][n].begin());
+            Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][n].begin(), h_rayleigh_ptrs[lev][n].end(),
+                      d_rayleigh_ptrs[lev][n].begin());
         }
     }
 }
@@ -61,14 +61,17 @@ ERF::setRayleighRefFromSounding (bool restarting)
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
     if (restarting) {
-        input_sounding_data.read_from_file(input_sounding_file, geom[0], zlevels_stag);
+        input_sounding_data.resize_arrays();
+        for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
+            input_sounding_data.read_from_file(geom[0], zlevels_stag, n);
+        }
     }
 
-    const Real* z_inp_sound     = input_sounding_data.z_inp_sound.dataPtr();
-    const Real* U_inp_sound     = input_sounding_data.U_inp_sound.dataPtr();
-    const Real* V_inp_sound     = input_sounding_data.V_inp_sound.dataPtr();
-    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound.dataPtr();
-    const int   inp_sound_size  = input_sounding_data.size();
+    const Real* z_inp_sound     = input_sounding_data.z_inp_sound[0].dataPtr();
+    const Real* U_inp_sound     = input_sounding_data.U_inp_sound[0].dataPtr();
+    const Real* V_inp_sound     = input_sounding_data.V_inp_sound[0].dataPtr();
+    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound[0].dataPtr();
+    const int   inp_sound_size  = input_sounding_data.size(0);
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
@@ -78,7 +81,7 @@ ERF::setRayleighRefFromSounding (bool restarting)
         if (z_phys_cc[lev]) {
             // use_terrain=1
             // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
+            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
         } else {
             const auto *const prob_lo = geom[lev].ProbLo();
             const auto *const dx = geom[lev].CellSize();
@@ -95,24 +98,105 @@ ERF::setRayleighRefFromSounding (bool restarting)
             h_rayleigh_ptrs[lev][Rayleigh::wbar][k]         = Real(0.0);
             h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc[k], inp_sound_size);
             if (h_rayleigh_ptrs[lev][Rayleigh::tau][k] > 0) {
-                                                  amrex::Print() << zcc[k] << ":" << " tau=" << h_rayleigh_ptrs[lev][Rayleigh::tau][k];
-                if (solverChoice.rayleigh_damp_U) amrex::Print() << " ubar    = " << h_rayleigh_ptrs[lev][Rayleigh::ubar][k];
-                if (solverChoice.rayleigh_damp_V) amrex::Print() << " vbar    = " << h_rayleigh_ptrs[lev][Rayleigh::vbar][k];
-                if (solverChoice.rayleigh_damp_W) amrex::Print() << " wbar    = " << h_rayleigh_ptrs[lev][Rayleigh::wbar][k];
-                if (solverChoice.rayleigh_damp_T) amrex::Print() << " thetabar= " << h_rayleigh_ptrs[lev][Rayleigh::thetabar][k];
-                amrex::Print() << std::endl;
+                                                  Print() << zcc[k] << ":" << " tau=" << h_rayleigh_ptrs[lev][Rayleigh::tau][k];
+                if (solverChoice.rayleigh_damp_U) Print() << " ubar    = " << h_rayleigh_ptrs[lev][Rayleigh::ubar][k];
+                if (solverChoice.rayleigh_damp_V) Print() << " vbar    = " << h_rayleigh_ptrs[lev][Rayleigh::vbar][k];
+                if (solverChoice.rayleigh_damp_W) Print() << " wbar    = " << h_rayleigh_ptrs[lev][Rayleigh::wbar][k];
+                if (solverChoice.rayleigh_damp_T) Print() << " thetabar= " << h_rayleigh_ptrs[lev][Rayleigh::thetabar][k];
+                Print() << std::endl;
             }
         }
 
         // Copy from host version to device version
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::ubar].begin(), h_rayleigh_ptrs[lev][Rayleigh::ubar].end(),
+        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::ubar].begin(), h_rayleigh_ptrs[lev][Rayleigh::ubar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::ubar].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::vbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::vbar].end(),
+        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::vbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::vbar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::vbar].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::wbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::wbar].end(),
+        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::wbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::wbar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::wbar].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
+        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::thetabar].begin());
+    }
+}
+
+/**
+ * Initialization function for host and device vectors
+ * used to store the effects of sponge Damping.
+ */
+void
+ERF::initSponge ()
+{
+    h_sponge_ptrs.resize(max_level+1);
+    d_sponge_ptrs.resize(max_level+1);
+
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        // These have 2 components: ubar, vbar
+        h_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
+        d_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
+
+        const int zlen_sponge = geom[lev].Domain().length(2);
+
+        // Allocate space for these 1D vectors
+        for (int n = 0; n < Sponge::nvars_sponge; n++) {
+            h_sponge_ptrs[lev][n].resize(zlen_sponge, 0.0_rt);
+            d_sponge_ptrs[lev][n].resize(zlen_sponge, 0.0_rt);
+        }
+
+    }
+}
+
+/**
+ * Sets the sponge damping averaged quantities from an
+ * externally supplied input sponge data file.
+ *
+ * @param[in] restarting Boolean parameter that indicates whether
+                         we are currently restarting from a checkpoint file.
+ */
+void
+ERF::setSpongeRefFromSounding (bool restarting)
+{
+    // If we are restarting then we haven't read the input_sponge file yet
+    //    so we need to read it here
+    // TODO: should we store this information in the checkpoint file instead?
+    if (restarting) {
+        input_sponge_data.read_from_file(geom[0], zlevels_stag);
+    }
+
+    const Real* z_inp_sponge     = input_sponge_data.z_inp_sponge.dataPtr();
+    const Real* U_inp_sponge     = input_sponge_data.U_inp_sponge.dataPtr();
+    const Real* V_inp_sponge     = input_sponge_data.V_inp_sponge.dataPtr();
+    const int   inp_sponge_size  = input_sponge_data.size();
+
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        const int khi = geom[lev].Domain().bigEnd()[2];
+        Vector<Real> zcc(khi+1);
+
+        if (z_phys_cc[lev]) {
+            // use_terrain=1
+            // calculate the damping strength based on the max height at each k
+            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
+        } else {
+            const auto *const prob_lo = geom[lev].ProbLo();
+            const auto *const dx = geom[lev].CellSize();
+            for (int k = 0; k <= khi; k++)
+            {
+                zcc[k] = prob_lo[2] + (k+0.5) * dx[2];
+            }
+        }
+
+        for (int k = 0; k <= khi; k++)
+        {
+            h_sponge_ptrs[lev][Sponge::ubar_sponge][k] = interpolate_1d(z_inp_sponge, U_inp_sponge, zcc[k], inp_sponge_size);
+            h_sponge_ptrs[lev][Sponge::vbar_sponge][k] = interpolate_1d(z_inp_sponge, V_inp_sponge, zcc[k], inp_sponge_size);
+        }
+
+        // Copy from host version to device version
+        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Sponge::ubar_sponge].begin(), h_sponge_ptrs[lev][Sponge::ubar_sponge].end(),
+                         d_sponge_ptrs[lev][Sponge::ubar_sponge].begin());
+        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Sponge::vbar_sponge].begin(), h_sponge_ptrs[lev][Sponge::vbar_sponge].end(),
+                         d_sponge_ptrs[lev][Sponge::vbar_sponge].begin());
     }
 }
 
@@ -136,7 +220,43 @@ ERF::initHSE (int lev)
 
     // This integrates up through column to update p_hse, pi_hse;
     // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
-    erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev], z_phys_nd[lev]);
+    if (lev == 0) {
+        BoxArray ba(base_state[lev].boxArray());
+        Box domain(geom[lev].Domain());
+        bool all_boxes_touch_bottom = true;
+        for (int i = 0; i < ba.size(); i++) {
+            if (ba[i].smallEnd(2) != domain.smallEnd(2)) {
+                all_boxes_touch_bottom = false;
+            }
+        }
+        if (all_boxes_touch_bottom) {
+            erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+        } else {
+            BoxArray ba_new(domain);
+            ChopGrids2D(0, ba_new, ParallelDescriptor::NProcs());
+
+            DistributionMapping dm_new(ba_new);
+
+            MultiFab new_base_state(ba_new, dm_new, 3, 1);
+            new_base_state.ParallelCopy(base_state[lev],0,0,3,1,1);
+
+            MultiFab r_hse_new (new_base_state, make_alias, 0, 1); // r_0  is first  component
+            MultiFab p_hse_new (new_base_state, make_alias, 1, 1); // p_0  is second component
+            MultiFab pi_hse_new(new_base_state, make_alias, 2, 1); // pi_0 is third  component
+
+            std::unique_ptr<MultiFab> z_phys_cc_new;
+            if (solverChoice.use_terrain) {
+                z_phys_cc_new = std::make_unique<MultiFab>(ba_new,dm_new,1,0);
+                z_phys_cc_new->ParallelCopy(*z_phys_cc[lev],0,0,1,1,1);
+            }
+
+            erf_enforce_hse(lev, r_hse_new, p_hse_new, pi_hse_new, z_phys_cc_new);
+            base_state[lev].ParallelCopy(new_base_state,0,0,3,1,1);
+        }
+    } else {
+        // This is ok because we have already FillPatched the ghost cell data from the coarser grid
+        erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+    }
 
 }
 
@@ -158,20 +278,17 @@ ERF::initHSE ()
  * @param[out] pres MultiFab storing base state pressure
  * @param[out] pi   MultiFab storing base state Exner function
  * @param[in]  z_cc Pointer to MultiFab storing cell centered z-coordinates
- * @param[in]  z_nd Pointer to MultiFab storing node centered z-coordinates
  */
 void
 ERF::erf_enforce_hse (int lev,
                       MultiFab& dens, MultiFab& pres, MultiFab& pi,
-                      std::unique_ptr<MultiFab>& z_cc,
-                      std::unique_ptr<MultiFab>& z_nd)
+                      std::unique_ptr<MultiFab>& z_cc)
 {
-    amrex::Real l_gravity = solverChoice.gravity;
+    Real l_gravity = solverChoice.gravity;
     bool l_use_terrain = solverChoice.use_terrain;
 
     const auto geomdata = geom[lev].data();
     const Real dz = geomdata.CellSize(2);
-    int nz = geom[lev].Domain().length(2);
 
     const Box& domain = geom[lev].Domain();
 
@@ -179,7 +296,10 @@ ERF::erf_enforce_hse (int lev,
     {
         // Create a flat box with same horizontal extent but only one cell in vertical
         const Box& tbz = mfi.nodaltilebox(2);
-        amrex::Box b2d = tbz; // Copy constructor
+        int klo = tbz.smallEnd(2);
+        int khi = tbz.bigEnd(2);
+
+        Box b2d = tbz; // Copy constructor
         b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
         b2d.setRange(2,0);
 
@@ -196,44 +316,58 @@ ERF::erf_enforce_hse (int lev,
         Array4<Real> pres_arr = pres.array(mfi);
         Array4<Real>   pi_arr =   pi.array(mfi);
         Array4<Real> zcc_arr;
-        Array4<Real> znd_arr;
         if (l_use_terrain) {
            zcc_arr = z_cc->array(mfi);
-           znd_arr = z_nd->array(mfi);
         }
 
         const Real rdOcp = solverChoice.rdOcp;
 
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            int k0  = 0;
-            // Physical height of the terrain at cell center
-            Real hz;
-            if (l_use_terrain) {
-                hz = .125 * ( znd_arr(i,j,0) + znd_arr(i+1,j,0) + znd_arr(i,j+1,0) + znd_arr(i+1,j+1,0)
-                             +znd_arr(i,j,1) + znd_arr(i+1,j,1) + znd_arr(i,j+1,1) + znd_arr(i+1,j+1,1) );
-            } else {
-                hz = 0.5*dz;
-            }
-
             // Set value at surface from Newton iteration for rho
-            pres_arr(i,j,k0  ) = p_0 - hz * rho_arr(i,j,k0) * l_gravity;
-            pi_arr(i,j,k0  ) = getExnergivenP(pres_arr(i,j,k0  ), rdOcp);
+            if (klo == 0) {
+                // Physical height of the terrain at cell center
+                Real hz;
+                if (l_use_terrain) {
+                    hz = zcc_arr(i,j,klo);
+                } else {
+                    hz = 0.5*dz;
+                }
 
-            // Set ghost cell with dz and rho at boundary
-            pres_arr(i,j,k0-1) = p_0 + hz * rho_arr(i,j,k0) * l_gravity;
-            pi_arr(i,j,k0-1) = getExnergivenP(pres_arr(i,j,k0-1), rdOcp);
+                pres_arr(i,j,klo  ) = p_0 - hz * rho_arr(i,j,klo) * l_gravity;
+                pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
+
+                // Set ghost cell with dz and rho at boundary
+                pres_arr(i,j,klo-1) = p_0 + hz * rho_arr(i,j,klo) * l_gravity;
+                pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
+
+            } else {
+                // If level > 0 and klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
+                //    filled from FillPatch-ing it.
+                Real dz_loc;
+                if (l_use_terrain) {
+                    dz_loc = (zcc_arr(i,j,klo) - zcc_arr(i,j,klo-1));
+                } else {
+                    dz_loc = dz;
+                }
+
+                Real dens_interp = 0.5*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
+                pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
+
+                pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
+                pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
+            }
 
             Real dens_interp;
             if (l_use_terrain) {
-                for (int k = 1; k <= nz; k++) {
+                for (int k = klo+1; k <= khi; k++) {
                     Real dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
                     dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
                 }
             } else {
-                for (int k = 1; k <= nz; k++) {
+                for (int k = klo+1; k <= khi; k++) {
                     dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
@@ -291,4 +425,97 @@ ERF::erf_enforce_hse (int lev,
 
     dens.FillBoundary(geom[lev].periodicity());
     pres.FillBoundary(geom[lev].periodicity());
+}
+
+void ERF::init_geo_wind_profile(const std::string input_file,
+                                Vector<Real>& u_geos,
+                                Gpu::DeviceVector<Real>& u_geos_d,
+                                Vector<Real>& v_geos,
+                                Gpu::DeviceVector<Real>& v_geos_d,
+                                const Geometry& lgeom,
+                                const Vector<Real>& zlev_stag)
+{
+    const int klo = 0;
+    const int khi = lgeom.Domain().bigEnd()[AMREX_SPACEDIM-1];
+    const amrex::Real dz = lgeom.CellSize()[AMREX_SPACEDIM-1];
+
+    const bool grid_stretch = (zlev_stag.size() > 0);
+    const Real zbot = (grid_stretch) ? zlev_stag[klo]   : lgeom.ProbLo(AMREX_SPACEDIM-1);
+    const Real ztop = (grid_stretch) ? zlev_stag[khi+1] : lgeom.ProbHi(AMREX_SPACEDIM-1);
+
+    amrex::Print() << "Reading geostrophic wind profile from " << input_file << std::endl;
+    std::ifstream profile_reader(input_file);
+    if(!profile_reader.is_open()) {
+        amrex::Error("Error opening the abl_geo_wind_table\n");
+    }
+
+    // First, read the input data into temp vectors
+    std::string line;
+    Vector<Real> z_inp, Ug_inp, Vg_inp;
+    Real z, Ug, Vg;
+    amrex::Print() << "z  Ug  Vg" << std::endl;
+    while(std::getline(profile_reader, line)) {
+        std::istringstream iss(line);
+        iss >> z >> Ug >> Vg;
+        amrex::Print() << z << " " << Ug << " " << Vg << std::endl;
+        z_inp.push_back(z);
+        Ug_inp.push_back(Ug);
+        Vg_inp.push_back(Vg);
+        if (z >= ztop) break;
+    }
+
+    const int Ninp = z_inp.size();
+    AMREX_ALWAYS_ASSERT(z_inp[0] <= zbot);
+    AMREX_ALWAYS_ASSERT(z_inp[Ninp-1] >= ztop);
+
+    // Now, interpolate vectors to the cell centers
+    for (int k = 0; k <= khi; k++) {
+        z = (grid_stretch) ? 0.5 * (zlev_stag[k] + zlev_stag[k+1])
+                           : zbot + (k + 0.5) * dz;
+        u_geos[k] = interpolate_1d(z_inp.dataPtr(), Ug_inp.dataPtr(), z, Ninp);
+        v_geos[k] = interpolate_1d(z_inp.dataPtr(), Vg_inp.dataPtr(), z, Ninp);
+    }
+
+    // Copy from host version to device version
+    Gpu::copy(Gpu::hostToDevice, u_geos.begin(), u_geos.end(), u_geos_d.begin());
+    Gpu::copy(Gpu::hostToDevice, v_geos.begin(), v_geos.end(), v_geos_d.begin());
+
+    profile_reader.close();
+}
+
+void
+ERF::ChopGrids2D (int lev, BoxArray& ba, int target_size) const
+{
+    IntVect chunk = max_grid_size[lev];
+    chunk.min(Geom(lev).Domain().length());
+
+    // Note that ba already satisfies the max_grid_size requirement and it's
+    // coarsenable if it's a fine level BoxArray.
+
+    while (ba.size() < target_size)
+    {
+        IntVect chunk_prev = chunk;
+
+        std::array<std::pair<int,int>,AMREX_SPACEDIM>
+            chunk_dir{std::make_pair(chunk[0],int(0)),
+                      std::make_pair(chunk[1],int(1))};
+        std::sort(chunk_dir.begin(), chunk_dir.end());
+
+        // We only decompose in and y
+        for (int idx = 1; idx >= 0; idx--) {
+            int idim = chunk_dir[idx].second;
+            int new_chunk_size = chunk[idim] / 2;
+            if (new_chunk_size != 0 &&
+                new_chunk_size%blocking_factor[lev][idim] == 0)
+            {
+                chunk[idim] = new_chunk_size;
+                ba.maxSize(chunk);
+                break;
+            }
+        }
+
+        if (chunk == chunk_prev) {
+            break;
+        }
+    }
 }

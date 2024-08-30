@@ -13,13 +13,14 @@ amrex_probinit(
 Problem::Problem()
 {
     // Parse params
-    amrex::ParmParse pp("prob");
+    ParmParse pp("prob");
     pp.query("rho_0", parms.rho_0);
     pp.query("T_0", parms.T_0);
     pp.query("A_0", parms.A_0);
     pp.query("B_0", parms.B_0);
     pp.query("u_0", parms.u_0);
     pp.query("v_0", parms.v_0);
+    pp.query("w_0", parms.w_0);
     pp.query("rad_0", parms.rad_0);
     pp.query("z0", parms.z0);
     pp.query("zRef", parms.zRef);
@@ -59,14 +60,15 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-    Array4<Real const> const&,
-    Array4<Real const> const&,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& /*r_hse*/,
+    Array4<Real      > const& /*p_hse*/,
+    Array4<Real const> const& /*z_nd*/,
+    Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
@@ -75,7 +77,7 @@ Problem::init_custom_pert(
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
@@ -86,76 +88,78 @@ Problem::init_custom_pert(
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Define a point (xc,yc,zc) at the center of the domain
-    const Real xc = parms.xc_frac * (prob_lo[0] + prob_hi[0]);
-    const Real yc = parms.yc_frac * (prob_lo[1] + prob_hi[1]);
-    const Real zc = parms.zc_frac * (prob_lo[2] + prob_hi[2]);
+    const Real xc = parms_d.xc_frac * (prob_lo[0] + prob_hi[0]);
+    const Real yc = parms_d.yc_frac * (prob_lo[1] + prob_hi[1]);
+    const Real zc = parms_d.zc_frac * (prob_lo[2] + prob_hi[2]);
 
     // Define ellipse parameters
-    const Real r0   = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
+    const Real r0   = parms_d.rad_0 * (prob_hi[0] - prob_lo[0]);
 
     const Real r3d    = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
     const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
     const Real r2d_xz = std::sqrt((x-xc)*(x-xc) + (z-zc)*(z-zc));
 
-    if (parms.prob_type == 10)
+    if (parms_d.prob_type == 10)
     {
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,
         //            + B_0*sin(x)
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0*sin(x);
+        state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * exp(-10.*r3d*r3d) + parms_d.B_0*sin(x);
 
-    } else if (parms.prob_type == 11) {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, r0) / r0));
-    } else if (parms.prob_type == 12) {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0) / r0));
-    } else if (parms.prob_type == 13) {
-        const Real r0_z = parms.rad_0 * (prob_hi[2] - prob_lo[2]);
+    } else if (parms_d.prob_type == 11) {
+        state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, r0) / r0));
+    } else if (parms_d.prob_type == 12) {
+        state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0) / r0));
+    } else if (parms_d.prob_type == 13) {
+        const Real r0_z = parms_d.rad_0 * (prob_hi[2] - prob_lo[2]);
         //ellipse for mapfac shear validation
         const Real r2d_xz_ell = std::sqrt((x-xc)*(x-xc)/(r0*r0) + (z-zc)*(z-zc)/(r0_z*r0_z));
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz_ell, r0_z) / r0_z));
-    } else if (parms.prob_type == 14) {
-        state(i, j, k, RhoScalar_comp) = std::cos(PI*x);
+        state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz_ell, r0_z) / r0_z));
+    } else if (parms_d.prob_type == 14) {
+        state_pert(i, j, k, RhoScalar_comp) = std::cos(PI*x);
     } else {
         // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
         if (r3d < r0) {
-           state(i, j, k, RhoScalar_comp) = parms.A_0;
+           state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0;
         } else {
-           state(i, j, k, RhoScalar_comp) = 0.0;
+           state_pert(i, j, k, RhoScalar_comp) = 0.0;
         }
     }
 
-    state(i, j, k, RhoScalar_comp) *= parms.rho_0;
+    state_pert(i, j, k, RhoScalar_comp) *= parms_d.rho_0;
 
     if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = 0.0;
-        state(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ1_comp) = 0.0;
+        state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
   });
 
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      x_vel(i, j, k) = parms.u_0;
-
       const Real* prob_lo = geomdata.ProbLo();
       const Real*      dx = geomdata.CellSize();
       const Real        z = prob_lo[2] + (k + 0.5) * dx[2];
 
       // Set the x-velocity
-      x_vel(i, j, k) = parms.u_0 + parms.uRef *
-                       std::log((z + parms.z0)/parms.z0)/
-                       std::log((parms.zRef +parms.z0)/parms.z0);
+      if (parms_d.uRef != 0.0) {
+          x_vel_pert(i, j, k) = parms_d.u_0 + parms_d.uRef *
+                                std::log((z + parms_d.z0)/parms_d.z0)/
+                                std::log((parms_d.zRef +parms_d.z0)/parms_d.z0);
+      } else {
+          x_vel_pert(i, j, k) = parms_d.u_0;
+      }
   });
 
   // Set the y-velocity
-  amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      y_vel(i, j, k) = parms.v_0;
+      y_vel_pert(i, j, k) = parms_d.v_0;
   });
 
   // Set the z-velocity
-  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(zbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0;
+      z_vel_pert(i, j, k) = parms_d.w_0;
   });
 }
 

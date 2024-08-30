@@ -3,6 +3,8 @@
 
 #include <ERF_Constants.H>
 #include <IndexDefines.H>
+#include <MOSTRoughness.H>
+#include <Wstar.H>
 
 /**
  * Structure of plain old data relevant to MOST BCs
@@ -15,11 +17,15 @@ public:
     amrex::Real kappa{KAPPA};        ///< von Karman constant
     amrex::Real gravity{CONST_GRAV}; ///< Acceleration due to gravity (m/s^2)
     amrex::Real surf_temp_flux{0.0}; ///< Heat flux
+
     amrex::Real Cnk_a{0.0185};       ///< Standard Charnock constant https://doi.org/10.1175/JAMC-D-17-0137.1
     amrex::Real Cnk_b1{1.0/30.0};    ///< Modified Charnock Eq (4) https://doi.org/10.1175/JAMC-D-17-0137.1
     amrex::Real Cnk_b2{1260.0};      ///< Modified Charnock Eq (4) https://doi.org/10.1175/JAMC-D-17-0137.1
     amrex::Real Cnk_d{30.0};         ///< Modified Charnock Eq (4) https://doi.org/10.1175/JAMC-D-17-0137.1
     amrex::Real Cnk_b;
+    bool visc{false};                ///< Use viscous Charnock formulation
+
+    const amrex::Real Bjr_beta = 1.2; // Empirical parameter from Beljaars 1995 QJRMS
 };
 
 
@@ -64,6 +70,20 @@ private:
 
 
 /**
+ * Empirical kinematic viscosity [m2/s] formula from Andreas (1989) CRREL Rep.
+ * 89-11, valid between -173 and 277 deg C.
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+air_viscosity (amrex::Real T_degK)
+{
+    amrex::Real TC = T_degK - 273.15;
+    return 1.326e-5*(1. + 6.542e-3*TC + 8.301e-6*TC*TC - 4.84e-9*TC*TC*TC);
+}
+
+
+/**
  * Adiabatic with constant roughness
  */
 struct adiabatic
@@ -85,10 +105,18 @@ struct adiabatic
                   const amrex::Array4<const amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
                   const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& /*q_star_arr*/,
                   const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*pblh_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
         t_star_arr(i,j,k) = 0.0;
@@ -108,11 +136,13 @@ struct adiabatic_charnock
 {
     adiabatic_charnock (amrex::Real zref,
                         amrex::Real flux,
-                        amrex::Real cnk_a)
+                        amrex::Real cnk_a,
+                        bool cnk_visc)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_a = cnk_a;
+        mdata.visc = cnk_visc;
     }
 
     AMREX_GPU_DEVICE
@@ -124,20 +154,36 @@ struct adiabatic_charnock
                   const int& max_iters,
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
-                  const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
                   const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& /*q_star_arr*/,
                   const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*pblh_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         amrex::Real ustar = 0.0;
         amrex::Real z0    = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            z0    = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
-            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0);
+            if (mdata.Cnk_a > 0) {
+                z0 = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
+                if (mdata.visc) {
+                    z0 += air_viscosity(tm_arr(i,j,k)) / std::max(ustar, 0.05);
+                }
+            } else {
+                z0 = COARE3_roughness(mdata.zref, umm, ustar);
+            }
+            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
 
@@ -150,6 +196,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -178,19 +225,28 @@ struct adiabatic_mod_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
                   const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& /*q_star_arr*/,
                   const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*pblh_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         amrex::Real ustar = 0.0;
         amrex::Real z0    = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
-            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0);
+            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
 
@@ -203,6 +259,136 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
+};
+
+
+/**
+ * Adiabatic with Donelan roughness
+ */
+struct adiabatic_donelan
+{
+    adiabatic_donelan (amrex::Real zref,
+                       amrex::Real flux)
+    {
+        mdata.zref = zref;
+        mdata.surf_temp_flux = flux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    iterate_flux (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& max_iters,
+                  const amrex::Array4<amrex::Real>& z0_arr,
+                  const amrex::Array4<const amrex::Real>& umm_arr,
+                  const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
+                  const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
+                  const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& /*q_star_arr*/,
+                  const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*pblh_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+    {
+        int iter = 0;
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        amrex::Real ustar = 0.0;
+        amrex::Real z0    = 0.0;
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        do {
+            ustar = u_star_arr(i,j,k);
+            z0    = Donelan_roughness(ustar);
+            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0);
+            ++iter;
+        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+
+        t_star_arr(i,j,k) = 0.0;
+          olen_arr(i,j,k) = 1.0e16;
+            z0_arr(i,j,k) = z0;
+    }
+
+private:
+    most_data mdata;
+    similarity_funs sfuns;
+    const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
+};
+
+
+/**
+ * Adiabatic with wave-coupled roughness
+ */
+struct adiabatic_wave_coupled
+{
+    adiabatic_wave_coupled (amrex::Real zref,
+                            amrex::Real flux)
+    {
+        mdata.zref = zref;
+        mdata.surf_temp_flux = flux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    iterate_flux (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& max_iters,
+                  const amrex::Array4<amrex::Real>& z0_arr,
+                  const amrex::Array4<const amrex::Real>& umm_arr,
+                  const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
+                  const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
+                  const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& /*q_star_arr*/,
+                  const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*pblh_arr*/,
+                  const amrex::Array4<amrex::Real>& Hwave_arr,
+                  const amrex::Array4<amrex::Real>& Lwave_arr,
+                  const amrex::Array4<amrex::Real>& eta_arr) const
+    {
+        int iter = 0;
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        amrex::Real ustar = 0.0;
+        amrex::Real z0    = 0.0;
+        int ie, je;
+        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        do {
+            ustar = u_star_arr(i,j,k);
+            z0    = std::min( std::max(1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/(Lwave_arr(i,j,k)+eps), 4.5 )
+                                      + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
+            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0);
+            ++iter;
+        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+
+        t_star_arr(i,j,k) = 0.0;
+          olen_arr(i,j,k) = 1.0e16;
+            z0_arr(i,j,k) = z0;
+    }
+
+private:
+    most_data mdata;
+    similarity_funs sfuns;
+    const amrex::Real tol = 1.0e-5;
+    const amrex::Real eps = 1e-15;
+    const amrex::Real z0_eps = 1.0e-6;
+    const amrex::Real z0_max = 0.1;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -228,28 +414,47 @@ struct surface_flux
                   const amrex::Array4<const amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real wstar = 0.0;
+        amrex::Real tflux = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                   (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) - 0.61*tm_arr(i,j,k)*ustar*q_star_arr(i,j,k);
+            if (w_star_arr) {
+                // update w* and Umagmean
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
         t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
@@ -261,6 +466,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -271,11 +477,13 @@ struct surface_flux_charnock
 {
     surface_flux_charnock (amrex::Real zref,
                            amrex::Real flux,
-                           amrex::Real cnk_a)
+                           amrex::Real cnk_a,
+                           bool cnk_visc)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_a = cnk_a;
+        mdata.visc = cnk_visc;
     }
 
     AMREX_GPU_DEVICE
@@ -288,30 +496,56 @@ struct surface_flux_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real wstar = 0.0;
+        amrex::Real tflux = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            z0    = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                   (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
+            if (mdata.Cnk_a > 0) {
+                z0 = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
+                if (mdata.visc) {
+                    z0 += air_viscosity(tm_arr(i,j,k)) / std::max(ustar, 0.05);
+                }
+            } else {
+                z0 = COARE3_roughness(mdata.zref, umm, ustar);
+            }
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) - 0.61*tm_arr(i,j,k)*ustar*q_star_arr(i,j,k);
+            if (w_star_arr) {
+                // update w* and Umagmean
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / (std::log(mdata.zref / z0) - psi_m);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
         t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
@@ -324,6 +558,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -352,30 +587,49 @@ struct surface_flux_mod_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real wstar = 0.0;
+        amrex::Real tflux = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                   (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) - 0.61*tm_arr(i,j,k)*ustar*q_star_arr(i,j,k);
+            if (w_star_arr) {
+                // update w* and Umagmean
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / (std::log(mdata.zref / z0) - psi_m);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
         t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
@@ -388,6 +642,178 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
+};
+
+
+/**
+ * Surface flux with donelan roughness
+ */
+struct surface_flux_donelan
+{
+    surface_flux_donelan (amrex::Real zref,
+                          amrex::Real flux)
+    {
+        mdata.zref = zref;
+        mdata.surf_temp_flux = flux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    iterate_flux (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& max_iters,
+                  const amrex::Array4<amrex::Real>& z0_arr,
+                  const amrex::Array4<const amrex::Real>& umm_arr,
+                  const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
+                  const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
+                  const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
+                  const amrex::Array4<amrex::Real>& t_surf_arr,
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+    {
+        int iter = 0;
+        amrex::Real ustar = 0.0;
+        amrex::Real wstar = 0.0;
+        amrex::Real tflux = 0.0;
+        amrex::Real z0    = 0.0;
+        amrex::Real zeta  = 0.0;
+        amrex::Real psi_m = 0.0;
+        amrex::Real psi_h = 0.0;
+        amrex::Real Olen  = 0.0;
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        do {
+            ustar = u_star_arr(i,j,k);
+            z0    = Donelan_roughness(ustar);
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) - 0.61*tm_arr(i,j,k)*ustar*q_star_arr(i,j,k);
+            if (w_star_arr) {
+                // update w* and Umagmean
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0) - psi_m);
+            ++iter;
+        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
+
+        t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0) - psi_h) /
+                            (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
+        t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
+          olen_arr(i,j,k) = Olen;
+           z0_arr(i,j,k)  = z0;
+    }
+
+private:
+    most_data mdata;
+    similarity_funs sfuns;
+    const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
+};
+
+
+/**
+ * Surface flux with wave-coupled roughness
+ */
+struct surface_flux_wave_coupled
+{
+    surface_flux_wave_coupled (amrex::Real zref,
+                               amrex::Real flux)
+    {
+        mdata.zref = zref;
+        mdata.surf_temp_flux = flux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    iterate_flux (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& max_iters,
+                  const amrex::Array4<amrex::Real>& z0_arr,
+                  const amrex::Array4<const amrex::Real>& umm_arr,
+                  const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
+                  const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
+                  const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
+                  const amrex::Array4<amrex::Real>& t_surf_arr,
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& Hwave_arr,
+                  const amrex::Array4<amrex::Real>& Lwave_arr,
+                  const amrex::Array4<amrex::Real>& eta_arr) const
+    {
+        int iter = 0;
+        amrex::Real ustar = 0.0;
+        amrex::Real wstar = 0.0;
+        amrex::Real tflux = 0.0;
+        amrex::Real z0    = 0.0;
+        amrex::Real zeta  = 0.0;
+        amrex::Real psi_m = 0.0;
+        amrex::Real psi_h = 0.0;
+        amrex::Real Olen  = 0.0;
+        int ie, je;
+        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        do {
+            ustar = u_star_arr(i,j,k);
+            z0    = std::min( std::max(1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/(Lwave_arr(i,j,k)+eps), 4.5 )
+                                      + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) - 0.61*tm_arr(i,j,k)*ustar*q_star_arr(i,j,k);
+            if (w_star_arr) {
+                // update w* and Umagmean
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0) - psi_m);
+            ++iter;
+        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
+
+        t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0) - psi_h) /
+                            (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
+        t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
+          olen_arr(i,j,k) = Olen;
+           z0_arr(i,j,k)  = z0;
+    }
+
+private:
+    most_data mdata;
+    similarity_funs sfuns;
+    const amrex::Real tol = 1.0e-5;
+    const amrex::Real eps = 1e-15;
+    const amrex::Real z0_eps = 1.0e-6;
+    const amrex::Real z0_max = 0.1;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -413,31 +839,50 @@ struct surface_temp
                   const amrex::Array4<const amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real wstar = 0.0;
         amrex::Real tflux = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                    (mdata.kappa * mdata.gravity * tflux);
+                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
+            tflux *= (1 + 0.61*qvm_arr(i,j,k));
+            tflux += 0.61*tm_arr(i,j,k) * -ustar*q_star_arr(i,j,k); // ~= <w'Tv'>
+            if (w_star_arr) {
+                // update w* and Umagmean
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
                             (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
@@ -448,6 +893,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -458,11 +904,13 @@ struct surface_temp_charnock
 {
     surface_temp_charnock (amrex::Real zref,
                            amrex::Real flux,
-                           amrex::Real cnk_a)
+                           amrex::Real cnk_a,
+                           bool cnk_visc)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_a = cnk_a;
+        mdata.visc = cnk_visc;
     }
 
     AMREX_GPU_DEVICE
@@ -475,33 +923,59 @@ struct surface_temp_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real wstar = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real tflux = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            z0    = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
+            if (mdata.Cnk_a > 0) {
+                z0 = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
+                if (mdata.visc) {
+                    z0 += air_viscosity(tm_arr(i,j,k)) / std::max(ustar, 0.05);
+                }
+            } else {
+                z0 = COARE3_roughness(mdata.zref, umm, ustar);
+            }
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0) - psi_h);
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                    (mdata.kappa * mdata.gravity * tflux);
+                     (std::log(mdata.zref / z0) - psi_h); // <w'T'>
+            tflux *= (1 + 0.61*qvm_arr(i,j,k));
+            tflux += 0.61*tm_arr(i,j,k) * -ustar*q_star_arr(i,j,k); // ~= <w'Tv'>
+            if (w_star_arr) {
+                // update w* and Umagmean
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+            Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / (std::log(mdata.zref / z0) - psi_m);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
                             (std::log(mdata.zref / z0) - psi_h);
@@ -513,6 +987,7 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -541,33 +1016,52 @@ struct surface_temp_mod_charnock
                   const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real wstar = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real tflux = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0) - psi_h);
-            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                    (mdata.kappa * mdata.gravity * tflux);
+                     (std::log(mdata.zref / z0) - psi_h); // <w'T'>
+            tflux *= (1 + 0.61*qvm_arr(i,j,k));
+            tflux += 0.61*tm_arr(i,j,k) * -ustar*q_star_arr(i,j,k); // ~= <w'Tv'>
+            if (w_star_arr) {
+                // update w* and Umagmean
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+            Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / (std::log(mdata.zref / z0) - psi_m);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
                             (std::log(mdata.zref / z0) - psi_h);
@@ -579,6 +1073,182 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
+};
+
+
+/**
+ * Surface temperature with donelan roughness
+ */
+struct surface_temp_donelan
+{
+    surface_temp_donelan (amrex::Real zref,
+                          amrex::Real flux)
+    {
+        mdata.zref = zref;
+        mdata.surf_temp_flux = flux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    iterate_flux (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& max_iters,
+                  const amrex::Array4<amrex::Real>& z0_arr,
+                  const amrex::Array4<const amrex::Real>& umm_arr,
+                  const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
+                  const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
+                  const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
+                  const amrex::Array4<amrex::Real>& t_surf_arr,
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+    {
+        int iter = 0;
+        amrex::Real ustar = 0.0;
+        amrex::Real wstar = 0.0;
+        amrex::Real z0    = 0.0;
+        amrex::Real tflux = 0.0;
+        amrex::Real zeta  = 0.0;
+        amrex::Real psi_m = 0.0;
+        amrex::Real psi_h = 0.0;
+        amrex::Real Olen  = 0.0;
+        amrex::Real umm = std::max(umm_arr(i,j,k), WSMIN);
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        do {
+            ustar = u_star_arr(i,j,k);
+            z0    = Donelan_roughness(ustar);
+            tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                     (std::log(mdata.zref / z0) - psi_h); // <w'T'>
+            tflux *= (1 + 0.61*qvm_arr(i,j,k));
+            tflux += 0.61*tm_arr(i,j,k) * -ustar*q_star_arr(i,j,k); // ~= <w'Tv'>
+            if (w_star_arr) {
+                // update w* and Umagmean
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+            Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0) - psi_m);
+            ++iter;
+        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
+
+        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
+                            (std::log(mdata.zref / z0) - psi_h);
+          olen_arr(i,j,k) = Olen;
+            z0_arr(i,j,k) = z0;
+    }
+
+private:
+    most_data mdata;
+    similarity_funs sfuns;
+    const amrex::Real tol = 1.0e-5;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
+};
+
+
+/**
+ * Surface temperature with wave-coupled roughness
+ */
+struct surface_temp_wave_coupled
+{
+    surface_temp_wave_coupled (amrex::Real zref,
+                               amrex::Real flux)
+    {
+        mdata.zref = zref;
+        mdata.surf_temp_flux = flux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    iterate_flux (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& max_iters,
+                  const amrex::Array4<amrex::Real>& z0_arr,
+                  const amrex::Array4<const amrex::Real>& umm_arr,
+                  const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
+                  const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
+                  const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
+                  const amrex::Array4<amrex::Real>& t_surf_arr,
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& Hwave_arr,
+                  const amrex::Array4<amrex::Real>& Lwave_arr,
+                  const amrex::Array4<amrex::Real>& eta_arr) const
+    {
+        int iter = 0;
+        amrex::Real ustar = 0.0;
+        amrex::Real wstar = 0.0;
+        amrex::Real z0    = 0.0;
+        amrex::Real tflux = 0.0;
+        amrex::Real zeta  = 0.0;
+        amrex::Real psi_m = 0.0;
+        amrex::Real psi_h = 0.0;
+        amrex::Real Olen  = 0.0;
+        int ie, je;
+        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        do {
+            ustar = u_star_arr(i,j,k);
+            z0    = std::min( std::max(1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/(Lwave_arr(i,j,k)+eps), 4.5 )
+                                      + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
+            tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                     (std::log(mdata.zref / z0) - psi_h); // <w'T'>
+            tflux *= (1 + 0.61*qvm_arr(i,j,k));
+            tflux += 0.61*tm_arr(i,j,k) * -ustar*q_star_arr(i,j,k); // ~= <w'Tv'>
+            if (w_star_arr) {
+                // update w* and Umagmean
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+            Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0) - psi_m);
+            ++iter;
+        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
+
+        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
+                            (std::log(mdata.zref / z0) - psi_h);
+          olen_arr(i,j,k) = Olen;
+            z0_arr(i,j,k) = z0;
+    }
+
+private:
+    most_data mdata;
+    similarity_funs sfuns;
+    const amrex::Real tol = 1.0e-5;
+    const amrex::Real eps = 1e-15;
+    const amrex::Real z0_eps = 1.0e-6;
+    const amrex::Real z0_max = 0.1;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -600,40 +1270,49 @@ struct moeng_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
-                    const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*qm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<const amrex::Real>& /*q_star_arr*/,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, qv;
-        int ie, je, ic, jc;
+        amrex::Real rho, eta;
 
-        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-
+        int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         // TODO: Integrate MOST with moisture and MOENG FLUX type
-        amrex::Real moflux  = 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
+        // NOTE: this is rho*<q'w'> = -K dqdz
+        amrex::Real moflux  = 0.0;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real rqvgrad = (cons_arr(ic,jc,zlo+1,RhoQ1_comp) - cons_arr(ic,jc,zlo  ,RhoQ1_comp)) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoQ1_comp) - rqvgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
+        }
 
         return moflux;
     }
@@ -647,10 +1326,12 @@ struct moeng_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
@@ -659,7 +1340,7 @@ struct moeng_flux
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, theta, eta;
-        int ix, jx, iy, jy, ie, je, ic, jc;
+        int ix, jx, iy, jy, ic, jc;
 
         ix = i < lbound(velx_arr).x    ? lbound(velx_arr).x   : i;
         jx = j < lbound(velx_arr).y    ? lbound(velx_arr).y   : j;
@@ -671,11 +1352,6 @@ struct moeng_flux
         iy = iy > ubound(vely_arr).x   ? ubound(vely_arr).x   : iy;
         jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
-        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
@@ -685,8 +1361,6 @@ struct moeng_flux
         vely  = 0.5 *( vely_arr(iy,jy,zlo) + vely_arr(iy  ,jy+1,zlo) );
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real theta_mean  = tm_arr(ic,jc,zlo);
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
@@ -697,45 +1371,62 @@ struct moeng_flux
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * (theta_mean-theta_surf);
         amrex::Real num2    = wsp_mean * (theta-theta_mean);
-        amrex::Real moflux  = (std::abs(tstar) > eps) ?
-                              tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+        wsp_mean = std::max(wsp_mean, WSMIN);
+
+        // NOTE: this is rho*<T'w'> = -K dTdz
+        amrex::Real moflux  = (std::abs(tstar) > eps) ?
+                              -rho*tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real rthetagrad = (cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo,RhoTheta_comp)) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - rthetagrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            // Note: Kh = eta/rho
+            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
+            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
+        }
 
         return moflux;
     }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_u_flux (const int& i,
                     const int& j,
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& um_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int jy, ie, je, ic, jc;
+        int jy, ic, jc;
 
         int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
         int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
 
         jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
         jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
-
-        ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
-        je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
 
         ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
         jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
@@ -747,9 +1438,6 @@ struct moeng_flux
                      + vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo) );
         rho   = 0.5 *( cons_arr(ic-1,jc,zlo,Rho_comp)
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
-        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
-                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real umean    = um_arr(i,j,zlo);
         amrex::Real wsp_mean = 0.5 * ( umm_arr(ic-1,jc,zlo) + umm_arr(ic,jc,zlo) );
@@ -758,46 +1446,63 @@ struct moeng_flux
         // Note: The surface mean shear stress is decomposed into tau_xz by
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of umean/wsp_mean for directionality; this factor
-        //       modifies the demoninator from what is in Moeng 1984.
+        //       modifies the denominator from what is in Moeng 1984.
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * umean;
         amrex::Real num2    = wsp_mean * (velx-umean);
-        amrex::Real stressx = rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
+        wsp_mean = std::max(wsp_mean, WSMIN);
+
+        // NOTE: this is rho*<u'w'> = -K dudz
+        amrex::Real stressx = -rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
+            je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
+                          + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) + stressx/eta*deltaz;
+        }
+
+        return stressx;
     }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_v_flux (const int& i,
                     const int& j,
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& vm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int ix, ie, je, ic, jc;
+        int ix, ic, jc;
 
         ix = i  < lbound(velx_arr).x ? lbound(velx_arr).x : i;
         ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
 
         int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
         int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
-
-        ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
-        je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
 
         ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
         jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
@@ -809,9 +1514,6 @@ struct moeng_flux
         vely  = vely_arr(i,j,zlo);
         rho   = 0.5*( cons_arr(ic,jc-1,zlo,Rho_comp)
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
-        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
-                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real vmean     = vm_arr(i,j,zlo);
         amrex::Real wsp_mean  = 0.5 * ( umm_arr(ic,jc-1,zlo) + umm_arr(ic,jc,zlo) );
@@ -820,20 +1522,41 @@ struct moeng_flux
         // Note: The surface mean shear stress is decomposed into tau_yz by
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of vmean/wsp_mean for directionality; this factor
-        //       modifies the demoninator from what is in Moeng 1984.
+        //       modifies the denominator from what is in Moeng 1984.
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * vmean;
         amrex::Real num2    = wsp_mean * (vely-vmean);
-        amrex::Real stressy = rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
+        wsp_mean = std::max(wsp_mean, WSMIN);
+
+        // NOTE: this is rho*<v'w'> = -K dvdz
+        amrex::Real stressy = -rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
+            je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
+                         + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) + stressy/eta*deltaz;
+        }
+
+        return stressy;
     }
 
 private:
     int zlo;
     const amrex::Real     eps = 1e-15;
     const amrex::Real eta_eps = 1e-8;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 
@@ -855,40 +1578,49 @@ struct donelan_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
-                    const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*qm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<const amrex::Real>& /*q_star_arr*/,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, qv;
-        int ie, je, ic, jc;
+        amrex::Real rho, eta;
 
-        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-
+        int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         // TODO: Integrate MOST with moisture and DONELAN FLUX type
-        amrex::Real moflux  = 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
+        // NOTE: this is rho*<q'w'> = -K dqdz
+        amrex::Real moflux  = 0.0;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real rqvgrad = (cons_arr(ic,jc,zlo+1,RhoQ1_comp) - cons_arr(ic,jc,zlo  ,RhoQ1_comp)) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoQ1_comp) - rqvgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
+        }
 
         return moflux;
     }
@@ -902,10 +1634,12 @@ struct donelan_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -913,66 +1647,73 @@ struct donelan_flux
                     const amrex::Array4<const amrex::Real>& t_surf_arr,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, theta, eta;
-        int ie, je, ic, jc;
+        amrex::Real rho, eta;
 
-        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-
+        int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
-        eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
-        amrex::Real Cd = 0.0012;
+        amrex::Real Ch = 0.0012;
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
         amrex::Real theta_surf  = t_surf_arr(ic,jc,zlo);
         amrex::Real theta_mean  = tm_arr(ic,jc,zlo);
-        amrex::Real moflux      = Cd * wsp_mean * (theta_surf - theta_mean);
         amrex::Real deltaz      = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+        // NOTE: this is rho*<T'w'> = -K dTdz
+        amrex::Real moflux      = -rho * Ch * wsp_mean * (theta_mean - theta_surf);
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real rthetagrad = (cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo,RhoTheta_comp)) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - rthetagrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            // Note: Kh = eta/rho
+            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
+            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
+        }
 
         return moflux;
     }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_u_flux (const int& i,
                     const int& j,
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& /*um_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int jy, ie, je, ic, jc;
+        int jy, ic, jc;
 
         int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
         int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
 
         jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
         jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
-
-        ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
-        je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
 
         ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
         jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
@@ -984,9 +1725,6 @@ struct donelan_flux
                      + vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo) );
         rho   = 0.5 *( cons_arr(ic-1,jc,zlo,Rho_comp)
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
-        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
-                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
@@ -999,42 +1737,57 @@ struct donelan_flux
         } else {
             Cd = 0.0024;
         }
-        amrex::Real stressx = Cd * velx * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
+        // NOTE: this is rho*<u'w'> = -K dudz
+        amrex::Real stressx = -rho * Cd * velx * wsp;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
+            je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
+                          + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) + stressx/eta*deltaz;
+        }
+
+        return stressx;
     }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_v_flux (const int& i,
                     const int& j,
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& /*vm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int ix, ie, je, ic, jc;
+        int ix, ic, jc;
 
         ix = i  < lbound(velx_arr).x ? lbound(velx_arr).x : i;
         ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
 
         int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
         int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
-
-        ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
-        je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
 
         ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
         jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
@@ -1046,9 +1799,6 @@ struct donelan_flux
         vely  = vely_arr(i,j,zlo);
         rho   = 0.5*( cons_arr(ic,jc-1,zlo,Rho_comp)
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
-        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
-                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
@@ -1061,10 +1811,28 @@ struct donelan_flux
         } else {
             Cd = 0.0024;
         }
-        amrex::Real stressy = Cd * vely * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
+        // NOTE: this is rho*<v'w'> = -K dvdz
+        amrex::Real stressy = -rho * Cd * vely * wsp;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
+            je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
+                         + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) + stressy/eta*deltaz;
+        }
+
+        return stressy;
     }
 
 private:
@@ -1091,40 +1859,49 @@ struct custom_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
-                    const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*qm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<const amrex::Real>& q_star_arr,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, qv;
-        int ie, je, ic, jc;
+        amrex::Real rho, eta;
 
-        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-
+        int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real qstar   = q_star_arr(ic,jc,zlo);
-        amrex::Real moflux  = (std::abs(qstar) > eps) ? -rho * qstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
+        // NOTE: this is rho*<q'w'> = -K dqdz
+        amrex::Real moflux  = (std::abs(qstar) > eps) ? rho * qstar : 0.0;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real rqvgrad = ( cons_arr(ic,jc,zlo+1,RhoQ1_comp) - cons_arr(ic,jc,zlo  ,RhoQ1_comp) ) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoQ1_comp) - rqvgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
+        }
 
         return moflux;
     }
@@ -1138,10 +1915,12 @@ struct custom_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -1149,63 +1928,67 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, theta;
-        int ie, je, ic, jc;
+        amrex::Real rho, eta;
 
-        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-
+        int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
-        amrex::Real moflux  = (std::abs(tstar) > eps) ? -rho * tstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+        // NOTE: this is rho*<T'w'> = -K dTdz
+        amrex::Real moflux  = (std::abs(tstar) > eps) ? rho * tstar : 0.0;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real rthetagrad = ( cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo  ,RhoTheta_comp) ) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - rthetagrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
+        }
 
         return moflux;
     }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_u_flux (const int& i,
                     const int& j,
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*um_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int jy, ie, je, ic, jc;
+        int jy, ic, jc;
 
         int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
         int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
 
         jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
         jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
-
-        ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
-        je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
 
         ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
         jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
@@ -1217,48 +2000,60 @@ struct custom_flux
                      + vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo) );
         rho   = 0.5 *( cons_arr(ic-1,jc,zlo,Rho_comp)
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
-        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
-                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real ustar   = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
-        amrex::Real stressx = rho * ustar * ustar * velx / wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
+        // NOTE: this is rho*<u'w'> = -K dudz
+        amrex::Real stressx = -rho * ustar * ustar * velx / wsp;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
+            je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
+                          + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) + stressx/eta*deltaz;
+        }
+
+        return stressx;
     }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_v_flux (const int& i,
                     const int& j,
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vm_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int ix, ie, je, ic, jc;
+        int ix, ic, jc;
 
         ix = i  < lbound(velx_arr).x ? lbound(velx_arr).x : i;
         ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
 
         int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
         int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
-
-        ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
-        je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
 
         ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
         jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
@@ -1270,21 +2065,205 @@ struct custom_flux
         vely  = vely_arr(i,j,zlo);
         rho   = 0.5*( cons_arr(ic,jc-1,zlo,Rho_comp)
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
-        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
-                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real ustar   = 0.5 * ( u_star_arr(ic,jc-1,zlo) + u_star_arr(ic,jc,zlo) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
-        amrex::Real stressy = rho * ustar * ustar * vely / wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
+        // NOTE: this is rho*<v'w'> = -K dvdz
+        amrex::Real stressy = -rho * ustar * ustar * vely / wsp;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
+            je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
+                         + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) + stressy/eta*deltaz;
+        }
+
+        return stressy;
     }
 
 private:
     int zlo;
     const amrex::Real     eps = 1e-15;
     const amrex::Real eta_eps = 1e-8;
+};
+
+/**
+ * Rotate flux formulation
+ */
+struct rotate_flux
+{
+    rotate_flux (int l_zlo)
+      :  zlo(l_zlo) {}
+
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_q_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& n,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& /*exp_most*/,
+                    const amrex::Array4<const amrex::Real>& /*eta_arr*/,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& /*velx_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*qm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*q_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        int ic, jc;
+        ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
+        jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
+        ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
+        jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
+
+        // surface gradient equal to gradient at first zface
+        amrex::Real deltaz      = dz * (zlo - k);
+        amrex::Real rqvgrad  = ( cons_arr(ic,jc,zlo+1,RhoQ1_comp)
+                               - cons_arr(ic,jc,zlo  ,RhoQ1_comp) ) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoQ1_comp) - rqvgrad * deltaz;
+
+        // NOTE: this is the total stress
+        amrex::Real rho    = cons_arr(ic,jc,zlo,Rho_comp);
+        amrex::Real qstar  = 0.0; //q_star_arr(ic,jc,zlo);
+        amrex::Real moflux = (std::abs(qstar) > eps) ? -rho * qstar : 0.0;
+
+        return moflux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_t_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& n,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& /*exp_most*/,
+                    const amrex::Array4<const amrex::Real>& /*eta_arr*/,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& /*velx_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& tm_arr,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& t_star_arr,
+                    const amrex::Array4<const amrex::Real>& t_surf_arr,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        int ic, jc;
+        ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
+        jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
+        ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
+        jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
+
+        // surface gradient equal to gradient at first zface
+        amrex::Real deltaz      = dz * (zlo - k);
+        amrex::Real rthetagrad  = ( cons_arr(ic,jc,zlo+1,RhoTheta_comp)
+                                  - cons_arr(ic,jc,zlo  ,RhoTheta_comp) ) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - rthetagrad * deltaz;
+
+        // NOTE: this is the total stress
+        amrex::Real theta_mean = tm_arr(ic,jc,zlo);
+        amrex::Real theta_surf = t_surf_arr(ic,jc,zlo);
+        amrex::Real rho    = cons_arr(ic,jc,zlo,Rho_comp);
+        amrex::Real tstar  = t_star_arr(ic,jc,zlo);
+        amrex::Real moflux = (std::abs(tstar) > eps) ? -rho * tstar * (theta_mean-theta_surf) : 0.0;
+
+        return moflux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_u_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& /*exp_most*/,
+                    const amrex::Array4<const amrex::Real>& /*eta_arr*/,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*um_arr*/,
+                    const amrex::Array4<const amrex::Real>& u_star_arr,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        int ic, jc;
+        ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
+        jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
+        ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
+        jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
+
+        // surface gradient equal to gradient at first zface
+        amrex::Real deltaz    = dz * (zlo - k);
+        amrex::Real ugrad     = (velx_arr(i,j,zlo+1) - velx_arr(i,j,zlo)) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp) = velx_arr(i,j,zlo) - ugrad * deltaz;
+
+        // NOTE: this is the total stress
+        amrex::Real rho     = 0.5 *( cons_arr(ic-1,jc,zlo,Rho_comp)
+                                   + cons_arr(ic  ,jc,zlo,Rho_comp) );
+        amrex::Real ustar   = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
+        amrex::Real stressx = -rho * ustar * ustar;
+
+        return stressx;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_v_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& /*exp_most*/,
+                    const amrex::Array4<const amrex::Real>& /*eta_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*cons_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*velx_arr*/,
+                    const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        // surface gradient equal to gradient at first zface
+        amrex::Real deltaz    = dz * (zlo - k);
+        amrex::Real vgrad     = (vely_arr(i,j,zlo+1) - vely_arr(i,j,zlo)) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp) = vely_arr(i,j,zlo) - vgrad * deltaz;
+
+        // NOTE: this is the total stress
+        amrex::Real stressy = 0.0;
+
+        return stressy;
+    }
+
+private:
+    int zlo;
+    const amrex::Real     eps = 1e-15;
 };
 #endif

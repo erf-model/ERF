@@ -1,4 +1,4 @@
-set(erf_exe_name taylor_green)
+set(erf_exe_name erf_taylor_green)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

@@ -13,7 +13,7 @@ using namespace amrex;
  */
 
 void
-ERF::timeStep (int lev, Real time, int iteration)
+ERF::timeStep (int lev, Real time, int /*iteration*/)
 {
     if (regrid_int > 0)  // We may need to regrid
     {
@@ -33,6 +33,12 @@ ERF::timeStep (int lev, Real time, int iteration)
                 int old_finest = finest_level;
 
                 regrid(lev, time);
+
+#ifdef ERF_USE_PARTICLES
+                if (finest_level != old_finest) {
+                    particleData.Redistribute();
+                }
+#endif
 
                 // mark that we have regridded this level already
                 for (int k = lev; k <= finest_level; ++k) {
@@ -57,13 +63,22 @@ ERF::timeStep (int lev, Real time, int iteration)
                        << " with dt = " << dt[lev] << std::endl;
     }
 
+#ifdef ERF_USE_WW3_COUPLING
+    amrex::Print() <<  " About to call send_to_ww3 from ERF_Timestep" << std::endl;
+    send_to_ww3(lev);
+    amrex::Print() <<  " About to call read_waves from ERF_Timestep"  << std::endl;
+    read_waves(lev);
+    //send_to_ww3(lev);
+    //read_waves(lev);
+    //send_to_ww3(lev);
+#endif
+
     // Advance a single level for a single time step
-    Advance(lev, time, dt[lev], iteration, nsubsteps[lev]);
+    Advance(lev, time, dt[lev], istep[lev], nsubsteps[lev]);
 
     ++istep[lev];
 
-    if (Verbose())
-    {
+    if (Verbose()) {
         amrex::Print() << "[Level " << lev << " step " << istep[lev] << "] ";
         amrex::Print() << "Advanced " << CountCells(lev) << " cells" << std::endl;
     }
@@ -75,6 +90,12 @@ ERF::timeStep (int lev, Real time, int iteration)
         {
             Real strt_time_for_fine = time + (i-1)*dt[lev+1];
             timeStep(lev+1, strt_time_for_fine, i);
+        }
+    }
+
+    if (verbose && lev == 0) {
+        if (solverChoice.moisture_type != MoistureType::None) {
+            amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
         }
     }
 }

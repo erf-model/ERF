@@ -459,13 +459,6 @@ std::string NCGroup::full_name () const
     return std::string{grpname.begin(), grpname.end()};
 }
 
-NCGroup NCGroup::def_group (const std::string& name) const
-{
-    int newid;
-    check_nc_error(nc_def_grp(ncid, name.data(), &newid));
-    return NCGroup(newid, this);
-}
-
 NCGroup NCGroup::group (const std::string& name) const
 {
     int newid;
@@ -480,23 +473,16 @@ NCDim NCGroup::dim (const std::string& name) const
     return NCDim{ncid, newid};
 }
 
-NCDim NCGroup::def_dim (const std::string& name, const size_t len) const
+void NCGroup::def_dim (const std::string& name, const size_t len) const
 {
     int newid;
     check_nc_error(nc_def_dim(ncid, name.data(), len, &newid));
-    return NCDim{ncid, newid};
+    // NCDim{ncid, newid};
 }
 
-NCVar NCGroup::def_scalar (const std::string& name, const nc_type dtype) const
-{
-    int newid;
-    check_nc_error(nc_def_var(ncid, name.data(), dtype, 0, nullptr, &newid));
-    return NCVar{ncid, newid};
-}
-
-NCVar NCGroup::def_array (const std::string& name,
-                          const nc_type dtype,
-                          const std::vector<std::string>& dnames) const
+void NCGroup::def_array (const std::string& name,
+                         const nc_type dtype,
+                         const std::vector<std::string>& dnames) const
 {
     int newid;
     int ndims = dnames.size();
@@ -505,7 +491,6 @@ NCVar NCGroup::def_array (const std::string& name,
 
     check_nc_error(
         nc_def_var(ncid, name.data(), dtype, ndims, dimids.data(), &newid));
-    return NCVar{ncid, newid};
 }
 
 NCVar NCGroup::var (const std::string& name) const

@@ -11,7 +11,7 @@ amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
 Problem::Problem(const amrex_real* problo, const amrex_real* probhi)
 {
   // Parse params
-  amrex::ParmParse pp("prob");
+  ParmParse pp("prob");
   pp.query("p_inf", parms.p_inf);
   pp.query("T_inf", parms.T_inf);
   pp.query("M_inf", parms.M_inf);
@@ -76,14 +76,15 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real> const& state,
-    Array4<Real> const& x_vel,
-    Array4<Real> const& y_vel,
-    Array4<Real> const& z_vel,
-    Array4<Real> const&,
-    Array4<Real> const&,
-    Array4<Real const> const&,
-    Array4<Real const> const&,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& /*r_hse*/,
+    Array4<Real      > const& /*p_hse*/,
+    Array4<Real const> const& /*z_nd*/,
+    Array4<Real const> const& /*z_cc*/,
     amrex::GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
@@ -98,7 +99,7 @@ Problem::init_custom_pert(
 
   const Real rdOcp = sc.rdOcp;
 
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
@@ -107,30 +108,30 @@ Problem::init_custom_pert(
 
     // Calculate perturbation temperature
     const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
-    const Real deltaT = -(parms.gamma - 1.0)/(2.0*sigma*sigma) * Omg*Omg;
+    const Real deltaT = -(parms_d.gamma - 1.0)/(2.0*sigma*sigma) * Omg*Omg;
 
     // Set the perturbation density
-    const Real rho_norm = std::pow(1.0 + deltaT, parms.inv_gm1);
-    state(i, j, k, Rho_comp) = (rho_norm - 1.0) * parms.rho_0;
+    const Real rho_norm = std::pow(1.0 + deltaT, parms_d.inv_gm1);
+    state_pert(i, j, k, Rho_comp) = (rho_norm - 1.0) * parms_d.rho_0;
 
     // Initial _potential_ temperature
-    const Real T = (1.0 + deltaT) * parms.T_inf;
+    const Real T = (1.0 + deltaT) * parms_d.T_inf;
     const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
-                          * parms.rho_0*parms.a_inf*parms.a_inf;
-    const Real rho_theta = parms.rho_0 * rho_norm * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
-    state(i, j, k, RhoTheta_comp) = rho_theta - parms.rho_0 * parms.T_0; // Set the perturbation rho*theta
+                          * parms_d.rho_0*parms_d.a_inf*parms_d.a_inf;
+    const Real rho_theta = parms_d.rho_0 * rho_norm * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
+    state_pert(i, j, k, RhoTheta_comp) = rho_theta - parms_d.rho_0 * parms_d.T_0; // Set the perturbation rho*theta
 
     // Set scalar = 0 -- unused
-    state(i, j, k, RhoScalar_comp) = 1.0 + Omg;
+    state_pert(i, j, k, RhoScalar_comp) = 1.0 + Omg;
 
     if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = 0.0;
-        state(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ1_comp) = 0.0;
+        state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
   });
 
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
@@ -139,12 +140,12 @@ Problem::init_custom_pert(
       const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
       const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 
-      x_vel(i, j, k) = (parms.M_inf * std::cos(parms.alpha)
-                     - (y - parms.yc)/parms.R * Omg) * parms.a_inf;
+      x_vel_pert(i, j, k) = (parms_d.M_inf * std::cos(parms_d.alpha)
+                          - (y - parms_d.yc)/parms_d.R * Omg) * parms_d.a_inf;
   });
 
   // Set the y-velocity
-  amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
@@ -153,14 +154,14 @@ Problem::init_custom_pert(
       const Real y = prob_lo[1] +  j        * dx[1]; // face center
       const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 
-      y_vel(i, j, k) = (parms.M_inf * std::sin(parms.alpha)
-                     + (x - parms.xc)/parms.R * Omg) * parms.a_inf;
+      y_vel_pert(i, j, k) = (parms_d.M_inf * std::sin(parms_d.alpha)
+                          + (x - parms_d.xc)/parms_d.R * Omg) * parms_d.a_inf;
   });
 
   // Set the z-velocity
-  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0;
+      z_vel_pert(i, j, k) = 0.0;
   });
 }
 

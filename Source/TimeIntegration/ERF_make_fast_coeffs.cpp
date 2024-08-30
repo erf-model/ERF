@@ -1,9 +1,7 @@
 #include <AMReX.H>
-#include <AMReX_MultiFab.H>
-#include <IndexDefines.H>
-#include <TI_headers.H>
+
+#include <TI_fast_headers.H>
 #include <prob_common.H>
-#include <TileNoZ.H>
 
 using namespace amrex;
 
@@ -16,7 +14,7 @@ using namespace amrex;
  * @param[in]  S_stage_data solution at the last stage
  * @param[in]  S_stage_prim primitive variables (i.e. conserved variables divided by density) at the last stage
  * @param[in]  pi_stage Exner function at the last stage
- * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  geom   Container for geometric information
  * @param[in]  l_use_terrain Are we using terrain-fitted coordinates
  * @param[in]  gravity       Magnitude of gravity
  * @param[in]  c_p           Coefficient at constant pressure
@@ -30,14 +28,15 @@ void make_fast_coeffs (int /*level*/,
                        MultiFab& fast_coeffs,
                        Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
                        const MultiFab& S_stage_prim,
-                       const MultiFab& pi_stage,                       // Exner function evaluted at least stage
+                       const MultiFab& pi_stage,                       // Exner function evaluated at least stage
                        const amrex::Geometry geom,
                        bool l_use_moisture,
                        bool l_use_terrain,
                        Real gravity, Real c_p,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const MultiFab* r0, const MultiFab* pi0,
-                       Real dtau, Real beta_s)
+                       Real dtau, Real beta_s,
+                       amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
 
@@ -46,8 +45,9 @@ void make_fast_coeffs (int /*level*/,
     Real c_v = c_p - R_d;
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-
     Real dzi = dxInv[2];
+
+    const Box &domain = geom.Domain();
 
     MultiFab coeff_A_mf(fast_coeffs, amrex::make_alias, 0, 1);
     MultiFab coeff_B_mf(fast_coeffs, amrex::make_alias, 1, 1);
@@ -118,7 +118,7 @@ void make_fast_coeffs (int /*level*/,
                  pibar_lo = pi0_ca(i,j,k-1);
                  pibar_hi = pi0_ca(i,j,k  );
 
-                 Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1,0) + pi_stage_ca(i,j,k,0));
+                 Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
                  Real     detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
                  Real inv_detJ_on_kface = 1. / detJ_on_kface;
@@ -165,7 +165,7 @@ void make_fast_coeffs (int /*level*/,
                  pibar_lo = pi0_ca(i,j,k-1);
                  pibar_hi = pi0_ca(i,j,k  );
 
-                 Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1,0) + pi_stage_ca(i,j,k,0));
+                 Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
                  Real coeff_P = -Gamma * R_d * dzi
                               +  halfg * R_d * rhobar_hi /
@@ -203,47 +203,69 @@ void make_fast_coeffs (int /*level*/,
         amrex::Box b2d = tbz; // Copy constructor
         b2d.setRange(2,0);
 
+        auto const lo = amrex::lbound(bx);
         auto const hi = amrex::ubound(bx);
+
+        auto const domhi = amrex::ubound(domain);
 
         {
         BL_PROFILE("make_coeffs_b2d_loop");
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-          // w_0 = 0
-          coeffA_a(i,j,0) =  0.0;
-          coeffB_a(i,j,0) =  1.0;
-          coeffC_a(i,j,0) =  0.0;
 
-          // w_khi = 0
+          // If at the bottom of the grid, we will set w to a specified Dirichlet value
+          coeffA_a(i,j,lo.z) =  0.0;
+          coeffB_a(i,j,lo.z) =  1.0;
+          coeffC_a(i,j,lo.z) =  0.0;
+
+          // If at the top of the grid, we will set w to a specified Dirichlet value
           coeffA_a(i,j,hi.z+1) =  0.0;
           coeffB_a(i,j,hi.z+1) =  1.0;
           coeffC_a(i,j,hi.z+1) =  0.0;
 
-          // w = 0 at k = 0
-          Real bet = coeffB_a(i,j,0);
+          // UNLESS if at the top of the domain and the boundary is outflow,
+          //     we will use a homogeneous Neumann condition
+          if ( (hi.z == domhi.z) &&
+               (phys_bc_type[5] == ERF_BC::outflow or phys_bc_type[5] == ERF_BC::ho_outflow) )
+          {
+              coeffA_a(i,j,hi.z+1) =  -1.0;
+          }
 
-          for (int k = 1; k <= hi.z+1; k++) {
+          // w = specified Dirichlet value at k = lo.z
+          Real bet = coeffB_a(i,j,lo.z);
+
+          for (int k = lo.z+1; k <= hi.z+1; k++) {
               gam_a(i,j,k) = coeffC_a(i,j,k-1) / bet;
               bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam_a(i,j,k);
               coeffB_a(i,j,k) = bet;
           }
         });
 #else
-        auto const lo = amrex::lbound(bx);
+        // If at the bottom of the grid, we will set w to a specified Dirichlet value
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                coeffA_a(i,j,0) =  0.0;
-                coeffB_a(i,j,0) =  1.0;
-                coeffC_a(i,j,0) =  0.0;
+                coeffA_a(i,j,lo.z) =  0.0;
+                coeffB_a(i,j,lo.z) =  1.0;
+                coeffC_a(i,j,lo.z) =  0.0;
             }
         }
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
+
+                // If at the top of the grid, we will set w to a specified Dirichlet value
                 coeffA_a(i,j,hi.z+1) =  0.0;
                 coeffB_a(i,j,hi.z+1) =  1.0;
                 coeffC_a(i,j,hi.z+1) =  0.0;
+
+                // UNLESS if at the top of the domain and the boundary is outflow,
+                //     we will use a homogeneous Neumann condition
+                if ( (hi.z == domhi.z) &&
+                     (phys_bc_type[5] == ERF_BC::outflow or phys_bc_type[5] == ERF_BC::ho_outflow) )
+                {
+                    coeffA_a(i,j,hi.z+1) =  -1.0;
+                }
             }
         }
         for (int k = lo.z+1; k <= hi.z+1; ++k) {

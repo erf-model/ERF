@@ -5,8 +5,8 @@
 #include <EOS.H>
 #include <ERF.H>
 #include <TerrainMetrics.H>
-#include <TI_headers.H>
-#include <PlaneAverage.H>
+//#include <TI_headers.H>
+//#include <PlaneAverage.H>
 #include <Diffusion.H>
 #include <TileNoZ.H>
 #include <Utils.H>
@@ -26,8 +26,10 @@ using namespace amrex;
  * @param[in] xvel_new new-time x-component of velocity
  * @param[in] yvel_new new-time y-component of velocity
  * @param[in] zvel_new new-time z-component of velocity
- * @param[in] source source term for conserved variables
- * @param[in] buoyancy buoyancy source term for z-component of momentum
+ * @param[in] cc_src source term for conserved variables
+ * @param[in] xmom_src source term for x-momenta
+ * @param[in] ymom_src source term for y-momenta
+ * @param[in] zmom_src source term for z-momenta
  * @param[in] fine_geom container for geometry information at current level
  * @param[in] dt_advance time step for this time advance
  * @param[in] old_time old time for this time advance
@@ -38,15 +40,18 @@ void ERF::advance_dycore(int level,
                          Vector<MultiFab>& state_new,
                          MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
                          MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
-                         MultiFab& source, MultiFab& buoyancy,
-                         const amrex::Geometry fine_geom,
-                         const amrex::Real dt_advance, const amrex::Real old_time)
+                         MultiFab&   cc_src, MultiFab& xmom_src,
+                         MultiFab& ymom_src, MultiFab& zmom_src,
+                         const Geometry fine_geom,
+                         const Real dt_advance, const Real old_time)
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
-    if (verbose) amrex::Print() << "Starting advance_dycore at level " << level << std::endl;
 
-    DiffChoice dc = solverChoice.diffChoice;
-    TurbChoice tc = solverChoice.turbChoice[level];
+    const Box& domain = fine_geom.Domain();
+
+    DiffChoice dc    = solverChoice.diffChoice;
+    TurbChoice tc    = solverChoice.turbChoice[level];
+    SpongeChoice sc  = solverChoice.spongeChoice;
 
     MultiFab r_hse (base_state[level], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse (base_state[level], make_alias, 1, 1); // p_0 is second component
@@ -57,15 +62,30 @@ void ERF::advance_dycore(int level,
     MultiFab* p0  = &p_hse;
     MultiFab* pi0 = &pi_hse;
 
-    Real* dptr_rhotheta_src      = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
+    Real* dptr_rhotheta_src = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
+    Real* dptr_rhoqt_src    = solverChoice.custom_moisture_forcing ? d_rhoqt_src[level].data()    : nullptr;
+    Real* dptr_wbar_sub     = solverChoice.custom_w_subsidence     ? d_w_subsid[level].data()     : nullptr;
+
+    // Turbulent Perturbation Pointer
+    //Real* dptr_rhotheta_src = solverChoice.pert_type ? d_rhotheta_src[level].data() : nullptr;
 
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
-    d_rayleigh_ptrs_at_lev[Rayleigh::tau]      = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::tau ].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
+    bool rayleigh_damp_any = (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
+                              solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T);
+    d_rayleigh_ptrs_at_lev[Rayleigh::tau]      =              rayleigh_damp_any ? d_rayleigh_ptrs[level][Rayleigh::tau ].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.rayleigh_damp_U   ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.rayleigh_damp_V   ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.rayleigh_damp_W   ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.rayleigh_damp_T   ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
+
+    Vector<Real*> d_sponge_ptrs_at_lev;
+    if(sc.sponge_type=="input_sponge")
+    {
+        d_sponge_ptrs_at_lev.resize(Sponge::nvars_sponge);
+        d_sponge_ptrs_at_lev[Sponge::ubar_sponge]  =  d_sponge_ptrs[level][Sponge::ubar_sponge].data();
+        d_sponge_ptrs_at_lev[Sponge::vbar_sponge]  =  d_sponge_ptrs[level][Sponge::vbar_sponge].data();
+    }
 
     bool l_use_terrain = solverChoice.use_terrain;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
@@ -73,6 +93,11 @@ void ERF::advance_dycore(int level,
                            (tc.pbl_type        !=       PBLType::None) );
     bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
                            (tc.pbl_type != PBLType::None) );
+    bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
+
+    const bool use_most = (m_most != nullptr);
+    const bool exp_most = (solverChoice.use_explicit_most);
+    amrex::ignore_unused(use_most);
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -89,24 +114,15 @@ void ERF::advance_dycore(int level,
     // **************************************************************************************
     // Compute strain for use in slow RHS, Smagorinsky model, and MOST
     // **************************************************************************************
-    MultiFab* Tau11 = Tau11_lev[level].get();
-    MultiFab* Tau22 = Tau22_lev[level].get();
-    MultiFab* Tau33 = Tau33_lev[level].get();
-    MultiFab* Tau12 = Tau12_lev[level].get();
-    MultiFab* Tau13 = Tau13_lev[level].get();
-    MultiFab* Tau23 = Tau23_lev[level].get();
-    MultiFab* Tau21 = Tau21_lev[level].get();
-    MultiFab* Tau31 = Tau31_lev[level].get();
-    MultiFab* Tau32 = Tau32_lev[level].get();
     {
     BL_PROFILE("erf_advance_strain");
     if (l_use_diff) {
 
-        const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
+        const BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for ( MFIter mfi(state_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
@@ -115,20 +131,34 @@ void ERF::advance_dycore(int level,
             Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
             Box tbxyz = mfi.tilebox(IntVect(0,1,1),IntVect(1,1,0));
 
+            if (bxcc.smallEnd(2) != domain.smallEnd(2)) {
+                 bxcc.growLo(2,1);
+                tbxxy.growLo(2,1);
+                tbxxz.growLo(2,1);
+                tbxyz.growLo(2,1);
+            }
+
+            if (bxcc.bigEnd(2) != domain.bigEnd(2)) {
+                 bxcc.growHi(2,1);
+                tbxxy.growHi(2,1);
+                tbxxz.growHi(2,1);
+                tbxyz.growHi(2,1);
+            }
+
             const Array4<const Real> & u = xvel_old.array(mfi);
             const Array4<const Real> & v = yvel_old.array(mfi);
             const Array4<const Real> & w = zvel_old.array(mfi);
 
-            Array4<Real> tau11 = Tau11->array(mfi);
-            Array4<Real> tau22 = Tau22->array(mfi);
-            Array4<Real> tau33 = Tau33->array(mfi);
-            Array4<Real> tau12 = Tau12->array(mfi);
-            Array4<Real> tau13 = Tau13->array(mfi);
-            Array4<Real> tau23 = Tau23->array(mfi);
+            Array4<Real> tau11 = Tau11_lev[level].get()->array(mfi);
+            Array4<Real> tau22 = Tau22_lev[level].get()->array(mfi);
+            Array4<Real> tau33 = Tau33_lev[level].get()->array(mfi);
+            Array4<Real> tau12 = Tau12_lev[level].get()->array(mfi);
+            Array4<Real> tau13 = Tau13_lev[level].get()->array(mfi);
+            Array4<Real> tau23 = Tau23_lev[level].get()->array(mfi);
 
-            Array4<Real> tau21  = l_use_terrain ? Tau21->array(mfi) : Array4<Real>{};
-            Array4<Real> tau31  = l_use_terrain ? Tau31->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32  = l_use_terrain ? Tau32->array(mfi) : Array4<Real>{};
+            Array4<Real> tau21  = l_use_terrain ? Tau21_lev[level].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31  = l_use_terrain ? Tau31_lev[level].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32  = l_use_terrain ? Tau32_lev[level].get()->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = l_use_terrain ? z_phys_nd[level]->const_array(mfi) : Array4<const Real>{};
 
             const Array4<const Real> mf_m = mapfac_m[level]->array(mfi);
@@ -136,16 +166,16 @@ void ERF::advance_dycore(int level,
             const Array4<const Real> mf_v = mapfac_v[level]->array(mfi);
 
             if (l_use_terrain) {
-                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau13,
                                 tau21, tau23,
                                 tau31, tau32,
-                                z_nd, bc_ptr_h, dxInv,
+                                z_nd, detJ_cc[level]->const_array(mfi), bc_ptr_h, dxInv,
                                 mf_m, mf_u, mf_v);
             } else {
-                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau13, tau23,
@@ -164,6 +194,10 @@ void ERF::advance_dycore(int level,
     MultiFab* Hfx1 = SFS_hfx1_lev[level].get();
     MultiFab* Hfx2 = SFS_hfx2_lev[level].get();
     MultiFab* Hfx3 = SFS_hfx3_lev[level].get();
+    MultiFab* Q1fx1 = SFS_q1fx1_lev[level].get();
+    MultiFab* Q1fx2 = SFS_q1fx2_lev[level].get();
+    MultiFab* Q1fx3 = SFS_q1fx3_lev[level].get();
+    MultiFab* Q2fx3 = SFS_q2fx3_lev[level].get();
     MultiFab* Diss = SFS_diss_lev[level].get();
 
     // *************************************************************************
@@ -180,19 +214,19 @@ void ERF::advance_dycore(int level,
     if (l_use_kturb)
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
-        const amrex::BCRec* bc_ptr_d = domain_bcs_type_d.data();
+        const BCRec* bc_ptr_h = domain_bcs_type.data();
         ComputeTurbulentViscosity(xvel_old, yvel_old,
-                                  *Tau11, *Tau22, *Tau33,
-                                  *Tau12, *Tau13, *Tau23,
+                                  *Tau11_lev[level].get(), *Tau22_lev[level].get(), *Tau33_lev[level].get(),
+                                  *Tau12_lev[level].get(), *Tau13_lev[level].get(), *Tau23_lev[level].get(),
                                   state_old[IntVars::cons],
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], tc, solverChoice.gravity,
-                                  m_most, bc_ptr_d);
+                                  m_most, exp_most, l_use_moisture, level, bc_ptr_h);
     }
 
     // ***********************************************************************************************
-    // Update user-defined source terms
+    // Update user-defined source terms -- these are defined once per time step (not per RK stage)
     // ***********************************************************************************************
     if (solverChoice.custom_rhotheta_forcing) {
         prob->update_rhotheta_sources(old_time,
@@ -200,18 +234,36 @@ void ERF::advance_dycore(int level,
                                       fine_geom, z_phys_cc[level]);
     }
 
+    if (solverChoice.custom_moisture_forcing) {
+        prob->update_rhoqt_sources(old_time,
+                                   h_rhoqt_src[level], d_rhoqt_src[level],
+                                   fine_geom, z_phys_cc[level]);
+    }
+
+    if (solverChoice.custom_geostrophic_profile) {
+        prob->update_geostrophic_profile(old_time,
+                                   h_u_geos[level], d_u_geos[level],
+                                   h_v_geos[level], d_v_geos[level],
+                                   fine_geom, z_phys_cc[level]);
+    }
+
     // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // ***********************************************************************************************
     MultiFab density(state_old[IntVars::cons], make_alias, Rho_comp, 1);
-    VelocityToMomentum(xvel_old, xvel_old.nGrowVect(),
-                       yvel_old, yvel_old.nGrowVect(),
-                       zvel_old, zvel_old.nGrowVect(),
-                       density,
+
+    //
+    // This is an optimization since we won't need more than one ghost
+    // cell of momentum in the integrator if not using NumDiff
+    //
+    IntVect ngu = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
+    IntVect ngv = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
+    IntVect ngw = (solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+    VelocityToMomentum(xvel_old, ngu, yvel_old, ngv, zvel_old, ngw, density,
                        state_old[IntVars::xmom],
                        state_old[IntVars::ymom],
                        state_old[IntVars::zmom],
-                       solverChoice.use_NumDiff);
+                       domain, domain_bcs_type);
 
     MultiFab::Copy(xvel_new,xvel_old,0,0,1,xvel_old.nGrowVect());
     MultiFab::Copy(yvel_new,yvel_old,0,0,1,yvel_old.nGrowVect());
@@ -219,6 +271,7 @@ void ERF::advance_dycore(int level,
 
     bool fast_only = false;
     bool vel_and_mom_synced = true;
+
     apply_bcs(state_old, old_time,
               state_old[IntVars::cons].nGrow(), state_old[IntVars::xmom].nGrow(),
               fast_only, vel_and_mom_synced);
@@ -241,7 +294,7 @@ void ERF::advance_dycore(int level,
     mri_integrator.set_post_update(post_update_fun);
 
 #ifdef ERF_USE_POISSON_SOLVE
-    if (solverChoice.incompressible) {
+    if (solverChoice.incompressible[level]) {
         mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);
     }
 #endif

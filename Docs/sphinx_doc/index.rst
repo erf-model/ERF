@@ -39,6 +39,7 @@ In addition to this documentation, there is API documentation for ERF generated 
 
    GettingStarted.rst
    Inputs.rst
+   BestPractices.rst
 
 .. toctree::
    :caption: THEORY
@@ -73,10 +74,11 @@ In addition to this documentation, there is API documentation for ERF generated 
    Visualization.rst
 
 .. toctree::
-   :caption: COUPLING TO AMR-WIND
+   :caption: EXTERNAL COUPLING
    :maxdepth: 1
 
    CouplingToAMRWind.rst
+   CouplingToWW3.rst
 
 .. toctree::
    :caption: ERF vs WRF
@@ -97,3 +99,9 @@ In addition to this documentation, there is API documentation for ERF generated 
    :maxdepth: 1
 
    Applications_Requirements.rst
+
+.. toctree::
+   :caption: CONTAINERS
+   :maxdepth: 1
+
+   containers.rst

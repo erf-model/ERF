@@ -48,6 +48,8 @@ erf.molec_diff_type  = "Constant"
 erf.dynamicViscosity = 0.1
 
 # PROBLEM PARAMETERS
+prob.prob_type = 1
+
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
 # NOTE: this u_0 should match the zhi.velocity specified above

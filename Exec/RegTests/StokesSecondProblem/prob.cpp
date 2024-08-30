@@ -12,7 +12,7 @@ amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
 Problem::Problem()
 {
   // Parse params
-  amrex::ParmParse pp("prob");
+  ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
 
   init_base_parms(parms.rho_0, parms.T_0);
@@ -38,46 +38,41 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
-  const int khi = geomdata.Domain().bigEnd()[2];
-
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-  AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        // This version perturbs rho but not p -- TODO: CHECK THIS
+        state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0 - p_hse(i,j,k);
 
-  // Geometry (note we must include these here to get the data on device)
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-    // This version perturbs rho but not p -- TODO: CHECK THIS
-    state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0 - p_hse(i,j,k);
+        // Set scalar = 0 everywhere
+        state(i, j, k, RhoScalar_comp) = 0.0;
 
-    // Set scalar = 0 everywhere
-    state(i, j, k, RhoScalar_comp) = 0.0;
+        if (use_moisture) {
+            state(i, j, k, RhoQ1_comp) = 0.0;
+            state(i, j, k, RhoQ2_comp) = 0.0;
+        }
+    });
 
-    if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = 0.0;
-        state(i, j, k, RhoQ2_comp) = 0.0;
-    }
-  });
+    // Set the x-velocity
+    ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        x_vel(i, j, k) = 0.0;
+    });
 
-  // Set the x-velocity
-  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      x_vel(i, j, k) = 0.0;
-  });
+    // Set the y-velocity
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        y_vel(i, j, k) = 0.0;
+    });
 
-  // Set the y-velocity
-  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      y_vel(i, j, k) = 0.0;
-  });
+    // Set the z-velocity from impenetrable condition
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        z_vel(i, j, k) = 0.0;
+    });
 
-  // Set the z-velocity from impenetrable condition
-  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      z_vel(i, j, k) = 0.0;
-  });
-
-  amrex::Gpu::streamSynchronize();
+    amrex::Gpu::streamSynchronize();
 
 }
 

@@ -1,14 +1,18 @@
 #ifndef ERF_MRI_H
 #define ERF_MRI_H
+
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_IntegratorBase.H>
-#include <TI_headers.H>
+
+#include <TI_slow_headers.H>
+#include <TI_fast_headers.H>
+
 #include <functional>
 
 template<class T>
-class MRISplitIntegrator : public amrex::IntegratorBase<T>
+class MRISplitIntegrator
 {
 private:
    /**
@@ -57,7 +61,7 @@ private:
     */
     std::function<void (T&, int)> pre_update;
     std::function<void (T&, amrex::Real, int, int)> post_update;
-    std::function<void (T&, T&, T&, amrex::Real, amrex::Real)>   no_substep;
+    std::function<void (T&, T&, T&, amrex::Real, amrex::Real, int)> no_substep;
 
 
     amrex::Vector<std::unique_ptr<T> > T_store;
@@ -86,12 +90,12 @@ public:
         initialize_data(S_data);
     }
 
-    void initialize (const T& S_data) override
+    void initialize (const T& S_data)
     {
         initialize_data(S_data);
     }
 
-    ~MRISplitIntegrator () override = default;
+    ~MRISplitIntegrator () = default;
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
@@ -170,7 +174,7 @@ public:
         post_update = F;
     }
 
-    void set_no_substep (std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> F)
+    void set_no_substep (std::function<void (T&, T&, T&, amrex::Real, amrex::Real, int)> F)
     {
         no_substep = F;
     }
@@ -180,7 +184,7 @@ public:
         return rhs;
     }
 
-    amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step) override
+    amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
     {
     BL_PROFILE_REGION("MRI_advance");
         using namespace amrex;
@@ -292,7 +296,7 @@ public:
                 } // ks
 
             } else {
-                no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau);
+                no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau, nrk);
             }
 
             // ****************************************************
@@ -316,7 +320,7 @@ public:
             // Capture the time we got to in the previous RK step
             old_time_stage = time_stage;
 
-            if (nrk == 0) { nsubsteps = 1; dtau = timestep; time_stage = time; }
+            if (nrk == 0) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
             if (nrk == 1) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
 
             // All pre_update does is call cons_to_prim, and we have done this with the old
@@ -332,7 +336,7 @@ public:
 
             slow_rhs_inc(*F_slow, S_old, S_new, *S_scratch, time, old_time_stage, time_stage, nrk);
 
-            no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau);
+            no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau, nrk);
 
             slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
 
@@ -344,9 +348,7 @@ public:
         return timestep;
     }
 
-    void time_interpolate (const T& /* S_new */, const T& /*S_old*/, amrex::Real /*timestep_fraction*/, T& /*data*/) override {}
-
-    void map_data (std::function<void(T&)> Map) override
+    void map_data (std::function<void(T&)> Map)
     {
         for (auto& F : T_store) {
             Map(*F);

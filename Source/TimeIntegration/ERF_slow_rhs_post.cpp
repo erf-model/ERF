@@ -1,15 +1,10 @@
 #include <AMReX.H>
-#include <AMReX_MultiFab.H>
-#include <Advection.H>
-#include <Diffusion.H>
-#include <NumericalDiffusion.H>
-#include <TI_headers.H>
-#include <TileNoZ.H>
-#include <ERF.H>
-#include <Utils.H>
+#include <Src_headers.H>
+#include <TI_slow_headers.H>
 
-#include <TerrainMetrics.H>
-#include <IndexDefines.H>
+#if defined(ERF_USE_NETCDF)
+// #include <Utils.H>
+#endif
 
 using namespace amrex;
 
@@ -34,11 +29,14 @@ using namespace amrex;
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in] Hfx3 heat flux in z-dir
  * @param[in] Diss dissipation of turbulent kinetic energy
- * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  geom   Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
  * @param[in]  most  Pointer to MOST class for Monin-Obukhov Similarity Theory boundary condition
  * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
  * @param[in] z_phys_nd height coordinate at nodes
+ * @param[in] ax area fractions on x-faces
+ * @param[in] ay area fractions on y-faces
+ * @param[in] az area fractions on z-faces
  * @param[in] detJ     Jacobian of the metric transformation at start of time step (= 1 if use_terrain is false)
  * @param[in] detJ_new Jacobian of the metric transformation at new RK stage time (= 1 if use_terrain is false)
  * @param[in] mapfac_m map factor at cell centers
@@ -63,19 +61,33 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const MultiFab& source,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
-                        MultiFab* Hfx3, MultiFab* Diss,
-                        const amrex::Geometry geom,
+                        MultiFab* Hfx1,
+                        MultiFab* Hfx2,
+                        MultiFab* Hfx3,
+                        MultiFab* Q1fx1,
+                        MultiFab* Q1fx2,
+                        MultiFab* Q1fx3,
+                        MultiFab* Q2fx3,
+                        MultiFab* Diss,
+                        const Geometry geom,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
-                        const Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
+                        const Vector<BCRec>& domain_bcs_type_h,
                         std::unique_ptr<MultiFab>& z_phys_nd,
+                        std::unique_ptr<MultiFab>& ax,
+                        std::unique_ptr<MultiFab>& ay,
+                        std::unique_ptr<MultiFab>& az,
                         std::unique_ptr<MultiFab>& detJ,
                         std::unique_ptr<MultiFab>& detJ_new,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
                         std::unique_ptr<MultiFab>& mapfac_v,
+#ifdef ERF_USE_EB
+                        amrex::EBFArrayBoxFactory const& ebfact,
+#endif
 #if defined(ERF_USE_NETCDF)
-                        const bool& moist_set_rhs,
+                        const bool& moist_set_rhs_bool,
                         const Real& bdy_time_interval,
                         const Real& start_bdy_time,
                         const Real& new_stage_time,
@@ -87,10 +99,12 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
 #endif
                         YAFluxRegister* fr_as_crse,
-                        YAFluxRegister* fr_as_fine
-                        )
+                        YAFluxRegister* fr_as_fine)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
+
+    const BCRec* bc_ptr_d = domain_bcs_type_d.data();
+    const BCRec* bc_ptr_h = domain_bcs_type_h.data();
 
     AdvChoice  ac = solverChoice.advChoice;
     DiffChoice dc = solverChoice.diffChoice;
@@ -104,8 +118,9 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
-    const bool l_use_ndiff      = solverChoice.use_NumDiff;
-    const bool l_use_QKE        = tc.use_QKE && tc.advect_QKE;
+    const bool l_use_mono_adv   = solverChoice.use_mono_adv;
+    const bool l_use_QKE        = tc.use_QKE;
+    const bool l_advect_QKE     = tc.use_QKE && tc.advect_QKE;
     const bool l_use_deardorff  = (tc.les_type == LESType::Deardorff);
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
@@ -114,8 +129,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
-
-    const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
+    const bool exp_most         = (solverChoice.use_explicit_most);
+    const bool rot_most         = (solverChoice.use_rotate_most);
 
     const Box& domain = geom.Domain();
 
@@ -149,6 +164,41 @@ void erf_slow_rhs_post (int level, int finest_level,
         dflux_z = nullptr;
     }
 
+    // Valid vars
+    Vector<int> is_valid_slow_var; is_valid_slow_var.resize(RhoQ1_comp+1,0);
+    if (l_use_deardorff) {is_valid_slow_var[    RhoKE_comp] = 1;}
+    if (l_use_QKE)       {is_valid_slow_var[   RhoQKE_comp] = 1;}
+                          is_valid_slow_var[RhoScalar_comp] = 1;
+    if (solverChoice.moisture_type != MoistureType::None) {
+         is_valid_slow_var[RhoQ1_comp] = 1;
+    }
+
+    // *****************************************************************************
+    // Monotonic advection for scalars
+    // *****************************************************************************
+    int nvar = S_new[IntVars::cons].nComp();
+    Vector<Real> max_scal(nvar, 1.0e34); Gpu::DeviceVector<Real> max_scal_d(nvar);
+    Vector<Real> min_scal(nvar,-1.0e34); Gpu::DeviceVector<Real> min_scal_d(nvar);
+    if (l_use_mono_adv) {
+        auto const& ma_s_arr = S_new[IntVars::cons].const_arrays();
+        for (int ivar(RhoKE_comp); ivar<nvar; ++ivar) {
+            GpuTuple<Real,Real> mm = ParReduce(TypeList<ReduceOpMax,ReduceOpMin>{},
+                                               TypeList<Real, Real>{},
+                                               S_new[IntVars::cons], IntVect(0),
+                [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+                -> GpuTuple<Real,Real>
+                {
+                    return { ma_s_arr[box_no](i,j,k,ivar), ma_s_arr[box_no](i,j,k,ivar) };
+                });
+            max_scal[ivar] = get<0>(mm);
+            min_scal[ivar] = get<1>(mm);
+        }
+    }
+    Gpu::copy(Gpu::hostToDevice, max_scal.begin(), max_scal.end(), max_scal_d.begin());
+    Gpu::copy(Gpu::hostToDevice, min_scal.begin(), min_scal.end(), min_scal_d.begin());
+    Real* max_s_ptr = max_scal_d.data();
+    Real* min_s_ptr = min_scal_d.data();
+
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
     //
@@ -156,7 +206,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     //    that we can fill the eddy viscosity in the ghost regions and
     //    not have to call a boundary filler on this data itself
     //
-    // LES - updates both horizontal and vertical eddy viscosity components
+    // LES - updates both horizontal and vertical eddy viscosityS_tmp components
     // PBL - only updates vertical eddy viscosity components so horizontal
     //       components come from the LES model or are left as zero.
     // *************************************************************************
@@ -165,32 +215,41 @@ void erf_slow_rhs_post (int level, int finest_level,
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
       std::array<FArrayBox,AMREX_SPACEDIM> flux;
+      std::array<FArrayBox,AMREX_SPACEDIM> flux_tmp;
 
       int start_comp;
       int   num_comp;
 
       for ( MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box& tbx  = mfi.tilebox();
+        Box tbx  = mfi.tilebox();
 
         // *************************************************************************
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(amrex::surroundingNodes(tbx,dir),nvars);
+            flux[dir].resize(surroundingNodes(tbx,dir),nvars);
             flux[dir].setVal<RunOn::Device>(0.);
+            if (l_use_mono_adv) {
+                flux_tmp[dir].resize(surroundingNodes(tbx,dir),nvars);
+                flux_tmp[dir].setVal<RunOn::Device>(0.);
+            }
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
+        Array4<Real> tmpx = (l_use_mono_adv) ? flux_tmp[0].array() : Array4<Real>{};
+        Array4<Real> tmpy = (l_use_mono_adv) ? flux_tmp[1].array() : Array4<Real>{};
+        Array4<Real> tmpz = (l_use_mono_adv) ? flux_tmp[2].array() : Array4<Real>{};
+        const GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_tmp_arr{{AMREX_D_DECL(tmpx,tmpy,tmpz)}};
 
         // *************************************************************************
         // Define Array4's
         // *************************************************************************
-        const Array4<      Real> & old_cons   = S_old[IntVars::cons].array(mfi);
+        const Array4<const Real> & old_cons   = S_old[IntVars::cons].array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVars::cons].array(mfi);
 
         const Array4<      Real> & new_cons  = S_new[IntVars::cons].array(mfi);
@@ -213,9 +272,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
-        // Metric terms
         const Array4<const Real>& z_nd         = l_use_terrain    ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ_arr     = l_use_terrain    ? detJ->const_array(mfi)        : Array4<const Real>{};
         const Array4<const Real>& detJ_new_arr = l_moving_terrain ? detJ_new->const_array(mfi)    : Array4<const Real>{};
 
         // Map factors
@@ -230,22 +287,22 @@ void erf_slow_rhs_post (int level, int finest_level,
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
         // **************************************************************************
         int nsv = S_old[IntVars::cons].nComp() - 2;
-        const amrex::GpuArray<int, IntVars::NumTypes> scomp_slow = {  2,0,0,0};
-        const amrex::GpuArray<int, IntVars::NumTypes> ncomp_slow = {nsv,0,0,0};
+        const GpuArray<int, IntVars::NumTypes> scomp_slow = {  2,0,0,0};
+        const GpuArray<int, IntVars::NumTypes> ncomp_slow = {nsv,0,0,0};
 
-        {
-        BL_PROFILE("rhs_post_7");
+        // **************************************************************************
+        // Note that here we do copy only the "slow" variables, not (rho) or (rho theta)
+        // **************************************************************************
         ParallelFor(tbx, ncomp_slow[IntVars::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVars::cons] + nn;
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
-        } // end profile
 
         // We have projected the velocities stored in S_data but we will use
         //    the velocities stored in S_scratch to update the scalars, so
         //    we need to copy from S_data (projected) into S_scratch
-        if (solverChoice.incompressible) {
+        if (solverChoice.incompressible[level]) {
             Box tbx_inc = mfi.nodaltilebox(0);
             Box tby_inc = mfi.nodaltilebox(1);
             Box tbz_inc = mfi.nodaltilebox(2);
@@ -265,414 +322,183 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        AdvType    horiz_adv_type = ac.dryscal_horiz_adv_type;
-        AdvType     vert_adv_type = ac.dryscal_vert_adv_type;
-        const Real horiz_upw_frac = ac.dryscal_horiz_upw_frac;
-        const Real  vert_upw_frac = ac.dryscal_vert_upw_frac;
+        // Metric terms
+#ifdef ERF_USE_EB
+        auto const& ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
+        auto const& ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
+        auto const& az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
+        const auto& detJ_arr = ebfact.getVolFrac().const_array(mfi);
+#else
+        auto const& ax_arr   = ax->const_array(mfi);
+        auto const& ay_arr   = ay->const_array(mfi);
+        auto const& az_arr   = az->const_array(mfi);
+        auto const& detJ_arr = detJ->const_array(mfi);
+#endif
 
-        if (ac.use_efficient_advection){
-             horiz_adv_type = EfficientAdvType(nrk,ac.dryscal_horiz_adv_type);
-              vert_adv_type = EfficientAdvType(nrk,ac.dryscal_vert_adv_type);
-        }
+        AdvType horiz_adv_type, vert_adv_type;
+        Real    horiz_upw_frac, vert_upw_frac;
 
-        if (l_use_deardorff) {
-            start_comp = RhoKE_comp;
-              num_comp = 1;
-            AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                   cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   horiz_adv_type, vert_adv_type,
-                                   horiz_upw_frac, vert_upw_frac,
-                                   l_use_terrain, flx_arr);
-        }
-        if (l_use_QKE) {
-            start_comp = RhoQKE_comp;
-              num_comp = 1;
-            AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                   cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   horiz_adv_type, vert_adv_type,
-                                   horiz_upw_frac, vert_upw_frac,
-                                   l_use_terrain, flx_arr);
-        }
-
-        // This is simply an advected scalar for convenience
-        start_comp = RhoScalar_comp;
-        num_comp = 1;
-        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               horiz_adv_type, vert_adv_type,
-                               horiz_upw_frac, vert_upw_frac,
-                               l_use_terrain, flx_arr);
-
-        if (solverChoice.moisture_type != MoistureType::None)
-        {
-            start_comp = RhoQ1_comp;
-              num_comp = nvars - start_comp;
-
-            AdvType    moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
-            AdvType     moist_vert_adv_type = ac.moistscal_vert_adv_type;
-            const Real moist_horiz_upw_frac = ac.moistscal_horiz_upw_frac;
-            const Real  moist_vert_upw_frac = ac.moistscal_vert_upw_frac;
-
-            if (ac.use_efficient_advection){
-                 moist_horiz_adv_type = EfficientAdvType(nrk,ac.moistscal_horiz_adv_type);
-                 moist_vert_adv_type  = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
-            }
-
-            AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                   cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   moist_horiz_adv_type, moist_vert_adv_type,
-                                   moist_horiz_upw_frac, moist_vert_upw_frac,
-                                   l_use_terrain, flx_arr);
-        }
+        Array4<Real> diffflux_x, diffflux_y, diffflux_z;
+        Array4<Real> hfx_x, hfx_y, hfx_z, diss;
+        Array4<Real> q1fx_x, q1fx_y, q1fx_z, q2fx_z;
+        const bool use_most = (most != nullptr);
 
         if (l_use_diff) {
-            Array4<Real> diffflux_x = dflux_x->array(mfi);
-            Array4<Real> diffflux_y = dflux_y->array(mfi);
-            Array4<Real> diffflux_z = dflux_z->array(mfi);
+            diffflux_x = dflux_x->array(mfi);
+            diffflux_y = dflux_y->array(mfi);
+            diffflux_z = dflux_z->array(mfi);
 
-            Array4<Real> hfx_z = Hfx3->array(mfi);
-            Array4<Real> diss  = Diss->array(mfi);
+            hfx_x = Hfx1->array(mfi);
+            hfx_y = Hfx2->array(mfi);
+            hfx_z = Hfx3->array(mfi);
+            diss  = Diss->array(mfi);
 
-            const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
-
-            if (l_use_deardorff) {
-                start_comp = RhoKE_comp;
-                  num_comp = 1;
-                if (l_use_terrain) {
-                    DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, u, v,
-                                           cur_cons, cur_prim, cell_rhs,
-                                           diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
-                                           dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                           hfx_z, diss,
-                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
-                } else {
-                    DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
-                                           cur_cons, cur_prim, cell_rhs,
-                                           diffflux_x, diffflux_y, diffflux_z,
-                                           dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                           hfx_z, diss,
-                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
-                }
-                if (l_use_ndiff) {
-                    NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
-                                       new_cons, cell_rhs, mf_u, mf_v, false, false);
-                }
-            }
-            if (l_use_QKE) {
-                start_comp = RhoQKE_comp;
-                  num_comp = 1;
-                if (l_use_terrain) {
-                    DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, u, v,
-                                           cur_cons, cur_prim, cell_rhs,
-                                           diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
-                                           dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                           hfx_z, diss,
-                                           mu_turb, dc, tc,tm_arr, grav_gpu, bc_ptr);
-                } else {
-                    DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
-                                           cur_cons, cur_prim, cell_rhs,
-                                           diffflux_x, diffflux_y, diffflux_z,
-                                           dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                           hfx_z, diss,
-                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
-                }
-                if (l_use_ndiff) {
-                    NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
-                                       new_cons, cell_rhs, mf_u, mf_v, false, false);
-                }
-            }
-
-            start_comp = RhoScalar_comp;
-              num_comp = nvars - start_comp;
-            if (l_use_terrain) {
-                DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, u, v,
-                                       cur_cons, cur_prim, cell_rhs,
-                                       diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
-                                       dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                       hfx_z, diss,
-                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
-            } else {
-                DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
-                                       cur_cons, cur_prim, cell_rhs,
-                                       diffflux_x, diffflux_y, diffflux_z,
-                                       dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                       hfx_z, diss,
-                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
-            }
-            if (l_use_ndiff) {
-                NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
-                                   new_cons, cell_rhs, mf_u, mf_v, false, false);
-            }
+            if (Q1fx1) q1fx_x = Q1fx1->array(mfi);
+            if (Q1fx2) q1fx_y = Q1fx2->array(mfi);
+            if (Q1fx3) q1fx_z = Q1fx3->array(mfi);
+            if (Q2fx3) q2fx_z = Q2fx3->array(mfi);
         }
+
+        //
+        // Note that we either advect and diffuse all or none of the moisture variables
+        //
+        for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
+        {
+            if (is_valid_slow_var[ivar])
+            {
+                start_comp = ivar;
+
+                if (ivar >= RhoQ1_comp) {
+                    horiz_adv_type = ac.moistscal_horiz_adv_type;
+                     vert_adv_type = ac.moistscal_vert_adv_type;
+                    horiz_upw_frac = ac.moistscal_horiz_upw_frac;
+                     vert_upw_frac = ac.moistscal_vert_upw_frac;
+
+                    if (ac.use_efficient_advection){
+                         horiz_adv_type = EfficientAdvType(nrk,ac.moistscal_horiz_adv_type);
+                          vert_adv_type = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
+                    }
+
+                    num_comp = nvars - RhoQ1_comp;
+
+                } else {
+                    horiz_adv_type = ac.dryscal_horiz_adv_type;
+                     vert_adv_type = ac.dryscal_vert_adv_type;
+                    horiz_upw_frac = ac.dryscal_horiz_upw_frac;
+                     vert_upw_frac = ac.dryscal_vert_upw_frac;
+
+                    if (ac.use_efficient_advection){
+                         horiz_adv_type = EfficientAdvType(nrk,ac.dryscal_horiz_adv_type);
+                          vert_adv_type = EfficientAdvType(nrk,ac.dryscal_vert_adv_type);
+                    }
+                    num_comp = 1;
+                }
+
+                if (( ivar != RhoQKE_comp                 ) ||
+                    ((ivar == RhoQKE_comp) && l_advect_QKE))
+                {
+                    AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                           cur_cons, cur_prim, cell_rhs,
+                                           l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                           detJ_arr, dxInv, mf_m,
+                                           horiz_adv_type, vert_adv_type,
+                                           horiz_upw_frac, vert_upw_frac,
+                                           flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                }
+
+                if (l_use_diff) {
+
+                    const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
+
+                    if (l_use_terrain) {
+                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, rot_most, u, v,
+                                               new_cons, cur_prim, cell_rhs,
+                                               diffflux_x, diffflux_y, diffflux_z,
+                                               z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
+                                               dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
+                                               mu_turb, dc, tc,
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
+                    } else {
+                        DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
+                                               new_cons, cur_prim, cell_rhs,
+                                               diffflux_x, diffflux_y, diffflux_z,
+                                               dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                               hfx_z, q1fx_z, q2fx_z, diss,
+                                               mu_turb, dc, tc,
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
+                    }
+                } // use_diff
+            } // valid slow var
+        } // loop ivar
+
 #if defined(ERF_USE_NETCDF)
-        if (moist_set_rhs) {
-
-            // NOTE: We pass the full width into this routine.
-            //       For relaxation, the last cell is a halo
-            //       cell for the Laplacian. We remove that
-            //       cell here if it is present.
-
-            // The width to do RHS augmentation
-            if (width > set_width+1) width -= 1;
-
-            // Relaxation constants
-            Real F1 = 1./(10.*dt);
-            Real F2 = 1./(50.*dt);
-
-            // Domain bounds
-            const auto& dom_hi = ubound(domain);
-            const auto& dom_lo = lbound(domain);
-
-            // Time interpolation
-            Real dT = bdy_time_interval;
-            Real time_since_start = new_stage_time - start_bdy_time;
-            int n_time = static_cast<int>( time_since_start /  dT);
-            amrex::Real alpha = (time_since_start - n_time * dT) / dT;
-            AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-            amrex::Real oma   = 1.0 - alpha;
-
-            /*
-            // UNIT TEST DEBUG
-            oma = 1.0; alpha = 0.0;
-            */
-
-            // Boundary data at fixed time intervals
-            const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][WRFBdyVars::QV].const_array();
-            const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][WRFBdyVars::QV].const_array();
-            const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][WRFBdyVars::QV].const_array();
-            const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][WRFBdyVars::QV].const_array();
-            const auto& bdatylo_n   = bdy_data_ylo[n_time  ][WRFBdyVars::QV].const_array();
-            const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][WRFBdyVars::QV].const_array();
-            const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][WRFBdyVars::QV].const_array();
-            const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][WRFBdyVars::QV].const_array();
-
-            // Get Boxes for interpolation (one halo cell)
-            IntVect ng_vect{1,1,0};
-            Box gdom(domain); gdom.grow(ng_vect);
-            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
-                                          bx_xlo, bx_xhi,
-                                          bx_ylo, bx_yhi,
-                                          ng_vect, true);
-
-            // Temporary FABs for storage (owned/filled on all ranks)
-            FArrayBox QV_xlo, QV_xhi, QV_ylo, QV_yhi;
-            QV_xlo.resize(bx_xlo,1,The_Async_Arena()); QV_xhi.resize(bx_xhi,1,The_Async_Arena());
-            QV_ylo.resize(bx_ylo,1,The_Async_Arena()); QV_yhi.resize(bx_yhi,1,The_Async_Arena());
-
-            // Get Array4 of interpolated values
-            Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
-            Array4<Real> arr_ylo = QV_ylo.array();  Array4<Real> arr_yhi = QV_yhi.array();
-
-            // NOTE: width is now one less than the total bndy width
-            //       if we have a relaxation zone; so we can access
-            //       dom_lo/hi +- width. If we do not have a relax
-            //       zone, this offset is set_width - 1.
-            int offset = set_width - 1;
-            if (width > set_width) offset = width;
-
-            // Populate with interpolation (protect from ghost cells)
-            ParallelFor(bx_xlo, bx_xhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int ii = std::max(i , dom_lo.x);
-                    ii = std::min(ii, dom_lo.x+offset);
-                int jj = std::max(j , dom_lo.y);
-                    jj = std::min(jj, dom_hi.y);
-                arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k)
-                               + alpha * bdatxlo_np1(ii,jj,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int ii = std::max(i , dom_hi.x-offset);
-                    ii = std::min(ii, dom_hi.x);
-                int jj = std::max(j , dom_lo.y);
-                    jj = std::min(jj, dom_hi.y);
-                arr_xhi(i,j,k) = oma   * bdatxhi_n  (ii,jj,k)
-                               + alpha * bdatxhi_np1(ii,jj,k);
-            });
-
-            ParallelFor(bx_ylo, bx_yhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int ii = std::max(i , dom_lo.x);
-                    ii = std::min(ii, dom_hi.x);
-                int jj = std::max(j , dom_lo.y);
-                    jj = std::min(jj, dom_lo.y+offset);
-                arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k)
-                               + alpha * bdatylo_np1(ii,jj,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int ii = std::max(i , dom_lo.x);
-                    ii = std::min(ii, dom_hi.x);
-                int jj = std::max(j , dom_hi.y-offset);
-                    jj = std::min(jj, dom_hi.y);
-                arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k)
-                               + alpha * bdatyhi_np1(ii,jj,k);
-            });
-
-            // NOTE: We pass 'old_cons' here since the tendencies are with
-            //       respect to the start of the RK integration.
-
-            // Compute RHS in specified region
-            //==========================================================
-            if (set_width > 0 ) {
-                compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                              bx_xlo, bx_xhi,
-                                              bx_ylo, bx_yhi);
-                wrfbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
-                                              width, set_width, dom_lo, dom_hi,
-                                              bx_xlo,  bx_xhi,  bx_ylo,  bx_yhi,
-                                              arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                              old_cons, cell_rhs);
-            }
-
-
-            // NOTE: We pass 'new_cons' here since it has its ghost cells
-            //       populated and we are only operating on RhoQv; thus,
-            //       we do not need the updated fast quantities.
-
-            // Compute RHS in relaxation region
-            //==========================================================
-            if (width > set_width) {
-                compute_interior_ghost_bxs_xy(tbx, domain, width, set_width,
-                                              bx_xlo, bx_xhi,
-                                              bx_ylo, bx_yhi);
-                wrfbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
-                                                    width, set_width, dom_lo, dom_hi, F1, F2,
-                                                    bx_xlo, bx_xhi, bx_ylo, bx_yhi,
-                                                    arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                                    new_cons, cell_rhs);
-            }
-
-            /*
-            // UNIT TEST DEBUG
-            compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
-                                          bx_xlo, bx_xhi,
-                                          bx_ylo, bx_yhi);
-            ParallelFor(bx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (arr_xlo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
-                    amrex::Print() << "ERROR XLO: " <<  RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
-                    exit(0);
-                }
-            });
-            ParallelFor(bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (arr_xhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
-                    amrex::Print() << "ERROR XHI: " << RhoQ1_comp<< ' ' << IntVect(i,j,k) << "\n";
-                    exit(0);
-                }
-            });
-            ParallelFor(bx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (arr_ylo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
-                    amrex::Print() << "ERROR YLO: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
-                    exit(0);
-                }
-            });
-            ParallelFor(bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (arr_yhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
-                    amrex::Print() << "ERROR YHI: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
-                    exit(0);
-                }
-            });
-            */
-        } // moist_set_rhs
+        if (moist_set_rhs_bool)
+        {
+            const Array4<const Real> & old_cons_const = S_old[IntVars::cons].const_array(mfi);
+            const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
+            moist_set_rhs(tbx, old_cons_const, new_cons_const, cell_rhs,
+                          bdy_time_interval, start_bdy_time, new_stage_time, dt, width, set_width, domain,
+                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
+        }
 #endif
 
         // This updates just the "slow" conserved variables
         {
         BL_PROFILE("rhs_post_8");
 
-        if (l_moving_terrain)
+        const Real eps = std::numeric_limits<Real>::epsilon();
+
+        auto const& src_arr = source.const_array(mfi);
+
+        for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
         {
-            start_comp = RhoScalar_comp;
-            num_comp   = S_data[IntVars::cons].nComp() - start_comp;
-            ParallelFor(tbx, num_comp,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                const int n = start_comp + nn;
-                // NOTE: we don't include additional source terms when terrain is moving
-                Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
-                cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
-            });
+            if (is_valid_slow_var[ivar])
+            {
+                start_comp = ivar;
 
-            if (l_use_deardorff) {
-              start_comp = RhoKE_comp;
-              num_comp   = 1;
-              ParallelFor(tbx, num_comp,
-              [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                const int n = start_comp + nn;
-                // NOTE: we don't include additional source terms when terrain is moving
-                Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
-                cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
-              });
-            }
-            if (l_use_QKE) {
-              start_comp = RhoQKE_comp;
-              num_comp   = 1;
-              ParallelFor(tbx, num_comp,
-              [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                const int n = start_comp + nn;
-                // NOTE: we don't include additional source terms when terrain is moving
-                Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
-                cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
-                cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
-#if 0           // Printing
-                if (cur_cons(i,j,k,n) < Real(0.)) {
-                    amrex::AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
-                        cur_cons(i,j,k,n) << " " << old_cons(i,j,k,n) << std::endl;
-                    amrex::Abort();
+                if (ivar >= RhoQ1_comp) {
+                    num_comp = nvars - RhoQ1_comp;
+                } else {
+                    num_comp = 1;
                 }
-#endif
-              });
-            }
-        } else {
-            auto const& src_arr = source.const_array(mfi);
-            start_comp = RhoScalar_comp;
-            num_comp   = nvars - start_comp;
-            ParallelFor(tbx, num_comp,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                const int n = start_comp + nn;
-                cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
-                cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-            });
 
-            if (l_use_deardorff) {
-              start_comp = RhoKE_comp;
-              num_comp = 1;
-              amrex::Real eps = std::numeric_limits<Real>::epsilon();
-              ParallelFor(tbx, num_comp,
-              [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                const int n = start_comp + nn;
-                cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
-                cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-                // make sure rho*e is positive
-                if (cur_cons(i,j,k,n) < eps) cur_cons(i,j,k,n) = eps;
-              });
-            }
-            if (l_use_QKE) {
-              start_comp = RhoQKE_comp;
-              num_comp   = 1;
-              ParallelFor(tbx, num_comp,
-              [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                const int n = start_comp + nn;
-                cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
-                cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-                cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
-#if 0           // Printing
-                if (cur_cons(i,j,k,n) < Real(0.)) {
-                    amrex::AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
-                        cur_cons(i,j,k,n) << " " << old_cons(i,j,k,n) << std::endl;
-                    amrex::Abort();
-                }
-#endif
-              });
-            }
-        }
-        } // end profile
+               if (l_moving_terrain)
+               {
+                    ParallelFor(tbx, num_comp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = start_comp + nn;
+                        cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
+                        Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
+                        cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
+                        if (ivar == RhoKE_comp) {
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
+                        } else if (ivar == RhoQKE_comp) {
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
+                        }
+                    });
+
+                } else {
+
+                    ParallelFor(tbx, num_comp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = start_comp + nn;
+                        cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
+                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
+                        if (ivar == RhoKE_comp) {
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
+                        } else if (ivar == RhoQKE_comp) {
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
+                        } else if (ivar >= RhoQ1_comp) {
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 0.0);
+                        }
+                    });
+
+                } // moving or not?
+
+            } // is_valid
+        } // ivar
+        } // profile
 
         {
         BL_PROFILE("rhs_post_9");
@@ -684,13 +510,13 @@ void erf_slow_rhs_post (int level, int finest_level,
         });
         } // end profile
 
-        Box gtbx = mfi.tilebox(IntVect(1,0,0),S_old[IntVars::xmom].nGrowVect());
-        Box gtby = mfi.tilebox(IntVect(0,1,0),S_old[IntVars::ymom].nGrowVect());
-        Box gtbz = mfi.tilebox(IntVect(0,0,1),S_old[IntVars::zmom].nGrowVect());
+        Box xtbx = mfi.nodaltilebox(0);
+        Box ytbx = mfi.nodaltilebox(1);
+        Box ztbx = mfi.nodaltilebox(2);
 
         {
         BL_PROFILE("rhs_post_10()");
-        ParallelFor(gtbx, gtby, gtbz,
+        ParallelFor(xtbx, ytbx, ztbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             new_xmom(i,j,k) = cur_xmom(i,j,k);
         },
@@ -711,12 +537,12 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
                 fr_as_fine->FineAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
         } // two-way coupling
         } // end profile

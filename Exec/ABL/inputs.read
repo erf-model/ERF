@@ -41,7 +41,7 @@ erf.check_int       = -1        # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt       # prefix of plotfile name
-erf.plot_int_1      = -1        # number of timesteps between plotfiles
+erf.plot_int_1      = 100       # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # SOLVER CHOICE
@@ -65,8 +65,8 @@ prob.W_0 = 0.0
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-prob.U_0_Pert_Mag = 0.08
-prob.V_0_Pert_Mag = 0.08 #
+prob.U_0_Pert_Mag = 0.0
+prob.V_0_Pert_Mag = 0.0
 prob.W_0_Pert_Mag = 0.0
 
 erf.input_bndry_planes = 1

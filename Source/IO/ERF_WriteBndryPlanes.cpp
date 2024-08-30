@@ -51,8 +51,8 @@ int WriteBndryPlanes::bndry_lev = 0;
  * @param grids Vector of BoxArrays containing the grids at each level in the AMR
  * @param geom Vector of Geometry containing the geometry at each level in the AMR
  */
-WriteBndryPlanes::WriteBndryPlanes(Vector<BoxArray>& grids,
-                                   Vector<Geometry>& geom): m_geom(geom)
+WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
+                                    Vector<Geometry>& geom): m_geom(geom)
 {
     ParmParse pp("erf");
 
@@ -64,15 +64,16 @@ WriteBndryPlanes::WriteBndryPlanes(Vector<BoxArray>& grids,
     // If the target area is contained at a finer level, use the finest data possible
     for (int ilev = 0; ilev < grids.size(); ilev++) {
 
-        auto const dxi = geom[ilev].InvCellSizeArray();
+        const Real* xLo = m_geom[ilev].ProbLo();
+        auto const dxi  = geom[ilev].InvCellSizeArray();
         const Box& domain = m_geom[ilev].Domain();
 
         // We create the smallest box that contains all of the cell centers
         // in the physical region specified
-        int ilo = static_cast<int>(Math::floor(box_lo[0] * dxi[0])+.5);
-        int jlo = static_cast<int>(Math::floor(box_lo[1] * dxi[1])+.5);
-        int ihi = static_cast<int>(Math::floor(box_hi[0] * dxi[0])+.5)-1;
-        int jhi = static_cast<int>(Math::floor(box_hi[1] * dxi[1])+.5)-1;
+        int ilo = static_cast<int>(Math::floor((box_lo[0] - xLo[0]) * dxi[0])+.5);
+        int jlo = static_cast<int>(Math::floor((box_lo[1] - xLo[1]) * dxi[1])+.5);
+        int ihi = static_cast<int>(Math::floor((box_hi[0] - xLo[0]) * dxi[0])+.5)-1;
+        int jhi = static_cast<int>(Math::floor((box_hi[1] - xLo[1]) * dxi[1])+.5)-1;
 
         // Map this to index space -- for now we do no interpolation
         target_box.setSmall(IntVect(ilo,jlo,0));
@@ -128,7 +129,7 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
     const std::string chkname =
         m_filename + Concatenate("/bndry_output", t_step);
 
-    //amrex::Print() << "Writing boundary planes at time " << time << std::endl;
+    //Print() << "Writing boundary planes at time " << time << std::endl;
 
     const std::string level_prefix = "Level_";
     PreBuildDirectorHierarchy(chkname, level_prefix, 1, true);
@@ -141,6 +142,9 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
     IntVect new_hi = target_box.bigEnd() - target_box.smallEnd();
     Box target_box_shifted(IntVect(0,0,0),new_hi);
     BoxArray ba_shifted(target_box_shifted);
+
+    int n_moist_var = NMOIST_max - (S.nComp() - NVAR_max);
+    bool ismoist = (n_moist_var >= 1);
 
     for (int i = 0; i < m_var_names.size(); i++)
     {
@@ -168,19 +172,69 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
             for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
-                derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                if (ismoist) {
+                    derived::erf_dermoisttemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                } else {
+                    derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                }
+            }
+            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+        } else if (var_name == "scalar") {
+
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoKE_comp);
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
 
-        } else if (var_name == "velocity") {
+        } else if (var_name == "ke") {
 
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoKE_comp);
+            }
+            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+
+        } else if (var_name == "qke") {
+
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQKE_comp);
+            }
+            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+
+        } else if (var_name == "qv") {
+            if (S.nComp() > RhoQ2_comp) {
+                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+                for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ1_comp);
+                }
+                bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            }
+        } else if (var_name == "qc") {
+            if (S.nComp() > RhoQ2_comp) {
+                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+                for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ2_comp);
+                }
+                bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            }
+        } else if (var_name == "velocity") {
             MultiFab Vel(S.boxArray(), S.DistributionMap(), 3, m_out_rad);
             average_face_to_cellcenter(Vel,0,Array<const MultiFab*,3>{&xvel,&yvel,&zvel});
-
             bndry.copyFrom(Vel, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-
         } else {
-            //amrex::Print() << "Trying to write planar output for " << var_name << std::endl;
+            //Print() << "Trying to write planar output for " << var_name << std::endl;
             Error("Don't know how to output this variable");
         }
 

@@ -20,10 +20,12 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
     int lev = 0;
     const Box& domain = geom[lev].Domain();
 
-    const auto& dom_lo = amrex::lbound(domain);
-    const auto& dom_hi = amrex::ubound(domain);
+    const auto& dom_lo = lbound(domain);
+    const auto& dom_hi = ubound(domain);
 
-    amrex::Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+
+    const BCRec* bc_ptr = domain_bcs_type_d.data();
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -72,14 +74,18 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
 
             ParallelFor(
                 bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-                    int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                    dest_arr(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
+                    if (bc_ptr[icomp+n].lo(0) == ERFBCType::ext_dir_ingested) {
+                        int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
+                        int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
+                        dest_arr(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
+                    }
                 },
                 bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-                    int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                    dest_arr(i,j,k,icomp+n) = bdatxhi(dom_hi.x+1,jb,kb,bccomp+n);
+                    if (bc_ptr[icomp+n].hi(0) == ERFBCType::ext_dir_ingested) {
+                        int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
+                        int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
+                        dest_arr(i,j,k,icomp+n) = bdatxhi(dom_hi.x+1,jb,kb,bccomp+n);
+                    }
                 }
             );
             } // x-faces
@@ -94,14 +100,18 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
 
             ParallelFor(
                bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
-                    int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                    dest_arr(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
+                    if (bc_ptr[icomp+n].lo(1) == ERFBCType::ext_dir_ingested) {
+                        int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                        int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
+                        dest_arr(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
+                    }
                 },
                 bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
-                    int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                    dest_arr(i,j,k,icomp+n) = bdatyhi(ib,dom_hi.y+1,kb,bccomp+n);
+                    if (bc_ptr[icomp+n].hi(1) == ERFBCType::ext_dir_ingested) {
+                        int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                        int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
+                        dest_arr(i,j,k,icomp+n) = bdatyhi(ib,dom_hi.y+1,kb,bccomp+n);
+                    }
                 }
             );
             } // y-faces

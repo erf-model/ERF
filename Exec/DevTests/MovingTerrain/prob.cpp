@@ -28,10 +28,11 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const& z_nd,
@@ -42,15 +43,7 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
-  const int khi = geomdata.Domain().bigEnd()[2];
-
   const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
-  AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
-
-  const Real T_sfc    = parms.T_0;
-  const Real rho_sfc  = p_0 / (R_d*T_sfc);
-  //const Real thetabar = T_sfc;
 
   Real H           = geomdata.ProbHi()[2];
   Real Ampl        = parms.Ampl;
@@ -58,9 +51,6 @@ Problem::init_custom_pert(
   Real kp          = 2.0 * PI / wavelength;
   Real g           = CONST_GRAV;
   Real omega       = std::sqrt(g * kp);
-
-  // HACK HACK HACK
-  // Ampl = 0.;
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -77,14 +67,14 @@ Problem::init_custom_pert(
       Real p_total = p_hse(i,j,k) + p_prime;
 
       // Define (rho theta) given pprime
-      state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total) - getRhoThetagivenP(p_hse(i,j,k));
+      state_pert(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total) - getRhoThetagivenP(p_hse(i,j,k));
 
       // Set scalar = 0 everywhere
-      state(i, j, k, RhoScalar_comp) = state(i,j,k,Rho_comp);
+      state_pert(i, j, k, RhoScalar_comp) = state_pert(i,j,k,Rho_comp);
 
       if (use_moisture) {
-          state(i, j, k, RhoQ1_comp) = 0.0;
-          state(i, j, k, RhoQ2_comp) = 0.0;
+          state_pert(i, j, k, RhoQ1_comp) = 0.0;
+          state_pert(i, j, k, RhoQ2_comp) = 0.0;
       }
   });
 
@@ -102,13 +92,13 @@ Problem::init_custom_pert(
 
       Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
 
-      x_vel(i, j, k) = -Ampl * omega * fac * std::sin(kp * x);
+      x_vel_pert(i, j, k) = -Ampl * omega * fac * std::sin(kp * x);
   });
 
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      y_vel(i, j, k) = 0.0;
+      y_vel_pert(i, j, k) = 0.0;
   });
 
   // Set the z-velocity from impenetrable condition
@@ -123,7 +113,7 @@ Problem::init_custom_pert(
       z -= z_base;
       Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
 
-      z_vel(i, j, k) = Ampl * omega * fac * std::cos(kp * x);
+      z_vel_pert(i, j, k) = Ampl * omega * fac * std::cos(kp * x);
   });
 
   amrex::Gpu::streamSynchronize();
@@ -131,13 +121,11 @@ Problem::init_custom_pert(
 }
 
 void
-Problem::erf_init_rayleigh(
-    amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
-    amrex::Geometry      const& geom,
-    std::unique_ptr<MultiFab>& /*z_phys_cc*/)
+Problem::erf_init_rayleigh (Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
+                            Geometry const& geom,
+                            std::unique_ptr<MultiFab>& /*z_phys_cc*/)
 {
     const int khi = geom.Domain().bigEnd()[2];
-
     for (int k = 0; k <= khi; k++)
     {
         rayleigh_ptrs[Rayleigh::tau][k]      =   0.0;
@@ -159,52 +147,61 @@ Problem::erf_init_rayleigh(
 }
 
 void
-Problem::init_custom_terrain(
-    const Geometry& geom,
-    MultiFab& z_phys_nd,
-    const Real& time)
+Problem::init_custom_terrain (const Geometry& geom,
+                              MultiFab& z_phys_nd,
+                              const Real& time)
 {
-    // Domain cell size and real bounds
-    auto dx = geom.CellSizeArray();
+    // Check if a valid text file exists for the terrain
+    std::string fname;
+    amrex::ParmParse pp("erf");
+    auto valid_fname = pp.query("terrain_file_name",fname);
+    if (valid_fname) {
+        this->read_custom_terrain(fname,geom,z_phys_nd,time);
+    } else {
 
-    // Domain valid box (z_nd is nodal)
-    const amrex::Box& domain = geom.Domain();
-    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    int domlo_z = domain.smallEnd(2);
+        // Domain cell size and real bounds
+        auto dx = geom.CellSizeArray();
 
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
+        // Domain valid box (z_nd is nodal)
+        const amrex::Box& domain = geom.Domain();
+        int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+        int domlo_z = domain.smallEnd(2);
 
-    // Populate bottom plane
-    int k0 = domlo_z;
+        // Number of ghost cells
+        int ngrow = z_phys_nd.nGrow();
 
-    Real Ampl        = parms.Ampl;
-    Real wavelength  = 100.;
-    Real kp          = 2.0 * PI / wavelength;
-    Real g           = CONST_GRAV;
-    Real omega       = std::sqrt(g * kp);
+        // Populate bottom plane
+        int k0 = domlo_z;
 
-    for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
+        Real Ampl        = parms.Ampl;
+        Real wavelength  = 100.;
+        Real kp          = 2.0 * PI / wavelength;
+        Real g           = CONST_GRAV;
+        Real omega       = std::sqrt(g * kp);
 
-        amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+        for (MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            // Grown box with no z range
+            amrex::Box xybx = mfi.growntilebox(ngrow);
+            xybx.setRange(2,0);
 
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+            amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
-            // Clip indices for ghost-cells
-            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
 
-            // Location of nodes
-            Real x = ii  * dx[0];
+                // Clip indices for ghost-cells
+                int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
 
-            // Wave height
-            Real height = Ampl * std::sin(kp * x - omega * time);
+                // Location of nodes
+                Real x = ii  * dx[0];
 
-            // Populate terrain height
-            z_arr(i,j,k0) = height;
-        });
+                // Wave height
+                Real height = Ampl * std::sin(kp * x - omega * time);
+
+                // Populate terrain height
+                z_arr(i,j,k0) = height;
+            });
+        }
     }
 }

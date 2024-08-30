@@ -6,10 +6,14 @@ CEXE_headers += HSE_utils.H
 
 CEXE_headers += IndexDefines.H
 CEXE_headers += EOS.H
-CEXE_headers += InputSoundingData.H
 CEXE_headers += ERF_Constants.H
 CEXE_sources += ERF_Tagging.cpp
 
 CEXE_sources += ERF_make_new_level.cpp
+CEXE_sources += ERF_make_new_arrays.cpp
 CEXE_sources += Derive.cpp
 CEXE_headers += Derive.H
+
+ifeq ($(USE_WW3_COUPLING),TRUE)
+CEXE_sources += ERF_read_waves.cpp
+endif

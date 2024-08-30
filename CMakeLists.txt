@@ -24,6 +24,8 @@ option(ERF_ENABLE_MOISTURE "Enable Full Moisture" ON)
 option(ERF_ENABLE_WARM_NO_PRECIP "Enable Warm Moisture" OFF)
 option(ERF_ENABLE_RRTMGP "Enable RTE-RRTMGP Radiation" OFF)
 
+option(ERF_ENABLE_POISSON_SOLVE "Enable Poisson solve for incompressible flow" OFF)
+
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
 option(ERF_ENABLE_OPENMP "Enable OpenMP" OFF)
@@ -161,6 +163,13 @@ if(ERF_ENABLE_RRTMGP)
    # Build the static rrtmgp library
    set(RRTMGP_BIN ${CMAKE_BINARY_DIR}/rrtmgp)
    add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp ${RRTMGP_BIN})
+
+   # Find the radiation data files
+   if (DEFINED ENV{ERF_RADIATION_DATA_DIR})
+       set(ERF_RADIATION_DATA_DIR "$ENV{ERF_RADIATION_DATA_DIR}")
+   else()
+       message(FATAL_ERROR "Environment variable ERF_RADIATION_DATA_DIR not set!")
+   endif()
 endif()
 
 ########################### ERF #####################################
@@ -172,6 +181,7 @@ endif()
 configure_file(
   ${CMAKE_SOURCE_DIR}/Source/ERF_Config.H.in
   ${CMAKE_BINARY_DIR}/ERF_Config.H
+  @ONLY
 )
 
 # General information about machine, compiler, and build type

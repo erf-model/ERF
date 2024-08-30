@@ -229,22 +229,22 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
         Vector<Real> h_t(khi+2);
         Vector<Real> h_q_v(khi+2);
 
-        amrex::Gpu::DeviceVector<Real> d_r(khi+2);
-        amrex::Gpu::DeviceVector<Real> d_p(khi+2);
-        amrex::Gpu::DeviceVector<Real> d_t(khi+2);
-        amrex::Gpu::DeviceVector<Real> d_q_v(khi+2);
+        Gpu::DeviceVector<Real> d_r(khi+2);
+        Gpu::DeviceVector<Real> d_p(khi+2);
+        Gpu::DeviceVector<Real> d_t(khi+2);
+        Gpu::DeviceVector<Real> d_q_v(khi+2);
 
         init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(), h_q_v.data(), dz, khi);
 
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_t.begin(), h_t.end(), d_t.begin());
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
+        Gpu::copyAsync(Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
+        Gpu::copyAsync(Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
+        Gpu::copyAsync(Gpu::hostToDevice, h_t.begin(), h_t.end(), d_t.begin());
+        Gpu::copyAsync(Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
 
         Real* r = d_r.data();
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
           for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
           {
@@ -266,10 +266,11 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const& /*z_nd*/,
@@ -286,9 +287,7 @@ Problem::init_custom_pert(
 
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-    const Real rho_sfc   = p_0 / (R_d*parms.T_0);
     const Real dz        = geomdata.CellSize()[2];
-    const Real prob_lo_z = geomdata.ProbLo()[2];
     const Real rdOcp     = sc.rdOcp;
 
     amrex::Print() << "Bubble delta T = " << parms.T_pert << " K" << std::endl;
@@ -308,7 +307,7 @@ Problem::init_custom_pert(
         if (parms.do_moist_bubble) {
             amrex::Abort("Terrain not implemented for moist Bubble case!");
         } else {
-            amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Geometry (note we must include these here to get the data on device)
                 const auto prob_lo         = geomdata.ProbLo();
@@ -319,18 +318,17 @@ Problem::init_custom_pert(
                 const Real z = z_cc(i,j,k);
 
                 perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
-                                  parms, rdOcp,
-                                  state(i, j, k, Rho_comp),
-                                  state(i, j, k, RhoTheta_comp));
+                                  parms_d, rdOcp,
+                                  state_pert(i, j, k, Rho_comp),
+                                  state_pert(i, j, k, RhoTheta_comp));
 
-                state(i, j, k, RhoScalar_comp) = 0.0;
+                state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
                 if (use_moisture) {
-                    state(i, j, k, RhoQ1_comp) = 0.0;
-                    state(i, j, k, RhoQ2_comp) = 0.0;
-                    state(i, j, k, RhoQ3_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ1_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ2_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ3_comp) = 0.0;
                 }
-
             });
         } // do_moist_bubble
     } else {
@@ -340,17 +338,17 @@ Problem::init_custom_pert(
             Vector<Real> h_t(khi+2);
             Vector<Real> h_q_v(khi+2);
 
-            amrex::Gpu::DeviceVector<Real> d_r(khi+2);
-            amrex::Gpu::DeviceVector<Real> d_p(khi+2);
-            amrex::Gpu::DeviceVector<Real> d_t(khi+2);
-            amrex::Gpu::DeviceVector<Real> d_q_v(khi+2);
+            Gpu::DeviceVector<Real> d_r(khi+2);
+            Gpu::DeviceVector<Real> d_p(khi+2);
+            Gpu::DeviceVector<Real> d_t(khi+2);
+            Gpu::DeviceVector<Real> d_q_v(khi+2);
 
             init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz, khi);
 
-            amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-            amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
-            amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_t.begin(), h_t.end(), d_t.begin());
-            amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
+            Gpu::copyAsync(Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
+            Gpu::copyAsync(Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
+            Gpu::copyAsync(Gpu::hostToDevice, h_t.begin(), h_t.end(), d_t.begin());
+            Gpu::copyAsync(Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
 
             Real* theta_back   = d_t.data();
             Real* p_back   = d_p.data();
@@ -361,7 +359,16 @@ Problem::init_custom_pert(
             const Real x_r = parms.x_r, y_r = parms.y_r, z_r = parms.z_r;
             const Real theta_pert = parms.theta_pert;
 
-            amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k)
+             int moisture_type = 1;
+
+            if(sc.moisture_type == MoistureType::SAM) {
+                moisture_type = 1;
+            } else if(sc.moisture_type == MoistureType::SAM_NoIce ||
+                      sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+                moisture_type = 2;
+            }
+
+            ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k)
             {
                 // Geometry (note we must include these here to get the data on device)
                 const auto prob_lo         = geomdata.ProbLo();
@@ -397,28 +404,36 @@ Problem::init_custom_pert(
                 Real rho_back = p_back[k]/(R_d*T_back*(1.0 + (R_v/R_d)*q_v_back[k]));
 
                 // This version perturbs rho but not p
-                state(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(1.0 + (R_v/R_d)*q_v_back[k]);
-                state(i, j, k, Rho_comp)      = rho - rho_back*(1.0 + parms.qt_init);
+                state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(1.0 + (R_v/R_d)*q_v_back[k]);
+                state_pert(i, j, k, Rho_comp)      = rho - rho_back*(1.0 + parms_d.qt_init);
 
                 // Set scalar = 0 everywhere
-                state(i, j, k, RhoScalar_comp) = 0.0;
+                state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
                 // mean states
-                state(i, j, k, RhoQ1_comp) = rho*q_v_hot;
-                state(i, j, k, RhoQ2_comp) = rho*(parms.qt_init - q_v_hot);
-                state(i, j, k, RhoQ3_comp) = 0.0;
+                state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
+                state_pert(i, j, k, RhoQ2_comp) = rho*(parms_d.qt_init - q_v_hot);
+                state_pert(i, j, k, RhoQ3_comp) = 0.0;
 
                 // Cold microphysics are present
-                int nstate = state.ncomp;
+                int nstate = state_pert.ncomp;
                 if (nstate == NVAR_max) {
-                    Real omn = std::max(0.0,std::min(1.0,(T-tbgmin)*a_bg));
-                    Real qn  = state(i, j, k, RhoQ2_comp);
-                    state(i, j, k, RhoQ2_comp) = qn * omn;
-                    state(i, j, k, RhoQ3_comp) = qn * (1.0-omn);
+                    Real omn;
+                    if(moisture_type == 1) {
+                        omn = std::max(0.0,std::min(1.0,(T-tbgmin)*a_bg));
+                    } else if(moisture_type == 2) {
+                        omn = 1.0;
+                    } else {
+                        omn = 0.0;
+                        Abort("Bubble/prob.cpp: invalid moisture type specified");
+                    }
+                    Real qn  = state_pert(i, j, k, RhoQ2_comp);
+                    state_pert(i, j, k, RhoQ2_comp) = qn * omn;
+                    state_pert(i, j, k, RhoQ3_comp) = qn * (1.0-omn);
                 }
             });
         } else {
-            amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Geometry (note we must include these here to get the data on device)
                 const auto prob_lo         = geomdata.ProbLo();
@@ -429,16 +444,16 @@ Problem::init_custom_pert(
                 const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
                 perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
-                                  parms, rdOcp,
-                                  state(i, j, k, Rho_comp),
-                                  state(i, j, k, RhoTheta_comp));
+                                  parms_d, rdOcp,
+                                  state_pert(i, j, k, Rho_comp),
+                                  state_pert(i, j, k, RhoTheta_comp));
 
-                state(i, j, k, RhoScalar_comp) = 0.0;
+                state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
                 if (use_moisture) {
-                    state(i, j, k, RhoQ1_comp) = 0.0;
-                    state(i, j, k, RhoQ2_comp) = 0.0;
-                    state(i, j, k, RhoQ3_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ1_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ2_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ3_comp) = 0.0;
                 }
             });
         } // do_moist_bubble
@@ -449,22 +464,22 @@ Problem::init_custom_pert(
     const Real w0 = parms.W_0;
 
     // Set the x-velocity
-    amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        x_vel(i, j, k) = u0;
+        x_vel_pert(i, j, k) = u0;
     });
 
     // Set the y-velocity
-    amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        y_vel(i, j, k) = v0;
+        y_vel_pert(i, j, k) = v0;
     });
 
     // Set the z-velocity
-    amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        z_vel(i, j, k) = w0;
+        z_vel_pert(i, j, k) = w0;
     });
 
-    amrex::Gpu::streamSynchronize();
+    Gpu::streamSynchronize();
 }

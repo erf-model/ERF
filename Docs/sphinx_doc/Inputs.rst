@@ -122,7 +122,7 @@ List of Parameters
 |                           | after           |                 |             |
 |                           | restarting      |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
-| **amr.iterate_grids**     | do we iterate   | True, False     | True        |
+| **amr.iterate_grids**     | do we iterate   | true, false     | true        |
 |                           | on the grids?   |                 |             |
 |                           |                 |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
@@ -457,7 +457,7 @@ Notes
      * | If **erf.fixed_mri_dt_ratio** is specified but is not an even positive integer
      * | If **erf.fixed_dt** and **erf.fast_fixed_dt** are specified and the ratio of **fixed_dt** to **fast_fixed_dt**
          is not an even positive integer
-     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsitent
+     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsistent
 
    * | Once the slow timestep is set and the inputs are allowed per the above criteria,
        the fast timestep is computed in one of several ways:
@@ -563,26 +563,28 @@ List of Parameters
 | Parameter                     | Definition       | Acceptable     | Default        |
 |                               |                  | Values         |                |
 +===============================+==================+================+================+
-| **erf.datalog**               | Output           | Up to four     | NONE           |
+| **erf.data_log**              | Output           | Up to four     | NONE           |
 |                               | filename(s)      | strings        |                |
 +-------------------------------+------------------+----------------+----------------+
 | **erf.profile_int**           | Interval (number)| Integer        | -1             |
 |                               | of steps between |                |                |
-|                               | ouputs           |                |                |
+|                               | outputs          |                |                |
 +-------------------------------+------------------+----------------+----------------+
-| **erf.interp_profiles_to_cc** | Interpolate all  | Boolean        | true           |
-|                               | outputs to cell  |                |                |
-|                               | centers          |                |                |
+| **erf.destag_profiles**       | Interpolate all  | Boolean        | true           |
+|                               | outputs to       |                |                |
+|                               | cell-center      |                |                |
+|                               | heights          |                |                |
 +-------------------------------+------------------+----------------+----------------+
 
 By default, all profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
-interpolated to cell centers. Setting ``erf.interp_profiles_to_cc = false`` will
-keep vertically staggered quantities on z faces (quantities already at cell
-centers or on x/y faces will remain at those locations). Note that all output
-quantities--whether cell-centered or face-centered--will be output on the
-staggered grid. The user should discard the highest z level (corresponding to
-the z-dir ``amr.n_cell`` + 1) for cell-centered quantities. Staggered quantities
-are indicated below.
+that are destaggered by interpolating to cell centers where appropriate.
+Setting ``erf.destag_profiles = false`` will
+keep vertically staggered quantities on z faces -- quantities already at cell
+centers or on x/y faces will remain at those locations. Note that all output
+quantities -- whether cell-centered or face-centered -- will be output on the
+staggered grid. The user should discard values at the highest z level
+(corresponding to the z-dir of ``amr.n_cell`` + 1) for destaggered quantities.
+Staggered quantities are indicated below.
 
 The requested output files have the following columns:
 
@@ -613,7 +615,21 @@ The requested output files have the following columns:
 
   #. Total (moist) potential temperature, :math:`\langle \theta \rangle` (K)
 
-  #. Turbulent kinetic energy (TKE), :math:`\langle k \rangle` (m2/s2) for the subgrid model
+  #. Turbulent kinetic energy (TKE), :math:`\langle k \rangle` (m2/s2) from the Deardorff subgrid model only
+
+  #. Eddy diffusivity, :math:`\langle K \rangle` (kg/(m-s)) from the subgrid model
+
+  #. Water vapor mixing ratio, :math:`\langle q_v \rangle` (kg/kg) from the microphysics model
+
+  #. Cloud water mixing ratio, :math:`\langle q_c \rangle` (kg/kg) from the microphysics model
+
+  #. Rain water mixing ratio, :math:`\langle q_r \rangle` (kg/kg) from the microphysics model, if available
+
+  #. Ice mixing ratio, :math:`\langle q_i \rangle` (kg/kg) from the microphysics model, if available
+
+  #. Snow mixing ratio, :math:`\langle q_s \rangle` (kg/kg) from the microphysics model, if available
+
+  #. Graupel mixing ratio, :math:`\langle q_g \rangle` (kg/kg) from the microphysics model, if available
 
 * Vertical flux profiles
 
@@ -654,6 +670,14 @@ The requested output files have the following columns:
 
   #. *Z-direction pressure transport of TKE*, :math:`\langle p^\prime w^\prime \rangle` (m3/s3) -- *staggered*
 
+  #. *Z-direction flux of water vapor*, :math:`\langle q_v^\prime w^\prime \rangle` (m/s) -- *staggered*
+
+  #. *Z-direction flux of cloud water*, :math:`\langle q_c^\prime w^\prime \rangle` (m/s) -- *staggered*
+
+  #. *Z-direction flux of rain water*, :math:`\langle q_r^\prime w^\prime \rangle` (m/s) -- *staggered*
+
+  #. *Z-direction virtual temperature flux*, :math:`\langle w^\prime \theta_v^\prime \rangle` (K m/s) -- *staggered*
+
 * Modeled subgrid-scale (SGS) profiles
 
   #. SGS stress tensor component, :math:`\tau_{11}` (m2/s2)
@@ -668,7 +692,11 @@ The requested output files have the following columns:
 
   #. SGS stress tensor component, :math:`\tau_{33}` (m2/s2)
 
-  #. SGS heat flux, :math:`\tau_{\theta w}` (K m/s)
+  #. *SGS heat flux*, :math:`\tau_{\theta w}` (K m/s) -- *staggered*
+
+  #. *SGS water vapor flux*, :math:`\tau_{q_v w}` (K m/s) -- *staggered*
+
+  #. *SGS cloud water flux*, :math:`\tau_{q_c w}` (K m/s) -- *staggered*
 
   #. SGS turbulence dissipation, :math:`\epsilon` (m2/s3)
 
@@ -713,6 +741,10 @@ List of Parameters
 |                                  | advection scheme   |                     |              |
 |                                  | for scalars        |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
+| **erf.use_mono_adv**             | Use order reduction| true/false          | false        |
+|                                  | for scalar         |                     |              |
+|                                  | boundedness        |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
 
 The allowed advection types for the dycore variables are
 "Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
@@ -734,6 +766,12 @@ schemes are as follows when using efficient advection option: roughly 30% for Ce
 and Centered_6th, 35% for Upwind_5th, roughly 45% for WENO5 and WENOZ5, and roughly 60% for
 Upwind_3rd, WENO3, WENOZ3, and WENOMZQ3.
 
+The monotonic advection option is an order reduction technique adapted from the PINACLES
+software developed at PNNL by K. Pressel et al.; see `pnnl/pinacles github <https://github.com/pnnl/pinacles>`_.
+When this flag is enabled, ERF will compute global mins and maxes for the scalar variables
+and then test whether the selected advection operator (e.g., centered, upwind, or WENO)
+will break these bounds. If boundedness is broken, the fluxes are recomputed with a
+0-th order upwind approach.
 
 
 Diffusive Physics
@@ -778,8 +816,8 @@ List of Parameters
 | **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0          |
 |                                  | Number             |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_NumDiff**              | Use 6th order      | "True",             | "False"      |
-|                                  | numerical diffusion| "False"             |              |
+| **erf.use_NumDiff**              | Use 6th order      | "true",             | "false"      |
+|                                  | numerical diffusion| "false"             |              |
 |                                  |                    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.NumDiffCoeff**             | Coefficient for    | Real                | 0.0          |
@@ -818,41 +856,68 @@ PBL Scheme
 List of Parameters
 ------------------
 
-+----------------------------------+--------------------+---------------------+-------------+
-| Parameter                        | Definition         | Acceptable          | Default     |
-|                                  |                    | Values              |             |
-+==================================+====================+=====================+=============+
-| **erf.pbl_type**                 | Name of PBL Scheme | "None", "MYNN2.5"   | "None"      |
-|                                  | to be used         |                     |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_A1**                   | MYNN Constant A1   | Real                | 1.18        |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_A2**                   | MYNN Constant A2   | Real                | 0.665       |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_B1**                   | MYNN Constant B1   | Real                | 24.0        |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_B2**                   | MYNN Constant B2   | Real                | 15.0        |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_C1**                   | MYNN Constant C1   | Real                | 0.137       |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_C2**                   | MYNN Constant C1   | Real                | 0.75        |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_C3**                   | MYNN Constant C3   | Real                | 0.352       |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_C4**                   | MYNN Constant C4   | Real                | 0.0         |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_C5**                   | MYNN Constant C5   | Real                | 0.2         |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.advect_QKE**               | Include advection  | bool                | 1           |
-|                                  | terms in QKE eqn   |                     |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.diffuse_QKE_3D**           | Include horizontal | bool                | 0           |
-|                                  | turb. diffusion    |                     |             |
-|                                  | terms in QKE eqn.  |                     |             |
-+----------------------------------+--------------------+---------------------+-------------+
++-----------------------------------------+--------------------+---------------------+-------------+
+| Parameter                               | Definition         | Acceptable          | Default     |
+|                                         |                    | Values              |             |
++=========================================+====================+=====================+=============+
+| **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN2.5",  | "None"      |
+|                                         | to be used         | "YSU"               |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_A1**                     | MYNN Constant A1   | Real                | 1.18        |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_A2**                     | MYNN Constant A2   | Real                | 0.665       |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_B1**                     | MYNN Constant B1   | Real                | 24.0        |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_B2**                     | MYNN Constant B2   | Real                | 15.0        |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_C1**                     | MYNN Constant C1   | Real                | 0.137       |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_C2**                     | MYNN Constant C1   | Real                | 0.75        |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_C3**                     | MYNN Constant C3   | Real                | 0.352       |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_C4**                     | MYNN Constant C4   | Real                | 0.0         |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_C5**                     | MYNN Constant C5   | Real                | 0.2         |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_diffuse_moistvars**      | Diffuse moisture   | bool                | 0           |
+|                                         | variables using    |                     |             |
+|                                         | modeled eddy       |                     |             |
+|                                         | diffusivity        |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.advect_QKE**                      | Include advection  | bool                | 1           |
+|                                         | terms in QKE eqn   |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.diffuse_QKE_3D**                  | Include horizontal | bool                | 0           |
+|                                         | turb. diffusion    |                     |             |
+|                                         | terms in QKE eqn.  |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_force_over_water**        | Treat whole domain | bool                | 0           |
+|                                         | as over water for  |                     |             |
+|                                         | YSU PBL scheme     |                     |             |
+|                                         | regardless of      |                     |             |
+|                                         | LSM/other inputs   |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_land_Ribcr**              | Over land critical | Real                | 0.25        |
+|                                         | Richardson number  |                     |             |
+|                                         | for YSU PBL Scheme |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_unst_Ribcr**              | Unstable critical  | Real                | 0.0         |
+|                                         | Richardson number  |                     |             |
+|                                         | for YSU PBL Scheme |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_coriolis_freq**           | Coriolis frq. used | Real                | 1.0e-4      |
+|                                         | for YSU PBL Scheme |                     |             |
+|                                         | (1e-4 in WRF)      |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_ysu_use_consistent_coriolis** | Ignore above param | Bool                | 0           |
+|                                         | and use the value  |                     |             |
+|                                         | from ERF coriolis  |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 
-Note that the MYNN2.5 scheme must be used in conjunction with a MOST boundary condition
-at the surface (Zlo) boundary.
+Note that both PBL schemes must be used in conjunction with a MOST boundary condition
+at the surface (Zlo) boundary. The YSU scheme is work in progress currently.
 
 If the PBL scheme is activated, it determines the turbulent diffusivity in the vertical
 direction. If an LES model is also specified, it determines only the horizontal turbulent
@@ -871,37 +936,65 @@ Forcing Terms
 List of Parameters
 ------------------
 
-+----------------------------------+-------------------+-------------------+-------------+
-| Parameter                        | Definition        | Acceptable        | Default     |
-|                                  |                   | Values            |             |
-+==================================+===================+===================+=============+
-| **erf.abl_driver_type**          | Type of external  | None,             | None        |
-|                                  | forcing term      | PressureGradient  |             |
-|                                  |                   | GeostrophicWind   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.abl_pressure_grad**        | Pressure gradient | 3 Reals           | (0.,0.,0.)  |
-|                                  | forcing term      |                   |             |
-|                                  | (only if          |                   |             |
-|                                  | abl.driver_type = |                   |             |
-|                                  | PressureGradient) |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.abl_geo_wind**             | Geostrophic       | 3 Reals           | (0.,0.,0.)  |
-|                                  | forcing term      |                   |             |
-|                                  | (only if          |                   |             |
-|                                  | abl.driver_type = |                   |             |
-|                                  | GeostrophicWind)  |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_gravity**              | Include gravity   | true / false      | false       |
-|                                  | in momentum       |                   |             |
-|                                  | update?  If true, |                   |             |
-|                                  | there is buoyancy |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_coriolis**             | Include Coriolis  | true / false      | false       |
-|                                  | forcing           |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_rayleigh_damping**     | Include explicit  | true / false      | false       |
-|                                  | Rayleigh damping  |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
++-------------------------------------+------------------------+-------------------+---------------------+
+| Parameter                           | Definition             | Acceptable        | Default             |
+|                                     |                        | Values            |                     |
++=====================================+========================+===================+=====================+
+| **erf.abl_driver_type**             | Type of external       | None,             | None                |
+|                                     | forcing term           | PressureGradient  |                     |
+|                                     |                        | GeostrophicWind   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.abl_pressure_grad**           | Pressure gradient      | 3 Reals           | (0.,0.,0.)          |
+|                                     | forcing term           |                   |                     |
+|                                     | (only if               |                   |                     |
+|                                     | abl.driver_type =      |                   |                     |
+|                                     | PressureGradient)      |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.abl_geo_wind**                | Geostrophic            | 3 Reals           | (0.,0.,0.)          |
+|                                     | forcing term           |                   |                     |
+|                                     | (only if               |                   |                     |
+|                                     | abl.driver_type =      |                   |                     |
+|                                     | GeostrophicWind)       |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.abl_geo_wind_table**          | Path to text file      | String            | None                |
+|                                     | containing a           |                   |                     |
+|                                     | geostrophic wind       |                   |                     |
+|                                     | profile                |                   |                     |
+|                                     | (with z, Ug, and       |                   |                     |
+|                                     |  Vg whtiespace         |                   |                     |
+|                                     |  delimited             |                   |                     |
+|                                     |  columns)              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_gravity**                 | Include gravity        | true / false      | false               |
+|                                     | in momentum            |                   |                     |
+|                                     | update?  If true,      |                   |                     |
+|                                     | there is buoyancy      |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_coriolis**                | Include Coriolis       | true / false      | false               |
+|                                     | forcing                |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_rayleigh_damping**        | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping       |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_from_input_sounding** | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping       |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding_file |
+|                                     | input sounding file(s) |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.input_sounding_time**         | Time(s) of the         | Real(s)           | false               |
+|                                     | input sounding file(s) |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.tau_nudging**                 | Time scale for         | Real              | 5.0                 |
+|                                     | nudging                |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+
+If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding
+file is available.  If there is only one, and no specification of time is made, it is assumed that
+the one file corresponds to time = 0.0.   If the final time supplied in
+``input_*_sounding_*_time``  is less than the final time in the calculation, the final sounding supplied
+in ``input_*_sounding_*_file`` will be used for all times later than the final value in
+in ``input_*_sounding_*_time``.
 
 In addition, custom forcings or tendencies may be defined on a problem-specific
 basis. This affords additional flexibility in defining the RHS source term as
@@ -927,6 +1020,28 @@ function(s).
 |                                            | temperature source|                   |             |
 |                                            | term              |                   |             |
 +--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_custom_moisture_forcing**        | Apply the         | true or false     | false       |
+|                                            | user-defined      |                   |             |
+|                                            | qv source         |                   |             |
+|                                            | term              |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_custom_w_subsidence**            | Apply the         | true or false     | false       |
+|                                            | user-defined      |                   |             |
+|                                            | vertical velocity |                   |             |
+|                                            | profile for use in|                   |             |
+|                                            | calculating       |                   |             |
+|                                            | subsidence source |                   |             |
+|                                            | terms             |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_custom_geostrophic_profile**     | Apply the         | true or false     | false       |
+|                                            | user-defined      |                   |             |
+|                                            | geostrophic wind  |                   |             |
+|                                            | profile           |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+
+Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
+with an ``erf.abl_geo_wind_table``.
+
 
 Initialization
 ==============
@@ -936,9 +1051,16 @@ ERF can be initialized in different ways. These are listed below:
 - Custom initialization:
     Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are meant for demonstration and do not include any terrain or map scale factors.
 - Initialization using a NetCDF file:
-    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesoscale data. This is a more realistic problem with real atmospheric data used for initialization. The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.  These problems are run with both terrain and map scale factors.
+    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data.
+The state and velocity components of the ERF domain are ingested from the mesoscale data.
+This is a more realistic problem with real atmospheric data used for initialization.
+The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.
+These problems are run with both terrain and map scale factors.
 - Initialization using an ``input_sounding`` file:
-    Problems in ERF can be initialized using an ``input_sounding`` file containing the vertical profile. This file has the same format as used by ``ideal.exe`` executable in WRF. Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed. This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state and does not include terrain or map scale factors.
+    Problems in ERF can be initialized using an ``input_sounding`` file containing the vertical profile.
+This file has the same format as used by ``ideal.exe`` executable in WRF.
+Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed.
+This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state and does not include terrain or map scale factors.
 
 In addition, there is a run-time option to project the initial velocity field to make it divergence-free.  To take
 advantage of this option, the code must be built with ``USE_POISSON_SOLVE = TRUE`` in the GNUmakefile if using gmake, or with
@@ -986,11 +1108,15 @@ List of Parameters
 Notes
 -----------------
 
-If **erf.init_type = ideal**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are horizontally homogeneous, i.e., there is variation only in the vertical direction.
+If **erf.init_type = ideal**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``.
+The mesoscale data are horizontally homogeneous, i.e., there is variation only in the vertical direction.
 
 If **erf.init_type = real**, the problem is initialized with mesoscale data contained in a NetCDF file,
-provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.
-In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**
+provided via ``erf.nc_init_file`` (e.g., "wrfinput_d01"). The mesoscale data are realistic with variation in all three directions.
+In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by ``erf.nc_bdy_file`` (e.g., "wrfbdy_d01").
+The extent of the relaxation zone may be controlled with ``erf.real_width`` (corresponding to WRF's **spec_bdy_width**)
+and ``erf.real_set_width`` (corresponding to WRF's **spec_zone**, typically set to 1), which corresponds to a relaxation zone with a
+width of **real_width - real_set_width**.
 
 If **erf.init_type = input_sounding**, a WRF-style input sounding is read from
 ``erf.input_sounding_file``. This text file includes any set of levels that
@@ -1033,6 +1159,11 @@ methods for defining how the terrain-fitted coordinates given the topography:
 - Sullivan Terrain Following (name TBD):
     The influence of the terrain decreases with the cube of height.
 
+A custom surface definition may be provided through the ``erf.terrain_file_name`` parameter.
+The specified input text file should have three space-delimited columns for x, y, and z coordinates,
+which will dictate the location of surface *nodes*. All surface nodes within the computational
+domain must be specified within the text file, but may be specified in any order.
+
 List of Parameters
 ------------------
 
@@ -1049,7 +1180,8 @@ List of Parameters
 |                             | following          | 1,                 |            |
 |                             |                    | 2                  |            |
 +-----------------------------+--------------------+--------------------+------------+
-
+| **erf.terrain_file_name**   | filename           | String             | NONE       |
++-----------------------------+--------------------+--------------------+------------+
 
 Examples of Usage
 -----------------
@@ -1066,7 +1198,10 @@ Examples of Usage
 Moisture
 ========
 
-ERF has several different moisture models.
+ERF has several different moisture models. The models that are currently implemented
+are Eulerian models; however, ERF has the capability for Lagrangian models when
+compiled with particles.
+
 The following run-time options control how the full moisture model is used.
 
 List of Parameters

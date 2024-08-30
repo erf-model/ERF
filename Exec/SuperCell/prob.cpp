@@ -88,10 +88,11 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const& /*z_nd*/,
@@ -125,7 +126,7 @@ Problem::init_custom_pert(
   const amrex::Real us      = 30.;
   const amrex::Real uc      = 15.;
 
-  amrex::ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+  amrex::ParallelForRNG(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
     const auto prob_lo         = geomdata.ProbLo();
@@ -133,8 +134,8 @@ Problem::init_custom_pert(
     const amrex::Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
     amrex::Real relhum = init_supercell_relhum(z, ztr);
-    amrex::Real temp   = init_supercell_temperature(z, prob_lo_z, ztr, prob_hi_z, parms.T_0, Ttr, Ttop);
-    amrex::Real press  = init_supercell_pressure(z, prob_lo_z, ztr, prob_hi_z, parms.T_0, Ttr, Ttop);
+    amrex::Real temp   = init_supercell_temperature(z, prob_lo_z, ztr, prob_hi_z, parms_d.T_0, Ttr, Ttop);
+    amrex::Real press  = init_supercell_pressure(z, prob_lo_z, ztr, prob_hi_z, parms_d.T_0, Ttr, Ttop);
     amrex::Real qvs    = init_supercell_sat_mix(press, temp);
 
 #if 0
@@ -169,44 +170,44 @@ Problem::init_custom_pert(
     // perturb theta
     amrex::Real rand_double = amrex::Random(engine) - 1.0;        // Random number in [-1,1]
     amrex::Real scaling = (khi-static_cast<amrex::Real>(k))/khi;  // Less effect at higher levels
-    amrex::Real deltaT = parms.T_pert*scaling*rand_double;
+    amrex::Real deltaT = parms_d.T_pert*scaling*rand_double;
 
     amrex::Real theta = getThgivenRandT(rho, temp+deltaT, rdOcp);
 
     // This version perturbs rho but not p
-    state(i, j, k, RhoTheta_comp) = rho*theta - getRhoThetagivenP(p_hse(i,j,k));
-    state(i, j, k, Rho_comp)      = rho - r_hse(i,j,k);
+    state_pert(i, j, k, RhoTheta_comp) = rho*theta - getRhoThetagivenP(p_hse(i,j,k));
+    state_pert(i, j, k, Rho_comp)      = rho - r_hse(i,j,k);
 
     // Set scalar = 0 everywhere
-    state(i, j, k, RhoScalar_comp) = 0.0;
+    state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
     // mean states
     if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = rho*qvapor;
-        state(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ1_comp) = rho*qvapor;
+        state_pert(i, j, k, RhoQ2_comp) = 0.0;
       }
   });
 
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     const amrex::Real z = prob_lo_z + (k+0.5) * dz;
     if (z < zs-deltaz) {
-      x_vel(i, j, k) = us*(z/zs) - uc;
+      x_vel_pert(i, j, k) = us*(z/zs) - uc;
     } else if (std::abs(z-zs) < deltaz) {
-      x_vel(i, j, k) = (-0.8+3.*(z/zs)-1.25*(z/zs)*(z/zs))*us-uc;
+      x_vel_pert(i, j, k) = (-0.8+3.*(z/zs)-1.25*(z/zs)*(z/zs))*us-uc;
     } else {
-      x_vel(i, j, k) = us-uc;
+      x_vel_pert(i, j, k) = us-uc;
     }
   });
 
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    y_vel(i, j, k) = 0.0;
+    y_vel_pert(i, j, k) = 0.0;
   });
 
   // Set the z-velocity
-  amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    z_vel(i, j, k) = 0.0;
+  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    z_vel_pert(i, j, k) = 0.0;
   });
 
   amrex::Gpu::streamSynchronize();

@@ -1,0 +1,141 @@
+===============================================================================
+ ERF Job Information
+===============================================================================
+inputs file: ABL_MYNN_PBL.i
+
+number of MPI processes: 1
+
+CPU time used since start of simulation (CPU-hours): 0.0020349
+
+===============================================================================
+ Plotfile Information
+===============================================================================
+output data / time: Thu Aug 29 14:08:26 2024
+output dir:         /home/alattanz/git/ERF/Exec/ABL
+
+
+===============================================================================
+ Build Information
+===============================================================================
+build date:    2024-08-23 09:56:04.102500
+build machine: Linux LAPTOP-PO22H9R0 4.4.0-22621-Microsoft #3672-Microsoft Fri Jan 01 08:00:00 PST 2016 x86_64 x86_64 x86_64 GNU/Linux
+build dir:     /home/alattanz/git/ERF/Exec/ABL
+AMReX dir:     /home/alattanz/git/amrex
+
+COMP:          gnu
+COMP version:  9.4.0
+
+
+ERF       git hash: b8fd4715-dirty
+AMReX       git hash: 22.05-939-gc09da9977
+
+
+===============================================================================
+ Grid Information
+===============================================================================
+ level: 0
+   number of boxes = 1
+   maximum zones   = 2 2 64 
+
+ Boundary conditions
+   -x: Periodic
+   +x: Periodic
+   -y: Periodic
+   +y: Periodic
+   -z: MOST
+   +z: SlipWall
+
+
+===============================================================================
+ Inputs File Parameters
+===============================================================================
+DistributionMapping.verbose = 0
+amr.blocking_factor = 1
+amr.check_input = 1
+amr.grid_eff = 0.69999999999999996
+amr.max_grid_size = 2048
+amr.max_level = 0
+amr.n_cell = 2 2 64
+amr.n_error_buf = 0
+amr.n_proper = 2
+amr.refine_grid_layout = 1
+amr.refine_grid_layout_x = 1
+amr.refine_grid_layout_y = 1
+amr.refine_grid_layout_z = 0
+amr.v = 1
+amrex.abort_on_out_of_gpu_memory = 0
+amrex.abort_on_unused_inputs = 0
+amrex.async_out = 0
+amrex.async_out_nfiles = 64
+amrex.fpe_trap_invalid = 0
+amrex.fpe_trap_overflow = 0
+amrex.fpe_trap_zero = 0
+amrex.handle_sigabrt = 1
+amrex.handle_sigfpe = 1
+amrex.handle_sigill = 1
+amrex.handle_sigint = 1
+amrex.handle_sigsegv = 1
+amrex.handle_sigterm = 0
+amrex.init_snan = 1
+amrex.mf.alloc_single_chunk = 0
+amrex.signal_handling = 1
+amrex.the_arena_init_size = 0
+amrex.the_arena_is_managed = 0
+amrex.the_arena_release_threshold = 9223372036854775807
+amrex.the_async_arena_release_threshold = 9223372036854775807
+amrex.the_comms_arena_init_size = 8388608
+amrex.the_comms_arena_release_threshold = 9223372036854775807
+amrex.the_device_arena_init_size = 8388608
+amrex.the_device_arena_release_threshold = 9223372036854775807
+amrex.the_managed_arena_init_size = 8388608
+amrex.the_managed_arena_release_threshold = 9223372036854775807
+amrex.the_pinned_arena_init_size = 8388608
+amrex.the_pinned_arena_release_threshold = 9223372036854775807
+amrex.throw_exception = 0
+amrex.use_gpu_aware_mpi = 0
+amrex.use_profiler_syncs = 0
+amrex.vector_growth_factor = 1.5
+amrex.verbose = 1
+erf.abl_driver_type = GeostrophicWind
+erf.abl_geo_wind = 8.0 0.0 0.0
+erf.check_file = chk
+erf.check_int = -1
+erf.dryscal_vert_adv_type = Upwind_3rd
+erf.dycore_vert_adv_type = Upwind_3rd
+erf.fixed_dt = 1.0
+erf.fixed_mri_dt_ratio = 6
+erf.init_sounding_ideal = 1
+erf.init_type = input_sounding
+erf.input_sounding_file = input_sounding_GABLS1
+erf.latitude = 73.0
+erf.les_type = None
+erf.molec_diff_type = None
+erf.most.surf_heating_rate = -0.25
+erf.most.surf_temp = 265.0
+erf.most.z0 = 0.1
+erf.pbl_type = MYNN2.5
+erf.plot_file_1 = plt
+erf.plot_int_1 = 300
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity pressure theta rhoQKE Kmv Khv
+erf.rotational_time_period = 86455.2516813368
+erf.sum_interval = 1
+erf.use_coriolis = true
+erf.use_gravity = true
+erf.v = 1
+fabarray.comm_tile_size = 1024000 1024000 1024000
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.coord_sys = 0
+geometry.is_periodic = 1 1 0
+geometry.prob_extent = 400 400 400
+geometry.prob_lo = 0 0 0
+max_step = 100
+prob.KE_0 = 0.4
+prob.KE_decay_height = 250.
+prob.KE_decay_order = 1
+stop_time = 32400.0
+tiny_profiler.device_synchronize_around_region = 0
+tiny_profiler.print_threshold = 1
+tiny_profiler.verbose = 0
+zhi.theta_grad = 0.01
+zhi.type = SlipWall
+zlo.type = Most

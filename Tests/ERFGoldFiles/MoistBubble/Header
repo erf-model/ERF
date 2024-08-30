@@ -1,0 +1,39 @@
+HyperCLaw-V1.1
+20
+density
+rhotheta
+rhoadv_0
+rhoQ1
+rhoQ2
+x_velocity
+y_velocity
+z_velocity
+temp
+theta
+scalar
+pres_hse
+dens_hse
+pressure
+pert_pres
+pert_dens
+eq_pot_temp
+qt
+qv
+qc
+3
+5
+0
+0 0 0 
+20000 400 10000 
+
+((0,0,0) (199,3,99) (0,0,0)) 
+10 
+100 100 100 
+0
+0
+0 1 5
+10
+0 20000
+0 400
+0 10000
+Level_0/Cell

@@ -43,7 +43,6 @@ erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_veloci
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.use_coriolis = false
-erf.use_rayleigh_damping = false
 
 erf.moisture_model = "SAM"
 
