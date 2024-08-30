@@ -184,6 +184,12 @@ configure_file(
   @ONLY
 )
 
+configure_package_config_file(
+  CMake/${PROJECT_NAME}Config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  )
+
 # General information about machine, compiler, and build type
 message(STATUS "ERF Information:")
 message(STATUS "CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
