@@ -380,7 +380,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                           vert_adv_type = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
                     }
 
-                    num_comp = nvars - RhoQ1_comp;
+                    num_comp = n_qstate;
 
                 } else {
                     horiz_adv_type = ac.dryscal_horiz_adv_type;
