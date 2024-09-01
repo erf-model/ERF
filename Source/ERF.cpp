@@ -985,7 +985,7 @@ ERF::InitData ()
         m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most,
                                            vars_old, Theta_prim, Qv_prim, Qr_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux,
-                                           Hwave, Lwave, eddyDiffs_lev, n_qstate
+                                           Hwave, Lwave, eddyDiffs_lev
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
