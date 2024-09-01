@@ -192,7 +192,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             Real* theta_d_ptr = theta_d.data();
 
             // Average valid moisture vars
-            int n_prim_max  = NVAR_max - 1;
             Gpu::HostVector  <Real> qv_h(ncell)    , qc_h(ncell)    , qp_h(ncell);
             Gpu::DeviceVector<Real> qv_d(ncell,0.0), qc_d(ncell,0.0), qp_d(ncell,0.0);
             if (n_qstate >=1) {
