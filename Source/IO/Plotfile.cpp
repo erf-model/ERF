@@ -46,14 +46,11 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // since they may be in any order in the input list
     Vector<std::string> tmp_plot_names;
 
-    int n_qstate   = micro->Get_Qstate_Size();
-    int ncomp_cons = NVAR_max - (NMOIST_max - n_qstate);
-
-    for (int i = 0; i < ncomp_cons; ++i) {
+    for (int i = 0; i < cons_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, cons_names[i]) ) {
-            if ( (solverChoice.moisture_type == MoistureType::SAM) || (derived_names[i] != "rhoQ4" &&
-                                                                       derived_names[i] != "rhoQ5" &&
-                                                                       derived_names[i] != "rhoQ6") )
+            if ( (solverChoice.moisture_type == MoistureType::SAM) || (cons_names[i] != "rhoQ4" &&
+                                                                       cons_names[i] != "rhoQ5" &&
+                                                                       cons_names[i] != "rhoQ6") )
             {
                 tmp_plot_names.push_back(cons_names[i]);
             } // moisture_type

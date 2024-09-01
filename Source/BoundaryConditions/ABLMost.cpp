@@ -577,12 +577,9 @@ ABLMost::compute_pblh (const int& lev,
                        MultiFab* z_phys_cc,
                        const PBLHeightEstimator& est)
 {
-    int moist_flag = 0;
-    int n_qstate = vars[lev][Vars::cons].nComp() - (NVAR_max - NMOIST_max);
-    if (n_qstate > 3) {
-        moist_flag = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
-    } else if (n_qstate > 0) {
-        moist_flag = 1;
+    int moist_flag = (m_n_qstate > 0) ? 1 : 0;
+    if (m_n_qstate > 3) {
+        moist_flag = RhoQ4_comp;
     }
 
     est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),

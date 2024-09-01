@@ -67,6 +67,7 @@ using namespace amrex;
 void erf_slow_rhs_pre (int level, int finest_level,
                        int nrk,
                        Real dt,
+                       int n_qstate,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
@@ -508,7 +509,7 @@ if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n"
                                        z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss, mu_turb, dc, tc,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most, n_qstate);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, l_exp_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -516,7 +517,7 @@ if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n"
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, dc, tc,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most, n_qstate);
             }
         }
 
