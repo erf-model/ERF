@@ -76,7 +76,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const Array4<const Real>& tm_arr,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
-                        const bool use_most)
+                        const bool use_most,
+                        const int n_qstate)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
@@ -732,12 +733,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         int qty_index = RhoQKE_comp;
         auto pbl_mynn_B1_l = turbChoice.pbl_mynn.B1;
 
-        int moist_flag = 0;
-        int n_qstate = cell_data.nComp() - (NVAR_max - NMOIST_max);
+        int moist_comp = (n_qstate > 0) ? 1 : 0;
         if (n_qstate > 3) {
-            moist_flag = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
-        } else if (n_qstate > 0) {
-            moist_flag = 1;
+            moist_comp = RhoQ4_comp;
         }
 
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -754,7 +752,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
                                                                   mu_turb,cellSizeInv,domain,
                                                                   pbl_mynn_B1_l,tm_arr(i,j,0),
-                                                                  moist_flag,
+                                                                  moist_comp,
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,

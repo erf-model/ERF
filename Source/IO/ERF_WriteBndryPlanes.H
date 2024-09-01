@@ -18,7 +18,8 @@ public:
                                amrex::Vector<amrex::Geometry>& geom);
 
     void write_planes (int t_step, amrex::Real time,
-                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new);
+                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
+                       bool is_moist);
 
 private:
 

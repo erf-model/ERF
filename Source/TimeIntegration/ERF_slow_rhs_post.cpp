@@ -49,6 +49,7 @@ using namespace amrex;
 void erf_slow_rhs_post (int level, int finest_level,
                         int nrk,
                         Real dt,
+                        int n_qstate,
                         Vector<MultiFab>& S_rhs,
                         Vector<MultiFab>& S_old,
                         Vector<MultiFab>& S_new,
@@ -418,7 +419,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, dc, tc,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most, n_qstate);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
                                                new_cons, cur_prim, cell_rhs,
@@ -426,7 +427,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, dc, tc,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most, n_qstate);
                     }
                 } // use_diff
             } // valid slow var

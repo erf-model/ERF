@@ -8,26 +8,35 @@
  * Definition of indexing parameters
 */
 
-// Cell-centered state variables
-#define Rho_comp       0
-#define RhoTheta_comp  1
-#define RhoKE_comp     2 // for Deardorff LES Model
-#define RhoQKE_comp    3 // for MYNN or YSU PBL Model
-#define RhoScalar_comp 4
-#define RhoQ1_comp     5
-#define RhoQ2_comp     6
-#define RhoQ3_comp     7
-#define RhoQ4_comp     8
-#define RhoQ5_comp     9
-#define RhoQ6_comp     10
+// This defines the ACTUAL number of non-moisture vars =
+//      rho, rhotheta, rhoKE, rhoQKE
+#define NDRY       4
+
+// This defines the ACTUAL number of non-moisture scalar vars
+#define NSCALARS   1
+
+// This defines the MAXIMUM number of moisture vars
+#define NMOIST_max 6
 
 // This is the number of components if using moisture
 // We use this to allocate the 1d arrays of boundary condition types,
 //    but not to allocate actual solution data
-#define NVAR_max 11
+#define NVAR_max (NDRY + NSCALARS + NMOIST_max)
 
-// This defines the maximum number of moisture vars
-#define NMOIST_max 6
+// Cell-centered state variables
+#define Rho_comp       0
+#define RhoTheta_comp  (Rho_comp+1)
+#define RhoKE_comp     (Rho_comp+2) // for Deardorff LES Model
+#define RhoQKE_comp    (Rho_comp+3) // for MYNN or YSU PBL Model
+
+#define RhoScalar_comp (RhoQKE_comp+1)
+
+#define RhoQ1_comp     (RhoScalar_comp+NSCALARS)
+#define RhoQ2_comp     (RhoQ1_comp+1)
+#define RhoQ3_comp     (RhoQ1_comp+2)
+#define RhoQ4_comp     (RhoQ1_comp+3)
+#define RhoQ5_comp     (RhoQ1_comp+4)
+#define RhoQ6_comp     (RhoQ1_comp+5)
 
 // Cell-centered primitive variables
 #define PrimTheta_comp   (RhoTheta_comp -1)

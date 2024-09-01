@@ -536,7 +536,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       if (is_it_time_for_action(istep[0], time, dt_lev0, bndry_output_planes_interval, bndry_output_planes_per) &&
           time >= bndry_output_planes_start_time)
       {
-         m_w2d->write_planes(istep[0], time, vars_new);
+         bool is_moist = (micro->Get_Qstate_Size() > 0);
+         m_w2d->write_planes(istep[0], time, vars_new, is_moist);
       }
     }
 
@@ -853,7 +854,8 @@ ERF::InitData ()
 
         Real time = 0.;
         if (time >= bndry_output_planes_start_time) {
-            m_w2d->write_planes(0, time, vars_new);
+            bool is_moist = (micro->Get_Qstate_Size() > 0);
+            m_w2d->write_planes(0, time, vars_new, is_moist);
         }
     }
 
@@ -978,9 +980,12 @@ ERF::InitData ()
             }
         }
 
+        const int n_qstate = micro->Get_Qstate_Size();
+
         m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most,
                                            vars_old, Theta_prim, Qv_prim, Qr_prim, z_phys_nd,
-                                           sst_lev, lmask_lev, lsm_data, lsm_flux, Hwave, Lwave, eddyDiffs_lev
+                                           sst_lev, lmask_lev, lsm_data, lsm_flux,
+                                           Hwave, Lwave, eddyDiffs_lev, n_qstate
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
