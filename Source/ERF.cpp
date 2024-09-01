@@ -980,8 +980,6 @@ ERF::InitData ()
             }
         }
 
-        const int n_qstate = micro->Get_Qstate_Size();
-
         m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most,
                                            vars_old, Theta_prim, Qv_prim, Qr_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux,
