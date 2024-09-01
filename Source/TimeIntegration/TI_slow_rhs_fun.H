@@ -118,7 +118,7 @@
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                              input_sounding_data, n_qstate);
 
-            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, n_qstate, S_rhs, S_old, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
                              z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
@@ -221,7 +221,7 @@
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                              input_sounding_data, n_qstate);
 
-            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, n_qstate, S_rhs, S_old, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
                              z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),

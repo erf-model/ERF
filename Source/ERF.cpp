@@ -1001,16 +1001,23 @@ ERF::InitData ()
         {
             Real time  = t_new[lev];
             IntVect ng = Theta_prim[lev]->nGrowVect();
+
             MultiFab::Copy(  *Theta_prim[lev], vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, ng);
             MultiFab::Divide(*Theta_prim[lev], vars_new[lev][Vars::cons],      Rho_comp, 0, 1, ng);
+
             if (solverChoice.moisture_type != MoistureType::None) {
                 ng = Qv_prim[lev]->nGrowVect();
-                int rhoqr_comp = solverChoice.RhoQr_comp;
 
                 MultiFab::Copy(  *Qv_prim[lev], vars_new[lev][Vars::cons], RhoQ1_comp, 0, 1, ng);
-                MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
                 MultiFab::Divide(*Qv_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
-                MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
+
+                int rhoqr_comp = solverChoice.RhoQr_comp;
+                if (rhoqr_comp > -1) {
+                    MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
+                    MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
+                } else {
+                    Qr_prim[lev]->setVal(0.0);
+                }
             }
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
 

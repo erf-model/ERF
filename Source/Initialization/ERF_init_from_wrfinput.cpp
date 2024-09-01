@@ -77,7 +77,7 @@ init_state_from_wrfinput (int lev,
                           const Vector<FArrayBox>& NC_rho_fab,
                           const Vector<FArrayBox>& NC_rhotheta_fab,
                           const int n_qstate,
-                          const int RhoQr_comp)
+                          const int RhoQr_comp);
 
 void
 init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
