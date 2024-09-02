@@ -37,7 +37,7 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
     Gpu::copyAsync(Gpu::hostToDevice, bcrs.begin(), bcrs.end(), bcrs_d.begin());
     const BCRec* bc_ptr = bcrs_d.data();
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>, 1> l_bc_extdir_vals_d;
 
     for (int i = 0; i < ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
@@ -200,7 +200,7 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
     Gpu::copyAsync(Gpu::hostToDevice, bcrs.begin(), bcrs.end(), bcrs_d.begin());
     const BCRec* bc_ptr = bcrs_d.data();
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>, 1> l_bc_extdir_vals_d;
 
     for (int i = 0; i < ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
