@@ -275,8 +275,8 @@ void ERF::init_bcs ()
     //
     // *****************************************************************************
     {
-        domain_bcs_type.resize(AMREX_SPACEDIM+NVAR_max);
-        domain_bcs_type_d.resize(AMREX_SPACEDIM+NVAR_max);
+        domain_bcs_type.resize(AMREX_SPACEDIM+NBCVAR_max);
+        domain_bcs_type_d.resize(AMREX_SPACEDIM+NBCVAR_max);
 
         for (OrientationIter oit; oit; ++oit) {
             Orientation ori = oit();
@@ -394,6 +394,7 @@ void ERF::init_bcs ()
     //
     // Here we translate the physical boundary conditions -- one type per face --
     //     into logical boundary conditions for each cell-centered variable
+    // NOTE: all "scalars" share the same type of boundary condition
     //
     // *****************************************************************************
     {
@@ -405,11 +406,11 @@ void ERF::init_bcs ()
             if ( bct == ERF_BC::symmetry )
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::reflect_even);
                     }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::reflect_even);
                     }
                 }
@@ -417,11 +418,11 @@ void ERF::init_bcs ()
             else if ( bct == ERF_BC::outflow )
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                     }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                     }
                 }
@@ -429,11 +430,11 @@ void ERF::init_bcs ()
             else if ( bct == ERF_BC::ho_outflow )
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrapcc);
                     }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::hoextrapcc);
                     }
                 }
@@ -441,17 +442,17 @@ void ERF::init_bcs ()
             else if ( bct == ERF_BC::open )
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NBCVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::open);
                 } else {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NBCVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::open);
                 }
             }
             else if ( bct == ERF_BC::no_slip_wall)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                     }
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
@@ -465,7 +466,7 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
                     }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                     }
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
@@ -483,7 +484,7 @@ void ERF::init_bcs ()
             else if (bct == ERF_BC::slip_wall)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                     }
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
@@ -496,7 +497,7 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::Rho_bc_comp].setLo(dir, ERFBCType::neumann);
                     }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                     }
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
@@ -513,7 +514,7 @@ void ERF::init_bcs ()
             else if (bct == ERF_BC::inflow)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
                         if (input_bndry_planes && dir < 2 && (
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
@@ -527,7 +528,7 @@ void ERF::init_bcs ()
                            }
                     }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
                         if (input_bndry_planes && dir < 2 && (
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
@@ -546,11 +547,11 @@ void ERF::init_bcs ()
             else if (bct == ERF_BC::periodic)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::int_dir);
                     }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::int_dir);
                     }
                 }
@@ -558,7 +559,7 @@ void ERF::init_bcs ()
             else if ( bct == ERF_BC::MOST )
             {
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
-                for (int i = 0; i < NVAR_max; i++) {
+                for (int i = 0; i < NBCVAR_max; i++) {
                     domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                 }
             }

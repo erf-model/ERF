@@ -108,12 +108,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     Box zbx3 = zbx;
 
     const int end_comp   = start_comp + num_comp - 1;
-    const int qty_offset = RhoTheta_comp;
 
     // Theta, KE, QKE, Scalar
-    Vector<Real> alpha_eff(NVAR_max, 0.0);
+    Vector<Real> alpha_eff(NPRIMVAR_max, 0.0);
     if (l_consA) {
-        for (int i = 0; i < NVAR_max; ++i) {
+        for (int i = 0; i < NPRIMVAR_max; ++i) {
            switch (i) {
                case PrimTheta_comp:
                     alpha_eff[PrimTheta_comp] = diffChoice.alpha_T;
@@ -145,7 +144,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
           }
        }
     } else {
-        for (int i = 0; i < NVAR_max; ++i) {
+        for (int i = 0; i < NPRIMVAR_max; ++i) {
            switch (i) {
                case PrimTheta_comp:
                     alpha_eff[PrimTheta_comp] = diffChoice.rhoAlpha_T;
@@ -212,12 +211,13 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
+            const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-            Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
-                              + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
+            Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
+            rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
+                              + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
 
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ax(i,j,k);
@@ -240,12 +240,13 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
+            const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
-            Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
-                              + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
+            Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
+            rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
+                              + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
 
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ay(i,j,k);
@@ -268,12 +269,13 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
+            const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-            Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
+            Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
+            rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
+                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
 
             Real met_h_zeta = az(i,j,k);
 
@@ -313,7 +315,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
@@ -340,7 +342,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
@@ -367,7 +369,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
 
@@ -412,7 +414,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
@@ -438,7 +440,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
@@ -464,7 +466,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
@@ -507,7 +509,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
 
@@ -533,7 +535,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
 
@@ -559,7 +561,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - qty_offset;
+            const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
 
