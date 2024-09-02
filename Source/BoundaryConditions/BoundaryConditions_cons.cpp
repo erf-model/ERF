@@ -296,7 +296,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 int dest_comp = icomp+n;
                 int   bc_comp = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp - icomp : n;
-                int l_bc_type = bc_ptr[n].lo(2);
+                int l_bc_type = bc_ptr[bc_comp].lo(2);
 
                 if (l_bc_type == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][2];
@@ -311,7 +311,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 int dest_comp = icomp+n;
                 int   bc_comp = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp - icomp : n;
-                int h_bc_type = bc_ptr[n].hi(2);
+                int h_bc_type = bc_ptr[bc_comp].hi(2);
                 if (h_bc_type == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][5];
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
@@ -333,7 +333,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 int dest_comp = icomp+n;
                 int   bc_comp = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp - icomp : n;
-                int l_bc_type = bc_ptr[n].lo(2);
+                int l_bc_type = bc_ptr[bc_comp].lo(2);
                 int kflip = dom_lo.z - 1 - i;
                 if (l_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,j,dom_lo.z,dest_comp);
@@ -356,7 +356,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 int dest_comp = icomp+n;
                 int   bc_comp = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp - icomp : n;
-                int h_bc_type = bc_ptr[n].hi(2);
+                int h_bc_type = bc_ptr[bc_comp].hi(2);
                 int kflip =  2*dom_hi.z + 1 - i;
                 if (h_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,j,dom_hi.z,dest_comp);
