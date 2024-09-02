@@ -391,9 +391,13 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
         //=====================================================================================
         // Only modify scalars, U, or V
         // Loop over each component
-        for (int n = icomp; n < icomp+ncomp; n++) {
+        for (int n = 0; n < ncomp; n++) {
             // Hit for Neumann condition at kmin
-            if( bcrs[n].lo(2) == ERFBCType::foextrap)
+            int dest_comp = icomp+n;
+            int   bc_comp = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
+                             BCVars::RhoScalar_bc_comp - icomp : n;
+            int l_bc_type = bc_ptr[bc_comp].lo(2);
+            if(l_bc_type == ERFBCType::foextrap)
             {
                 // Loop over ghost cells in bottom XY-plane (valid box)
                 Box xybx = bx;
@@ -425,11 +429,11 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         if (i < dom_lo.x-1 || i > dom_hi.x+1) {
                             GradVarx = 0.0;
                         } else if (i+1 > bx_hi.x) {
-                            GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0,n) - dest_arr(i-1,j,k0,n));
+                            GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
                         } else if (i-1 < bx_lo.x) {
-                            GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0,n) - dest_arr(i  ,j,k0,n));
+                            GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i  ,j,k0,dest_comp));
                         } else {
-                            GradVarx = 0.5 * dxInv[0] * (dest_arr(i+1,j,k0,n) - dest_arr(i-1,j,k0,n));
+                            GradVarx = 0.5 * dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
                         }
 
                         // GradY at IJK location inside domain -- this relies on the assumption that we have
@@ -437,18 +441,18 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         if (j < dom_lo.y-1 || j > dom_hi.y+1) {
                             GradVary = 0.0;
                         } else if (j+1 > bx_hi.y) {
-                            GradVary =       dxInv[1] * (dest_arr(i,j  ,k0,n) - dest_arr(i,j-1,k0,n));
+                            GradVary =       dxInv[1] * (dest_arr(i,j  ,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
                         } else if (j-1 < bx_lo.y) {
-                            GradVary =       dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j  ,k0,n));
+                            GradVary =       dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j  ,k0,dest_comp));
                         } else {
-                            GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j-1,k0,n));
+                            GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
                         }
 
                         // Prefactor
                         Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
 
                         // Accumulate in bottom ghost cell (EXTRAP already populated)
-                        dest_arr(i,j,k,n) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
+                        dest_arr(i,j,k,dest_comp) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
                     });
                 } // box includes k0
             } // foextrap
