@@ -980,12 +980,10 @@ ERF::InitData ()
             }
         }
 
-        const int n_qstate = micro->Get_Qstate_Size();
-
         m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most,
                                            vars_old, Theta_prim, Qv_prim, Qr_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux,
-                                           Hwave, Lwave, eddyDiffs_lev, n_qstate
+                                           Hwave, Lwave, eddyDiffs_lev
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
@@ -1003,17 +1001,23 @@ ERF::InitData ()
         {
             Real time  = t_new[lev];
             IntVect ng = Theta_prim[lev]->nGrowVect();
-            MultiFab S(vars_new[lev][Vars::cons],make_alias,0,RhoTheta_comp+1);
-            MultiFab::Copy(  *Theta_prim[lev], S, RhoTheta_comp, 0, 1, ng);
-            MultiFab::Divide(*Theta_prim[lev], S, Rho_comp     , 0, 1, ng);
+
+            MultiFab::Copy(  *Theta_prim[lev], vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, ng);
+            MultiFab::Divide(*Theta_prim[lev], vars_new[lev][Vars::cons],      Rho_comp, 0, 1, ng);
+
             if (solverChoice.moisture_type != MoistureType::None) {
                 ng = Qv_prim[lev]->nGrowVect();
-                int RhoQr_comp = (micro->Get_Qstate_Size() > 3) ? RhoQ4_comp : RhoQ3_comp;
-                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,RhoQr_comp+1);
-                MultiFab::Copy(  *Qv_prim[lev], Sm, RhoQ1_comp, 0, 1, ng);
-                MultiFab::Copy(  *Qr_prim[lev], Sm, RhoQr_comp, 0, 1, ng);
-                MultiFab::Divide(*Qv_prim[lev], Sm, Rho_comp  , 0, 1, ng);
-                MultiFab::Divide(*Qr_prim[lev], Sm, Rho_comp  , 0, 1, ng);
+
+                MultiFab::Copy(  *Qv_prim[lev], vars_new[lev][Vars::cons], RhoQ1_comp, 0, 1, ng);
+                MultiFab::Divide(*Qv_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
+
+                int rhoqr_comp = solverChoice.RhoQr_comp;
+                if (rhoqr_comp > -1) {
+                    MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
+                    MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
+                } else {
+                    Qr_prim[lev]->setVal(0.0);
+                }
             }
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
 
@@ -1021,7 +1025,8 @@ ERF::InitData ()
                 // Only do this if starting from scratch; if restarting, then
                 // we don't want to call update_fluxes multiple times because
                 // it will change u* and theta* from their previous values
-                m_most->update_pblh(lev, vars_new, z_phys_cc[lev].get());
+                m_most->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
+                                    solverChoice.RhoQv_comp, solverChoice.RhoQr_comp);
                 m_most->update_fluxes(lev, time);
             }
         }

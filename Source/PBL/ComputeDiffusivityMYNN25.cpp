@@ -19,7 +19,9 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           int level,
                           const BCRec* bc_ptr,
                           bool /*vert_only*/,
-                          const std::unique_ptr<MultiFab>& z_phys_nd)
+                          const std::unique_ptr<MultiFab>& z_phys_nd,
+                          const int RhoQv_comp,
+                          const int RhoQr_comp)
 {
     const bool use_terrain = (z_phys_nd != nullptr);
 
@@ -144,7 +146,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                                           u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                           v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                           dthetadz, dudz, dvdz,
-                                          use_moisture);
+                                          RhoQv_comp, RhoQr_comp);
 
             // Spatially varying MOST
             Real theta0 = tm_arr(i,j,0);

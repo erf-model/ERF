@@ -28,16 +28,14 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         // This allows dynamic refinement based on the value of qv
         } else if ( ref_tags[j].Field() == "qv" ) {
-            MultiFab qv(vars_new[levc][Vars::cons],make_alias,0,RhoQ1_comp+1);
-            MultiFab::Copy(  *mf, qv, RhoQ1_comp, 0, 1, 0);
-            MultiFab::Divide(*mf, qv, Rho_comp  , 0, 1, 0);
+            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ1_comp, 0, 1, 0);
+            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 0);
 
 
         // This allows dynamic refinement based on the value of qc
         } else if (ref_tags[j].Field() == "qc" ) {
-            MultiFab qc(vars_new[levc][Vars::cons],make_alias,0,RhoQ2_comp+1);
-            MultiFab::Copy(  *mf, qc, RhoQ2_comp, 0, 1, 0);
-            MultiFab::Divide(*mf, qc, Rho_comp  , 0, 1, 0);
+            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ2_comp, 0, 1, 0);
+            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 0);
 
 
         // This allows dynamic refinement based on the value of the scalar/pressure/theta

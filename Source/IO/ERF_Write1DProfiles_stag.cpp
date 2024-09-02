@@ -449,13 +449,7 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
 
     if (use_moisture)
     {
-        int RhoQr_comp;
         int n_qstate = micro->Get_Qstate_Size();
-        if (n_qstate > 3) {
-            RhoQr_comp = RhoQ4_comp;
-        } else {
-            RhoQr_comp = RhoQ3_comp;
-        }
 
         for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
@@ -469,6 +463,8 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
             const Array4<Real>&   p0_arr = p_hse.array(mfi);
             const Array4<Real>&   qv_arr = qmoist[0][0]->array(mfi); // TODO: Is this written only on lev 0?
 
+            int rhoqr_comp = solverChoice.RhoQr_comp;
+
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
@@ -479,8 +475,8 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
                 fab_arr(i, j, k,15) = p * v_cc_arr(i,j,k);     // p*v
                 fab_arr(i, j, k,16) = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // qv
                 fab_arr(i, j, k,17) = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // qc
-                fab_arr(i, j, k,18) = cons_arr(i,j,k,RhoQr_comp) / cons_arr(i,j,k,Rho_comp);  // qr
-                if (n_qstate > 3) {
+                fab_arr(i, j, k,18) = cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp);  // qr
+                if (n_qstate > 3) { // SAM model
                     fab_arr(i, j, k,19) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
                     fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
                     fab_arr(i, j, k,21) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg

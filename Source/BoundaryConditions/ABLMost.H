@@ -47,7 +47,6 @@ public:
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Hwave,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Lwave,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& eddyDiffs,
-                      int n_qstate,
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
     : m_exp_most(use_exp_most),
@@ -55,8 +54,7 @@ public:
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_geom(geom),
-      m_ma(geom,vars_old,Theta_prim,Qv_prim,Qr_prim,z_phys_nd),
-      m_n_qstate(n_qstate)
+      m_ma(geom,vars_old,Theta_prim,Qv_prim,Qr_prim,z_phys_nd)
     {
         // We have a moisture model if Qv_prim is a valid pointer
         use_moisture = (Qv_prim[0].get());
@@ -369,14 +367,16 @@ public:
     void
     update_pblh (const int& lev,
                  amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
-                 amrex::MultiFab* z_phys_cc);
+                 amrex::MultiFab* z_phys_cc,
+                 const int RhoQv_comp, const int RhoQr_comp);
 
     template <typename PBLHeightEstimator>
     void
     compute_pblh (const int& lev,
                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                   amrex::MultiFab* z_phys_cc,
-                  const PBLHeightEstimator& est);
+                  const PBLHeightEstimator& est,
+                  const int RhoQv_comp, const int RhoQr_comp);
 
     void
     read_custom_roughness (const int& lev,
@@ -529,8 +529,6 @@ private:
     amrex::Vector<amrex::MultiFab*>  m_Hwave_lev;
     amrex::Vector<amrex::MultiFab*>  m_Lwave_lev;
     amrex::Vector<amrex::MultiFab*>  m_eddyDiffs_lev;
-
-    int m_n_qstate;
 };
 
 #endif /* ABLMOST_H */

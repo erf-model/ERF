@@ -168,8 +168,10 @@ init_bx_scalars_from_input_sounding (const Box &bx,
         // Initial Rho0*Theta0
         state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
 
-        // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-        state(i, j, k, RhoScalar_comp) = 0;
+        // Initialize all scalars to 0.
+        for (int n = 0; n < NSCALARS; n++) {
+            state(i, j, k, RhoScalar_comp+n) = 0;
+        }
 
         // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there is no cloud water or cloud ice
         if (l_moist)
@@ -236,8 +238,10 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         rhoTh_k = rho_k * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
         state(i, j, k, RhoTheta_comp) = rhoTh_k;
 
-        // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-        state(i, j, k, RhoScalar_comp) = 0;
+        // Initialize all scalars to 0.
+        for (int n = 0; n < NSCALARS; n++) {
+            state(i, j, k, RhoScalar_comp+n) = 0;
+        }
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
         qv_k = (l_moist) ? interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size) : 0.0;

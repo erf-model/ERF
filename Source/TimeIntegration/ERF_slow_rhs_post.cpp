@@ -418,16 +418,16 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
-                                               mu_turb, dc, tc,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_most, n_qstate);
+                                               mu_turb, solverChoice, level,
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_z, q1fx_z, q2fx_z, diss,
-                                               mu_turb, dc, tc,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_most, n_qstate);
+                                               mu_turb, solverChoice, level,
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
                     }
                 } // use_diff
             } // valid slow var
