@@ -669,8 +669,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
         int qty_index = RhoQKE_comp;
         auto pbl_mynn_B1_l = turbChoice.pbl_mynn.B1;
 
-        int rhoqv_comp = solverChoice.RhoQv_comp;
-        int rhoqr_comp = solverChoice.RhoQr_comp;
+        const int rhoqv_comp = solverChoice.RhoQv_comp;
+        const int rhoqr_comp = solverChoice.RhoQr_comp;
 
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {

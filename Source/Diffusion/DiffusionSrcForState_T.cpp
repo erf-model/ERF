@@ -735,6 +735,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         int qty_index = RhoQKE_comp;
         auto pbl_mynn_B1_l = turbChoice.pbl_mynn.B1;
 
+        const int rhoqv_comp = solverChoice.RhoQv_comp;
+        const int rhoqr_comp = solverChoice.RhoQr_comp;
+
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -749,8 +752,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
                                                                   mu_turb,cellSizeInv,domain,
                                                                   pbl_mynn_B1_l,tm_arr(i,j,0),
-                                                                  solverChoice.RhoQv_comp,
-                                                                  solverChoice.RhoQr_comp,
+                                                                  rhoqv_comp, rhoqr_comp,
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
