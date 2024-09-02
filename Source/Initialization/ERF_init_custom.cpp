@@ -85,9 +85,9 @@ ERF::init_custom (int lev)
     } //mfi
 
     // Add problem-specific perturbation to background flow
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,      1, cons_pert.nGrow());
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,1, cons_pert.nGrow());
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,             1, cons_pert.nGrow());
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp,        1, cons_pert.nGrow());
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,NSCALARS, cons_pert.nGrow());
 
     // RhoKE is only relevant if using Deardorff with LES
     if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {

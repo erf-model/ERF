@@ -338,7 +338,7 @@ void make_sources (int level,
             }
             {
                 int sc = RhoScalar_comp;
-                int nc = 1;
+                int nc = NSCALARS;
                 NumericalDiffusion(bx, sc, nc, dt, solverChoice.NumDiffCoeff,
                                    cell_data, cell_src, mf_u, mf_v, false, false);
             }

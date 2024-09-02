@@ -252,8 +252,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         int mf_comp = 0;
 
         // First, copy any of the conserved state variables into the output plotfile
-        AMREX_ALWAYS_ASSERT(cons_names.size() >= ncomp_cons);
-        for (int i = 0; i < ncomp_cons; ++i) {
+        for (int i = 0; i < cons_names.size(); ++i) {
             if (containerHasElement(plot_var_names, cons_names[i])) {
                 MultiFab::Copy(mf[lev],vars_new[lev][Vars::cons],i,mf_comp,1,0);
                 mf_comp++;
