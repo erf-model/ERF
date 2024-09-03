@@ -72,10 +72,10 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
-
                 int dest_comp = icomp+n;
-                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
+                if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(0);
 
                 if (l_bc_type == ERFBCType::ext_dir) {
@@ -88,8 +88,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
-                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
+                if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int h_bc_type = bc_ptr[n].hi(0);
 
                 if (h_bc_type == ERFBCType::ext_dir) {
@@ -105,13 +106,15 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     if (!is_periodic_in_y)
     {
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
-        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
+        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_
+                                         hi.y+1);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
-                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
+                if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(1);
                 if (l_bc_type == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][1];
@@ -123,8 +126,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
-                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
+                if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int h_bc_type = bc_ptr[n].hi(1);
                 if (h_bc_type == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][4];
@@ -313,10 +317,10 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
             bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
-                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
+                if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(2);
-
                 if (l_bc_type == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][2];
 
@@ -328,8 +332,9 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
-                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
+                if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int h_bc_type = bc_ptr[n].hi(2);
                 if (h_bc_type == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][5];
