@@ -224,6 +224,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
 
             bool most_on_zlo    = ( use_most && rot_most &&
                                   (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
@@ -256,6 +257,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool most_on_zlo    = ( use_most && rot_most &&
                                   (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -287,6 +289,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
@@ -333,6 +336,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool most_on_zlo    = ( use_most && rot_most &&
                                   (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -362,6 +366,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool most_on_zlo    = ( use_most && rot_most &&
                                   (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -392,6 +397,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
@@ -437,6 +443,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool most_on_zlo    = ( use_most && rot_most &&
                                   (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -465,6 +472,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool most_on_zlo    = ( use_most && rot_most &&
                                   (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -493,6 +501,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
@@ -538,6 +547,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool most_on_zlo    = ( use_most && rot_most &&
                                   (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -566,6 +576,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool most_on_zlo    = ( use_most && rot_most &&
                                   (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
@@ -594,6 +605,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
