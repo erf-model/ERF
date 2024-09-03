@@ -23,6 +23,14 @@
 //    but not to allocate actual solution data
 #define NVAR_max (NDRY + NSCALARS + NMOIST_max)
 
+// This is the number of components if we assume there is only one passive scalar
+// We can use this when we assume all passive scalars have the same bc's
+#define NBCVAR_max (NDRY + 1 + NMOIST_max)
+
+// This is the number of components if we assume there is only one passive scalar
+// We can use this when we assume all passive scalars have the same diffusion coefficients
+#define NPRIMVAR_max (NDRY + 1 + NMOIST_max)
+
 // Cell-centered state variables
 #define Rho_comp       0
 #define RhoTheta_comp  (Rho_comp+1)
@@ -51,6 +59,7 @@
 #define PrimQ6_comp      (RhoQ6_comp-1)
 
 // NOTE: we still use this indexing even if no moisture
+// NOTE: We assume a single boundary condition for all passive scalars
 namespace BCVars {
     enum {
         cons_bc = 0,
@@ -61,9 +70,9 @@ namespace BCVars {
         RhoScalar_bc_comp,
         RhoQ1_bc_comp,
         RhoQ2_bc_comp,
-        xvel_bc = NVAR_max,
-        yvel_bc = NVAR_max+1,
-        zvel_bc = NVAR_max+2,
+        xvel_bc = NBCVAR_max,
+        yvel_bc = NBCVAR_max+1,
+        zvel_bc = NBCVAR_max+2,
         NumTypes
     };
 }
