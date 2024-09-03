@@ -72,26 +72,31 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
+
                 int dest_comp = icomp+n;
+                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                                 BCVars::RhoScalar_bc_comp : dest_comp;
                 int l_bc_type = bc_ptr[n].lo(0);
 
                 if (l_bc_type == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[n][0];
+                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][0];
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(dom_lo.x,j,k,Rho_comp);
-                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[n][0];
+                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][0];
                 }
             },
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                                 BCVars::RhoScalar_bc_comp : dest_comp;
                 int h_bc_type = bc_ptr[n].hi(0);
 
                 if (h_bc_type == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[n][3];
+                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][3];
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(dom_hi.x,j,k,Rho_comp);
-                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[n][3];
+                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][3];
                 }
             }
         );
@@ -105,23 +110,27 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                                 BCVars::RhoScalar_bc_comp : dest_comp;
                 int l_bc_type = bc_ptr[n].lo(1);
                 if (l_bc_type == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[n][1];
+                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][1];
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(i,dom_lo.y,k,Rho_comp);
-                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[n][1];
+                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][1];
                 }
             },
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                                 BCVars::RhoScalar_bc_comp : dest_comp;
                 int h_bc_type = bc_ptr[n].hi(1);
                 if (h_bc_type == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[n][4];
+                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][4];
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(i,dom_hi.y,k,Rho_comp);
-                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[n][4];
+                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][4];
                 }
             }
         );
@@ -304,25 +313,29 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
             bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                                 BCVars::RhoScalar_bc_comp : dest_comp;
                 int l_bc_type = bc_ptr[n].lo(2);
 
                 if (l_bc_type == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[n][2];
+                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][2];
 
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(i,j,dom_lo.z,Rho_comp);
-                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[n][2];
+                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][2];
                 }
             },
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int bc_comp   = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                                 BCVars::RhoScalar_bc_comp : dest_comp;
                 int h_bc_type = bc_ptr[n].hi(2);
                 if (h_bc_type == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[n][5];
+                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][5];
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(i,j,dom_hi.z,Rho_comp);
-                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[n][5];
+                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][5];
                 }
 
             }
