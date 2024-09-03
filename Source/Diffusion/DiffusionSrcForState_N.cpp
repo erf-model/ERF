@@ -204,7 +204,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_xlo = ( ((bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_prim))
                                     && i == dom_lo.x);
@@ -239,7 +239,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_ylo = ( ((bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_prim))
                                     && j == dom_lo.y);
@@ -278,7 +278,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_lo.z);
@@ -326,7 +326,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_xlo = ( ((bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_prim))
                                     && i == dom_lo.x);
@@ -357,7 +357,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_ylo = ( ((bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_prim))
                                     && j == dom_lo.y);
@@ -392,7 +392,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_lo.z);
@@ -440,7 +440,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_xlo = ( ((bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_prim))
                                     && i == dom_lo.x);
@@ -470,7 +470,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_ylo = ( ((bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_prim))
                                     && j == dom_lo.y);
@@ -503,7 +503,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_lo.z);
@@ -552,7 +552,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_xlo = ( ((bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_prim))
                                     && i == dom_lo.x);
@@ -581,7 +581,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_ylo = ( ((bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_prim))
                                     && j == dom_lo.y);
@@ -612,7 +612,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp =- (NSCALARS-1);
+            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_lo.z);
