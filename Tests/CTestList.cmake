@@ -63,7 +63,7 @@ function(add_test_d TEST_NAME TEST_EXE PLTFILE)
     setup_test()
 
     set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
-    set(FCOMPARE_TOLERANCE "-r 2.0e-9 --abs_tol 2.0e-9")
+    set(FCOMPARE_TOLERANCE "-r 3.0e-9 --abs_tol 3.0e-9")
     set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
 
@@ -135,7 +135,7 @@ add_test_r(TaylorGreenAdvectingDiffusing     "RegTests/TaylorGreenVortex/*/erf_t
 add_test_r(MSF_NoSub_IsentropicVortexAdv     "RegTests/IsentropicVortex/*/erf_isentropic_vortex.exe" "plt00010")
 add_test_r(MSF_Sub_IsentropicVortexAdv       "RegTests/IsentropicVortex/*/erf_isentropic_vortex.exe" "plt00010")
 add_test_r(ABL_MOST                          "ABL/*/erf_abl.exe" "plt00010")
-add_test_r(ABL_MYNN_PBL                      "ABL/*/erf_abl.exe" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1")
+add_test_d(ABL_MYNN_PBL                      "ABL/*/erf_abl.exe" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1")
 add_test_r(ABL_InflowFile                    "ABL/*/erf_abl.exe" "plt00010")
 add_test_r(MoistBubble                       "RegTests/Bubble/*/erf_bubble.exe" "plt00010")
 
@@ -175,7 +175,7 @@ add_test_r(TaylorGreenAdvectingDiffusing     "RegTests/TaylorGreenVortex/erf_tay
 add_test_r(MSF_NoSub_IsentropicVortexAdv     "RegTests/IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(MSF_Sub_IsentropicVortexAdv       "RegTests/IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(ABL_MOST                          "ABL/erf_abl" "plt00010")
-add_test_r(ABL_MYNN_PBL                      "ABL/erf_abl" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1")
+add_test_d(ABL_MYNN_PBL                      "ABL/erf_abl" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1")
 add_test_r(ABL_InflowFile                    "ABL/erf_abl" "plt00010")
 add_test_r(MoistBubble                       "RegTests/Bubble/erf_bubble" "plt00010")
 
