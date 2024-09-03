@@ -52,7 +52,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
         }
 
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
-            l_bc_extdir_vals_d[nc][ori]  = m_bc_extdir_vals[bc_comp][ori];
+            l_bc_extdir_vals_d[bc_comp][ori]  = m_bc_extdir_vals[bc_comp][ori];
         }
     }
 
@@ -288,8 +288,8 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
         }
 
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
-            l_bc_extdir_vals_d[nc][ori]  = m_bc_extdir_vals[bc_comp][ori];
-            l_bc_neumann_vals_d[nc][ori] = m_bc_neumann_vals[bc_comp][ori];
+            l_bc_extdir_vals_d[bc_comp][ori]  = m_bc_extdir_vals[bc_comp][ori];
+            l_bc_neumann_vals_d[bc_comp][ori] = m_bc_neumann_vals[bc_comp][ori];
         }
     }
 
