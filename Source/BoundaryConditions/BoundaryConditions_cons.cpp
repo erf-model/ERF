@@ -106,8 +106,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     if (!is_periodic_in_y)
     {
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
-        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_
-                                         hi.y+1);
+        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
