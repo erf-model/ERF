@@ -31,21 +31,34 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     // Based on BCRec for the domain, we need to make BCRec for this Box
     //      0 is used as starting index for bcrs
     Vector<BCRec> bcrs(ncomp);
-    setBC(bx, domain, 0, 0, ncomp, m_domain_bcs_type, bcrs);
+
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,NBCVAR_max> l_bc_extdir_vals_d;
+
+    const int* bxlo = bx.loVect();
+    const int* bxhi = bx.hiVect();
+    const int* dlo  = domain.loVect();
+    const int* dhi  = domain.hiVect();
+
+    for (int nc = 0; nc < ncomp; nc++)
+    {
+        int bc_comp = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                       BCVars::RhoScalar_bc_comp : icomp+nc;
+        for (int dir = 0; dir < AMREX_SPACEDIM; dir++)
+        {
+            bcrs[nc].setLo(dir, ( bxlo[dir]<=dlo[dir]
+                                 ? m_domain_bcs_type[bc_comp].lo(dir) : BCType::int_dir ));
+            bcrs[nc].setHi(dir, ( bxhi[dir]>=dhi[dir]
+                                 ? m_domain_bcs_type[bc_comp].hi(dir) : BCType::int_dir ));
+        }
+
+        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+            l_bc_extdir_vals_d[nc][ori]  = m_bc_extdir_vals[bc_comp][ori];
+        }
+    }
 
     Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
     Gpu::copyAsync(Gpu::hostToDevice, bcrs.begin(), bcrs.end(), bcrs_d.begin());
     const BCRec* bc_ptr = bcrs_d.data();
-
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,NBCVAR_max> l_bc_extdir_vals_d;
-
-    for (int n = 0; n < ncomp; n++) {
-        int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
-                       BCVars::RhoScalar_bc_comp : icomp+n;
-        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
-            l_bc_extdir_vals_d[n][ori]  = m_bc_extdir_vals[bc_comp][ori];
-        }
-    }
 
     GeometryData const& geomdata = m_geom.data();
     bool is_periodic_in_x = geomdata.isPeriodic(0);
@@ -270,22 +283,35 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
     // Based on BCRec for the domain, we need to make BCRec for this Box
     //      0 is used as starting index for bcrs
     Vector<BCRec> bcrs(ncomp);
-    setBC(bx, domain, icomp, 0, ncomp, m_domain_bcs_type, bcrs);
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,NBCVAR_max> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,NBCVAR_max> l_bc_neumann_vals_d;
+
+    const int* bxlo = bx.loVect();
+    const int* bxhi = bx.hiVect();
+    const int* dlo  = domain.loVect();
+    const int* dhi  = domain.hiVect();
+
+    for (int nc = 0; nc < ncomp; nc++)
+    {
+        int bc_comp = (icomp+nc >= RhoScalar_comp && icomp+nc < RhoScalar_comp+NSCALARS) ?
+                       BCVars::RhoScalar_bc_comp : icomp+nc;
+        for (int dir = 0; dir < AMREX_SPACEDIM; dir++)
+        {
+            bcrs[nc].setLo(dir, ( bxlo[dir]<=dlo[dir]
+                                 ? m_domain_bcs_type[bc_comp].lo(dir) : BCType::int_dir ));
+            bcrs[nc].setHi(dir, ( bxhi[dir]>=dhi[dir]
+                                 ? m_domain_bcs_type[bc_comp].hi(dir) : BCType::int_dir ));
+        }
+
+        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+            l_bc_extdir_vals_d[nc][ori]  = m_bc_extdir_vals[bc_comp][ori];
+            l_bc_neumann_vals_d[nc][ori] = m_bc_neumann_vals[bc_comp][ori];
+        }
+    }
 
     Gpu::DeviceVector<BCRec> bcrs_d(icomp+ncomp);
     Gpu::copyAsync(Gpu::hostToDevice, bcrs.begin(), bcrs.end(), bcrs_d.begin());
     const BCRec* bc_ptr = bcrs_d.data();
-
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,NBCVAR_max> l_bc_extdir_vals_d;
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,NBCVAR_max> l_bc_neumann_vals_d;
-    for (int n = 0; n < ncomp; n++) {
-        int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
-                       BCVars::RhoScalar_bc_comp : icomp+n;
-        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
-            l_bc_extdir_vals_d[n][ori]  = m_bc_extdir_vals[bc_comp][ori];
-            l_bc_neumann_vals_d[n][ori] = m_bc_neumann_vals[bc_comp][ori];
-        }
-    }
 
     {
         Box bx_zlo(bx);  bx_zlo.setBig  (2,dom_lo.z-1);
@@ -294,29 +320,25 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
             bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
-                int   bc_comp = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
-                                 BCVars::RhoScalar_bc_comp - icomp : n;
-                int l_bc_type = bc_ptr[bc_comp].lo(2);
+                int l_bc_type = bc_ptr[n].lo(2);
 
                 if (l_bc_type == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][2];
+                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[n][2];
 
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(i,j,dom_lo.z,Rho_comp);
-                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][2];
+                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[n][2];
                 }
             },
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
-                int   bc_comp = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
-                                 BCVars::RhoScalar_bc_comp - icomp : n;
-                int h_bc_type = bc_ptr[bc_comp].hi(2);
+                int h_bc_type = bc_ptr[n].hi(2);
                 if (h_bc_type == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][5];
+                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[n][5];
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(i,j,dom_hi.z,Rho_comp);
-                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][5];
+                    dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[n][5];
                 }
 
             }
@@ -331,9 +353,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
             bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
-                int   bc_comp = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
-                                 BCVars::RhoScalar_bc_comp - icomp : n;
-                int l_bc_type = bc_ptr[bc_comp].lo(2);
+                int l_bc_type = bc_ptr[n].lo(2);
                 int kflip = dom_lo.z - 1 - i;
                 if (l_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,j,dom_lo.z,dest_comp);
@@ -346,7 +366,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 } else if (l_bc_type == ERFBCType::neumann) {
                     Real delta_z = (dom_lo.z - k) / dxInv[2];
                     dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_lo.z,dest_comp) -
-                        delta_z*l_bc_neumann_vals_d[bc_comp][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
+                        delta_z*l_bc_neumann_vals_d[n][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
                 } else if (l_bc_type == ERFBCType::hoextrapcc) {
                     dest_arr(i,j,k,dest_comp) = 2.0*dest_arr(i,j,dom_lo.z,dest_comp) - dest_arr(i,j,dom_lo.z+1,dest_comp);
                 }
@@ -354,9 +374,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
-                int   bc_comp = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
-                                 BCVars::RhoScalar_bc_comp - icomp : n;
-                int h_bc_type = bc_ptr[bc_comp].hi(2);
+                int h_bc_type = bc_ptr[n].hi(2);
                 int kflip =  2*dom_hi.z + 1 - i;
                 if (h_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,j,dom_hi.z,dest_comp);
@@ -370,10 +388,10 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                     Real delta_z = (k - dom_hi.z) / dxInv[2];
                     if( (icomp+n) == Rho_comp ) {
                         dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_hi.z,dest_comp) +
-                            delta_z*l_bc_neumann_vals_d[bc_comp][5];
+                            delta_z*l_bc_neumann_vals_d[n][5];
                     } else {
                         dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_hi.z,dest_comp) +
-                            delta_z*l_bc_neumann_vals_d[bc_comp][5]*dest_arr(i,j,dom_hi.z,Rho_comp);
+                            delta_z*l_bc_neumann_vals_d[n][5]*dest_arr(i,j,dom_hi.z,Rho_comp);
                     }
                 } else if (h_bc_type == ERFBCType::hoextrapcc){
                     dest_arr(i,j,k,dest_comp) = 2.0*dest_arr(i,j,dom_hi.z,dest_comp) - dest_arr(i,j,dom_hi.z-1,dest_comp);
@@ -394,9 +412,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
         for (int n = 0; n < ncomp; n++) {
             // Hit for Neumann condition at kmin
             int dest_comp = icomp+n;
-            int   bc_comp = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
-                             BCVars::RhoScalar_bc_comp - icomp : n;
-            int l_bc_type = bc_ptr[bc_comp].lo(2);
+            int l_bc_type = bc_ptr[n].lo(2);
             if(l_bc_type == ERFBCType::foextrap)
             {
                 // Loop over ghost cells in bottom XY-plane (valid box)
