@@ -222,8 +222,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ax(i,j,k);
 
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
+
             bool most_on_zlo    = ( use_most && rot_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -251,8 +254,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ay(i,j,k);
 
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
             bool most_on_zlo    = ( use_most && rot_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -280,14 +285,16 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_zeta = az(i,j,k);
 
             Real GradCz;
-            bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
+            bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim) )
+            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim) )
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -324,8 +331,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ax(i,j,k);
 
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
             bool most_on_zlo    = ( use_most && rot_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -351,8 +360,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ay(i,j,k);
 
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
             bool most_on_zlo    = ( use_most && rot_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -379,14 +390,16 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_zeta = az(i,j,k);
 
             Real GradCz;
-            bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
+            bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim))
+            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -422,8 +435,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ax(i,j,k);
 
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
             bool most_on_zlo    = ( use_most && rot_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -448,8 +463,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
             Real met_h_zeta = ay(i,j,k);
 
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
             bool most_on_zlo    = ( use_most && rot_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -474,14 +491,16 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real met_h_zeta = az(i,j,k);
 
             Real GradCz;
-            bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
+            bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim))
+            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -517,8 +536,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtIface(i,j,k,cellSizeInv,z_nd);
 
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
             bool most_on_zlo    = ( use_most && rot_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -543,8 +564,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtJface(i,j,k,cellSizeInv,z_nd);
 
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
             bool most_on_zlo    = ( use_most && rot_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -569,14 +592,16 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,cellSizeInv,z_nd);
 
             Real GradCz;
-            bool ext_dir_on_zlo = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir_prim))
+            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                           BCVars::RhoScalar_bc_comp : qty_index;
+            bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
                                     && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir_prim))
+            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
