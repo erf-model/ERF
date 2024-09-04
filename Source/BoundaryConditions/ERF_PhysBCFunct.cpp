@@ -14,7 +14,7 @@ using namespace amrex;
  */
 
 void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
-                                      IntVect const& nghost, const Real /*time*/, int bccomp)
+                                      IntVect const& nghost, const Real /*time*/, int /*bccomp*/)
 {
     BL_PROFILE("ERFPhysBCFunct_cons::()");
 
@@ -80,10 +80,10 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
 
                 if (!m_use_real_bcs)
                 {
-                    impose_lateral_cons_bcs(cons_arr,cbx1,domain,icomp,ncomp,bccomp,nghost[2]);
+                    impose_lateral_cons_bcs(cons_arr,cbx1,domain,icomp,ncomp,nghost[2]);
                 }
 
-                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,bccomp);
+                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp);
             }
 
         } // MFIter

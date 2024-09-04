@@ -120,7 +120,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         ncomp = vars_new[lev-1][Vars::cons].nComp();
     } else {
         int n_qstate   = micro->Get_Qstate_Size();
-        ncomp = NVAR_max - (NMOIST_max - n_qstate);
+        ncomp = NDRY + NSCALARS + n_qstate;
     }
 
     // ********************************************************************************************

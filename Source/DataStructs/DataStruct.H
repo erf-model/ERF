@@ -104,14 +104,22 @@ struct SolverChoice {
         pp.query("moisture_model", moisture_model_string);
         if (moisture_model_string == "SAM") {
             moisture_type = MoistureType::SAM;
+            RhoQv_comp = RhoQ1_comp;
+            RhoQr_comp = RhoQ4_comp;
         } else if (moisture_model_string == "SAM_NoIce") {
             moisture_type = MoistureType::SAM_NoIce;
+            RhoQv_comp = RhoQ1_comp;
+            RhoQr_comp = RhoQ4_comp;
         } else if (moisture_model_string == "SAM_NoPrecip_NoIce") {
             moisture_type = MoistureType::SAM_NoPrecip_NoIce;
+            RhoQv_comp = RhoQ1_comp;
         } else if (moisture_model_string == "Kessler") {
             moisture_type = MoistureType::Kessler;
+            RhoQv_comp = RhoQ1_comp;
+            RhoQr_comp = RhoQ3_comp;
         }else if (moisture_model_string == "Kessler_NoRain") {
             moisture_type = MoistureType::Kessler_NoRain;
+            RhoQv_comp = RhoQ1_comp;
         } else {
             moisture_type = MoistureType::None;
         }
@@ -601,6 +609,13 @@ struct SolverChoice {
     bool do_cloud {true};
     bool do_precip {true};
     bool use_moist_background {false};
+    int RhoQv_comp {-1};
+
+    // This component will be model-dependent:
+    // if a model with no rain, this will stay -1
+    // if Kessler, then it will be set to RhoQ3
+    // if     SAM, then it will be set to RhoQ4
+    int RhoQr_comp {-1};
 
     amrex::Real latitude_lo=-1e10, longitude_lo=-1e10;
     std::string windfarm_loc_table, windfarm_spec_table;
