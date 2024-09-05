@@ -847,6 +847,8 @@ If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 
 - ``erf.alpha_C`` is multiplied by the instantaneous local density :math:`\rho` to form the coefficient for an advected scalar.
 
+Parameters for LES can either be set with one value that applies across all levels, or set with a number of values
+equal to the number of levels, allowing unique values of the parameter to be set for each level.
 
 PBL Scheme
 ==========
@@ -927,6 +929,9 @@ Right now, the QKE equation is solved if and only if the MYNN2.5 PBL model is se
 transport equation, it is optional to advect QKE, and to apply LES diffusive transport for QKE
 in the horizontal directions (the vertical component is always computed as part of the PBL
 scheme).
+
+Parameters for PBL schemes can either be set with one value that applies across all levels, or set with a number of values
+equal to the number of levels, allowing unique values of the parameter to be set for each level.
 
 Forcing Terms
 =============
