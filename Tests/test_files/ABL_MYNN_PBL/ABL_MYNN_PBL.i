@@ -1,7 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 stop_time = 32400.0  # 540 min = 9 h (Cuxart et al. 2006)
 max_step = 100
-  
+
 amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
@@ -72,7 +72,7 @@ erf.les_type        = "None"
 #erf.rho0_trans      = 1.3223 # from Cuxart et al. 2006
 #erf.theta_ref       = 263.5 # from Cuxart et al. 2006
 
-erf.pbl_type    = "MYNN2.5"
+erf.pbl_type    = "MYNN25"
 
 # Initial conditions from Beare et al. 2006
 prob.KE_0            = 0.4 # [m2/s2]
