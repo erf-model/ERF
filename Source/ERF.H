@@ -375,7 +375,7 @@ public:
 
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
-    amrex::Vector<int> t_avg_cnt;
+    amrex::Vector<amrex::Real> t_avg_cnt;
 
 #endif
     std::string pp_prefix {"erf"};
