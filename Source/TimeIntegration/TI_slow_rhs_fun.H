@@ -18,6 +18,8 @@
 
         Real slow_dt = new_stage_time - old_step_time;
 
+        int n_qstate = micro->Get_Qstate_Size();
+
         // *************************************************************************
         // Set up flux registers if using two_way coupling
         // *************************************************************************
@@ -107,7 +109,6 @@
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
 
-            int n_qstate = micro->Get_Qstate_Size();
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              xvel_new, yvel_new,
                              xmom_src, ymom_src, zmom_src,
@@ -211,7 +212,6 @@
 
         } else { // If not moving_terrain
 
-            int n_qstate = micro->Get_Qstate_Size();
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              xvel_new, yvel_new,
                              xmom_src, ymom_src, zmom_src,
@@ -309,6 +309,8 @@
         // will be used to advance to
         Real slow_dt = new_stage_time - old_step_time;
 
+        int n_qstate = micro->Get_Qstate_Size();
+
 #if defined(ERF_USE_NETCDF)
         bool moist_set_rhs = false;
         if ( use_real_bcs &&
@@ -337,7 +339,7 @@
 
         // Moving terrain
         if ( solverChoice.use_terrain && (solverChoice.terrain_type == TerrainType::Moving) ) {
-            erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
+            erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               cc_src, SmnSmn, eddyDiffs,
@@ -355,7 +357,7 @@
 #endif
                               fr_as_crse, fr_as_fine);
         } else {
-            erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
+            erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               cc_src, SmnSmn, eddyDiffs,

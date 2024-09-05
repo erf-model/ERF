@@ -28,7 +28,6 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
-    int ncomp = 1;
     Vector<BCRec> bcrs_w(1);
     setBC(enclosedCells(bx), domain, bccomp, 0, 1, m_domain_bcs_type, bcrs_w);
 
@@ -39,17 +38,17 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
     // yhi: ori = 4
     // zhi: ori = 5
 
-    Gpu::DeviceVector<BCRec> bcrs_w_d(ncomp);
+    Gpu::DeviceVector<BCRec> bcrs_w_d(1);
     Gpu::copyAsync(Gpu::hostToDevice, bcrs_w.begin(), bcrs_w.end(), bcrs_w_d.begin());
     const BCRec* bc_ptr_w = bcrs_w_d.data();
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,1> l_bc_extdir_vals_d;
 
     bool l_use_terrain = (m_z_phys_nd != nullptr);
 
-    for (int i = 0; i < ncomp; i++)
-        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
-            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
+    for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+        l_bc_extdir_vals_d[0][ori] = m_bc_extdir_vals[bccomp][ori];
+    }
 
     GeometryData const& geomdata = m_geom.data();
     bool is_periodic_in_x = geomdata.isPeriodic(0);
@@ -63,38 +62,38 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
         Real* zvel_bc_ptr = m_w_bc_data;
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
-        ParallelFor(
-            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+        ParallelFor(bx_xlo, bx_xhi,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int iflip = dom_lo.x - 1 - i;
-                if (bc_ptr_w[n].lo(0) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[n][0];
+                if (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
                     if (l_use_terrain) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }
-                } else if (bc_ptr_w[n].lo(0) == ERFBCType::foextrap) {
+                } else if (bc_ptr_w[0].lo(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
-                } else if (bc_ptr_w[n].lo(0) == ERFBCType::open) {
+                } else if (bc_ptr_w[0].lo(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
-                } else if (bc_ptr_w[n].lo(0) == ERFBCType::reflect_even) {
+                } else if (bc_ptr_w[0].lo(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
-                } else if (bc_ptr_w[n].lo(0) == ERFBCType::reflect_odd) {
+                } else if (bc_ptr_w[0].lo(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
                 }
             },
-            bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int iflip = 2*dom_hi.x + 1 - i;
-                if (bc_ptr_w[n].hi(0) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[n][3];
+                if (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
                     if (l_use_terrain) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }
-                } else if (bc_ptr_w[n].hi(0) == ERFBCType::foextrap) {
+                } else if (bc_ptr_w[0].hi(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
-                } else if (bc_ptr_w[n].hi(0) == ERFBCType::open) {
+                } else if (bc_ptr_w[0].hi(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
-                } else if (bc_ptr_w[n].hi(0) == ERFBCType::reflect_even) {
+                } else if (bc_ptr_w[0].hi(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
-                } else if (bc_ptr_w[n].hi(0) == ERFBCType::reflect_odd) {
+                } else if (bc_ptr_w[0].hi(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
                 }
             }
@@ -107,42 +106,42 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
         Real* zvel_bc_ptr = m_w_bc_data;
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
         Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
-        ParallelFor(bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-            int jflip = dom_lo.y - 1 - j;
-            if (bc_ptr_w[n].lo(1) == ERFBCType::ext_dir) {
-                dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[n][1];
-                if (l_use_terrain) {
-                    dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
+        ParallelFor(bx_ylo, bx_yhi,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                int jflip = dom_lo.y - 1 - j;
+                if (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][1];
+                    if (l_use_terrain) {
+                        dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
+                    }
+                } else if (bc_ptr_w[0].lo(1) == ERFBCType::foextrap) {
+                    dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
+                } else if (bc_ptr_w[0].lo(1) == ERFBCType::open) {
+                    dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
+                } else if (bc_ptr_w[0].lo(1) == ERFBCType::reflect_even) {
+                    dest_arr(i,j,k) =  dest_arr(i,jflip,k);
+                } else if (bc_ptr_w[0].lo(1) == ERFBCType::reflect_odd) {
+                    dest_arr(i,j,k) = -dest_arr(i,jflip,k);
                 }
-            } else if (bc_ptr_w[n].lo(1) == ERFBCType::foextrap) {
-                dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
-            } else if (bc_ptr_w[n].lo(1) == ERFBCType::open) {
-                dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
-            } else if (bc_ptr_w[n].lo(1) == ERFBCType::reflect_even) {
-                dest_arr(i,j,k) =  dest_arr(i,jflip,k);
-            } else if (bc_ptr_w[n].lo(1) == ERFBCType::reflect_odd) {
-                dest_arr(i,j,k) = -dest_arr(i,jflip,k);
-            }
-        },
-        bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-            int jflip =  2*dom_hi.y + 1 - j;
-            if (bc_ptr_w[n].hi(1) == ERFBCType::ext_dir) {
-                dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[n][4];
-                if (l_use_terrain) {
-                    dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                int jflip =  2*dom_hi.y + 1 - j;
+                if (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][4];
+                    if (l_use_terrain) {
+                        dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
+                    }
+                } else if (bc_ptr_w[0].hi(1) == ERFBCType::foextrap) {
+                    dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
+                } else if (bc_ptr_w[0].hi(1) == ERFBCType::open) {
+                    dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
+                } else if (bc_ptr_w[0].hi(1) == ERFBCType::reflect_even) {
+                    dest_arr(i,j,k) =  dest_arr(i,jflip,k);
+                } else if (bc_ptr_w[0].hi(1) == ERFBCType::reflect_odd) {
+                    dest_arr(i,j,k) = -dest_arr(i,jflip,k);
                 }
-            } else if (bc_ptr_w[n].hi(1) == ERFBCType::foextrap) {
-                dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
-            } else if (bc_ptr_w[n].hi(1) == ERFBCType::open) {
-                dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
-            } else if (bc_ptr_w[n].hi(1) == ERFBCType::reflect_even) {
-                dest_arr(i,j,k) =  dest_arr(i,jflip,k);
-            } else if (bc_ptr_w[n].hi(1) == ERFBCType::reflect_odd) {
-                dest_arr(i,j,k) = -dest_arr(i,jflip,k);
-            }
-        });
+            });
     }
-
     Gpu::streamSynchronize();
 }
 
@@ -183,7 +182,6 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
-    int ncomp = 1;
     Vector<BCRec> bcrs_u(1), bcrs_v(1), bcrs_w(1);
     setBC(enclosedCells(bx), domain, bccomp_u, 0, 1, m_domain_bcs_type, bcrs_u);
     setBC(enclosedCells(bx), domain, bccomp_v, 0, 1, m_domain_bcs_type, bcrs_v);
@@ -197,12 +195,10 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     bool l_use_terrain = (m_z_phys_nd != nullptr);
     bool l_moving_terrain = (terrain_type == TerrainType::Moving);
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,1> l_bc_extdir_vals_d;
 
-    for (int i = 0; i < ncomp; i++) {
-        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
-            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp_w+i][ori];
-        }
+    for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+        l_bc_extdir_vals_d[0][ori] = m_bc_extdir_vals[bccomp_w][ori];
     }
 
     // *******************************************************
@@ -291,7 +287,6 @@ void ERFPhysBCFunct_w_no_terrain::impose_lateral_zvel_bcs (const Array4<Real    
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
-    int ncomp = 1;
     Vector<BCRec> bcrs_w(1);
     setBC(enclosedCells(bx), domain, bccomp, 0, 1, m_domain_bcs_type, bcrs_w);
 
@@ -302,15 +297,15 @@ void ERFPhysBCFunct_w_no_terrain::impose_lateral_zvel_bcs (const Array4<Real    
     // yhi: ori = 4
     // zhi: ori = 5
 
-    Gpu::DeviceVector<BCRec> bcrs_w_d(ncomp);
+    Gpu::DeviceVector<BCRec> bcrs_w_d(1);
     Gpu::copyAsync(Gpu::hostToDevice, bcrs_w.begin(), bcrs_w.end(), bcrs_w_d.begin());
     const BCRec* bc_ptr_w = bcrs_w_d.data();
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM> l_bc_extdir_vals_d;
 
-    for (int i = 0; i < ncomp; i++)
-        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
-            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
+    for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+        l_bc_extdir_vals_d[0][ori] = m_bc_extdir_vals[bccomp][ori];
+    }
 
     GeometryData const& geomdata = m_geom.data();
     bool is_periodic_in_x = geomdata.isPeriodic(0);
@@ -323,32 +318,32 @@ void ERFPhysBCFunct_w_no_terrain::impose_lateral_zvel_bcs (const Array4<Real    
     {
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
-        ParallelFor(
-            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+        ParallelFor(bx_xlo, bx_xhi,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int iflip = dom_lo.x - 1 - i;
-                if (bc_ptr_w[n].lo(0) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k) = l_bc_extdir_vals_d[n][0];
-                } else if (bc_ptr_w[n].lo(0) == ERFBCType::foextrap) {
+                if (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k) = l_bc_extdir_vals_d[0][0];
+                } else if (bc_ptr_w[0].lo(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
-                } else if (bc_ptr_w[n].lo(0) == ERFBCType::open) {
+                } else if (bc_ptr_w[0].lo(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
-                } else if (bc_ptr_w[n].lo(0) == ERFBCType::reflect_even) {
+                } else if (bc_ptr_w[0].lo(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
-                } else if (bc_ptr_w[n].lo(0) == ERFBCType::reflect_odd) {
+                } else if (bc_ptr_w[0].lo(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
                 }
             },
-            bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int iflip = 2*dom_hi.x + 1 - i;
-                if (bc_ptr_w[n].hi(0) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k) = l_bc_extdir_vals_d[n][3];
-                } else if (bc_ptr_w[n].hi(0) == ERFBCType::foextrap) {
+                if (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k) = l_bc_extdir_vals_d[0][3];
+                } else if (bc_ptr_w[0].hi(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
-                } else if (bc_ptr_w[n].hi(0) == ERFBCType::open) {
+                } else if (bc_ptr_w[0].hi(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
-                } else if (bc_ptr_w[n].hi(0) == ERFBCType::reflect_even) {
+                } else if (bc_ptr_w[0].hi(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
-                } else if (bc_ptr_w[n].hi(0) == ERFBCType::reflect_odd) {
+                } else if (bc_ptr_w[0].hi(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
                 }
             }
@@ -360,34 +355,35 @@ void ERFPhysBCFunct_w_no_terrain::impose_lateral_zvel_bcs (const Array4<Real    
     {
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
         Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
-        ParallelFor(bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-            int jflip = dom_lo.y - 1 - j;
-            if (bc_ptr_w[n].lo(1) == ERFBCType::ext_dir) {
-                dest_arr(i,j,k) = l_bc_extdir_vals_d[n][1];
-            } else if (bc_ptr_w[n].lo(1) == ERFBCType::foextrap) {
-                dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
-            } else if (bc_ptr_w[n].lo(1) == ERFBCType::open) {
-                dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
-            } else if (bc_ptr_w[n].lo(1) == ERFBCType::reflect_even) {
-                dest_arr(i,j,k) =  dest_arr(i,jflip,k);
-            } else if (bc_ptr_w[n].lo(1) == ERFBCType::reflect_odd) {
-                dest_arr(i,j,k) = -dest_arr(i,jflip,k);
-            }
-        },
-        bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-            int jflip =  2*dom_hi.y + 1 - j;
-            if (bc_ptr_w[n].hi(1) == ERFBCType::ext_dir) {
-                dest_arr(i,j,k) = l_bc_extdir_vals_d[n][4];
-            } else if (bc_ptr_w[n].hi(1) == ERFBCType::foextrap) {
-                dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
-            } else if (bc_ptr_w[n].hi(1) == ERFBCType::open) {
-                dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
-            } else if (bc_ptr_w[n].hi(1) == ERFBCType::reflect_even) {
-                dest_arr(i,j,k) =  dest_arr(i,jflip,k);
-            } else if (bc_ptr_w[n].hi(1) == ERFBCType::reflect_odd) {
-                dest_arr(i,j,k) = -dest_arr(i,jflip,k);
-            }
-        });
+        ParallelFor(bx_ylo, bx_yhi,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                int jflip = dom_lo.y - 1 - j;
+                if (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k) = l_bc_extdir_vals_d[0][1];
+                } else if (bc_ptr_w[0].lo(1) == ERFBCType::foextrap) {
+                    dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
+                } else if (bc_ptr_w[0].lo(1) == ERFBCType::open) {
+                    dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
+                } else if (bc_ptr_w[0].lo(1) == ERFBCType::reflect_even) {
+                    dest_arr(i,j,k) =  dest_arr(i,jflip,k);
+                } else if (bc_ptr_w[0].lo(1) == ERFBCType::reflect_odd) {
+                    dest_arr(i,j,k) = -dest_arr(i,jflip,k);
+                }
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                int jflip =  2*dom_hi.y + 1 - j;
+                if (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k) = l_bc_extdir_vals_d[0][4];
+                } else if (bc_ptr_w[0].hi(1) == ERFBCType::foextrap) {
+                    dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
+                } else if (bc_ptr_w[0].hi(1) == ERFBCType::open) {
+                    dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
+                } else if (bc_ptr_w[0].hi(1) == ERFBCType::reflect_even) {
+                    dest_arr(i,j,k) =  dest_arr(i,jflip,k);
+                } else if (bc_ptr_w[0].hi(1) == ERFBCType::reflect_odd) {
+                    dest_arr(i,j,k) = -dest_arr(i,jflip,k);
+                }
+            });
     }
 
     Gpu::streamSynchronize();
@@ -420,19 +416,16 @@ void ERFPhysBCFunct_w_no_terrain::impose_vertical_zvel_bcs (const Array4<Real>& 
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
-    int ncomp = 1;
     Vector<BCRec> bcrs_w(1);
     setBC(enclosedCells(bx), domain, bccomp_w, 0, 1, m_domain_bcs_type, bcrs_w);
 
     // We use these for the asserts below
     const BCRec* bc_ptr_w_h = bcrs_w.data();
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM> l_bc_extdir_vals_d;
 
-    for (int i = 0; i < ncomp; i++) {
-        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
-            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp_w+i][ori];
-        }
+    for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+        l_bc_extdir_vals_d[0][ori] = m_bc_extdir_vals[bccomp_w][ori];
     }
 
     // *******************************************************

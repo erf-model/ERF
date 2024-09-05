@@ -560,11 +560,12 @@ ABLMost::get_lsm_tsurf (const int& lev)
 void
 ABLMost::update_pblh (const int& lev,
                       Vector<Vector<MultiFab>>& vars,
-                       MultiFab* z_phys_cc)
+                      MultiFab* z_phys_cc,
+                      int RhoQv_comp, int RhoQr_comp)
 {
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
-        compute_pblh(lev, vars, z_phys_cc, estimator);
+        compute_pblh(lev, vars, z_phys_cc, estimator, RhoQv_comp, RhoQr_comp);
     } else if (pblh_type == PBLHeightCalcType::YSU) {
         amrex::Error("YSU PBLH calc not implemented yet");
     }
@@ -575,19 +576,12 @@ void
 ABLMost::compute_pblh (const int& lev,
                        Vector<Vector<MultiFab>>& vars,
                        MultiFab* z_phys_cc,
-                       const PBLHeightEstimator& est)
+                       const PBLHeightEstimator& est,
+                       int RhoQv_comp, int RhoQr_comp)
 {
-    int moist_flag = 0;
-    int n_qstate = vars[lev][Vars::cons].nComp() - (NVAR_max - NMOIST_max);
-    if (n_qstate > 3) {
-        moist_flag = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
-    } else if (n_qstate > 0) {
-        moist_flag = 1;
-    }
-
     est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),
                      vars[lev][Vars::cons],m_lmask_lev[lev][0],
-                     moist_flag);
+                     RhoQv_comp, RhoQr_comp);
 }
 
 void

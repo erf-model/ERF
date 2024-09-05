@@ -465,7 +465,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                 const Geometry& geom,
                                 const MultiFab& mapfac_u, const MultiFab& mapfac_v,
                                 const std::unique_ptr<MultiFab>& z_phys_nd,
-                                const TurbChoice& turbChoice, const Real const_grav,
+                                const SolverChoice& solverChoice,
                                 std::unique_ptr<ABLMost>& most,
                                 const bool& exp_most,
                                 const bool& use_moisture,
@@ -483,6 +483,9 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     // ComputeTurbulentViscosityLES populates the LES viscosity for both horizontal and vertical components.
     // ComputeTurbulentViscosityPBL computes the PBL viscosity just for the vertical component.
     //
+
+    TurbChoice turbChoice = solverChoice.turbChoice[level];
+    const Real const_grav = solverChoice.gravity;
 
     if (most) {
         bool l_use_turb = ( turbChoice.les_type == LESType::Smagorinsky ||
@@ -508,11 +511,11 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     if (turbChoice.pbl_type == PBLType::MYNN25) {
         ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
                                  geom, turbChoice, most, use_moisture,
-                                 level, bc_ptr, vert_only, z_phys_nd);
+                                 level, bc_ptr, vert_only, z_phys_nd,
+                                 solverChoice.RhoQv_comp, solverChoice.RhoQr_comp);
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, most, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd);
     }
-
 }

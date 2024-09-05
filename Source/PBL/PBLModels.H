@@ -32,7 +32,8 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
                           int level,
                           const amrex::BCRec* bc_ptr,
                           bool /*vert_only*/,
-                          const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                          const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                          const int RhoQv_comp, const int RhoQr_comp);
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
@@ -92,19 +93,20 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                amrex::Real& dthetadz,
                                amrex::Real& dudz,
                                amrex::Real& dvdz,
-                               const int moist_flag = 0)
+                               const int RhoQv_comp,
+                               const int RhoQr_comp)
 {
     if ( k==izmax && c_ext_dir_on_zhi ) {
-        dthetadz = (1.0/3.0)*(       -Thetav(i,j,k-1,cell_data,moist_flag)
-                              - 3.0 * Thetav(i,j,k  ,cell_data,moist_flag)
-                              + 4.0 * Thetav(i,j,k+1,cell_data,moist_flag) )*dz_inv;
+        dthetadz = (1.0/3.0)*(       -Thetav(i,j,k-1,cell_data,RhoQv_comp,RhoQr_comp)
+                              - 3.0 * Thetav(i,j,k  ,cell_data,RhoQv_comp,RhoQr_comp)
+                              + 4.0 * Thetav(i,j,k+1,cell_data,RhoQv_comp,RhoQr_comp) )*dz_inv;
     } else if ( k==izmin && c_ext_dir_on_zlo ) {
-        dthetadz = (1.0/3.0)*(        Thetav(i,j,k+1,cell_data,moist_flag)
-                              + 3.0 * Thetav(i,j,k  ,cell_data,moist_flag)
-                              - 4.0 * Thetav(i,j,k-1,cell_data,moist_flag) )*dz_inv;
+        dthetadz = (1.0/3.0)*(        Thetav(i,j,k+1,cell_data,RhoQv_comp,RhoQr_comp)
+                              + 3.0 * Thetav(i,j,k  ,cell_data,RhoQv_comp,RhoQr_comp)
+                              - 4.0 * Thetav(i,j,k-1,cell_data,RhoQv_comp,RhoQr_comp) )*dz_inv;
     } else {
-        dthetadz = 0.5*(  Thetav(i,j,k+1,cell_data,moist_flag)
-                        - Thetav(i,j,k-1,cell_data,moist_flag) )*dz_inv;
+        dthetadz = 0.5*(  Thetav(i,j,k+1,cell_data,RhoQv_comp,RhoQr_comp)
+                        - Thetav(i,j,k-1,cell_data,RhoQv_comp,RhoQr_comp) )*dz_inv;
     }
 
     if ( k==izmax && u_ext_dir_on_zhi ) {
@@ -154,7 +156,8 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Box& domain,
                        amrex::Real pbl_mynn_B1_l,
                        const amrex::Real theta_mean,
-                       const int moist_flag,
+                       const int RhoQv_comp,
+                       const int RhoQr_comp,
                        bool c_ext_dir_on_zlo,
                        bool c_ext_dir_on_zhi,
                        bool u_ext_dir_on_zlo,
@@ -177,7 +180,7 @@ ComputeQKESourceTerms (int i, int j, int k,
                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                   dthetadz, dudz, dvdz,
-                                  moist_flag);
+                                  RhoQv_comp, RhoQr_comp);
 
     // Note: Transport terms due to turbulence and pressure are included when
     // DiffusionSrcForState_* is called from ERF_slow_rhs_post.

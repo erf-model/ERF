@@ -24,7 +24,8 @@ struct MYNNPBLH {
                       amrex::MultiFab* pblh,
                       const amrex::MultiFab& cons,
                       const amrex::iMultiFab* lmask,
-                      const int moist_flag) const
+                      const int RhoQv_comp,
+                      const int RhoQr_comp) const
     {
 #if 0
         // NOTE: Cannot use ReduceToPlane because it clips the box to the
@@ -34,7 +35,7 @@ struct MYNNPBLH {
         auto thetav_min = amrex::ReduceToPlane<amrex::ReduceOpMin,amrex::Real>(dir, bxlow, cons,
             [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) -> amrex::Real
             {
-                return Thetav(i,j,k,cons_arrs[box_no],moist_flag);
+                return Thetav(i,j,k,cons_arrs[box_no],RhoQv_comp,RhoQr_comp);
             });
 #endif
 
@@ -87,7 +88,7 @@ struct MYNNPBLH {
                     int jj = amrex::max(amrex::min(j,jmax),jmin);
 
                     if (zphys_arr(ii,jj,k) < thetamin_height) {
-                        amrex::Real thv = Thetav(i,j,k,cons_arr,moist_flag);
+                        amrex::Real thv = Thetav(i,j,k,cons_arr,RhoQv_comp,RhoQr_comp);
                         if (min_thv_arr(i,j,0) > thv) min_thv_arr(i,j,0) = thv;
                     }
                 });
@@ -103,8 +104,8 @@ struct MYNNPBLH {
                         //
                         // Find PBL height based on thetav increase (best for CBLs)
                         //
-                        amrex::Real thv  = Thetav(i,j,k  ,cons_arr,moist_flag);
-                        amrex::Real thv1 = Thetav(i,j,k+1,cons_arr,moist_flag);
+                        amrex::Real thv  = Thetav(i,j,k  ,cons_arr,RhoQv_comp,RhoQr_comp);
+                        amrex::Real thv1 = Thetav(i,j,k+1,cons_arr,RhoQv_comp,RhoQr_comp);
 
                         int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                         if (is_land && (thv1 >= min_thv_arr(i,j,0) + theta_incr_land)
@@ -163,7 +164,7 @@ struct MYNNPBLH {
 
                 ParallelFor(gtbxlow, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    amrex::Real thv = Thetav(i,j,k,cons_arr,moist_flag);
+                    amrex::Real thv = Thetav(i,j,k,cons_arr,RhoQv_comp,RhoQr_comp);
                     if (min_thv_arr(i,j,0) > thv) min_thv_arr(i,j,0) = thv;
                 });
 
@@ -175,8 +176,8 @@ struct MYNNPBLH {
                         //
                         // Find PBL height based on thetav increase (best for CBLs)
                         //
-                        amrex::Real thv  = Thetav(i,j,k  ,cons_arr,moist_flag);
-                        amrex::Real thv1 = Thetav(i,j,k+1,cons_arr,moist_flag);
+                        amrex::Real thv  = Thetav(i,j,k  ,cons_arr,RhoQv_comp,RhoQr_comp);
+                        amrex::Real thv1 = Thetav(i,j,k+1,cons_arr,RhoQv_comp,RhoQr_comp);
 
                         int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                         if (is_land && (thv1 >= min_thv_arr(i,j,0) + theta_incr_land)
