@@ -5,7 +5,7 @@
 #include <ERF.H>
 #include <TileNoZ.H>
 #include <prob_common.H>
-#include <Utils/ParFunctions.H>
+#include <ParFunctions.H>
 
 #include <Interpolation_1D.H>
 
