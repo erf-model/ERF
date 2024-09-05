@@ -411,7 +411,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
     if (m_z_phys_nd) {
         const auto&  bx_lo = lbound(bx);
         const auto&  bx_hi = ubound(bx);
-
+        const BCRec* bc_ptr_h = bcrs.data();
         // Neumann conditions (d<var>/dn = 0) must be aware of the surface normal with terrain.
         // An additional source term arises from d<var>/dx & d<var>/dy & met_h_xi/eta/zeta.
         //=====================================================================================
@@ -420,7 +420,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
         for (int n = 0; n < ncomp; n++) {
             // Hit for Neumann condition at kmin
             int dest_comp = icomp+n;
-            int l_bc_type = bc_ptr[n].lo(2);
+            int l_bc_type = bc_ptr_h[n].lo(2);
             if(l_bc_type == ERFBCType::foextrap)
             {
                 // Loop over ghost cells in bottom XY-plane (valid box)
