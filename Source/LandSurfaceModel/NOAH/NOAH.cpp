@@ -10,5 +10,5 @@ NOAH::Init (const MultiFab& cons_in,
            const Real& dt)
 { 
     // Initialize Noahmp IO
-    //NoahmpIOVarInitDefault(&noahmpio);
+    NoahmpIOVarInitDefault(&noahmpio);
 };
