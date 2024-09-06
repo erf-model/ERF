@@ -1495,6 +1495,9 @@ ERF::ReadParameters ()
         pp.query("destag_profiles", destag_profiles);
 
         pp.query("plot_lsm", plot_lsm);
+#ifdef ERF_USE_RRTMGP
+        pp.query("plot_rad", plot_rad);
+#endif
 
         pp.query("output_1d_column", output_1d_column);
         pp.query("column_per", column_per);
