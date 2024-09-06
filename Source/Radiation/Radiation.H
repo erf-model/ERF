@@ -95,6 +95,11 @@ class Radiation {
     export_surface_fluxes(FluxesByband& fluxes,
                           std::string band);
 
+    void yakl_to_mf(const real2d &data, amrex::MultiFab &mf);
+    void expand_yakl1d_to_mf(const real1d &data, amrex::MultiFab &mf);
+
+    void writePlotfile(const std::string& plot_prefix, const amrex::Real time, const int level_step);
+
   private:
     // geometry
     amrex::Geometry m_geom;
@@ -103,7 +108,7 @@ class Radiation {
     amrex::BoxArray m_box;
 
     // Pointer to the radiation source terms
-    amrex::MultiFab* qrad_src;
+    amrex::MultiFab* qrad_src = nullptr;
 
     // Pointer to latitude and longitude
     amrex::MultiFab* m_lat = nullptr;
@@ -239,9 +244,35 @@ class Radiation {
     real2d qrsc;
     real2d qrlc;
 
-    real2d qt, qi, qc, qn;
-    real2d tmid, pmid, pdel;
-    real2d pint, tint;
-    real2d albedo_dir, albedo_dif;
+    // moisture inputs from ERF
+    real2d qt, qi, qc, qn; // [ncol, nlev]
+    real2d tmid, pmid, pdel; // [ncol, nlev]
+    real2d pint, tint; // [ncol, nlev+1]
+    real2d albedo_dir, albedo_dif; // [nswbands, ncol]
+
+    // timestep variables -- defined during each call to run()
+    real1d coszrs; // [ncol]
+    real2d cld, cldfsnow, iclwp, iciwp, icswp, dei, des, lambdac, mu, rei, rel; // [ncol, nlev]
+    //   cloud, snow, and aerosol optical properties
+    real3d cld_tau_gpt_sw, cld_ssa_gpt_sw, cld_asm_gpt_sw; // [ncol, nlev, nswgpts]
+    real3d cld_tau_bnd_sw, cld_ssa_bnd_sw, cld_asm_bnd_sw; // [ncol, nlev, nswbands]
+    real3d aer_tau_bnd_sw, aer_ssa_bnd_sw, aer_asm_bnd_sw; // [ncol, nlev, nswbands]
+    real3d cld_tau_bnd_lw, aer_tau_bnd_lw; // [ncol, nlev, nlwbands]
+    real3d cld_tau_gpt_lw; // [ncol, nlev, nlwgpts]
+    //   diagnostic only:
+    real3d liq_tau_bnd_sw, ice_tau_bnd_sw, snw_tau_bnd_sw; // [ncol, nlev, nswbands]
+    real3d liq_tau_bnd_lw, ice_tau_bnd_lw, snw_tau_bnd_lw; // [ncol, nlev, nlwbands]
+    //   gas volume mixing ratios
+    real3d gas_vmr; // [ngas, ncol, nlev]
+    int1d gpoint_bands_sw, gpoint_bands_lw; // [nswgpts], [nlwgpts]
+    //  shortwave radiation vars:
+    FluxesByband sw_fluxes_allsky, sw_fluxes_clrsky;
+    real1d cld_tau_bnd_sw_1d, cld_ssa_bnd_sw_1d, cld_asm_bnd_sw_1d; // [nswbands]
+    real1d cld_tau_bnd_sw_o_1d, cld_ssa_bnd_sw_o_1d, cld_asm_bnd_sw_o_1d; // [nswbands]
+    //   aerosol optics:
+    real1d aer_tau_bnd_sw_1d, aer_ssa_bnd_sw_1d, aer_asm_bnd_sw_1d; // [nswbands]
+    real1d aer_tau_bnd_sw_o_1d, aer_ssa_bnd_sw_o_1d, aer_asm_bnd_sw_o_1d; // [nswbands]
+    //  longwave radiation vars:
+    FluxesByband lw_fluxes_allsky, lw_fluxes_clrsky;
 };
 #endif // ERF_RADIATION_H

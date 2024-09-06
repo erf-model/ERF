@@ -40,6 +40,8 @@ erf.plot_file_1         = plt        # root name of plotfile
 erf.plot_int_1          = 1         # number of timesteps between plotfiles
 erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 x_velocity y_velocity z_velocity pressure theta temp qt qp qv qc qi qsrc_sw qsrc_lw
 
+erf.plot_rad = true
+
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.use_coriolis = false
