@@ -207,7 +207,7 @@ function(build_erf_lib erf_lib_name)
   include(AMReXBuildInfo)
   generate_buildinfo(${erf_lib_name} ${CMAKE_SOURCE_DIR})
 if (${ERF_USE_INTERNAL_AMREX})
-  target_include_directories(${erf_lib_name} PUBLIC ${AMREX_SUBMOD_LOCATION}/Tools/C_scripts)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${AMREX_SUBMOD_LOCATION}/Tools/C_scripts>)
 endif()
 
   if(ERF_ENABLE_NETCDF)
