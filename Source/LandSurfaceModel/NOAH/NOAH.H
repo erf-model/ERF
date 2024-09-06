@@ -14,6 +14,9 @@
 #include <IndexDefines.H>
 #include <DataStruct.H>
 
+// External include from the noahmp library
+#include <NoahmpIO.H>
+
 class NOAH : public NullSurf {
 public:
     // Constructor
@@ -27,6 +30,12 @@ public:
     Init (const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
           const amrex::Real& dt) override;
+
+
+private:
+
+   // C++ variable for NoahmpIO struct
+   NoahmpIO_struct noahmpio;
 
 };
 #endif
