@@ -204,7 +204,9 @@ public:
 
         const int substep_ratio = get_slow_fast_timestep_ratio();
 
-        AMREX_ALWAYS_ASSERT(substep_ratio > 1 && substep_ratio % 2 == 0);
+        if (!no_substepping) {
+            AMREX_ALWAYS_ASSERT(substep_ratio > 1 && substep_ratio % 2 == 0);
+        }
 
         const amrex::Real sub_timestep = timestep / substep_ratio;
 
