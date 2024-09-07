@@ -335,7 +335,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         {
             bccomp = BCVars::zvel_bc;
             mapper = &face_cons_linear_interp;
-            ngvect = IntVect(ng_vel,ng_vel,0);
+            ngvect = IntVect(ng_vel,ng_vel,ng_vel);
             icomp  = 0;
             ncomp  = 1;
         }

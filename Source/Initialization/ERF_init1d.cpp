@@ -229,11 +229,18 @@ ERF::initHSE (int lev)
                 all_boxes_touch_bottom = false;
             }
         }
+
+    amrex::Print() << "TOUCH? " << all_boxes_touch_bottom << std::endl;
+
         if (all_boxes_touch_bottom) {
             erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
         } else {
             BoxArray ba_new(domain);
+            amrex::Print() << "DOMAIN " << domain << std::endl;
+
             ChopGrids2D(0, ba_new, ParallelDescriptor::NProcs());
+
+            amrex::Print() << "BA AFTER CHOPPING " << ba_new << std::endl;
 
             DistributionMapping dm_new(ba_new);
 
@@ -291,6 +298,8 @@ ERF::erf_enforce_hse (int lev,
     const Real dz = geomdata.CellSize(2);
 
     const Box& domain = geom[lev].Domain();
+
+    amrex::Print() << "DENS " << dens.boxArray() << std::endl;
 
     for ( MFIter mfi(dens, TileNoZ()); mfi.isValid(); ++mfi )
     {
@@ -486,8 +495,7 @@ void ERF::init_geo_wind_profile(const std::string input_file,
 void
 ERF::ChopGrids2D (int lev, BoxArray& ba, int target_size) const
 {
-    IntVect chunk = max_grid_size[lev];
-    chunk.min(Geom(lev).Domain().length());
+    IntVect chunk = Geom(lev).Domain().length();
 
     // Note that ba already satisfies the max_grid_size requirement and it's
     // coarsenable if it's a fine level BoxArray.
