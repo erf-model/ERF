@@ -249,30 +249,30 @@ ERF::initHSE (int lev)
         MultiFab new_base_state(ba_new, dm_new, 3, 1);
         new_base_state.ParallelCopy(base_state[lev],0,0,3,1,1);
 
-        MultiFab r_hse_new (new_base_state, make_alias, 0, 1); // r_0  is first  component
-        MultiFab p_hse_new (new_base_state, make_alias, 1, 1); // p_0  is second component
-        MultiFab pi_hse_new(new_base_state, make_alias, 2, 1); // pi_0 is third  component
+        MultiFab new_r_hse (new_base_state, make_alias, 0, 1); // r_0  is first  component
+        MultiFab new_p_hse (new_base_state, make_alias, 1, 1); // p_0  is second component
+        MultiFab new_pi_hse(new_base_state, make_alias, 2, 1); // pi_0 is third  component
 
-        std::unique_ptr<MultiFab> z_phys_cc_new;
-        std::unique_ptr<MultiFab> z_phys_nd_new;
+        std::unique_ptr<MultiFab> new_z_phys_cc;
+        std::unique_ptr<MultiFab> new_z_phys_nd;
         if (solverChoice.use_terrain) {
-            z_phys_cc_new = std::make_unique<MultiFab>(ba_new,dm_new,1,1);
-            z_phys_cc_new->ParallelCopy(*z_phys_cc[lev],0,0,1,1,1);
+            new_z_phys_cc = std::make_unique<MultiFab>(ba_new,dm_new,1,1);
+            new_z_phys_cc->ParallelCopy(*z_phys_cc[lev],0,0,1,1,1);
 
             BoxArray ba_new_nd(ba_new);
             ba_new_nd.surroundingNodes();
-            z_phys_nd_new = std::make_unique<MultiFab>(ba_new_nd,dm_new,1,1);
-            z_phys_nd_new->ParallelCopy(*z_phys_nd[lev],0,0,1,1,1);
+            new_z_phys_nd = std::make_unique<MultiFab>(ba_new_nd,dm_new,1,1);
+            new_z_phys_nd->ParallelCopy(*z_phys_nd[lev],0,0,1,1,1);
         }
 
         // Initial r_hse may or may not be in HSE -- defined in prob.cpp
         if (solverChoice.use_moist_background){
-            prob->erf_init_dens_hse_moist(r_hse_new, z_phys_nd_new, geom[lev]);
+            prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev]);
         } else {
-            prob->erf_init_dens_hse(r_hse_new, z_phys_nd_new, z_phys_cc_new, geom[lev]);
+            prob->erf_init_dens_hse(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev]);
         }
 
-        erf_enforce_hse(lev, r_hse_new, p_hse_new, pi_hse_new, z_phys_cc_new);
+        erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_z_phys_cc);
 
         // Now copy back into the original arrays
         base_state[lev].ParallelCopy(new_base_state,0,0,3,1,1);
