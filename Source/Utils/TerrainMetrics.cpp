@@ -1,4 +1,5 @@
 #include <TerrainMetrics.H>
+#include <Utils.H>
 #include <AMReX_ParmParse.H>
 #include <ERF_Constants.H>
 #include <cmath>
@@ -76,93 +77,226 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                    Vector<Real> const& z_levels_h,
                    GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
 {
-  // z_nd is nodal in all directions
-  const Box& domain = geom.Domain();
-  int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-  int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
-  int domlo_z = domain.smallEnd(2); int domhi_z = domain.bigEnd(2) + 1;
-  int nz = domain.length(2)+1; // staggered
+    const Box& domain = geom.Domain();
 
-  Real z_top = z_levels_h[nz-1];
+    int domlo_z = domain.smallEnd(2);
+    int domhi_z = domain.bigEnd(2) + 1;
 
-  // User-selected method from inputs file (BTF default)
-  ParmParse pp("erf");
-  int terrain_smoothing = 0;
-  pp.query("terrain_smoothing", terrain_smoothing);
+    // ****************************************************************************
 
-  if (lev > 0 && terrain_smoothing != 0) {
-      Abort("Must use terrain_smoothing = 0 when doing multilevel");
-  }
+    if (lev == 0) {
+        BoxArray ba(z_phys_nd.boxArray());
+        bool all_boxes_touch_bottom = true;
+        for (int i = 0; i < ba.size(); i++) {
+            if (ba[i].smallEnd(2) != domlo_z) {
+                all_boxes_touch_bottom = false;
+            }
+        }
 
-   Gpu::DeviceVector<Real> z_levels_d;
-   z_levels_d.resize(nz);
-   Gpu::copy(Gpu::hostToDevice, z_levels_h.begin(), z_levels_h.end(), z_levels_d.begin());
+        if (all_boxes_touch_bottom) {
+            init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h);
+        } else {
 
-  // Number of ghost cells
-  int     ngrow     = z_phys_nd.nGrow();
-  IntVect ngrowVect = z_phys_nd.nGrowVect();
+            BoxArray ba_new(domain);
+            ChopGrids2D(ba_new, domain, ParallelDescriptor::NProcs());
 
-  int imin = domlo_x; if (geom.isPeriodic(0)) imin -= z_phys_nd.nGrowVect()[0];
-  int jmin = domlo_y; if (geom.isPeriodic(1)) jmin -= z_phys_nd.nGrowVect()[1];
+            DistributionMapping dm_new(ba_new);
+            ba_new.surroundingNodes();
 
-  int imax = domhi_x; if (geom.isPeriodic(0)) imax += z_phys_nd.nGrowVect()[0];
-  int jmax = domhi_y; if (geom.isPeriodic(1)) jmax += z_phys_nd.nGrowVect()[1];
+            MultiFab z_phys_nd_new(ba_new, dm_new, 1, z_phys_nd.nGrowVect());
 
-  switch(terrain_smoothing) {
+            z_phys_nd_new.ParallelCopy(z_phys_nd,0,0,1,z_phys_nd.nGrowVect(),z_phys_nd.nGrowVect());
+
+            init_which_terrain_grid(lev, geom, z_phys_nd_new, z_levels_h);
+
+            z_phys_nd.ParallelCopy(z_phys_nd_new,0,0,1,z_phys_nd.nGrowVect(),z_phys_nd.nGrowVect());
+        }
+    } else {
+        init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h);
+    }
+
+    // Fill ghost layers and corners (including periodic)
+    z_phys_nd.FillBoundary(geom.periodicity());
+
+    if (phys_bc_type[Orientation(0,Orientation::low )] == ERF_BC::symmetry ||
+        phys_bc_type[Orientation(0,Orientation::high)] == ERF_BC::symmetry ||
+        phys_bc_type[Orientation(1,Orientation::low )] == ERF_BC::symmetry ||
+        phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry) {
+
+        const auto& dom_lo = lbound(convert(geom.Domain(),IntVect(1,1,1)));
+        const auto& dom_hi = ubound(convert(geom.Domain(),IntVect(1,1,1)));
+
+        for (MFIter mfi(z_phys_nd,true); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.growntilebox();
+            const Array4< Real> z_nd_arr = z_phys_nd.array(mfi);
+            if (phys_bc_type[Orientation(0,Orientation::low)] == ERF_BC::symmetry && bx.smallEnd(0) == dom_lo.x) {
+                ParallelFor(makeSlab(bx,0,1), [=] AMREX_GPU_DEVICE (int , int j, int k)
+                {
+                    z_nd_arr(dom_lo.x-1,j,k) = z_nd_arr(dom_lo.x+1,j,k);
+                });
+            }
+            if (phys_bc_type[Orientation(0,Orientation::high)] == ERF_BC::symmetry && bx.bigEnd(0) == dom_hi.x) {
+                ParallelFor(makeSlab(bx,0,1), [=] AMREX_GPU_DEVICE (int , int j, int k)
+                {
+                    z_nd_arr(dom_hi.x+1,j,k) = z_nd_arr(dom_hi.x-1,j,k);
+                });
+            }
+            if (phys_bc_type[Orientation(1,Orientation::low)] == ERF_BC::symmetry && bx.smallEnd(1) == dom_lo.y) {
+                ParallelFor(makeSlab(bx,1,1), [=] AMREX_GPU_DEVICE (int i, int  , int k)
+                {
+                    z_nd_arr(i,dom_lo.y-1,k) = z_nd_arr(i,dom_lo.y+1,k);
+                });
+            }
+            if (phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry && bx.bigEnd(1) == dom_hi.y) {
+                ParallelFor(makeSlab(bx,1,1), [=] AMREX_GPU_DEVICE (int i, int  , int k)
+                {
+                    z_nd_arr(i,dom_hi.y+1,k) = z_nd_arr(i,dom_hi.y-1,k);
+                });
+            }
+        }
+    }
+
+    //********************************************************************************
+    // Populate domain boundary cells in z-direction
+    //********************************************************************************
+    int ngrow = z_phys_nd.nGrow();
+
+    for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        // Only set values above top of domain if this box reaches that far
+        Box nd_bx = mfi.tilebox();
+
+        // Note that domhi_z is already nodal in the z-direction
+        if (nd_bx.bigEnd(2) >= domhi_z) {
+            // Grown box with no z range
+            Box xybx = mfi.growntilebox(ngrow);
+            xybx.setRange(2,0);
+            Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+
+            // Extrapolate top layer
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int ) {
+                z_arr(i,j,domhi_z+1) = 2.0*z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1);
+            });
+        }
+    }
+
+    /*
+    // Debug
+    for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        Box gbx = mfi.growntilebox(ngrow);
+        gbx.setRange(2,domlo_z,domhi_z+1);
+
+        Array4<Real> z_arr = z_phys_nd.array(mfi);
+
+        int rank = 0;
+        Print(rank) << "Debugging init_terrain_grid" << "\n";
+        Print(rank) << gbx << "\n";
+
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            Print(rank) << IntVect(i,j,k) << "\n";
+            Print(rank) << z_arr(i,j,k) << "\n";
+            Print(rank) << "\n";
+        });
+        Print(rank) << "Cleared..." << "\n";
+    }
+   */
+} // init_terrain_grid
+
+void
+init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
+                         Vector<Real> const& z_levels_h)
+{
+    // User-selected method from inputs file (BTF default)
+    ParmParse pp("erf");
+    int terrain_smoothing = 0;
+    pp.query("terrain_smoothing", terrain_smoothing);
+
+    if (lev > 0 && terrain_smoothing != 0) {
+        Abort("Must use terrain_smoothing = 0 when doing multilevel");
+    }
+
+    // Number of ghost cells
+    int ngrow = z_phys_nd.nGrow();
+    IntVect ngrowVect = z_phys_nd.nGrowVect();
+
+    const Box& domain = geom.Domain();
+    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+    int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
+    int domlo_z = domain.smallEnd(2); int domhi_z = domain.bigEnd(2) + 1;
+
+    int imin = domlo_x; if (geom.isPeriodic(0)) imin -= z_phys_nd.nGrowVect()[0];
+    int jmin = domlo_y; if (geom.isPeriodic(1)) jmin -= z_phys_nd.nGrowVect()[1];
+
+    int imax = domhi_x; if (geom.isPeriodic(0)) imax += z_phys_nd.nGrowVect()[0];
+    int jmax = domhi_y; if (geom.isPeriodic(1)) jmax += z_phys_nd.nGrowVect()[1];
+
+    int nz = domain.length(2)+1; // staggered
+    Real z_top = z_levels_h[nz-1];
+
+    Gpu::DeviceVector<Real> z_levels_d;
+    z_levels_d.resize(nz);
+    Gpu::copy(Gpu::hostToDevice, z_levels_h.begin(), z_levels_h.end(), z_levels_d.begin());
+
+    switch(terrain_smoothing) {
     case 0: // BTF Method
     {
-      for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-      {
-          // Note that this box is nodal because it is based on z_phys_nd
-          const Box&  bx = mfi.validbox();
+        for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            // Note that this box is nodal because it is based on z_phys_nd
+            const Box&  bx = mfi.validbox();
 
-          int k0 = bx.smallEnd()[2];
+            int k0 = bx.smallEnd()[2];
 
-          // Grown box with corrected ghost cells at top
-          Box gbx = mfi.growntilebox(ngrowVect);
+            // Grown box with corrected ghost cells at top
+            Box gbx = mfi.growntilebox(ngrowVect);
 
-          if (bx.smallEnd(2) > domlo_z) {
-              gbx.growLo(2,-1);
-          }
-          if (bx.bigEnd(2) < domhi_z) {
-              gbx.growHi(2,-1);
-          }
+            if (bx.smallEnd(2) == domlo_z) {
+                gbx.setSmall(2,domlo_z);
+            } else {
+                gbx.growLo(2,-1);
+            }
+            if (bx.bigEnd(2) == domhi_z) {
+                gbx.setBig(2,domhi_z);
+            } else {
+                gbx.growHi(2,-1);
+            }
 
-          Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-          auto const&         z_lev = z_levels_d.data();
+            Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+            auto const&         z_lev = z_levels_d.data();
 
-          //
-          // Vertical grid stretching using BTF model from p2163 of Klemp2011
-          //
-          ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-          {
-              int ii = amrex::max(amrex::min(i,imax),imin);
-              int jj = amrex::max(amrex::min(j,jmax),jmin);
+            //
+            // Vertical grid stretching using BTF model from p2163 of Klemp2011
+            // z_levels are only defined from k = dom_lo to dom_hi (nodal)
+            //
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                int ii = amrex::max(amrex::min(i,imax),imin);
+                int jj = amrex::max(amrex::min(j,jmax),jmin);
 
-              //
-              // Start with flat z_lev set either with uniform cell size or specified z_levels
-              // If k0 = 0 then z_arr at k0 has already been filled from the terrain data
-              // If k0 > 0 then z_arr at k0 has already been filled from interpolation
-              //
-              Real z         = z_lev[k];
-              Real z_sfc     = z_arr(ii,jj,k0);
-              Real z_lev_sfc = z_lev[k0];
+                //
+                // Start with flat z_lev set either with uniform cell size or specified z_levels
+                // If k0 = 0 then z_arr at k0 has already been filled from the terrain data
+                // If k0 > 0 then z_arr at k0 has already been filled from interpolation
+                //
+                Real z         = z_lev[k];
+                Real z_sfc     = z_arr(ii,jj,k0);
+                Real z_lev_sfc = z_lev[k0];
 
-              z_arr(i,j,k) = ( (z_sfc - z_lev_sfc) * z_top +
-                               (z_top - z_sfc    ) * z     ) / (z_top - z_lev_sfc);
-          });
+                z_arr(i,j,k) = ( (z_sfc - z_lev_sfc) * z_top +
+                                 (z_top - z_sfc    ) * z     ) / (z_top - z_lev_sfc);
+            });
 
-          if (k0 == 0) {
-              // Fill lateral boundaries below the bottom surface
-              ParallelFor(makeSlab(gbx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
-              {
-                  z_arr(i,j,-1) = 2.0*z_arr(i,j,0) - z_arr(i,j,1);
-              });
+            if (k0 == 0) {
+                // Fill lateral boundaries below the bottom surface
+                ParallelFor(makeSlab(gbx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
+                {
+                    z_arr(i,j,-1) = 2.0*z_arr(i,j,0) - z_arr(i,j,1);
+                });
             }
         } // mfi
-
         break;
-    }
+    } // case 0
 
     case 1: // STF Method
     {
@@ -310,179 +444,95 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                     z_arr(i,j,k) = z + A*h_s(i,j,k);
 
                     // Fill below the bottom surface
-                    if (k == 1)
+                    if (k == 1) {
                         z_arr(i,j,k0-1) = 2.0*z_arr(i,j,k0) - z_arr(i,j,k);
+                    }
                 });
-            }//mfi
-        } //k
+            } // mfi
+            } // k
 
-        Gpu::streamSynchronize();
+            Gpu::streamSynchronize();
 
-        break;
-    }
+            break;
+        } // case 1
 
-    case 2: // Sullivan TF Method
-    {
-        int k0    = 0;
-
-        for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        case 2: // Sullivan TF Method
         {
-            // Grown box with corrected ghost cells at top
-            Box gbx = mfi.growntilebox(ngrow);
-            gbx.setRange(2,domlo_z,domhi_z+1);
+            int k0    = 0;
 
-            Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-            auto const&         z_lev = z_levels_d.data();
-
-            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
-                // Vertical grid stretching
-                Real z =  z_lev[k];
+                // Grown box with corrected ghost cells at top
+                Box gbx = mfi.growntilebox(ngrow);
+                gbx.setRange(2,domlo_z,domhi_z+1);
 
-                int ii = amrex::max(amrex::min(i,imax),imin);
-                int jj = amrex::max(amrex::min(j,jmax),jmin);
+                Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+                auto const&         z_lev = z_levels_d.data();
 
-                // Fill levels using model from Sullivan et. al. 2014
-                int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                z_arr(i,j,k) = z + (std::pow((1. - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    // Vertical grid stretching
+                    Real z =  z_lev[k];
 
-                // Fill lateral boundaries and below the bottom surface
-                if (k == k0)
-                    z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
-                if (k == 1)
-                    z_arr(i,j,k0-1) = 2.0*z_arr(ii,jj,k0) - z_arr(i,j,k);
-            });
-        }
+                    int ii = amrex::max(amrex::min(i,imax),imin);
+                    int jj = amrex::max(amrex::min(j,jmax),jmin);
 
-        break;
-    }
-    case 3: // Debugging Test Method -- applies Sullivan TF starting at k = 1 so that domain does not change size
-    {
-        int k0    = 0;
-
-        for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-            // Grown box with corrected ghost cells at top
-            Box gbx = mfi.growntilebox(ngrow);
-            gbx.setRange(2,domlo_z,domhi_z+1);
-
-            Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-            auto const&         z_lev = z_levels_d.data();
-
-            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                // Vertical grid stretching
-                Real z =  z_lev[k];
-
-                int ii = amrex::max(amrex::min(i,imax),imin);
-                int jj = amrex::max(amrex::min(j,jmax),jmin);
-
-                // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
-                if (k == k0+1) {
-                    z_arr(i,j,k) = z + z_arr(ii,jj,k0);
-                } else {
                     // Fill levels using model from Sullivan et. al. 2014
                     int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
                     z_arr(i,j,k) = z + (std::pow((1. - (z/z_top)),omega) * z_arr(ii,jj,k0));
-                }
-            });
-            gbx.setBig(2,0);
-            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+
+                    // Fill lateral boundaries and below the bottom surface
+                    if (k == k0) {
+                        z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
+                    }
+                    if (k == 1) {
+                        z_arr(i,j,k0-1) = 2.0*z_arr(ii,jj,k0) - z_arr(i,j,k);
+                    }
+                });
+            } // mfi
+            break;
+        } // case 2
+
+        case 3: // Debugging Test Method -- applies Sullivan TF starting at k = 1 so that domain does not change size
+        {
+            int k0    = 0;
+
+            for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
-                z_arr(i,j,k  ) = 0.0;
-                z_arr(i,j,k-1) = -z_arr(i,j,k+1);
-            });
-        }
+                // Grown box with corrected ghost cells at top
+                Box gbx = mfi.growntilebox(ngrow);
+                gbx.setRange(2,domlo_z,domhi_z+1);
 
-        break;
-    }
-  } //switch
+                Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+                auto const&         z_lev = z_levels_d.data();
 
-    // Fill ghost layers and corners (including periodic)
-    z_phys_nd.FillBoundary(geom.periodicity());
-
-
-    if (phys_bc_type[Orientation(0,Orientation::low )] == ERF_BC::symmetry ||
-        phys_bc_type[Orientation(0,Orientation::high)] == ERF_BC::symmetry ||
-        phys_bc_type[Orientation(1,Orientation::low )] == ERF_BC::symmetry ||
-        phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry) {
-
-        const auto& dom_lo = lbound(convert(geom.Domain(),IntVect(1,1,1)));
-        const auto& dom_hi = ubound(convert(geom.Domain(),IntVect(1,1,1)));
-
-        for (MFIter mfi(z_phys_nd,true); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.growntilebox();
-            const Array4< Real> z_nd_arr = z_phys_nd.array(mfi);
-            if (phys_bc_type[Orientation(0,Orientation::low)] == ERF_BC::symmetry && bx.smallEnd(0) == dom_lo.x) {
-                ParallelFor(makeSlab(bx,0,1), [=] AMREX_GPU_DEVICE (int , int j, int k)
+                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    z_nd_arr(dom_lo.x-1,j,k) = z_nd_arr(dom_lo.x+1,j,k);
+                    // Vertical grid stretching
+                    Real z =  z_lev[k];
+
+                    int ii = amrex::max(amrex::min(i,imax),imin);
+                    int jj = amrex::max(amrex::min(j,jmax),jmin);
+
+                    // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
+                    if (k == k0+1) {
+                        z_arr(i,j,k) = z + z_arr(ii,jj,k0);
+                    } else {
+                        // Fill levels using model from Sullivan et. al. 2014
+                        int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
+                        z_arr(i,j,k) = z + (std::pow((1. - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                    }
                 });
-            }
-            if (phys_bc_type[Orientation(0,Orientation::high)] == ERF_BC::symmetry && bx.bigEnd(0) == dom_hi.x) {
-                ParallelFor(makeSlab(bx,0,1), [=] AMREX_GPU_DEVICE (int , int j, int k)
+                gbx.setBig(2,0);
+                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    z_nd_arr(dom_hi.x+1,j,k) = z_nd_arr(dom_hi.x-1,j,k);
+                    z_arr(i,j,k  ) = 0.0;
+                    z_arr(i,j,k-1) = -z_arr(i,j,k+1);
                 });
-            }
-            if (phys_bc_type[Orientation(1,Orientation::low)] == ERF_BC::symmetry && bx.smallEnd(1) == dom_lo.y) {
-                ParallelFor(makeSlab(bx,1,1), [=] AMREX_GPU_DEVICE (int i, int  , int k)
-                {
-                    z_nd_arr(i,dom_lo.y-1,k) = z_nd_arr(i,dom_lo.y+1,k);
-                });
-            }
-            if (phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry && bx.bigEnd(1) == dom_hi.y) {
-                ParallelFor(makeSlab(bx,1,1), [=] AMREX_GPU_DEVICE (int i, int  , int k)
-                {
-                    z_nd_arr(i,dom_hi.y+1,k) = z_nd_arr(i,dom_hi.y-1,k);
-                });
-            }
-        }
-    }
-
-  //********************************************************************************
-  // Populate domain boundary cells in z-direction
-  //********************************************************************************
-  for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-  {
-      // Only set values above top of domain if this box reaches that far
-      Box nd_bx = mfi.tilebox();
-
-      // Note that domhi_z is already nodal in the z-direction
-      if (nd_bx.bigEnd(2) >= domhi_z) {
-          // Grown box with no z range
-          Box xybx = mfi.growntilebox(ngrow);
-          xybx.setRange(2,0);
-          Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-
-          // Extrapolate top layer
-          ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int ) {
-              z_arr(i,j,domhi_z+1) = 2.0*z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1);
-          });
-      }
-  }
-
-  /*
-  // Debug
-  for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-  {
-       Box gbx = mfi.growntilebox(ngrow);
-       gbx.setRange(2,domlo_z,domhi_z+1);
-
-       Array4<Real> z_arr = z_phys_nd.array(mfi);
-
-       int rank = 0;
-       Print(rank) << "Debugging init_terrain_grid" << "\n";
-       Print(rank) << gbx << "\n";
-
-       ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-           Print(rank) << IntVect(i,j,k) << "\n";
-           Print(rank) << z_arr(i,j,k) << "\n";
-           Print(rank) << "\n";
-       });
-       Print(rank) << "Cleared..." << "\n";
-   }
-  */
+            } // mfi
+            break;
+        } // case 3
+    } //switch
 }
 
 /**

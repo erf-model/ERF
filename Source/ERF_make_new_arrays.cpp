@@ -477,15 +477,14 @@ ERF::init_zphys (int lev, Real time)
         if (lev == 0) {
             if (init_type != "real" && init_type != "metgrid")
             {
+                z_phys_nd[lev]->setVal(-1.e23);
                 prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-
-                Vector<Real> zmax(1); // only reduce at lev==0
-                reduce_to_max_per_height(zmax, z_phys_nd[lev]);
-                amrex::Print() << "Max terrain elevation = " << zmax[0] << std::endl;
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zlevels_stag[zlevels_stag.size()-1] > zmax[0],
-                    "Terrain is taller than domain top!");
-
                 init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag,phys_bc_type);
+
+                Real zmax = z_phys_nd[0]->max(0,0,false);
+                Real rel_diff = (zmax - zlevels_stag[zlevels_stag.size()-1]) / zmax;
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
+
             } // init_type
         } // lev == 0
     }
