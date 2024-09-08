@@ -1321,7 +1321,7 @@ ERF::init_only (int lev, Real time)
     }
 }
 
-// read in some parameters from inputs file
+// Read in some parameters from inputs file
 void
 ERF::ReadParameters ()
 {
@@ -1375,53 +1375,13 @@ ERF::ReadParameters ()
         pp.query("fixed_fast_dt", fixed_fast_dt);
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
-        // If this is set, it must be even
-        if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
-        {
-            Abort("If you specify fixed_mri_dt_ratio, it must be even");
-        }
-
-        // If both fixed_dt and fast_dt are specified, their ratio must be an even integer
-        if (fixed_dt > 0. && fixed_fast_dt > 0. && fixed_mri_dt_ratio <= 0)
-        {
-            Real eps = 1.e-12;
-            int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt ) / fixed_fast_dt );
-            if (fixed_dt / fixed_fast_dt != ratio)
-            {
-                Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
-            }
-        }
-
-        // If all three are specified, they must be consistent
-        if (fixed_dt > 0. && fixed_fast_dt > 0. &&  fixed_mri_dt_ratio > 0)
-        {
-            if (fixed_dt / fixed_fast_dt != fixed_mri_dt_ratio)
-            {
-                Abort("Dt is over-specfied");
-            }
-        }
-
-        AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt > 0.);
-
         // How to initialize
         pp.query("init_type",init_type);
-        if (!init_type.empty() &&
-            init_type != "uniform" &&
-            init_type != "ideal" &&
-            init_type != "real" &&
-            init_type != "metgrid" &&
-            init_type != "input_sounding")
-        {
-            Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
-        }
 
         // Should we use the bcs we've read in from wrfbdy or metgrid files?
         // We default to yes if we have them, but the user can override that option
         use_real_bcs = ( (init_type == "real") || (init_type == "metgrid") );
         pp.query("use_real_bcs",use_real_bcs);
-
-        // We don't allow use_real_bcs to be true if init_type is not either real or metgrid
-        AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == "real") || (init_type == "metgrid")) );
 
         // No moving terrain with init real
         if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {
@@ -1434,10 +1394,6 @@ ERF::ReadParameters ()
         // We use this to keep track of how many boxes are specified thru the refinement indicators
         num_boxes_at_level.resize(max_level+1,0);
             boxes_at_level.resize(max_level+1);
-
-        // These hold the minimum and maximum value of k in the boxes *at each level*
-        min_k_at_level.resize(max_level+1,0);
-        max_k_at_level.resize(max_level+1,0);
 
         // We always have exactly one file at level 0
         num_boxes_at_level[0] = 1;
@@ -1472,13 +1428,6 @@ ERF::ReadParameters ()
 
         // Output format
         pp.query("plotfile_type", plotfile_type);
-        if (plotfile_type != "amrex" &&
-            plotfile_type != "netcdf" && plotfile_type != "NetCDF" &&
-            plotfile_type != "hdf5"   && plotfile_type != "HDF5" )
-        {
-            Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
-            Abort("Dont know this plotfile_type");
-        }
         pp.query("plot_file_1",   plot_file_1);
         pp.query("plot_file_2",   plot_file_2);
         pp.query("plot_int_1" , m_plot_int_1);
@@ -1518,25 +1467,10 @@ ERF::ReadParameters ()
         // Query the set and total widths for wrfbdy interior ghost cells
         pp.query("real_width", real_width);
         pp.query("real_set_width", real_set_width);
-        AMREX_ALWAYS_ASSERT(real_width >= 0);
-        AMREX_ALWAYS_ASSERT(real_set_width >= 0);
-        AMREX_ALWAYS_ASSERT(real_width >= real_set_width);
 
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
-        if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
-            Abort("You must set cf_width >= cf_set_width >= 0");
-        }
-        if (max_level > 0 && cf_set_width > 0) {
-            for (int lev = 1; lev <= max_level; lev++) {
-                if (cf_set_width%ref_ratio[lev-1][0] != 0 ||
-                    cf_set_width%ref_ratio[lev-1][1] != 0 ||
-                    cf_set_width%ref_ratio[lev-1][2] != 0 ) {
-                    Abort("You must set cf_width to be a multiple of ref_ratio");
-                }
-            }
-        }
 
         // AmrMesh iterate on grids?
         bool iterate(true);
@@ -1571,6 +1505,86 @@ ERF::ReadParameters ()
 
     if (verbose > 0) {
         solverChoice.display(max_level);
+    }
+
+    ParameterSanityChecks();
+}
+
+// Read in some parameters from inputs file
+void
+ERF::ParameterSanityChecks ()
+{
+    AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt > 0.);
+
+    // We don't allow use_real_bcs to be true if init_type is not either real or metgrid
+    AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == "real") || (init_type == "metgrid")) );
+
+    AMREX_ALWAYS_ASSERT(real_width >= 0);
+    AMREX_ALWAYS_ASSERT(real_set_width >= 0);
+    AMREX_ALWAYS_ASSERT(real_width >= real_set_width);
+
+    if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
+        Abort("You must set cf_width >= cf_set_width >= 0");
+    }
+    if (max_level > 0 && cf_set_width > 0) {
+        for (int lev = 1; lev <= max_level; lev++) {
+            if (cf_set_width%ref_ratio[lev-1][0] != 0 ||
+                cf_set_width%ref_ratio[lev-1][1] != 0 ||
+                cf_set_width%ref_ratio[lev-1][2] != 0 ) {
+                Abort("You must set cf_width to be a multiple of ref_ratio");
+            }
+        }
+    }
+
+    if (plotfile_type != "amrex" &&
+        plotfile_type != "netcdf" && plotfile_type != "NetCDF" &&
+        plotfile_type != "hdf5"   && plotfile_type != "HDF5" )
+    {
+        Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
+        Abort("Dont know this plotfile_type");
+    }
+
+    // Enforce the init_type is one we know
+    if (!init_type.empty() &&
+        init_type != "uniform" &&
+        init_type != "ideal" &&
+        init_type != "real" &&
+        init_type != "metgrid" &&
+        init_type != "input_sounding")
+    {
+        Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
+    }
+
+    // If fixed_mri_dt_ratio is set, it must be even
+    if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
+    {
+        Abort("If you specify fixed_mri_dt_ratio, it must be even");
+    }
+
+    // We ignore fixed_fast_dt if not substepping
+    if (solverChoice.no_substepping && fixed_fast_dt > 0.) {
+        fixed_fast_dt = -1.0;
+        Warning("fixed_fast_dt will be ignored since we are not substepping");
+
+
+    // If both fixed_dt and fast_dt are specified, their ratio must be an even integer
+    } else if (fixed_dt > 0. && fixed_fast_dt > 0. && fixed_mri_dt_ratio <= 0)
+    {
+        Real eps = 1.e-12;
+        int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt ) / fixed_fast_dt );
+        if (fixed_dt / fixed_fast_dt != ratio)
+        {
+            Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
+        }
+    }
+
+    // If all three are specified, they must be consistent
+    if (fixed_dt > 0. && fixed_fast_dt > 0. &&  fixed_mri_dt_ratio > 0)
+    {
+        if (fixed_dt / fixed_fast_dt != fixed_mri_dt_ratio)
+        {
+            Abort("Dt is over-specfied");
+        }
     }
 
     if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {

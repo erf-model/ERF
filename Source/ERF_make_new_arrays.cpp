@@ -29,20 +29,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
                  MultiFab& tmp_base_state,
                  std::unique_ptr<MultiFab>& tmp_zphys_nd)
 {
-    if (lev == 0) {
-        min_k_at_level[lev] = 0;
-        max_k_at_level[lev] = geom[lev].Domain().bigEnd(2);
-    } else {
-        // Start with unreasonable values so we compute the right min/max
-        min_k_at_level[lev] = geom[lev].Domain().bigEnd(2);
-        max_k_at_level[lev] = geom[lev].Domain().smallEnd(2);
-        for (int n = 0; n < ba.size(); n++)
-        {
-            min_k_at_level[lev] = std::min(min_k_at_level[lev], ba[n].smallEnd(2));
-            max_k_at_level[lev] = std::max(max_k_at_level[lev], ba[n].bigEnd(2));
-        }
-    }
-
     // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0 (in that order)
     // ********************************************************************************************
