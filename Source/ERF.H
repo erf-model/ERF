@@ -510,8 +510,6 @@ private:
     void initHSE ();
     void initHSE (int lev);
 
-    void ChopGrids2D (int lev, amrex::BoxArray& ba, int target_size) const;
-
     //! Initialize Rayleigh damping profiles
     void initRayleigh ();
 
