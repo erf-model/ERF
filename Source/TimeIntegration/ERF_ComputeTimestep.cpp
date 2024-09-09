@@ -207,7 +207,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
          // Compressible with or without substepping
          } else {
-             return estdt_comp;
+             return estdt_lowM;
          }
      }
 }
