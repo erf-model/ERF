@@ -63,7 +63,7 @@ namespace HSEutils
             ++iter;
         }
         while (std::abs(F)>m_tol && iter<25);
-        if (iter>25) printf("WARNING: HSE Newton iterations did not converge to tolerance!\n");
+        if (iter>=25) printf("WARNING: HSE Newton iterations did not converge to tolerance!\n");
     }
 
     /**
