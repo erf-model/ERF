@@ -226,8 +226,8 @@ Problem::update_rhotheta_sources (
             });
         } else {
             // src is a function over Z
-            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                src_arr(i, j, k) = 0.0;
+            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) {
+                src_arr(i, j, k) = parms_d.advection_heating_rate;
             });
         }
     }

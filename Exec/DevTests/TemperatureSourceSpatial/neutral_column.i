@@ -56,6 +56,6 @@ erf.add_custom_moisture_forcing = true
 erf.spatial_rhotheta_forcing = true
 erf.spatial_moisture_forcing = true
 erf.custom_forcing_uses_primitive_vars = true
-prob.advection_heating_rate   = 2.3148E-4
+prob.advection_heating_rate   = 1.0E-4
 prob.advection_moisture_rate  = 1.2E-8
 
