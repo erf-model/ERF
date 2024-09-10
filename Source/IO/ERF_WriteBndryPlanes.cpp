@@ -52,7 +52,7 @@ int WriteBndryPlanes::bndry_lev = 0;
  * @param geom Vector of Geometry containing the geometry at each level in the AMR
  */
 WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
-                                    Vector<Geometry>& geom): m_geom(geom)
+                                    Vector<Geometry>& geom) : m_geom(geom)
 {
     ParmParse pp("erf");
 
@@ -117,7 +117,8 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
  * @param vars_new Grid data for all variables across the AMR hierarchy
  */
 void WriteBndryPlanes::write_planes (const int t_step, const Real time,
-                                     Vector<Vector<MultiFab>>& vars_new)
+                                     Vector<Vector<MultiFab>>& vars_new,
+                                     bool is_moist)
 {
     BL_PROFILE("ERF::WriteBndryPlanes::write_planes");
 
@@ -142,9 +143,6 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
     IntVect new_hi = target_box.bigEnd() - target_box.smallEnd();
     Box target_box_shifted(IntVect(0,0,0),new_hi);
     BoxArray ba_shifted(target_box_shifted);
-
-    int n_moist_var = NMOIST_max - (S.nComp() - NVAR_max);
-    bool ismoist = (n_moist_var >= 1);
 
     for (int i = 0; i < m_var_names.size(); i++)
     {
@@ -172,7 +170,7 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
             for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
-                if (ismoist) {
+                if (is_moist) {
                     derived::erf_dermoisttemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
                 } else {
                     derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);

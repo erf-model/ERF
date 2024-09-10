@@ -173,27 +173,30 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      }
 
-     if (fixed_dt > 0. && fixed_fast_dt > 0.) {
-         dt_fast_ratio = static_cast<long>( fixed_dt / fixed_fast_dt );
-     } else if (fixed_dt > 0.) {
-         dt_fast_ratio = static_cast<long>( std::ceil((fixed_dt/estdt_comp)) );
-     } else {
-         dt_fast_ratio = (estdt_lowM_inv > 0.0) ? static_cast<long>( std::ceil((estdt_lowM/estdt_comp)) ) : 1;
-     }
-
-     // Force time step ratio to be an even value
-     if (solverChoice.force_stage1_single_substep) {
-         if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
-     } else {
-         if ( dt_fast_ratio%6 != 0) {
-             Print() << "mri_dt_ratio = " << dt_fast_ratio
-                     << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
-             dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/6.0) * 6);
+     if (!l_no_substepping) {
+         if (fixed_dt > 0. && fixed_fast_dt > 0.) {
+             dt_fast_ratio = static_cast<long>( fixed_dt / fixed_fast_dt );
+         } else if (fixed_dt > 0.) {
+             dt_fast_ratio = static_cast<long>( std::ceil((fixed_dt/estdt_comp)) );
+         } else {
+             dt_fast_ratio = (estdt_lowM_inv > 0.0) ? static_cast<long>( std::ceil((estdt_lowM/estdt_comp)) ) : 1;
          }
-     }
 
-     if (verbose && !l_no_substepping)
-         Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
+         // Force time step ratio to be an even value
+         if (solverChoice.force_stage1_single_substep) {
+             if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
+         } else {
+             if ( dt_fast_ratio%6 != 0) {
+                 Print() << "mri_dt_ratio = " << dt_fast_ratio
+                         << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
+                 dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/6.0) * 6);
+             }
+         }
+
+         if (verbose) {
+             Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
+         }
+     } // if substepping
 
      if (fixed_dt > 0.0) {
          return fixed_dt;

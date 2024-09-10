@@ -74,7 +74,7 @@ public:
     // LATENT HEAT OF VAPORIZATION CORRECTIONS
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void no_ip_hltalt (const amrex::Real& t,
-                              amrex::Real hltalt) {
+                              amrex::Real& hltalt) {
         hltalt = lat_vap;
         // Account for change of lat_vap with t above freezing where
         // constant slope is given by -2369 j/(kg c) = cpv - cw
@@ -88,8 +88,8 @@ public:
     //  d(es)/dT within the water-ice transition range.
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void calc_hltalt (const amrex::Real& t,
-                             amrex::Real hltalt,
-                             amrex::Real tterm = 0.) {
+                             amrex::Real& hltalt,
+                             amrex::Real* tterm = nullptr) {
         amrex::Real tc, weight;
         no_ip_hltalt(t, hltalt);
         if (t < tmelt) {
@@ -103,8 +103,11 @@ public:
                 // ttrice is 40): required for accurate estimate of es
                 // derivative in transition range from ice to water
 
-                for(auto i = npcf-1; i > 0;  --i) tterm = pcf[i] + tc*tterm;
-                tterm = tterm/ttrice;
+                if (tterm)
+                {
+                    for(auto i = npcf-1; i > 0;  --i) *tterm = pcf[i] + tc*(*tterm);
+                    *tterm = *tterm/ttrice;
+                }
             }
             else {
                 weight = 1.0;
@@ -150,12 +153,12 @@ public:
                       const amrex::Real& p,
                       amrex::Real& es,
                       amrex::Real& qs,
-                      amrex::Real gam = 0.,
-                      amrex::Real dqsdt = 0. ,
-                      amrex::Real enthalpy = 0.) {
+                      amrex::Real* gam = nullptr,
+                      amrex::Real* dqsdt = nullptr,
+                      amrex::Real* enthalpy = nullptr) {
         // Local variables
         amrex::Real hltalt;       // Modified latent heat for T derivatives
-        amrex::Real tterm;        // Account for d(es)/dT in transition region
+        amrex::Real tterm = 0.0;        // Account for d(es)/dT in transition region
 
         es = svp_trans(t); //estblf(t);
 
@@ -167,11 +170,17 @@ public:
         // Calculate optional arguments.
         // "generalized" analytic expression for t derivative of es
         // accurate to within 1 percent for 173.16 < t < 373.16
-        calc_hltalt(t, hltalt, tterm);
+        calc_hltalt(t, hltalt, &tterm);
 
-        enthalpy = tq_enthalpy(t, qs, hltalt);
+        if (enthalpy)
+        {
+            *enthalpy = tq_enthalpy(t, qs, hltalt);
+        }
 
-        deriv_outputs(t, p, es, qs, hltalt, tterm, gam, dqsdt);
+        if (gam && dqsdt)
+        {
+            deriv_outputs(t, p, es, qs, hltalt, tterm, *gam, *dqsdt);
+        }
     }
 
     // Calculate SVP over water at a given temperature, and then
@@ -183,9 +192,9 @@ public:
                             const amrex::Real& p,
                             amrex::Real& es,
                             amrex::Real& qs,
-                            amrex::Real gam = 0.,
-                            amrex::Real dqsdt = 0.,
-                            amrex::Real enthalpy = 0.) {
+                            amrex::Real* gam = nullptr,
+                            amrex::Real* dqsdt = nullptr,
+                            amrex::Real* enthalpy = nullptr) {
         // Local variables
         amrex::Real hltalt;       // Modified latent heat for T derivatives
 
@@ -196,10 +205,16 @@ public:
 
         no_ip_hltalt(t, hltalt);
 
-        enthalpy = tq_enthalpy(t, qs, hltalt);
+        if (enthalpy)
+        {
+            *enthalpy = tq_enthalpy(t, qs, hltalt);
+        }
 
-        // For pure water/ice transition term is 0.
-        deriv_outputs(t, p, es, qs, hltalt, 0., gam, dqsdt);
+        if (gam && dqsdt)
+        {
+            // For pure water/ice transition term is 0.
+            deriv_outputs(t, p, es, qs, hltalt, 0., *gam, *dqsdt);
+        }
     }
 
     //  Calculate SVP over ice at a given temperature, and then
@@ -313,9 +328,9 @@ public:
 
         // Generate qsp, gam, and enout from tsp.
         if (use_ice)
-            qsat(tsp, p, es, qsp, gam, enout);
+            qsat(tsp, p, es, qsp, &gam, &enout);
         else
-            qsat_water(tsp, p, es, qsp, gam, enout);
+            qsat_water(tsp, p, es, qsp, &gam, &enout);
 
         // iterate on first guess
         for(auto l = 1; l < iter; ++l) {
@@ -346,9 +361,9 @@ public:
 
             // Re-generate qsp, gam, and enout from new tsp.
             if (use_ice)
-                qsat(tsp, p, es, q1, gam, enout);
+                qsat(tsp, p, es, q1, &gam, &enout);
             else
-                qsat_water(tsp, p, es, q1, gam, enout);
+                qsat_water(tsp, p, es, q1, &gam, &enout);
 
             dq = abs(q1 - qsp)/std::max(q1,1.e-12);
             qsp = q1;

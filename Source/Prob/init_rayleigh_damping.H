@@ -15,7 +15,7 @@ erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
     if (z_phys_cc) {
         // use_terrain=1
         // calculate the damping strength based on the max height at each k
-        reduce_to_max_per_level(zcc, z_phys_cc);
+        reduce_to_max_per_height(zcc, z_phys_cc);
     } else {
         const amrex::Real* prob_lo = geom.ProbLo();
         const auto dx              = geom.CellSize();

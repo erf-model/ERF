@@ -13,7 +13,7 @@ void AerRadProps::initialize (int num_gas, int num_modes, int naeroes,
                               int nswbands_, int nlwbands_,
                               int ncoloum, int nlevel, int num_rh, int top_levels,
                               const std::vector<std::string>& aerosol_names,
-                              const real2d& zint, const real2d& pmiddle, const real2d& pint,
+                              const real2d& zint, const real2d& pmiddle, const real2d& pdel,
                               const real2d& temperature, const real2d& qtotal,
                               const real2d& geom_rad)
 {
@@ -32,12 +32,16 @@ void AerRadProps::initialize (int num_gas, int num_modes, int naeroes,
     // NOTE: pmid is absolute pressure but pdeldry is the vertical
     //       change in pressure (analog to mass per area with HSE balance)
     pmid    = pmiddle;
+    pdeldry = pdel;
+    /*
+    // This will overwrite pmid
     pdeldry = pmiddle;
     parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
     {
         // Pressure max at bottom of column
         pdeldry(icol,ilev) = pmid(icol,ilev) -  pmid(icol,ilev+1);
     });
+    */
 
     temp = temperature;
     qt   = qtotal;
@@ -91,7 +95,7 @@ void AerRadProps::aer_rad_props_sw (const int& list_idx, const real& dt, const i
         WaterVaporSat::qsat(temp(icol,ilev), pmid(icol,ilev), es, qs);
         rh = qt(icol,ilev)/qs;
         rhtrunc = std::min(rh,1.);
-        krh(icol, ilev) = std::min(std::floor(rhtrunc*nrh )+1, nrh - 1.); // index into rh mesh
+        krh(icol, ilev) = std::min(std::floor(rhtrunc*nrh )+1., nrh - 1.); // index into rh mesh
         wrh(icol, ilev) = rhtrunc*nrh-krh(icol, ilev);       // (-) weighting on left side values
     });
 
@@ -135,7 +139,7 @@ void AerRadProps::aer_rad_props_sw (const int& list_idx, const real& dt, const i
         });
 
         //Quit if tropopause is not found
-        if (yakl::intrinsics::any(trop_level) == -1) {
+        if (yakl::intrinsics::any(yakl::componentwise::operator==(trop_level, -1))) {
             amrex::Print() << "aer_rad_props.F90: subr aer_rad_props_sw: tropopause not found\n";
         }
     }
@@ -409,7 +413,7 @@ void AerRadProps::aer_rad_props_lw (const bool& is_cmip6_volc,
         });
 
         // Quit if tropopause is not found
-        if (yakl::intrinsics::any(trop_level) == -1)
+        if (yakl::intrinsics::any(yakl::componentwise::operator==(trop_level, -1)))
             amrex::Print() << "aer_rad_props_lw: tropopause not found\n";
 
         // If tropopause is found, update taus with 50% contributuions from the volcanic input

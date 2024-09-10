@@ -212,3 +212,29 @@ In the above case, ``use_normal_vector`` utilizes the a local surface-normal vec
    \frac{1}{\tau} \int_{-\infty}^{0} \exp{\left(t/\tau\right)} \, f(t) \; \rm{d}t.
 
 Due to the form of the above integral, it is advantageous to consider :math:`\tau` as a multiple of the simulation time step :math:`\Delta t`, which is specified by ``erf.most.time_window``. As ``erf.most.time_window`` is reduced to 0, the exponential filter function tends to a Dirac delta function (prior averages are irrelevant). Increasing ``erf.most.time_window`` extends the tail of the exponential and more heavily weights prior averages.
+
+Low-speed corrections
+---------------------
+The following options are available:
+
+::
+
+   erf.most.include_wstar       = true
+   erf.most.include_subgrid_vel = true
+
+These correspond to a mean surface velocity of
+
+.. math::
+
+   |\bar{\mathbf{u}}| = \sqrt{u^2 + v^2 + (\beta w_*)^2 + V_{sg}^2}
+
+where :math:`w_*` is the (Deardorff) convective velocity scale and
+:math:`\beta=1.2` (Beljaars 1995, QJRMS). The subgrid velocity scale
+:math:`V_{sg}` handles weak large-scale flow that is underresolved (Mahrt & Sun
+1995, MWR). This is parameterized as
+
+.. math::
+
+   V_{sg} = 0.32 \left(\frac{\Delta x}{5000} - 1 \right)^{0.33}
+
+which vanishes for grid spacings of :math:`\Delta x < 5` km.

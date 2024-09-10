@@ -55,11 +55,16 @@ public:
 
     void read_windfarm_spec_table(const std::string windfarm_spec_table);
 
-    void fill_Nturb_multifab(const amrex::Geometry& geom, amrex::MultiFab& mf_Nturb);
+    void fill_Nturb_multifab(const amrex::Geometry& geom,
+                             amrex::MultiFab& mf_Nturb);
+
+    void fill_SMark_multifab(const amrex::Geometry& geom,
+                             amrex::MultiFab& mf_SMark,
+                             const amrex::Real& sampling_distance_by_D);
 
     void write_turbine_locations_vtk();
 
-    void write_actuator_disks_vtk();
+    void write_actuator_disks_vtk(const amrex::Geometry& geom);
 
     void advance (const amrex::Geometry& a_geom,
                   const amrex::Real& dt_advance,

@@ -29,20 +29,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
                  MultiFab& tmp_base_state,
                  std::unique_ptr<MultiFab>& tmp_zphys_nd)
 {
-    if (lev == 0) {
-        min_k_at_level[lev] = 0;
-        max_k_at_level[lev] = geom[lev].Domain().bigEnd(2);
-    } else {
-        // Start with unreasonable values so we compute the right min/max
-        min_k_at_level[lev] = geom[lev].Domain().bigEnd(2);
-        max_k_at_level[lev] = geom[lev].Domain().smallEnd(2);
-        for (int n = 0; n < ba.size(); n++)
-        {
-            min_k_at_level[lev] = std::min(min_k_at_level[lev], ba[n].smallEnd(2));
-            max_k_at_level[lev] = std::max(max_k_at_level[lev], ba[n].bigEnd(2));
-        }
-    }
-
     // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0 (in that order)
     // ********************************************************************************************
@@ -120,7 +106,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         ncomp = vars_new[lev-1][Vars::cons].nComp();
     } else {
         int n_qstate   = micro->Get_Qstate_Size();
-        ncomp = NVAR_max - (NMOIST_max - n_qstate);
+        ncomp = NDRY + NSCALARS + n_qstate;
     }
 
     // ********************************************************************************************
@@ -255,6 +241,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.windfarm_type == WindFarmType::SimpleAD) {
         vars_windfarm[lev].define(ba, dm, 2, ngrow_state);// dudt, dvdt
         Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+        SMark[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
 #endif
 
@@ -337,7 +324,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     //
-    // Define the land mask here and set it to all land
+    // Define the land mask here and set it to all land by default
     // NOTE: the logic below will BREAK if we have any grids not touching the bottom boundary
     //
     {
@@ -490,15 +477,14 @@ ERF::init_zphys (int lev, Real time)
         if (lev == 0) {
             if (init_type != "real" && init_type != "metgrid")
             {
+                z_phys_nd[lev]->setVal(-1.e23);
                 prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-
-                Vector<Real> zmax(1); // only reduce at lev==0
-                reduce_to_max_per_level(zmax, z_phys_nd[lev]);
-                amrex::Print() << "Max terrain elevation = " << zmax[0] << std::endl;
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zlevels_stag[zlevels_stag.size()-1] > zmax[0],
-                    "Terrain is taller than domain top!");
-
                 init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag,phys_bc_type);
+
+                Real zmax = z_phys_nd[0]->max(0,0,false);
+                Real rel_diff = (zmax - zlevels_stag[zlevels_stag.size()-1]) / zmax;
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
+
             } // init_type
         } // lev == 0
     }

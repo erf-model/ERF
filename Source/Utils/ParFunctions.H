@@ -2,11 +2,11 @@
 #define ParFunctions_H
 
 /**
- * Reduce a multifab to a vector of values at height levels
+ * Reduce a multifab to a vector of max values at each height
  */
 AMREX_FORCE_INLINE
-void reduce_to_max_per_level (amrex::Vector<amrex::Real>& v,
-                              std::unique_ptr<amrex::MultiFab>& mf)
+void reduce_to_max_per_height (amrex::Vector<amrex::Real>& v,
+                               std::unique_ptr<amrex::MultiFab>& mf)
 {
     amrex::MultiArray4<const amrex::Real> const& ma = mf->const_arrays();
     for (int k = 0; k < v.size(); k++) {

@@ -141,7 +141,7 @@ class RadConstants {
 
     // number of solar (shortwave) bands in the rrtmg code
     inline
-    static void get_number_sw_bands (int number_of_bands)
+    static void get_number_sw_bands (int& number_of_bands)
     {
         number_of_bands = nswbands;
     }
@@ -257,7 +257,8 @@ class RadConstants {
         for(auto igas = 0; igas < nradgas; ++igas) {
             if (gaslist[igas] == gasname) return igas;
         }
-        amrex::Print() << "rad_gas_index: can not find gas with name" << gasname << std::endl;
+        amrex::Abort("rad_gas_index: can not find gas with name " + gasname);
+        return -1;
     }
 };
 #endif

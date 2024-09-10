@@ -14,6 +14,7 @@ CEXE_headers += Sat_methods.H
 CEXE_headers += Water_vapor_saturation.H
 CEXE_headers += DirectionSelector.H
 
+CEXE_sources += ChopGrids.cpp
 CEXE_sources += MomentumToVelocity.cpp
 CEXE_sources += VelocityToMomentum.cpp
 CEXE_sources += InteriorGhostCells.cpp

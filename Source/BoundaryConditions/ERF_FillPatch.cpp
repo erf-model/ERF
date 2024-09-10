@@ -335,7 +335,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         {
             bccomp = BCVars::zvel_bc;
             mapper = &face_cons_linear_interp;
-            ngvect = IntVect(ng_vel,ng_vel,0);
+            ngvect = IntVect(ng_vel,ng_vel,ng_vel);
             icomp  = 0;
             ncomp  = 1;
         }
@@ -443,7 +443,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         if (!solverChoice.use_NumDiff) {
             ngu = IntVect(1,1,1);
             ngv = IntVect(1,1,1);
-            ngw = IntVect(1,1,0);
+            ngw = IntVect(1,1,1);
         }
         VelocityToMomentum(*mfs_vel[Vars::xvel], ngu,
                            *mfs_vel[Vars::yvel], ngv,

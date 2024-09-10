@@ -66,15 +66,22 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
             if (solverChoice.moisture_type != MoistureType::None) {
                 ng = Qv_prim[lev]->nGrowVect();
+
                 MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
                 MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
-                int RhoQr_comp = (micro->Get_Qstate_Size() > 3) ? RhoQ4_comp : RhoQ3_comp;
-                MultiFab::Copy(  *Qr_prim[lev], S_old, RhoQr_comp, 0, 1, ng);
-                MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+
+                if (solverChoice.RhoQr_comp > -1) {
+                    MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.RhoQr_comp, 0, 1, ng);
+                    MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+                } else {
+                    Qr_prim[lev]->setVal(0.0);
+                }
             }
             // NOTE: std::swap above causes the field ptrs to be out of date.
             //       Reassign the field ptrs for MAC avg computation.
             m_most->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
+            m_most->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
+                                solverChoice.RhoQv_comp, solverChoice.RhoQr_comp);
             m_most->update_fluxes(lev, time);
         }
     }
@@ -113,9 +120,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
     // Source arrays for momenta -- these will be filled
     //     in the call to make_mom_sources in TI_slow_rhs_fun.H
-    MultiFab xmom_source(ba,dm,nvars,1); xmom_source.setVal(0.0);
-    MultiFab ymom_source(ba,dm,nvars,1); ymom_source.setVal(0.0);
-    MultiFab zmom_source(ba,dm,nvars,1); zmom_source.setVal(0.0);
+    BoxArray ba_x(ba); ba_x.surroundingNodes(0);
+    MultiFab xmom_source(ba_x,dm,nvars,1); xmom_source.setVal(0.0);
+
+    BoxArray ba_y(ba); ba_y.surroundingNodes(1);
+    MultiFab ymom_source(ba_y,dm,nvars,1); ymom_source.setVal(0.0);
+
+    BoxArray ba_z(ba); ba_z.surroundingNodes(2);
+    MultiFab zmom_source(ba_z,dm,nvars,1); zmom_source.setVal(0.0);
 
     // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
     MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());

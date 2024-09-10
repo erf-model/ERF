@@ -100,6 +100,8 @@ public:
     ERF ();
     ~ERF () override;
 
+    void ERF_shared ();
+
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
     ERF (ERF&&)  noexcept = delete;
@@ -373,7 +375,7 @@ public:
 
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
-    amrex::Vector<int> t_avg_cnt;
+    amrex::Vector<amrex::Real> t_avg_cnt;
 
 #endif
     std::string pp_prefix {"erf"};
@@ -421,6 +423,7 @@ private:
 
     // read in some parameters from inputs file
     void ReadParameters ();
+    void ParameterSanityChecks ();
 
     // set covered coarse cells/faces to be the average of overlying fine cells/faces
     void AverageDown ();
@@ -610,6 +613,9 @@ private:
     // read checkpoint file from disk
     void ReadCheckpointFile ();
 
+    // read checkpoint file from disk -- called after instantiating m_most
+    void ReadCheckpointFileMOST ();
+
     // Read the file passed to amr.restart and use it as an initial condition for
     // the current simulation. Supports a different number of components and
     // ghost cells.
@@ -627,10 +633,6 @@ private:
 
     ////////////////
     // private data members
-
-    // These are the minimum and maximum values of k in valid boxes *at this level*
-    amrex::Vector<int> min_k_at_level;
-    amrex::Vector<int> max_k_at_level;
 
     std::unique_ptr<ProblemBase> prob = nullptr;  // problem-specific functions
 
@@ -693,6 +695,10 @@ private:
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
                                                   // EWP:                 dudt, dvdt, dTKEdt
+
+    amrex::Vector<amrex::MultiFab> SMark; // A multifab that holds an integer corresponding
+                                                   // to the number of the wind turbine to sample
+                                                   // velocity upstream of the turbine
 #endif
 
     LandSurface lsm;
@@ -706,6 +712,8 @@ private:
     // Containers for additional SLM inputs
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sw_lw_fluxes; // Direct SW (visible, NIR), Diffuse SW (visible, NIR), LW flux
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> solar_zenith; // Solar zenith angle
+
+    bool plot_rad = false;
 #endif
 
     // Fillpatcher classes for coarse-fine boundaries
@@ -785,10 +793,10 @@ private:
     amrex::Array<std::string,2*AMREX_SPACEDIM> domain_bc_type;
 
     // These hold the Dirichlet values at walls which need them ...
-    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals;
+    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals;
 
     // These hold the Neumann values at walls which need them ...
-    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_neumann_vals;
+    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
 
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;
@@ -867,7 +875,7 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
-                                                    "eq_pot_temp", "num_turb",
+                                                    "eq_pot_temp", "num_turb", "SMark",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
@@ -884,6 +892,9 @@ private:
 #ifdef ERF_COMPUTE_ERROR
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
+#endif
+#ifdef ERF_USE_RRTMGP
+                                                    ,"qsrc_sw", "qsrc_lw"
 #endif
                                                    };
 
