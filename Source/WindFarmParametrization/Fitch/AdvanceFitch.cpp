@@ -52,7 +52,8 @@ Fitch::advance (const Geometry& geom,
                 MultiFab& U_old,
                 MultiFab& V_old,
                 MultiFab& W_old,
-                const MultiFab& mf_Nturb)
+                const MultiFab& mf_Nturb,
+                const MultiFab& mf_SMark)
 {
     source_terms_cellcentered(geom, cons_in, mf_vars_fitch, U_old, V_old, W_old, mf_Nturb);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);

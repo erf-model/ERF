@@ -48,7 +48,6 @@ WindFarm::read_windfarm_locations_table(const std::string windfarm_loc_table,
     set_turb_loc(xloc, yloc);
 }
 
-
 void
 WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
                                  const Real latitude_lo, const Real longitude_lo)
@@ -109,19 +108,30 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
     Real lat_lo  = latitude_lo*M_PI/180.0;
     Real lon_lo  = longitude_lo*M_PI/180.0;
 
+    // Find the coordinates of average of min and max of the farm
+    // Rotate about that point
+
+    Real lat_min = *std::min_element(lat.begin(), lat.end());
+    Real lat_max = *std::max_element(lat.begin(), lat.end());
+    Real lon_min = *std::min_element(lon.begin(), lon.end());
+    Real lon_max = *std::max_element(lon.begin(), lon.end());
+
+    Real lat_cen = 0.5*(lat_min+lat_max)*M_PI/180.0;
+    Real lon_cen = 0.5*(lon_min+lon_max)*M_PI/180.0;
+
     // (lat_lo, lon_lo) is mapped to (0,0)
+
 
     for(int it=0;it<lat.size();it++){
         lat[it] = lat[it]*M_PI/180.0;
         lon[it] = lon[it]*M_PI/180.0;
-        Real delta_lat = (lat[it] - lat_lo);
-        Real delta_lon = (lon[it] - lon_lo);
+        Real delta_lat = (lat[it] - lat_cen);
+        Real delta_lon = (lon[it] - lon_cen);
 
         Real term1 = std::pow(sin(delta_lat/2.0),2);
-        Real term2 = cos(lat[it])*cos(lat_lo)*std::pow(sin(delta_lon/2.0),2);
+        Real term2 = cos(lat[it])*cos(lat_cen)*std::pow(sin(delta_lon/2.0),2);
         Real dist =  2.0*rad_earth*std::asin(std::sqrt(term1 + term2));
-        Real dy_turb = (lat[it] - lat_lo) * 111000.0 * 180.0/M_PI ;
-        yloc.push_back(dy_turb);
+        Real dy_turb = (lat[it] - lat_cen) * 111000.0 * 180.0/M_PI ;
         Real dx_turb = std::sqrt(std::pow(dist,2) - std::pow(dy_turb,2));
         if(delta_lon >= 0.0) {
             xloc.push_back(dx_turb);
@@ -129,6 +139,42 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         else {
             xloc.push_back(-dx_turb);
         }
+        yloc.push_back(dy_turb);
+    }
+
+    Real xloc_min = *std::min_element(xloc.begin(),xloc.end());
+    Real yloc_min = *std::min_element(yloc.begin(),yloc.end());
+
+    for(int it = 0;it<xloc.size(); it++){
+        xloc[it] = xloc[it] - xloc_min + 1000;
+        yloc[it] = yloc[it] - yloc_min + 1000;
+    }
+
+    Real xmin = *std::min_element(xloc.begin(), xloc.end());
+    Real xmax = *std::max_element(xloc.begin(), xloc.end());
+    Real ymin = *std::min_element(yloc.begin(), yloc.end());
+    Real ymax = *std::max_element(yloc.begin(), yloc.end());
+
+    Real xcen = 0.5*(xmin+xmax);
+    Real ycen = 0.5*(ymin+ymax);
+
+    Real theta = 0.25*M_PI;
+
+    for(int it = 0;it<xloc.size(); it++){
+        Real xnew = ( (xloc[it]-xcen)*std::cos(theta) + (yloc[it]-ycen)*std::sin(theta));
+        Real ynew = (-(xloc[it]-xcen)*std::sin(theta) + (yloc[it]-ycen)*std::cos(theta));
+
+        xloc[it] = xcen + xnew;
+        yloc[it] = ycen + ynew;
+    }
+
+
+    Real xloc_min1 = *std::min_element(xloc.begin(),xloc.end());
+    Real yloc_min1 = *std::min_element(yloc.begin(),yloc.end());
+
+    for(int it = 0;it<xloc.size(); it++){
+        xloc[it] = xloc[it] - xloc_min1 + 1000;
+        yloc[it] = yloc[it] - yloc_min1 + 1000;
     }
 }
 
@@ -262,7 +308,7 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
     Real* d_xloc_ptr     = d_xloc.data();
     Real* d_yloc_ptr     = d_yloc.data();
 
-    mf_SMark.setVal(0);
+    mf_SMark.setVal(-1.0);
 
     int i_lo = geom.Domain().smallEnd(0); int i_hi = geom.Domain().bigEnd(0);
     int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
