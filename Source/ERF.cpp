@@ -750,11 +750,9 @@ ERF::InitData ()
         for (int lev = 0; lev <= finest_level; lev++) {
             BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
             for (auto& b : bl_src) {
-                if (solverChoice.spatial_rhotheta_forcing)
+                if (!solverChoice.spatial_rhotheta_forcing)
                 {
-                    // define source only in X,Y if spatial, otherwise Z
-                    b.setRange(2, 0, 1);
-                } else {
+                    // source is only defined in Z
                     b.setRange(0, 0, 1);
                     b.setRange(1, 0, 1);
                 }
@@ -804,11 +802,9 @@ ERF::InitData ()
         for (int lev = 0; lev <= finest_level; lev++) {
             BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
             for (auto& b : bl_src) {
-                if (solverChoice.spatial_moisture_forcing)
+                if (!solverChoice.spatial_moisture_forcing)
                 {
-                    // define source only in X,Y if spatial, otherwise Z
-                    b.setRange(2, 0, 1);
-                } else {
+                    // source is only defined in Z
                     b.setRange(0, 0, 1);
                     b.setRange(1, 0, 1);
                 }

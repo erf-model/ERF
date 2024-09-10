@@ -205,10 +205,10 @@ Problem::update_rhotheta_sources (
     {
         const auto &box = mfi.tilebox();
         const Array4<Real>& src_arr = src->array(mfi);
-        if (box.length(2) == 1)
+        if (box.length(0) != 1)
         {
             // if z dimension size is 1, then src is a spatially varying function over x,y at k=0
-            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 const Real* prob_lo = geom.ProbLo();
                 const Real* prob_hi = geom.ProbHi();
                 const Real* dx = geom.CellSize();
@@ -222,7 +222,7 @@ Problem::update_rhotheta_sources (
                 const Real c = 2.0*dx[0];
                 const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
 
-                src_arr(i, j, 0) = parms_d.advection_heating_rate*exp(-r / (c*c));
+                src_arr(i, j, k) = parms_d.advection_heating_rate*exp(-r / (c*c));
             });
         } else {
             // src is a function over Z
@@ -259,10 +259,10 @@ Problem::update_rhoqt_sources (
     {
         const auto &box = mfi.tilebox();
         const Array4<Real>& qsrc_arr = qsrc->array(mfi);
-        if (box.length(2) == 1)
+        if (box.length(0) != 1)
         {
             // if z dimension size is 1, then src is a spatially varying function over x,y at k=0
-            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 const Real* prob_lo = geom.ProbLo();
                 const Real* prob_hi = geom.ProbHi();
                 const Real* dx = geom.CellSize();
@@ -276,7 +276,7 @@ Problem::update_rhoqt_sources (
                 const Real c = 2.0*dx[0];
                 const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
 
-                qsrc_arr(i, j, 0) = parms_d.advection_moisture_rate*exp(-r / (c*c));
+                qsrc_arr(i, j, k) = parms_d.advection_moisture_rate*exp(-r / (c*c));
             });
         } else {
             // src is a function over Z

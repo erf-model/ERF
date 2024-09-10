@@ -210,7 +210,7 @@ Problem::update_rhotheta_sources (
         {
             const auto &box = mfi.tilebox();
             const Array4<Real>& src_arr = src->array(mfi);
-            if (box.length(2) == 1)
+            if (box.length(0) != 1)
             {
                 // spatially varying source not used in this problem
                 src->setVal(0.0);

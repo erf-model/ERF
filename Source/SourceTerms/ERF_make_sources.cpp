@@ -219,18 +219,16 @@ void make_sources (int level,
             auto const& rhotheta_src_arr = rhotheta_src->const_array(mfi);
             if (solverChoice.spatial_rhotheta_forcing)
             {
-                Box box_2d = bx;
-                box_2d.setRange(2, 0, 1);
                 if (solverChoice.custom_forcing_prim_vars) {
                     const int nr = Rho_comp;
-                    ParallelFor(box_2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        cell_src(i, j, 0, n) += cell_data(i,j,k,nr) * rhotheta_src_arr(i, j, 0);
+                        cell_src(i, j, k, n) += cell_data(i,j,k,nr) * rhotheta_src_arr(i, j, k);
                     });
                 } else {
-                    ParallelFor(box_2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        cell_src(i, j, 0, n) += rhotheta_src_arr(i, j, 0);
+                        cell_src(i, j, k, n) += rhotheta_src_arr(i, j, k);
                     });
                 }
             } else {
@@ -257,18 +255,16 @@ void make_sources (int level,
             auto const& rhoqt_src_arr = rhoqt_src->const_array(mfi);
             if (solverChoice.spatial_moisture_forcing)
             {
-                Box box_2d = bx;
-                box_2d.setRange(2, 0, 1);
                 if (solverChoice.custom_forcing_prim_vars) {
                     const int nr = Rho_comp;
-                    ParallelFor(box_2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        cell_src(i, j, 0, n) += cell_data(i,j,k,nr) * rhoqt_src_arr(i, j, 0);
+                        cell_src(i, j, k, n) += cell_data(i,j,k,nr) * rhoqt_src_arr(i, j, k);
                     });
                 } else {
-                    ParallelFor(box_2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        cell_src(i, j, 0, n) += rhoqt_src_arr(i, j, 0);
+                        cell_src(i, j, k, n) += rhoqt_src_arr(i, j, k);
                     });
                 }
             } else {

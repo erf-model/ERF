@@ -257,7 +257,7 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
     {
         const auto &box = mfi.tilebox();
         const Array4<Real>& src_arr = src->array(mfi);
-        if (box.length(2) == 1)
+        if (box.length(0) != 1)
         {
             src->setVal(0.0);
         } else {
@@ -307,7 +307,7 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
     {
         const auto &box = mfi.tilebox();
         const Array4<Real>& qsrc_arr = qsrc->array(mfi);
-        if (box.length(2) == 1)
+        if (box.length(0) != 1)
         {
             // spatially varying source not used in this problem
             qsrc->setVal(0.0);

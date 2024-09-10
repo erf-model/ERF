@@ -132,22 +132,13 @@ public:
             {
                 const auto &box = mfi.tilebox();
                 const amrex::Array4<amrex::Real>& src_arr = src->array(mfi);
-                if (box.length(2) == 1)
-                {
-                    // src is a spatial function at k=0 if erf.spatial_rhotheta_forcing = true
-                    ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-                        // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-                        // set RHS term of RhoTheta equation based on time, z_cc here
-                        src_arr(i, j, 0) = 0.0;
-                    });
-                } else {
-                    // src is a function over Z
-                    ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-                        // set RHS term of RhoTheta equation based on time, z_cc here
-                        src_arr(i, j, k) = 0.0;
-                    });
-                }
+                // src is a spatial function if erf.spatial_rhotheta_forcing = true
+                // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
+                ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                    // set RHS term of RhoTheta equation based on time, z_cc here
+                    src_arr(i, j, k) = 0.0;
+                });
             }
         }
     }
@@ -180,22 +171,13 @@ public:
             {
                 const auto &box = mfi.tilebox();
                 const amrex::Array4<amrex::Real>& qsrc_arr = qsrc->array(mfi);
-                if (box.length(2) == 1)
-                {
-                    // src is a spatial function at k=0 if erf.spatial_rhotheta_forcing = true
-                    ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-                        // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-                        // set RHS term of RhoQ1 equation based on time, z_cc here
-                        qsrc_arr(i, j, 0) = 0.0;
-                    });
-                } else {
-                    // src is a function over Z
-                    ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-                        // set RHS term of RhoQ1 equation based on time, z_cc here
-                        qsrc_arr(i, j, k) = 0.0;
-                    });
-                }
+                // src is a spatial function if erf.spatial_moisture_forcing = true
+                // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
+                ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                    // set RHS term of RhoQ1 equation based on time, z_cc here
+                    qsrc_arr(i, j, k) = 0.0;
+                });
             }
         }
     }
