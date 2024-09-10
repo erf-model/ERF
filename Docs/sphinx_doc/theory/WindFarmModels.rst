@@ -123,6 +123,42 @@ The EWP model does not have a concept of intersected area by the turbine rotor l
 .. _`Volker et al. 2015`: https://gmd.copernicus.org/articles/8/3715/2015/
 .. _`Volker et al. 2017`: https://doi.org/10.1088/1748-9326/aa5d86
 
+.. _actuator_disk_model_simplified:
+
+Actuator Disk Model - Simplified
+=================================
+
+A simplified actuator disk model based on one-dimensional momentum theory is implemented. The model is implemented as source terms in the equations
+for the horizontal velocity components (ie. `x` and `y` directions). The thrust force from the one-dimensional momentum theory is given by
+
+.. math::
+
+    F = 2 \rho \pi R^2 (\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1-a) \\
+      = \int_0^{2\pi}\int_0^R 2 \rho (\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a) r\,dr\,d\theta,
+
+where :math:`\rho` is the density of incoming air, :math:`\mathbf{U}_\infty` is the velocity vector of incoming air at some distance (say 2.5 times the turbine diameter) upstream of the turbine, :math:`\mathbf{n}` is the surface normal vector of the actuator disk, and :math:`a = 1 - \cfrac{C_P}{C_T}`, is the axial induction factor for the turbine, and :math:`R` is the radius of the wind turbine swept area. The integration is performed over the swept area of the disk. Hence, the force on an elemental annular disc of thickness :math:`dr` is
+
+.. math::
+
+    dF = 2 \rho (\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a) r\,dr\,d\theta,
+
+where :math:`r~dr~d\theta` is the elemental area of the actuator disk. In general, this can be written as
+
+.. math::
+
+    dF = 2 \rho (\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a) dA \\
+
+where :math:`dA` is the area of the actuator disk in the mesh cell. In the context of the simplified actuator disk model, the source term is imposed only on a single cell, and hence the volume over which the force :math:`dF` is acting is the volume of the cell — :math:`dV \equiv \Delta x \Delta y \Delta z`. Hence, the source terms in the horizontal velocity equations are the acceleration (or deceleration) due to the thrust force :math:`dF` and is given by
+
+.. math::
+
+    \frac{\partial u}{\partial t} &= -\frac{dF \cos{\phi}}{\rho dV} \\
+                                  &= -\frac{dF \cos{\phi}}{\rho \times \Delta x \Delta y \Delta z} \\
+                                  &= -2(\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a)\frac{\Delta A}{\Delta x\Delta y\Delta z} \cos{\phi},
+
+.. math::
+
+    \frac{\partial v}{\partial t} = -2(\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a)\frac{\Delta A}{\Delta x\Delta y\Delta z} \sin{\phi}.
 
 .. _Inputs:
 
