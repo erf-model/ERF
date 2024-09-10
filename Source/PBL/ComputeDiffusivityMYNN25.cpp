@@ -76,8 +76,8 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             const auto invCellSize = geom.InvCellSizeArray();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
-                qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
+                qvel(i,j,k)     = std::sqrt(2.0*cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
+                qvel_old(i,j,k) = std::sqrt(2.0*cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
                 AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
                 AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
 
@@ -94,8 +94,8 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         } else {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
-                qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
+                qvel(i,j,k)     = std::sqrt(2.0*cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
+                qvel_old(i,j,k) = std::sqrt(2.0*cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
                 AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
                 AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
 
@@ -241,7 +241,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Finally, compute the eddy viscosity/diffusivities
             const Real rho = cell_data(i,j,k,Rho_comp);
-            K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lm * qvel(i,j,k) * SM * 0.5; // 0.5 for mu_turb
+            K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lm * qvel(i,j,k) * SM;
             K_turb(i,j,k,EddyDiff::Theta_v) = rho * Lm * qvel(i,j,k) * SH;
             K_turb(i,j,k,EddyDiff::QKE_v)   = rho * Lm * qvel(i,j,k) * SQ;
 
