@@ -21,7 +21,7 @@ void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
                     const amrex::MultiFab* r0,
-                    const int& qstate_size);
+                    const int n_qstate);
 
 void make_sources (int level, int nrk,
                    amrex::Real dt, amrex::Real time,

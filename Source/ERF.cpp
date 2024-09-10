@@ -91,6 +91,12 @@ Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 //             - initializes BCRec boundary condition object
 ERF::ERF ()
 {
+    ERF_shared();
+}
+
+void
+ERF::ERF_shared ()
+{
     if (ParallelDescriptor::IOProcessor()) {
         const char* erf_hash = buildInfoGetGitHash(1);
         const char* amrex_hash = buildInfoGetGitHash(2);
@@ -116,6 +122,7 @@ ERF::ERF ()
 #ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
     vars_windfarm.resize(nlevs_max);
+    SMark.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
@@ -529,7 +536,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       if (is_it_time_for_action(istep[0], time, dt_lev0, bndry_output_planes_interval, bndry_output_planes_per) &&
           time >= bndry_output_planes_start_time)
       {
-         m_w2d->write_planes(istep[0], time, vars_new);
+         bool is_moist = (micro->Get_Qstate_Size() > 0);
+         m_w2d->write_planes(istep[0], time, vars_new, is_moist);
       }
     }
 
@@ -846,7 +854,8 @@ ERF::InitData ()
 
         Real time = 0.;
         if (time >= bndry_output_planes_start_time) {
-            m_w2d->write_planes(0, time, vars_new);
+            bool is_moist = (micro->Get_Qstate_Size() > 0);
+            m_w2d->write_planes(0, time, vars_new, is_moist);
         }
     }
 
@@ -926,6 +935,25 @@ ERF::InitData ()
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
+
+    }
+
+    // Allow idealized cases over water, used to set lmask
+    ParmParse pp("erf");
+    int is_land;
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        if (pp.query("is_land", is_land, lev)) {
+            if (is_land == 1) {
+                amrex::Print() << "Level " << lev << " is land" << std::endl;
+            } else if (is_land == 0) {
+                amrex::Print() << "Level " << lev << " is water" << std::endl;
+            } else {
+                Error("is_land should be 0 or 1");
+            }
+            lmask_lev[lev][0]->setVal(is_land);
+            lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        }
     }
 
 #ifdef ERF_USE_WW3_COUPLING
@@ -954,11 +982,18 @@ ERF::InitData ()
 
         m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most,
                                            vars_old, Theta_prim, Qv_prim, Qr_prim, z_phys_nd,
-                                           sst_lev, lmask_lev, lsm_data, lsm_flux, Hwave, Lwave, eddyDiffs_lev
+                                           sst_lev, lmask_lev, lsm_data, lsm_flux,
+                                           Hwave, Lwave, eddyDiffs_lev
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
                                            );
+
+
+        if (restart_chkfile != "") {
+            // Update surface fields if needed
+            ReadCheckpointFileMOST();
+        }
 
         // We now configure ABLMost params here so that we can print the averages at t=0
         // Note we don't fill ghost cells here because this is just for diagnostics
@@ -966,20 +1001,34 @@ ERF::InitData ()
         {
             Real time  = t_new[lev];
             IntVect ng = Theta_prim[lev]->nGrowVect();
-            MultiFab S(vars_new[lev][Vars::cons],make_alias,0,RhoTheta_comp+1);
-            MultiFab::Copy(  *Theta_prim[lev], S, RhoTheta_comp, 0, 1, ng);
-            MultiFab::Divide(*Theta_prim[lev], S, Rho_comp     , 0, 1, ng);
+
+            MultiFab::Copy(  *Theta_prim[lev], vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, ng);
+            MultiFab::Divide(*Theta_prim[lev], vars_new[lev][Vars::cons],      Rho_comp, 0, 1, ng);
+
             if (solverChoice.moisture_type != MoistureType::None) {
                 ng = Qv_prim[lev]->nGrowVect();
-                int RhoQr_comp = (micro->Get_Qstate_Size() > 3) ? RhoQ4_comp : RhoQ3_comp;
-                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,RhoQr_comp+1);
-                MultiFab::Copy(  *Qv_prim[lev], Sm, RhoQ1_comp, 0, 1, ng);
-                MultiFab::Copy(  *Qr_prim[lev], Sm, RhoQr_comp, 0, 1, ng);
-                MultiFab::Divide(*Qv_prim[lev], Sm, Rho_comp  , 0, 1, ng);
-                MultiFab::Divide(*Qr_prim[lev], Sm, Rho_comp  , 0, 1, ng);
+
+                MultiFab::Copy(  *Qv_prim[lev], vars_new[lev][Vars::cons], RhoQ1_comp, 0, 1, ng);
+                MultiFab::Divide(*Qv_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
+
+                int rhoqr_comp = solverChoice.RhoQr_comp;
+                if (rhoqr_comp > -1) {
+                    MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
+                    MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
+                } else {
+                    Qr_prim[lev]->setVal(0.0);
+                }
             }
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
-            m_most->update_fluxes(lev, time);
+
+            if (restart_chkfile == "") {
+                // Only do this if starting from scratch; if restarting, then
+                // we don't want to call update_fluxes multiple times because
+                // it will change u* and theta* from their previous values
+                m_most->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
+                                    solverChoice.RhoQv_comp, solverChoice.RhoQr_comp);
+                m_most->update_fluxes(lev, time);
+            }
         }
     }
 
@@ -1035,7 +1084,6 @@ ERF::InitData ()
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...
-    ParmParse pp("erf");
     if (pp.contains("data_log"))
     {
         int num_datalogs = pp.countval("data_log");
@@ -1276,7 +1324,7 @@ ERF::init_only (int lev, Real time)
     }
 }
 
-// read in some parameters from inputs file
+// Read in some parameters from inputs file
 void
 ERF::ReadParameters ()
 {
@@ -1330,53 +1378,13 @@ ERF::ReadParameters ()
         pp.query("fixed_fast_dt", fixed_fast_dt);
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
-        // If this is set, it must be even
-        if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
-        {
-            Abort("If you specify fixed_mri_dt_ratio, it must be even");
-        }
-
-        // If both fixed_dt and fast_dt are specified, their ratio must be an even integer
-        if (fixed_dt > 0. && fixed_fast_dt > 0. && fixed_mri_dt_ratio <= 0)
-        {
-            Real eps = 1.e-12;
-            int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt ) / fixed_fast_dt );
-            if (fixed_dt / fixed_fast_dt != ratio)
-            {
-                Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
-            }
-        }
-
-        // If all three are specified, they must be consistent
-        if (fixed_dt > 0. && fixed_fast_dt > 0. &&  fixed_mri_dt_ratio > 0)
-        {
-            if (fixed_dt / fixed_fast_dt != fixed_mri_dt_ratio)
-            {
-                Abort("Dt is over-specfied");
-            }
-        }
-
-        AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt > 0.);
-
         // How to initialize
         pp.query("init_type",init_type);
-        if (!init_type.empty() &&
-            init_type != "uniform" &&
-            init_type != "ideal" &&
-            init_type != "real" &&
-            init_type != "metgrid" &&
-            init_type != "input_sounding")
-        {
-            Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
-        }
 
         // Should we use the bcs we've read in from wrfbdy or metgrid files?
         // We default to yes if we have them, but the user can override that option
         use_real_bcs = ( (init_type == "real") || (init_type == "metgrid") );
         pp.query("use_real_bcs",use_real_bcs);
-
-        // We don't allow use_real_bcs to be true if init_type is not either real or metgrid
-        AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == "real") || (init_type == "metgrid")) );
 
         // No moving terrain with init real
         if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {
@@ -1389,10 +1397,6 @@ ERF::ReadParameters ()
         // We use this to keep track of how many boxes are specified thru the refinement indicators
         num_boxes_at_level.resize(max_level+1,0);
             boxes_at_level.resize(max_level+1);
-
-        // These hold the minimum and maximum value of k in the boxes *at each level*
-        min_k_at_level.resize(max_level+1,0);
-        max_k_at_level.resize(max_level+1,0);
 
         // We always have exactly one file at level 0
         num_boxes_at_level[0] = 1;
@@ -1427,13 +1431,6 @@ ERF::ReadParameters ()
 
         // Output format
         pp.query("plotfile_type", plotfile_type);
-        if (plotfile_type != "amrex" &&
-            plotfile_type != "netcdf" && plotfile_type != "NetCDF" &&
-            plotfile_type != "hdf5"   && plotfile_type != "HDF5" )
-        {
-            Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
-            Abort("Dont know this plotfile_type");
-        }
         pp.query("plot_file_1",   plot_file_1);
         pp.query("plot_file_2",   plot_file_2);
         pp.query("plot_int_1" , m_plot_int_1);
@@ -1450,6 +1447,9 @@ ERF::ReadParameters ()
         pp.query("destag_profiles", destag_profiles);
 
         pp.query("plot_lsm", plot_lsm);
+#ifdef ERF_USE_RRTMGP
+        pp.query("plot_rad", plot_rad);
+#endif
 
         pp.query("output_1d_column", output_1d_column);
         pp.query("column_per", column_per);
@@ -1470,25 +1470,10 @@ ERF::ReadParameters ()
         // Query the set and total widths for wrfbdy interior ghost cells
         pp.query("real_width", real_width);
         pp.query("real_set_width", real_set_width);
-        AMREX_ALWAYS_ASSERT(real_width >= 0);
-        AMREX_ALWAYS_ASSERT(real_set_width >= 0);
-        AMREX_ALWAYS_ASSERT(real_width >= real_set_width);
 
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
-        if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
-            Abort("You must set cf_width >= cf_set_width >= 0");
-        }
-        if (max_level > 0 && cf_set_width > 0) {
-            for (int lev = 1; lev <= max_level; lev++) {
-                if (cf_set_width%ref_ratio[lev-1][0] != 0 ||
-                    cf_set_width%ref_ratio[lev-1][1] != 0 ||
-                    cf_set_width%ref_ratio[lev-1][2] != 0 ) {
-                    Abort("You must set cf_width to be a multiple of ref_ratio");
-                }
-            }
-        }
 
         // AmrMesh iterate on grids?
         bool iterate(true);
@@ -1523,6 +1508,86 @@ ERF::ReadParameters ()
 
     if (verbose > 0) {
         solverChoice.display(max_level);
+    }
+
+    ParameterSanityChecks();
+}
+
+// Read in some parameters from inputs file
+void
+ERF::ParameterSanityChecks ()
+{
+    AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt > 0.);
+
+    // We don't allow use_real_bcs to be true if init_type is not either real or metgrid
+    AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == "real") || (init_type == "metgrid")) );
+
+    AMREX_ALWAYS_ASSERT(real_width >= 0);
+    AMREX_ALWAYS_ASSERT(real_set_width >= 0);
+    AMREX_ALWAYS_ASSERT(real_width >= real_set_width);
+
+    if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
+        Abort("You must set cf_width >= cf_set_width >= 0");
+    }
+    if (max_level > 0 && cf_set_width > 0) {
+        for (int lev = 1; lev <= max_level; lev++) {
+            if (cf_set_width%ref_ratio[lev-1][0] != 0 ||
+                cf_set_width%ref_ratio[lev-1][1] != 0 ||
+                cf_set_width%ref_ratio[lev-1][2] != 0 ) {
+                Abort("You must set cf_width to be a multiple of ref_ratio");
+            }
+        }
+    }
+
+    if (plotfile_type != "amrex" &&
+        plotfile_type != "netcdf" && plotfile_type != "NetCDF" &&
+        plotfile_type != "hdf5"   && plotfile_type != "HDF5" )
+    {
+        Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
+        Abort("Dont know this plotfile_type");
+    }
+
+    // Enforce the init_type is one we know
+    if (!init_type.empty() &&
+        init_type != "uniform" &&
+        init_type != "ideal" &&
+        init_type != "real" &&
+        init_type != "metgrid" &&
+        init_type != "input_sounding")
+    {
+        Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
+    }
+
+    // If fixed_mri_dt_ratio is set, it must be even
+    if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
+    {
+        Abort("If you specify fixed_mri_dt_ratio, it must be even");
+    }
+
+    // We ignore fixed_fast_dt if not substepping
+    if (solverChoice.no_substepping && fixed_fast_dt > 0.) {
+        fixed_fast_dt = -1.0;
+        Warning("fixed_fast_dt will be ignored since we are not substepping");
+
+
+    // If both fixed_dt and fast_dt are specified, their ratio must be an even integer
+    } else if (fixed_dt > 0. && fixed_fast_dt > 0. && fixed_mri_dt_ratio <= 0)
+    {
+        Real eps = 1.e-12;
+        int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt ) / fixed_fast_dt );
+        if (fixed_dt / fixed_fast_dt != ratio)
+        {
+            Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
+        }
+    }
+
+    // If all three are specified, they must be consistent
+    if (fixed_dt > 0. && fixed_fast_dt > 0. &&  fixed_mri_dt_ratio > 0)
+    {
+        if (fixed_dt / fixed_fast_dt != fixed_mri_dt_ratio)
+        {
+            Abort("Dt is over-specfied");
+        }
     }
 
     if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
@@ -1845,87 +1910,6 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 {
     SetParmParsePrefix(prefix);
 
-    if (ParallelDescriptor::IOProcessor()) {
-        const char* erf_hash = buildInfoGetGitHash(1);
-        const char* amrex_hash = buildInfoGetGitHash(2);
-        const char* buildgithash = buildInfoGetBuildGitHash();
-        const char* buildgitname = buildInfoGetBuildGitName();
-
-        if (strlen(erf_hash) > 0) {
-          Print() << "\n"
-                         << "ERF git hash: " << erf_hash << "\n";
-        }
-        if (strlen(amrex_hash) > 0) {
-          Print() << "AMReX git hash: " << amrex_hash << "\n";
-        }
-        if (strlen(buildgithash) > 0) {
-          Print() << buildgitname << " git hash: " << buildgithash << "\n";
-        }
-
-        Print() << "\n";
-    }
-
-    int nlevs_max = max_level + 1;
-
-#ifdef ERF_USE_WINDFARM
-    Nturb.resize(nlevs_max);
-    vars_windfarm.resize(nlevs_max);
-#endif
-
-#if defined(ERF_USE_RRTMGP)
-    qheating_rates.resize(nlevs_max);
-    sw_lw_fluxes.resize(nlevs_max);
-    solar_zenith.resize(nlevs_max);
-#endif
-
-    // NOTE: size micro before readparams (chooses the model at all levels)
-    lsm.ReSize(nlevs_max);
-    lsm_data.resize(nlevs_max);
-    lsm_flux.resize(nlevs_max);
-
-    ReadParameters();
-    initializeMicrophysics(nlevs_max);
-
-    const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
-    const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
-
-    prob = amrex_probinit(geom[0].ProbLo(), geom[0].ProbHi());
-
-    // Geometry on all levels has been defined already.
-
-    // No valid BoxArray and DistributionMapping have been defined.
-    // But the arrays for them have been resized.
-
-    istep.resize(nlevs_max, 0);
-    nsubsteps.resize(nlevs_max, 1);
-    for (int lev = 1; lev <= max_level; ++lev) {
-        nsubsteps[lev] = MaxRefRatio(lev-1);
-    }
-
-    t_new.resize(nlevs_max, 0.0);
-    t_old.resize(nlevs_max, -1.e100);
-    dt.resize(nlevs_max, 1.e100);
-    dt_mri_ratio.resize(nlevs_max, 1);
-
-    vars_new.resize(nlevs_max);
-    vars_old.resize(nlevs_max);
-
-    for (int lev = 0; lev < nlevs_max; ++lev) {
-        vars_new[lev].resize(Vars::NumTypes);
-        vars_old[lev].resize(Vars::NumTypes);
-    }
-
-    rU_new.resize(nlevs_max);
-    rV_new.resize(nlevs_max);
-    rW_new.resize(nlevs_max);
-
-    rU_old.resize(nlevs_max);
-    rV_old.resize(nlevs_max);
-    rW_old.resize(nlevs_max);
-
-    mri_integrator_mem.resize(nlevs_max);
-    physbcs.resize(nlevs_max);
-
     // Multiblock: public domain sizes (need to know which vars are nodal)
     Box nbx;
     domain_p.push_back(geom[0].Domain());
@@ -1936,69 +1920,11 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     nbx = convert(domain_p[0],IntVect(0,0,1));
     domain_p.push_back(nbx);
 
-    advflux_reg.resize(nlevs_max);
-
-    // Stresses
-    Tau11_lev.resize(nlevs_max); Tau22_lev.resize(nlevs_max); Tau33_lev.resize(nlevs_max);
-    Tau12_lev.resize(nlevs_max); Tau21_lev.resize(nlevs_max);
-    Tau13_lev.resize(nlevs_max); Tau31_lev.resize(nlevs_max);
-    Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
-    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
-    SFS_diss_lev.resize(nlevs_max);
-    SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
-    SFS_q2fx3_lev.resize(nlevs_max);
-    eddyDiffs_lev.resize(nlevs_max);
-    SmnSmn_lev.resize(nlevs_max);
-
-    // Sea surface temps
-    sst_lev.resize(nlevs_max);
-    lmask_lev.resize(nlevs_max);
-
-    // Metric terms
-    z_phys_nd.resize(nlevs_max);
-    z_phys_cc.resize(nlevs_max);
-    detJ_cc.resize(nlevs_max);
-    z_phys_nd_new.resize(nlevs_max);
-    detJ_cc_new.resize(nlevs_max);
-    z_phys_nd_src.resize(nlevs_max);
-    detJ_cc_src.resize(nlevs_max);
-    z_t_rk.resize(nlevs_max);
-
-    // Mapfactors
-    mapfac_m.resize(nlevs_max);
-    mapfac_u.resize(nlevs_max);
-    mapfac_v.resize(nlevs_max);
-
-    // Base state
-    base_state.resize(nlevs_max);
-    base_state_new.resize(nlevs_max);
-
-    // Wave coupling data
-    Hwave.resize(nlevs_max);
-    Lwave.resize(nlevs_max);
-    for (int lev = 0; lev < max_level; ++lev)
-    {
-        Hwave[lev] = nullptr;
-        Lwave[lev] = nullptr;
-    }
-
-    // Theta prim for MOST
-    Theta_prim.resize(nlevs_max);
-
-    // Time averaged velocity field
-    vel_t_avg.resize(nlevs_max);
-    t_avg_cnt.resize(nlevs_max);
-
-    // Initialize tagging criteria for mesh refinement
-    refinement_criteria_setup();
-
-    for (int lev = 0; lev < max_level; ++lev)
-    {
-       Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
-          ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
-    }
+    ERF_shared();
 }
+#endif
 
+#ifdef ERF_USE_MULTIBLOCK
 // advance solution over specified block steps
 void
 ERF::Evolve_MB (int MBstep, int max_block_step)

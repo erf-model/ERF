@@ -71,7 +71,7 @@ erf.les_type        = "None"
 #erf.rho0_trans      = 1.3223 # from Cuxart et al. 2006
 #erf.theta_ref       = 263.5 # from Cuxart et al. 2006
 
-erf.pbl_type    = "MYNN2.5"
+erf.pbl_type    = MYNN25
 
 # Initial conditions from Beare et al. 2006
 prob.KE_0            = 0.4 # [m2/s2]

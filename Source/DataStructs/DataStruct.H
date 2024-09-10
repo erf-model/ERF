@@ -104,16 +104,26 @@ struct SolverChoice {
         pp.query("moisture_model", moisture_model_string);
         if (moisture_model_string == "SAM") {
             moisture_type = MoistureType::SAM;
+            RhoQv_comp = RhoQ1_comp;
+            RhoQr_comp = RhoQ4_comp;
         } else if (moisture_model_string == "SAM_NoIce") {
             moisture_type = MoistureType::SAM_NoIce;
+            RhoQv_comp = RhoQ1_comp;
+            RhoQr_comp = RhoQ4_comp;
         } else if (moisture_model_string == "SAM_NoPrecip_NoIce") {
             moisture_type = MoistureType::SAM_NoPrecip_NoIce;
+            RhoQv_comp = RhoQ1_comp;
         } else if (moisture_model_string == "Kessler") {
             moisture_type = MoistureType::Kessler;
+            RhoQv_comp = RhoQ1_comp;
+            RhoQr_comp = RhoQ3_comp;
         }else if (moisture_model_string == "Kessler_NoRain") {
             moisture_type = MoistureType::Kessler_NoRain;
+            RhoQv_comp = RhoQ1_comp;
         } else if (moisture_model_string == "SuperDroplets") {
             moisture_type = MoistureType::SuperDroplets;
+            RhoQv_comp = RhoQ1_comp;
+            RhoQr_comp = RhoQ3_comp;
         } else {
             moisture_type = MoistureType::None;
         }
@@ -321,6 +331,20 @@ struct SolverChoice {
             turbChoice[lev].init_params(lev,max_level);
         }
 
+        // YSU PBL: use consistent coriolis frequency
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (turbChoice[lev].pbl_ysu_use_consistent_coriolis) {
+                if (use_coriolis) {
+                    turbChoice[lev].pbl_ysu_coriolis_freq = coriolis_factor * sinphi;
+                    if (lev == 0) {
+                        amrex::Print() << "YSU PBL using ERF coriolis frequency: " << turbChoice[lev].pbl_ysu_coriolis_freq << std::endl;
+                    }
+                } else {
+                    amrex::Abort("YSU cannot use ERF coriolis frequency if not using coriolis");
+                }
+            }
+        }
+
         // Warn for PBL models and moisture - these may not yet be compatible
         for (int lev = 0; lev <= max_level; lev++) {
             if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
@@ -375,6 +399,18 @@ struct SolverChoice {
 
         pp.query("windfarm_loc_table",  windfarm_loc_table);
         pp.query("windfarm_spec_table", windfarm_spec_table);
+
+        // Sampling distance upstream of the turbine to find the
+        // incoming free stream velocity as a factor of the diameter of the
+        // turbine. ie. the sampling distance will be this number multiplied
+        // by the diameter of the turbine
+        pp.query("sampling_distance_by_D", sampling_distance_by_D);
+        if(windfarm_type==WindFarmType::SimpleAD and sampling_distance_by_D < 0.0) {
+             amrex::Abort("To use simplified actuator disks, you need to provide a variable "
+                           "erf.sampling_distance_by_D in the inputs which specifies the upstream "
+                           "distance as a factor of the turbine diameter at which the incoming free stream "
+                           "velocity will be computed at");
+        }
 
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
@@ -577,8 +613,16 @@ struct SolverChoice {
     bool do_cloud {true};
     bool do_precip {true};
     bool use_moist_background {false};
+    int RhoQv_comp {-1};
+
+    // This component will be model-dependent:
+    // if a model with no rain, this will stay -1
+    // if Kessler, then it will be set to RhoQ3
+    // if     SAM, then it will be set to RhoQ4
+    int RhoQr_comp {-1};
 
     amrex::Real latitude_lo=-1e10, longitude_lo=-1e10;
     std::string windfarm_loc_table, windfarm_spec_table;
+    amrex::Real sampling_distance_by_D=-1.0;
 };
 #endif

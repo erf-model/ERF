@@ -2,7 +2,7 @@
 // parameterization provides the tracer particle properties
 // that are not provided by the microphysics model
 //
-#ifndef ERF_PARAMETERIZATIONS_H
+#ifndef ERF_PARAMETERIZATIONS_H_
 #define ERF_PARAMETERIZATIONS_H_
 
 #include "rrtmgp_const.h"

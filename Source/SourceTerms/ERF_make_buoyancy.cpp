@@ -16,16 +16,17 @@ using namespace amrex;
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  *
- * @param[in]  S_data current solution
- * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
- * @param[out] buoyancy the buoyancy term computed here
- * @param[in]  qmoist moisture variables (in order: qv, qc, qi, ...)
- * @param[in]  qv_d   lateral average of cloud vapor
- * @param[in]  qc_d   lateral average of cloud vapor
- * @param[in]  qd_d   lateral average of cloud vapor
- * @param[in]  geom   Container for geometric information
+ * @param[in]  S_data        current solution
+ * @param[in]  S_prim        primitive variables (i.e. conserved variables divided by density)
+ * @param[out] buoyancy      buoyancy term computed here
+ * @param[in]  qmoist        moisture variables (in order: qv, qc, qi, ...)
+ * @param[in]  qv_d          lateral average of cloud vapor
+ * @param[in]  qc_d          lateral average of cloud vapor
+ * @param[in]  qd_d          lateral average of cloud vapor
+ * @param[in]  geom          Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
- * @param[in]  r0     Reference (hydrostatically stratified) density
+ * @param[in]  r0            Reference (hydrostatically stratified) density
+ * @param[in]  n_qstate      Number of moist variables used by the current model
  */
 
 void make_buoyancy (Vector<MultiFab>& S_data,
@@ -34,7 +35,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
                     const MultiFab* r0,
-                    const int& qstate_size)
+                    const int n_qstate)
 {
     BL_PROFILE("make_buoyancy()");
 
@@ -159,7 +160,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 {
                     Real rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) - r0_arr(i,j,k  );
                     Real rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
-                    for (int q_offset(2); q_offset<qstate_size; ++q_offset) {
+                    for (int q_offset(2); q_offset<n_qstate; ++q_offset) {
                         rhop_hi += cell_data(i,j,k  ,RhoQ1_comp+q_offset);
                         rhop_lo += cell_data(i,j,k-1,RhoQ1_comp+q_offset);
                     }
@@ -191,19 +192,17 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             Real* theta_d_ptr = theta_d.data();
 
             // Average valid moisture vars
-            int n_prim_max  = NVAR_max - 1;
-            int n_moist_var = NMOIST_max - (S_prim.nComp() - n_prim_max);
             Gpu::HostVector  <Real> qv_h(ncell)    , qc_h(ncell)    , qp_h(ncell);
             Gpu::DeviceVector<Real> qv_d(ncell,0.0), qc_d(ncell,0.0), qp_d(ncell,0.0);
-            if (n_moist_var >=1) {
+            if (n_qstate >=1) {
                 prim_ave.line_average(PrimQ1_comp, qv_h);
                 Gpu::copyAsync(Gpu::hostToDevice,  qv_h.begin(), qv_h.end(), qv_d.begin());
             }
-            if (n_moist_var >=2) {
+            if (n_qstate >=2) {
                 prim_ave.line_average(PrimQ2_comp, qc_h);
                 Gpu::copyAsync(Gpu::hostToDevice,  qc_h.begin(), qc_h.end(), qc_d.begin());
             }
-            if (n_moist_var >=3) {
+            if (n_qstate >=3) {
                 prim_ave.line_average(PrimQ3_comp, qp_h);
                 Gpu::copyAsync(Gpu::hostToDevice,  qp_h.begin(), qp_h.end(), qp_d.begin());
             }
@@ -243,14 +242,14 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                         Real qplus, qminus;
 
-                        Real qv_plus  = (n_moist_var >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
-                        Real qv_minus = (n_moist_var >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
+                        Real qv_plus  = (n_qstate >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
+                        Real qv_minus = (n_qstate >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
 
-                        Real qc_plus  = (n_moist_var >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
-                        Real qc_minus = (n_moist_var >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
+                        Real qc_plus  = (n_qstate >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
+                        Real qc_minus = (n_qstate >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
 
-                        Real qp_plus  = (n_moist_var >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
-                        Real qp_minus = (n_moist_var >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
+                        Real qp_plus  = (n_qstate >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
+                        Real qp_minus = (n_qstate >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
 
                         if (buoyancy_type == 2) {
                             qplus  = 0.61 * ( qv_plus - qv_d_ptr[k] ) -
@@ -313,14 +312,14 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                                                          cell_data(i,j,k-1,RhoTheta_comp),
                                                          cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp));
 
-                        Real qv_plus  = (n_moist_var >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
-                        Real qv_minus = (n_moist_var >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
+                        Real qv_plus  = (n_qstate >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
+                        Real qv_minus = (n_qstate >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
 
-                        Real qc_plus  = (n_moist_var >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
-                        Real qc_minus = (n_moist_var >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
+                        Real qc_plus  = (n_qstate >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
+                        Real qc_minus = (n_qstate >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
 
-                        Real qp_plus  = (n_moist_var >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
-                        Real qp_minus = (n_moist_var >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
+                        Real qp_plus  = (n_qstate >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
+                        Real qp_minus = (n_qstate >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
 
                         Real qplus  = 0.61 * qv_plus  - (qc_plus  + qp_plus)  + (tempp3d-tempp1d)/tempp1d;
 

@@ -216,6 +216,17 @@ ERF::WriteCheckpointFile () const
         MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ng);
         MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ng);
         VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
+
+        if (m_most && m_most->have_variable_sea_roughness())  {
+            amrex::Print() << "Writing variable surface roughness" << std::endl;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab z0(ba2d,dmap[lev],1,ng);
+            for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.growntilebox();
+                z0[mfi].copy<RunOn::Host>(*(m_most->get_z0(lev)), bx);
+            }
+            VisMF::Write(z0, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
+        }
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -571,4 +582,35 @@ ERF::ReadCheckpointFile ()
         }
     } // init real
 #endif
+}
+
+/**
+ * ERF function for reading additional data for MOST from a checkpoint file during restart.
+ *
+ * This is called after the ABLMost object is instantiated.
+ */
+void
+ERF::ReadCheckpointFileMOST ()
+{
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        // Note that we read the ghost cells
+        BoxList bl2d = grids[lev].boxList();
+        for (auto& b : bl2d) {
+            b.setRange(2,0);
+        }
+        BoxArray ba2d(std::move(bl2d));
+
+        if (m_most->have_variable_sea_roughness())  {
+            amrex::Print() << "Reading variable surface roughness" << std::endl;
+            IntVect ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab z0_in(ba2d,dmap[lev],1,ng);
+            VisMF::Read(z0_in, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
+            auto z0 = const_cast<FArrayBox*>(m_most->get_z0(lev));
+            for (amrex::MFIter mfi(z0_in); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.growntilebox();
+                z0->copy<RunOn::Host>(z0_in[mfi], bx);
+            }
+        }
+    }
 }

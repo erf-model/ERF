@@ -10,6 +10,11 @@
 #include <ERF_FillPatcher.H>
 
 /*
+ * Create a new BoxArray in which every grid touches the bottom boundary
+ */
+void ChopGrids2D (amrex::BoxArray& ba, const amrex::Box& domain, int target_size);
+
+/*
  * Create the Jacobian for the metric transformation when use_terrain is true
  */
 void make_J (const amrex::Geometry& geom,

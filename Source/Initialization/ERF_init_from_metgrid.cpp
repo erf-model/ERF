@@ -891,7 +891,9 @@ init_base_state_from_metgrid (const bool use_moisture,
                 Qv = new_data(i,j,k,RhoQ_comp);
                 new_data(i,j,k,RhoQ_comp) *= r_hse_arr(i,j,k);
             }
-            new_data(i,j,k,RhoScalar_comp) = 0.0;
+            for (int n = 0; n < NSCALARS; n++) {
+                new_data(i,j,k,RhoScalar_comp+n) = 0.0;
+            }
 
             // r_hse needs to include the moisture (account for that here)
             r_hse_arr(i,j,k) *= (1.0 + Qv);

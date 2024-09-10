@@ -5,7 +5,8 @@
 #include <ERF.H>
 #include <TileNoZ.H>
 #include <prob_common.H>
-#include <Utils/ParFunctions.H>
+#include <ParFunctions.H>
+#include <Utils.H>
 
 #include <Interpolation_1D.H>
 
@@ -61,7 +62,10 @@ ERF::setRayleighRefFromSounding (bool restarting)
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
     if (restarting) {
-        input_sounding_data.read_from_file(geom[0], zlevels_stag, 0);
+        input_sounding_data.resize_arrays();
+        for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
+            input_sounding_data.read_from_file(geom[0], zlevels_stag, n);
+        }
     }
 
     const Real* z_inp_sound     = input_sounding_data.z_inp_sound[0].dataPtr();
@@ -78,7 +82,7 @@ ERF::setRayleighRefFromSounding (bool restarting)
         if (z_phys_cc[lev]) {
             // use_terrain=1
             // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
+            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
         } else {
             const auto *const prob_lo = geom[lev].ProbLo();
             const auto *const dx = geom[lev].CellSize();
@@ -173,7 +177,7 @@ ERF::setSpongeRefFromSounding (bool restarting)
         if (z_phys_cc[lev]) {
             // use_terrain=1
             // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
+            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
         } else {
             const auto *const prob_lo = geom[lev].ProbLo();
             const auto *const dx = geom[lev].CellSize();
@@ -204,20 +208,75 @@ ERF::setSpongeRefFromSounding (bool restarting)
 void
 ERF::initHSE (int lev)
 {
+    // This integrates up through column to update p_hse, pi_hse;
+    // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
+
     MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
-    // Initial r_hse may or may not be in HSE -- defined in prob.cpp
-    if (solverChoice.use_moist_background){
-        prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
-    } else {
-        prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+    bool all_boxes_touch_bottom = true;
+    Box domain(geom[lev].Domain());
+
+    if (lev == 0) {
+        BoxArray ba(base_state[lev].boxArray());
+        for (int i = 0; i < ba.size(); i++) {
+            if (ba[i].smallEnd(2) != domain.smallEnd(2)) {
+                all_boxes_touch_bottom = false;
+            }
+        }
     }
 
-    // This integrates up through column to update p_hse, pi_hse;
-    // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
-    erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+    if (all_boxes_touch_bottom || lev > 0) {
+
+        // Initial r_hse may or may not be in HSE -- defined in prob.cpp
+        if (solverChoice.use_moist_background){
+            prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
+        } else {
+            prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+        }
+
+        erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+
+    } else {
+
+        BoxArray ba_new(domain);
+
+        ChopGrids2D(ba_new, domain, ParallelDescriptor::NProcs());
+
+        DistributionMapping dm_new(ba_new);
+
+        MultiFab new_base_state(ba_new, dm_new, 3, 1);
+        new_base_state.ParallelCopy(base_state[lev],0,0,3,1,1);
+
+        MultiFab new_r_hse (new_base_state, make_alias, 0, 1); // r_0  is first  component
+        MultiFab new_p_hse (new_base_state, make_alias, 1, 1); // p_0  is second component
+        MultiFab new_pi_hse(new_base_state, make_alias, 2, 1); // pi_0 is third  component
+
+        std::unique_ptr<MultiFab> new_z_phys_cc;
+        std::unique_ptr<MultiFab> new_z_phys_nd;
+        if (solverChoice.use_terrain) {
+            new_z_phys_cc = std::make_unique<MultiFab>(ba_new,dm_new,1,1);
+            new_z_phys_cc->ParallelCopy(*z_phys_cc[lev],0,0,1,1,1);
+
+            BoxArray ba_new_nd(ba_new);
+            ba_new_nd.surroundingNodes();
+            new_z_phys_nd = std::make_unique<MultiFab>(ba_new_nd,dm_new,1,1);
+            new_z_phys_nd->ParallelCopy(*z_phys_nd[lev],0,0,1,1,1);
+        }
+
+        // Initial r_hse may or may not be in HSE -- defined in prob.cpp
+        if (solverChoice.use_moist_background){
+            prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev]);
+        } else {
+            prob->erf_init_dens_hse(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev]);
+        }
+
+        erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_z_phys_cc);
+
+        // Now copy back into the original arrays
+        base_state[lev].ParallelCopy(new_base_state,0,0,3,1,1);
+    }
 
 }
 
@@ -303,7 +362,7 @@ ERF::erf_enforce_hse (int lev,
                 pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
 
             } else {
-                // If klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
+                // If level > 0 and klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
                 //    filled from FillPatch-ing it.
                 Real dz_loc;
                 if (l_use_terrain) {

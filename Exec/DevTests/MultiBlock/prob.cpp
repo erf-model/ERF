@@ -45,7 +45,7 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice&)
+    const SolverChoice& sc)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 

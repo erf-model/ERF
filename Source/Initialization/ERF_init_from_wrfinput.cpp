@@ -76,8 +76,8 @@ init_state_from_wrfinput (int lev,
                           const Vector<FArrayBox>& NC_zvel_fab,
                           const Vector<FArrayBox>& NC_rho_fab,
                           const Vector<FArrayBox>& NC_rhotheta_fab,
-                          MoistureType moisture_type,
-                          const int& n_qstate);
+                          const int n_qstate,
+                          const int RhoQr_comp);
 
 void
 init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
@@ -185,7 +185,7 @@ ERF::init_from_wrfinput (int lev)
                                  NC_QVAPOR_fab, NC_QCLOUD_fab, NC_QRAIN_fab,
                                  NC_xvel_fab, NC_yvel_fab, NC_zvel_fab,
                                  NC_rho_fab, NC_rhoth_fab,
-                                 solverChoice.moisture_type, n_qstate);
+                                 n_qstate, solverChoice.RhoQr_comp);
     } // mf
 
     auto& ba = lev_new[Vars::cons].boxArray();
@@ -362,8 +362,8 @@ init_state_from_wrfinput (int /*lev*/,
                           const Vector<FArrayBox>& NC_zvel_fab,
                           const Vector<FArrayBox>& NC_rho_fab,
                           const Vector<FArrayBox>& NC_rhotheta_fab,
-                          MoistureType moisture_type,
-                          const int& n_qstate)
+                          const int n_qstate,
+                          const int RhoQr_comp)
 {
     int nboxes = NC_xvel_fab.size();
     for (int idx = 0; idx < nboxes; idx++)
@@ -389,22 +389,19 @@ init_state_from_wrfinput (int /*lev*/,
         // This copies (rho*theta)
         state_fab.template copy<RunOn::Device>(NC_rhotheta_fab[idx], 0, RhoTheta_comp, 1);
 
-        if (moisture_type != MoistureType::None)
-        {
-            if (n_qstate >= 1) {
-              state_fab.template copy<RunOn::Device>(NC_QVAPOR_fab[idx], 0, RhoQ1_comp, 1);
-              state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ1_comp, 1);
-            }
+        if (n_qstate >= 1) {
+          state_fab.template copy<RunOn::Device>(NC_QVAPOR_fab[idx], 0, RhoQ1_comp, 1);
+          state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ1_comp, 1);
+        }
 
-            if (n_qstate >= 2) {
-              state_fab.template copy<RunOn::Device>(NC_QCLOUD_fab[idx], 0, RhoQ2_comp, 1);
-              state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ2_comp, 1);
-            }
+        if (n_qstate >= 2) {
+          state_fab.template copy<RunOn::Device>(NC_QCLOUD_fab[idx], 0, RhoQ2_comp, 1);
+          state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ2_comp, 1);
+        }
 
-            if (n_qstate >= 3) {
-                state_fab.template copy<RunOn::Device>(NC_QRAIN_fab[idx], 0, RhoQ3_comp, 1);
-                state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]  , 0, RhoQ3_comp, 1);
-            }
+        if (n_qstate >= 3) {
+            state_fab.template copy<RunOn::Device>(NC_QRAIN_fab[idx], 0, RhoQr_comp, 1);
+            state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]  , 0, RhoQr_comp, 1);
         }
     } // idx
 }

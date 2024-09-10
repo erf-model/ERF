@@ -74,14 +74,18 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
 
             ParallelFor(
                 bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    if (bc_ptr[icomp+n].lo(0) == ERFBCType::ext_dir_ingested) {
+                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
+                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    if (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_ingested) {
                         int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                         int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                         dest_arr(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
                     }
                 },
                 bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    if (bc_ptr[icomp+n].hi(0) == ERFBCType::ext_dir_ingested) {
+                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
+                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    if (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_ingested) {
                         int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                         int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                         dest_arr(i,j,k,icomp+n) = bdatxhi(dom_hi.x+1,jb,kb,bccomp+n);
@@ -100,14 +104,18 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
 
             ParallelFor(
                bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    if (bc_ptr[icomp+n].lo(1) == ERFBCType::ext_dir_ingested) {
+                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
+                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    if (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_ingested) {
                         int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                         int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                         dest_arr(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
                     }
                 },
                 bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    if (bc_ptr[icomp+n].hi(1) == ERFBCType::ext_dir_ingested) {
+                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
+                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    if (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_ingested) {
                         int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                         int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                         dest_arr(i,j,k,icomp+n) = bdatyhi(ib,dom_hi.y+1,kb,bccomp+n);

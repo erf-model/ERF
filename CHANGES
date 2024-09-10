@@ -1,3 +1,20 @@
+#24.09
+    -- AMReX submodule set to 24.09 release hash (74127d6)
+
+    -- Arbitrary number of scalars similar to WRF chem (#1782)
+
+    -- PBL reorganization and additions for hurricane sims (#1756)
+
+    -- Vertical decomposition (#1766)
+
+    -- Upstream velocity computation for actuator disk (#1751)
+
+    -- High order diffusion stencil at all Dirichlet faces (#1753)
+
+    -- MOST stress rotations with terrain (#1739)
+
+    -- Anlestic option (#1745)
+
 # 24.08
     -- AMReX submodule set to 24.08 release hash (ac5dde3)
 

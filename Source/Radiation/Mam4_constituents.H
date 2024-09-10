@@ -313,8 +313,8 @@ class MamConstituents {
 
     // Return pointer to mass mixing ratio for the gas from the specified
     // climate or diagnostic list.
-    const inline
-    void rad_cnst_get_gas (int list_idx, const std::string& gasname, real2d& mmr)
+    inline
+    void rad_cnst_get_gas (int list_idx, const std::string& gasname, real2d& mmr) const
     {
         gaslist_t list;
         if (list_idx >= 0 && list_idx <= N_DIAG) {
@@ -347,29 +347,25 @@ class MamConstituents {
         //   end select
     }
 
-    const
-    void get_nmodes (int list_idx, int& nmodes)
+    void get_nmodes (int list_idx, int& nmodes) const
     {
         auto m_list = ma_list[list_idx];
         nmodes = m_list.nmodes;
     }
 
-    const
-    void get_ngas (int list_idx, int& ngas)
+    void get_ngas (int list_idx, int& ngas) const
     {
         auto g_list = gaslist[list_idx];
         ngas = g_list.ngas;
     }
 
-    const
-    void get_naero (int list_idx, int& naero)
+    void get_naero (int list_idx, int& naero) const
     {
         auto a_list = aerosollist[list_idx];
         naero = a_list.numaerosols;
     }
 
-    const
-    void get_gas_names (int list_idx, std::vector<std::string>& gasnames, bool use_data_o3=false)
+    void get_gas_names (int list_idx, std::vector<std::string>& gasnames, bool& use_data_o3) const
     {
         auto g_list = gaslist[list_idx];
 
@@ -386,8 +382,7 @@ class MamConstituents {
         if (source == "N") use_data_o3 = true;
     }
 
-    const
-    void get_aero_names (int list_idx, std::vector<std::string>& aernames)
+    void get_aero_names (int list_idx, std::vector<std::string>& aernames) const
     {
         auto a_list = aerosollist[list_idx];
 
@@ -396,8 +391,7 @@ class MamConstituents {
         for(auto i = 0; i < a_list.numaerosols; ++i) aernames[i] = a_list.aer[i].camname;
     }
 
-    const
-    void get_mode_nspec (int list_idx, int m_idx, int& nspec)
+    void get_mode_nspec (int list_idx, int m_idx, int& nspec) const
     {
         auto m_list = ma_list[list_idx];
         auto mm = m_list.idx[m_idx];
@@ -407,10 +401,9 @@ class MamConstituents {
     }
 
     // Return info about modal aerosol list
-    const
     void rad_cnst_get_info_by_mode (int list_idx, int m_idx,
                                     std::string& mode_type, std::string& num_name,
-                                    std::string& num_name_cw, int& nspec)
+                                    std::string& num_name_cw, int& nspec) const
     {
         auto m_list = ma_list[list_idx];
 
@@ -436,10 +429,9 @@ class MamConstituents {
     }
 
     // Return info about modal aerosol lists
-    const
     void rad_cnst_get_info_by_mode_spec (int list_idx, int m_idx, int s_idx,
                                          std::string& spec_type, std::string& spec_name,
-                                         std::string& spec_name_cw)
+                                         std::string& spec_name_cw) const
     {
         auto m_list = ma_list[list_idx];
 
@@ -467,9 +459,8 @@ class MamConstituents {
     }
 
     // Return info about modes in the specified climate/diagnostics list
-    const
     void rad_cnst_get_info_by_spectype (int list_idx, const std::string& spectype,
-                                        int& mode_idx, int& spec_idx)
+                                        int& mode_idx, int& spec_idx) const
     {
         auto m_list = ma_list[list_idx];
 
@@ -504,8 +495,7 @@ class MamConstituents {
         }
     }
 
-    const
-    int rad_cnst_get_mode_idx (int list_idx, const std::string& mode_type)
+    int rad_cnst_get_mode_idx (int list_idx, const std::string& mode_type) const
     {
         // if mode type not found return -1
         int mode_idx = -1;
@@ -530,9 +520,8 @@ class MamConstituents {
         return mode_idx;
     }
 
-    const
     int rad_cnst_get_spec_idx (int list_idx, int mode_idx,
-                               const std::string& spec_type)
+                               const std::string& spec_type) const
     {
         // if specie type not found return -1
         int spec_idx = -1;
@@ -562,11 +551,11 @@ class MamConstituents {
 
     // Output the mass per layer, and total column burdens for gas and aerosol
     // constituents in either the climate or diagnostic lists
-    const
-    void rad_cnst_out (int list_idx)
+    void rad_cnst_out (int list_idx) const
     {
         //int ncol;
         int idx;
+        amrex::ignore_unused(idx);
         std::string name, cbname, source;
 
         aerlist_t aerlist;
@@ -623,8 +612,7 @@ class MamConstituents {
 
     // Return pointer to mass mixing ratio for the aerosol from the specified
     // climate or diagnostic list.
-    const
-    void rad_cnst_get_aer_mmr_by_idx (int list_idx, int aer_idx, real2d& mmr)
+    void rad_cnst_get_aer_mmr_by_idx (int list_idx, int aer_idx, real2d& mmr) const
     {
         aerlist_t aerlist;
 
@@ -648,9 +636,8 @@ class MamConstituents {
 
     // Return pointer to mass mixing ratio for the modal aerosol specie from the specified
     // climate or diagnostic list.
-    const
     void rad_cnst_get_mam_mmr_by_idx (int list_idx, int mode_idx, int spec_idx,
-                                      const std::string& phase, real2d& mmr)
+                                      const std::string& phase, real2d& mmr) const
     {
         //int idx;
         std::string source;
@@ -693,8 +680,7 @@ class MamConstituents {
         }
     }
 
-    const
-    void rad_cnst_get_mam_mmr_idx (int mode_idx, int spec_idx, int& idx)
+    void rad_cnst_get_mam_mmr_idx (int mode_idx, int spec_idx, int& idx) const
     {
         modelist_t mlist;
 
@@ -722,8 +708,7 @@ class MamConstituents {
 
     // Return pointer to number mixing ratio for the aerosol mode from the specified
     // climate or diagnostic list.
-    const
-    void rad_cnst_get_mode_num (int list_idx, int mode_idx, const std::string& phase, real2d& num)
+    void rad_cnst_get_mode_num (int list_idx, int mode_idx, const std::string& phase, real2d& num) const
     {
         modelist_t mlist;
         std::string source;
@@ -765,8 +750,7 @@ class MamConstituents {
     // constituent array inside physics parameterizations that have been passed,
     // and are operating over the entire constituent array.  The interstitial phase
     // is assumed since that's what is contained in the constituent array.
-    const
-    void rad_cnst_get_mode_num_idx (int mode_idx, int& cnst_idx)
+    void rad_cnst_get_mode_num_idx (int mode_idx, int& cnst_idx) const
     {
         modelist_t mlist;
         // assume climate list
@@ -793,8 +777,7 @@ class MamConstituents {
     }
 
     // Return the index of aerosol aer_name in the list specified by list_idx.
-    const
-    int rad_cnst_get_aer_idx (int list_idx, std::string& aer_name)
+    int rad_cnst_get_aer_idx (int list_idx, std::string& aer_name) const
     {
         aerlist_t aerlist;
 
@@ -822,9 +805,8 @@ class MamConstituents {
 
     // Return requested properties for the mode from the specified
     // climate or diagnostic list.
-    const
     void get_mode_props (int list_idx, int mode_idx, real& sigmag,
-                         real& rhcrystal, real& rhdeliques)
+                         real& rhcrystal, real& rhdeliques) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -838,9 +820,8 @@ class MamConstituents {
         prop.get_rhdeliques(id, rhdeliques);
     }
 
-    const
     void get_mode_props (int list_idx, int mode_idx, real& sigmag,
-                         real2d& refrtablw, real2d& refitablw, real4d& absplw)
+                         real2d& refrtablw, real2d& refitablw, real4d& absplw) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -855,9 +836,8 @@ class MamConstituents {
         prop.get_absplw(id, absplw);
     }
 
-    const
     void get_mode_props (int list_idx, int mode_idx, real& sigmag, real2d& refrtabsw,
-                         real2d& refitabsw, real4d& extpsw, real4d& abspsw, real4d& asmpsw)
+                         real2d& refitabsw, real4d& extpsw, real4d& abspsw, real4d& asmpsw) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -874,8 +854,7 @@ class MamConstituents {
         prop.get_asmpsw(id, asmpsw);
     }
 
-    const
-    void get_mode_props (int list_idx, int mode_idx, int& ncoef, int& prefr, int& prefi)
+    void get_mode_props (int list_idx, int mode_idx, int& ncoef, int& prefr, int& prefi) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -889,9 +868,9 @@ class MamConstituents {
         prop.get_prefi(id, prefi);
     }
 
-    const inline
+    inline
     void get_mode_props (int list_idx, int mode_idx, real& dgnum, real& dgnumhi,
-                         real& dgnumlo, real& sigmag)
+                         real& dgnumlo, real& sigmag) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -906,9 +885,9 @@ class MamConstituents {
         prop.get_sigmag(id, sigmag);
     }
 
-    const inline
+    inline
     void get_mam_density_aer (int list_idx, int mode_idx, int spec_idx,
-                              real& density_aer)
+                              real& density_aer) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -920,9 +899,9 @@ class MamConstituents {
         prop.get_density_aer(id, density_aer);
     }
 
-    const inline
+    inline
     void get_mam_hygro_aer (int list_idx, int mode_idx, int spec_idx,
-                            real& hygro_aer)
+                            real& hygro_aer) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -936,10 +915,10 @@ class MamConstituents {
 
     // Return requested properties for the aerosol from the specified
     // climate or diagnostic list.
-    const inline
+    inline
     void get_mam_props (int list_idx, int mode_idx, int spec_idx, real& density_aer,
                         std::string& spectype, real& hygro_aer,
-                        real1d& refindex_real_aer_sw, real1d& refindex_im_aer_sw)
+                        real1d& refindex_real_aer_sw, real1d& refindex_im_aer_sw) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -956,10 +935,10 @@ class MamConstituents {
         spectype = modes.comps[m_idx].type[spec_idx];
     }
 
-    const inline
+    inline
     void get_mam_props_sw (int list_idx, int mode_idx, int spec_idx,
                            real& density_aer, real1d& refindex_real_aer_sw,
-                           real1d& refindex_im_aer_sw)
+                           real1d& refindex_im_aer_sw) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -974,8 +953,8 @@ class MamConstituents {
         prop.get_ref_im_aer_sw(id, refindex_im_aer_sw);
     }
 
-    const inline
-    void get_mam_props (int list_idx, int mode_idx, int spec_idx, real& density_aer)
+    inline
+    void get_mam_props (int list_idx, int mode_idx, int spec_idx, real& density_aer) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -987,11 +966,11 @@ class MamConstituents {
         prop.get_density_aer(id, density_aer);
     }
 
-    const inline
+    inline
     void get_mam_props_lw (int list_idx, int mode_idx, int spec_idx,
                            real& density_aer,
                            real1d& refindex_real_aer_lw,
-                           real1d& refindex_im_aer_lw)
+                           real1d& refindex_im_aer_lw) const
     {
         modelist_t mlist;
         if (list_idx >= 0 && list_idx <= N_DIAG)
@@ -1006,8 +985,8 @@ class MamConstituents {
         prop.get_ref_im_aer_lw(id, refindex_im_aer_lw);
     }
 
-    const inline
-    void get_aer_opticstype (int list_idx, int aer_idx, std::string& opticstype)
+    inline
+    void get_aer_opticstype (int list_idx, int aer_idx, std::string& opticstype) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1015,8 +994,8 @@ class MamConstituents {
         prop.get_opticstype(id, opticstype);
     }
 
-    const inline
-    void get_aer_sw_hygro_ext (int list_idx, int aer_idx, real2d& sw_hygro_ext)
+    inline
+    void get_aer_sw_hygro_ext (int list_idx, int aer_idx, real2d& sw_hygro_ext) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1024,8 +1003,8 @@ class MamConstituents {
         prop.get_sw_hygro_ext(id, sw_hygro_ext);
     }
 
-    const inline
-    void get_aer_sw_hygro_ssa (int list_idx, int aer_idx, real2d& sw_hygro_ssa)
+    inline
+    void get_aer_sw_hygro_ssa (int list_idx, int aer_idx, real2d& sw_hygro_ssa) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1033,8 +1012,8 @@ class MamConstituents {
         prop.get_sw_hygro_ssa(id, sw_hygro_ssa);
     }
 
-    const inline
-    void get_aer_sw_hygro_asm (int list_idx, int aer_idx, real2d& sw_hygro_asm)
+    inline
+    void get_aer_sw_hygro_asm (int list_idx, int aer_idx, real2d& sw_hygro_asm) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1042,8 +1021,8 @@ class MamConstituents {
         prop.get_sw_hygro_asm(id, sw_hygro_asm);
     }
 
-    const inline
-    void get_aer_lw_hygro_abs (int list_idx, int aer_idx, real2d& lw_hygro_abs)
+    inline
+    void get_aer_lw_hygro_abs (int list_idx, int aer_idx, real2d& lw_hygro_abs) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1051,8 +1030,8 @@ class MamConstituents {
         prop.get_lw_hygro_abs(id, lw_hygro_abs);
     }
 
-    const inline
-    void get_aer_sw_nonhygro_ext (int list_idx, int aer_idx, real1d& sw_nonhygro_ext)
+    inline
+    void get_aer_sw_nonhygro_ext (int list_idx, int aer_idx, real1d& sw_nonhygro_ext) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1060,8 +1039,8 @@ class MamConstituents {
         prop.get_sw_nonhygro_ext(id, sw_nonhygro_ext);
     }
 
-    const inline
-    void get_aer_sw_nonhygro_ssa (int list_idx, int aer_idx, real1d& sw_nonhygro_ssa)
+    inline
+    void get_aer_sw_nonhygro_ssa (int list_idx, int aer_idx, real1d& sw_nonhygro_ssa) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1069,8 +1048,8 @@ class MamConstituents {
         prop.get_sw_nonhygro_ssa(id, sw_nonhygro_ssa);
     }
 
-    const inline
-    void get_aer_sw_nonhygro_asm (int list_idx, int aer_idx, real1d& sw_nonhygro_asm)
+    inline
+    void get_aer_sw_nonhygro_asm (int list_idx, int aer_idx, real1d& sw_nonhygro_asm) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1078,8 +1057,8 @@ class MamConstituents {
         prop.get_sw_nonhygro_asm(id, sw_nonhygro_asm);
     }
 
-    const inline
-    void get_aer_sw_nonhygro_scat (int list_idx, int aer_idx, real1d& sw_nonhygro_scat)
+    inline
+    void get_aer_sw_nonhygro_scat (int list_idx, int aer_idx, real1d& sw_nonhygro_scat) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1087,8 +1066,8 @@ class MamConstituents {
         prop.get_sw_nonhygro_scat(id, sw_nonhygro_scat);
     }
 
-    const inline
-    void get_aer_sw_nonhygro_ascat (int list_idx, int aer_idx, real1d& sw_nonhygro_ascat)
+    inline
+    void get_aer_sw_nonhygro_ascat (int list_idx, int aer_idx, real1d& sw_nonhygro_ascat) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1096,8 +1075,8 @@ class MamConstituents {
         prop.get_sw_nonhygro_ascat(id, sw_nonhygro_ascat);
     }
 
-    const inline
-    void get_aer_lw_abs (int list_idx, int aer_idx, real1d& lw_abs)
+    inline
+    void get_aer_lw_abs (int list_idx, int aer_idx, real1d& lw_abs) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1105,10 +1084,10 @@ class MamConstituents {
         prop.get_lw_abs(id, lw_abs);
     }
 
-    const inline
+    inline
     void get_aer_refindex_aer_sw (int list_idx, int aer_idx,
                                   real1d& refindex_real_aer_sw,
-                                  real1d& refindex_im_aer_sw)
+                                  real1d& refindex_im_aer_sw) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1117,10 +1096,10 @@ class MamConstituents {
         prop.get_ref_im_aer_sw(id, refindex_im_aer_sw);
     }
 
-    const inline
+    inline
     void get_aer_refindex_aer_lw (int list_idx, int aer_idx,
                                   real1d& refindex_real_aer_lw,
-                                  real1d& refindex_im_aer_lw)
+                                  real1d& refindex_im_aer_lw) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1129,8 +1108,8 @@ class MamConstituents {
         prop.get_ref_im_aer_lw(id, refindex_im_aer_lw);
     }
 
-    const inline
-    void get_aer_r_sw_ext (int list_idx, int aer_idx, real2d& r_sw_ext)
+    inline
+    void get_aer_r_sw_ext (int list_idx, int aer_idx, real2d& r_sw_ext) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1138,8 +1117,8 @@ class MamConstituents {
         prop.get_r_sw_ext(id, r_sw_ext);
     }
 
-    const inline
-    void get_aer_r_sw_scat (int list_idx, int aer_idx, real2d& r_sw_scat)
+    inline
+    void get_aer_r_sw_scat (int list_idx, int aer_idx, real2d& r_sw_scat) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1147,8 +1126,8 @@ class MamConstituents {
         prop.get_r_sw_scat(id, r_sw_scat);
     }
 
-    const inline
-    void get_aer_r_sw_ascat (int list_idx, int aer_idx, real2d& r_sw_ascat)
+    inline
+    void get_aer_r_sw_ascat (int list_idx, int aer_idx, real2d& r_sw_ascat) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1156,8 +1135,8 @@ class MamConstituents {
         prop.get_r_sw_ascat(id, r_sw_ascat);
     }
 
-    const inline
-    void get_aer_r_lw_abs (int list_idx, int aer_idx, real2d& r_lw_abs)
+    inline
+    void get_aer_r_lw_abs (int list_idx, int aer_idx, real2d& r_lw_abs) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1165,8 +1144,8 @@ class MamConstituents {
         prop.get_r_lw_abs(id, r_lw_abs);
     }
 
-    const inline
-    void get_aer_mu (int list_idx, int aer_idx, real1d& mu)
+    inline
+    void get_aer_mu (int list_idx, int aer_idx, real1d& mu) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1174,8 +1153,8 @@ class MamConstituents {
         prop.get_mu(id, mu);
     }
 
-    const inline
-    void get_aername (int list_idx, int aer_idx, std::string& aername)
+    inline
+    void get_aername (int list_idx, int aer_idx, std::string& aername) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1183,8 +1162,8 @@ class MamConstituents {
         prop.get_aername(id, aername);
     }
 
-    const inline
-    void get_density_aer (int list_idx, int aer_idx, real& density_aer)
+    inline
+    void get_density_aer (int list_idx, int aer_idx, real& density_aer) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1192,8 +1171,8 @@ class MamConstituents {
         prop.get_density_aer(id, density_aer);
     }
 
-    const inline
-    void get_hygro_aer (int list_idx, int aer_idx, real& hygro_aer)
+    inline
+    void get_hygro_aer (int list_idx, int aer_idx, real& hygro_aer) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1201,8 +1180,8 @@ class MamConstituents {
         prop.get_hygro_aer(id, hygro_aer);
     }
 
-    const inline
-    void get_dryrad_aer (int list_idx, int aer_idx, real& dryrad_aer)
+    inline
+    void get_dryrad_aer (int list_idx, int aer_idx, real& dryrad_aer) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1210,8 +1189,8 @@ class MamConstituents {
         prop.get_dryrad_aer(id, dryrad_aer);
     }
 
-    const inline
-    void get_dispersion_aer (int list_idx, int aer_idx, real& dispersion_aer)
+    inline
+    void get_dispersion_aer (int list_idx, int aer_idx, real& dispersion_aer) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;
@@ -1219,8 +1198,8 @@ class MamConstituents {
         prop.get_dispersion_aer(id, dispersion_aer);
     }
 
-    const inline
-    void get_num_to_mass_aer (int list_idx, int aer_idx, real& num_to_mass_aer)
+    inline
+    void get_num_to_mass_aer (int list_idx, int aer_idx, real& num_to_mass_aer) const
     {
         auto aerlist = aerosollist[list_idx];
         auto id = aerlist.aer[aer_idx].physprop_id;

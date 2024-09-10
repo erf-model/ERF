@@ -255,7 +255,17 @@ AdvectionSrcForScalars (const Real& dt,
         }
     }
 
-    // Monotonicity preserving order reduction for SLOW SCALARS (0-th upwind)
+    /* =======================================================================
+       Monotonicity preserving order reduction for scalars (0-th upwind).
+
+       NOTE:
+       The following order reduction operations for scalar advection have been
+       adapted from the PINACLES code developed at PPNL by K. Pressel et al.;
+       see https://github.com/pnnl/pinacles.git and  This version utilizes global
+       min/max values for simplicity rather than the local average around each
+       cell. Motivation for this modification is the compressible dycore in ERF
+       as opposed to incompressible/analestic in PINACLES.
+       ======================================================================= */
     if (use_mono_adv) {
         // Copy flux data to flx_arr to avoid race condition on GPU
         ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
