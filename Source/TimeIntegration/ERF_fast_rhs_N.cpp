@@ -415,9 +415,6 @@ void erf_fast_rhs_N (int step, int nrk,
         Box b2d = tbz; // Copy constructor
         b2d.setRange(2,0);
 
-        // dt is the timestep for the RK stage, so dtau = facinv * dt
-        Real dt = dtau / facinv;
-
         {
         BL_PROFILE("fast_rhs_b2d_loop");
 #ifdef AMREX_USE_GPU
@@ -453,8 +450,8 @@ void erf_fast_rhs_N (int step, int nrk,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                // w at bottom boundary of grid is 0 if at domain boundary, otherwise w_old + dt * slow_rhs
-                RHS_a (i,j,lo.z) = stage_zmom(i,j,lo.z) + dt * slow_rhs_rho_w(i,j,lo.z);
+                // w at bottom boundary of grid is 0 if at domain boundary, otherwise w_old + dtau * slow_rhs
+                RHS_a (i,j,lo.z) = stage_zmom(i,j,lo.z) + dtau * slow_rhs_rho_w(i,j,lo.z);
                 soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
             }
         }
@@ -462,7 +459,7 @@ void erf_fast_rhs_N (int step, int nrk,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                RHS_a (i,j,hi.z+1) = dt * slow_rhs_rho_w(i,j,hi.z+1);
+                RHS_a (i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
             }
         }
         for (int k = lo.z+1; k <= hi.z+1; ++k) {
