@@ -141,7 +141,7 @@ Problem::init_custom_terrain (
                 // int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
                 // Location of nodes
-                Real x = (ii  * dx[0] - xcen);
+                Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
                 // Real y = (jj  * dx[1] - ycen);
 
                 // WoA Hill in x-direction
