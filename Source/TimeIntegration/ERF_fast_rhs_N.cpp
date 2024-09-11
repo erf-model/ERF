@@ -422,12 +422,12 @@ void erf_fast_rhs_N (int step, int nrk,
         auto const hi = ubound(bx);
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-          // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dt * slow_rhs
-          RHS_a(i,j,lo.z) = dt * slow_rhs_rho_w(i,j,lo.z);
+          // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
+          RHS_a(i,j,lo.z) = dtau * slow_rhs_rho_w(i,j,lo.z);
 
-          // w at top boundary of grid is 0 if at domain boundary, otherwise w = w_old + dt * slow_rhs
+          // w at top boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
           // TODO TODO: Note that if we ever change this, we will need to include it in avg_zmom at the top
-          RHS_a(i,j,hi.z+1) = dt * slow_rhs_rho_w(i,j,hi.z+1);
+          RHS_a(i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
 
           // w = specified Dirichlet value at k = lo.z
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
