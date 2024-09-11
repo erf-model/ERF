@@ -55,6 +55,8 @@ MaterialProperties::MaterialProperties ( const std::string& a_name )
         setProperties_H2O();
     } else if (a_name == MaterialNames::nacl) {
         setProperties_NaCl();
+    } else if (a_name == MaterialNames::soil) {
+        setProperties_soil();
     } else {
         amrex::Abort("ERROR: undefined material in MaterialProperties()");
     }
@@ -70,6 +72,7 @@ void MaterialProperties::setProperties_H2O()
     m_mol_weight = 1.802e-02; // kg mol^-1
     m_lat_vap = L_v; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
+    m_is_soluble = true;
 
     m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
     m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
@@ -86,6 +89,23 @@ void MaterialProperties::setProperties_NaCl()
     m_mol_weight = 5.844e-02; //kg mol^-1
     m_lat_vap = DBL_MAX;
     m_Rv = DBL_MAX;
+    m_is_soluble = true;
+
+    m_saturation_pressure_func = nullptr;
+    m_saturation_vapfrac_func = nullptr;
+}
+
+void MaterialProperties::setProperties_soil()
+{
+    m_density = 1400.0;
+
+    m_coeff_curv = DBL_MAX; // m K
+    m_coeff_VP_solute = DBL_MAX; // m^3
+    m_ionization = DBL_MAX;
+    m_mol_weight = DBL_MAX; //kg mol^-1
+    m_lat_vap = DBL_MAX;
+    m_Rv = DBL_MAX;
+    m_is_soluble = false;
 
     m_saturation_pressure_func = nullptr;
     m_saturation_vapfrac_func = nullptr;

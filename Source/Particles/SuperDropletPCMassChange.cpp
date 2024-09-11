@@ -56,10 +56,26 @@ void SuperDropletPC::MassChange ( int                                         a_
         auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
 
         SDAerosolMassArr aerosol_mass_ptrs;
-        for (int i = 0; i < num_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
-                                                    + SuperDropletsRealIdxSoA_RT::ncomps
-                                                    + i ).data();
+        Gpu::DeviceVector<ParticleReal> aerosol_mol_weight(num_aerosols);
+        Gpu::DeviceVector<int> aerosol_solubility(num_aerosols);
+        {
+            Vector<ParticleReal> aerosol_mol_weight_h(num_aerosols);
+            Vector<int> aerosol_solubility_h(num_aerosols);
+            for (int i = 0; i < num_aerosols; i++) {
+                aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
+                                                        + SuperDropletsRealIdxSoA_RT::ncomps
+                                                        + i ).data();
+                aerosol_mol_weight_h[i] = m_aerosol_mat[i]->molWeight();
+                aerosol_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        aerosol_mol_weight_h.begin(),
+                        aerosol_mol_weight_h.end(),
+                        aerosol_mol_weight.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        aerosol_solubility_h.begin(),
+                        aerosol_solubility_h.end(),
+                        aerosol_solubility.begin() );
         }
 
         const auto& sat_pressure_arr = a_sat_pressure[grid].array();
@@ -67,7 +83,7 @@ void SuperDropletPC::MassChange ( int                                         a_
         const auto& temperature_arr = a_temperature[grid].array();
 
         dRsqdt<ParticleReal> drsqdt{ m_vapour_mat->coeffCurv(),
-                                     m_vapour_mat->coeffVPSolute(*m_aerosol_mat[0]),
+                                     m_vapour_mat->coeffVPSolute(),
                                      m_vapour_mat->latHeatVap(),
                                      therco, /* ERF_Constants.H */
                                      m_vapour_mat->Rv(),
@@ -87,6 +103,9 @@ void SuperDropletPC::MassChange ( int                                         a_
         auto cfl = m_mass_change_cfl;
         auto ti_choice = m_mass_change_ti;
 
+        auto aero_mw_arr = aerosol_mol_weight.data();
+        auto aero_sol_arr = aerosol_solubility.data();
+
         ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
@@ -104,13 +123,18 @@ void SuperDropletPC::MassChange ( int                                         a_
                 cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
             }
 
-            ParticleReal solute_mass = 0.0;
-            for (int j = 0; j < num_aerosols; j++) { solute_mass += aerosol_mass_ptrs[j][i]; }
+            ParticleReal solute_moles = 0.0;
+            for (int j = 0; j < num_aerosols; j++) {
+                if (aero_sol_arr[j]) {
+                    solute_moles += (aerosol_mass_ptrs[j][i]/aero_mw_arr[j]);
+                }
+            }
+
 
             TI< dRsqdt<ParticleReal>,
                 NewtonSolver<dRsqdt<ParticleReal>, ParticleReal>,
                 ParticleReal > ti { drsqdt, newton_solver, a_dt,
-                                    sat_ratio, temperature, e_sat, solute_mass,
+                                    sat_ratio, temperature, e_sat, solute_moles,
                                     cfl, 1e-40, 1e-3, 1e-6, false, false };
 
 
@@ -136,7 +160,7 @@ void SuperDropletPC::MassChange ( int                                         a_
 #ifndef AMREX_USE_CUDA
                     fprintf(file_handle,
                             "r=%1.16e, S=%1.16e, T=%1.16e, e=%1.16e, sol_mass=%1.16e\n",
-                            radius_ptr[i], sat_ratio, temperature, e_sat, solute_mass );
+                            radius_ptr[i], sat_ratio, temperature, e_sat, solute_moles );
 #endif
                 }
                 Gpu::Atomic::Add(unconverged_particles_ptr, Long(1));
