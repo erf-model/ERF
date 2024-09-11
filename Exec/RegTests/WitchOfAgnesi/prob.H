@@ -13,6 +13,9 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real W_0 = 0.0;
   amrex::Real dampcoef = 0.003;
   amrex::Real zdamp = 1.0;
+
+  amrex::Real hmax = 0.0;   // full hill height, can be negative to simulate valleys
+  amrex::Real L = 0.0;      // hill length at half-height
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
