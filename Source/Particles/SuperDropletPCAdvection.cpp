@@ -37,6 +37,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
 
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
+    const Real rho_w = m_vapour_mat->density();
+    const int num_aerosols = m_num_aerosols;
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -74,8 +76,34 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
+        SDAerosolMassArr aerosol_mass_ptrs;
+        Gpu::DeviceVector<ParticleReal> aerosol_density(num_aerosols);
+        Gpu::DeviceVector<int> aerosol_solubility(num_aerosols);
+        if (advect_w_gravity) {
+            Vector<ParticleReal> aerosol_density_h(num_aerosols);
+            Vector<int> aerosol_solubility_h(num_aerosols);
+            for (int i = 0; i < num_aerosols; i++) {
+                aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
+                                                        + SuperDropletsRealIdxSoA_RT::ncomps
+                                                        + i ).data();
+                aerosol_density_h[i] = m_aerosol_mat[i]->density();
+                aerosol_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        aerosol_density_h.begin(),
+                        aerosol_density_h.end(),
+                        aerosol_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        aerosol_solubility_h.begin(),
+                        aerosol_solubility_h.end(),
+                        aerosol_solubility.begin() );
+        }
+
         TerminalVelocity<ParticleReal> term_vel { m_vapour_mat->density() };
         auto term_vel_type = m_term_vel_type;
+
+        auto aero_rho_arr = aerosol_density.data();
+        auto aero_sol_arr = aerosol_solubility.data();
 
         ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -98,8 +126,31 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
 
                 ParticleReal terminal_vel = 0.0;
                 if (advect_w_gravity) {
+
+                    // compute effective radius
+                    ParticleReal r_eff = 0.0;
+                    {
+                        ParticleReal m_w = 4.0/3.0 * PI * rho_w
+                                           * radius_ptr[i]*radius_ptr[i]*radius_ptr[i];
+                        ParticleReal m_s = 0.0;
+                        ParticleReal m_p = 0.0;
+                        ParticleReal rho_p = 0.0;
+                        for (int j = 0; j < num_aerosols; j++) {
+                            if (aero_sol_arr[j]) {
+                                m_s += aerosol_mass_ptrs[j][i];
+                            } else {
+                                m_p += aerosol_mass_ptrs[j][i];
+                                rho_p += aero_rho_arr[j]*aerosol_mass_ptrs[j][i];
+                            }
+                        }
+                        if (m_p > 0.0) { rho_p /= m_p; }
+                        else           { rho_p = 1.0; }
+                        auto m_t = m_w + m_s + (rho_w/rho_p)*m_p;
+                        r_eff = std::cbrt(m_t / (4.0/3.0*PI*rho_w));
+                    }
+
                     if (term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
-                        terminal_vel = term_vel.AtlasUlbrich( radius_ptr[i] );
+                        terminal_vel = term_vel.AtlasUlbrich( r_eff );
                     } else if (term_vel_type == SDTerminalVelocityType::CloudRainShima) {
                         ParticleReal density, pressure, temperature;
                         if (use_terrain) {
@@ -111,7 +162,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                             cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
                             cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
                         }
-                        terminal_vel = term_vel.CloudRainShima( radius_ptr[i],
+                        terminal_vel = term_vel.CloudRainShima( r_eff,
                                                                 density,
                                                                 pressure,
                                                                 temperature );

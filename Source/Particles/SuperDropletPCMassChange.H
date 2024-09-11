@@ -25,7 +25,7 @@ namespace SDMassChangeUtils
                       const RT a_S,    /*!< saturation ratio */
                       const RT a_T,    /*!< temperature */
                       const RT a_e_s,  /*!< saturation pressure */
-                      const RT a_M_s   /*!< solute mass */ ) const noexcept
+                      const RT a_N_s   /*!< total solute moles */ ) const noexcept
         {
             RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (D*a_e_s);
@@ -39,7 +39,7 @@ namespace SDMassChangeUtils
             RT beta = -2.0 * (a/a_T) / (F_k + F_d);
             retval += beta*R_inv;
 
-            RT gamma = 2.0 * b * a_M_s / (F_k + F_d);
+            RT gamma = 2.0 * b * a_N_s / (F_k + F_d);
             retval += gamma*R_inv_cubed;
 
             return retval;
@@ -50,7 +50,7 @@ namespace SDMassChangeUtils
         RT rhs_jac ( const RT a_R_sq, /*!< radius squared */
                      const RT a_T,    /*!< temperature */
                      const RT a_e_s,  /*!< saturation pressure */
-                     const RT a_M_s   /*!< solute mass */ ) const noexcept
+                     const RT a_N_s   /*!< total solute moles */ ) const noexcept
         {
             RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (D*a_e_s);
@@ -64,37 +64,37 @@ namespace SDMassChangeUtils
             RT beta = -2.0 * (a/a_T) / (F_k + F_d);
             retval -= 0.5 * beta*R_inv_3;
 
-            RT gamma = 2.0 * b * a_M_s / (F_k + F_d);
+            RT gamma = 2.0 * b * a_N_s / (F_k + F_d);
             retval -= 0.5 * 3.0*gamma*R_inv_5;
 
             return retval;
         }
 
         /*! \brief Computes a convenient (?) initial guess based on Kohler curve */
-        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-        void initial_guess ( RT&      a_R_sq, /*!< radius squared */
-                             const RT a_S,    /*!< saturation ratio */
-                             const RT a_T,    /*!< temperature */
-                             const RT a_M_s   /*!< solute mass */
-                           ) const noexcept
-        {
-            RT eq_a = a / a_T;
-            RT eq_b = b * a_M_s;
-            RT Rc = std::sqrt(3*eq_b/eq_a);
-            RT eq_c = a_S - 1.0;
-            RT a = eq_a / eq_c;
-            RT b = eq_b / eq_c;
-            RT a3 = a*a*a;
+        //AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        //void initial_guess ( RT&      a_R_sq, /*!< radius squared */
+        //                     const RT a_S,    /*!< saturation ratio */
+        //                     const RT a_T,    /*!< temperature */
+        //                     const RT a_M_s   /*!< solute mass */
+        //                   ) const noexcept
+        //{
+        //    RT eq_a = a / a_T;
+        //    RT eq_b = b * a_M_s;
+        //    RT Rc = std::sqrt(3*eq_b/eq_a);
+        //    RT eq_c = a_S - 1.0;
+        //    RT a = eq_a / eq_c;
+        //    RT b = eq_b / eq_c;
+        //    RT a3 = a*a*a;
 
-            RT r_init = std::sqrt(a_R_sq);
-            if ( (a_S > 1.0) && (a3 < b*(27.0/4.0)) ) {
-                r_init = 1.0e-3;
-            }
-            if (r_init < Rc) {
-                r_init = Rc;
-            }
-            a_R_sq = r_init*r_init;
-        }
+        //    RT r_init = std::sqrt(a_R_sq);
+        //    if ( (a_S > 1.0) && (a3 < b*(27.0/4.0)) ) {
+        //        r_init = 1.0e-3;
+        //    }
+        //    if (r_init < Rc) {
+        //        r_init = Rc;
+        //    }
+        //    a_R_sq = r_init*r_init;
+        //}
 
     };
 
@@ -128,7 +128,7 @@ namespace SDMassChangeUtils
                             const RT&       a_S,            /*!< saturation ratio */
                             const RT&       a_T,            /*!< temperature */
                             const RT&       a_e_s,          /*!< saturation pressure */
-                            const RT&       a_M_s,          /*!< solute mass */
+                            const RT&       a_N_s,          /*!< total solute moles */
                             RT&             a_res_norm_a,   /*!< absolute norm at exit */
                             RT&             a_res_norm_r    /*!< relative norm at exit */,
                             bool&           a_converged     /*!< convergence status at exit */
@@ -137,14 +137,14 @@ namespace SDMassChangeUtils
             a_converged = false;
             RT res_norm0 = 0.0;
 
-            if (m_init_guess) {
-                m_ne.initial_guess(a_u, a_S, a_T, a_M_s);
-            }
+            //if (m_init_guess) {
+            //    m_ne.initial_guess(a_u, a_S, a_T, a_M_s);
+            //}
 
             for (int k = 0; k < m_maxits; k++) {
                 RT residual = a_mu * a_u
                               - (   a_r
-                                  + m_ne.rhs_func( a_u, a_S, a_T, a_e_s, a_M_s ) );
+                                  + m_ne.rhs_func( a_u, a_S, a_T, a_e_s, a_N_s ) );
                 a_res_norm_a = std::sqrt(residual*residual);
 
                 if (k == 0) {
@@ -169,7 +169,7 @@ namespace SDMassChangeUtils
                     break;
                 }
 
-                RT slope = a_mu - m_ne.rhs_jac( a_u, a_T, a_e_s, a_M_s );
+                RT slope = a_mu - m_ne.rhs_jac( a_u, a_T, a_e_s, a_N_s );
                 RT du = 0.0;
                 du = - residual / slope;
 
@@ -202,7 +202,7 @@ namespace SDMassChangeUtils
         RT m_S;         /*!< saturation ratio */
         RT m_T;         /*!< temperature */
         RT m_e_s;       /*!< saturation pressure */
-        RT m_M_s;       /*!< solute mass */
+        RT m_N_s;       /*!< total solute moles */
 
         RT m_cfl;       /*!< CFL */
         RT m_atol;      /*!< absolute tolerance (for adaptive dt) */
@@ -221,7 +221,7 @@ namespace SDMassChangeUtils
             RT cur_time = 0.0;
             a_success = true;
 
-            RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_M_s);
+            RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
             RT dt = m_cfl / std::sqrt(tau*tau);
 
             RT dt_new = dt;
@@ -230,7 +230,7 @@ namespace SDMassChangeUtils
             while (cur_time < m_t_final) {
 
                 if (!m_adapt_dt) {
-                    tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_M_s);
+                    tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
                     dt = m_cfl / std::sqrt(tau*tau);
                 } else {
                     dt = dt_new;
@@ -258,28 +258,28 @@ namespace SDMassChangeUtils
                         dt *= 0.5;
                         continue;
                     }
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_M_s);
+                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_N_s);
 
                     RT u2 = a_u + 0.5*dt*f1;
                     if (u2 <= 0) {
                         dt *= 0.5;
                         continue;
                     }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_M_s);
+                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_N_s);
 
                     RT u3 = a_u + 0.75*dt*f2;
                     if (u3 <= 0) {
                         dt *= 0.5;
                         continue;
                     }
-                    RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_M_s);
+                    RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_N_s);
 
                     RT u4 = a_u + (1.0/9.0)*dt * (2.0*f1 + 3.0*f2 + 4.0*f3);
                     if (u4 <= 0) {
                         dt *= 0.5;
                         continue;
                     }
-                    RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_M_s);
+                    RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_N_s);
 
                     u_new = u4;
 
@@ -336,7 +336,7 @@ namespace SDMassChangeUtils
 
             while (cur_time < m_t_final) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_M_s);
+                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 if ((cur_time + dt) > m_t_final) {
                     dt = m_t_final - cur_time;
@@ -360,28 +360,28 @@ namespace SDMassChangeUtils
                         dt *= 0.5;
                         continue;
                     }
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_M_s);
+                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_N_s);
 
                     RT u2 = a_u + 0.5*dt*f1;
                     if (u2 <= 0) {
                         dt *= 0.5;
                         continue;
                     }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_M_s);
+                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_N_s);
 
                     RT u3 = a_u + 0.5*dt*f2;
                     if (u3 <= 0) {
                         dt *= 0.5;
                         continue;
                     }
-                    RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_M_s);
+                    RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_N_s);
 
                     RT u4 = a_u + 1.0*dt*f3;
                     if (u4 <= 0) {
                         dt *= 0.5;
                         continue;
                     }
-                    RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_M_s);
+                    RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_N_s);
 
                     u_new = a_u + dt*(f1+2.0*f2+2.0*f3+f4)/6.0;
 
@@ -429,7 +429,7 @@ namespace SDMassChangeUtils
 
             while (cur_time < m_t_final) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_M_s);
+                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 if ((cur_time + dt) > m_t_final) {
                     dt = m_t_final - cur_time;
@@ -456,7 +456,7 @@ namespace SDMassChangeUtils
                     RT rhs = mu * a_u;
                     u_new = a_u;
                     m_newton( u_new, rhs, mu,
-                              m_S, m_T, m_e_s, m_M_s,
+                              m_S, m_T, m_e_s, m_N_s,
                               res_norm_a, res_norm_r, converged );
 
                     if (converged) {
@@ -508,7 +508,7 @@ namespace SDMassChangeUtils
 
             while (cur_time < m_t_final) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_M_s);
+                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 if ((cur_time + dt) > m_t_final) {
                     dt = m_t_final - cur_time;
@@ -533,18 +533,18 @@ namespace SDMassChangeUtils
                     RT mu = 1.0 / (0.5*dt);
 
                     RT u1 = a_u;
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_M_s);
+                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_N_s);
 
                     RT u2 = u1;
                     RT rhs = mu * (a_u + 0.5*dt*f1);
                     m_newton( u2, rhs, mu,
-                              m_S, m_T, m_e_s, m_M_s,
+                              m_S, m_T, m_e_s, m_N_s,
                               res_norm_a, res_norm_r, converged );
                     if (u2 <= 0) {
                         dt *= 0.5;
                         continue;
                     }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_M_s);
+                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_N_s);
 
                     u_new = a_u + 0.5 * dt * (f1 + f2);
 
@@ -597,7 +597,7 @@ namespace SDMassChangeUtils
 
             while (cur_time < m_t_final) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_M_s);
+                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 if ((cur_time + dt) > m_t_final) {
                     dt = m_t_final - cur_time;
@@ -632,7 +632,7 @@ namespace SDMassChangeUtils
                         RT res_norm_r_i = DBL_MAX;
                         bool converged_i = false;
                         m_newton( u1, rhs, mu,
-                                  m_S, m_T, m_e_s, m_M_s,
+                                  m_S, m_T, m_e_s, m_N_s,
                                   res_norm_a_i, res_norm_r_i, converged_i );
                         converged = converged && converged_i;
                         res_norm_a = std::max(res_norm_a, res_norm_a_i);
@@ -642,7 +642,7 @@ namespace SDMassChangeUtils
                         dt *= 0.5;
                         continue;
                     }
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_M_s);
+                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_N_s);
 
                     RT u2 = u1;
                     {
@@ -651,7 +651,7 @@ namespace SDMassChangeUtils
                         RT res_norm_r_i = DBL_MAX;
                         bool converged_i = false;
                         m_newton( u2, rhs, mu,
-                                  m_S, m_T, m_e_s, m_M_s,
+                                  m_S, m_T, m_e_s, m_N_s,
                                   res_norm_a_i, res_norm_r_i, converged_i );
                         converged = converged && converged_i;
                         res_norm_a = std::max(res_norm_a, res_norm_a_i);
@@ -661,7 +661,7 @@ namespace SDMassChangeUtils
                         dt *= 0.5;
                         continue;
                     }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_M_s);
+                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_N_s);
 
                     u_new = a_u + 0.5 * dt * (f1 + f2);
 
