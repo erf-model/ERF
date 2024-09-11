@@ -1,7 +1,7 @@
 #include <iomanip>
 
 #include "ERF.H"
-#include "EOS.H"
+#include "ERF_EOS.H"
 
 using namespace amrex;
 

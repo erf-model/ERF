@@ -6,8 +6,8 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_IntegratorBase.H>
 
-#include <TI_slow_headers.H>
-#include <TI_fast_headers.H>
+#include <ERF_TI_slow_headers.H>
+#include <ERF_TI_fast_headers.H>
 
 #include <functional>
 

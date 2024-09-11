@@ -6,17 +6,17 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
-#include <EOS.H>
+#include <ERF_EOS.H>
 #include <ERF.H>
 
 #include <AMReX_buildInfo.H>
 
-#include <Utils.H>
-#include <TerrainMetrics.H>
+#include <ERF_Utils.H>
+#include <ERF_TerrainMetrics.H>
 #include <memory>
 
 #ifdef ERF_USE_MULTIBLOCK
-#include <MultiBlockContainer.H>
+#include <ERF_MultiBlockContainer.H>
 #endif
 
 using namespace amrex;

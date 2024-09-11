@@ -7,14 +7,14 @@
  * The routines here call common routines in ERF_make_new_arrays.cpp
 */
 
-#include "prob_common.H"
+#include "ERF_prob_common.H"
 #include <ERF.H>
 #include <AMReX_buildInfo.H>
-#include <Utils.H>
+#include <ERF_Utils.H>
 #include <memory>
 
 #ifdef ERF_USE_MULTIBLOCK
-#include <MultiBlockContainer.H>
+#include <ERF_MultiBlockContainer.H>
 #endif
 
 using namespace amrex;

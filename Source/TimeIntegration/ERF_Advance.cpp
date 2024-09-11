@@ -1,8 +1,8 @@
 #include <ERF.H>
-#include <Utils.H>
+#include <ERF_Utils.H>
 
 #ifdef ERF_USE_WINDFARM
-#include <WindFarm.H>
+#include <ERF_WindFarm.H>
 #endif
 
 using namespace amrex;
@@ -115,11 +115,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     int nvars = S_old.nComp();
 
     // Source array for conserved cell-centered quantities -- this will be filled
-    //     in the call to make_sources in TI_slow_rhs_fun.H
+    //     in the call to make_sources in ERF_TI_slow_rhs_fun.H
     MultiFab cc_source(ba,dm,nvars,1); cc_source.setVal(0.0);
 
     // Source arrays for momenta -- these will be filled
-    //     in the call to make_mom_sources in TI_slow_rhs_fun.H
+    //     in the call to make_mom_sources in ERF_TI_slow_rhs_fun.H
     BoxArray ba_x(ba); ba_x.surroundingNodes(0);
     MultiFab xmom_source(ba_x,dm,nvars,1); xmom_source.setVal(0.0);
 

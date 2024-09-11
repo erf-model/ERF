@@ -1,14 +1,14 @@
 /**
  * \file ERF_init1d.cpp
  */
-#include <EOS.H>
+#include <ERF_EOS.H>
 #include <ERF.H>
-#include <TileNoZ.H>
-#include <prob_common.H>
-#include <ParFunctions.H>
-#include <Utils.H>
+#include <ERF_TileNoZ.H>
+#include <ERF_prob_common.H>
+#include <ERF_ParFunctions.H>
+#include <ERF_Utils.H>
 
-#include <Interpolation_1D.H>
+#include <ERF_Interpolation_1D.H>
 
 using namespace amrex;
 
@@ -229,7 +229,7 @@ ERF::initHSE (int lev)
 
     if (all_boxes_touch_bottom || lev > 0) {
 
-        // Initial r_hse may or may not be in HSE -- defined in prob.cpp
+        // Initial r_hse may or may not be in HSE -- defined in ERF_prob.cpp
         if (solverChoice.use_moist_background){
             prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
         } else {
@@ -265,7 +265,7 @@ ERF::initHSE (int lev)
             new_z_phys_nd->ParallelCopy(*z_phys_nd[lev],0,0,1,1,1);
         }
 
-        // Initial r_hse may or may not be in HSE -- defined in prob.cpp
+        // Initial r_hse may or may not be in HSE -- defined in ERF_prob.cpp
         if (solverChoice.use_moist_background){
             prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev]);
         } else {
