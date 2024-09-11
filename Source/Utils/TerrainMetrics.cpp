@@ -220,10 +220,9 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
         // Make h_mf copy for old values
         MultiFab::Copy(h_mf_old, h_mf,0,0,1,h_mf_old.nGrow());
 
-        // Minimum allowed fraction grid spacing -- values of 0.5-0.6 seem to
-        // work best in 2D applications, while values about half this magnitude
-        // appear better for 3D real-terrain simulations (Klemp2011)
+        // Minimum allowed fractional grid spacing
         Real gamma_m = 0.5;
+        pp.query("terrain_gamma_m", gamma_m);
         Real z_H     = 2.44*h_m/(1-gamma_m); // Klemp2011 Eqn. 11
 
         // Populate h_mf at k>0 with h_s, solving in ordered 2D slices
