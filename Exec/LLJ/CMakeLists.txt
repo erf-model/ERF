@@ -3,8 +3,8 @@ set(erf_exe_name erf_llj_real)
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
    PRIVATE
-     prob.H
-     prob.cpp
+     ERF_prob.H
+     ERF_prob.cpp
 )
 
 target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

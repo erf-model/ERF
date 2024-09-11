@@ -1,7 +1,7 @@
 #include "ERF.H"
 #include <AMReX_MLMG.H>
 #include <AMReX_MLPoisson.H>
-#include "Utils.H"
+#include "ERF_Utils.H"
 
 #ifdef ERF_USE_POISSON_SOLVE
 
