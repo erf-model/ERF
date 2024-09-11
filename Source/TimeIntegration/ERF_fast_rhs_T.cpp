@@ -231,6 +231,12 @@ void erf_fast_rhs_T (int step, int nrk,
         // *********************************************************************
         {
         BL_PROFILE("fast_rhs_xymom_T");
+
+        const auto& tbx_lo = lbound(tbx);
+        const auto& tbx_hi = ubound(tbx);
+        const auto& tby_lo = lbound(tby);
+        const auto& tby_hi = ubound(tby);
+
         ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -257,6 +263,11 @@ void erf_fast_rhs_T (int step, int nrk,
 
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                         + dtau * slow_rhs_rho_u(i,j,k);
+                if (k == tbx_lo.z && k != 0) {
+                    new_drho_u(i,j,k-1) = new_drho_u(i,j,k);
+                } else if (k == tbx_hi.z) {
+                    new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
+                }
 
                 avg_xmom(i,j,k) += facinv*new_drho_u(i,j,k);
 
@@ -287,6 +298,12 @@ void erf_fast_rhs_T (int step, int nrk,
 
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
                                                         + dtau * slow_rhs_rho_v(i,j,k);
+
+                if (k == tby_lo.z && k != 0) {
+                    new_drho_v(i,j,k-1) = new_drho_v(i,j,k);
+                } else if (k == tby_hi.z) {
+                    new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
+                }
 
                 avg_ymom(i,j,k) += facinv*new_drho_v(i,j,k);
 
@@ -519,17 +536,14 @@ void erf_fast_rhs_T (int step, int nrk,
         auto const domlo = lbound(domain);
         auto const domhi = ubound(domain);
 
-        // dt is the timestep for the RK stage, so dtau = facinv * dt
-        Real dt = dtau / facinv;
-
         {
         BL_PROFILE("fast_rhs_b2d_loop_t");
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // w_klo, w_khi given by specified Dirichlet values
-            RHS_a(i,j,lo.z  ) = dt * slow_rhs_rho_w(i,j,lo.z);
-            RHS_a(i,j,hi.z+1) = dt * slow_rhs_rho_w(i,j,hi.z+1);
+            RHS_a(i,j,lo.z  ) = dtau * slow_rhs_rho_w(i,j,lo.z);
+            RHS_a(i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
 
             // w = specified Dirichlet value at k = lo.z
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
@@ -548,19 +562,21 @@ void erf_fast_rhs_T (int step, int nrk,
 #else
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
-            for (int i = lo.x; i <= hi.x; ++i) {
-                RHS_a(i,j,lo.z) = dt * slow_rhs_rho_w(i,j,lo.z);
+            for (int i = lo.x; i <= hi.x; ++i)
+            {
+                RHS_a(i,j,lo.z) = dtau * slow_rhs_rho_w(i,j,lo.z);
                soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
-           }
+            }
+
+            AMREX_PRAGMA_SIMD
+            for (int i = lo.x; i <= hi.x; ++i)
+            {
+                RHS_a(i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
+               soln_a(i,j,hi.z+1) = RHS_a(i,j,hi.z+1) * inv_coeffB_a(i,j,hi.z+1);
+            }
         }
 
-        for (int j = lo.y; j <= hi.y; ++j) {
-             AMREX_PRAGMA_SIMD
-             for (int i = lo.x; i <= hi.x; ++i) {
-                 RHS_a(i,j,hi.z+1) = dt * slow_rhs_rho_w(i,j,hi.z+1);
-             }
-        }
-        for (int k = lo.z+1; k <= hi.z+1; ++k) {
+        for (int k = lo.z+1; k <= hi.z; ++k) {
              for (int j = lo.y; j <= hi.y; ++j) {
                  AMREX_PRAGMA_SIMD
                  for (int i = lo.x; i <= hi.x; ++i) {
@@ -568,7 +584,7 @@ void erf_fast_rhs_T (int step, int nrk,
                  }
            }
         }
-        for (int k = hi.z; k >= lo.z; --k) {
+        for (int k = hi.z; k > lo.z; --k) {
              for (int j = lo.y; j <= hi.y; ++j) {
                  AMREX_PRAGMA_SIMD
                  for (int i = lo.x; i <= hi.x; ++i) {
