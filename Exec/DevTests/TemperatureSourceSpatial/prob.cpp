@@ -26,6 +26,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
   pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
   pp.query("T_0_Pert_Mag", parms.T_0_Pert_Mag);
+  pp.query("Q_0_Pert_Mag", parms.T_0_Pert_Mag);
 
   pp.query("pert_deltaU", parms.pert_deltaU);
   pp.query("pert_deltaV", parms.pert_deltaV);
@@ -42,8 +43,10 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
 
   //===========================================================================
   // READ USER-DEFINED INPUTS
-  pp.get("advection_heating_rate", parms.advection_heating_rate);
+  pp.query("advection_heating_rate", parms.advection_heating_rate);
   pp.query("advection_moisture_rate", parms.advection_moisture_rate);
+  pp.query("advection_heating_rate_base", parms.advection_heating_rate_base);
+  pp.query("advection_moisture_rate_base", parms.advection_moisture_rate_base);
   pp.query("restart_time",parms.restart_time);
   pp.query("source_cutoff", parms.cutoff);
   pp.query("source_cutoff_transition", parms.cutoff_transition);
@@ -96,7 +99,10 @@ Problem::init_custom_pert(
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms_d.T_0_Pert_Mag;
     }
-
+   if ((z <= parms_d.pert_ref_height) && (parms_d.Q_0_Pert_Mag != 0.0)) {
+        Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+        state_pert(i, j, k, RhoQ1_comp) = (rand_double*2.0 - 1.0)*parms_d.Q_0_Pert_Mag;
+    }
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * exp(-10.*r*r);
 
@@ -214,15 +220,20 @@ Problem::update_rhotheta_sources (
                 const Real* dx = geom.CellSize();
                 const Real x = prob_lo[0] + (i + 0.5) * dx[0];
                 const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-
+                const Real z = prob_lo[2] + (k + 0.5) * dx[2];
                 // Define a point (xc,yc,zc) at the center of the domain
                 const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
                 const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
 
-                const Real c = 2.0*dx[0];
+//                const Real c = 2.0*dx[0];
+                const Real c = 2890000;
                 const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
-
-                src_arr(i, j, k) = parms_d.advection_heating_rate*exp(-r / (c*c));
+                const Real rsqr = r*r;
+                src_arr(i, j, k) = (parms_d.advection_heating_rate_base + parms_d.advection_heating_rate*exp(-rsqr / c))*exp(-z/100);
+                //if (k == 0)
+                //{amrex::Print() << "at radius " << r <<
+                //       " and z of" << z << " x is " << x << " y is " << y << " heating is " << src_arr(i, j, k) << " exp is " << (-rsqr / c) 
+                //       << std::endl;}
             });
         } else {
             // src is a function over Z
@@ -268,15 +279,16 @@ Problem::update_rhoqt_sources (
                 const Real* dx = geom.CellSize();
                 const Real x = prob_lo[0] + (i + 0.5) * dx[0];
                 const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-
+                const Real z = prob_lo[2] + (k + 0.5) * dx[2];
                 // Define a point (xc,yc,zc) at the center of the domain
                 const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
                 const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
 
-                const Real c = 2.0*dx[0];
+                //const Real c = 2.0*dx[0];
+                const Real c = 1700.0*1700.0;
                 const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
-
-                qsrc_arr(i, j, k) = parms_d.advection_moisture_rate*exp(-r / (c*c));
+                const Real rsqr = r*r;
+                qsrc_arr(i, j, k) = (parms_d.advection_moisture_rate_base + parms_d.advection_moisture_rate*exp(-rsqr / c))*exp(-z/100);
             });
         } else {
             // src is a function over Z
