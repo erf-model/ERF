@@ -20,6 +20,7 @@ Problem::Problem ()
   pp.query("U_0", parms.U_0);
   pp.query("V_0", parms.V_0);
   pp.query("W_0", parms.W_0);
+
   pp.query("dampcoef", parms.dampcoef);
   pp.query("zdamp", parms.zdamp);
 

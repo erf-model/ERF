@@ -160,7 +160,6 @@ ERF::refinement_criteria_setup ()
                         khi = domain.smallEnd(2) - 1;
 
                         for (int k=domain.smallEnd(2); k<=domain.bigEnd(2)+1; ++k) {
-                            amrex::Print() << "z("<<k<<") = " << zlevels_stag[k] << std::endl;
                             if (zlevels_stag[k] > rbox_lo[2]) {
                                 klo = k-1;
                                 break;
@@ -169,7 +168,6 @@ ERF::refinement_criteria_setup ()
                         AMREX_ASSERT(klo >= domain.smallEnd(2));
 
                         for (int k=klo+1; k<=domain.bigEnd(2)+1; ++k) {
-                            amrex::Print() << "z("<<k<<") = " << zlevels_stag[k] << std::endl;
                             if (zlevels_stag[k] > rbox_hi[2]) {
                                 khi = k-1;
                                 break;

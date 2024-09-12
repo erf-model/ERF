@@ -13,7 +13,7 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real T_0 = 0.0;
   amrex::Real U_0 = 0.0;
   amrex::Real V_0 = 0.0;
-  amrex::Real W_0 = 0.0;
+  amrex::Real W_0 = 0.0; // needed for rayleigh damping
 
   // Rayleigh parameters
   amrex::Real dampcoef = 0.003;
