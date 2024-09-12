@@ -1,8 +1,8 @@
-CEXE_sources += Cloud_SAM.cpp
-CEXE_sources += Init_SAM.cpp
-CEXE_sources += Update_SAM.cpp
-CEXE_sources += IceFall.cpp
-CEXE_sources += Precip.cpp
-CEXE_sources += PrecipFall.cpp
-CEXE_headers += SAM.H
+CEXE_sources += ERF_Cloud_SAM.cpp
+CEXE_sources += ERF_Init_SAM.cpp
+CEXE_sources += ERF_Update_SAM.cpp
+CEXE_sources += ERF_IceFall.cpp
+CEXE_sources += ERF_Precip.cpp
+CEXE_sources += ERF_PrecipFall.cpp
+CEXE_headers += ERF_SAM.H
 

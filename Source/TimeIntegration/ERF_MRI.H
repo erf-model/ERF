@@ -6,8 +6,8 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_IntegratorBase.H>
 
-#include <TI_slow_headers.H>
-#include <TI_fast_headers.H>
+#include <ERF_TI_slow_headers.H>
+#include <ERF_TI_fast_headers.H>
 
 #include <functional>
 
@@ -190,23 +190,21 @@ public:
         using namespace amrex;
 
         // *******************************************************************************
-        // version == 0: we only update the fast variables every fast timestep, then update
-        //               the slow variables after the acoustic sub-stepping.  This has
-        //               two calls to slow_rhs so that we can update the slow variables
-        //               with the velocity field after the acoustic substepping using
-        //               the time-averaged velocity from the substepping
-        // version == 1: we don't do any acoustic subcyling so we only make one call per RK
-        //               stage to slow_rhs
+        // !no_substepping: we only update the fast variables every fast timestep, then update
+        //                  the slow variables after the acoustic sub-stepping.  This has
+        //                  two calls to slow_rhs so that we can update the slow variables
+        //                  with the velocity field after the acoustic substepping using
+        //                  the time-averaged velocity from the substepping
+        // no_substepping:  we don't do any acoustic subcyling so we only make one call per RK
+        //                  stage to slow_rhs
         // *******************************************************************************
-        int version = no_substepping ? 1 : 0;
-
         timestep = time_step;
 
         const int substep_ratio = get_slow_fast_timestep_ratio();
 
-        AMREX_ALWAYS_ASSERT(substep_ratio > 1 && substep_ratio % 2 == 0);
-
-        const amrex::Real sub_timestep = timestep / substep_ratio;
+        if (!no_substepping) {
+            AMREX_ALWAYS_ASSERT(substep_ratio > 1 && substep_ratio % 2 == 0);
+        }
 
         // Assume before advance() that S_old is valid data at the current time ("time" argument)
         // And that if data is a MultiFab, both S_old and S_new contain ghost cells for evaluating a stencil based RHS
@@ -243,6 +241,8 @@ public:
         amrex::Real time_stage = time;
         amrex::Real old_time_stage;
 
+        const amrex::Real sub_timestep = timestep / substep_ratio;
+
         if (!incompressible) {
           // RK3 for compressible integrator
           for (int nrk = 0; nrk < 3; nrk++)
@@ -253,13 +253,29 @@ public:
             old_time_stage = time_stage;
 
             if (nrk == 0) {
-                if (force_stage1_single_substep)
-                          { nsubsteps = 1;               dtau = timestep / 3.0; time_stage = time + timestep / 3.0;}
-                else
-                          { nsubsteps = substep_ratio/3; dtau = sub_timestep  ; time_stage = time + timestep / 3.0;}
+                if (force_stage1_single_substep || no_substepping) {
+                    nsubsteps = 1;               dtau = timestep / 3.0;
+                } else {
+                    nsubsteps = substep_ratio/3; dtau = sub_timestep  ;
+                }
+                time_stage = time + timestep / 3.0;
             }
-            if (nrk == 1) { nsubsteps = substep_ratio/2; dtau = sub_timestep  ; time_stage = time + timestep / 2.0;}
-            if (nrk == 2) { nsubsteps = substep_ratio;   dtau = sub_timestep  ; time_stage = time + timestep      ;}
+            if (nrk == 1) {
+                if (no_substepping) {
+                    nsubsteps =               1; dtau = 0.5 * timestep;
+                } else {
+                    nsubsteps = substep_ratio/2; dtau =   sub_timestep;
+                }
+                time_stage = time + timestep / 2.0;
+            }
+            if (nrk == 2) {
+                if (no_substepping) {
+                    nsubsteps =             1;   dtau =     timestep;
+                } else {
+                    nsubsteps = substep_ratio;   dtau = sub_timestep;
+                }
+                time_stage = time + timestep;
+            }
 
             // step 1 starts with S_stage = S^n  and we always start substepping at the old time
             // step 2 starts with S_stage = S^*  and we always start substepping at the old time
@@ -283,7 +299,7 @@ public:
             // ****************************************************
             // Acoustic substepping
             // ****************************************************
-            if (version == 0)
+            if (!no_substepping)
             {
                 // *******************************************************************************
                 // Update the fast variables

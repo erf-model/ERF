@@ -1,5 +1,5 @@
 #include "AMReX_PhysBCFunct.H"
-#include "IndexDefines.H"
+#include "ERF_IndexDefines.H"
 #include <ERF_PhysBCFunct.H>
 
 using namespace amrex;
