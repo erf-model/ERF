@@ -6,8 +6,8 @@
 
 #include <ERF.H>
 #include <AMReX_MultiFabUtil.H>
-#include <TileNoZ.H>
-#include <prob_common.H>
+#include <ERF_TileNoZ.H>
+#include <ERF_prob_common.H>
 
 using namespace amrex;
 
@@ -23,7 +23,7 @@ ERF::turbPert_update (const int lev, const Real local_dt)
     MultiFab xvel_data(lev_new[Vars::xvel], make_alias, 0, 1);
     MultiFab yvel_data(lev_new[Vars::yvel], make_alias, 0, 1);
 
-    // This logic is done once then stored within TurbPertStruct.H
+    // This logic is done once then stored within ERF_TurbPertStruct.H
     turbPert.pt_type = -1;
     if (solverChoice.pert_type == PerturbationType::perturbSource) {
         turbPert.pt_type = 0;

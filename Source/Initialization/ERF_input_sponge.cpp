@@ -3,10 +3,10 @@
  */
 
 #include <ERF.H>
-#include <EOS.H>
+#include <ERF_EOS.H>
 #include <ERF_Constants.H>
-#include <Utils.H>
-#include <prob_common.H>
+#include <ERF_Utils.H>
+#include <ERF_prob_common.H>
 
 using namespace amrex;
 

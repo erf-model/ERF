@@ -6,19 +6,19 @@
  * Worker routines for filling data at new levels after initialization, restart or regridding
 */
 
-#include "prob_common.H"
-#include <EOS.H>
+#include "ERF_prob_common.H"
+#include <ERF_EOS.H>
 #include <ERF.H>
 
 #include <AMReX_buildInfo.H>
 
-#include <Utils.H>
-#include <TerrainMetrics.H>
-#include <Utils/ParFunctions.H>
+#include <ERF_Utils.H>
+#include <ERF_TerrainMetrics.H>
+#include <Utils/ERF_ParFunctions.H>
 #include <memory>
 
 #ifdef ERF_USE_MULTIBLOCK
-#include <MultiBlockContainer.H>
+#include <ERF_MultiBlockContainer.H>
 #endif
 
 using namespace amrex;

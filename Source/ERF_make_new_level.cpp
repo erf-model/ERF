@@ -7,14 +7,14 @@
  * The routines here call common routines in ERF_make_new_arrays.cpp
 */
 
-#include "prob_common.H"
+#include "ERF_prob_common.H"
 #include <ERF.H>
 #include <AMReX_buildInfo.H>
-#include <Utils.H>
+#include <ERF_Utils.H>
 #include <memory>
 
 #ifdef ERF_USE_MULTIBLOCK
-#include <MultiBlockContainer.H>
+#include <ERF_MultiBlockContainer.H>
 #endif
 
 using namespace amrex;
@@ -375,8 +375,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
-    // amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
+    amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
 
+    AMREX_ALWAYS_ASSERT(lev > 0);
     AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::Moving);
 
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
@@ -451,13 +452,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                            icomp, icomp, ncomp, geom[lev-1], geom[lev],
                            null_bc, 0, null_bc, 0, refRatio(lev-1),
                            mapper, domain_bcs_type, bccomp);
+        std::swap(temp_base_state, base_state[lev]);
     }
-    std::swap(temp_base_state, base_state[lev]);
-
-    // ********************************************************************************************
-    // Enforce HSE on new grids
-    // ********************************************************************************************
-    initHSE(lev);
 
     // ********************************************************************************************
     // Copy from new into old just in case

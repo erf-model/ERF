@@ -1,4 +1,4 @@
-#include <EOS.H>
+#include <ERF_EOS.H>
 #include <ERF.H>
 
 using namespace amrex;

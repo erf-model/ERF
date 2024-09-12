@@ -1,7 +1,7 @@
 #ifdef ERF_USE_WW3_COUPLING
 
 #include <ERF.H>
-#include <Utils.H>
+#include <ERF_Utils.H>
 #include <mpi.h>
 #include <AMReX_MPMD.H>
 #include <AMReX_MultiFab.H>
