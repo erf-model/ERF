@@ -228,11 +228,14 @@ Problem::update_rhotheta_sources (
                 auto y = prob_lo[1] + (j + 0.5) * dx[1];
                 auto z = prob_lo[2] + (k + 0.5) * dx[2];
 
-//                const Real c = 2.0*dx[0];
                 auto c = 2890000.0;
                 auto r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
                 auto rsqr = r*r;
-                src_arr(i, j, k) = (parms_d.advection_heating_rate_base + parms_d.advection_heating_rate*exp(-rsqr / c))*exp(-z/100);
+                if (time < 3600) {
+                   src_arr(i, j, k) = (parms_d.advection_heating_rate_base)*exp(-z/100);
+                } else {
+                   src_arr(i, j, k) = (parms_d.advection_heating_rate*exp(-rsqr / c))*exp(-z/100);
+                }
             });
         } else {
             // src is a function over Z
@@ -290,7 +293,11 @@ Problem::update_rhoqt_sources (
                 auto c = 1700.0*1700.0;
                 auto r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
                 auto rsqr = r*r;
-                qsrc_arr(i, j, k) = (parms_d.advection_moisture_rate_base + parms_d.advection_moisture_rate*exp(-rsqr / c))*exp(-z/100);
+                if (time < 3600) {
+                   qsrc_arr(i, j, k) = (parms_d.advection_moisture_rate_base)*exp(-z/100);
+                } else {
+                   qsrc_arr(i, j, k) = (parms_d.advection_moisture_rate*exp(-rsqr / c))*exp(-z/100);
+                }
             });
         } else {
             // src is a function over Z
