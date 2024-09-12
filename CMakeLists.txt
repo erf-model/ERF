@@ -208,7 +208,7 @@ endif()
 
 # Installation rules
 include(CMakePackageConfigHelpers)
-#include(GNUInstallDirs)
+include(GNUInstallDirs)
 
 # Create non-object library for use as external target
 add_library(erf_api)
