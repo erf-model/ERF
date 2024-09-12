@@ -130,6 +130,7 @@ void erf_fast_rhs_T (int step, int nrk,
         const Array4<const Real>& stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real>& stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
 
+        Box  bx = mfi.validbox();
         Box gbx = mfi.tilebox(); gbx.grow(1);
 
         if (step == 0) {
@@ -143,25 +144,23 @@ void erf_fast_rhs_T (int step, int nrk,
         Box gtby = mfi.nodaltilebox(1); gtby.grow(IntVect(1,1,0));
         Box gtbz = mfi.nodaltilebox(2); gtbz.grow(IntVect(1,1,0));
 
-        const auto& gtbx_lo = lbound(gtbx);
-        const auto& gtbx_hi = ubound(gtbx);
-        const auto& gtby_lo = lbound(gtby);
-        const auto& gtby_hi = ubound(gtby);
+        const auto& bx_lo = lbound(bx);
+        const auto& bx_hi = ubound(bx);
 
         ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
-            if (k == gtbx_lo.z && k != domlo.z) {
+            if (k == bx_lo.z && k != domlo.z) {
                 old_drho_u(i,j,k-1) = old_drho_u(i,j,k);
-            } else if (k == gtbx_hi.z) {
+            } else if (k == bx_hi.z) {
                 old_drho_u(i,j,k+1) = old_drho_u(i,j,k);
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_v(i,j,k) = prev_ymom(i,j,k) - stage_ymom(i,j,k);
-            if (k == gtby_lo.z && k != domlo.z) {
+            if (k == bx_lo.z && k != domlo.z) {
                 old_drho_v(i,j,k-1) = old_drho_v(i,j,k);
-            } else if (k == gtby_hi.z) {
+            } else if (k == bx_hi.z) {
                 old_drho_v(i,j,k+1) = old_drho_v(i,j,k);
             }
         },
@@ -206,6 +205,7 @@ void erf_fast_rhs_T (int step, int nrk,
 #endif
     for ( MFIter mfi(S_stage_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
+        Box  bx = mfi.validbox();
         Box tbx = mfi.nodaltilebox(0);
         Box tby = mfi.nodaltilebox(1);
 
@@ -251,10 +251,8 @@ void erf_fast_rhs_T (int step, int nrk,
         {
         BL_PROFILE("fast_rhs_xymom_T");
 
-        const auto& tbx_lo = lbound(tbx);
-        const auto& tbx_hi = ubound(tbx);
-        const auto& tby_lo = lbound(tby);
-        const auto& tby_hi = ubound(tby);
+        const auto& bx_lo = lbound(bx);
+        const auto& bx_hi = ubound(bx);
 
         ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -282,9 +280,9 @@ void erf_fast_rhs_T (int step, int nrk,
 
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                         + dtau * slow_rhs_rho_u(i,j,k);
-                if (k == tbx_lo.z && k != domlo.z) {
+                if (k == bx_lo.z && k != domlo.z) {
                     new_drho_u(i,j,k-1) = new_drho_u(i,j,k);
-                } else if (k == tbx_hi.z) {
+                } else if (k == bx_hi.z) {
                     new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
                 }
 
@@ -318,9 +316,9 @@ void erf_fast_rhs_T (int step, int nrk,
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
                                                         + dtau * slow_rhs_rho_v(i,j,k);
 
-                if (k == tby_lo.z && k != 0) {
+                if (k == bx_lo.z && k != domlo.z) {
                     new_drho_v(i,j,k-1) = new_drho_v(i,j,k);
-                } else if (k == tby_hi.z) {
+                } else if (k == bx_hi.z) {
                     new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
                 }
 
