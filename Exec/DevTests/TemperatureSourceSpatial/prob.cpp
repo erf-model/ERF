@@ -229,7 +229,12 @@ Problem::update_rhotheta_sources (
                 const Real c = 2890000;
                 const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
                 const Real rsqr = r*r;
-                src_arr(i, j, k) = (parms_d.advection_heating_rate_base + parms_d.advection_heating_rate*exp(-rsqr / c))*exp(-z/100);
+                if (time < 3600) {
+                   src_arr(i, j, k) = (parms_d.advection_heating_rate_base)*exp(-z/100);
+                } else {
+                   src_arr(i, j, k) = (parms_d.advection_heating_rate*exp(-rsqr / c))*exp(-z/100);
+                }
+                 
                 //if (k == 0)
                 //{amrex::Print() << "at radius " << r <<
                 //       " and z of" << z << " x is " << x << " y is " << y << " heating is " << src_arr(i, j, k) << " exp is " << (-rsqr / c) 
@@ -288,7 +293,12 @@ Problem::update_rhoqt_sources (
                 const Real c = 1700.0*1700.0;
                 const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
                 const Real rsqr = r*r;
-                qsrc_arr(i, j, k) = (parms_d.advection_moisture_rate_base + parms_d.advection_moisture_rate*exp(-rsqr / c))*exp(-z/100);
+                if (time < 3600) {
+                   qsrc_arr(i, j, k) = (parms_d.advection_moisture_rate_base)*exp(-z/100);
+                } else {
+                   qsrc_arr(i, j, k) = (parms_d.advection_moisture_rate*exp(-rsqr / c))*exp(-z/100);
+                }
+
             });
         } else {
             // src is a function over Z
