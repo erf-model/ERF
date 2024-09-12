@@ -13,7 +13,6 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
                    std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                    amrex::Geometry const& geom) override
 {
-    const amrex::Real prob_lo_z = geom.ProbLo()[2];
     const amrex::Real dz        = geom.CellSize()[2];
 
     const amrex::Real T_sfc    = 300.;
