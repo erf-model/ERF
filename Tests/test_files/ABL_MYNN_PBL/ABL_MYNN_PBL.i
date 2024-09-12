@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 stop_time = 32400.0  # 540 min = 9 h (Cuxart et al. 2006)
-max_step = 100
+max_step  = 100
 
 amrex.fpe_trap_invalid = 0
 
@@ -66,15 +66,10 @@ erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 8.0 0.0 0.0
 
 # Turbulence closure
-erf.les_type        = "None"
-
-# NOT USED
-#erf.rho0_trans      = 1.3223 # from Cuxart et al. 2006
-#erf.theta_ref       = 263.5 # from Cuxart et al. 2006
-
-erf.pbl_type    = "MYNN25"
+erf.les_type    = "None"
+erf.pbl_type    = MYNN25
 
 # Initial conditions from Beare et al. 2006
 prob.KE_0            = 0.4 # [m2/s2]
 prob.KE_decay_height = 250. # [m]
-prob.KE_decay_order  = 1
+prob.KE_decay_order  = 3

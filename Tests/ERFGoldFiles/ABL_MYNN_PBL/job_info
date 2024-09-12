@@ -5,29 +5,29 @@ inputs file: ABL_MYNN_PBL.i
 
 number of MPI processes: 1
 
-CPU time used since start of simulation (CPU-hours): 0.0020349
+CPU time used since start of simulation (CPU-hours): 0.000228436
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Thu Aug 29 14:08:26 2024
-output dir:         /home/alattanz/git/ERF/Exec/ABL
+output data / time: Thu Sep 12 13:24:24 2024
+output dir:         /home/alattanz/ERF/Exec/ABL/HOLD
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2024-08-23 09:56:04.102500
+build date:    2024-09-12 12:41:24.015608
 build machine: Linux LAPTOP-PO22H9R0 4.4.0-22621-Microsoft #3672-Microsoft Fri Jan 01 08:00:00 PST 2016 x86_64 x86_64 x86_64 GNU/Linux
-build dir:     /home/alattanz/git/ERF/Exec/ABL
+build dir:     /home/alattanz/ERF/Exec/ABL
 AMReX dir:     /home/alattanz/git/amrex
 
 COMP:          gnu
 COMP version:  9.4.0
 
 
-ERF       git hash: b8fd4715-dirty
-AMReX       git hash: 22.05-939-gc09da9977
+ERF       git hash: fcb810ce
+AMReX       git hash: 22.05-998-g4460afbbc
 
 
 ===============================================================================
@@ -113,7 +113,7 @@ erf.molec_diff_type = None
 erf.most.surf_heating_rate = -0.25
 erf.most.surf_temp = 265.0
 erf.most.z0 = 0.1
-erf.pbl_type = MYNN2.5
+erf.pbl_type = MYNN25
 erf.plot_file_1 = plt
 erf.plot_int_1 = 300
 erf.plot_vars_1 = density x_velocity y_velocity z_velocity pressure theta rhoQKE Kmv Khv
@@ -131,9 +131,11 @@ geometry.prob_lo = 0 0 0
 max_step = 100
 prob.KE_0 = 0.4
 prob.KE_decay_height = 250.
-prob.KE_decay_order = 1
+prob.KE_decay_order = 3
 stop_time = 32400.0
 tiny_profiler.device_synchronize_around_region = 0
+tiny_profiler.enabled = 1
+tiny_profiler.memprof_enabled = 1
 tiny_profiler.print_threshold = 1
 tiny_profiler.verbose = 0
 zhi.theta_grad = 0.01
