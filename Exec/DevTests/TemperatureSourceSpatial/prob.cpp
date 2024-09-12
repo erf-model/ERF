@@ -194,7 +194,14 @@ Problem::update_rhotheta_sources (
 {
     if (src->empty()) return;
 
-    const int khi              = geom.Domain().bigEnd()[2];
+    auto prob_lo = geom.ProbLoArray();
+    auto prob_hi = geom.ProbHiArray();
+    auto dx = geom.CellSizeArray();
+    const int khi = geom.Domain().bigEnd()[2];
+
+    // Define a point (xc,yc,zc) at the center of the domain
+    const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
+    const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
@@ -214,26 +221,18 @@ Problem::update_rhotheta_sources (
         if (box.length(0) != 1)
         {
             // if z dimension size is 1, then src is a spatially varying function over x,y at k=0
-            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                const Real* prob_lo = geom.ProbLo();
-                const Real* prob_hi = geom.ProbHi();
-                const Real* dx = geom.CellSize();
-                const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-                const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-                const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-                // Define a point (xc,yc,zc) at the center of the domain
-                const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-                const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
+            ParallelFor( box,
+                         [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                auto x = prob_lo[0] + (i + 0.5) * dx[0];
+                auto y = prob_lo[1] + (j + 0.5) * dx[1];
+                auto z = prob_lo[2] + (k + 0.5) * dx[2];
 
 //                const Real c = 2.0*dx[0];
-                const Real c = 2890000;
-                const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
-                const Real rsqr = r*r;
+                auto c = 2890000.0;
+                auto r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
+                auto rsqr = r*r;
                 src_arr(i, j, k) = (parms_d.advection_heating_rate_base + parms_d.advection_heating_rate*exp(-rsqr / c))*exp(-z/100);
-                //if (k == 0)
-                //{amrex::Print() << "at radius " << r <<
-                //       " and z of" << z << " x is " << x << " y is " << y << " heating is " << src_arr(i, j, k) << " exp is " << (-rsqr / c) 
-                //       << std::endl;}
             });
         } else {
             // src is a function over Z
@@ -253,7 +252,10 @@ Problem::update_rhoqt_sources (
 {
     if (qsrc->empty()) return;
 
-    const int khi              = geom.Domain().bigEnd()[2];
+    auto prob_lo = geom.ProbLoArray();
+    auto prob_hi = geom.ProbHiArray();
+    auto dx = geom.CellSizeArray();
+    const int khi = geom.Domain().bigEnd()[2];
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
@@ -265,6 +267,10 @@ Problem::update_rhoqt_sources (
         reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
+    // Define a point (xc,yc,zc) at the center of the domain
+    auto xc = 0.5 * (prob_lo[0] + prob_hi[0]);
+    auto yc = 0.5 * (prob_lo[1] + prob_hi[1]);
+
     // Only apply temperature source below nominal inversion height
     for ( amrex::MFIter mfi(*qsrc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
@@ -273,21 +279,17 @@ Problem::update_rhoqt_sources (
         if (box.length(0) != 1)
         {
             // if z dimension size is 1, then src is a spatially varying function over x,y at k=0
-            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                const Real* prob_lo = geom.ProbLo();
-                const Real* prob_hi = geom.ProbHi();
-                const Real* dx = geom.CellSize();
-                const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-                const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-                const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-                // Define a point (xc,yc,zc) at the center of the domain
-                const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-                const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
+            ParallelFor( box,
+                         [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                auto x = prob_lo[0] + (i + 0.5) * dx[0];
+                auto y = prob_lo[1] + (j + 0.5) * dx[1];
+                auto z = prob_lo[2] + (k + 0.5) * dx[2];
 
                 //const Real c = 2.0*dx[0];
-                const Real c = 1700.0*1700.0;
-                const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
-                const Real rsqr = r*r;
+                auto c = 1700.0*1700.0;
+                auto r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
+                auto rsqr = r*r;
                 qsrc_arr(i, j, k) = (parms_d.advection_moisture_rate_base + parms_d.advection_moisture_rate*exp(-rsqr / c))*exp(-z/100);
             });
         } else {
