@@ -5,28 +5,28 @@ inputs file: ABL_MYNN_PBL.i
 
 number of MPI processes: 1
 
-CPU time used since start of simulation (CPU-hours): 0.000228436
+CPU time used since start of simulation (CPU-hours): 0.000228668
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Thu Sep 12 13:24:24 2024
-output dir:         /home/alattanz/ERF/Exec/ABL/HOLD
+output data / time: Thu Sep 12 14:59:45 2024
+output dir:         /home/alattanz/git/ERF/Exec/ABL/HOLD
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2024-09-12 12:41:24.015608
+build date:    2024-09-12 14:59:04.247757
 build machine: Linux LAPTOP-PO22H9R0 4.4.0-22621-Microsoft #3672-Microsoft Fri Jan 01 08:00:00 PST 2016 x86_64 x86_64 x86_64 GNU/Linux
-build dir:     /home/alattanz/ERF/Exec/ABL
+build dir:     /home/alattanz/git/ERF/Exec/ABL
 AMReX dir:     /home/alattanz/git/amrex
 
 COMP:          gnu
 COMP version:  9.4.0
 
 
-ERF       git hash: fcb810ce
+ERF       git hash: 86225712-dirty
 AMReX       git hash: 22.05-998-g4460afbbc
 
 
