@@ -139,7 +139,7 @@ Problem::init_custom_pert(
     }
     if (state_pert.nComp() > RhoQKE_comp) {
         // PBL
-        state_pert(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * 2.0 * parms_d.KE_0;
+        state_pert(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * parms_d.KE_0;
         if (parms_d.KE_decay_height > 0) {
             // scale initial SGS kinetic energy with height
             state_pert(i, j, k, RhoQKE_comp) *= max(

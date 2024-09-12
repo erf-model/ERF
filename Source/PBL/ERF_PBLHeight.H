@@ -114,7 +114,7 @@ struct MYNNPBLH {
                             // Interpolate to get lowest height where theta = min_theta + theta_incr
                             pblh_arr(i,j,0) = zphys_arr(ii,jj,k)
                                             + (zphys_arr(ii,jj,k+1)-zphys_arr(ii,jj,k))/(thv1-thv)
-                                              * (min_thv_arr(i,j,0) + theta_incr_land - thv);
+                                            * (min_thv_arr(i,j,0) + theta_incr_land - thv);
                         }
                         else if (!is_land && (thv1 >= min_thv_arr(i,j,0) + theta_incr_water)
                                           && (thv  <  min_thv_arr(i,j,0) + theta_incr_water))
@@ -122,7 +122,7 @@ struct MYNNPBLH {
                             // Interpolate to get lowest height where theta = min_theta + theta_incr
                             pblh_arr(i,j,0) = zphys_arr(ii,jj,k)
                                             + (zphys_arr(ii,jj,k+1)-zphys_arr(ii,jj,k))/(thv1-thv)
-                                              * (min_thv_arr(i,j,0) + theta_incr_water - thv);
+                                            * (min_thv_arr(i,j,0) + theta_incr_water - thv);
                         }
                     }
                     if (pblh_tke_arr(i,j,0) == 0)
@@ -142,7 +142,7 @@ struct MYNNPBLH {
                             // Interpolate to get lowest height where TKE -> 0
                             pblh_tke_arr(i,j,0) = zphys_arr(ii,jj,k)
                                                 + (zphys_arr(ii,jj,k+1)-zphys_arr(ii,jj,k))/(tke1-tke)
-                                                  * (TKEeps - tke);
+                                                * (TKEeps - tke);
                         }
                     }
                 });
@@ -186,7 +186,7 @@ struct MYNNPBLH {
                             // Interpolate to get lowest height where theta = min_theta + theta_incr
                             pblh_arr(i,j,0) = (k+0.5)*dz_no_terrain
                                             + dz_no_terrain/(thv1-thv)
-                                              * (min_thv_arr(i,j,0) + theta_incr_land - thv);
+                                            * (min_thv_arr(i,j,0) + theta_incr_land - thv);
                         }
                         else if (!is_land && (thv1 >= min_thv_arr(i,j,0) + theta_incr_water)
                                           && (thv  <  min_thv_arr(i,j,0) + theta_incr_water))
@@ -194,7 +194,7 @@ struct MYNNPBLH {
                             // Interpolate to get lowest height where theta = min_theta + theta_incr
                             pblh_arr(i,j,0) = (k+0.5)*dz_no_terrain
                                             + dz_no_terrain/(thv1-thv)
-                                              * (min_thv_arr(i,j,0) + theta_incr_water - thv);
+                                            * (min_thv_arr(i,j,0) + theta_incr_water - thv);
                         }
                     }
                     if (pblh_tke_arr(i,j,0) == 0)
@@ -202,9 +202,9 @@ struct MYNNPBLH {
                         //
                         // Find PBL height based on TKE (for SBLs only)
                         //
-                        amrex::Real tke    = 0.5 * cons_arr(i,j,k  ,RhoQKE_comp) / cons_arr(i,j,k  ,Rho_comp);
-                        amrex::Real tke1   = 0.5 * cons_arr(i,j,k+1,RhoQKE_comp) / cons_arr(i,j,k+1,Rho_comp);
-                        amrex::Real maxtke = 0.5 * cons_arr(i,j,0  ,RhoQKE_comp) / cons_arr(i,j,0  ,Rho_comp);
+                        amrex::Real tke    = cons_arr(i,j,k  ,RhoQKE_comp) / cons_arr(i,j,k  ,Rho_comp);
+                        amrex::Real tke1   = cons_arr(i,j,k+1,RhoQKE_comp) / cons_arr(i,j,k+1,Rho_comp);
+                        amrex::Real maxtke = cons_arr(i,j,0  ,RhoQKE_comp) / cons_arr(i,j,0  ,Rho_comp);
                         // - threshold is 5% of max TKE (Kosovic & Curry 2000, JAS)
                         amrex::Real TKEeps = 0.05 * maxtke;
                         TKEeps = amrex::max(TKEeps, 0.02); // min val from WRF
@@ -249,7 +249,7 @@ struct MYNNPBLH {
                 //
                 // Finally, blend between the two PBLH estimates
                 //
-                amrex::Real maxqke = cons_arr(i,j,0  ,RhoQKE_comp) / cons_arr(i,j,0  ,Rho_comp);
+                amrex::Real maxqke = 2.0 * cons_arr(i,j,0  ,RhoQKE_comp) / cons_arr(i,j,0  ,Rho_comp);
                 if (maxqke > 0.05) {
                     amrex::Real wt = 0.5*std::tanh((zi - sbl_lim)/sbl_damp) + 0.5;
                     pblh_arr(i,j,0) = (1.-wt)*pblh_tke_arr(i,j,0) + wt*pblh_arr(i,j,0);

@@ -105,7 +105,7 @@ struct MYNNLevel2 {
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    amrex::Real calc_SM(const amrex::Real Rf) const
+    amrex::Real calc_SM (const amrex::Real Rf) const
     {
         AMREX_ASSERT(initialized);
         return A1*F1/(A2*F2) * (Rf1-Rf) / (Rf2-Rf) * calc_SH(Rf);

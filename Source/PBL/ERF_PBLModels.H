@@ -186,7 +186,7 @@ ComputeQKESourceTerms (int i, int j, int k,
     // DiffusionSrcForState_* is called from ERF_slow_rhs_post.
 
     // Shear Production (Note: We store mu_turb, which is 0.5*K_turb)
-    source_term += K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
+    source_term += 2.0 * K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
 
     // Buoyancy Production
     source_term -= (CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
