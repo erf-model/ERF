@@ -15,6 +15,8 @@ Problem::Problem ()
 {
   // Parse params
   ParmParse pp("prob");
+  pp.query("rho_0", parms.rho_0);
+  pp.query("T_0", parms.T_0);
   pp.query("U_0", parms.U_0);
   pp.query("V_0", parms.V_0);
   pp.query("W_0", parms.W_0);
@@ -52,7 +54,7 @@ Problem::init_custom_pert (
 
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-    AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
+    //AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
