@@ -68,7 +68,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                               Array4<      Real>& qfx1_x,
                               Array4<      Real>& qfx1_y,
                               Array4<      Real>& qfx1_z,
-                              Array4<      Real>& /*qfx2_z*/,
+                              Array4<      Real>& qfx2_z,
                               Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
@@ -319,6 +319,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
             }
+
+            if (qty_index == RhoTheta_comp) {
+                if (!most_on_zlo) {
+                    hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            } else  if (qty_index == RhoQ1_comp) {
+                if (!most_on_zlo) {
+                    qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            } else  if (qty_index == RhoQ2_comp) {
+                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
+            }
         });
     // Constant rho*alpha & Turb model
     } else if (l_turb) {
@@ -427,6 +439,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
             }
+
+            if (qty_index == RhoTheta_comp) {
+                if (!most_on_zlo) {
+                    hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            } else  if (qty_index == RhoQ1_comp) {
+                if (!most_on_zlo) {
+                    qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            } else  if (qty_index == RhoQ2_comp) {
+                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
+            }
         });
     // Constant alpha & no LES/PBL model
     } else if(l_consA) {
@@ -531,6 +555,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
             }
+
+            if (qty_index == RhoTheta_comp) {
+                if (!most_on_zlo) {
+                    hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            } else  if (qty_index == RhoQ1_comp) {
+                if (!most_on_zlo) {
+                    qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            } else  if (qty_index == RhoQ2_comp) {
+                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
+            }
         });
     // Constant rho*alpha & no LES/PBL model
     } else {
@@ -634,6 +670,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
+            }
+
+            if (qty_index == RhoTheta_comp) {
+                if (!most_on_zlo) {
+                    hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            } else  if (qty_index == RhoQ1_comp) {
+                if (!most_on_zlo) {
+                    qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            } else  if (qty_index == RhoQ2_comp) {
+                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
             }
         });
     }
