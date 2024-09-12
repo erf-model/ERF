@@ -32,18 +32,21 @@ namespace HSEutils
                          amrex::Real* r,
                          amrex::Real* p,
                          const amrex::Real& dz,
-                         const amrex::Real&  /*prob_lo_z*/,
-                         const int& khi)
+                         const int klo, const int khi)
     {
-      // r_sfc / p_0 are the density / pressure at the surface
-      int k0 = 0;
+      int kstart;
+
+      // r_sfc / p_0 are the density / pressure at klo
 
       // Initial guess
       Real half_dz = 0.5*dz;
-      r[k0] = r_sfc;
-      p[k0] = p_0 - half_dz * r[k0] * CONST_GRAV;
+      r[klo] = r_sfc;
+      p[klo] = p_0 - half_dz * r[klo] * CONST_GRAV;
 
+      if (klo == 0)
       {
+          kstart = 1;
+
           // We do a Newton iteration to satisfy the EOS & HSE (with constant theta)
           bool converged_hse = false;
           Real p_hse;
@@ -51,17 +54,17 @@ namespace HSEutils
 
           for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
           {
-              p_hse = p_0 - half_dz * r[k0] * CONST_GRAV;
-              p_eos = getPgivenRTh(r[k0]*theta);
+              p_hse = p_0 - half_dz * r[klo] * CONST_GRAV;
+              p_eos = getPgivenRTh(r[klo]*theta);
 
               Real A = p_hse - p_eos;
 
-              Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
+              Real dpdr = getdPdRgivenConstantTheta(r[klo],theta);
 
               Real drho = A / (dpdr + half_dz * CONST_GRAV);
 
-              r[k0] = r[k0] + drho;
-              p[k0] = getPgivenRTh(r[k0]*theta);
+              r[klo] = r[klo] + drho;
+              p[klo] = getPgivenRTh(r[klo]*theta);
 
               if (std::abs(drho) < TOL)
               {
@@ -70,12 +73,16 @@ namespace HSEutils
               }
           }
 
-          // if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k0 << std::endl;
+          // if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << klo << std::endl;
           // if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
+      } else {
+          kstart = klo; // because we need to solve for r[klo] here; r[klo-1] is what was passed in r_sfc
+          r[klo-1] = r_sfc; // r_sfc is really the interpolated density in the ghost cell in this case
+          p[klo-1] = getPgivenRTh(r[klo-1]*theta);
       }
 
       // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
-      for (int k = 1; k <= khi; k++)
+      for (int k = kstart; k <= khi; k++)
       {
           // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
           // to discretely satisfy HSE -- here we assume spatial_order = 2 -- we can generalize this later if needed
@@ -105,7 +112,7 @@ namespace HSEutils
               if (std::abs(drho) < TOL * r[k-1])
               {
                   converged_hse = true;
-                  //amrex::Print() << " converged " << std::endl;
+                  // amrex::Print() << " converged " << std::endl;
                   break;
               }
           }

@@ -61,6 +61,10 @@ void erf_fast_rhs_T (int step, int nrk,
 {
     BL_PROFILE_REGION("erf_fast_rhs_T()");
 
+    const Box& domain = geom.Domain();
+    auto const domlo = lbound(domain);
+    auto const domhi = ubound(domain);
+
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
@@ -139,12 +143,27 @@ void erf_fast_rhs_T (int step, int nrk,
         Box gtby = mfi.nodaltilebox(1); gtby.grow(IntVect(1,1,0));
         Box gtbz = mfi.nodaltilebox(2); gtbz.grow(IntVect(1,1,0));
 
+        const auto& gtbx_lo = lbound(gtbx);
+        const auto& gtbx_hi = ubound(gtbx);
+        const auto& gtby_lo = lbound(gtby);
+        const auto& gtby_hi = ubound(gtby);
+
         ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
+            if (k == gtbx_lo.z && k != domlo.z) {
+                old_drho_u(i,j,k-1) = old_drho_u(i,j,k);
+            } else if (k == gtbx_hi.z) {
+                old_drho_u(i,j,k+1) = old_drho_u(i,j,k);
+            }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_v(i,j,k) = prev_ymom(i,j,k) - stage_ymom(i,j,k);
+            if (k == gtby_lo.z && k != domlo.z) {
+                old_drho_v(i,j,k-1) = old_drho_v(i,j,k);
+            } else if (k == gtby_hi.z) {
+                old_drho_v(i,j,k+1) = old_drho_v(i,j,k);
+            }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
@@ -263,7 +282,7 @@ void erf_fast_rhs_T (int step, int nrk,
 
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                         + dtau * slow_rhs_rho_u(i,j,k);
-                if (k == tbx_lo.z && k != 0) {
+                if (k == tbx_lo.z && k != domlo.z) {
                     new_drho_u(i,j,k-1) = new_drho_u(i,j,k);
                 } else if (k == tbx_hi.z) {
                     new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
@@ -446,16 +465,22 @@ void erf_fast_rhs_T (int step, int nrk,
         // *********************************************************************
         {
         Box gbxo = mfi.nodaltilebox(2);
+        Box gbxo_mid = gbxo;
 
-        Box gbxo_lo = gbxo; gbxo_lo.setBig(2,gbxo.smallEnd(2));
-        ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = 0.;
-        });
-        Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-        ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = old_drho_w(i,j,k);
-        });
-        Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,gbxo.smallEnd(2)+1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+        if (gbxo.smallEnd(2) == domlo.z) {
+            Box gbxo_lo = gbxo; gbxo_lo.setBig(2,gbxo.smallEnd(2));
+            gbxo_mid.setSmall(2,gbxo.smallEnd(2)+1);
+            ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                omega_arr(i,j,k) = 0.;
+            });
+        }
+        if (gbxo.bigEnd(2) == domhi.z+1) {
+            Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
+            gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+            ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                omega_arr(i,j,k) = old_drho_w(i,j,k);
+            });
+        }
         ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) = OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
         });
@@ -531,10 +556,6 @@ void erf_fast_rhs_T (int step, int nrk,
 
         auto const lo = lbound(bx);
         auto const hi = ubound(bx);
-
-        const Box& domain = geom.Domain();
-        auto const domlo = lbound(domain);
-        auto const domhi = ubound(domain);
 
         {
         BL_PROFILE("fast_rhs_b2d_loop_t");
@@ -648,7 +669,9 @@ void erf_fast_rhs_T (int step, int nrk,
               Real fast_rhs_rhotheta = -( temp_rhs_arr(i,j,k,1) + 0.5 *
                 ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) -
                   zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi ) / detJ(i,j,k);
+
               cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta);
+
               (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
         });
         } // end profile

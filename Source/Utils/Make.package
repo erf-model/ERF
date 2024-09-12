@@ -1,12 +1,14 @@
-CEXE_headers += ERF_TerrainMetrics.H
-CEXE_headers += ERF_Microphysics_Utils.H
-CEXE_headers += ERF_TileNoZ.H
-CEXE_headers += ERF_Utils.H
+CEXE_headers += ERF_EOS.H
+CEXE_headers += ERF_HSE_Utils.H
 CEXE_headers += ERF_Interpolation_UPW.H
 CEXE_headers += ERF_Interpolation_WENO.H
 CEXE_headers += ERF_Interpolation_WENO_Z.H
 CEXE_headers += ERF_Interpolation.H
 CEXE_headers += ERF_Interpolation_1D.H
+CEXE_headers += ERF_Microphysics_Utils.H
+CEXE_headers += ERF_TerrainMetrics.H
+CEXE_headers += ERF_TileNoZ.H
+CEXE_headers += ERF_Utils.H
 
 CEXE_headers += ERF_ParFunctions.H
 
