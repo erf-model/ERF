@@ -3,10 +3,10 @@
  */
 
 #include <ERF.H>
-#include <EOS.H>
+#include <ERF_EOS.H>
 #include <ERF_Constants.H>
-#include <Utils.H>
-#include <prob_common.H>
+#include <ERF_Utils.H>
+#include <ERF_prob_common.H>
 
 using namespace amrex;
 
@@ -122,6 +122,27 @@ ERF::init_from_input_sounding (int lev)
             input_sounding_data);
 
     } //mfi
+
+    // Make sure to fill the ghost cells of the base state
+    if (lev > 0) {
+        // Interp all three components: rho, p, pi
+        int  icomp = 0; int bccomp = 0; int ncomp = 3;
+
+        PhysBCFunctNoOp null_bc;
+        Interpolater* mapper = &cell_cons_interp;
+
+        Real time = 0.;
+
+        Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
+        Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
+        Vector<Real> ftime    = {time, time};
+        Vector<Real> ctime    = {time, time};
+        FillPatchTwoLevels(base_state[lev], time,
+                           cmf, ctime, fmf, ftime,
+                           icomp, icomp, ncomp, geom[lev-1], geom[lev],
+                           null_bc, 0, null_bc, 0, refRatio(lev-1),
+                           mapper, domain_bcs_type, bccomp);
+    }
 }
 
 /**

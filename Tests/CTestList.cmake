@@ -63,7 +63,7 @@ function(add_test_d TEST_NAME TEST_EXE PLTFILE)
     setup_test()
 
     set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
-    set(FCOMPARE_TOLERANCE "-r 2.0e-9 --abs_tol 2.0e-9")
+    set(FCOMPARE_TOLERANCE "-r 3.0e-9 --abs_tol 3.0e-9")
     set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
 

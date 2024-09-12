@@ -1,2 +1,2 @@
-CEXE_sources += AdvanceSimpleAD.cpp
-CEXE_headers += SimpleAD.H
+CEXE_sources += ERF_AdvanceSimpleAD.cpp
+CEXE_headers += ERF_SimpleAD.H

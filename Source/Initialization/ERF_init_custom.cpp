@@ -5,8 +5,8 @@
 
 #include <ERF.H>
 #include <ERF_Constants.H>
-#include <TileNoZ.H>
-#include <prob_common.H>
+#include <ERF_TileNoZ.H>
+#include <ERF_prob_common.H>
 
 using namespace amrex;
 

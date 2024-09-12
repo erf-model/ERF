@@ -3,11 +3,11 @@
 #include <AMReX_GpuContainers.H>
 
 #include <ERF_Constants.H>
-#include <EOS.H>
-#include <IndexDefines.H>
-#include <PlaneAverage.H>
-#include <Src_headers.H>
-//#include <TerrainMetrics.H>
+#include <ERF_EOS.H>
+#include <ERF_IndexDefines.H>
+#include <ERF_PlaneAverage.H>
+#include <ERF_Src_headers.H>
+//#include <ERF_TerrainMetrics.H>
 
 using namespace amrex;
 
