@@ -129,7 +129,7 @@ ERF::refinement_criteria_setup ()
             }
 
             if (num_real_lo > 0) {
-                std::vector<Real> box_lo(3), box_hi(3);
+                std::vector<Real> rbox_lo(3), rbox_hi(3);
                 ppr.get("max_level",lev_for_box);
                 if (lev_for_box <= max_level)
                 {
@@ -137,21 +137,55 @@ ERF::refinement_criteria_setup ()
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
                     }
 
-                    ppr.getarr("in_box_lo",box_lo,0,AMREX_SPACEDIM);
-                    ppr.getarr("in_box_hi",box_hi,0,AMREX_SPACEDIM);
-                    realbox = RealBox(&(box_lo[0]),&(box_hi[0]));
+                    ppr.getarr("in_box_lo",rbox_lo,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_hi",rbox_hi,0,AMREX_SPACEDIM);
+                    realbox = RealBox(&(rbox_lo[0]),&(rbox_hi[0]));
 
                     Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
 
-                    const auto* dx  = geom[lev_for_box].CellSize();
+                    int ilo, jlo, klo;
+                    int ihi, jhi, khi;
                     const Real* plo = geom[lev_for_box].ProbLo();
-                    int ilo = static_cast<int>((box_lo[0] - plo[0])/dx[0]);
-                    int jlo = static_cast<int>((box_lo[1] - plo[1])/dx[1]);
-                    int klo = static_cast<int>((box_lo[2] - plo[2])/dx[2]);
-                    int ihi = static_cast<int>((box_hi[0] - plo[0])/dx[0]-1);
-                    int jhi = static_cast<int>((box_hi[1] - plo[1])/dx[1]-1);
-                    int khi = static_cast<int>((box_hi[2] - plo[2])/dx[2]-1);
+                    const auto* dx  = geom[lev_for_box].CellSize();
+                    ilo = static_cast<int>((rbox_lo[0] - plo[0])/dx[0]);
+                    jlo = static_cast<int>((rbox_lo[1] - plo[1])/dx[1]);
+                    ihi = static_cast<int>((rbox_hi[0] - plo[0])/dx[0]-1);
+                    jhi = static_cast<int>((rbox_hi[1] - plo[1])/dx[1]-1);
+                    if (solverChoice.use_terrain) {
+                        // Search for k indices corresponding to nominal grid
+                        // AGL heights
+                        const Box& domain = geom[lev_for_box].Domain();
+                        klo = domain.smallEnd(2) - 1;
+                        khi = domain.smallEnd(2) - 1;
+
+                        for (int k=domain.smallEnd(2); k<=domain.bigEnd(2)+1; ++k) {
+                            amrex::Print() << "z("<<k<<") = " << zlevels_stag[k] << std::endl;
+                            if (zlevels_stag[k] > rbox_lo[2]) {
+                                klo = k-1;
+                                break;
+                            }
+                        }
+                        AMREX_ASSERT(klo >= domain.smallEnd(2));
+
+                        for (int k=klo+1; k<=domain.bigEnd(2)+1; ++k) {
+                            amrex::Print() << "z("<<k<<") = " << zlevels_stag[k] << std::endl;
+                            if (zlevels_stag[k] > rbox_hi[2]) {
+                                khi = k-1;
+                                break;
+                            }
+                        }
+                        AMREX_ASSERT((khi <= domain.bigEnd(2)) && (khi > klo));
+
+                        // Need to update realbox because tagging is based on
+                        // the initial _un_deformed grid
+                        realbox = RealBox(plo[0]+ ilo   *dx[0], plo[1]+ jlo   *dx[1], plo[2]+ klo   *dx[2],
+                                          plo[0]+(ihi+1)*dx[0], plo[1]+(jhi+1)*dx[1], plo[2]+(khi+1)*dx[2]);
+                    } else {
+                        klo = static_cast<int>((rbox_lo[2] - plo[2])/dx[2]);
+                        khi = static_cast<int>((rbox_hi[2] - plo[2])/dx[2]-1);
+                    }
+
                     Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
                     if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
                          (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) ||
@@ -185,8 +219,8 @@ ERF::refinement_criteria_setup ()
 
                     const auto* dx  = geom[lev_for_box].CellSize();
                     const Real* plo = geom[lev_for_box].ProbLo();
-                    realbox = RealBox(plo[0]+ box_lo[0]   *dx[0],plo[1] +box_lo[1]   *dx[1],plo[2] +box_lo[2]   *dx[2],
-                                      plo[0]+(box_hi[0]+1)*dx[0],plo[1]+(box_hi[1]+1)*dx[1],plo[2]+(box_hi[2]+1)*dx[2]);
+                    realbox = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
+                                      plo[0]+(box_hi[0]+1)*dx[0], plo[1]+(box_hi[1]+1)*dx[1], plo[2]+(box_hi[2]+1)*dx[2]);
 
                     Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
