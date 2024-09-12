@@ -62,9 +62,9 @@ void ERF::advance_dycore(int level,
     MultiFab* p0  = &p_hse;
     MultiFab* pi0 = &pi_hse;
 
-    Real* dptr_rhotheta_src = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
-    Real* dptr_rhoqt_src    = solverChoice.custom_moisture_forcing ? d_rhoqt_src[level].data()    : nullptr;
-    Real* dptr_wbar_sub     = solverChoice.custom_w_subsidence     ? d_w_subsid[level].data()     : nullptr;
+    MultiFab* rhotheta_src_ptr = solverChoice.custom_rhotheta_forcing ? rhotheta_src[level].get() : nullptr;
+    MultiFab* rhoqt_src_ptr    = solverChoice.custom_moisture_forcing ? rhoqt_src[level].get()   : nullptr;
+    Real* dptr_wbar_sub        = solverChoice.custom_w_subsidence     ? d_w_subsid[level].data()     : nullptr;
 
     // Turbulent Perturbation Pointer
     //Real* dptr_rhotheta_src = solverChoice.pert_type ? d_rhotheta_src[level].data() : nullptr;
@@ -230,13 +230,13 @@ void ERF::advance_dycore(int level,
     // ***********************************************************************************************
     if (solverChoice.custom_rhotheta_forcing) {
         prob->update_rhotheta_sources(old_time,
-                                      h_rhotheta_src[level], d_rhotheta_src[level],
+                                      rhotheta_src_ptr,
                                       fine_geom, z_phys_cc[level]);
     }
 
     if (solverChoice.custom_moisture_forcing) {
         prob->update_rhoqt_sources(old_time,
-                                   h_rhoqt_src[level], d_rhoqt_src[level],
+                                   rhoqt_src_ptr,
                                    fine_geom, z_phys_cc[level]);
     }
 

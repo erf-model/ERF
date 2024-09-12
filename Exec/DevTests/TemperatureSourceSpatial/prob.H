@@ -22,6 +22,7 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real V_0_Pert_Mag = 0.0;
   amrex::Real W_0_Pert_Mag = 0.0;
   amrex::Real T_0_Pert_Mag = 0.0; // perturbation to rho*Theta
+  amrex::Real Q_0_Pert_Mag = 0.0; // perturbation to rho*Theta
 
   // divergence-free initial perturbations
   amrex::Real pert_deltaU = 0.0;
@@ -37,10 +38,14 @@ struct ProbParm : ProbParmDefaults {
   //==============================================
   // USER-DEFINED INPUTS
   // source terms
-  amrex::Real advection_heating_rate;
+  amrex::Real advection_heating_rate = 5.4e-5;
   amrex::Real restart_time = 9e9;
   amrex::Real cutoff = 500.0;
   amrex::Real cutoff_transition = 50.0;
+  amrex::Real advection_moisture_rate = 1.0e-8;
+  amrex::Real advection_heating_rate_base = 5.4e-5;
+  amrex::Real advection_moisture_rate_base = 1.0e-8;
+
   //==============================================
 
   // helper vars
@@ -84,8 +89,14 @@ public:
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
+    void update_rhoqt_sources (
+        const amrex::Real& time,
+        amrex::MultiFab* qsrc,
+        const amrex::Geometry& geom,
+        std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
+
 protected:
-    std::string name() override { return "ABL"; }
+    std::string name() override { return "TemperatureSourceSpatial"; }
 
 private:
     ProbParm parms;
