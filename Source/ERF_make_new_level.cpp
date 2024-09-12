@@ -13,10 +13,6 @@
 #include <ERF_Utils.H>
 #include <memory>
 
-#ifdef ERF_USE_MULTIBLOCK
-#include <ERF_MultiBlockContainer.H>
-#endif
-
 using namespace amrex;
 
 // Make a new level from scratch using provided BoxArray and DistributionMapping.
