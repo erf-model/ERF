@@ -34,8 +34,6 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
             amrex::Array4<amrex::Real const> z_cc_arr = (use_terrain) ?
                                                  z_phys_cc->const_array(mfi) : amrex::Array4<amrex::Real const>{};
 
-            const amrex::Box& bx = mfi.tilebox();
-
             // Create a flat box with same horizontal extent but only one cell in vertical
             const amrex::Box& tbz = mfi.nodaltilebox(2);
             amrex::Box b2d = tbz; // Copy constructor
