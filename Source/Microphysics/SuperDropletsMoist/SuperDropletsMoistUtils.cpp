@@ -46,17 +46,40 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            t_arr(i,j,k,0) = getTgivenRandRTh(S_arr(i,j,k,Rho_comp),S_arr(i,j,k,RhoTheta_comp));
+            t_arr(i,j,k,0) = getTgivenRandRTh(S_arr(i,j,k,Rho_comp),S_arr(i,j,k,RhoTheta_comp),qv_arr(i,j,k,0));
             p_arr(i,j,k,0) = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp),qv_arr(i,j,k,0));
         });
+    }
+
+    AMREX_ASSERT( !m_mic_fab_vars[MicVar_SD::pressure]->contains_nan() );
+    AMREX_ASSERT( !m_mic_fab_vars[MicVar_SD::temperature]->contains_nan() );
+
+    // Get vapour material properties object
+    auto& vapour_mat = m_super_droplets->getVapourMaterial();
+
+    // Compute saturation ratio
+    vapour_mat.computeSaturationVapFrac( (*m_mic_fab_vars[MicVar_SD::rh]),
+                                         (*m_mic_fab_vars[MicVar_SD::temperature]),
+                                         (*m_mic_fab_vars[MicVar_SD::pressure]) );
+
+    for (   MFIter mfi((*m_mic_fab_vars[MicVar_SD::rh]),
+            TilingIfNotGPU()); mfi.isValid();
+            ++mfi ) {
+
+        Box bx = mfi.tilebox();
+        bx.grow( m_mic_fab_vars[MicVar_SD::rh]->nGrowVect() );
+
+        const Array4<Real>& sr_arr = m_mic_fab_vars[MicVar_SD::rh]->array(mfi);
+        const Array4<Real const>& qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        { sr_arr(i,j,k,0) = qv_arr(i,j,k,0) / sr_arr(i,j,k,0); });
+
     }
 
     for (auto i(0); i < MicVar_SD::NumVars; i++) {
         m_mic_fab_vars[i]->FillBoundary(m_geom.periodicity());
     }
-
-    AMREX_ASSERT( !m_mic_fab_vars[MicVar_SD::pressure]->contains_nan() );
-    AMREX_ASSERT( !m_mic_fab_vars[MicVar_SD::temperature]->contains_nan() );
 }
 
 /*! Copy moisture model variables to the conserved state vector from the
