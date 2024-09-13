@@ -359,9 +359,6 @@ struct SolverChoice {
             amrex::Abort("Dont know this coupling_type");
         }
 
-        pp.query("latitude_lo",  latitude_lo);
-        pp.query("longitude_lo", longitude_lo);
-
         // Which type of windfarm model
         static std::string windfarm_type_string = "None";
         pp.query("windfarm_type", windfarm_type_string);
@@ -406,6 +403,13 @@ struct SolverChoice {
                            "erf.sampling_distance_by_D in the inputs which specifies the upstream "
                            "distance as a factor of the turbine diameter at which the incoming free stream "
                            "velocity will be computed at");
+        }
+        pp.query("turb_disk_angle_from_x", turb_disk_angle);
+        if(windfarm_type==WindFarmType::SimpleAD and turb_disk_angle < 0.0) {
+            amrex::Abort("To use simplified actuator disks, you need to provide a variable "
+                          " erf.turb_disk_angle_from_x in the inputs which is the angle of the face of the "
+                          "    turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction "
+                          " will have turb_disk_angle value of 90 deg ");
         }
 
         // Test if time averaged data is to be output
@@ -617,8 +621,8 @@ struct SolverChoice {
     // if     SAM, then it will be set to RhoQ4
     int RhoQr_comp {-1};
 
-    amrex::Real latitude_lo=-1e10, longitude_lo=-1e10;
     std::string windfarm_loc_table, windfarm_spec_table;
-    amrex::Real sampling_distance_by_D=-1.0;
+    amrex::Real sampling_distance_by_D = -1.0;
+    amrex::Real turb_disk_angle = -1.0;
 };
 #endif

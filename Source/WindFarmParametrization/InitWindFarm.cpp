@@ -15,14 +15,11 @@ using namespace amrex;
 void
 WindFarm::read_tables (std::string windfarm_loc_table,
                          std::string windfarm_spec_table,
-                         bool x_y, bool lat_lon,
-                         const Real latitude_lo,
-                         const Real longitude_lo)
+                         bool x_y, bool lat_lon)
 {
     amrex::Print() << "Reading wind turbine locations table" << "\n";
     read_windfarm_locations_table(windfarm_loc_table,
-                                   x_y, lat_lon,
-                                  latitude_lo,longitude_lo);
+                                   x_y, lat_lon);
 
     amrex::Print() << "Reading wind turbine specifications table" << "\n";
     read_windfarm_spec_table(windfarm_spec_table);
@@ -30,15 +27,13 @@ WindFarm::read_tables (std::string windfarm_loc_table,
 
 void
 WindFarm::read_windfarm_locations_table(const std::string windfarm_loc_table,
-                                           bool x_y, bool lat_lon,
-                                           const Real latitude_lo,
-                                           const Real longitude_lo)
+                                        bool x_y, bool lat_lon)
 {
     if(x_y) {
         init_windfarm_x_y(windfarm_loc_table);
     }
     else if(lat_lon) {
-        init_windfarm_lat_lon(windfarm_loc_table, latitude_lo, longitude_lo);
+        init_windfarm_lat_lon(windfarm_loc_table);
     }
     else {
         amrex::Abort("Are you using windfarms? For windfarm simulations, the inputs need to have an"
@@ -49,29 +44,8 @@ WindFarm::read_windfarm_locations_table(const std::string windfarm_loc_table,
 }
 
 void
-WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
-                                 const Real latitude_lo, const Real longitude_lo)
+WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table)
 {
-
-    if(latitude_lo == -1e10) {
-        amrex::Error("Are you using latitude-longitude for wind turbine locations? There needs to be"
-                     " entry for erf.latitude_lo in the inputs for"
-                     " the lower bottom corner of the domain");
-    }
-
-    if(longitude_lo == -1e10) {
-        amrex::Error("Are you using latitude-longitude for wind turbine locations? There needs to be"
-                     " entry erf.longitude_lo in the inputs for"
-                     " the lower bottom corner of the domain");
-    }
-
-    if(std::fabs(latitude_lo) > 90.0) {
-        amrex::Error("The value of erf.latitude_lo in the input file should be within -90 and 90");
-    }
-
-    if(std::fabs(longitude_lo) > 180.0) {
-        amrex::Error("The value of erf.longitude_lo in the input file should be within -180 and 180");
-    }
 
     // Read turbine locations from windturbines.txt
     std::ifstream file(windfarm_loc_table);
@@ -94,19 +68,12 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
             amrex::Error("The value of longitude for entry " + std::to_string(lat.size() + 1) +
                          " in " + windfarm_loc_table + " should be within -180 and 180");
         }
-
-        if(std::fabs(longitude_lo) > 180.0) {
-            amrex::Error("The values of erf.longitude_lo should be within -180 and 180");
-        }
         lat.push_back(value1);
         lon.push_back(value2);
     }
     file.close();
 
     Real rad_earth = 6371.0e3; // Radius of the earth
-
-    Real lat_lo  = latitude_lo*M_PI/180.0;
-    Real lon_lo  = longitude_lo*M_PI/180.0;
 
     // Find the coordinates of average of min and max of the farm
     // Rotate about that point
@@ -158,7 +125,7 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
     Real xcen = 0.5*(xmin+xmax);
     Real ycen = 0.5*(ymin+ymax);
 
-    Real theta = 0.25*M_PI;
+    Real theta = 0.0*M_PI;
 
     for(int it = 0;it<xloc.size(); it++){
         Real xnew = ( (xloc[it]-xcen)*std::cos(theta) + (yloc[it]-ycen)*std::sin(theta));
@@ -290,11 +257,11 @@ WindFarm::fill_Nturb_multifab(const Geometry& geom,
     }
 }
 
-
 void
 WindFarm::fill_SMark_multifab(const Geometry& geom,
                               MultiFab& mf_SMark,
-                              const Real& sampling_distance_by_D)
+                              const Real& sampling_distance_by_D,
+                              const Real& turb_disk_angle)
 {
     amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
     amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
@@ -317,6 +284,13 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
     auto ProbLoArr = geom.ProbLoArray();
     int num_turb = xloc.size();
 
+    Real theta = turb_disk_angle*M_PI/180.0-0.5*M_PI;
+
+    set_turb_disk_angle(theta);
+
+    Real nx = -std::cos(theta);
+    Real ny = -std::sin(theta);
+
      // Initialize wind farm
     for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx     = mfi.tilebox();
@@ -328,15 +302,20 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
 
             Real x1 = ProbLoArr[0] + ii*dx[0];
             Real x2 = ProbLoArr[0] + (ii+1)*dx[0];
+            Real y1 = ProbLoArr[1] + jj*dx[1];
+            Real y2 = ProbLoArr[1] + (jj+1)*dx[1];
 
             Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
             Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
 
             for(int it=0; it<num_turb; it++){
-                if(d_xloc_ptr[it]-d_sampling_distance+1e-12 > x1 and d_xloc_ptr[it]-d_sampling_distance+1e-12 < x2) {
-                   if(std::pow((y-d_yloc_ptr[it])*(y-d_yloc_ptr[it]) + (z-d_hub_height)*(z-d_hub_height),0.5) < d_rotor_rad) {
-                       SMark_array(i,j,k,0) = it;
-                    }
+                Real x0 = d_xloc_ptr[it] + d_sampling_distance*nx;
+                Real y0 = d_yloc_ptr[it] + d_sampling_distance*ny;
+
+                bool is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
+                                                     nx, ny, d_hub_height, d_rotor_rad, y, z);
+                if(is_cell_marked) {
+                    SMark_array(i,j,k,0) = it;
                 }
             }
         });
@@ -355,7 +334,7 @@ WindFarm::write_turbine_locations_vtk()
         fprintf(file_turbloc_vtk, "%s\n","DATASET POLYDATA");
         fprintf(file_turbloc_vtk, "%s %ld %s\n", "POINTS", xloc.size(), "float");
         for(int it=0; it<xloc.size(); it++){
-            fprintf(file_turbloc_vtk, "%0.15g %0.15g %0.15g\n", xloc[it], yloc[it], 1e-12);
+            fprintf(file_turbloc_vtk, "%0.15g %0.15g %0.15g\n", xloc[it], yloc[it], hub_height);
         }
         fclose(file_turbloc_vtk);
     }
@@ -407,7 +386,9 @@ WindFarm::write_actuator_disks_vtk(const Geometry& geom)
                 z = hub_height+rotor_rad*sin(theta);
                 fprintf(file_actuator_disks_all, "%0.15g %0.15g %0.15g\n", x, y, z);
                 if(xloc[it] > ProbLoArr[0] and xloc[it] < ProbHiArr[0] and yloc[it] > ProbLoArr[1] and yloc[it] < ProbHiArr[1]) {
-                    fprintf(file_actuator_disks_in_dom, "%0.15g %0.15g %0.15g\n", x, y, z);
+                    Real xp = (x-xloc[it])*std::cos(0.25*M_PI) - (y-yloc[it])*std::sin(0.25*M_PI);
+                    Real yp = (x-xloc[it])*std::sin(0.25*M_PI) + (y-yloc[it])*std::cos(0.25*M_PI);
+                    fprintf(file_actuator_disks_in_dom, "%0.15g %0.15g %0.15g\n", xloc[it]+xp, yloc[it]+yp, z);
                 }
             }
         }

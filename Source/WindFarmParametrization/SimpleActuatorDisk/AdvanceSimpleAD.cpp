@@ -49,7 +49,6 @@ SimpleAD::update (const Real& dt_advance,
     }
 }
 
-
 void SimpleAD::compute_freestream_velocity(const Geometry& geom,
                                       const MultiFab& cons_in,
                                       const MultiFab& U_old,
@@ -177,6 +176,11 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
      Real* d_freestream_phi_ptr = d_freestream_phi.data();
      Real* d_disk_cell_count_ptr     = d_disk_cell_count.data();
 
+    get_turb_disk_angle(turb_disk_angle);
+    Real nx = -std::cos(turb_disk_angle);
+    Real ny = -std::sin(turb_disk_angle);
+    Real d_turb_disk_angle = turb_disk_angle;
+
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& gbx      = mfi.growntilebox(1);
@@ -189,6 +193,8 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
 
             Real x1 = ProbLoArr[0] + ii     * dx[0];
             Real x2 = ProbLoArr[0] + (ii+1) * dx[0];
+            Real y1 = ProbLoArr[1] + jj*dx[1];
+            Real y2 = ProbLoArr[1] + (jj+1)*dx[1];
 
             Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
             Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
@@ -198,15 +204,21 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
             Real source_x = 0.0;
             Real source_y = 0.0;
 
-            for(long unsigned int it=0;it<nturbs;it++){
-                 Real avg_vel = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
+            for(long unsigned int it=0;it<nturbs;it++) {
+                Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
                 Real phi      = d_freestream_phi_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
-                if(d_xloc_ptr[it]+1e-12 > x1 and d_xloc_ptr[it]+1e-12 < x2) {
-                   if(std::pow((y-d_yloc_ptr[it])*(y-d_yloc_ptr[it]) + (z-d_hub_height)*(z-d_hub_height),0.5) < d_rotor_rad) {
+
+                Real x0 = d_xloc_ptr[it];
+                Real y0 = d_yloc_ptr[it];
+
+                bool is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
+                                                     nx, ny, d_hub_height, d_rotor_rad, y, z);
+
+                Real Unifty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
+                if(is_cell_marked) {
                         check_int++;
-                        source_x = -2.0*std::pow(avg_vel, 2.0)*0.25*(1.0-0.25)/(dx[0])*std::cos(phi);
-                        source_y = -2.0*std::pow(avg_vel, 2.0)*0.25*(1.0-0.25)/(dx[0])*std::sin(phi);
-                    }
+                        source_x = -2.0*std::pow(Unifty_dot_nhat, 2.0)*0.25*(1.0-0.25)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
+                        source_y = -2.0*std::pow(Unifty_dot_nhat, 2.0)*0.25*(1.0-0.25)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                 }
             }
             if(check_int > 1){

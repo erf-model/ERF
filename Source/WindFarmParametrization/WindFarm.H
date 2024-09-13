@@ -38,20 +38,14 @@ public:
 
     void read_tables (std::string windfarm_loc_table,
                        std::string windfarm_spec_table,
-                       bool x_y, bool lat_lon,
-                       const amrex::Real latitude_lo=0.0,
-                       const amrex::Real longitude_lo=0.0);
+                       bool x_y, bool lat_lon);
 
-    void init_windfarm_lat_lon(const std::string windfarm_loc_table,
-                               const amrex::Real latitude_lo,
-                               const amrex::Real longitude_lo);
+    void init_windfarm_lat_lon(const std::string windfarm_loc_table);
 
     void init_windfarm_x_y(const std::string windfarm_loc_table);
 
     void read_windfarm_locations_table(const std::string windfarm_loc_table,
-                                          bool x_y, bool lat_lon,
-                                          const amrex::Real latitude_lo=0.0,
-                                          const amrex::Real longitude_lo=0.0);
+                                          bool x_y, bool lat_lon);
 
     void read_windfarm_spec_table(const std::string windfarm_spec_table);
 
@@ -60,7 +54,8 @@ public:
 
     void fill_SMark_multifab(const amrex::Geometry& geom,
                              amrex::MultiFab& mf_SMark,
-                             const amrex::Real& sampling_distance_by_D);
+                             const amrex::Real& sampling_distance_by_D,
+                             const amrex::Real& turb_disk_angle);
 
     void write_turbine_locations_vtk();
 
@@ -95,9 +90,15 @@ public:
         m_windfarm_model[0]->set_turb_loc(a_xloc, a_yloc);
     }
 
+    void set_turb_disk_angle (const amrex::Real& turb_disk_angle) override
+    {
+        m_windfarm_model[0]->set_turb_disk_angle(turb_disk_angle);
+    }
+
 protected:
 
     amrex::Vector<amrex::Real> xloc, yloc;
+    amrex::Real turb_disk_angle;
     amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 

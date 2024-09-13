@@ -41,6 +41,7 @@ public:
 
 protected:
     amrex::Vector<amrex::Real> xloc, yloc;
+    amrex::Real turb_disk_angle;
     amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
     amrex::Vector<amrex::Real> freestream_velocity, freestream_phi, disk_cell_count;
