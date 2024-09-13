@@ -563,6 +563,24 @@ void
 ERF::InitData ()
 {
     BL_PROFILE_VAR("ERF::InitData()", InitData);
+    InitData_pre();
+
+#ifdef ERF_USE_MULTIBLOCK
+#ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
+        // Multiblock: hook to set BL & comms once ba/dm are known
+        if(domain_p[0].bigEnd(0) < 500 ) {
+            m_mbc->SetBoxLists();
+            m_mbc->SetBlockCommMetaData();
+        }
+#endif
+#endif
+
+    InitData_post();
+}
+// This is called from main.cpp and handles all initialization, whether from start or restart
+void
+ERF::InitData_pre ()
+{
 
     // Initialize the start time for our CPU-time tracker
     startCPUTime = ParallelDescriptor::second();
@@ -600,17 +618,13 @@ ERF::InitData ()
 
         const Real time = start_time;
         InitFromScratch(time);
+    }
+}
 
-#ifdef ERF_USE_MULTIBLOCK
-#ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
-        // Multiblock: hook to set BL & comms once ba/dm are known
-        if(domain_p[0].bigEnd(0) < 500 ) {
-            m_mbc->SetBoxLists();
-            m_mbc->SetBlockCommMetaData();
-        }
-#endif
-#endif
-
+void
+ERF::InitData_post ()
+{
+    if (restart_chkfile.empty()) {
         if (solverChoice.use_terrain) {
             if (init_type == "ideal") {
                 Abort("We do not currently support init_type = ideal with terrain");

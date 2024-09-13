@@ -10,6 +10,8 @@
 #ifdef ERF_USE_MULTIBLOCK
 #ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
 #include <ERF_MultiBlockContainer.H>
+#else
+#include <MultiBlockContainer.H>
 #endif
 #endif
 
@@ -122,7 +124,6 @@ int main (int argc, char* argv[])
     // wallclock time
     const Real strt_total = amrex::second();
 
-#ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
 #ifdef ERF_USE_MULTIBLOCK
     {
         // Vector of constructor parameters for MultiBlock
@@ -218,7 +219,6 @@ int main (int argc, char* argv[])
         mbc.AdvanceBlocks();
     }
 #else
-#endif
     {
         // constructor - reads in parameters from inputs file
         //             - sizes multilevel arrays and data structures

@@ -124,6 +124,12 @@ public:
     // Initialize multilevel data
     void InitData ();
 
+    // Initialize multilevel data before MultiBlock
+    void InitData_pre ();
+
+    // Initialize multilevel data after MultiBlock
+    void InitData_post ();
+
 #ifdef ERF_USE_EB
     void WriteMyEBSurface ();
 #endif
