@@ -18,6 +18,8 @@
 #ifdef ERF_USE_MULTIBLOCK
 #ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
 #include <ERF_MultiBlockContainer.H>
+#else
+#include <MultiBlockContainer.H>
 #endif
 #endif
 
@@ -564,7 +566,7 @@ ERF::InitData ()
 {
     BL_PROFILE_VAR("ERF::InitData()", InitData);
     InitData_pre();
-
+#if 0
 #ifdef ERF_USE_MULTIBLOCK
 #ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
         // Multiblock: hook to set BL & comms once ba/dm are known
@@ -574,7 +576,7 @@ ERF::InitData ()
         }
 #endif
 #endif
-
+#endif
     InitData_post();
 }
 // This is called from main.cpp and handles all initialization, whether from start or restart
