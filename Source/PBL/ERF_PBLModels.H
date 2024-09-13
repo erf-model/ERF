@@ -95,7 +95,7 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                amrex::Real& dvdz,
                                const int RhoQv_comp,
                                const int RhoQr_comp,
-                               const bool use_most=false)
+                               const bool use_most=true)
 {
     if ( k==izmax && c_ext_dir_on_zhi ) {
         dthetadz = (1.0/3.0)*(       -Thetav(i,j,k-1,cell_data,RhoQv_comp,RhoQr_comp)
