@@ -436,8 +436,9 @@ public:
     */
     virtual void
     erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& /*rayleigh_ptrs*/,
-                       amrex::Geometry      const& /*geom*/,
-                       std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+                       amrex::Geometry const& /*geom*/,
+                       std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+                       amrex::Real /*zdamp*/)
     {
         amrex::Error("Should never call erf_init_rayleigh for "+name()+" problem");
     }

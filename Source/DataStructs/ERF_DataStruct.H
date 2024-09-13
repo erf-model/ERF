@@ -54,11 +54,11 @@ enum struct Coord {
 };
 
 enum Rayleigh {
-    tau, ubar, vbar, wbar, thetabar, nvars
+    ubar, vbar, wbar, thetabar, nvars
 };
 
 enum Sponge {
-       ubar_sponge, vbar_sponge, nvars_sponge
+    ubar_sponge, vbar_sponge, nvars_sponge
 };
 
 enum struct PerturbationType {
@@ -228,6 +228,8 @@ struct SolverChoice {
         pp.query("rayleigh_damp_V", rayleigh_damp_V);
         pp.query("rayleigh_damp_W", rayleigh_damp_W);
         pp.query("rayleigh_damp_T", rayleigh_damp_T);
+        pp.query("rayleigh_dampcoef", rayleigh_dampcoef);
+        pp.query("rayleigh_zdamp", rayleigh_zdamp);
 
         // Flag to do explicit MOST formulation
         pp.query("use_explicit_most",use_explicit_most);
@@ -527,6 +529,7 @@ struct SolverChoice {
     bool        test_mapfactor         = false;
 
     bool        use_terrain            = false;
+
     int         buoyancy_type          = 1; // uses rhoprime directly
 
     // Specify what additional physics/forcing modules we use
@@ -538,6 +541,9 @@ struct SolverChoice {
     bool        rayleigh_damp_V        = false;
     bool        rayleigh_damp_W        = false;
     bool        rayleigh_damp_T        = false;
+    amrex::Real rayleigh_dampcoef      = 0.2; // inverse time scale [1/s]
+    amrex::Real rayleigh_zdamp         = 500.0; // damping layer depth [m]
+    amrex::Real rayleigh_ztop;
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt    = true;

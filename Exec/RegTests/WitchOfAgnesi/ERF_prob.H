@@ -15,10 +15,6 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real V_0 = 0.0;
   amrex::Real W_0 = 0.0; // needed for rayleigh damping
 
-  // Rayleigh parameters
-  amrex::Real dampcoef = 0.003;
-  amrex::Real zdamp = 1.0;
-
   // hill parameters
   amrex::Real hmax = 0.0;   // full hill height, can be negative to simulate valleys
   amrex::Real L = 0.0;      // hill length at half-height

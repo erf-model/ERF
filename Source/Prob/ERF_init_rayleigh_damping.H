@@ -6,49 +6,16 @@
 */
 void
 erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
-                   amrex::Geometry      const& geom,
-                   std::unique_ptr<amrex::MultiFab>& z_phys_cc) override
+                   amrex::Geometry const& geom,
+                   std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                   amrex::Real zdamp) override
 {
     const int khi = geom.Domain().bigEnd()[2];
-    amrex::Vector<amrex::Real> zcc(khi+1);
-
-    if (z_phys_cc) {
-        // use_terrain=1
-        // calculate the damping strength based on the max height at each k
-        reduce_to_max_per_height(zcc, z_phys_cc);
-    } else {
-        const amrex::Real* prob_lo = geom.ProbLo();
-        const auto dx              = geom.CellSize();
-        for (int k = 0; k <= khi; k++)
-        {
-            zcc[k] = prob_lo[2] + (k+0.5) * dx[2];
-        }
-    }
-
-    const auto ztop = zcc[khi];
-    amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<" s^-1)"
-        << " between " << ztop-parms.zdamp << " and " << ztop << " m"
-        << std::endl;
-
     for (int k = 0; k <= khi; k++)
     {
-        const amrex::Real zfrac = 1 - (ztop - zcc[k]) / parms.zdamp;
-        if (zfrac >= 0)
-        {
-            const amrex::Real sinefac = std::sin(PIoTwo*zfrac);
-            rayleigh_ptrs[Rayleigh::tau][k]      = parms.dampcoef * sinefac * sinefac;
-            rayleigh_ptrs[Rayleigh::ubar][k]     = parms.U_0;
-            rayleigh_ptrs[Rayleigh::vbar][k]     = parms.V_0;
-            rayleigh_ptrs[Rayleigh::wbar][k]     = parms.W_0;
-            rayleigh_ptrs[Rayleigh::thetabar][k] = parms.T_0;
-        }
-        else
-        {
-            rayleigh_ptrs[Rayleigh::tau][k]      = amrex::Real(0.0);
-            rayleigh_ptrs[Rayleigh::ubar][k]     = amrex::Real(0.0);
-            rayleigh_ptrs[Rayleigh::vbar][k]     = amrex::Real(0.0);
-            rayleigh_ptrs[Rayleigh::wbar][k]     = amrex::Real(0.0);
-            rayleigh_ptrs[Rayleigh::thetabar][k] = amrex::Real(0.0);
-        }
+        rayleigh_ptrs[Rayleigh::ubar][k]     = parms.U_0;
+        rayleigh_ptrs[Rayleigh::vbar][k]     = parms.V_0;
+        rayleigh_ptrs[Rayleigh::wbar][k]     = parms.W_0;
+        rayleigh_ptrs[Rayleigh::thetabar][k] = parms.T_0;
     }
 }

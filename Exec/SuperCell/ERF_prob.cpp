@@ -216,15 +216,15 @@ Problem::init_custom_pert(
 void
 Problem::erf_init_rayleigh(
     amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
-    amrex::Geometry      const& geom,
-    std::unique_ptr<MultiFab>& /*z_phys_cc*/)
+    amrex::Geometry const& geom,
+    std::unique_ptr<MultiFab>& /*z_phys_nd*/,
+    amrex::Real /*zdamp*/)
 {
   const int khi = geom.Domain().bigEnd()[2];
 
   // We just use these values to test the Rayleigh damping
   for (int k = 0; k <= khi; k++)
   {
-      rayleigh_ptrs[Rayleigh::tau][k]      = 1.0;
       rayleigh_ptrs[Rayleigh::ubar][k]     = 2.0;
       rayleigh_ptrs[Rayleigh::vbar][k]     = 1.0;
       rayleigh_ptrs[Rayleigh::wbar][k]     = 0.0;

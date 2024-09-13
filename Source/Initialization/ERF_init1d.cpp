@@ -20,12 +20,15 @@ using namespace amrex;
 void
 ERF::initRayleigh ()
 {
+    const int khi = geom[0].Domain().bigEnd(2);
+    solverChoice.rayleigh_ztop = (solverChoice.use_terrain) ? zlevels_stag[khi+1] : geom[0].ProbHi(2);
+
     h_rayleigh_ptrs.resize(max_level+1);
     d_rayleigh_ptrs.resize(max_level+1);
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        // These have 5 components: tau, ubar, vbar, wbar, thetabar
+        // These have 4 components: ubar, vbar, wbar, thetabar
         h_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
         d_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
 
@@ -38,7 +41,7 @@ ERF::initRayleigh ()
         }
 
         // Init the host vectors
-        prob->erf_init_rayleigh(h_rayleigh_ptrs[lev], geom[lev], z_phys_cc[lev]);
+        prob->erf_init_rayleigh(h_rayleigh_ptrs[lev], geom[lev], z_phys_nd[lev], solverChoice.rayleigh_zdamp);
 
         // Copy from host vectors to device vectors
         for (int n = 0; n < Rayleigh::nvars; n++) {
@@ -98,14 +101,6 @@ ERF::setRayleighRefFromSounding (bool restarting)
             h_rayleigh_ptrs[lev][Rayleigh::vbar][k]         = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
             h_rayleigh_ptrs[lev][Rayleigh::wbar][k]         = Real(0.0);
             h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc[k], inp_sound_size);
-            if (h_rayleigh_ptrs[lev][Rayleigh::tau][k] > 0) {
-                                                  Print() << zcc[k] << ":" << " tau=" << h_rayleigh_ptrs[lev][Rayleigh::tau][k];
-                if (solverChoice.rayleigh_damp_U) Print() << " ubar    = " << h_rayleigh_ptrs[lev][Rayleigh::ubar][k];
-                if (solverChoice.rayleigh_damp_V) Print() << " vbar    = " << h_rayleigh_ptrs[lev][Rayleigh::vbar][k];
-                if (solverChoice.rayleigh_damp_W) Print() << " wbar    = " << h_rayleigh_ptrs[lev][Rayleigh::wbar][k];
-                if (solverChoice.rayleigh_damp_T) Print() << " thetabar= " << h_rayleigh_ptrs[lev][Rayleigh::thetabar][k];
-                Print() << std::endl;
-            }
         }
 
         // Copy from host version to device version

@@ -29,8 +29,6 @@ Problem::Problem()
   pp.query("T_pert", parms.T_pert);
   pp.query("T_pert_is_airtemp", parms.T_pert_is_airtemp);
   pp.query("perturb_rho", parms.perturb_rho);
-  pp.query("dampcoef", parms.dampcoef);
-  pp.query("zdamp", parms.zdamp);
 
   pp.query("do_moist_bubble", parms.do_moist_bubble);
   pp.query("theta_pert", parms.theta_pert);

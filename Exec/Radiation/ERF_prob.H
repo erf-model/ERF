@@ -49,8 +49,9 @@ public:
 
     void erf_init_rayleigh (
         amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
-        amrex::Geometry      const& geom,
-        std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
+        amrex::Geometry const& geom,
+        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+        amrex::Real zdamp) override;
 
 protected:
     std::string name() override { return "Supercell"; }

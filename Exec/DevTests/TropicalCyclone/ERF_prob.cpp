@@ -28,9 +28,6 @@ Problem::Problem()
     pp.query("RZERO", parms.RZERO);
     pp.query("ZZERO", parms.ZZERO);
 
-    pp.query("dampcoef", parms.dampcoef);
-    pp.query("zdamp", parms.zdamp);
-
     init_base_parms(parms.rho_0, parms.T_0);
 }
 

@@ -29,10 +29,6 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real pert_periods_V = 5.0;
   amrex::Real pert_ref_height = 100.0;
 
-  // rayleigh damping
-  amrex::Real dampcoef = 0.003; // inverse time scale [1/s]
-  amrex::Real zdamp = 5000.0; // damping depth [m] from model top
-
   // helper vars
   amrex::Real aval;
   amrex::Real bval;
