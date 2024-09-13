@@ -27,7 +27,7 @@ ERF::ComputeDt (int step)
         dt_0 = amrex::min(dt_0, n_factor*dt_tmp[lev]);
         if (step == 0){
             dt_0 *= init_shrink;
-            if (verbose) {
+            if (verbose && init_shrink != 1.0) {
                 Print() << "Timestep 0: shrink initial dt at level " << lev << " by " << init_shrink << std::endl;
             }
         }
@@ -148,7 +148,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          estdt_lowM = cfl / estdt_lowM_inv;
 
      if (verbose) {
-         if (fixed_dt <= 0.0) {
+         if (fixed_dt[level] <= 0.0) {
              Print() << "Using cfl = " << cfl << std::endl;
              Print() << "Compressible dt at level " << level << ":  " << estdt_comp << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
@@ -158,7 +158,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              }
          }
 
-         if (fixed_dt > 0.0) {
+         if (fixed_dt[level] > 0.0) {
              Print() << "Based on cfl of 1.0 " << std::endl;
              Print() << "Compressible dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
@@ -166,18 +166,18 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              } else {
                  Print() << "Incompressible dt at level " << level << " would be undefined " << std::endl;
              }
-             Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt << std::endl;
-             if (fixed_fast_dt > 0.0) {
-                 Print() << "Fixed fast dt at level " << level << "       is:  " << fixed_fast_dt << std::endl;
+             Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt[level] << std::endl;
+             if (fixed_fast_dt[level] > 0.0) {
+                 Print() << "Fixed fast dt at level " << level << "       is:  " << fixed_fast_dt[level] << std::endl;
              }
          }
      }
 
      if (!l_no_substepping) {
-         if (fixed_dt > 0. && fixed_fast_dt > 0.) {
-             dt_fast_ratio = static_cast<long>( fixed_dt / fixed_fast_dt );
-         } else if (fixed_dt > 0.) {
-             dt_fast_ratio = static_cast<long>( std::ceil((fixed_dt/estdt_comp)) );
+         if (fixed_dt[level] > 0. && fixed_fast_dt[level] > 0.) {
+             dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
+         } else if (fixed_dt[level] > 0.) {
+             dt_fast_ratio = static_cast<long>( std::ceil((fixed_dt[level]/estdt_comp)) );
          } else {
              dt_fast_ratio = (estdt_lowM_inv > 0.0) ? static_cast<long>( std::ceil((estdt_lowM/estdt_comp)) ) : 1;
          }
@@ -198,8 +198,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      } // if substepping
 
-     if (fixed_dt > 0.0) {
-         return fixed_dt;
+     if (fixed_dt[level] > 0.0) {
+         return fixed_dt[level];
      } else {
          // Incompressible (substepping is not allowed)
          if (l_incompressible) {
