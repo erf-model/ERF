@@ -24,6 +24,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const int RhoQr_comp)
 {
     const bool use_terrain = (z_phys_nd != nullptr);
+    const bool use_most    = (most != nullptr);
 
     auto mynn     = turbChoice.pbl_mynn;
     auto level2   = turbChoice.pbl_mynn_level2;
@@ -68,7 +69,6 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         FArrayBox qturb(bx,1); FArrayBox qturb_old(bx,1);
         const Array4<Real> qint = qintegral.array();
         const Array4<Real> qvel = qturb.array();
-        const Array4<Real> qvel_old = qturb_old.array();
 
         // vertical integrals to compute lengthscale
         if (use_terrain) {
@@ -77,33 +77,22 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
-                qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
                 AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
-                AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
 
-                // NOTE: This factor is to avoid an if statement that will break
-                //       the devicereducesum since all threads won't participate.
-                //       This more performant than Gpu::Atomic::Add.
                 Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                 const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
                 const Real dz = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz*fac);
                 Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*dz*fac);
-
             });
         } else {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
-                qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
                 AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
-                AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
 
                 // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
 
-                // NOTE: This factor is to avoid an if statement that will break
-                //       the devicereducesum since all threads won't participate.
-                //       This more performant than Gpu::Atomic::Add.
                 Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                 const Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac);
@@ -136,6 +125,11 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            // NOTE: With MOST, the ghost cells are filled AFTER k_turb is computed
+            //       so that the non-explicit pathway works. Therefore, at this
+            //       point we do NOT have valid ghost cells from MOST. We need to
+            //       pass the MOST flag to use one-sided diffs here.
+
             // Compute some partial derivatives that we will need (second order)
             // U and V derivatives are interpolated to account for staggered grid
             const Real met_h_zeta = use_terrain ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : 1.0;
@@ -146,7 +140,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                                           u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                           v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                           dthetadz, dudz, dvdz,
-                                          RhoQv_comp, RhoQr_comp);
+                                          RhoQv_comp, RhoQr_comp, use_most);
 
             // Spatially varying MOST
             Real theta0 = tm_arr(i,j,0);
@@ -241,7 +235,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Finally, compute the eddy viscosity/diffusivities
             const Real rho = cell_data(i,j,k,Rho_comp);
-            K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lm * qvel(i,j,k) * SM * 0.5; // 0.5 for mu_turb
+            K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lm * qvel(i,j,k) * SM;
             K_turb(i,j,k,EddyDiff::Theta_v) = rho * Lm * qvel(i,j,k) * SH;
             K_turb(i,j,k,EddyDiff::QKE_v)   = rho * Lm * qvel(i,j,k) * SQ;
 

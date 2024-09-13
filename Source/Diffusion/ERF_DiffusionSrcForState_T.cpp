@@ -843,7 +843,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                                                  met_h_zeta);
+                                                                  use_most, met_h_zeta);
         });
     }
 }
