@@ -835,8 +835,8 @@ private:
     static amrex::Real change_max;
 
     // Fixed dt for level 0 timesteps (only used if positive)
-    static amrex::Real fixed_dt;
-    static amrex::Real fixed_fast_dt;
+    amrex::Vector<amrex::Real> fixed_dt;
+    amrex::Vector<amrex::Real> fixed_fast_dt;
     static int fixed_mri_dt_ratio;
 
     // how often each level regrids the higher levels of refinement

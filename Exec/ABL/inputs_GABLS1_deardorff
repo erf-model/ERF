@@ -78,10 +78,6 @@ erf.Ce       = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
 erf.Ce_wall  = 3.9  # To account for "wall effects"
 erf.sigma_k  = 0.5  # TKE diffusion coeff = 2*Km = Km * inv_sigma_k, Moeng1984, Eqn. 15
 
-# NOT USED
-#erf.rho0_trans      = 1.3223 # from Beare et al. 2006
-#erf.theta_ref       = 263.5 # from Beare et al. 2006
-
 erf.rayleigh_damp_U = true
 erf.rayleigh_damp_V = true
 erf.rayleigh_damp_W = true
@@ -92,6 +88,6 @@ erf.rayleigh_zdamp = 100. # from Beare et al. 2006, "most models applied gravity
 # Initial conditions from Beare et al. 2006
 prob.KE_0            = 0.4 # [m2/s2]
 prob.KE_decay_height = 250. # [m]
-prob.KE_decay_order  = 1
+prob.KE_decay_order  = 3
 prob.T_0_Pert_Mag    = 0.1 # [K]
 prob.pert_ref_height = 50. # [m]

@@ -730,7 +730,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                                   rhoqv_comp, rhoqr_comp,
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
-                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi);
+                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
+                                                                  use_most);
         });
     }
 

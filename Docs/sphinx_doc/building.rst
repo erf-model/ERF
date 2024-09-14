@@ -214,7 +214,7 @@ HDF5 (tested with v1.14.3)
 #. Configure for your system ``../configure --prefix=/usr/local --enable-parallel``
 #. Build ``make -j8`` and ``sudo make install``
 
-.. _hdfgroup.org: https://www.hdfgroup.org/downloads/hdf5/source-code/
+.. _hdfgroup.org: https://www.hdfgroup.org/download-hdf5/source-code/
 
 NetCDF (tested with v4.9.2)
 

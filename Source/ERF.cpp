@@ -30,8 +30,6 @@ SolverChoice ERF::solverChoice;
 
 // Time step control
 Real ERF::cfl           =  0.8;
-Real ERF::fixed_dt      = -1.0;
-Real ERF::fixed_fast_dt = -1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
 int  ERF::fixed_mri_dt_ratio = 0;
@@ -1370,8 +1368,18 @@ ERF::ReadParameters ()
         pp.query("init_shrink", init_shrink);
         pp.query("change_max", change_max);
 
-        pp.query("fixed_dt", fixed_dt);
-        pp.query("fixed_fast_dt", fixed_fast_dt);
+        fixed_dt.resize(max_level+1,-1.);
+        fixed_fast_dt.resize(max_level+1,-1.);
+
+        pp.query("fixed_dt", fixed_dt[0]);
+        pp.query("fixed_fast_dt", fixed_fast_dt[0]);
+
+        for (int lev = 1; lev <= max_level; lev++)
+        {
+            fixed_dt[lev]      = fixed_dt[lev-1]     / static_cast<Real>(MaxRefRatio(lev-1));
+            fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(MaxRefRatio(lev-1));
+        }
+
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
         // How to initialize
@@ -1513,7 +1521,7 @@ ERF::ReadParameters ()
 void
 ERF::ParameterSanityChecks ()
 {
-    AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt > 0.);
+    AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt[0] > 0.);
 
     // We don't allow use_real_bcs to be true if init_type is not either real or metgrid
     AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == "real") || (init_type == "metgrid")) );
@@ -1560,31 +1568,33 @@ ERF::ParameterSanityChecks ()
         Abort("If you specify fixed_mri_dt_ratio, it must be even");
     }
 
-    // We ignore fixed_fast_dt if not substepping
-    if (solverChoice.no_substepping && fixed_fast_dt > 0.) {
-        fixed_fast_dt = -1.0;
-        Warning("fixed_fast_dt will be ignored since we are not substepping");
-
-
-    // If both fixed_dt and fast_dt are specified, their ratio must be an even integer
-    } else if (fixed_dt > 0. && fixed_fast_dt > 0. && fixed_mri_dt_ratio <= 0)
+    for (int lev = 0; lev <= max_level; lev++)
     {
-        Real eps = 1.e-12;
-        int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt ) / fixed_fast_dt );
-        if (fixed_dt / fixed_fast_dt != ratio)
-        {
-            Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
+        // We ignore fixed_fast_dt if not substepping
+        if (solverChoice.no_substepping) {
+            fixed_fast_dt[lev] = -1.0;
         }
-    }
 
-    // If all three are specified, they must be consistent
-    if (fixed_dt > 0. && fixed_fast_dt > 0. &&  fixed_mri_dt_ratio > 0)
-    {
-        if (fixed_dt / fixed_fast_dt != fixed_mri_dt_ratio)
+        // If both fixed_dt and fast_dt are specified, their ratio must be an even integer
+        if (fixed_dt[lev] > 0. && fixed_fast_dt[lev] > 0. && fixed_mri_dt_ratio <= 0)
         {
-            Abort("Dt is over-specfied");
+            Real eps = 1.e-12;
+            int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt[lev] ) / fixed_fast_dt[lev] );
+            if (fixed_dt[lev] / fixed_fast_dt[lev] != ratio)
+            {
+                Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
+            }
         }
-    }
+
+        // If all three are specified, they must be consistent
+        if (fixed_dt[lev] > 0. && fixed_fast_dt[lev] > 0. &&  fixed_mri_dt_ratio > 0)
+        {
+            if (fixed_dt[lev] / fixed_fast_dt[lev] != fixed_mri_dt_ratio)
+            {
+                Abort("Dt is over-specfied");
+            }
+        }
+    } // lev
 
     if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
         Abort("For two-way coupling you must set cf_width = 0");
