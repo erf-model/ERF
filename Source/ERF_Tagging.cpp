@@ -188,7 +188,15 @@ ERF::refinement_criteria_setup ()
                     if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
                          (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) ||
                          (klo%ref_ratio[lev_for_box-1][2] != 0) || ((khi+1)%ref_ratio[lev_for_box-1][2] != 0) )
-                         amrex::Error("Fine box is not legit with this ref_ratio");
+                    {
+                        amrex::Print() << "Box : " << bx << std::endl;
+                        amrex::Print() << "RealBox : " << realbox << std::endl;
+                        amrex::Print() << "ilo, ihi+1, jlo, jhi+1, klo, khi+1 by ref_ratio : "
+                                       << ilo%ref_ratio[lev_for_box-1][0] << " " << (ihi+1)%ref_ratio[lev_for_box-1][0] << " "
+                                       << jlo%ref_ratio[lev_for_box-1][1] << " " << (jhi+1)%ref_ratio[lev_for_box-1][1] << " "
+                                       << klo%ref_ratio[lev_for_box-1][2] << " " << (khi+1)%ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Error("Fine box is not legit with this ref_ratio");
+                    }
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
