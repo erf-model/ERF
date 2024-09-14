@@ -1,15 +1,15 @@
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_TimeIntegrator.H>
 #include <ERF_MRI.H>
-#include <EddyViscosity.H>
-#include <EOS.H>
+#include <ERF_EddyViscosity.H>
+#include <ERF_EOS.H>
 #include <ERF.H>
-#include <TerrainMetrics.H>
+#include <ERF_TerrainMetrics.H>
 //#include <TI_headers.H>
-//#include <PlaneAverage.H>
-#include <Diffusion.H>
-#include <TileNoZ.H>
-#include <Utils.H>
+//#include <ERF_PlaneAverage.H>
+#include <ERF_Diffusion.H>
+#include <ERF_TileNoZ.H>
+#include <ERF_Utils.H>
 
 using namespace amrex;
 
@@ -188,7 +188,7 @@ void ERF::advance_dycore(int level,
 
     MultiFab Omega (state_old[IntVars::zmom].boxArray(),dm,1,1);
 
-#include "TI_utils.H"
+#include "ERF_TI_utils.H"
 
     // Additional SFS quantities, calculated once per timestep
     MultiFab* Hfx1 = SFS_hfx1_lev[level].get();
@@ -277,9 +277,9 @@ void ERF::advance_dycore(int level,
               fast_only, vel_and_mom_synced);
     cons_to_prim(state_old[IntVars::cons], state_old[IntVars::cons].nGrow());
 
-#include "TI_no_substep_fun.H"
-#include "TI_slow_rhs_fun.H"
-#include "TI_fast_rhs_fun.H"
+#include "ERF_TI_no_substep_fun.H"
+#include "ERF_TI_slow_rhs_fun.H"
+#include "ERF_TI_fast_rhs_fun.H"
 
     // ***************************************************************************************
     // Setup the integrator and integrate for a single timestep

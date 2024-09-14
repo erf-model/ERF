@@ -4,9 +4,9 @@
 #include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
 
-#include <NumericalDiffusion.H>
-#include <Src_headers.H>
-#include <TI_slow_headers.H>
+#include <ERF_NumericalDiffusion.H>
+#include <ERF_Src_headers.H>
+#include <ERF_TI_slow_headers.H>
 
 using namespace amrex;
 

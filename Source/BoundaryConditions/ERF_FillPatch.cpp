@@ -1,9 +1,9 @@
 #include <ERF.H>
 #include <ERF_PhysBCFunct.H>
-#include <IndexDefines.H>
-#include <TimeInterpolatedData.H>
+#include <ERF_IndexDefines.H>
+#include <ERF_TimeInterpolatedData.H>
 #include <ERF_FillPatcher.H>
-#include <Utils.H>
+#include <ERF_Utils.H>
 
 using namespace amrex;
 
@@ -335,7 +335,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         {
             bccomp = BCVars::zvel_bc;
             mapper = &face_cons_linear_interp;
-            ngvect = IntVect(ng_vel,ng_vel,0);
+            ngvect = IntVect(ng_vel,ng_vel,ng_vel);
             icomp  = 0;
             ncomp  = 1;
         }

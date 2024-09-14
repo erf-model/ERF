@@ -4,9 +4,9 @@
 #include <AMReX_GpuContainers.H>
 #include <AMReX_GpuPrint.H>
 
-#include <TI_slow_headers.H>
-#include <EOS.H>
-#include <Utils.H>
+#include <ERF_TI_slow_headers.H>
+#include <ERF_EOS.H>
+#include <ERF_Utils.H>
 
 using namespace amrex;
 
@@ -764,6 +764,12 @@ if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n"
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
                     dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
+
+            // This is necessary here so we don't go on to the next FArrayBox without
+            // having finished copying the fluxes into the FluxRegisters (since the fluxes
+            // are stored in temporary FArrayBox's)
+            Gpu::streamSynchronize();
+
         } // two-way coupling
         } // end profile
     } // mfi

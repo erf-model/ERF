@@ -1,5 +1,5 @@
 
-#include <TI_fast_headers.H>
+#include <ERF_TI_fast_headers.H>
 
 using namespace amrex;
 
@@ -415,9 +415,6 @@ void erf_fast_rhs_N (int step, int nrk,
         Box b2d = tbz; // Copy constructor
         b2d.setRange(2,0);
 
-        // dt is the timestep for the RK stage, so dtau = facinv * dt
-        Real dt = dtau / facinv;
-
         {
         BL_PROFILE("fast_rhs_b2d_loop");
 #ifdef AMREX_USE_GPU
@@ -425,18 +422,18 @@ void erf_fast_rhs_N (int step, int nrk,
         auto const hi = ubound(bx);
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-          // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dt * slow_rhs
-          RHS_a(i,j,lo.z) = dt * slow_rhs_rho_w(i,j,lo.z);
+          // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
+          RHS_a(i,j,lo.z) = dtau * slow_rhs_rho_w(i,j,lo.z);
 
-          // w at top boundary of grid is 0 if at domain boundary, otherwise w = w_old + dt * slow_rhs
+          // w at top boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
           // TODO TODO: Note that if we ever change this, we will need to include it in avg_zmom at the top
-          RHS_a(i,j,hi.z+1) = dt * slow_rhs_rho_w(i,j,hi.z+1);
+          RHS_a(i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
 
           // w = specified Dirichlet value at k = lo.z
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
           cur_zmom(i,j,lo.z) = stage_zmom(i,j,lo.z) + soln_a(i,j,lo.z);
 
-          for (int k = 1; k <= hi.z+1; k++) {
+          for (int k = lo.z+1; k <= hi.z+1; k++) {
               soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
           }
 
@@ -453,8 +450,8 @@ void erf_fast_rhs_N (int step, int nrk,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                // w at bottom boundary of grid is 0 if at domain boundary, otherwise w_old + dt * slow_rhs
-                RHS_a (i,j,lo.z) = stage_zmom(i,j,lo.z) + dt * slow_rhs_rho_w(i,j,lo.z);
+                // w at bottom boundary of grid is 0 if at domain boundary, otherwise w_old + dtau * slow_rhs
+                RHS_a (i,j,lo.z) = dtau * slow_rhs_rho_w(i,j,lo.z);
                 soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
             }
         }
@@ -462,7 +459,7 @@ void erf_fast_rhs_N (int step, int nrk,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                RHS_a (i,j,hi.z+1) = dt * slow_rhs_rho_w(i,j,hi.z+1);
+                RHS_a (i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
             }
         }
         for (int k = lo.z+1; k <= hi.z+1; ++k) {
@@ -532,6 +529,12 @@ void erf_fast_rhs_N (int step, int nrk,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
                     dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
+
+            // This is necessary here so we don't go on to the next FArrayBox without
+            // having finished copying the fluxes into the FluxRegisters (since the fluxes
+            // are stored in temporary FArrayBox's)
+            Gpu::streamSynchronize();
+
         } // two-way coupling
     } // mfi
     } // OMP

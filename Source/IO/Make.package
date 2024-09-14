@@ -1,7 +1,7 @@
 
-CEXE_sources += Plotfile.cpp
-CEXE_sources += Checkpoint.cpp
-CEXE_sources += writeJobInfo.cpp
+CEXE_sources += ERF_Plotfile.cpp
+CEXE_sources += ERF_Checkpoint.cpp
+CEXE_sources += ERF_writeJobInfo.cpp
 
 CEXE_headers += ERF_WriteBndryPlanes.H
 CEXE_headers += ERF_ReadBndryPlanes.H
@@ -12,18 +12,18 @@ CEXE_sources += ERF_Write1DProfiles.cpp
 CEXE_sources += ERF_Write1DProfiles_stag.cpp
 CEXE_sources += ERF_WriteScalarProfiles.cpp
 
-CEXE_sources += console_io.cpp
+CEXE_sources += ERF_console_io.cpp
 
 ifeq ($(USE_NETCDF), TRUE)
-  CEXE_sources += ReadFromWRFBdy.cpp
-  CEXE_sources += ReadFromWRFInput.cpp
-  CEXE_sources += ReadFromMetgrid.cpp
-  CEXE_sources += NCInterface.cpp
-  CEXE_sources += NCPlotFile.cpp
-  CEXE_sources += NCColumnFile.cpp
-  CEXE_sources += NCCheckpoint.cpp
-  CEXE_sources += NCMultiFabFile.cpp
-  CEXE_headers += NCWpsFile.H
-  CEXE_headers += NCInterface.H
-  CEXE_headers += NCPlotFile.H
+  CEXE_sources += ERF_ReadFromWRFBdy.cpp
+  CEXE_sources += ERF_ReadFromWRFInput.cpp
+  CEXE_sources += ERF_ReadFromMetgrid.cpp
+  CEXE_sources += ERF_NCInterface.cpp
+  CEXE_sources += ERF_NCPlotFile.cpp
+  CEXE_sources += ERF_NCColumnFile.cpp
+  CEXE_sources += ERF_NCCheckpoint.cpp
+  CEXE_sources += ERF_NCMultiFabFile.cpp
+  CEXE_headers += ERF_NCWpsFile.H
+  CEXE_headers += ERF_NCInterface.H
+  CEXE_headers += ERF_NCPlotFile.H
 endif

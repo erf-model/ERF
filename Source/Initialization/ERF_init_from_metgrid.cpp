@@ -2,7 +2,7 @@
  * \file ERF_init_from_metgrid.cpp
  */
 
-#include <Metgrid_utils.H>
+#include <ERF_Metgrid_utils.H>
 
 using namespace amrex;
 

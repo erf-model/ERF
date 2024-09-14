@@ -4,8 +4,8 @@
 #include "AMReX_Gpu.H"
 #include "AMReX_AmrCore.H"
 #include <AMReX_BndryRegister.H>
-#include "IndexDefines.H"
-#include "DataStruct.H"
+#include "ERF_IndexDefines.H"
+#include "ERF_DataStruct.H"
 
 using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 

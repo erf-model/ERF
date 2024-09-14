@@ -1,9 +1,9 @@
 #include <AMReX.H>
-#include <Src_headers.H>
-#include <TI_slow_headers.H>
+#include <ERF_Src_headers.H>
+#include <ERF_TI_slow_headers.H>
 
 #if defined(ERF_USE_NETCDF)
-// #include <Utils.H>
+// #include <ERF_Utils.H>
 #endif
 
 using namespace amrex;
@@ -545,6 +545,12 @@ void erf_slow_rhs_post (int level, int finest_level,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
                     dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
+
+            // This is necessary here so we don't go on to the next FArrayBox without
+            // having finished copying the fluxes into the FluxRegisters (since the fluxes
+            // are stored in temporary FArrayBox's)
+            Gpu::streamSynchronize();
+
         } // two-way coupling
         } // end profile
       } // mfi
