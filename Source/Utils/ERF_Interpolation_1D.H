@@ -68,4 +68,51 @@ amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
 
     return beta_interp;
 }
+
+/*
+ * Interpolate between values from a vector of reals (e.g., zlevels_stag) to a
+ * new, expanded vector with refine_fac-1 new uniformly spaced points between
+ * the original values.
+ *
+ * Example:
+ *   Vector<Real> tmp_orig = {0,1,2};
+ *   Vector<Real> tmp(4);
+ *   expand_and_interpolate_1d(tmp, tmp_orig, 2, false); // tmp == {0, 0.5, 1, 1.5, 2}
+ *   expand_and_interpolate_1d(tmp, tmp_orig, 2, true); // tmp == {0.25, 0.75, 1.25, 1.75}
+ */
+AMREX_FORCE_INLINE
+void
+expand_and_interpolate_1d (amrex::Vector<amrex::Real>& znew,
+                           const amrex::Vector<amrex::Real>& zorig,
+                           int refine_fac,
+                           bool destag=false)
+{
+    const int Nz = zorig.size();
+    const int Nz_refined = refine_fac*(Nz-1) + 1;
+    if (destag) {
+        AMREX_ALWAYS_ASSERT(znew.size() == Nz_refined-1);
+    } else {
+        AMREX_ALWAYS_ASSERT(znew.size() == Nz_refined);
+    }
+    amrex::Vector<amrex::Real> znew_stag(Nz_refined);
+    for (int k=0; k < Nz; ++k) {
+        znew_stag[refine_fac*k] = zorig[k];
+    }
+    if (refine_fac > 1) {
+        for (int k=0; k < Nz-1; ++k) {
+            amrex::Real z1 = zorig[k];
+            amrex::Real dz = zorig[k+1] - z1;
+            for (int koff=1; koff < refine_fac; ++koff) {
+                znew_stag[refine_fac*k + koff] = amrex::Real(koff)/refine_fac * dz + z1;
+            }
+        }
+    }
+    if (destag) {
+        for (int k=0; k < Nz_refined-1; ++k) {
+            znew[k] = 0.5*(znew_stag[k] + znew_stag[k+1]);
+        }
+    } else {
+        znew = znew_stag;
+    }
+}
 #endif

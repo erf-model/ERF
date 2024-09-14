@@ -77,29 +77,30 @@ ERF::setRayleighRefFromSounding (bool restarting)
     const Real* theta_inp_sound = input_sounding_data.theta_inp_sound[0].dataPtr();
     const int   inp_sound_size  = input_sounding_data.size(0);
 
+    int refine_fac{1};
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        const int khi = geom[lev].Domain().bigEnd()[2];
-        Vector<Real> zcc(khi+1);
+        const int klo = geom[lev].Domain().smallEnd(2);
+        const int khi = geom[lev].Domain().bigEnd(2);
+        const int Nz = khi - klo + 1;
 
-        if (z_phys_cc[lev]) {
-            // use_terrain=1
-            // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
-        } else {
-            const auto *const prob_lo = geom[lev].ProbLo();
-            const auto *const dx = geom[lev].CellSize();
-            for (int k = 0; k <= khi; k++)
-            {
-                zcc[k] = prob_lo[2] + (k+0.5) * dx[2];
-            }
-        }
+        Vector<Real> zcc(Nz);
+        Vector<Real> zlevels_sub(zlevels_stag.begin()+klo/refine_fac,
+                                 zlevels_stag.begin()+khi/refine_fac+2);
+        expand_and_interpolate_1d(zcc, zlevels_sub, refine_fac, true);
+#if 0
+        amrex::AllPrint() << "lev="<<lev<<" : (refine_fac="<<refine_fac<<",klo="<<klo<<",khi="<<khi<<") ";
+        for (int k = 0; k < zlevels_sub.size(); k++) { amrex::AllPrint() << zlevels_sub[k] << " "; }
+        amrex::AllPrint() << " --> ";
+        for (int k = 0; k < Nz; k++) { amrex::AllPrint() << zcc[k] << " "; }
+        amrex::AllPrint() << std::endl;
+#endif
 
-        for (int k = 0; k <= khi; k++)
+        for (int k = 0; k < Nz; k++)
         {
-            h_rayleigh_ptrs[lev][Rayleigh::ubar][k]         = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::vbar][k]         = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]         = Real(0.0);
+            h_rayleigh_ptrs[lev][Rayleigh::ubar][k]     = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
+            h_rayleigh_ptrs[lev][Rayleigh::vbar][k]     = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
+            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]     = Real(0.0);
             h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc[k], inp_sound_size);
         }
 
@@ -112,6 +113,8 @@ ERF::setRayleighRefFromSounding (bool restarting)
                          d_rayleigh_ptrs[lev][Rayleigh::wbar].begin());
         Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::thetabar].begin());
+
+        refine_fac *= ref_ratio[lev][2];
     }
 }
 
