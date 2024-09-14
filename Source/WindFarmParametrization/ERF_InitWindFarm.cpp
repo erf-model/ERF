@@ -276,7 +276,7 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
     Real theta = turb_disk_angle*M_PI/180.0-0.5*M_PI;
 
     set_turb_disk_angle(theta);
-	my_turb_disk_angle = theta;
+    my_turb_disk_angle = theta;
 
     Real nx = -std::cos(theta);
     Real ny = -std::sin(theta);
@@ -307,15 +307,15 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
                 if(is_cell_marked) {
                     SMark_array(i,j,k,0) = it;
                 }
-				x0 = d_xloc_ptr[it];
-				y0 = d_yloc_ptr[it];
-				
-				is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
+                x0 = d_xloc_ptr[it];
+                y0 = d_yloc_ptr[it];
+
+                is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
                                                 nx, ny, d_hub_height, d_rotor_rad, y, z);
-				if(is_cell_marked) {
+                if(is_cell_marked) {
                     SMark_array(i,j,k,1) = it;
                 }
-				
+
             }
         });
     }
@@ -375,8 +375,8 @@ WindFarm::write_actuator_disks_vtk(const Geometry& geom)
         }
         fprintf(file_actuator_disks_in_dom, "%s %ld %s\n", "POINTS", num_turb_in_dom*npts, "float");
 
-		Real nx = std::cos(my_turb_disk_angle);
-		Real ny = std::sin(my_turb_disk_angle);
+        Real nx = std::cos(my_turb_disk_angle);
+        Real ny = std::sin(my_turb_disk_angle);
 
         for(int it=0; it<xloc.size(); it++){
             Real x;

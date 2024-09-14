@@ -129,7 +129,7 @@ void SimpleAD::compute_freestream_velocity(const Geometry& geom,
 void
 SimpleAD::source_terms_cellcentered (const Geometry& geom,
                                      const MultiFab& cons_in,
-									 const MultiFab& mf_SMark,
+                                     const MultiFab& mf_SMark,
                                      MultiFab& mf_vars_simpleAD)
 {
 
@@ -185,7 +185,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& gbx      = mfi.growntilebox(1);
-		auto SMark_array    = mf_SMark.array(mfi);	
+        auto SMark_array    = mf_SMark.array(mfi);
         auto simpleAD_array = mf_vars_simpleAD.array(mfi);
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
