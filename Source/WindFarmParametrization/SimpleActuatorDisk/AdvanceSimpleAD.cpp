@@ -17,7 +17,7 @@ SimpleAD::advance (const Geometry& geom,
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
     compute_freestream_velocity(geom, cons_in, U_old, V_old, mf_SMark);
-    source_terms_cellcentered(geom, cons_in, mf_vars_simpleAD);
+    source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_simpleAD);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);
 }
 
@@ -84,8 +84,8 @@ void SimpleAD::compute_freestream_velocity(const Geometry& geom,
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-            if(SMark_array(i,j,k) != -1.0) {
-                int turb_index = static_cast<int>(SMark_array(i,j,k));
+            if(SMark_array(i,j,k,0) != -1.0) {
+                int turb_index = static_cast<int>(SMark_array(i,j,k,0));
                 Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
                 Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),0.5));
                 Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],1.0);
@@ -129,6 +129,7 @@ void SimpleAD::compute_freestream_velocity(const Geometry& geom,
 void
 SimpleAD::source_terms_cellcentered (const Geometry& geom,
                                      const MultiFab& cons_in,
+									 const MultiFab& mf_SMark,
                                      MultiFab& mf_vars_simpleAD)
 {
 
@@ -184,6 +185,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& gbx      = mfi.growntilebox(1);
+		auto SMark_array    = mf_SMark.array(mfi);	
         auto simpleAD_array = mf_vars_simpleAD.array(mfi);
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -208,17 +210,11 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                 Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
                 Real phi      = d_freestream_phi_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
 
-                Real x0 = d_xloc_ptr[it];
-                Real y0 = d_yloc_ptr[it];
-
-                bool is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
-                                                     nx, ny, d_hub_height, d_rotor_rad, y, z);
-
-                Real Unifty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
-                if(is_cell_marked) {
+                Real Uinfty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
+                if(SMark_array(i,j,k,1) == static_cast<double>(it)) {
                         check_int++;
-                        source_x = -2.0*std::pow(Unifty_dot_nhat, 2.0)*0.25*(1.0-0.25)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
-                        source_y = -2.0*std::pow(Unifty_dot_nhat, 2.0)*0.25*(1.0-0.25)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                        source_x = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*0.25*(1.0-0.25)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
+                        source_y = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*0.25*(1.0-0.25)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                 }
             }
             if(check_int > 1){

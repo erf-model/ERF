@@ -125,17 +125,6 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table)
     Real xcen = 0.5*(xmin+xmax);
     Real ycen = 0.5*(ymin+ymax);
 
-    Real theta = 0.0*M_PI;
-
-    for(int it = 0;it<xloc.size(); it++){
-        Real xnew = ( (xloc[it]-xcen)*std::cos(theta) + (yloc[it]-ycen)*std::sin(theta));
-        Real ynew = (-(xloc[it]-xcen)*std::sin(theta) + (yloc[it]-ycen)*std::cos(theta));
-
-        xloc[it] = xcen + xnew;
-        yloc[it] = ycen + ynew;
-    }
-
-
     Real xloc_min1 = *std::min_element(xloc.begin(),xloc.end());
     Real yloc_min1 = *std::min_element(yloc.begin(),yloc.end());
 
@@ -287,6 +276,7 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
     Real theta = turb_disk_angle*M_PI/180.0-0.5*M_PI;
 
     set_turb_disk_angle(theta);
+	my_turb_disk_angle = theta;
 
     Real nx = -std::cos(theta);
     Real ny = -std::sin(theta);
@@ -317,6 +307,15 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
                 if(is_cell_marked) {
                     SMark_array(i,j,k,0) = it;
                 }
+				x0 = d_xloc_ptr[it];
+				y0 = d_yloc_ptr[it];
+				
+				is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
+                                                nx, ny, d_hub_height, d_rotor_rad, y, z);
+				if(is_cell_marked) {
+                    SMark_array(i,j,k,1) = it;
+                }
+				
             }
         });
     }
@@ -376,6 +375,9 @@ WindFarm::write_actuator_disks_vtk(const Geometry& geom)
         }
         fprintf(file_actuator_disks_in_dom, "%s %ld %s\n", "POINTS", num_turb_in_dom*npts, "float");
 
+		Real nx = std::cos(my_turb_disk_angle);
+		Real ny = std::sin(my_turb_disk_angle);
+
         for(int it=0; it<xloc.size(); it++){
             Real x;
             x = xloc[it]+1e-12;
@@ -386,8 +388,8 @@ WindFarm::write_actuator_disks_vtk(const Geometry& geom)
                 z = hub_height+rotor_rad*sin(theta);
                 fprintf(file_actuator_disks_all, "%0.15g %0.15g %0.15g\n", x, y, z);
                 if(xloc[it] > ProbLoArr[0] and xloc[it] < ProbHiArr[0] and yloc[it] > ProbLoArr[1] and yloc[it] < ProbHiArr[1]) {
-                    Real xp = (x-xloc[it])*std::cos(0.25*M_PI) - (y-yloc[it])*std::sin(0.25*M_PI);
-                    Real yp = (x-xloc[it])*std::sin(0.25*M_PI) + (y-yloc[it])*std::cos(0.25*M_PI);
+                    Real xp = (x-xloc[it])*nx - (y-yloc[it])*ny;
+                    Real yp = (x-xloc[it])*nx + (y-yloc[it])*ny;
                     fprintf(file_actuator_disks_in_dom, "%0.15g %0.15g %0.15g\n", xloc[it]+xp, yloc[it]+yp, z);
                 }
             }

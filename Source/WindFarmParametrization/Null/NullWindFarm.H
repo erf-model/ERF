@@ -70,8 +70,6 @@ public:
 
     void get_turb_disk_angle (amrex::Real& turb_disk_angle)
     {
-        std::cout << "Values is "<<  m_turb_disk_angle << "\n";
-        exit(0);
         turb_disk_angle = m_turb_disk_angle;
     }
 

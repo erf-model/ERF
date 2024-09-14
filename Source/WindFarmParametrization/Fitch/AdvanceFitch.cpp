@@ -56,7 +56,7 @@ Fitch::advance (const Geometry& geom,
                 const MultiFab& mf_SMark)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
-    AMREX_ALWAYS_ASSERT(mf_Smark.nComp() > 0);
+    AMREX_ALWAYS_ASSERT(mf_SMark.nComp() > 0);
     source_terms_cellcentered(geom, cons_in, mf_vars_fitch, U_old, V_old, W_old, mf_Nturb);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
 }
