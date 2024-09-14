@@ -412,6 +412,14 @@ struct SolverChoice {
                           " will have turb_disk_angle value of 90 deg ");
         }
 
+        pp.query("windfarm_x_shift",windfarm_x_shift);
+        pp.query("windfarm_y_shift",windfarm_y_shift);
+        if(windfarm_loc_type == WindFarmLocType::lat_lon and (windfarm_x_shift < 0.0 or windfarm_y_shift < 0.0)) {
+            amrex::Abort("You are using windfarms with latitude-logitude option to position the turbines."
+                         " For this you should provide the inputs erf.windfarm_x_shift and"
+                         " erf.windfarm_y_shift which are the values by which the bounding box of the"
+                         " windfarm is shifted from the x and the y axes.");
+        }
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
     }
@@ -624,5 +632,7 @@ struct SolverChoice {
     std::string windfarm_loc_table, windfarm_spec_table;
     amrex::Real sampling_distance_by_D = -1.0;
     amrex::Real turb_disk_angle = -1.0;
+    amrex::Real windfarm_x_shift = -1.0;
+    amrex::Real windfarm_y_shift = -1.0;
 };
 #endif

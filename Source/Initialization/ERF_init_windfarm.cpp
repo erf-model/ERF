@@ -19,8 +19,10 @@ ERF::init_windfarm (int lev)
 {
     if(solverChoice.windfarm_loc_type == WindFarmLocType::lat_lon) {
         windfarm->read_tables(solverChoice.windfarm_loc_table,
-                             solverChoice.windfarm_spec_table,
-                             false, true);
+                              solverChoice.windfarm_spec_table,
+                              false, true,
+                              solverChoice.windfarm_x_shift,
+                              solverChoice.windfarm_y_shift);
     } else if(solverChoice.windfarm_loc_type == WindFarmLocType::x_y) {
         windfarm->read_tables(solverChoice.windfarm_loc_table,
                              solverChoice.windfarm_spec_table,

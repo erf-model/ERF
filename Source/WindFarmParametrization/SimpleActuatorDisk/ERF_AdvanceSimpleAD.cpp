@@ -16,7 +16,7 @@ SimpleAD::advance (const Geometry& geom,
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
-    compute_freestream_velocity(geom, cons_in, U_old, V_old, mf_SMark);
+    compute_freestream_velocity(cons_in, U_old, V_old, mf_SMark);
     source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_simpleAD);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);
 }
@@ -49,11 +49,10 @@ SimpleAD::update (const Real& dt_advance,
     }
 }
 
-void SimpleAD::compute_freestream_velocity(const Geometry& geom,
-                                      const MultiFab& cons_in,
-                                      const MultiFab& U_old,
-                                      const MultiFab& V_old,
-                                      const MultiFab& mf_SMark)
+void SimpleAD::compute_freestream_velocity(const MultiFab& cons_in,
+                                           const MultiFab& U_old,
+                                           const MultiFab& V_old,
+                                           const MultiFab& mf_SMark)
 {
      get_turb_loc(xloc, yloc);
      freestream_velocity.clear();
@@ -143,7 +142,6 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
     Gpu::copy(Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
 
       auto dx = geom.CellSizeArray();
-      auto ProbLoArr = geom.ProbLoArray();
 
   // Domain valid box
       const amrex::Box& domain = geom.Domain();
@@ -157,14 +155,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
       // The order of variables are - Vabs dVabsdt, dudt, dvdt, dTKEdt
       mf_vars_simpleAD.setVal(0.0);
 
-      Real d_rotor_rad = rotor_rad;
-      Real d_hub_height = hub_height;
-       // Get raw pointers to device vectors
-
-      Real* d_xloc_ptr = d_xloc.data();
-      Real* d_yloc_ptr = d_yloc.data();
       long unsigned int nturbs = xloc.size();
-
 
      Gpu::DeviceVector<Real> d_freestream_velocity(nturbs);
      Gpu::DeviceVector<Real> d_freestream_phi(nturbs);
@@ -193,14 +184,6 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-            Real x1 = ProbLoArr[0] + ii     * dx[0];
-            Real x2 = ProbLoArr[0] + (ii+1) * dx[0];
-            Real y1 = ProbLoArr[1] + jj*dx[1];
-            Real y2 = ProbLoArr[1] + (jj+1)*dx[1];
-
-            Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
-            Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
-
             int check_int = 0;
 
             Real source_x = 0.0;
@@ -211,7 +194,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                 Real phi      = d_freestream_phi_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
 
                 Real Uinfty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
-                if(SMark_array(i,j,k,1) == static_cast<double>(it)) {
+                if(SMark_array(ii,jj,kk,1) == static_cast<double>(it)) {
                         check_int++;
                         source_x = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*0.25*(1.0-0.25)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
                         source_y = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*0.25*(1.0-0.25)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);

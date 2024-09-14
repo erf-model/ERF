@@ -23,11 +23,10 @@ public:
                   const amrex::MultiFab& mf_Nturb,
                   const amrex::MultiFab& mf_SMark) override;
 
-    void compute_freestream_velocity(const amrex::Geometry& geom,
-                                      const amrex::MultiFab& cons_in,
-                                      const amrex::MultiFab& U_old,
-                                      const amrex::MultiFab& V_old,
-                                      const amrex::MultiFab& mf_SMark);
+    void compute_freestream_velocity(const amrex::MultiFab& cons_in,
+                                     const amrex::MultiFab& U_old,
+                                     const amrex::MultiFab& V_old,
+                                     const amrex::MultiFab& mf_SMark);
 
     void source_terms_cellcentered (const amrex::Geometry& geom,
                                     const amrex::MultiFab& cons_in,

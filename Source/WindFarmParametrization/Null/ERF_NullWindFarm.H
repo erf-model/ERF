@@ -78,7 +78,7 @@ static AMREX_GPU_DEVICE
 bool find_if_marked(amrex::Real x1, amrex::Real x2, amrex::Real y1, amrex::Real y2,
                     amrex::Real x0, amrex::Real y0, amrex::Real nx, amrex::Real ny,
                     amrex::Real d_hub_height, amrex::Real d_rotor_rad,
-                    amrex::Real y, amrex::Real z)
+                    amrex::Real z)
 {
 
     // Plane is (x-x0)*nx + (y-y0*ny = 0. And the planes to intersect are
