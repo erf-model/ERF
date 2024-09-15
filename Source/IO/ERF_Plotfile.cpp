@@ -82,7 +82,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                       derived_names[i] != "snow_accum" &&
                       derived_names[i] != "graup_accum") )
                 {
-                    tmp_plot_names.push_back(derived_names[i]);
+                    if ( (solverChoice.moisture_type != MoistureType::None)      ||
+                         (derived_names[i] != "qv" && derived_names[i] != "qc") ) {
+                        tmp_plot_names.push_back(derived_names[i]);
+                    }
                 } // moisture_type
             } // use_terrain?
         } // hasElement
