@@ -243,8 +243,13 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
     }
 
     if (m_z_phys_nd) {
+
         const auto&  bx_lo = lbound(bx);
         const auto&  bx_hi = ubound(bx);
+
+        const auto&  zphys_lo = lbound(Box(z_phys_nd));
+        const auto&  zphys_hi = ubound(Box(z_phys_nd));
+
         // Neumann conditions (d<var>/dn = 0) must be aware of the surface normal with terrain.
         // An additional source term arises from d<var>/dx & d<var>/dy & met_h_xi/eta/zeta.
         //=====================================================================================
@@ -266,7 +271,9 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
             {
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,perdom_lo.x),perdom_hi.x);
+                    ii = amrex::min(amrex::max(ii,zphys_lo.x),zphys_hi.x);
                 int jj = amrex::min(amrex::max(j,perdom_lo.y),perdom_hi.y);
+                    jj = amrex::min(amrex::max(jj,zphys_lo.y),zphys_hi.y);
 
                 // Get metrics
                 Real met_h_xi   = Compute_h_xi_AtJface  (ii, jj, k0, dxInv, z_phys_nd);
@@ -276,7 +283,7 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
                 // GradX at IJK location inside domain -- this relies on the assumption that we have
                 // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                 Real GradVarx, GradVary;
-                if (i < dom_lo.x-1 || i > dom_hi.x+1) {
+                if ( i < dom_lo.x-1 || i > dom_hi.x+1 || (i+1 > bx_hi.x && i-1 < bx_lo.x) ) {
                     GradVarx = 0.0;
                 } else if (i+1 > bx_hi.x) {
                     GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0) - dest_arr(i-1,j,k0));
@@ -288,7 +295,7 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
 
                 // GradY at IJK location inside domain -- this relies on the assumption that we have
                 // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
-                if (j < dom_lo.y-1 || j > dom_hi.y+1) {
+                 if ( j < dom_lo.y-1 || j > dom_hi.y+1 || (j+1 > bx_hi.y && j-1 < bx_lo.y) ) {
                     GradVary = 0.0;
                 } else if (j+1 > bx_hi.y) {
                     GradVary =       dxInv[1] * (dest_arr(i,j  ,k0) - dest_arr(i,j-1,k0));
