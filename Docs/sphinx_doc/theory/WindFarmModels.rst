@@ -186,7 +186,7 @@ The following are the inputs required for wind farm simulations.
 
 .. code-block:: cpp
 
-    // The parametrization model - Fitch, EWP
+    // The parametrization model - Fitch, EWP, SimpleActuatorDisk
     erf.windfarm_type = "Fitch"
 
     // How are the turbine locations specified? - using latitude-longitude
