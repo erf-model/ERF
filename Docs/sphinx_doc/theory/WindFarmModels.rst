@@ -123,20 +123,21 @@ The EWP model does not have a concept of intersected area by the turbine rotor l
 .. _`Volker et al. 2015`: https://gmd.copernicus.org/articles/8/3715/2015/
 .. _`Volker et al. 2017`: https://doi.org/10.1088/1748-9326/aa5d86
 
+
 .. _actuator_disk_model_simplified:
 
 Actuator Disk Model - Simplified
 =================================
 
-A simplified actuator disk model based on one-dimensional momentum theory is implemented. The model is implemented as source terms in the equations
-for the horizontal velocity components (ie. `x` and `y` directions). The thrust force from the one-dimensional momentum theory is given by
+A simplified actuator disk model based on one-dimensional momentum theory is implemented. A schematic of the actuator disk is shown in  Fig. :numref:`fig:ActuatorDisk_Schematic`.
+The model is implemented as source terms in the equations for the horizontal velocity components (ie. `x` and `y` directions). The thrust force from the one-dimensional momentum theory is given by
 
 .. math::
 
     F = 2 \rho \pi R^2 (\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1-a) \\
       = \int_0^{2\pi}\int_0^R 2 \rho (\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a) r\,dr\,d\theta,
 
-where :math:`\rho` is the density of incoming air, :math:`\mathbf{U}_\infty` is the velocity vector of incoming air at some distance (say 2.5 times the turbine diameter) upstream of the turbine, :math:`\mathbf{n}` is the surface normal vector of the actuator disk, and :math:`a = 1 - \cfrac{C_P}{C_T}`, is the axial induction factor for the turbine, and :math:`R` is the radius of the wind turbine swept area. The integration is performed over the swept area of the disk. Hence, the force on an elemental annular disc of thickness :math:`dr` is
+where :math:`\rho` is the density of incoming air, :math:`\mathbf{U}_\infty` is the velocity vector of incoming air at some distance (say :math:`d=2.5` times the turbine diameter) upstream of the turbine (see Fig. :numref:`fig:ActuatorDisk_Sampling`), :math:`\mathbf{n}` is the surface normal vector of the actuator disk, and :math:`a = 1 - \cfrac{C_P}{C_T}`, is the axial induction factor for the turbine, and :math:`R` is the radius of the wind turbine swept area. The integration is performed over the swept area of the disk. Hence, the force on an elemental annular disc of thickness :math:`dr` is
 
 .. math::
 
@@ -148,7 +149,7 @@ where :math:`r~dr~d\theta` is the elemental area of the actuator disk. In genera
 
     dF = 2 \rho (\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a) dA \\
 
-where :math:`dA` is the area of the actuator disk in the mesh cell. In the context of the simplified actuator disk model, the source term is imposed only on a single cell, and hence the volume over which the force :math:`dF` is acting is the volume of the cell — :math:`dV \equiv \Delta x \Delta y \Delta z`. Hence, the source terms in the horizontal velocity equations are the acceleration (or deceleration) due to the thrust force :math:`dF` and is given by
+where :math:`dA` is the area of the actuator disk in the mesh cell (see Fig. :numref:`fig:ActuatorDisk_Schematic`). In the context of the simplified actuator disk model, the source term is imposed only on a single cell, and hence the volume over which the force :math:`dF` is acting is the volume of the cell — :math:`dV \equiv \Delta x \Delta y \Delta z`. Hence, the source terms in the horizontal velocity equations are the acceleration (or deceleration) due to the thrust force :math:`dF` and is given by
 
 .. math::
 
@@ -160,15 +161,28 @@ where :math:`dA` is the area of the actuator disk in the mesh cell. In the conte
 
     \frac{\partial v}{\partial t} = -2(\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a)\frac{\Delta A}{\Delta x\Delta y\Delta z} \sin{\phi}.
 
+.. _fig:ActuatorDisk_Schematic:
+
+.. figure:: ../figures/ActuatorDisk_Schematic.png
+   :width: 300
+   :align: center
+
+   Schematic of the simplified actuator disk model.
+
+.. _fig:ActuatorDisk_Sampling:
+
+.. figure:: ../figures/ActuatorDisk_Sampling.png
+   :width: 300
+   :align: center
+
+   Top view showing the freestream velocity sampling disk at a distance of :math:`d` from the turbine actuator disk.
+
 .. _Inputs:
 
 Inputs for wind farm parametrization models
 ------------------------------------------------------------
 
-Fitch, EWP
-~~~~~~~~~~~
-
-The following are the inputs required for simulations with Fitch, EWP models.
+The following are the inputs required for wind farm simulations.
 
 .. code-block:: cpp
 
@@ -179,11 +193,12 @@ The following are the inputs required for simulations with Fitch, EWP models.
     // format or x-y format? lat_lon or x_y
     erf.windfarm_loc_type = "lat_lon"
 
-    // If using lat_lon, then the latitude and longitude of
-    // the lower bottom corner of the domain has to be specified
-    // The following means 35 deg N, 100 deg W (note the negative sign)
-    erf.latitude_lo      =   35.0
-    erf.longitude_lo     = -100.0
+    // If using lat_lon, then the shift of the bounding box of the wind farm
+    // from the x and y axes should be given. This is to avoid boundary
+    // effects from the inflow boundaries. For example for 2 km shift from the
+    // x and y axes, it should be
+    erf.windfarm_x_shift     = 2000.0
+    erf.windfarm_y_shift     = 2000.0
 
     // Table having the wind turbine locations
     erf.windfarm_loc_table = "windturbines_1WT.txt"
@@ -192,19 +207,21 @@ The following are the inputs required for simulations with Fitch, EWP models.
     // have the same specifications
     erf.windfarm_spec_table = "wind-turbine_1WT.tbl"
 
-1. ``erf.windfarm_type`` has to be one of the supported models - ``Fitch``, ``EWP``.
+    // For simplified actuator disk model the following parameters are needed
+
+    // The distance of the freestream velocity sampling disk from the turbine actuator
+    // disk
+    erf.sampling_distance_by_D = 2.5
+
+    // The angle of the turbine actuator disk from the x axis
+    erf.turb_disk_angle_from_x = 135.0
+
+1. ``erf.windfarm_type`` has to be one of the supported models - ``Fitch``, ``EWP``, ``SimpleActuatorDisk``.
 2. ``erf.windfarm_loc_type`` is a variable to specify how the wind turbine locations in the wind farm is specified. If using the latitude and longitude of the turbine location, this has to be ``lat_lon`` or if using x and y coordinates to specify the turbine locations, this input is ``x_y``.
 
-   - If using ``lat_lon`` format, ``erf.latitude_lo`` and ``erf.longitude_lo`` specifies the latitude and longitude of the lower bottom corner of the domain box.  ie. if the domain box is specified as
+   - If using ``lat_lon`` format, ``erf.windfarm_x_shift`` and ``erf.windfarm_y_shfit`` specifies the shift of the bounding box of the wind farm from the x and y axes, so as to place the wind farm sufficiently inside the domain to avoid inflow boundary effects.
 
-     .. code-block:: cpp
-
-        geometry.prob_lo     = -25000.   0.  -10000
-        geometry.prob_hi     =  25000. 10000. 10000.
-
-     then ``(erf.latitude_lo, erf.longitude_lo)`` corresponds to ``(-25000, 0, -10000)``.
-
-   - If using ``x_y`` format, there is no need to specify the ``erf.latitude_lo`` and ``erf.longitude_lo``.
+   - If using ``x_y`` format, there is no need to specify the ``erf.windfarm_x_shift`` and ``erf.windfarm_y_shift``.
 
 3. The ``erf.windfarm_loc_table`` specifies the locations of the wind turbines in the wind farm.
 
