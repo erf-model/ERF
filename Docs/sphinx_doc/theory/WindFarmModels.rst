@@ -267,3 +267,16 @@ The first line is the number of pairs of entries for the power curve and thrust 
 The second line gives the height in meters of the turbine hub, the diameter in
 meters of the rotor, the standing thrust coefficient, and the nominal power of the turbine in MW.
 The remaining lines (four in this case) contain the three values of: wind speed (m/s), thrust coefficient, and power production in kW.
+
+.. _Outputs:
+
+Outputs
+----------
+1. Turbine locations are written into `turbine_locations.vtk`.  
+2. If using an actuator disk model, all the actuator disks are written out to `actuator_disks_all.vtk`. The actuator disks which are enclosed by the 
+   computational domain are written out to `actuator_disks_in_dom.vtk`.
+ 
+These `vtk` files can be visualized in both VisIt and ParaView. The `turbine_locations.vtk` can be visualized using the `Points Gaussian` feature in ParaView or the `Mesh` 
+feature in VisIt. The `actuator_disks_in_dom.vtk` and `actuator_disks_all.vtk` files can be visualized using the `Wireframe` feature in ParaView or `Mesh` feature in VisIt. 
+
+
