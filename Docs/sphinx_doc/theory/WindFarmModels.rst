@@ -129,7 +129,7 @@ The EWP model does not have a concept of intersected area by the turbine rotor l
 Actuator Disk Model - Simplified
 =================================
 
-A simplified actuator disk model based on one-dimensional momentum theory is implemented. A schematic of the actuator disk is shown in  Fig. :numref:`fig:ActuatorDisk_Schematic`.
+A simplified actuator disk model based on one-dimensional momentum theory is implemented (See Section 3.2 in `Wind Energy Handbook 2nd edition`_). A schematic of the actuator disk is shown in  Fig. :numref:`fig:ActuatorDisk_Schematic`.
 The model is implemented as source terms in the equations for the horizontal velocity components (ie. `x` and `y` directions). The thrust force from the one-dimensional momentum theory is given by
 
 .. math::
@@ -176,6 +176,8 @@ where :math:`dA` is the area of the actuator disk in the mesh cell (see Fig. :nu
    :align: center
 
    Top view showing the freestream velocity sampling disk at a distance of :math:`d` from the turbine actuator disk.
+
+.. _`Wind Energy Handbook 2nd edition`: https://www.wiley.com/en-us/Wind+Energy+Handbook%2C+2nd+Edition-p-9781119993926
 
 .. _Inputs:
 
