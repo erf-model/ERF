@@ -352,7 +352,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 if (cell_data(i,j,k,RhoTheta_comp) < 0.) AMREX_DEVICE_PRINTF("BAD THETA AT %d %d %d %e %e \n",
                     i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
 #else
-if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
+                if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
                     i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
 #endif
 

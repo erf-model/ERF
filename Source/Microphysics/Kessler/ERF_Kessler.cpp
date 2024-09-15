@@ -104,6 +104,11 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 Real pressure = pres_array(i,j,k);
                 erf_qsatw(tabs_array(i,j,k), pressure, qsat);
 
+                if (qsat <= 0.0) {
+                    amrex::Warning("qsat computed as non-positive; setting to 0.!");
+                    qsat = 0.0;
+                }
+
                 // If there is precipitating water (i.e. rain), and the cell is not saturated
                 // then the rain water can evaporate leading to extraction of latent heat, hence
                 // reducing temperature and creating negative buoyancy
