@@ -426,11 +426,11 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 // Loop over ghost cells in bottom XY-plane (valid box)
                 Box xybx = bx;
 
-                int k0 = 0;
-                if (xybx.smallEnd(2) < 0) {
-
+                int k0 = dom_lo.z;
+                if (xybx.smallEnd(2) < 0)
+                {
                     xybx.setBig(2,dom_lo.z-1);
-                    xybx.setSmall(2,bx.smallEnd()[2]);
+                    xybx.setSmall(2,bx.smallEnd(2));
 
                     // Get the dz cell size
                     Real dz = geomdata.CellSize(2);
@@ -450,7 +450,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         // GradX at IJK location inside domain -- this relies on the assumption that we have
                         // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                         Real GradVarx, GradVary;
-                        if (i < dom_lo.x-1 || i > dom_hi.x+1) {
+                        if (i < dom_lo.x-1 || i > dom_hi.x+1 || (i+1 > bx_hi.x && i-1 < bx_lo.x) ) {
                             GradVarx = 0.0;
                         } else if (i+1 > bx_hi.x) {
                             GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
@@ -462,7 +462,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
 
                         // GradY at IJK location inside domain -- this relies on the assumption that we have
                         // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
-                        if (j < dom_lo.y-1 || j > dom_hi.y+1) {
+                        if (j < dom_lo.y-1 || j > dom_hi.y+1 || (j+1 > bx_hi.y && j-1 < bx_lo.y) ) {
                             GradVary = 0.0;
                         } else if (j+1 > bx_hi.y) {
                             GradVary =       dxInv[1] * (dest_arr(i,j  ,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
