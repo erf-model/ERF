@@ -1,4 +1,4 @@
-set(erf_exe_name erf_fitch)
+set(erf_exe_name erf_awaken)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
