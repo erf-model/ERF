@@ -7,8 +7,8 @@
 void
 erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
                    amrex::Geometry const& geom,
-                   std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                   amrex::Real zdamp) override
+                   std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+                   amrex::Real /*zdamp*/) override
 {
     const int khi = geom.Domain().bigEnd()[2];
     for (int k = 0; k <= khi; k++)
