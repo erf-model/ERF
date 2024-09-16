@@ -48,11 +48,10 @@ Problem::init_custom_pert (
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
-    const int khi = geomdata.Domain().bigEnd()[2];
+    //const int khi = geomdata.Domain().bigEnd()[2];
+    //AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
-    //AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
