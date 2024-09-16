@@ -47,6 +47,8 @@ erf.rayleigh_damp_T = true
 erf.rayleigh_damp_U = true
 erf.rayleigh_damp_V = true
 erf.rayleigh_damp_W = true
+erf.rayleigh_zdamp = 1.0e34  # uniform damping layer
+erf.rayleigh_dampcoef = 1.0  # tau==1
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
