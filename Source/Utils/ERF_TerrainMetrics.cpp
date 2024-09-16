@@ -368,14 +368,13 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
             Real zz_minus = z_lev_h[k-1];
 
             // Hybrid attenuation profile, Klemp2011 Eqn. 9
-            Real A;
-            Real foo = cos((PI/2)*(zz/z_H));
-            if(zz < z_H) { A = foo*foo*foo*foo*foo*foo; } // A controls rate of return to atm
-            else         { A = 0; }
-            Real foo_minus = cos((PI/2)*(zz_minus/z_H));
-            Real A_minus;
-            if(zz_minus < z_H) { A_minus = foo_minus*foo_minus*foo_minus*foo_minus*foo_minus*foo_minus; } // A controls rate of return to atm
-            else               { A_minus = 0; }
+            Real A{0.}, A_minus{0.};
+            if (z_H > std::numeric_limits<Real>::epsilon()) {
+                Real foo = cos((PI/2)*(zz/z_H));
+                if(zz < z_H) { A = foo*foo*foo*foo*foo*foo; } // A controls rate of return to atm
+                Real foo_minus = cos((PI/2)*(zz_minus/z_H));
+                if(zz_minus < z_H) { A_minus = foo_minus*foo_minus*foo_minus*foo_minus*foo_minus*foo_minus; } // A controls rate of return to atm
+            }
 
             unsigned maxIter = 50; // M_k in paper
             unsigned iter    = 0;
