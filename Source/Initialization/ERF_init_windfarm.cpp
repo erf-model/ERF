@@ -19,9 +19,10 @@ ERF::init_windfarm (int lev)
 {
     if(solverChoice.windfarm_loc_type == WindFarmLocType::lat_lon) {
         windfarm->read_tables(solverChoice.windfarm_loc_table,
-                             solverChoice.windfarm_spec_table,
-                             false, true,
-                             solverChoice.latitude_lo, solverChoice.longitude_lo);
+                              solverChoice.windfarm_spec_table,
+                              false, true,
+                              solverChoice.windfarm_x_shift,
+                              solverChoice.windfarm_y_shift);
     } else if(solverChoice.windfarm_loc_type == WindFarmLocType::x_y) {
         windfarm->read_tables(solverChoice.windfarm_loc_table,
                              solverChoice.windfarm_spec_table,
@@ -33,10 +34,11 @@ ERF::init_windfarm (int lev)
     windfarm->write_turbine_locations_vtk();
 
     if(solverChoice.windfarm_type == WindFarmType::SimpleAD) {
-        windfarm->fill_SMark_multifab(geom[lev], SMark[lev], solverChoice.sampling_distance_by_D);
+        windfarm->fill_SMark_multifab(geom[lev], SMark[lev],
+                                      solverChoice.sampling_distance_by_D,
+                                      solverChoice.turb_disk_angle);
         windfarm->write_actuator_disks_vtk(geom[lev]);
     }
-
 }
 
 void
@@ -47,8 +49,9 @@ ERF::advance_windfarm (const Geometry& a_geom,
                        MultiFab& V_old,
                        MultiFab& W_old,
                        MultiFab& mf_vars_windfarm,
-                       const MultiFab& mf_Nturb)
+                       const MultiFab& mf_Nturb,
+                       const MultiFab& mf_SMark)
 {
         windfarm->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
-                          U_old, V_old, W_old, mf_Nturb);
+                          U_old, V_old, W_old, mf_Nturb, mf_SMark);
 }

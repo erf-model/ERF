@@ -21,7 +21,8 @@ public:
                   amrex::MultiFab& U_old,
                   amrex::MultiFab& V_old,
                   amrex::MultiFab& W_old,
-                  const amrex::MultiFab& mf_Nturb) override;
+                  const amrex::MultiFab& mf_Nturb,
+                  const amrex::MultiFab& mf_SMark) override;
 
     void source_terms_cellcentered (const amrex::Geometry& geom,
                                     const amrex::MultiFab& cons_in,
