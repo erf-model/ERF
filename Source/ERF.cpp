@@ -871,6 +871,7 @@ ERF::InitData ()
         }
     }
 #endif
+
     // Copy from new into old just in case
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -885,10 +886,14 @@ ERF::InitData ()
         MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,    1,lev_new[Vars::zvel].nGrowVect());
     }
 
-    // Compute the minimum dz in the domain (to be used for setting the timestep)
-    dz_min = geom[0].CellSize(2);
-    if ( solverChoice.use_terrain ) {
-        dz_min *= (*detJ_cc[0]).min(0);
+    // Compute the minimum dz in the domain at each level (to be used for setting the timestep)
+    dz_min.resize(max_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        dz_min[lev] = geom[lev].CellSize(2);
+        if ( solverChoice.use_terrain ) {
+            dz_min[lev] *= (*detJ_cc[lev]).min(0);
+        }
     }
 
     ComputeDt();

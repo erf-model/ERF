@@ -112,7 +112,8 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
             z_phys_nd.ParallelCopy(z_phys_nd_new,0,0,1,z_phys_nd.nGrowVect(),z_phys_nd.nGrowVect());
         }
     } else {
-        init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h);
+        // Just temporarily we don't call this -- we are still interpolating from coarse grid on valid region
+        // init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h);
     }
 
     // Fill ghost layers and corners (including periodic)
@@ -568,10 +569,10 @@ make_J (const Geometry& geom,
         Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
         Array4<Real      > detJ = detJ_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-               detJ(i, j, k) = .25 * dzInv * (
-                       z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-                      -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
-       });
+           detJ(i, j, k) = .25 * dzInv * (
+                   z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
+                  -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
+        });
     }
     detJ_cc.FillBoundary(geom.periodicity());
 }

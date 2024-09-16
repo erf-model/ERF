@@ -1047,7 +1047,7 @@ private:
     //
     amrex::MultiFab fine_mask;
 
-    amrex::Real dz_min;
+    amrex::Vector<amrex::Real> dz_min;
 
     static AMREX_FORCE_INLINE
     int

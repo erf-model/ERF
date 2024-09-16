@@ -349,14 +349,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
 #ifdef AMREX_USE_GPU
-                if (cell_data(i,j,k,RhoTheta_comp) < 0.) AMREX_DEVICE_PRINTF("BAD THETA AT %d %d %d %e %e \n",
+                if (cell_data(i,j,k,RhoTheta_comp) <= 0.) AMREX_DEVICE_PRINTF("BAD THETA AT %d %d %d %e %e \n",
                     i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
 #else
-                if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
+                if (cell_data(i,j,k,RhoTheta_comp) <= 0.) {
+                    printf("BAD THETA AT %d %d %d %e %e \n",
                     i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
+                    amrex::Abort("Bad theta in ERF_slow_rhs_pre");
+                }
 #endif
-
-                AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
                 Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
                 pptemp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
             });

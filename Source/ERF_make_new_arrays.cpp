@@ -452,12 +452,16 @@ ERF::init_zphys (int lev, Real time)
             Vector<MultiFab*> cmf = {z_phys_nd[lev-1].get(), z_phys_nd[lev-1].get()};
             Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
 
+            IntVect nghost = z_phys_nd[lev]->nGrowVect();
+
             //
             // First we fill z_phys_nd at lev>0 through interpolation
             //
             Interpolater* mapper = &node_bilinear_interp;
             PhysBCFunctNoOp null_bc;
-            InterpFromCoarseLevel(*z_phys_nd[lev], time, *z_phys_nd[lev-1],
+            InterpFromCoarseLevel(*z_phys_nd[lev],
+                                  IntVect(nghost[0], nghost[1], 0),
+                                  time, *z_phys_nd[lev-1],
                                   0, 0, 1,
                                   geom[lev-1], geom[lev],
                                   null_bc, 0, null_bc, 0, refRatio(lev-1),
@@ -486,8 +490,13 @@ ERF::init_zphys (int lev, Real time)
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
 
             } // init_type
+            z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
         } // lev == 0
-    }
+        else {
+            // This takes care of the values outside the valid region
+            init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag,phys_bc_type);
+        }
+    } // terrain
 }
 
 void
