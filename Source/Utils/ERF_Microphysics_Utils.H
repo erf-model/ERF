@@ -16,7 +16,10 @@ amrex::Real erf_gammafff (amrex::Real x){
     return std::exp(lgamma(x));
 }
 
-
+// From Flatau et al. (1992):
+// https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
+// Coefficients come from Table 4 and the data is valid over a
+// temperature range of [-90  0] C. Return 0 if above this temp range.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_esati (amrex::Real t) {
     amrex::Real const a0 = 6.11147274;
@@ -30,40 +33,43 @@ amrex::Real erf_esati (amrex::Real t) {
     amrex::Real const a8 = 0.252751365e-14;
 
     amrex::Real dtt = t-273.16;
+    AMREX_ALWAYS_ASSERT(dtt>-85);
     amrex::Real esati;
-    if(dtt > -80.0) {
+    if (dtt > 0.0) {
+        esati = 0.0;
+    } else {
         esati = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
-    }
-    else {
-        esati = 0.01*std::exp(9.550426 - 5723.265/t + 3.53068*std::log(t) - 0.00728332*t);
     }
     return esati;
 }
 
+// From Flatau et al. (1992):
+// https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
+// Coefficients come from Table 4 and the data is valid over a
+// temperature range of [-85  70] C. Assert we are in this temp range.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_esatw (amrex::Real t) {
-    amrex::Real const a0 = 6.105851;
-    amrex::Real const a1 = 0.4440316;
-    amrex::Real const a2 = 0.1430341e-1;
-    amrex::Real const a3 = 0.2641412e-3;
-    amrex::Real const a4 = 0.2995057e-5;
-    amrex::Real const a5 = 0.2031998e-7;
-    amrex::Real const a6 = 0.6936113e-10;
-    amrex::Real const a7 = 0.2564861e-13;
-    amrex::Real const a8 = -0.3704404e-15;
+    amrex::Real const a0 = 6.11239921;
+    amrex::Real const a1 = 0.443987641;
+    amrex::Real const a2 = 0.142986287e-1;
+    amrex::Real const a3 = 0.264847430e-3;
+    amrex::Real const a4 = 0.302950461e-5;
+    amrex::Real const a5 = 0.206739458e-7;
+    amrex::Real const a6 = 0.640689451e-10;
+    amrex::Real const a7 = -0.952447341e-13;
+    amrex::Real const a8 = -0.976195544e-15;
 
     amrex::Real dtt = t-273.16;
-
-    amrex::Real esatw;
-    if(dtt > -80.0) {
-        esatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
-    }
-    else {
-        esatw = 2.0*0.01*std::exp(9.550426 - 5723.265/t + 3.53068*std::log(t) - 0.00728332*t);
-    }
+    AMREX_ALWAYS_ASSERT(dtt>-85);
+    AMREX_ALWAYS_ASSERT(dtt<70);
+    amrex::Real esatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
     return esatw;
 }
 
+// From Flatau et al. (1992):
+// https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
+// Coefficients come from Table 4 and the data is valid over a
+// temperature range of [-90  0] C. Return 0 if above this temp range.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_dtesati (amrex::Real t) {
     amrex::Real const a0 = 0.503223089;
@@ -77,17 +83,20 @@ amrex::Real erf_dtesati (amrex::Real t) {
     amrex::Real const a8 = 0.497275778e-16;
 
     amrex::Real dtt = t-273.16;
+    AMREX_ALWAYS_ASSERT(dtt>-85);
     amrex::Real dtesati;
-    if(dtt > -80.0) {
+    if (dtt > 0.0) {
+        dtesati = 0.0;
+    } else {
         dtesati = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
     }
-    else {
-        dtesati= erf_esati(t+1.0)-erf_esati(t);
-    }
-
     return dtesati;
 }
 
+// From Flatau et al. (1992):
+// https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
+// Coefficients come from Table 4 and the data is valid over a
+// temperature range of [-85  70] C. Assert we are in this temp range.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_dtesatw (amrex::Real t) {
     amrex::Real const a0 = 0.443956472;
@@ -101,13 +110,9 @@ amrex::Real erf_dtesatw (amrex::Real t) {
     amrex::Real const a8 = -0.599634321e-17;
 
     amrex::Real dtt = t-273.16;
-    amrex::Real dtesatw;
-    if(dtt > -80.0) {
-        dtesatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
-    }
-    else {
-        dtesatw = erf_esatw(t+1.0)-erf_esatw(t);
-    }
+    AMREX_ALWAYS_ASSERT(dtt>-85);
+    AMREX_ALWAYS_ASSERT(dtt<70);
+    amrex::Real dtesatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
     return dtesatw;
 }
 

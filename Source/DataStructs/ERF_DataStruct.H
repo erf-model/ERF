@@ -361,9 +361,6 @@ struct SolverChoice {
             amrex::Abort("Dont know this coupling_type");
         }
 
-        pp.query("latitude_lo",  latitude_lo);
-        pp.query("longitude_lo", longitude_lo);
-
         // Which type of windfarm model
         static std::string windfarm_type_string = "None";
         pp.query("windfarm_type", windfarm_type_string);
@@ -409,7 +406,22 @@ struct SolverChoice {
                            "distance as a factor of the turbine diameter at which the incoming free stream "
                            "velocity will be computed at");
         }
+        pp.query("turb_disk_angle_from_x", turb_disk_angle);
+        if(windfarm_type==WindFarmType::SimpleAD and turb_disk_angle < 0.0) {
+            amrex::Abort("To use simplified actuator disks, you need to provide a variable "
+                          " erf.turb_disk_angle_from_x in the inputs which is the angle of the face of the "
+                          "    turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction "
+                          " will have turb_disk_angle value of 90 deg ");
+        }
 
+        pp.query("windfarm_x_shift",windfarm_x_shift);
+        pp.query("windfarm_y_shift",windfarm_y_shift);
+        if(windfarm_loc_type == WindFarmLocType::lat_lon and (windfarm_x_shift < 0.0 or windfarm_y_shift < 0.0)) {
+            amrex::Abort("You are using windfarms with latitude-logitude option to position the turbines."
+                         " For this you should provide the inputs erf.windfarm_x_shift and"
+                         " erf.windfarm_y_shift which are the values by which the bounding box of the"
+                         " windfarm is shifted from the x and the y axes.");
+        }
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
     }
@@ -623,8 +635,10 @@ struct SolverChoice {
     // if     SAM, then it will be set to RhoQ4
     int RhoQr_comp {-1};
 
-    amrex::Real latitude_lo=-1e10, longitude_lo=-1e10;
     std::string windfarm_loc_table, windfarm_spec_table;
-    amrex::Real sampling_distance_by_D=-1.0;
+    amrex::Real sampling_distance_by_D = -1.0;
+    amrex::Real turb_disk_angle = -1.0;
+    amrex::Real windfarm_x_shift = -1.0;
+    amrex::Real windfarm_y_shift = -1.0;
 };
 #endif
