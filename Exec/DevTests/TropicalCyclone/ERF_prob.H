@@ -17,12 +17,9 @@ struct ProbParm : ProbParmDefaults {
     amrex::Real RZERO = 800.0;  // Radius of zero wind speed
     amrex::Real ZZERO = 2000.0; // Height of zero wind speed
 
-    // rayleigh damping
     amrex::Real U_0 = 0.0;
     amrex::Real V_0 = 0.0;
     amrex::Real W_0 = 0.0;
-    amrex::Real dampcoef = 0.2; // inverse time scale [1/s]
-    amrex::Real zdamp = 500.0; // damping depth [m] from model top
 
 }; // namespace ProbParm
 

@@ -111,18 +111,22 @@ void ERF::init_bcs ()
                 }
             }
 
-            Real rho_in;
+            Real rho_in = 0.;
             if (input_bndry_planes && m_r2d->ingested_density()) {
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = 0.;
             } else {
-                pp.get("density", rho_in);
+                if (!pp.query("density", rho_in)) {
+                    amrex::Print() << "Using interior values to set conserved vars" << std::endl;
+                }
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
             }
-            Real theta_in;
+            Real theta_in = 0.;
             if (input_bndry_planes && m_r2d->ingested_theta()) {
                 m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = 0.;
             } else {
-                pp.get("theta", theta_in);
+                if (rho_in > 0) {
+                    pp.get("theta", theta_in);
+                }
                 m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = rho_in*theta_in;
             }
             Real scalar_in = 0.;
@@ -523,9 +527,13 @@ void ERF::init_bcs ()
                            ( (BCVars::cons_bc+i == BCVars::RhoQKE_bc_comp)    && m_r2d->ingested_QKE()    ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQ1_bc_comp)     && m_r2d->ingested_q1()     ) ||
-                           ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )) ) {
+                           ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )) )
+                        {
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_ingested);
-                           }
+                        }
+                        else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
+                            domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                        }
                     }
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
@@ -538,9 +546,13 @@ void ERF::init_bcs ()
                            ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQ1_bc_comp)     && m_r2d->ingested_q1()     ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )
-                           ) ) {
+                           ) )
+                        {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
-                           }
+                        }
+                        else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
+                            domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                        }
                     }
                 }
             }

@@ -305,9 +305,9 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
         MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
 
         // Save max height for smoothing
-        Real max_h;
+        Real h_m;
 
-        // Crete 2D MF without allocation
+        // Create 2D MF without allocation
         MultiFab mf2d;
         {
             BoxList bl2d = h_mf.boxArray().boxList();
@@ -327,7 +327,7 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
         int k0 = domlo_z;
 
         // Get max value
-        max_h = ParReduce(TypeList<ReduceOpMax>{}, TypeList<Real>{}, mf2d, IntVect(ngrow,ngrow,0),
+        h_m = ParReduce(TypeList<ReduceOpMax>{}, TypeList<Real>{}, mf2d, IntVect(ngrow,ngrow,0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
                         -> GpuTuple<Real>
                 {
@@ -348,11 +348,18 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                   return { z_arr(i,j,k0) };
                 });
 
+        if (h_m < std::numeric_limits<Real>::epsilon()) h_m = 1e-16;
+
         // Fill ghost cells (neglects domain boundary if not periodic)
         h_mf.FillBoundary(geom.periodicity());
 
         // Make h_mf copy for old values
         MultiFab::Copy(h_mf_old, h_mf,0,0,1,h_mf_old.nGrow());
+
+        // Minimum allowed fractional grid spacing
+        Real gamma_m = 0.5;
+        pp.query("terrain_gamma_m", gamma_m);
+        Real z_H     = 2.44*h_m/(1-gamma_m); // Klemp2011 Eqn. 11
 
         // Populate h_mf at k>0 with h_s, solving in ordered 2D slices
         for (int k = domlo_z+1; k <= domhi_z; k++) // skip terrain level
@@ -362,17 +369,14 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
             Real zz       = z_lev_h[k];
             Real zz_minus = z_lev_h[k-1];
 
-            Real gamma_m = 0.5; // min allowed fractional grid spacing
-            Real z_H     = 2.44/(1-gamma_m);
-
-            Real A;
-            Real foo = cos((PI/2)*(zz/z_H));
-            if(zz < z_H) { A = foo*foo*foo*foo*foo*foo; } // A controls rate of return to atm
-            else         { A = 0; }
-            Real foo_minus = cos((PI/2)*(zz_minus/z_H));
-            Real A_minus;
-            if(zz_minus < z_H) { A_minus = foo_minus*foo_minus*foo_minus*foo_minus*foo_minus*foo_minus; } // A controls rate of return to atm
-            else               { A_minus = 0; }
+            // Hybrid attenuation profile, Klemp2011 Eqn. 9
+            Real A{0.}, A_minus{0.};
+            if (z_H > 1e-8) {
+                Real foo = cos((PI/2)*(zz/z_H));
+                if(zz < z_H) { A = foo*foo*foo*foo*foo*foo; } // A controls rate of return to atm
+                Real foo_minus = cos((PI/2)*(zz_minus/z_H));
+                if(zz_minus < z_H) { A_minus = foo_minus*foo_minus*foo_minus*foo_minus*foo_minus*foo_minus; } // A controls rate of return to atm
+            }
 
             unsigned maxIter = 50; // M_k in paper
             unsigned iter    = 0;
@@ -388,8 +392,7 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                     const auto & h_s     = ma_h_s[box_no];
                     const auto & h_s_old = ma_h_s_old[box_no];
 
-                    Real h_m    = max_h; //high point of hill
-                    Real beta_k = 0.2*std::min(zz/(2*h_m),1.0); //smoothing coefficient
+                    Real beta_k = 0.2*std::min(zz/(2*h_m),1.0); //smoothing coefficient (Eqn. 8)
 
                     // Clip indices for ghost-cells
                     int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
@@ -408,6 +411,7 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                                                               + h_s_old(ii  ,jj-1,k  ) - 4*h_s_old(ii,jj,k  ));
                     }
 
+                    // Minimum vertical grid spacing condition (Klemp2011 Eqn. 7)
                     return { (zz + A * h_s(i,j,k) - (zz_minus + A_minus * h_s(i,j,k-1))) / (zz - zz_minus) };
 
                 }); //ParReduce
@@ -440,7 +444,7 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                     // Location of nodes
                     Real z = z_lev_d[k];
 
-                    // STF model from p2164 of Klemp2011
+                    // STF model from p2164 of Klemp2011 (Eqn. 4)
                     z_arr(i,j,k) = z + A*h_s(i,j,k);
 
                     // Fill below the bottom surface

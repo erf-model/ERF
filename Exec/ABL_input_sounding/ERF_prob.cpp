@@ -35,9 +35,6 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   parms.ufac = parms.pert_deltaU * std::exp(0.5) / parms.pert_ref_height;
   parms.vfac = parms.pert_deltaV * std::exp(0.5) / parms.pert_ref_height;
 
-  pp.query("dampcoef", parms.dampcoef);
-  pp.query("zdamp", parms.zdamp);
-
   init_base_parms(parms.rho_0, parms.T_0);
 }
 

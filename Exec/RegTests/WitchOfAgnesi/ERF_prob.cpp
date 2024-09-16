@@ -15,11 +15,14 @@ Problem::Problem ()
 {
   // Parse params
   ParmParse pp("prob");
+  pp.query("rho_0", parms.rho_0);
+  pp.query("T_0", parms.T_0);
   pp.query("U_0", parms.U_0);
   pp.query("V_0", parms.V_0);
   pp.query("W_0", parms.W_0);
-  pp.query("dampcoef", parms.dampcoef);
-  pp.query("zdamp", parms.zdamp);
+
+  pp.query("hmax", parms.hmax);
+  pp.query("L", parms.L);
 
   init_base_parms(parms.rho_0, parms.T_0);
 }
@@ -45,11 +48,10 @@ Problem::init_custom_pert (
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
-    const int khi = geomdata.Domain().bigEnd()[2];
+    //const int khi = geomdata.Domain().bigEnd()[2];
+    //AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
-    AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -120,6 +122,10 @@ Problem::init_custom_terrain (
         Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
         // Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
 
+        // if hm is nonzero, then use alternate hill definition
+        Real hm = parms.hmax;
+        Real L = parms.L;
+
         // Number of ghost cells
         int ngrow = z_phys_nd.nGrow();
 
@@ -128,6 +134,9 @@ Problem::init_custom_terrain (
 
         for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
+            amrex::Box zbx = mfi.nodaltilebox(2);
+            if (zbx.smallEnd(2) > k0) continue;
+
             // Grown box with no z range
             amrex::Box xybx = mfi.growntilebox(ngrow);
             xybx.setRange(2,0);
@@ -141,14 +150,16 @@ Problem::init_custom_terrain (
                 // int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
                 // Location of nodes
-                Real x = (ii  * dx[0] - xcen);
+                Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
                 // Real y = (jj  * dx[1] - ycen);
 
                 // WoA Hill in x-direction
-                Real height = num / (x*x + 4 * a * a);
-
-                // Populate terrain height
-                z_arr(i,j,k0) = height;
+                if (hm==0) {
+                    z_arr(i,j,k0) = num / (x*x + 4 * a * a);
+                } else {
+                    Real x_L = x / L;
+                    z_arr(i,j,k0) = hm / (1 + x_L*x_L);
+                }
             });
         }
     }

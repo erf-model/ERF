@@ -34,6 +34,7 @@ void make_sources (int level,
                    Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
+                   std::unique_ptr<MultiFab>& z_phys_cc,
 #ifdef ERF_USE_RRTMGP
                    const MultiFab* qheating_rates,
 #endif
@@ -56,6 +57,7 @@ void make_sources (int level,
     source.setVal(0.0);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
+    const bool use_terrain      = solverChoice.use_terrain;
 
     TurbChoice tc = solverChoice.turbChoice[level];
     const bool l_use_deardorff  = (tc.les_type == LESType::Deardorff);
@@ -65,7 +67,6 @@ void make_sources (int level,
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
-    Real*      tau = d_rayleigh_ptrs_at_lev[Rayleigh::tau];
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
     // *****************************************************************************
@@ -182,6 +183,8 @@ void make_sources (int level,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_src   = source.array(mfi);
 
+        const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+
 #ifdef ERF_USE_RRTMGP
         // *************************************************************************************
         // 2. Add radiation source terms to (rho theta)
@@ -200,14 +203,25 @@ void make_sources (int level,
         // *************************************************************************************
         // 3. Add Rayleigh damping for (rho theta)
         // *************************************************************************************
+        Real zlo      = geom.ProbLo(2);
+        Real dz       = geom.CellSize(2);
+        Real ztop     = solverChoice.rayleigh_ztop;
+        Real zdamp    = solverChoice.rayleigh_zdamp;
+        Real dampcoef = solverChoice.rayleigh_dampcoef;
+
         if (solverChoice.rayleigh_damp_T) {
             int n  = RhoTheta_comp;
             int nr = Rho_comp;
             int np = PrimTheta_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real theta = cell_prim(i,j,k,np);
-                cell_src(i, j, k, n) -= tau[k] * (theta - thetabar[k]) * cell_data(i,j,k,nr);
+                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                Real zfrac = 1 - (ztop - zcc) / zdamp;
+                if (zfrac > 0) {
+                    Real theta = cell_prim(i,j,k,np);
+                    Real sinefac = std::sin(PIoTwo*zfrac);
+                    cell_src(i, j, k, n) -= dampcoef*sinefac*sinefac * (theta - thetabar[k]) * cell_data(i,j,k,nr);
+                }
             });
         }
 

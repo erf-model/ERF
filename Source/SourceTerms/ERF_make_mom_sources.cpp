@@ -41,6 +41,8 @@ void make_mom_sources (int /*level*/,
                        int /*nrk*/, Real dt, Real time,
                        Vector<MultiFab>& S_data,
                        const  MultiFab & S_prim,
+                       std::unique_ptr<MultiFab>& z_phys_nd,
+                       std::unique_ptr<MultiFab>& z_phys_cc,
                        const  MultiFab & /*xvel*/,
                        const  MultiFab & /*yvel*/,
                               MultiFab & xmom_src,
@@ -81,7 +83,8 @@ void make_mom_sources (int /*level*/,
     //    7. numerical diffusion for (xmom,ymom,zmom)
     //    8. sponge
     // *****************************************************************************
-    const bool l_use_ndiff      = solverChoice.use_NumDiff;
+    const bool l_use_ndiff    = solverChoice.use_NumDiff;
+    const bool use_terrain    = solverChoice.use_terrain;
 
     // *****************************************************************************
     // Data for Coriolis forcing
@@ -104,7 +107,6 @@ void make_mom_sources (int /*level*/,
     auto rayleigh_damp_V  = solverChoice.rayleigh_damp_V;
     auto rayleigh_damp_W  = solverChoice.rayleigh_damp_W;
 
-    Real*      tau = d_rayleigh_ptrs_at_lev[Rayleigh::tau];
     Real*     ubar = d_rayleigh_ptrs_at_lev[Rayleigh::ubar];
     Real*     vbar = d_rayleigh_ptrs_at_lev[Rayleigh::vbar];
     Real*     wbar = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
@@ -214,6 +216,9 @@ void make_mom_sources (int /*level*/,
         const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
+        const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+
         // *****************************************************************************
         // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
@@ -240,30 +245,51 @@ void make_mom_sources (int /*level*/,
         // *****************************************************************************
         // 3. Add RAYLEIGH damping
         // *****************************************************************************
+        Real zlo      = geom.ProbLo(2);
+        Real dz       = geom.CellSize(2);
+        Real ztop     = solverChoice.rayleigh_ztop;
+        Real zdamp    = solverChoice.rayleigh_zdamp;
+        Real dampcoef = solverChoice.rayleigh_dampcoef;
+
         if (rayleigh_damp_U) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                Real uu = rho_u(i,j,k) / rho_on_u_face;
-                xmom_src_arr(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
+                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                Real zfrac = 1 - (ztop - zcc) / zdamp;
+                if (zfrac > 0) {
+                    Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                    Real uu = rho_u(i,j,k) / rho_on_u_face;
+                    Real sinefac = std::sin(PIoTwo*zfrac);
+                    xmom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (uu - ubar[k]) * rho_on_u_face;
+                }
             });
         }
 
         if (rayleigh_damp_V) {
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                Real vv = rho_v(i,j,k) / rho_on_v_face;
-                ymom_src_arr(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
+                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                Real zfrac = 1 - (ztop - zcc) / zdamp;
+                if (zfrac > 0) {
+                    Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                    Real vv = rho_v(i,j,k) / rho_on_v_face;
+                    Real sinefac = std::sin(PIoTwo*zfrac);
+                    ymom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (vv - vbar[k]) * rho_on_v_face;
+                }
             });
         }
 
         if (rayleigh_damp_W) {
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                Real ww = rho_w(i,j,k) / rho_on_w_face;
-                zmom_src_arr(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
+                Real zstag = (z_nd_arr) ? z_nd_arr(i,j,k) : zlo + k*dz;
+                Real zfrac = 1 - (ztop - zstag) / zdamp;
+                if (zfrac > 0) {
+                    Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real ww = rho_w(i,j,k) / rho_on_w_face;
+                    Real sinefac = std::sin(PIoTwo*zfrac);
+                    zmom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (ww - wbar[k]) * rho_on_w_face;
+                }
             });
         }
 

@@ -291,9 +291,9 @@ public:
 
             for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
-                // Grown box with no z range
-                amrex::Box  zbx = mfi.nodaltilebox(2);
+                amrex::Box zbx = mfi.nodaltilebox(2);
                 if (zbx.smallEnd(2) <= 0) {
+                    // Grown box with no z range
                     amrex::Box xybx = mfi.growntilebox(ngrow);
                     xybx.setRange(2,0);
 
@@ -378,8 +378,8 @@ public:
         int ilo = geom.Domain().smallEnd(0);
         int jlo = geom.Domain().smallEnd(1);
         int klo = geom.Domain().smallEnd(2);
-        int ihi = geom.Domain().bigEnd(0);
-        int jhi = geom.Domain().bigEnd(1);
+        int ihi = geom.Domain().bigEnd(0) + 1;
+        int jhi = geom.Domain().bigEnd(1) + 1;
         for (amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             // Grown box with no z range
@@ -436,8 +436,9 @@ public:
     */
     virtual void
     erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& /*rayleigh_ptrs*/,
-                       amrex::Geometry      const& /*geom*/,
-                       std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+                       amrex::Geometry const& /*geom*/,
+                       std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+                       amrex::Real /*zdamp*/)
     {
         amrex::Error("Should never call erf_init_rayleigh for "+name()+" problem");
     }

@@ -144,15 +144,14 @@ ERF::ERF_shared ()
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    // Initialize staggered vertical levels for grid stretching or terrain.
-
+    // Initialize staggered vertical levels for grid stretching or terrain, and
+    // to simplify Rayleigh damping layer calculations.
+    init_zlevels(zlevels_stag,
+                 geom[0],
+                 solverChoice.grid_stretching_ratio,
+                 solverChoice.zsurf,
+                 solverChoice.dz0);
     if (solverChoice.use_terrain) {
-        init_zlevels(zlevels_stag,
-                     geom[0],
-                     solverChoice.grid_stretching_ratio,
-                     solverChoice.zsurf,
-                     solverChoice.dz0);
-
         int nz = geom[0].Domain().length(2) + 1; // staggered
         if (std::fabs(zlevels_stag[nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
             Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)

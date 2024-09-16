@@ -8,11 +8,16 @@
 #include "ERF_prob_common.H"
 
 struct ProbParm : ProbParmDefaults {
+  // perturbations to initial conditions
+  amrex::Real rho_0 = 0.0;
+  amrex::Real T_0 = 0.0;
   amrex::Real U_0 = 0.0;
   amrex::Real V_0 = 0.0;
-  amrex::Real W_0 = 0.0;
-  amrex::Real dampcoef = 0.003;
-  amrex::Real zdamp = 1.0;
+  amrex::Real W_0 = 0.0; // needed for rayleigh damping
+
+  // hill parameters
+  amrex::Real hmax = 0.0;   // full hill height, can be negative to simulate valleys
+  amrex::Real L = 0.0;      // hill length at half-height
 }; // namespace ProbParm
 
 class Problem : public ProblemBase

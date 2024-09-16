@@ -82,9 +82,8 @@ erf.rayleigh_damp_U = true
 erf.rayleigh_damp_V = true
 erf.rayleigh_damp_W = true
 erf.rayleigh_damp_T = true
-
-prob.dampcoef = 0.2 # [1/s] following FastEddy
-prob.zdamp = 100. # from Beare et al. 2006, "most models applied gravity wave damping above 300 m"
+erf.rayleigh_dampcoef = 0.2 # [1/s] following FastEddy
+erf.rayleigh_zdamp = 100. # from Beare et al. 2006, "most models applied gravity wave damping above 300 m"
 
 # Initial conditions from Beare et al. 2006
 prob.KE_0            = 0.4 # [m2/s2]

@@ -83,8 +83,8 @@ erf.rotational_time_period = 86164.0900027328
 
 # RAYLEIGH DAMPING
 erf.rayleigh_damp_W = true
-prob.dampcoef = 0.2
-prob.zdamp = 5000.
+erf.rayleigh_dampcoef = 0.2
+erf.rayleigh_zdamp = 5000.
 
 # PROBLEM PARAMETERS
 # initial vortex

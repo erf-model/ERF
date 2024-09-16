@@ -54,9 +54,9 @@ erf.molec_diff_type = "None"
 
 # RAYLEIGH DAMPING
 erf.rayleigh_damp_U = true
+erf.rayleigh_dampcoef = 0.02 # timescale is 50 s
+erf.rayleigh_zdamp = 9e99 # no vertical variation in damping layer strength
 
 # PROBLEM CHOICE
-prob.zdamp = 9e99 # no vertical variation in damping layer strength
-prob.dampcoef = 0.02 # timescale is 50 s
 prob.U_0 = -10.0 # subtract out mean wind from profile to start with U = 0
 
