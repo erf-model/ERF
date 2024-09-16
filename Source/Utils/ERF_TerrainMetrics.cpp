@@ -348,6 +348,8 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                   return { z_arr(i,j,k0) };
                 });
 
+        if (h_m < std::numeric_limits<Real>::epsilon()) h_m = 1e-16;
+
         // Fill ghost cells (neglects domain boundary if not periodic)
         h_mf.FillBoundary(geom.periodicity());
 
@@ -369,7 +371,7 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
 
             // Hybrid attenuation profile, Klemp2011 Eqn. 9
             Real A{0.}, A_minus{0.};
-            if (z_H > std::numeric_limits<Real>::epsilon()) {
+            if (z_H > 1e-8) {
                 Real foo = cos((PI/2)*(zz/z_H));
                 if(zz < z_H) { A = foo*foo*foo*foo*foo*foo; } // A controls rate of return to atm
                 Real foo_minus = cos((PI/2)*(zz_minus/z_H));
