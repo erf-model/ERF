@@ -184,17 +184,17 @@ struct SolverChoice {
         // Should we project the initial velocity field to make it divergence-free?
         pp.query("project_initial_velocity", project_initial_velocity);
 
-        int nvals_inc = pp.countval("incompressible");
+        int nvals_inc = pp.countval("anelastic");
         AMREX_ALWAYS_ASSERT(nvals_inc == 0 || nvals_inc == 1 || nvals_inc >= max_level+1);
-        amrex::Vector<int> inc_in; inc_in.resize(nvals_inc);
-        pp.queryarr("incompressible",inc_in);
+        amrex::Vector<int> anelastic_in; anelastic_in.resize(nvals_inc);
+        pp.queryarr("anelastic",anelastic_in);
         if (nvals_inc == 0) {
-            for (int i = 0; i <= max_level; ++i) incompressible.push_back(0);
-            amrex::Warning("NOTE: ERF was built with the Poisson solver but the incompressible flag was not set");
+            for (int i = 0; i <= max_level; ++i) anelastic.push_back(0);
+            amrex::Warning("NOTE: ERF was built with the Poisson solver but the anelastic flag was not set");
         } else if (nvals_inc == 1) {
-            for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
+            for (int i = 0; i <= max_level; ++i) anelastic.push_back(anelastic_in[0]);
         } else {
-            for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
+            for (int i = 0; i <= max_level; ++i) anelastic.push_back(anelastic_in[0]);
         }
 
         pp.query("constant_density", constant_density);
@@ -203,8 +203,8 @@ struct SolverChoice {
         pp.query("poisson_abstol", poisson_abstol);
         pp.query("poisson_reltol", poisson_reltol);
 #else
-        incompressible.resize(max_level+1);
-        for (int i = 0; i <= max_level; ++i) incompressible[i] = 0;
+        anelastic.resize(max_level+1);
+        for (int i = 0; i <= max_level; ++i) anelastic[i] = 0;
 #endif
 
         // Turn off acoustic substepping?
@@ -213,9 +213,9 @@ struct SolverChoice {
 
 #if defined(ERF_USE_POISSON_SOLVE)
         for (int lev = 0; lev <= max_level; lev++) {
-            if (incompressible[lev] != 0 && no_substepping == 0)
+            if (anelastic[lev] != 0 && no_substepping == 0)
             {
-                amrex::Abort("If you specify incompressible, you must specific no_substepping");
+                amrex::Abort("If you specify anelastic, you must specific no_substepping");
             }
         }
 #endif
@@ -432,7 +432,7 @@ struct SolverChoice {
         amrex::Print() << "no_substepping              : " << no_substepping << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
-            amrex::Print() << "incompressible at level     : " << lev << " is " << incompressible[lev] << std::endl;
+            amrex::Print() << "anelastic at level     : " << lev << " is " << anelastic[lev] << std::endl;
         }
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
@@ -531,7 +531,7 @@ struct SolverChoice {
     int         no_substepping              = 0;
     int         force_stage1_single_substep = 1;
 
-    amrex::Vector<int> incompressible;
+    amrex::Vector<int> anelastic;
     int         constant_density    = 0;
     int         project_every_stage = 1;
     int         ncorr               = 1;

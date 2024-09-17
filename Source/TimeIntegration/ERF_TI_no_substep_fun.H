@@ -27,9 +27,9 @@
             for ( MFIter mfi(S_sum[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box bx = mfi.tilebox();
-                Box tbx = surroundingNodes(mfi.tilebox(),0);
-                Box tby = surroundingNodes(mfi.tilebox(),1);
-                Box tbz = surroundingNodes(mfi.tilebox(),2);
+                Box tbx = mfi.nodaltilebox(0);
+                Box tby = mfi.nodaltilebox(1);
+                Box tbz = mfi.nodaltilebox(2);
 
                 Vector<Array4<Real> >  ssum_h(n_data);
                 Vector<Array4<Real> >  sold_h(n_data);
@@ -135,7 +135,7 @@
         apply_bcs(S_sum, time_for_fp, ng_cons, ng_vel, fast_only=true, vel_and_mom_synced=false);
 
 #ifdef ERF_USE_POISSON_SOLVE
-        if (solverChoice.incompressible[level]) {
+        if (solverChoice.anelastic[level]) {
             bool have_tb = (thin_xforce[0] || thin_yforce[0] || thin_zforce[0]);
             if (solverChoice.project_every_stage || (nrk==1)) {
                 if (have_tb) {

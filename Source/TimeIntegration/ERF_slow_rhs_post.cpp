@@ -303,7 +303,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // We have projected the velocities stored in S_data but we will use
         //    the velocities stored in S_scratch to update the scalars, so
         //    we need to copy from S_data (projected) into S_scratch
-        if (solverChoice.incompressible[level]) {
+        if (solverChoice.anelastic[level]) {
             Box tbx_inc = mfi.nodaltilebox(0);
             Box tby_inc = mfi.nodaltilebox(1);
             Box tbz_inc = mfi.nodaltilebox(2);

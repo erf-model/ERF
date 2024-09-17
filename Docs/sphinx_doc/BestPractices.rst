@@ -45,7 +45,7 @@ Large-Eddy Simulations
 * Time Integration
 
   - Split timestepping offers some computational cost savings but still does
-    not allow you to run with an incompressible time-step size.
+    not allow you to run with an incompressible/anelastic time-step size.
   - The acoustic CFL should be less than 0.5, with 4--6 fast timesteps
     (substeps) according to WRF best practices.
 

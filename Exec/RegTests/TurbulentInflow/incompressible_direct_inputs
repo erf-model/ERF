@@ -2,7 +2,7 @@
 stop_time = 180.0
 #max_step = 5
 
-erf.incompressible = 1
+erf.anelastic = 1
 erf.no_substepping = 1
 amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
