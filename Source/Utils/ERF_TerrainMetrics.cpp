@@ -16,6 +16,7 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
               const Real dz0)
 {
     int max_level = zlevels_stag.size()-1;
+
     for (int lev = 0; lev <= max_level; lev++)
     {
         auto dx = geom[lev].CellSizeArray();
@@ -30,7 +31,7 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
             {
                 zlevels_stag[lev][k] = k * dx[2];
             }
-        } else {
+        } else if (lev == 0) {
             // Create stretched grid based on initial dz and stretching ratio
             zlevels_stag[lev][0] = zsurf;
             Real dz = dz0;
@@ -42,6 +43,9 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
                 dz *= grid_stretching_ratio;
             }
             Print() << std::endl;
+        } else if (lev > 0) {
+            int rr = ref_ratio[lev-1][2];
+            expand_and_interpolate_1d(zlevels_stag[lev], zlevels_stag[lev-1], rr, false);
         }
     }
 
@@ -87,9 +91,6 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                    GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
 {
     const Box& domain = geom.Domain();
-
-    amrex::Print() << "ZLEVELS LO   " << z_levels_h[0] << std::endl;
-    amrex::Print() << "ZLEVELS SIZE " << z_levels_h.size() << std::endl;
 
     int domlo_z = domain.smallEnd(2);
     int domhi_z = domain.bigEnd(2) + 1;
@@ -246,7 +247,6 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
     int jmax = domhi_y; // if (geom.isPeriodic(1)) jmax += z_phys_nd.nGrowVect()[1];
 
     int nz = z_levels_h.size();
-    amrex::Print() << "NZ " << nz << std::endl;
     Real z_top = z_levels_h[nz-1];
 
     Gpu::DeviceVector<Real> z_levels_d;
