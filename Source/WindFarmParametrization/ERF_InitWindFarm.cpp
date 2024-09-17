@@ -211,6 +211,10 @@ WindFarm::fill_Nturb_multifab(const Geometry& geom,
     int i_lo = geom.Domain().smallEnd(0); int i_hi = geom.Domain().bigEnd(0);
     int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
     auto dx = geom.CellSizeArray();
+    if(dx[0]<= 1e-3 or dx[1]<=1e-3 or dx[2]<= 1e-3) {
+        Abort("The value of mesh spacing for wind farm parametrization cannot be less than 1e-3 m. "
+              "It should be usually of order 1 m");
+    }
     auto ProbLoArr = geom.ProbLoArray();
     int num_turb = xloc.size();
 
@@ -228,8 +232,8 @@ WindFarm::fill_Nturb_multifab(const Geometry& geom,
             Real y2 = ProbLoArr[1] + (lj+1)*dx[1];
 
             for(int it=0; it<num_turb; it++){
-                if( d_xloc_ptr[it]+1e-12 > x1 and d_xloc_ptr[it]+1e-12 < x2 and
-                    d_yloc_ptr[it]+1e-12 > y1 and d_yloc_ptr[it]+1e-12 < y2){
+                if( d_xloc_ptr[it]+1e-3 > x1 and d_xloc_ptr[it]+1e-3 < x2 and
+                    d_yloc_ptr[it]+1e-3 > y1 and d_yloc_ptr[it]+1e-3 < y2){
                        Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
                 }
             }

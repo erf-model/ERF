@@ -99,10 +99,12 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
                 //------- Autoconversion/accretion
                 Real qcc, auto_r, accrr;
-                Real dq_clwater_to_rain, dq_rain_to_vapor, dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
+                Real qsat, dtqsat;
+                Real dq_clwater_to_rain, dq_rain_to_vapor, dq_clwater_to_vapor, dq_vapor_to_clwater;
 
                 Real pressure = pres_array(i,j,k);
                 erf_qsatw(tabs_array(i,j,k), pressure, qsat);
+                erf_dtqsatw(tabs_array(i,j,k), pressure, dtqsat);
 
                 if (qsat <= 0.0) {
                     amrex::Warning("qsat computed as non-positive; setting to 0.!");
@@ -118,8 +120,9 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 dq_vapor_to_clwater = 0.0;
                 dq_clwater_to_vapor = 0.0;
 
-                Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
+                //Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
                 //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
+                Real fac = 1.0 + (L_v/Cp_d)*dtqsat;
 
                 // If water vapor content exceeds saturation value, then vapor condenses to water and latent heat is released, increasing temperature
                 if (qv_array(i,j,k) > qsat) {
@@ -202,10 +205,12 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
 
                 //------- Autoconversion/accretion
-                Real dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
+                Real qsat, dtqsat;
+                Real dq_clwater_to_vapor, dq_vapor_to_clwater;
 
                 Real pressure = pres_array(i,j,k);
                 erf_qsatw(tabs_array(i,j,k), pressure, qsat);
+                erf_dtqsatw(tabs_array(i,j,k), pressure, dtqsat);
 
                 // If there is precipitating water (i.e. rain), and the cell is not saturated
                 // then the rain water can evaporate leading to extraction of latent heat, hence
@@ -215,7 +220,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 dq_clwater_to_vapor = 0.0;
 
                 //Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
-                Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
+                //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
+                Real fac = 1.0 + (L_v/Cp_d)*dtqsat;
 
                 // If water vapor content exceeds saturation value, then vapor condenses to water and latent heat is released, increasing temperature
                 if (qv_array(i,j,k) > qsat){
