@@ -2,40 +2,47 @@
 #include <ERF_Utils.H>
 #include <AMReX_ParmParse.H>
 #include <ERF_Constants.H>
+#include <ERF_Interpolation_1D.H>
 #include <cmath>
 
 using namespace amrex;
 
 void
-init_zlevels (Vector<Real>& zlevels_stag,
-              const Geometry& geom,
+init_zlevels (Vector<Vector<Real>>& zlevels_stag,
+              Vector<Geometry> const& geom,
+              Vector<IntVect> const& ref_ratio,
               const Real grid_stretching_ratio,
               const Real zsurf,
               const Real dz0)
 {
-    auto dx = geom.CellSizeArray();
-    const Box& domain = geom.Domain();
-    int nz = domain.length(2)+1; // staggered
-    zlevels_stag.resize(nz);
+    int max_level = zlevels_stag.size()-1;
+    for (int lev = 0; lev <= max_level; lev++)
+    {
+        auto dx = geom[lev].CellSizeArray();
+        const Box& domain = geom[lev].Domain();
+        int nz = domain.length(2)+1; // staggered
 
-    if (grid_stretching_ratio == 0) {
-        // This is the default for z_levels
-        for (int k = 0; k < nz; k++)
-        {
-            zlevels_stag[k] = k * dx[2];
+        zlevels_stag[lev].resize(nz);
+
+        if (grid_stretching_ratio == 0) {
+            // This is the default for z_levels
+            for (int k = 0; k < nz; k++)
+            {
+                zlevels_stag[lev][k] = k * dx[2];
+            }
+        } else {
+            // Create stretched grid based on initial dz and stretching ratio
+            zlevels_stag[lev][0] = zsurf;
+            Real dz = dz0;
+            Print() << "Stretched grid levels at level : " << lev << " is " <<  zsurf;
+            for (int k = 1; k < nz; k++)
+            {
+                zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + dz;
+                Print() << " " << zlevels_stag[lev][k];
+                dz *= grid_stretching_ratio;
+            }
+            Print() << std::endl;
         }
-    } else {
-        // Create stretched grid based on initial dz and stretching ratio
-        zlevels_stag[0] = zsurf;
-        Real dz = dz0;
-        Print() << "Stretched grid levels: " << zsurf;
-        for (int k = 1; k < nz; k++)
-        {
-            zlevels_stag[k] = zlevels_stag[k-1] + dz;
-            Print() << " " << zlevels_stag[k];
-            dz *= grid_stretching_ratio;
-        }
-        Print() << std::endl;
     }
 
     // Try reading in terrain_z_levels, which allows arbitrarily spaced grid
@@ -45,6 +52,7 @@ init_zlevels (Vector<Real>& zlevels_stag,
     int n_zlevels = pp.countval("terrain_z_levels");
     if (n_zlevels > 0)
     {
+        int nz = geom[0].Domain().length(2)+1; // staggered
         if (n_zlevels != nz) {
             Print() << "You supplied " << n_zlevels << " staggered terrain_z_levels " << std::endl;
             Print() << "but n_cell+1 in the z-direction is " <<  nz << std::endl;
@@ -55,21 +63,22 @@ init_zlevels (Vector<Real>& zlevels_stag,
             Print() << "Note: Found terrain_z_levels, ignoring grid_stretching_ratio" << std::endl;
         }
 
-        pp.queryarr("terrain_z_levels", zlevels_stag, 0, nz);
+        pp.getarr("terrain_z_levels", zlevels_stag[0], 0, nz);
 
         // These levels should range from 0 at the surface to the height of the
         // top of model domain (see the coordinate surface height, zeta, in
         // Klemp 2011)
-        AMREX_ALWAYS_ASSERT(zlevels_stag[0] == 0);
+        AMREX_ALWAYS_ASSERT(zlevels_stag[0][0] == 0);
+
+        for (int lev = 1; lev <= max_level; lev++) {
+            int rr = ref_ratio[lev-1][2];
+            expand_and_interpolate_1d(zlevels_stag[lev], zlevels_stag[lev-1], rr, false);
+        }
     }
 }
 
 /**
  * Computation of the terrain grid from BTF, STF, or Sullivan TF model
- *
- * NOTE: Multilevel is not yet working for either of these terrain-following coordinates,
- *       but (we think) the issue is deep in ERF and this code will work once the deeper
- *       problem is fixed. For now, make sure to run on a single level. -mmsanders
  */
 
 void
@@ -78,6 +87,9 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                    GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
 {
     const Box& domain = geom.Domain();
+
+    amrex::Print() << "ZLEVELS LO   " << z_levels_h[0] << std::endl;
+    amrex::Print() << "ZLEVELS SIZE " << z_levels_h.size() << std::endl;
 
     int domlo_z = domain.smallEnd(2);
     int domhi_z = domain.bigEnd(2) + 1;
@@ -111,11 +123,13 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
 
             z_phys_nd.ParallelCopy(z_phys_nd_new,0,0,1,z_phys_nd.nGrowVect(),z_phys_nd.nGrowVect());
         }
-    } else {
+    } else { // lev > 0
         init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h);
     }
 
-    // Fill ghost layers and corners (including periodic)
+    //
+    // Fill ghost layers and corners (including periodic) -- no matter what level
+    //
     z_phys_nd.FillBoundary(geom.periodicity());
 
     if (phys_bc_type[Orientation(0,Orientation::low )] == ERF_BC::symmetry ||
@@ -123,8 +137,8 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
         phys_bc_type[Orientation(1,Orientation::low )] == ERF_BC::symmetry ||
         phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry) {
 
-        const auto& dom_lo = lbound(convert(geom.Domain(),IntVect(1,1,1)));
-        const auto& dom_hi = ubound(convert(geom.Domain(),IntVect(1,1,1)));
+        const auto& dom_lo = lbound(convert(domain,IntVect(1,1,1)));
+        const auto& dom_hi = ubound(convert(domain,IntVect(1,1,1)));
 
         for (MFIter mfi(z_phys_nd,true); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.growntilebox();
@@ -204,7 +218,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
 } // init_terrain_grid
 
 void
-init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
+init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                          Vector<Real> const& z_levels_h)
 {
     // User-selected method from inputs file (BTF default)
@@ -225,13 +239,14 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
     int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
     int domlo_z = domain.smallEnd(2); int domhi_z = domain.bigEnd(2) + 1;
 
-    int imin = domlo_x; if (geom.isPeriodic(0)) imin -= z_phys_nd.nGrowVect()[0];
-    int jmin = domlo_y; if (geom.isPeriodic(1)) jmin -= z_phys_nd.nGrowVect()[1];
+    int imin = domlo_x; // if (geom.isPeriodic(0)) imin -= z_phys_nd.nGrowVect()[0];
+    int jmin = domlo_y; // if (geom.isPeriodic(1)) jmin -= z_phys_nd.nGrowVect()[1];
 
-    int imax = domhi_x; if (geom.isPeriodic(0)) imax += z_phys_nd.nGrowVect()[0];
-    int jmax = domhi_y; if (geom.isPeriodic(1)) jmax += z_phys_nd.nGrowVect()[1];
+    int imax = domhi_x; // if (geom.isPeriodic(0)) imax += z_phys_nd.nGrowVect()[0];
+    int jmax = domhi_y; // if (geom.isPeriodic(1)) jmax += z_phys_nd.nGrowVect()[1];
 
-    int nz = domain.length(2)+1; // staggered
+    int nz = z_levels_h.size();
+    amrex::Print() << "NZ " << nz << std::endl;
     Real z_top = z_levels_h[nz-1];
 
     Gpu::DeviceVector<Real> z_levels_d;
@@ -286,8 +301,22 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                 z_arr(i,j,k) = ( (z_sfc - z_lev_sfc) * z_top +
                                  (z_top - z_sfc    ) * z     ) / (z_top - z_lev_sfc);
             });
+        } // mfi
 
-            if (k0 == 0) {
+        z_phys_nd.FillBoundary(geom.periodicity());
+
+        for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            // Note that this box is nodal because it is based on z_phys_nd
+            const Box&  bx = mfi.validbox();
+            Box gbx = mfi.growntilebox(ngrowVect);
+
+            int k0 = bx.smallEnd()[2];
+
+            if (k0 == 0)
+            {
+                Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+
                 // Fill lateral boundaries below the bottom surface
                 ParallelFor(makeSlab(gbx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
                 {
@@ -348,8 +377,6 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
                   return { z_arr(i,j,k0) };
                 });
 
-        if (h_m < std::numeric_limits<Real>::epsilon()) h_m = 1e-16;
-
         // Fill ghost cells (neglects domain boundary if not periodic)
         h_mf.FillBoundary(geom.periodicity());
 
@@ -370,13 +397,14 @@ init_which_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
             Real zz_minus = z_lev_h[k-1];
 
             // Hybrid attenuation profile, Klemp2011 Eqn. 9
-            Real A{0.}, A_minus{0.};
-            if (z_H > 1e-8) {
-                Real foo = cos((PI/2)*(zz/z_H));
-                if(zz < z_H) { A = foo*foo*foo*foo*foo*foo; } // A controls rate of return to atm
-                Real foo_minus = cos((PI/2)*(zz_minus/z_H));
-                if(zz_minus < z_H) { A_minus = foo_minus*foo_minus*foo_minus*foo_minus*foo_minus*foo_minus; } // A controls rate of return to atm
-            }
+            Real A;
+            Real foo = cos((PI/2)*(zz/z_H));
+            if(zz < z_H) { A = foo*foo*foo*foo*foo*foo; } // A controls rate of return to atm
+            else         { A = 0; }
+            Real foo_minus = cos((PI/2)*(zz_minus/z_H));
+            Real A_minus;
+            if(zz_minus < z_H) { A_minus = foo_minus*foo_minus*foo_minus*foo_minus*foo_minus*foo_minus; } // A controls rate of return to atm
+            else               { A_minus = 0; }
 
             unsigned maxIter = 50; // M_k in paper
             unsigned iter    = 0;
@@ -569,10 +597,10 @@ make_J (const Geometry& geom,
         Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
         Array4<Real      > detJ = detJ_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-               detJ(i, j, k) = .25 * dzInv * (
-                       z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-                      -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
-       });
+           detJ(i, j, k) = .25 * dzInv * (
+                   z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
+                  -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
+        });
     }
     detJ_cc.FillBoundary(geom.periodicity());
 }

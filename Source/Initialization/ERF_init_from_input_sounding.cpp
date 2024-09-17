@@ -59,7 +59,7 @@ ERF::init_from_input_sounding (int lev)
         // this will interpolate the input profiles to the nominal height levels
         // (ranging from 0 to the domain top)
         for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
-            input_sounding_data.read_from_file(geom[lev], zlevels_stag, n);
+            input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n);
         }
 
         // this will calculate the hydrostatically balanced density and pressure
@@ -124,24 +124,19 @@ ERF::init_from_input_sounding (int lev)
     } //mfi
 
     // Make sure to fill the ghost cells of the base state
-    if (lev > 0) {
-        // Interp all three components: rho, p, pi
-        int  icomp = 0; int bccomp = 0; int ncomp = 3;
-
-        PhysBCFunctNoOp null_bc;
-        Interpolater* mapper = &cell_cons_interp;
-
-        Real time = 0.;
-
-        Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
-        Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
-        Vector<Real> ftime    = {time, time};
-        Vector<Real> ctime    = {time, time};
-        FillPatchTwoLevels(base_state[lev], time,
-                           cmf, ctime, fmf, ftime,
-                           icomp, icomp, ncomp, geom[lev-1], geom[lev],
-                           null_bc, 0, null_bc, 0, refRatio(lev-1),
-                           mapper, domain_bcs_type, bccomp);
+    if (lev > 0)
+    {
+        base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
+        //
+        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+        //       have been pre-filled - this includes ghost cells both inside and outside
+        //       the domain
+        //
+        InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
+                              IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              base_state[lev-1], 0, 0, 3,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp, domain_bcs_type);
     }
 }
 

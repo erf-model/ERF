@@ -66,8 +66,8 @@ ERF::write_1D_profiles (Real time)
                   // Write the quantities at this time
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
-                      if (zlevels_stag.size() > 1) {
-                          z = 0.5 * (zlevels_stag[k] + zlevels_stag[k+1]);
+                      if (zlevels_stag[0].size() > 1) {
+                          z = 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
                           z = (k + 0.5)* dx[2];
                       }
@@ -89,8 +89,8 @@ ERF::write_1D_profiles (Real time)
                   // Write the perturbational quantities at this time
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
-                      if (zlevels_stag.size() > 1) {
-                          z = 0.5 * (zlevels_stag[k] + zlevels_stag[k+1]);
+                      if (zlevels_stag[0].size() > 1) {
+                          z = 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
                           z = (k + 0.5)* dx[2];
                       }
@@ -144,8 +144,8 @@ ERF::write_1D_profiles (Real time)
                   // Write the average stresses
                   for (int k = 0; k < hu_size; k++) {
                       Real z;
-                      if (zlevels_stag.size() > 1) {
-                          z = 0.5 * (zlevels_stag[k] + zlevels_stag[k+1]);
+                      if (zlevels_stag[0].size() > 1) {
+                          z = 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
                           z = (k + 0.5)* dx[2];
                       }

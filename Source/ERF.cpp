@@ -146,21 +146,24 @@ ERF::ERF_shared ()
 
     // Initialize staggered vertical levels for grid stretching or terrain, and
     // to simplify Rayleigh damping layer calculations.
+    zlevels_stag.resize(max_level+1);
     init_zlevels(zlevels_stag,
-                 geom[0],
+                 geom,
+                 refRatio(),
                  solverChoice.grid_stretching_ratio,
                  solverChoice.zsurf,
                  solverChoice.dz0);
+
     if (solverChoice.use_terrain) {
         int nz = geom[0].Domain().length(2) + 1; // staggered
-        if (std::fabs(zlevels_stag[nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
+        if (std::fabs(zlevels_stag[0][nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
             Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)
-                << " does not match highest requested z level " << zlevels_stag[nz-1]
+                << " does not match highest requested z level " << zlevels_stag[0][nz-1]
                 << std::endl;
         }
-        if (std::fabs(zlevels_stag[0]-geom[0].ProbLo(2)) > 1.0e-4) {
+        if (std::fabs(zlevels_stag[0][0]-geom[0].ProbLo(2)) > 1.0e-4) {
             Print() << "Note: prob_lo[2]=" << geom[0].ProbLo(2)
-                << " does not match lowest requested level " << zlevels_stag[0]
+                << " does not match lowest requested level " << zlevels_stag[0][0]
                 << std::endl;
         }
 
@@ -777,7 +780,7 @@ ERF::InitData ()
                                       h_u_geos[lev], d_u_geos[lev],
                                       h_v_geos[lev], d_v_geos[lev],
                                       geom[lev],
-                                      zlevels_stag);
+                                      zlevels_stag[0]);
             }
         }
     }
@@ -871,6 +874,7 @@ ERF::InitData ()
         }
     }
 #endif
+
     // Copy from new into old just in case
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -885,10 +889,14 @@ ERF::InitData ()
         MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,    1,lev_new[Vars::zvel].nGrowVect());
     }
 
-    // Compute the minimum dz in the domain (to be used for setting the timestep)
-    dz_min = geom[0].CellSize(2);
-    if ( solverChoice.use_terrain ) {
-        dz_min *= (*detJ_cc[0]).min(0);
+    // Compute the minimum dz in the domain at each level (to be used for setting the timestep)
+    dz_min.resize(max_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        dz_min[lev] = geom[lev].CellSize(2);
+        if ( solverChoice.use_terrain ) {
+            dz_min[lev] *= (*detJ_cc[lev]).min(0);
+        }
     }
 
     ComputeDt();

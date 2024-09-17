@@ -60,7 +60,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     Real estdt_lowM = 1.e20;
 
     auto const dxinv = geom[level].InvCellSizeArray();
-    auto const dzinv = 1.0 / dz_min;
+    auto const dzinv = 1.0 / dz_min[level];
 
     MultiFab const& S_new = vars_new[level][Vars::cons];
 
@@ -149,7 +149,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
      if (verbose) {
          if (fixed_dt[level] <= 0.0) {
-             Print() << "Using cfl = " << cfl << std::endl;
+             Print() << "Using cfl = " << cfl << " and dx/dy/dz_min = " <<
+               1.0/dxinv[0] << " " << 1.0/dxinv[1] << " " << dz_min[level] << std::endl;
              Print() << "Compressible dt at level " << level << ":  " << estdt_comp << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
                  Print() << "Incompressible dt at level " << level << ":  " << estdt_lowM << std::endl;

@@ -402,8 +402,7 @@ public:
                        const amrex::Real& dt_advance,
                        amrex::MultiFab& cons_in,
                        amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                       amrex::MultiFab& mf_vars_windfarm, const amrex::MultiFab& mf_Nturb,
-                       const amrex::MultiFab& mf_SMark);
+                       amrex::MultiFab& mf_vars_windfarm, const amrex::MultiFab& mf_Nturb);
 #endif
 
 #ifdef ERF_USE_EB
@@ -432,7 +431,7 @@ private:
     void update_diffusive_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
     void init_zphys            (int lev, amrex::Real time);
-    void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
+    void remake_zphys          (int lev, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
 
     void Construct_ERFFillPatchers (int lev);
@@ -744,7 +743,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
     // Terrain / grid stretching
-    amrex::Vector<amrex::Real> zlevels_stag; // nominal height levels
+    amrex::Vector<amrex::Vector<amrex::Real>> zlevels_stag; // nominal height levels
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
 
@@ -1048,7 +1047,7 @@ private:
     //
     amrex::MultiFab fine_mask;
 
-    amrex::Real dz_min;
+    amrex::Vector<amrex::Real> dz_min;
 
     static AMREX_FORCE_INLINE
     int

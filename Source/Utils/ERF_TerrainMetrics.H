@@ -11,8 +11,9 @@
  */
 
 // Declare functions for ERF.cpp
-void init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
-                   const amrex::Geometry& geom,
+void init_zlevels (amrex::Vector<amrex::Vector<amrex::Real>> & zlevels_stag,
+                   amrex::Vector<amrex::Geometry> const& geom,
+                   amrex::Vector<amrex::IntVect>  const& ref_ratio,
                    const amrex::Real grid_stretching_ratio,
                    const amrex::Real zsurf,
                    const amrex::Real dz0);
