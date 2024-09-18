@@ -41,9 +41,9 @@ private:
     int no_substepping;
 
    /**
-    * \brief Should we use the incompressible integrator
+    * \brief Should we use the anelastic integrator
     */
-    int incompressible;
+    int anelastic;
 
    /**
     * \brief How many components in the cell-centered MultiFab
@@ -119,9 +119,9 @@ public:
         ncomp_cons = _ncomp_cons;
     }
 
-    void setIncompressible(int _incompressible)
+    void setAnelastic(int _anelastic)
     {
-        incompressible = _incompressible;
+        anelastic = _anelastic;
     }
 
     void setNoSubstepping(int _no_substepping)
@@ -243,7 +243,7 @@ public:
 
         const amrex::Real sub_timestep = timestep / substep_ratio;
 
-        if (!incompressible) {
+        if (!anelastic) {
           // RK3 for compressible integrator
           for (int nrk = 0; nrk < 3; nrk++)
           {
@@ -330,7 +330,7 @@ public:
           } // nrk
 
         } else {
-          // RK2 for incompressible integrator
+          // RK2 for anelastic integrator
           for (int nrk = 0; nrk < 2; nrk++)
           {
             // Capture the time we got to in the previous RK step

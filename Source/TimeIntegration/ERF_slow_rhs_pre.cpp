@@ -18,7 +18,7 @@ using namespace amrex;
  * @param[in]  nrk   which RK stage
  * @param[in]  dt    slow time step
  * @param[out]  S_rhs RHS computed here
- * @param[in]  S_old  old-time solution -- used only for incompressible
+ * @param[in]  S_old  old-time solution -- used only for anelastic
  * @param[in]  S_data current solution
  * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
  * @param[in]  S_scratch scratch space
@@ -56,7 +56,7 @@ using namespace amrex;
  * @param[in] az area fractions on z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in]  p0     Reference (hydrostatically stratified) pressure
- * @param[in] pp_inc  Perturbational pressure only used for incompressible flow
+ * @param[in] pp_inc  Perturbational pressure only used for anelastic flow
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
@@ -161,15 +161,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_rot_most     = (solverChoice.use_rotate_most);
 
 #ifdef ERF_USE_POISSON_SOLVE
-    const bool l_incompressible = solverChoice.incompressible[level];
-    const bool l_const_rho      = solverChoice.constant_density;
+    const bool l_anelastic = solverChoice.anelastic[level];
+    const bool l_const_rho = solverChoice.constant_density;
 
-    // We cannot use incompressible with terrain or with moisture
-    AMREX_ALWAYS_ASSERT(!l_use_terrain  || !l_incompressible);
-    AMREX_ALWAYS_ASSERT(!l_use_moisture || !l_incompressible);
+    // We cannot use anelastic with terrain or with moisture
+    AMREX_ALWAYS_ASSERT(!l_use_terrain  || !l_anelastic);
+    AMREX_ALWAYS_ASSERT(!l_use_moisture || !l_anelastic);
 #else
-    const bool l_incompressible = false;
-    const bool l_const_rho      = false;
+    const bool l_anelastic = false;
+    const bool l_const_rho = false;
 #endif
 
     const Box& domain = geom.Domain();
@@ -275,8 +275,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real>& rho_u_old = S_old[IntVars::xmom].array(mfi);
         const Array4<Real>& rho_v_old = S_old[IntVars::ymom].array(mfi);
 
-        if (l_incompressible) {
-            // When incompressible we must reset these to 0 each RK step
+        if (l_anelastic) {
+            // When anelastic we must reset these to 0 each RK step
             S_scratch[IntVars::xmom][mfi].template setVal<RunOn::Device>(0.0,tbx);
             S_scratch[IntVars::ymom][mfi].template setVal<RunOn::Device>(0.0,tby);
             S_scratch[IntVars::zmom][mfi].template setVal<RunOn::Device>(0.0,tbz);
@@ -341,7 +341,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // Perturbational pressure field
         // *****************************************************************************
         FArrayBox pprime;
-        if (!l_incompressible) {
+        if (!l_anelastic) {
             Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,1));
             if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
             pprime.resize(gbx,1,The_Async_Arena());
@@ -363,7 +363,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             });
         }
 #ifdef ERF_USE_POISSON_SOLVE
-        const Array4<const Real>& pp_arr = (l_incompressible) ? pp_inc.const_array(mfi) : pprime.const_array();
+        const Array4<const Real>& pp_arr = (l_anelastic) ? pp_inc.const_array(mfi) : pprime.const_array();
 #else
         const Array4<const Real>& pp_arr = pprime.const_array();
 #endif
@@ -538,8 +538,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             });
         }
 
-        // If incompressible and in second RK stage, take average of old-time and new-time source
-        if ( l_incompressible && (nrk == 1) )
+        // If anelastic and in second RK stage, take average of old-time and new-time source
+        if ( l_anelastic && (nrk == 1) )
         {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -639,7 +639,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 rho_u_rhs(i, j, k) *= h_zeta;
             }
 
-            if ( l_incompressible && (nrk == 1) ) {
+            if ( l_anelastic && (nrk == 1) ) {
               rho_u_rhs(i,j,k) *= 0.5;
               rho_u_rhs(i,j,k) += 0.5 / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
             }
@@ -687,7 +687,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 rho_v_rhs(i, j, k) *= h_zeta;
             }
 
-            if ( l_incompressible && (nrk == 1) ) {
+            if ( l_anelastic && (nrk == 1) ) {
               rho_v_rhs(i,j,k) *= 0.5;
               rho_v_rhs(i,j,k) += 0.5 / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
             }

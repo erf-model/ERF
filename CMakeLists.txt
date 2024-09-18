@@ -24,7 +24,7 @@ option(ERF_ENABLE_MOISTURE "Enable Full Moisture" ON)
 option(ERF_ENABLE_WARM_NO_PRECIP "Enable Warm Moisture" OFF)
 option(ERF_ENABLE_RRTMGP "Enable RTE-RRTMGP Radiation" OFF)
 
-option(ERF_ENABLE_POISSON_SOLVE "Enable Poisson solve for incompressible flow" OFF)
+option(ERF_ENABLE_POISSON_SOLVE "Enable Poisson solve for anelastic/incompressible flow" OFF)
 
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)

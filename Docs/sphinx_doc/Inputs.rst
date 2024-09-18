@@ -448,7 +448,7 @@ Notes
    * | If **erf.fixed_dt** is specified, the slow timestep will be set to **fixed_dt**.
 
    * | If **erf.fixed_dt** is not set, the slow timestep will be computed using the CFL
-       condition for incompressible flow.  If **erf.cfl** is specified, that CFL value will be used.
+       condition for incompressible/anelastic flow.  If **erf.cfl** is specified, that CFL value will be used.
        If not, the default value will be used.
 
    * | There are several consistency checks before the fast timestep is computed.  Specifically, if any

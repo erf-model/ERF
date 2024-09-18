@@ -19,8 +19,8 @@ zhi.type = "SlipWall"
 erf.no_substepping = 1
 erf.fixed_dt           = 0.0005
 
-# OPTIONAL INCOMPRESSIBLE ALTERNATIVE
-erf.incompressible = 0
+# OPTIONAL INCOMPRESSIBLE/ANELASTIC ALTERNATIVE
+erf.anelastic = 0
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass
