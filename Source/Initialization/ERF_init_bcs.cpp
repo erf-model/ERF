@@ -592,9 +592,9 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     const int Nz  = geom[lev].Domain().size()[2];
     const Real dz = geom[lev].CellSize()[2];
 
-    const bool use_terrain = (zlevels_stag.size() > 0);
-    const Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom[lev].ProbLo(2);
-    const Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom[lev].ProbHi(2);
+    const bool use_terrain = (zlevels_stag[0].size() > 0);
+    const Real zbot = (use_terrain) ? zlevels_stag[0][klo]   : geom[lev].ProbLo(2);
+    const Real ztop = (use_terrain) ? zlevels_stag[0][khi+1] : geom[lev].ProbHi(2);
 
     // Size of Nz (domain grid)
     Vector<Real> zcc_inp(Nz  );
@@ -646,9 +646,9 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
         // z_inp_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
         const int Ninp = z_inp_tmp.size();
         for (int k(0); k<Nz; ++k) {
-            zcc_inp[k] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
+            zcc_inp[k] = (use_terrain) ? 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1])
                                          : zbot + (k + 0.5) * dz;
-            znd_inp[k] = (use_terrain) ? zlevels_stag[k+1] : zbot + (k) * dz;
+            znd_inp[k] = (use_terrain) ? zlevels_stag[0][k+1] : zbot + (k) * dz;
             u_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             w_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), znd_inp[k], Ninp);

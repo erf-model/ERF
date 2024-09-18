@@ -26,6 +26,6 @@ ERF::input_sponge (int lev)
 
         // this will interpolate the input profiles to the nominal height levels
         // (ranging from 0 to the domain top)
-        input_sponge_data.read_from_file(geom[lev], zlevels_stag);
+        input_sponge_data.read_from_file(geom[lev], zlevels_stag[lev]);
     }
 }

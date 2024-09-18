@@ -21,7 +21,7 @@ void
 ERF::initRayleigh ()
 {
     const int khi = geom[0].Domain().bigEnd(2);
-    solverChoice.rayleigh_ztop = (solverChoice.use_terrain) ? zlevels_stag[khi+1] : geom[0].ProbHi(2);
+    solverChoice.rayleigh_ztop = (solverChoice.use_terrain) ? zlevels_stag[0][khi+1] : geom[0].ProbHi(2);
 
     h_rayleigh_ptrs.resize(max_level+1);
     d_rayleigh_ptrs.resize(max_level+1);
@@ -67,7 +67,7 @@ ERF::setRayleighRefFromSounding (bool restarting)
     if (restarting) {
         input_sounding_data.resize_arrays();
         for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
-            input_sounding_data.read_from_file(geom[0], zlevels_stag, n);
+            input_sounding_data.read_from_file(geom[0], zlevels_stag[0], n);
         }
     }
 
@@ -85,8 +85,8 @@ ERF::setRayleighRefFromSounding (bool restarting)
         const int Nz = khi - klo + 1;
 
         Vector<Real> zcc(Nz);
-        Vector<Real> zlevels_sub(zlevels_stag.begin()+klo/refine_fac,
-                                 zlevels_stag.begin()+khi/refine_fac+2);
+        Vector<Real> zlevels_sub(zlevels_stag[0].begin()+klo/refine_fac,
+                                 zlevels_stag[0].begin()+khi/refine_fac+2);
         expand_and_interpolate_1d(zcc, zlevels_sub, refine_fac, true);
 #if 0
         amrex::AllPrint() << "lev="<<lev<<" : (refine_fac="<<refine_fac<<",klo="<<klo<<",khi="<<khi<<") ";
@@ -159,7 +159,7 @@ ERF::setSpongeRefFromSounding (bool restarting)
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
     if (restarting) {
-        input_sponge_data.read_from_file(geom[0], zlevels_stag);
+        input_sponge_data.read_from_file(geom[0], zlevels_stag[0]);
     }
 
     const Real* z_inp_sponge     = input_sponge_data.z_inp_sponge.dataPtr();

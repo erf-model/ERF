@@ -59,8 +59,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     Real estdt_comp = 1.e20;
     Real estdt_lowM = 1.e20;
 
+    // We intentionally use the level 0 domain to compute whether to use this direction in the dt calculation
+    const int nxc = geom[0].Domain().length(0);
+    const int nyc = geom[0].Domain().length(1);
+
     auto const dxinv = geom[level].InvCellSizeArray();
-    auto const dzinv = 1.0 / dz_min;
+    auto const dzinv = 1.0 / dz_min[level];
 
     MultiFab const& S_new = vars_new[level][Vars::cons];
 
@@ -111,15 +115,33 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    // If we are not doing the acoustic substepping, then the z-direction contributes
                    //    to the computation of the time step
                    if (l_no_substepping) {
-                       new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
-                                                ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       if (nxc > 1 && nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       } else if (nxc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       } else if (nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       } else {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       }
 
                    // If we are     doing the acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
                    } else {
-                       new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                       if (nxc > 1 && nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                       } else if (nxc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]), new_comp_dt);
+                       } else if (nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                       } else {
+                           amrex::Abort("Not sure how to compute dt for this case");
+                       }
                    }
                }
            });
@@ -149,7 +171,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
      if (verbose) {
          if (fixed_dt[level] <= 0.0) {
-             Print() << "Using cfl = " << cfl << std::endl;
+             Print() << "Using cfl = " << cfl << " and dx/dy/dz_min = " <<
+               1.0/dxinv[0] << " " << 1.0/dxinv[1] << " " << dz_min[level] << std::endl;
              Print() << "Compressible dt at level " << level << ":  " << estdt_comp << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
                  Print() << "Anelastic dt at level " << level << ":  " << estdt_lowM << std::endl;
