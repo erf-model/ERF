@@ -10,6 +10,7 @@ void
 zenith (int& calday,
         amrex::MultiFab* clat,
         amrex::MultiFab* clon,
+        const amrex::Vector<int> &rank_offsets,
         real1d& coszrs,
         int& ncol,
         const amrex::Real& eccen,
