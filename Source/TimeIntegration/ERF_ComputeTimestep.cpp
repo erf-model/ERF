@@ -72,7 +72,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                         &vars_new[level][Vars::zvel]});
 
     int l_no_substepping = solverChoice.no_substepping;
-    int l_incompressible = solverChoice.incompressible[level];
+    int l_anelastic      = solverChoice.anelastic[level];
 
 #ifdef ERF_USE_EB
     EBFArrayBoxFactory ebfact = EBFactory(level);
@@ -152,9 +152,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              Print() << "Using cfl = " << cfl << std::endl;
              Print() << "Compressible dt at level " << level << ":  " << estdt_comp << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
-                 Print() << "Incompressible dt at level " << level << ":  " << estdt_lowM << std::endl;
+                 Print() << "Anelastic dt at level " << level << ":  " << estdt_lowM << std::endl;
              } else {
-                 Print() << "Incompressible dt at level " << level << ": undefined " << std::endl;
+                 Print() << "Anelastic dt at level " << level << ": undefined " << std::endl;
              }
          }
 
@@ -162,9 +162,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              Print() << "Based on cfl of 1.0 " << std::endl;
              Print() << "Compressible dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
-                 Print() << "Incompressible dt at level " << level << " would be:  " << estdt_lowM/cfl << std::endl;
+                 Print() << "Anelastic dt at level " << level << " would be:  " << estdt_lowM/cfl << std::endl;
              } else {
-                 Print() << "Incompressible dt at level " << level << " would be undefined " << std::endl;
+                 Print() << "Anelastic dt at level " << level << " would be undefined " << std::endl;
              }
              Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt[level] << std::endl;
              if (fixed_fast_dt[level] > 0.0) {
@@ -201,8 +201,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (fixed_dt[level] > 0.0) {
          return fixed_dt[level];
      } else {
-         // Incompressible (substepping is not allowed)
-         if (l_incompressible) {
+         // Anelastic (substepping is not allowed)
+         if (l_anelastic) {
              return estdt_lowM;
 
          // Compressible with or without substepping
