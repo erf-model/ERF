@@ -377,6 +377,8 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                   return { z_arr(i,j,k0) };
                 });
 
+        if (h_m < std::numeric_limits<Real>::epsilon()) h_m = 1e-16;
+
         // Fill ghost cells (neglects domain boundary if not periodic)
         h_mf.FillBoundary(geom.periodicity());
 
