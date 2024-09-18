@@ -7,6 +7,3 @@ updates:
     directory: /
     allow:
       - dependency-name: "Submodules/AMReX"
-      - dependency-name: "Submodules/RRTMGP"
-      - dependency-name: "Submodules/WW3"
-      - dependency-name: "Submodules/YAKL"
