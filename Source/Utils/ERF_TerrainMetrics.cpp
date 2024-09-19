@@ -271,6 +271,11 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
             } else {
                 gbx.growLo(2,-1);
             }
+
+            // Note that we don't overwrite the values at the high end of the box
+            // regardless of whether the box reaches the top of the domain or not.
+            // In the case of lev > 0, this ensures that the fine nodes at the top
+            // of a fine box are those that are interpolated from the coarse grid
             if (bx.bigEnd(2) == domhi_z) {
                 gbx.setBig(2,domhi_z);
             } else {

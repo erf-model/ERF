@@ -136,7 +136,8 @@ ERF::init_from_input_sounding (int lev)
                               IntVect(0,0,0), // do not fill ghost cells outside the domain
                               base_state[lev-1], 0, 0, 3,
                               geom[lev-1], geom[lev],
-                              refRatio(lev-1), &cell_cons_interp, domain_bcs_type);
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
     }
 }
 

@@ -454,7 +454,8 @@ ERF::init_zphys (int lev, Real time)
                                   IntVect(0,0,0), // do not fill ghost cells outside the domain
                                   *z_phys_nd[lev-1], 0, 0, 1,
                                   geom[lev-1], geom[lev],
-                                  refRatio(lev-1), &node_bilinear_interp, domain_bcs_type);
+                                  refRatio(lev-1), &node_bilinear_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
 
             // This recomputes the fine values using the bottom terrain at the fine resolution,
             //    and also fills values of z_phys_nd outside the domain
@@ -503,7 +504,8 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
                               IntVect(0,0,0), // do not fill ghost cells outside the domain
                               *z_phys_nd[lev-1], 0, 0, 1,
                               geom[lev-1], geom[lev],
-                              refRatio(lev-1), &node_bilinear_interp, domain_bcs_type);
+                              refRatio(lev-1), &node_bilinear_interp,
+                              domain_bcs_type, BCVars::cons_bc);
 
         // This recomputes the fine values using the bottom terrain at the fine resolution,
         //    and also fills values of z_phys_nd outside the domain
