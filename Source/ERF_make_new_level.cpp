@@ -322,7 +322,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                           IntVect(0,0,0), // do not fill ghost cells outside the domain
                           base_state[lev-1], 0, 0, 3,
                           geom[lev-1], geom[lev],
-                          refRatio(lev-1), &cell_cons_interp, domain_bcs_type);
+                          refRatio(lev-1), &cell_cons_interp,
+                          domain_bcs_type, BCVars::cons_bc);
 
     initHSE(lev);
 

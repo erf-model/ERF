@@ -121,6 +121,8 @@ class Radiation {
     std::string moisture_type = "None";
     bool has_qmoist;
 
+    amrex::Vector<int> rank_offsets;
+
     // Specified uniform angle for radiation
     amrex::Real uniform_angle = 78.463;
 

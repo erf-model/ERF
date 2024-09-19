@@ -120,48 +120,110 @@ ERF::FillPatch (int lev, Real time,
         Vector<MultiFab*> cmf = {&vars_old[lev-1][Vars::cons], &vars_new[lev-1][Vars::cons]};
         MultiFab& mf_c = *mfs_vel[Vars::cons];
         mapper = &cell_cons_interp;
-        FillPatchTwoLevels(mf_c, time, cmf, ctime, fmf, ftime,
-                           0, 0, mf_c.nComp(), geom[lev-1], geom[lev],
-                           *physbcs_cons[lev-1], BCVars::cons_bc,
-                           *physbcs_cons[lev  ], BCVars::cons_bc,
-                           refRatio(lev-1), mapper, domain_bcs_type, BCVars::cons_bc);
 
-        if (!cons_only) {
+        // Impose physical bc's on coarse data (note time and 0 are not used)
+        (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],0,mf_c.nComp(),ngvect_cons,time,BCVars::cons_bc);
+        (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],0,mf_c.nComp(),ngvect_cons,time,BCVars::cons_bc);
+
+        // Make sure internal ghost cells are filled as well
+        vars_old[lev-1][Vars::cons].FillBoundary(geom[lev-1].periodicity());
+        vars_new[lev-1][Vars::cons].FillBoundary(geom[lev-1].periodicity());
+
+        // Call FillPatch which ASSUMES that all ghost cells have already been filled
+        FillPatchTwoLevels(mf_c, ngvect_cons, IntVect(0,0,0),
+                           time, cmf, ctime, fmf, ftime,
+                           0, 0, mf_c.nComp(), geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           BCVars::cons_bc);
+
+        // Impose physical bc's on fine data
+        (*physbcs_cons[lev])(mf_c,0,mf_c.nComp(),ngvect_cons,time,BCVars::cons_bc);
+
+        if (!cons_only)
+        {
             mapper = &face_cons_linear_interp;
 
             MultiFab& mf_u = *mfs_vel[Vars::xvel];
+            MultiFab& mf_v = *mfs_vel[Vars::yvel];
+            MultiFab& mf_w = *mfs_vel[Vars::zvel];
+
+            // **********************************************************************
+
+            // Impose physical bc's on coarse data (note time and 0 are not used)
+            (*physbcs_u[lev-1])(vars_old[lev-1][Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
+            (*physbcs_u[lev-1])(vars_new[lev-1][Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
+
+            // Make sure internal ghost cells are filled as well
+            vars_old[lev-1][Vars::xvel].FillBoundary(geom[lev-1].periodicity());
+            vars_new[lev-1][Vars::xvel].FillBoundary(geom[lev-1].periodicity());
+
             fmf = {&vars_old[lev  ][Vars::xvel], &vars_new[lev  ][Vars::xvel]};
             cmf = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
-            FillPatchTwoLevels(mf_u, time, cmf, ctime, fmf, ftime,
-                               0, 0, 1, geom[lev-1], geom[lev],
-                               *physbcs_u[lev-1], BCVars::xvel_bc,
-                               *physbcs_u[lev  ], BCVars::xvel_bc,
-                               refRatio(lev-1), mapper, domain_bcs_type, BCVars::xvel_bc);
 
-            MultiFab& mf_v = *mfs_vel[Vars::yvel];
+            // Call FillPatch which ASSUMES that all ghost cells have already been filled
+            FillPatchTwoLevels(mf_u, ngvect_vels, IntVect(0,0,0),
+                               time, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::xvel_bc);
+
+            // Impose physical bc's on fine data
+            (*physbcs_u[lev])(vars_new[lev][Vars::xvel],0,mf_u.nComp(),ngvect_vels,time,BCVars::xvel_bc);
+
+            // **********************************************************************
+
+            // Impose physical bc's on coarse data (note time and 0 are not used)
+            (*physbcs_v[lev-1])(vars_old[lev-1][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
+            (*physbcs_v[lev-1])(vars_new[lev-1][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
+
+            // Make sure internal ghost cells are filled as well
+            vars_old[lev-1][Vars::yvel].FillBoundary(geom[lev-1].periodicity());
+            vars_new[lev-1][Vars::yvel].FillBoundary(geom[lev-1].periodicity());
+
             fmf = {&vars_old[lev  ][Vars::yvel], &vars_new[lev  ][Vars::yvel]};
             cmf = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
-            FillPatchTwoLevels(mf_v, time, cmf, ctime, fmf, ftime,
+
+            // Call FillPatch which ASSUMES that all ghost cells have already been filled
+            FillPatchTwoLevels(mf_v, ngvect_vels, IntVect(0,0,0),
+                               time, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
-                               *physbcs_v[lev-1], BCVars::yvel_bc,
-                               *physbcs_v[lev  ], BCVars::yvel_bc,
-                               refRatio(lev-1), mapper, domain_bcs_type, BCVars::yvel_bc);
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::yvel_bc);
 
+            // Impose physical bc's on fine data
+            (*physbcs_v[lev])(vars_new[lev][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
 
-            // We note there is an issue here -- we use the no-terrain version to fill the physical
-            //    bcs of the coarse data used to interpolate.  We later fix the fine data with the
-            //    correct bcs but if there was an error due to the interpolation with the wrong bcs,
-            //    we will not necessarily be able to fix that.
-            MultiFab& mf_w = *mfs_vel[Vars::zvel];
+            // **********************************************************************
+
+            // Impose physical bc's on coarse data (note time and 0 are not used)
+            (*physbcs_w[lev-1])(vars_old[lev-1][Vars::zvel],
+                                vars_old[lev-1][Vars::xvel],
+                                vars_old[lev-1][Vars::yvel],
+                                ngvect_vels,time,BCVars::zvel_bc);
+            (*physbcs_w[lev-1])(vars_new[lev-1][Vars::zvel],
+                                vars_new[lev-1][Vars::xvel],
+                                vars_new[lev-1][Vars::yvel],
+                                ngvect_vels,time,BCVars::zvel_bc);
+
+            // Make sure internal ghost cells are filled as well
+            vars_old[lev-1][Vars::zvel].FillBoundary(geom[lev-1].periodicity());
+            vars_new[lev-1][Vars::zvel].FillBoundary(geom[lev-1].periodicity());
+
             fmf = {&vars_old[lev  ][Vars::zvel], &vars_new[lev  ][Vars::zvel]};
             cmf = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
-            FillPatchTwoLevels(mf_w, time, cmf, ctime, fmf, ftime,
+
+            // Call FillPatch which ASSUMES that all ghost cells have already been filled
+            FillPatchTwoLevels(mf_w, ngvect_vels, IntVect(0,0,0),
+                               time, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
-                               *physbcs_w_no_terrain[lev-1], BCVars::zvel_bc,
-                               *physbcs_w_no_terrain[lev  ], BCVars::zvel_bc,
-                               refRatio(lev-1), mapper, domain_bcs_type, BCVars::zvel_bc);
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::zvel_bc);
+
+
+            // Impose physical bc's on fine data -- note the u and v have been filled above
             (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
                               ngvect_vels,time,BCVars::zvel_bc);
+
         } // !cons_only
     } // lev > 0
 
@@ -355,34 +417,78 @@ ERF::FillIntermediatePatch (int lev, Real time,
             // NOTE: This will only fill velocity from coarse grid *outside* the fine grids
             //       unlike the FillSet calls above which filled momenta on the coarse/fine bdy
             //
-            Vector<MultiFab*> fmf = {&mf};
+            Vector<MultiFab*> fmf = {&mf,&mf};
             Vector<MultiFab*> cmf = {&vars_old[lev-1][var_idx], &vars_new[lev-1][var_idx]};
             Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
+            Vector<Real> ftime    = {time,time};
 
             if (var_idx == Vars::cons) {
-                FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
-                                   icomp, icomp, ncomp, geom[lev-1], geom[lev],
-                                   *physbcs_cons[lev-1], BCVars::cons_bc,
-                                   *physbcs_cons[lev  ], BCVars::cons_bc,
-                                   refRatio(lev-1), mapper, domain_bcs_type, bccomp);
+                // Impose physical bc's on coarse data (note time and 0 are not used)
+                (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],0,ncomp,ngvect,time,BCVars::cons_bc);
+                (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],0,ncomp,ngvect,time,BCVars::cons_bc);
+
+                // Call FillPatch which ASSUMES that all ghost cells have already been filled
+                FillPatchTwoLevels(mf, ngvect, IntVect(0,0,0),
+                                   time, cmf, ctime, fmf, ftime,
+                                   0, 0, ncomp, geom[lev-1], geom[lev],
+                                   refRatio(lev-1), mapper, domain_bcs_type,
+                                   bccomp);
+
+                // Impose physical bc's on fine data
+                (*physbcs_cons[lev])(mf,0,ncomp,ngvect,time,BCVars::cons_bc);
+
             } else if (var_idx == Vars::xvel) {
-                FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
-                                   icomp, icomp, ncomp, geom[lev-1], geom[lev],
-                                   *physbcs_u[lev-1], BCVars::xvel_bc,
-                                   *physbcs_u[lev  ], BCVars::xvel_bc,
-                                   refRatio(lev-1), mapper, domain_bcs_type, bccomp);
+
+                // Impose physical bc's on coarse data (note time and 0 are not used)
+                (*physbcs_u[lev-1])(vars_old[lev-1][Vars::xvel],0,1,ngvect,time,BCVars::xvel_bc);
+                (*physbcs_u[lev-1])(vars_new[lev-1][Vars::xvel],0,1,ngvect,time,BCVars::xvel_bc);
+
+                // Call FillPatch which ASSUMES that all ghost cells have already been filled
+                FillPatchTwoLevels(mf, ngvect, IntVect(0,0,0),
+                                   time, cmf, ctime, fmf, ftime,
+                                   0, 0, ncomp, geom[lev-1], geom[lev],
+                                   refRatio(lev-1), mapper, domain_bcs_type,
+                                   bccomp);
+
+                // Impose physical bc's on fine data
+                (*physbcs_u[lev])(mf,0,1,ngvect,time,BCVars::xvel_bc);
+
             } else if (var_idx == Vars::yvel) {
-                FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
-                                   icomp, icomp, ncomp, geom[lev-1], geom[lev],
-                                   *physbcs_v[lev-1], BCVars::yvel_bc,
-                                   *physbcs_v[lev  ], BCVars::yvel_bc,
-                                   refRatio(lev-1), mapper, domain_bcs_type, bccomp);
+
+                // Impose physical bc's on coarse data (note time and 0 are not used)
+                (*physbcs_v[lev-1])(vars_old[lev-1][Vars::yvel],0,1,ngvect,time,BCVars::yvel_bc);
+                (*physbcs_v[lev-1])(vars_new[lev-1][Vars::yvel],0,1,ngvect,time,BCVars::yvel_bc);
+
+                // Call FillPatch which ASSUMES that all ghost cells have already been filled
+                FillPatchTwoLevels(mf, ngvect, IntVect(0,0,0),
+                                   time, cmf, ctime, fmf, ftime,
+                                   0, 0, 1, geom[lev-1], geom[lev],
+                                   refRatio(lev-1), mapper, domain_bcs_type,
+                                   bccomp);
+
+                // Impose physical bc's on fine data
+                (*physbcs_v[lev])(mf,0,1,ngvect,time,BCVars::yvel_bc);
+
             } else if (var_idx == Vars::zvel) {
-                FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
-                                   icomp, icomp, ncomp, geom[lev-1], geom[lev],
-                                   *physbcs_w_no_terrain[lev-1], BCVars::zvel_bc,
-                                   *physbcs_w_no_terrain[lev  ], BCVars::zvel_bc,
-                                   refRatio(lev-1), mapper, domain_bcs_type, bccomp);
+
+                // Impose physical bc's on coarse data (note time and 0 are not used)
+                (*physbcs_w[lev-1])(vars_old[lev-1][Vars::zvel],
+                                    vars_old[lev-1][Vars::xvel],
+                                    vars_old[lev-1][Vars::yvel],
+                                    ngvect,time,BCVars::zvel_bc);
+                (*physbcs_w[lev-1])(vars_new[lev-1][Vars::zvel],
+                                    vars_new[lev-1][Vars::xvel],
+                                    vars_new[lev-1][Vars::yvel],
+                                    ngvect,time,BCVars::zvel_bc);
+
+                // Call FillPatch which ASSUMES that all ghost cells have already been filled
+                FillPatchTwoLevels(mf, ngvect, IntVect(0,0,0),
+                                   time, cmf, ctime, fmf, ftime,
+                                   0, 0, 1, geom[lev-1], geom[lev],
+                                   refRatio(lev-1), mapper, domain_bcs_type,
+                                   bccomp);
+
+                // Impose physical bc's on fine data
                 (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
                                    ngvect,time,BCVars::zvel_bc);
             }
