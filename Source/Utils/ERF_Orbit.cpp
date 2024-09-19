@@ -6,6 +6,7 @@ void
 zenith (int& calday,
         amrex::MultiFab* clat,
         amrex::MultiFab* clon,
+        const amrex::Vector<int> &rank_offsets,
         real1d& coszrs,
         int& ncol,
         const Real& eccen,
@@ -29,10 +30,12 @@ zenith (int& calday,
             auto lat_array = clat->array(mfi);
             auto lon_array = clon->array(mfi);
 
+            const int offset = rank_offsets[mfi.LocalIndex()];
+
             // NOTE: lat/lon are 2D multifabs!
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
             {
-                auto icol = j*nx+i+1;
+                auto icol = (j-tbx.smallEnd(1))*nx + (i-tbx.smallEnd(0)) + 1 + offset;
                 coszrs(icol) = shr_orb_cosz(calday, lat_array(i,j,0), lon_array(i,j,0), delta, uniform_angle);
             });
        }
