@@ -48,6 +48,7 @@ Problem::init_custom_pert(
     const SolverChoice& sc)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
+    const bool is_anelastic = (sc.anelastic[0] == 1);
 
     const Real l_x_r = parms.x_r;
     //const Real l_x_r = parms.x_r * mf_u(0,0,0); //used to validate constant msf
@@ -70,6 +71,7 @@ Problem::init_custom_pert(
         Real L = std::sqrt(
             std::pow((x - l_x_c)/l_x_r, 2) +
             std::pow((z - l_z_c)/l_z_r, 2));
+
         if (L <= 1.0)
         {
             Real dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
@@ -77,8 +79,13 @@ Problem::init_custom_pert(
 
             // Note: dT is a perturbation in temperature, theta_perturbed is base state + perturbation
             Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
+            Real theta_0         = (Tbar_hse   )*std::pow(p_0/p_hse(i,j,k), rdOcp);
 
-            state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
+            if (is_anelastic) {
+                state_pert(i, j, k, RhoTheta_comp) = r_hse(i,j,k) * (theta_perturbed  - theta_0);
+            } else {
+                state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
+            }
         }
 
         // Set scalar = 0 everywhere
@@ -109,8 +116,13 @@ Problem::init_custom_pert(
 
             // Note: dT is a perturbation in temperature, theta_perturbed is base state + perturbation
             Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
+            Real theta_0         = (Tbar_hse   )*std::pow(p_0/p_hse(i,j,k), rdOcp);
 
-            state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
+            if (is_anelastic) {
+                state_pert(i, j, k, RhoTheta_comp) = r_hse(i,j,k) * (theta_perturbed  - theta_0);
+            } else {
+                state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
+            }
         }
 
         // Set scalar = 0 everywhere
