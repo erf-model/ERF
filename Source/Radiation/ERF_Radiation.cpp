@@ -148,7 +148,16 @@ void Radiation::initialize (const MultiFab& cons_in,
     has_qmoist = (moisture_type != "None");
 
     nlev = geom.Domain().length(2);
-    ncol = geom.Domain().length(0) * geom.Domain().length(1);
+    ncol = 0;
+    rank_offsets.resize(cons_in.local_size());
+    for (MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
+        const auto& box3d = mfi.tilebox();
+        int nx = box3d.length(0);
+        int ny = box3d.length(1);
+        rank_offsets[mfi.LocalIndex()] = ncol;
+        ncol += nx * ny;
+    }
+
     ngas = active_gases.size();
 
     // initialize cloud, aerosol, and radiation
@@ -195,11 +204,12 @@ void Radiation::initialize (const MultiFab& cons_in,
         auto qv_array = (has_qmoist) ? qmoist[1]->array(mfi) : Array4<Real> {};
         auto qc_array = (has_qmoist) ? qmoist[2]->array(mfi) : Array4<Real> {};
         auto qi_array = (has_qmoist && qmoist.size()>=8) ? qmoist[3]->array(mfi) : Array4<Real> {};
+        const int offset = rank_offsets[mfi.LocalIndex()];
 
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            auto icol = j*nx+i+1;
+            auto icol = (j-box3d.smallEnd(1))*nx + (i-box3d.smallEnd(0)) + 1 + offset;
             auto ilev = k+1;
             Real qv         = (qv_array) ? qv_array(i,j,k): 0.0;
             qt(icol,ilev)   = (qt_array) ? qt_array(i,j,k): 0.0;
@@ -339,10 +349,10 @@ void Radiation::run ()
         int calday = 1;
         // Get cosine solar zenith angle for current time step.
         if (m_lat) {
-            zenith(calday, m_lat, m_lon, coszrs, ncol,
+            zenith(calday, m_lat, m_lon, rank_offsets, coszrs, ncol,
                    eccen,  mvelpp, lambm0, obliqr);
         } else {
-            zenith(calday, m_lat, m_lon, coszrs, ncol,
+            zenith(calday, m_lat, m_lon, rank_offsets, coszrs, ncol,
                    eccen,  mvelpp, lambm0, obliqr, uniform_angle);
         }
 
@@ -425,7 +435,7 @@ void Radiation::run ()
             if (night_indices(icol) > 0) nnight(1)++;
         }
 
-        AMREX_ASSERT(nday(1) + nnight(1) == ncol);
+        AMREX_ALWAYS_ASSERT(nday(1) + nnight(1) == ncol);
 
         // get aerosol optics
         do_aerosol_rad = false; // TODO: this causes issues if enabled
@@ -552,10 +562,11 @@ void Radiation::run ()
         auto qrad_src_array = qrad_src->array(mfi);
         const auto& box3d = mfi.tilebox();
         auto nx = box3d.length(0);
+        int const offset = rank_offsets[mfi.LocalIndex()];
         amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // Map (col,lev) to (i,j,k)
-            auto icol = j*nx+i+1;
+            auto icol = (j-box3d.smallEnd(1))*nx + (i-box3d.smallEnd(0)) + 1 + offset;
             auto ilev = k+1;
 
             // TODO: We do not include the cloud source term qrsc/qrlc.
@@ -591,7 +602,6 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
     real2d pint_day("pint_day", ncol, nlev+1);
 
     real3d gas_vmr_day("gas_vmr_day", ngas, ncol, nlev);
-    real3d gas_vmr_rad("gas_vmr_rad", ngas, ncol, nlev);
 
     real3d cld_tau_gpt_day("cld_tau_gpt_day", ncol, nlev, nswgpts);
     real3d cld_ssa_gpt_day("cld_ssa_gpt_day", ncol, nlev, nswgpts);
@@ -677,7 +687,6 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
     parallel_for(SimpleBounds<3>(num_day(1), nlev, nswgpts), YAKL_LAMBDA (int iday, int ilev, int igpt)
     {
         auto icol = day_indices(iday);
-        gas_vmr_day(igpt,iday,ilev) = gas_vmr(igpt,icol,ilev);
         cld_tau_gpt_day(iday,ilev,igpt) = cld_tau_gpt(icol,ilev,igpt);
         cld_ssa_gpt_day(iday,ilev,igpt) = cld_ssa_gpt(icol,ilev,igpt);
         cld_asm_gpt_day(iday,ilev,igpt) = cld_asm_gpt(icol,ilev,igpt);
@@ -721,8 +730,12 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
         cld_tau_gpt_rad(iday,ilev,igpt) = cld_tau_gpt_day(iday,ilev,igpt);
         cld_ssa_gpt_rad(iday,ilev,igpt) = cld_ssa_gpt_day(iday,ilev,igpt);
         cld_asm_gpt_rad(iday,ilev,igpt) = cld_asm_gpt_day(iday,ilev,igpt);
-        gas_vmr_rad(igpt,iday,1) = gas_vmr_day(igpt,iday,1);
-        gas_vmr_rad(igpt,iday,ilev) = gas_vmr_day(igpt,iday,ilev);
+    });
+
+    parallel_for(SimpleBounds<3>(num_day(1), nlev, ngas), YAKL_LAMBDA (int iday, int ilev, int igas)
+    {
+        auto icol = day_indices(iday);
+        gas_vmr_day(igas,iday,ilev) = gas_vmr(igas,icol,ilev);
     });
 
     parallel_for(SimpleBounds<3>(num_day(1), nlev, nswbands), YAKL_LAMBDA (int iday, int ilev, int ibnd)
@@ -733,7 +746,7 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
     });
 
     // Do shortwave radiative transfer calculations
-    radiation.run_shortwave_rrtmgp(ngas, num_day(1), nlev, gas_vmr_rad, pmid_day,
+    radiation.run_shortwave_rrtmgp(ngas, num_day(1), nlev, gas_vmr_day, pmid_day,
                                    tmid_day, pint_day, coszrs_day, albedo_dir_day, albedo_dif_day,
                                    cld_tau_gpt_rad, cld_ssa_gpt_rad, cld_asm_gpt_rad, aer_tau_bnd_rad, aer_ssa_bnd_rad, aer_asm_bnd_rad,
                                    fluxes_allsky_day.flux_up    , fluxes_allsky_day.flux_dn    , fluxes_allsky_day.flux_net    , fluxes_allsky_day.flux_dn_dir    ,
@@ -787,7 +800,11 @@ void Radiation::radiation_driver_lw (int ncol, int nlev,
     {
         cld_tau_gpt_rad(icol,ilev,igpt) = cld_tau_gpt(icol,ilev,igpt);
         aer_tau_bnd_rad(icol,ilev,igpt) = aer_tau_bnd(icol,ilev,igpt);
-        gas_vmr_rad(igpt,icol,ilev) = gas_vmr(igpt,icol,ilev);
+    });
+
+    parallel_for(SimpleBounds<3>(ncol, nlev, ngas), YAKL_LAMBDA (int icol, int ilev, int igas)
+    {
+        gas_vmr_rad(igas,icol,ilev) = gas_vmr(igas,icol,ilev);
     });
 
     // Do longwave radiative transfer calculations
@@ -994,10 +1011,11 @@ Radiation::export_surface_fluxes(FluxesByband& fluxes,
             auto lsm_array = m_lsm_fluxes->array(mfi);
             const auto& box3d = mfi.tilebox();
             auto nx = box3d.length(0);
+            const int offset = rank_offsets[mfi.LocalIndex()];
             amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Map (col,lev) to (i,j,k)
-                auto icol = j*nx+i+1;
+                auto icol = (j-box3d.smallEnd(1))*nx + (i-box3d.smallEnd(0)) + 1 + offset;
                 auto ilev = k+1;
 
                 // Direct fluxes
@@ -1036,10 +1054,11 @@ Radiation::export_surface_fluxes(FluxesByband& fluxes,
             auto lsm_array = m_lsm_fluxes->array(mfi);
             const auto& box3d = mfi.tilebox();
             auto nx = box3d.length(0);
+            const int offset = rank_offsets[mfi.LocalIndex()];
             amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Map (col,lev) to (i,j,k)
-                auto icol = j*nx+i+1;
+                auto icol = (j-box3d.smallEnd(1))*nx + (i-box3d.smallEnd(0)) + 1 + offset;
                 auto ilev = k+1;
 
                 // Net fluxes
@@ -1070,10 +1089,11 @@ void Radiation::yakl_to_mf(const real2d &data, amrex::MultiFab &mf)
         auto mf_arr = mf.array(mfi);
         const auto& box3d = mfi.tilebox();
         const int nx = box3d.length(0);
+        const int offset = rank_offsets[mfi.LocalIndex()];
         amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // map [i,j,k] 0-based to [icol, ilev] 1-based
-            const int icol = j*nx+i+1;
+            const int icol = (j-box3d.smallEnd(1))*nx + (i-box3d.smallEnd(0)) + 1 + offset;
             const int ilev = k+1;
             AMREX_ASSERT(icol <= static_cast<int>(data.get_dimensions()(1)));
             AMREX_ASSERT(ilev <= static_cast<int>(data.get_dimensions()(2)));
@@ -1085,7 +1105,6 @@ void Radiation::yakl_to_mf(const real2d &data, amrex::MultiFab &mf)
 void Radiation::expand_yakl1d_to_mf(const real1d &data, amrex::MultiFab &mf)
 {
     // copies the 1D yakl data to a 3D MF
-    const int ncol = m_geom.Domain().length(0) * m_geom.Domain().length(1);
     AMREX_ASSERT(data.get_dimensions()(1) == ncol);
     mf = amrex::MultiFab(m_box, qrad_src->DistributionMap(), 1, 0);
     if (!data.initialized())
@@ -1099,10 +1118,11 @@ void Radiation::expand_yakl1d_to_mf(const real1d &data, amrex::MultiFab &mf)
         auto mf_arr = mf.array(mfi);
         const auto& box3d = mfi.tilebox();
         const int nx = box3d.length(0);
+        const int offset = rank_offsets[mfi.LocalIndex()];
         amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // map [i,j,k] 0-based to [icol, ilev] 1-based
-            const int icol = j*nx+i+1;
+            const int icol = (j-box3d.smallEnd(1))*nx + (i-box3d.smallEnd(0)) + 1 + offset;
             AMREX_ASSERT(icol <= static_cast<int>(data.get_dimensions()(1)));
             mf_arr(i, j, k) = data(icol);
         });
@@ -1148,12 +1168,10 @@ void Radiation::writePlotfile(const std::string& plot_prefix, const amrex::Real 
     plotvars_2d.push_back(&lw_fluxes_allsky.flux_up);
     plotvars_2d.push_back(&lw_fluxes_allsky.flux_dn);
     plotvars_2d.push_back(&lw_fluxes_allsky.flux_net);
-    plotvars_2d.push_back(&lw_fluxes_allsky.flux_dn_dir);
     //   LW clearsky
     plotvars_2d.push_back(&lw_fluxes_clrsky.flux_up);
     plotvars_2d.push_back(&lw_fluxes_clrsky.flux_dn);
     plotvars_2d.push_back(&lw_fluxes_clrsky.flux_net);
-    plotvars_2d.push_back(&lw_fluxes_clrsky.flux_dn_dir);
 
     plotvars_2d.push_back(&qrs);
     plotvars_2d.push_back(&qrl);
@@ -1204,12 +1222,10 @@ void Radiation::writePlotfile(const std::string& plot_prefix, const amrex::Real 
     varnames_2d.push_back("lw_fluxes_allsky.flux_up");
     varnames_2d.push_back("lw_fluxes_allsky.flux_dn");
     varnames_2d.push_back("lw_fluxes_allsky.flux_net");
-    varnames_2d.push_back("lw_fluxes_allsky.flux_dn_dir");
     //   LW clearsky
     varnames_2d.push_back("lw_fluxes_clrsky.flux_up");
     varnames_2d.push_back("lw_fluxes_clrsky.flux_dn");
     varnames_2d.push_back("lw_fluxes_clrsky.flux_net");
-    varnames_2d.push_back("lw_fluxes_clrsky.flux_dn_dir");
 
     varnames_2d.push_back("qrs");
     varnames_2d.push_back("qrl");
