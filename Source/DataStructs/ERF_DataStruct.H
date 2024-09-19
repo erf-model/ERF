@@ -197,7 +197,19 @@ struct SolverChoice {
             for (int i = 0; i <= max_level; ++i) anelastic.push_back(anelastic_in[0]);
         }
 
-        pp.query("constant_density", constant_density);
+        bool any_anelastic = false;
+        for (int i = 0; i <= max_level; ++i) {
+            if (anelastic[i] == 1) any_anelastic = true;
+        }
+
+        // If anelastic at all, we do not advect rho -- it is always == rho0
+        if (any_anelastic == 1) {
+            constant_density = true;
+        } else {
+            constant_density = false;  // We default to false but allow the user to set it
+            pp.query("constant_density", constant_density);
+        }
+
         pp.query("project_every_stage", project_every_stage);
         pp.query("ncorr", ncorr);
         pp.query("poisson_abstol", poisson_abstol);

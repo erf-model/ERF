@@ -2,6 +2,10 @@
 max_step = 999999
 stop_time = 900.0
 
+erf.anelastic      = 1
+erf.no_substepping = 1
+erf.buoyancy_type  = 2
+
 erf.use_terrain = true
 erf.use_terrain = false
 
@@ -10,6 +14,7 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
+
 #geometry.prob_lo     = -12800.   0.    0.
 #geometry.prob_hi     =  12800. 1600. 6400.
 #xlo.type = "Outflow"
@@ -22,7 +27,7 @@ xhi.type = "Outflow"
 
 geometry.is_periodic = 0 1 0
 
-amr.n_cell           =   256   16     64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+amr.n_cell           =   256     16    64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
 
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
@@ -34,6 +39,7 @@ erf.fixed_fast_dt  = 0.25     # fixed time step [s] -- Straka et al 1993
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 0       # verbosity in ERF.cpp
+erf.mg_v           = 1       # verbosity in ERF.cpp
 amr.v              = 1       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
@@ -44,9 +50,9 @@ erf.check_file      = chk        # root name of checkpoint file
 erf.check_int       = -57600      # number of timesteps between checkpoints
 
 # PLOTFILES
-erf.plot_file_1     = pltc       # prefix of plotfile name
-erf.plot_int_1      = 10         # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens
+erf.plot_file_1     = plta       # prefix of plotfile name
+erf.plot_int_1      = 100        # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens 
 
 # SOLVER CHOICE
 erf.use_gravity = true

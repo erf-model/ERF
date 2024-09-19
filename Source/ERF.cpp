@@ -1627,17 +1627,23 @@ ERF::MakeHorizontalAverages ()
     auto domain = geom[0].Domain();
 
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    bool is_anelastic = (solverChoice.anelastic[lev] == 1);
 
     for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto  fab_arr = mf.array(mfi);
+        auto const  hse_arr = base_state[lev].const_array(mfi);
         auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             Real dens = cons_arr(i, j, k, Rho_comp);
             fab_arr(i, j, k, 0) = dens;
             fab_arr(i, j, k, 1) = cons_arr(i, j, k, RhoTheta_comp) / dens;
             if (!use_moisture) {
-                fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp));
+                if (is_anelastic) {
+                    fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
+                } else {
+                    fab_arr(i,j,k,2) = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp));
+                }
             }
         });
     }
@@ -1647,13 +1653,18 @@ ERF::MakeHorizontalAverages ()
         for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto  fab_arr = mf.array(mfi);
+            auto const  hse_arr = base_state[lev].const_array(mfi);
             auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
             auto const   qv_arr = qmoist[lev][0]->const_array(mfi);
             int ncomp = vars_new[lev][Vars::cons].nComp();
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real dens = cons_arr(i, j, k, Rho_comp);
-                fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+                if (is_anelastic) {
+                    fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
+                } else {
+                    fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+                }
                 fab_arr(i, j, k, 3) = (ncomp > RhoQ1_comp ? cons_arr(i, j, k, RhoQ1_comp) / dens : 0.0);
                 fab_arr(i, j, k, 4) = (ncomp > RhoQ2_comp ? cons_arr(i, j, k, RhoQ2_comp) / dens : 0.0);
             });
