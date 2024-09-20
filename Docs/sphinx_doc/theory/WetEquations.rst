@@ -7,7 +7,7 @@
 
 .. _WetEquations:
 
-Prognostic Equations (Moist)
+Compressible Equations (Moist)
 ===============================
 
 Model 1: Warm Moisture with no Precipitation

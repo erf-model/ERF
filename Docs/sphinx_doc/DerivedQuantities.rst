@@ -6,7 +6,7 @@
 Derived Variables
 =================
 
-ERF has the ability to created new temporary variables derived from the state variables.
+ERF has the ability to create new temporary variables derived from the state variables.
 
 Access to the derived variable is through one of two amrex:AmrLevel functions
 (which are inherited by ERF)
@@ -31,11 +31,4 @@ Access to the derived variable is through one of two amrex:AmrLevel functions
                              MultiFab&          mf,
                              int                dcomp);
 
-As an example, pert\_prs is a derived variable provided with IAMR, which
-returns the perturbational pressure field.
-A multifab filled with the perturbational pressure can be obtained via
-
-::
-
-      std::unique_ptr<MultiFab> pert_pres;
-      pert_pres = derive(pert_pres, time, ngrow);
+Derived quantities as well as state variables can be output in the plotfiles.
