@@ -14,11 +14,11 @@
 #include "AMReX_Orientation.H"
 
 #include <ERF_ReadBndryPlanes.H>
-#include <TimeInterpolatedData.H>
-#include <IndexDefines.H>
-#include <DataStruct.H>
-#include <EddyViscosity.H>
-#include <TerrainMetrics.H>
+#include <ERF_TimeInterpolatedData.H>
+#include <ERF_IndexDefines.H>
+#include <ERF_DataStruct.H>
+#include <ERF_EddyViscosity.H>
+#include <ERF_TerrainMetrics.H>
 
 class ERFPhysBCFunct_cons
 {

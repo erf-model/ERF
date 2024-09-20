@@ -20,6 +20,9 @@ using namespace amrex;
 void ERF::init_bcs ()
 {
     bool rho_read = false;
+    Vector<Real> cons_dir_init(NBCVAR_max,0.0);
+    cons_dir_init[BCVars::Rho_bc_comp] = 1.0;
+    cons_dir_init[BCVars::RhoTheta_bc_comp] = -1.0;
     auto f = [this,&rho_read] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
@@ -111,18 +114,22 @@ void ERF::init_bcs ()
                 }
             }
 
-            Real rho_in;
+            Real rho_in = 0.;
             if (input_bndry_planes && m_r2d->ingested_density()) {
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = 0.;
             } else {
-                pp.get("density", rho_in);
+                if (!pp.query("density", rho_in)) {
+                    amrex::Print() << "Using interior values to set conserved vars" << std::endl;
+                }
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
             }
-            Real theta_in;
+            Real theta_in = 0.;
             if (input_bndry_planes && m_r2d->ingested_theta()) {
                 m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = 0.;
             } else {
-                pp.get("theta", theta_in);
+                if (rho_in > 0) {
+                    pp.get("theta", theta_in);
+                }
                 m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = rho_in*theta_in;
             }
             Real scalar_in = 0.;
@@ -201,6 +208,12 @@ void ERF::init_bcs ()
             if (pp.query("theta_grad", theta_grad_in))
             {
                 m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori] = theta_grad_in;
+            }
+
+            Real qv_in;
+            if (pp.query("qv", qv_in))
+            {
+                m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = qv_in*m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
             }
         }
         else if (bc_type == "slipwall")
@@ -449,17 +462,17 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::open);
                 }
             }
-            else if ( bct == ERF_BC::no_slip_wall)
+            else if ( bct == ERF_BC::no_slip_wall )
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
-                    }
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
-                        if (rho_read) {
-                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
-                        } else {
-                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir_prim);
+                        if (m_bc_extdir_vals[BCVars::cons_bc+i][ori] != cons_dir_init[BCVars::cons_bc+i]) {
+                            if (rho_read) {
+                                domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
+                            } else {
+                                domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_prim);
+                            }
                         }
                     }
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
@@ -468,12 +481,12 @@ void ERF::init_bcs ()
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
-                    }
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
-                        if (rho_read) {
-                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
-                        } else {
-                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir_prim);
+                        if (m_bc_extdir_vals[BCVars::cons_bc+i][ori] != cons_dir_init[BCVars::cons_bc+i]) {
+                            if (rho_read) {
+                                domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
+                            } else {
+                                domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_prim);
+                            }
                         }
                     }
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
@@ -523,9 +536,13 @@ void ERF::init_bcs ()
                            ( (BCVars::cons_bc+i == BCVars::RhoQKE_bc_comp)    && m_r2d->ingested_QKE()    ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQ1_bc_comp)     && m_r2d->ingested_q1()     ) ||
-                           ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )) ) {
+                           ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )) )
+                        {
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_ingested);
-                           }
+                        }
+                        else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
+                            domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                        }
                     }
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
@@ -538,9 +555,13 @@ void ERF::init_bcs ()
                            ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQ1_bc_comp)     && m_r2d->ingested_q1()     ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )
-                           ) ) {
+                           ) )
+                        {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
-                           }
+                        }
+                        else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
+                            domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                        }
                     }
                 }
             }
@@ -580,9 +601,9 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     const int Nz  = geom[lev].Domain().size()[2];
     const Real dz = geom[lev].CellSize()[2];
 
-    const bool use_terrain = (zlevels_stag.size() > 0);
-    const Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom[lev].ProbLo(2);
-    const Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom[lev].ProbHi(2);
+    const bool use_terrain = (zlevels_stag[0].size() > 0);
+    const Real zbot = (use_terrain) ? zlevels_stag[0][klo]   : geom[lev].ProbLo(2);
+    const Real ztop = (use_terrain) ? zlevels_stag[0][khi+1] : geom[lev].ProbHi(2);
 
     // Size of Nz (domain grid)
     Vector<Real> zcc_inp(Nz  );
@@ -634,9 +655,9 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
         // z_inp_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
         const int Ninp = z_inp_tmp.size();
         for (int k(0); k<Nz; ++k) {
-            zcc_inp[k] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
+            zcc_inp[k] = (use_terrain) ? 0.5 * (zlevels_stag[0][k] + zlevels_stag[0][k+1])
                                          : zbot + (k + 0.5) * dz;
-            znd_inp[k] = (use_terrain) ? zlevels_stag[k+1] : zbot + (k) * dz;
+            znd_inp[k] = (use_terrain) ? zlevels_stag[0][k+1] : zbot + (k) * dz;
             u_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             w_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), znd_inp[k], Ninp);

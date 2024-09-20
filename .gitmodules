@@ -1,12 +1,16 @@
 [submodule "Submodules/AMReX"]
 	path = Submodules/AMReX
 	url = https://github.com/amrex-codes/amrex.git
+	shallow = true
 [submodule "Submodules/YAKL"]
 	path = Submodules/YAKL
 	url = https://github.com/mrnorman/YAKL
+	shallow = true
 [submodule "Submodules/RRTMGP"]
 	path = Submodules/RRTMGP
 	url = https://github.com/E3SM-Project/rte-rrtmgp
+	shallow = true
 [submodule "Submodules/WW3"]
 	path = Submodules/WW3
 	url = https://github.com/erf-model/WW3
+	shallow = true

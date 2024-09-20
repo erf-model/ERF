@@ -1,11 +1,11 @@
 
 CEXE_sources += main.cpp
-CEXE_sources += initEB.cpp
-CEXE_sources += eb_box.cpp
-CEXE_sources += eb_cylinder.cpp
-CEXE_sources += eb_regular.cpp
-CEXE_sources += writeEBsurface.cpp
+CEXE_sources += ERF_initEB.cpp
+CEXE_sources += ERF_eb_box.cpp
+CEXE_sources += ERF_eb_cylinder.cpp
+CEXE_sources += ERF_eb_regular.cpp
+CEXE_sources += ERF_writeEBsurface.cpp
 
-CEXE_headers += eb_if.H
-CEXE_headers += FlowerIF.H
-CEXE_headers += TerrainIF.H
+CEXE_headers += ERF_eb_if.H
+CEXE_headers += ERF_FlowerIF.H
+CEXE_headers += ERF_TerrainIF.H

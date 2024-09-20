@@ -1,2 +1,2 @@
-CEXE_headers += prob.H
-CEXE_sources += prob.cpp
+CEXE_headers += ERF_prob.H
+CEXE_sources += ERF_prob.cpp

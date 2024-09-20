@@ -1,0 +1,150 @@
+#include "ERF_SuperDropletPC.H"
+
+#ifdef ERF_USE_PARTICLES
+
+#include <AMReX_TracerParticle_mod_K.H>
+
+using namespace amrex;
+
+/*! Handle the boundaries for the particles */
+void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
+                                              const Vector<MFPtr>&  a_z_phys_nd )
+{
+    BL_PROFILE("SuperDropletPC::applyBoundaryTreatment()");
+    const MFPtr& z_height = a_z_phys_nd[a_lev];
+
+    const Geometry& geom = m_gdb->Geom(a_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto phi = geom.ProbHiArray();
+    const auto dx = geom.CellSizeArray();
+    const auto dxi = geom.InvCellSizeArray();
+    const auto domain = geom.Domain();
+    const auto is_periodic = geom.isPeriodicArray();
+
+    const int k_lo = domain.smallEnd(2);
+
+    const Real mat_density = m_vapour_mat->density();
+    const int n_aerosols = m_num_aerosols;
+    const int n_aerosols_max = SupDropInit::num_aerosols_max;
+
+    // number of super-droplets per cell
+    int num_sd_per_cell = m_num_sd_per_cell;
+    // number of physical particles per cell
+    Real num_par_per_cell = 0.0;
+    if (m_numdens_init >= 0) {
+        const Real cell_volume = dx[0]*dx[1]*dx[2];
+        num_par_per_cell = std::ceil(m_numdens_init*cell_volume);
+    } else {
+        num_par_per_cell = 1;
+    }
+    Real multiplicity = std::ceil(num_par_per_cell/num_sd_per_cell);
+
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+        int grid    = pti.index();
+        auto& ptile = ParticlesAt(a_lev, pti);
+        auto& aos  = ptile.GetArrayOfStructs();
+        auto& soa  = ptile.GetStructOfArrays();
+        const int n = aos.numParticles();
+        auto *p_pbox = aos().data();
+
+        Array<ParticleReal*,AMREX_SPACEDIM> v_ptr;
+        v_ptr[0] = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data();
+        v_ptr[1] = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data();
+        v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
+        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
+
+        bool use_terrain = (z_height != nullptr);
+        auto zheight = use_terrain ? (*z_height)[grid].array() : Array4<Real>{};
+
+        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
+        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
+        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
+        auto* tcoal_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::t_coalescence).data();
+
+        GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
+        for (int i = 0; i < n_aerosols; i++) {
+            aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
+                                                    + SuperDropletsRealIdxSoA_RT::ncomps
+                                                    + i ).data();
+        }
+
+        ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
+        {
+            ParticleType& p = p_pbox[i];
+            if (p.id() <= 0) { return; }
+            if (mult_ptr[i] == 0) { return; }
+
+            // check for ground impact
+            auto iv = getParticleCell(p, plo, dxi, domain);
+            auto z_ground = plo[2];
+            if (use_terrain) { z_ground = zheight(iv[0],iv[1],k_lo); }
+            if (p.pos(2) < z_ground) {
+                p.pos(2) = z_ground - 0.01*dx[2];
+                v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                mult_ptr[i] = 0.0;
+                supdrop_mass_ptr[i] = 0.0;
+            }
+
+            // check if particles have exited the domain along x and y
+            for (int d = 0; d < 2; d++) {
+
+                // domain bounds
+                auto x_min = plo[d];
+                auto x_max = phi[d];
+
+                if (p.pos(d) < x_min) {
+                    auto delta = x_min - p.pos(d);
+                    p.pos(d) = x_max - delta;
+                    if (!is_periodic[d]) {
+                        v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+
+                        ParticleReal aerosol_mass_total = 0.0;
+                        for (int ctr = 0; ctr < n_aerosols; ctr++) {
+                            aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
+                        }
+
+                        auto par_radius = 1.0e-15;
+                        auto cond_mass = (4.0/3.0)*PI
+                                         * par_radius*par_radius*par_radius*mat_density;
+                        radius_ptr[i] = par_radius;
+                        mass_ptr[i] = cond_mass + aerosol_mass_total;
+                        mult_ptr[i] = multiplicity;
+                        supdrop_mass_ptr[i] = mass_ptr[i]*multiplicity;
+                        tcoal_ptr[i] = 0.0;
+                    }
+                } else if (p.pos(d) > x_max) {
+                    auto delta = p.pos(d) - x_max;
+                    p.pos(d) = x_min + delta;
+                    if (!is_periodic[d]) {
+                        v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+
+                        ParticleReal aerosol_mass_total = 0.0;
+                        for (int ctr = 0; ctr < n_aerosols; ctr++) {
+                            aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
+                        }
+
+                        auto par_radius = 1.0e-15;
+                        auto cond_mass = (4.0/3.0)*PI
+                                         * par_radius*par_radius*par_radius*mat_density;
+                        radius_ptr[i] = par_radius;
+                        mass_ptr[i] = cond_mass + aerosol_mass_total;
+                        mult_ptr[i] = multiplicity;
+                        supdrop_mass_ptr[i] = mass_ptr[i]*multiplicity;
+                        tcoal_ptr[i] = 0.0;
+                    }
+                }
+
+            }
+
+        });
+        Gpu::synchronize();
+    }
+
+}
+
+#endif

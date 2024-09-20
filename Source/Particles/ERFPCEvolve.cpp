@@ -2,7 +2,7 @@
 
 #ifdef ERF_USE_PARTICLES
 
-#include <IndexDefines.H>
+#include <ERF_IndexDefines.H>
 #include <ERF_Constants.H>
 #include <AMReX_TracerParticle_mod_K.H>
 

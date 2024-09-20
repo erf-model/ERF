@@ -1,4 +1,4 @@
-CEXE_headers += Microphysics.H
-CEXE_headers += EulerianMicrophysics.H
-CEXE_headers += LagrangianMicrophysics.H
+CEXE_headers += ERF_Microphysics.H
+CEXE_headers += ERF_EulerianMicrophysics.H
+CEXE_headers += ERF_LagrangianMicrophysics.H
 

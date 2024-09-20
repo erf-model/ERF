@@ -1,2 +1,2 @@
-CEXE_sources += AdvanceFitch.cpp
-CEXE_headers += Fitch.H
+CEXE_sources += ERF_AdvanceFitch.cpp
+CEXE_headers += ERF_Fitch.H

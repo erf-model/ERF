@@ -1,14 +1,14 @@
 /**
  * \file ERF_init1d.cpp
  */
-#include <EOS.H>
+#include <ERF_EOS.H>
 #include <ERF.H>
-#include <TileNoZ.H>
-#include <prob_common.H>
-#include <ParFunctions.H>
-#include <Utils.H>
+#include <ERF_TileNoZ.H>
+#include <ERF_prob_common.H>
+#include <ERF_ParFunctions.H>
+#include <ERF_Utils.H>
 
-#include <Interpolation_1D.H>
+#include <ERF_Interpolation_1D.H>
 
 using namespace amrex;
 
@@ -20,12 +20,15 @@ using namespace amrex;
 void
 ERF::initRayleigh ()
 {
+    const int khi = geom[0].Domain().bigEnd(2);
+    solverChoice.rayleigh_ztop = (solverChoice.use_terrain) ? zlevels_stag[0][khi+1] : geom[0].ProbHi(2);
+
     h_rayleigh_ptrs.resize(max_level+1);
     d_rayleigh_ptrs.resize(max_level+1);
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        // These have 5 components: tau, ubar, vbar, wbar, thetabar
+        // These have 4 components: ubar, vbar, wbar, thetabar
         h_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
         d_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
 
@@ -38,7 +41,7 @@ ERF::initRayleigh ()
         }
 
         // Init the host vectors
-        prob->erf_init_rayleigh(h_rayleigh_ptrs[lev], geom[lev], z_phys_cc[lev]);
+        prob->erf_init_rayleigh(h_rayleigh_ptrs[lev], geom[lev], z_phys_nd[lev], solverChoice.rayleigh_zdamp);
 
         // Copy from host vectors to device vectors
         for (int n = 0; n < Rayleigh::nvars; n++) {
@@ -64,7 +67,7 @@ ERF::setRayleighRefFromSounding (bool restarting)
     if (restarting) {
         input_sounding_data.resize_arrays();
         for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
-            input_sounding_data.read_from_file(geom[0], zlevels_stag, n);
+            input_sounding_data.read_from_file(geom[0], zlevels_stag[0], n);
         }
     }
 
@@ -74,38 +77,31 @@ ERF::setRayleighRefFromSounding (bool restarting)
     const Real* theta_inp_sound = input_sounding_data.theta_inp_sound[0].dataPtr();
     const int   inp_sound_size  = input_sounding_data.size(0);
 
+    int refine_fac{1};
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        const int khi = geom[lev].Domain().bigEnd()[2];
-        Vector<Real> zcc(khi+1);
+        const int klo = geom[lev].Domain().smallEnd(2);
+        const int khi = geom[lev].Domain().bigEnd(2);
+        const int Nz = khi - klo + 1;
 
-        if (z_phys_cc[lev]) {
-            // use_terrain=1
-            // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
-        } else {
-            const auto *const prob_lo = geom[lev].ProbLo();
-            const auto *const dx = geom[lev].CellSize();
-            for (int k = 0; k <= khi; k++)
-            {
-                zcc[k] = prob_lo[2] + (k+0.5) * dx[2];
-            }
-        }
+        Vector<Real> zcc(Nz);
+        Vector<Real> zlevels_sub(zlevels_stag[0].begin()+klo/refine_fac,
+                                 zlevels_stag[0].begin()+khi/refine_fac+2);
+        expand_and_interpolate_1d(zcc, zlevels_sub, refine_fac, true);
+#if 0
+        amrex::AllPrint() << "lev="<<lev<<" : (refine_fac="<<refine_fac<<",klo="<<klo<<",khi="<<khi<<") ";
+        for (int k = 0; k < zlevels_sub.size(); k++) { amrex::AllPrint() << zlevels_sub[k] << " "; }
+        amrex::AllPrint() << " --> ";
+        for (int k = 0; k < Nz; k++) { amrex::AllPrint() << zcc[k] << " "; }
+        amrex::AllPrint() << std::endl;
+#endif
 
-        for (int k = 0; k <= khi; k++)
+        for (int k = 0; k < Nz; k++)
         {
-            h_rayleigh_ptrs[lev][Rayleigh::ubar][k]         = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::vbar][k]         = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]         = Real(0.0);
+            h_rayleigh_ptrs[lev][Rayleigh::ubar][k]     = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
+            h_rayleigh_ptrs[lev][Rayleigh::vbar][k]     = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
+            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]     = Real(0.0);
             h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc[k], inp_sound_size);
-            if (h_rayleigh_ptrs[lev][Rayleigh::tau][k] > 0) {
-                                                  Print() << zcc[k] << ":" << " tau=" << h_rayleigh_ptrs[lev][Rayleigh::tau][k];
-                if (solverChoice.rayleigh_damp_U) Print() << " ubar    = " << h_rayleigh_ptrs[lev][Rayleigh::ubar][k];
-                if (solverChoice.rayleigh_damp_V) Print() << " vbar    = " << h_rayleigh_ptrs[lev][Rayleigh::vbar][k];
-                if (solverChoice.rayleigh_damp_W) Print() << " wbar    = " << h_rayleigh_ptrs[lev][Rayleigh::wbar][k];
-                if (solverChoice.rayleigh_damp_T) Print() << " thetabar= " << h_rayleigh_ptrs[lev][Rayleigh::thetabar][k];
-                Print() << std::endl;
-            }
         }
 
         // Copy from host version to device version
@@ -117,6 +113,8 @@ ERF::setRayleighRefFromSounding (bool restarting)
                          d_rayleigh_ptrs[lev][Rayleigh::wbar].begin());
         Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::thetabar].begin());
+
+        refine_fac *= ref_ratio[lev][2];
     }
 }
 
@@ -161,7 +159,7 @@ ERF::setSpongeRefFromSounding (bool restarting)
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
     if (restarting) {
-        input_sponge_data.read_from_file(geom[0], zlevels_stag);
+        input_sponge_data.read_from_file(geom[0], zlevels_stag[0]);
     }
 
     const Real* z_inp_sponge     = input_sponge_data.z_inp_sponge.dataPtr();
@@ -229,7 +227,7 @@ ERF::initHSE (int lev)
 
     if (all_boxes_touch_bottom || lev > 0) {
 
-        // Initial r_hse may or may not be in HSE -- defined in prob.cpp
+        // Initial r_hse may or may not be in HSE -- defined in ERF_prob.cpp
         if (solverChoice.use_moist_background){
             prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
         } else {
@@ -265,7 +263,7 @@ ERF::initHSE (int lev)
             new_z_phys_nd->ParallelCopy(*z_phys_nd[lev],0,0,1,1,1);
         }
 
-        // Initial r_hse may or may not be in HSE -- defined in prob.cpp
+        // Initial r_hse may or may not be in HSE -- defined in ERF_prob.cpp
         if (solverChoice.use_moist_background){
             prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev]);
         } else {

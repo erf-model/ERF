@@ -8,11 +8,15 @@
 
 .. _DryEquations:
 
-Prognostic Equations (Dry)
+Compressible Equations (Dry)
 =============================
 
-The following partial differential equations governing dry compressible flow
-are solved in ERF for mass, momentum, potential temperature, and scalars:
+ERF can be run in two different modes: in the first, ERF solves the fully compressible fluid equations,
+in the second, ERF solves a modified set of equations which approximates the density field with the
+hydrostatic density and imposes the anelastic constraint on the velocity field.
+
+In compressible mode, in the absence of moisture, ERF solves the following partial differential equations
+expressing conservation of mass, momentum, potential temperature, and scalars.
 
 .. math::
   \frac{\partial \rho}{\partial t} &= - \nabla \cdot (\rho \mathbf{u}),
@@ -94,29 +98,3 @@ and are defined on faces.
 
 :math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively,
 and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
-
-
-Anelastic Alternative
----------------------
-
-There is an anelastic option under development, in which ERF solves the same four equations for mass,
-momentum, energy, and advected scalars, but accompanied by the anelastic constraint rather than the
-equation of state as given in the Diagnostic Relationship section above.  This option does not
-currently support terrain-fitted coordinates.
-
-The anelastic constraint has the form
-
-.. math::
-   \nabla \cdot (\overline{\rho}  \mathbf{u}) = 0
-
-We take a predictor-corrector approach to solving this system, in which we first advance
-the velocity field to create a provisional velocity, :math:`\mathbf{u}^*` at the new time,
-then impose the constraint by solving the pressure Poisson equation for :math:`p^\prime`
-
-.. math::
-   \nabla \cdot ( \frac{\overline{\rho}}{\rho} \nabla p^\prime ) = \nabla \cdot ( \overline{\rho} \mathbf{u}^* )
-
-then setting
-
-.. math::
-    \mathbf{u}^{n+1} =  \mathbf{u}^* - \frac{1}{\rho} \nabla p^\prime

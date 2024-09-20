@@ -1,8 +1,8 @@
-CEXE_headers += DataStruct.H
-CEXE_headers += DiffStruct.H
-CEXE_headers += AdvStruct.H
-CEXE_headers += InputSoundingData.H
-CEXE_headers += InputSpongeData.H
-CEXE_headers += SpongeStruct.H
-CEXE_headers += TurbStruct.H
-CEXE_headers += TurbPertStruct.H
+CEXE_headers += ERF_DataStruct.H
+CEXE_headers += ERF_DiffStruct.H
+CEXE_headers += ERF_AdvStruct.H
+CEXE_headers += ERF_InputSoundingData.H
+CEXE_headers += ERF_InputSpongeData.H
+CEXE_headers += ERF_SpongeStruct.H
+CEXE_headers += ERF_TurbStruct.H
+CEXE_headers += ERF_TurbPertStruct.H

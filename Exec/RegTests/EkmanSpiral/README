@@ -6,7 +6,7 @@ A description of the problem, including the exact solution, can be found at
 https://exawind.github.io/amr-wind/developer/verification.html#ekman-spiral .
 
 When the executable here is run with inputs_custom, the solution is initialized
-in prob.cpp from the exact solution.
+in ERF_prob.cpp from the exact solution.
 
 When the executable here is run with inputs_ideal, the solution is initialized
 from the wrfinput_ekman_d01 file, thus this is also a test of ERF's ability to 
