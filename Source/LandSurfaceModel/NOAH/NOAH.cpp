@@ -1,5 +1,10 @@
-#include <NOAH.H>
+
+#include<iostream>
+
+#include <AMReX_Print.H>
 #include <NoahmpIO.H>
+
+#include <NOAH.H>
 
 using namespace amrex;
 
@@ -10,5 +15,14 @@ NOAH::Init (const MultiFab& cons_in,
            const Real& dt)
 { 
     // Initialize Noahmp IO
+    amrex::Print() << "Initializing Noahmp IO" << std::endl;
+    /*
+     * noahmpio.xstart = 1;
+     * noahmpio.xend = 4;
+     * noahmpio.ystart = 1;
+     * noahmpio.yend = 2;
+     *
+     */
     NoahmpIOVarInitDefault(&noahmpio);
+    amrex::Print() << "Noahmp IO Initialized" << std::endl;
 };
