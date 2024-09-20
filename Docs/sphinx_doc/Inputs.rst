@@ -448,7 +448,7 @@ Notes
    * | If **erf.fixed_dt** is specified, the slow timestep will be set to **fixed_dt**.
 
    * | If **erf.fixed_dt** is not set, the slow timestep will be computed using the CFL
-       condition for incompressible flow.  If **erf.cfl** is specified, that CFL value will be used.
+       condition for incompressible/anelastic flow.  If **erf.cfl** is specified, that CFL value will be used.
        If not, the default value will be used.
 
    * | There are several consistency checks before the fast timestep is computed.  Specifically, if any
@@ -1195,7 +1195,11 @@ Examples of Usage
     BTF is used when generating the terrain following coordinate.
 
 -  **erf.terrain_smoothing**  = 1
-    STF is used when generating the terrain following coordinate.
+    STF is used when generating the terrain following coordinate. Additionally,
+    ``erf.terrain_gamma_m`` (default=0.5) may be used to set the minimum
+    allowable fractional grid spacing. From Klemp 2011, MWR: "Values of 0.5-0.6
+    seem to work best in 2D applications, while values about half this
+    magnitude appear better for 3D real-terrain simulations."
 
 -  **erf.terrain_smoothing**  = 2
     Sullivan TF is used when generating the terrain following coordinate.

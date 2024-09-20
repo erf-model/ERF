@@ -24,7 +24,7 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-# Incompressible Solver
+# Incompressible/Anelastic Solver
 USE_POISSON_SOLVE = FALSE
 
 # GNU Make

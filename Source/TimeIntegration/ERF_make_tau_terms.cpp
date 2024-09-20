@@ -3,9 +3,9 @@
 #include <AMReX_BCRec.H>
 #include <AMReX_GpuContainers.H>
 
-#include <TI_slow_headers.H>
-#include <EOS.H>
-#include <Utils.H>
+#include <ERF_TI_slow_headers.H>
+#include <ERF_EOS.H>
+#include <ERF_Utils.H>
 
 using namespace amrex;
 

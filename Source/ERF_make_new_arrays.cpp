@@ -6,19 +6,19 @@
  * Worker routines for filling data at new levels after initialization, restart or regridding
 */
 
-#include "prob_common.H"
-#include <EOS.H>
+#include "ERF_prob_common.H"
+#include <ERF_EOS.H>
 #include <ERF.H>
 
 #include <AMReX_buildInfo.H>
 
-#include <Utils.H>
-#include <TerrainMetrics.H>
-#include <Utils/ParFunctions.H>
+#include <ERF_Utils.H>
+#include <ERF_TerrainMetrics.H>
+#include <Utils/ERF_ParFunctions.H>
 #include <memory>
 
 #ifdef ERF_USE_MULTIBLOCK
-#include <MultiBlockContainer.H>
+#include <ERF_MultiBlockContainer.H>
 #endif
 
 using namespace amrex;
@@ -232,17 +232,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     if (solverChoice.windfarm_type == WindFarmType::Fitch){
         vars_windfarm[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
     if (solverChoice.windfarm_type == WindFarmType::EWP){
         vars_windfarm[lev].define(ba, dm, 3, ngrow_state); // dudt, dvdt, dTKEdt
-        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
     if (solverChoice.windfarm_type == WindFarmType::SimpleAD) {
         vars_windfarm[lev].define(ba, dm, 2, ngrow_state);// dudt, dvdt
-        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
-        SMark[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
+        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+        SMark[lev].define(ba, dm, 2, ngrow_state); // Free stream velocity/source term
+                                                   // sampling marker in a cell - 2 components
 #endif
 
 
@@ -442,26 +441,25 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 void
 ERF::init_zphys (int lev, Real time)
 {
-    if (solverChoice.use_terrain) {
-        //
-        // First interpolate from coarser level if there is one
-        //
+    if (solverChoice.use_terrain)
+    {
         if (lev > 0) {
-            Vector<MultiFab*> fmf = {z_phys_nd[lev].get(), z_phys_nd[lev].get()};
-            Vector<Real> ftime    = {t_old[lev], t_new[lev]};
-            Vector<MultiFab*> cmf = {z_phys_nd[lev-1].get(), z_phys_nd[lev-1].get()};
-            Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
-
             //
-            // First we fill z_phys_nd at lev>0 through interpolation
+            // First interpolate from coarser level if there is one
+            // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+            //       have been pre-filled - this includes ghost cells both inside and outside
+            //       the domain
             //
-            Interpolater* mapper = &node_bilinear_interp;
-            PhysBCFunctNoOp null_bc;
-            InterpFromCoarseLevel(*z_phys_nd[lev], time, *z_phys_nd[lev-1],
-                                  0, 0, 1,
+            InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
+                                  IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  *z_phys_nd[lev-1], 0, 0, 1,
                                   geom[lev-1], geom[lev],
-                                  null_bc, 0, null_bc, 0, refRatio(lev-1),
-                                  mapper, domain_bcs_type, 0);
+                                  refRatio(lev-1), &node_bilinear_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+
+            // This recomputes the fine values using the bottom terrain at the fine resolution,
+            //    and also fills values of z_phys_nd outside the domain
+            init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
         }
 
         //
@@ -479,35 +477,39 @@ ERF::init_zphys (int lev, Real time)
             {
                 z_phys_nd[lev]->setVal(-1.e23);
                 prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-                init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag,phys_bc_type);
+                init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
 
                 Real zmax = z_phys_nd[0]->max(0,0,false);
-                Real rel_diff = (zmax - zlevels_stag[zlevels_stag.size()-1]) / zmax;
+                Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
 
             } // init_type
+            z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
         } // lev == 0
-    }
+    } // terrain
 }
 
 void
-ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
+ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
-    if (solverChoice.use_terrain && lev > 0) {
+    if (solverChoice.use_terrain && lev > 0)
+    {
+        //
+        // First interpolate from coarser level
+        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+        //       have been pre-filled - this includes ghost cells both inside and outside
+        //       the domain
+        //
+        InterpFromCoarseLevel(*temp_zphys_nd, z_phys_nd[lev]->nGrowVect(),
+                              IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              *z_phys_nd[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &node_bilinear_interp,
+                              domain_bcs_type, BCVars::cons_bc);
 
-        Vector<MultiFab*> fmf = {z_phys_nd[lev].get(), z_phys_nd[lev].get()};
-        Vector<MultiFab*> cmf = {z_phys_nd[lev-1].get(), z_phys_nd[lev-1].get()};
-        Vector<Real> ftime    = {time, time};
-        Vector<Real> ctime    = {time, time};
-
-        PhysBCFunctNoOp null_bc;
-        Interpolater* mapper = &node_bilinear_interp;
-
-        FillPatchTwoLevels(*temp_zphys_nd, time,
-                           cmf, ctime, fmf, ftime,
-                           0, 0, 1, geom[lev-1], geom[lev],
-                           null_bc, 0, null_bc, 0, refRatio(lev-1),
-                           mapper, domain_bcs_type, 0);
+        // This recomputes the fine values using the bottom terrain at the fine resolution,
+        //    and also fills values of z_phys_nd outside the domain
+        init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
 
         std::swap(temp_zphys_nd, z_phys_nd[lev]);
 
@@ -541,7 +543,7 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<Vector<MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping(solverChoice.no_substepping);
-    mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible[lev]);
+    mri_integrator_mem[lev]->setAnelastic(solverChoice.anelastic[lev]);
     mri_integrator_mem[lev]->setNcompCons(ncomp_cons);
     mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);
 }

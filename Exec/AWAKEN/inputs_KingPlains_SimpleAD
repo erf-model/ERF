@@ -1,0 +1,88 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 1
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+#geometry.prob_extent =  8500   8000  1000
+#amr.n_cell           =   425   400   50
+
+geometry.prob_extent =  18000  10000  1000
+amr.n_cell           =   900   500   50
+
+# WINDFARM PARAMETRIZATION PARAMETERS
+erf.windfarm_type = "SimpleActuatorDisk"
+erf.sampling_distance_by_D = 2.5
+erf.turb_disk_angle_from_x = 135.0
+erf.windfarm_x_shift = 1000.0
+erf.windfarm_y_shift = 1000.0
+erf.windfarm_loc_type = "lat_lon"
+erf.windfarm_loc_table = "windturbines_KingPlains.txt"
+erf.windfarm_spec_table = "windturbines_spec_AWAKEN.tbl"
+
+
+#erf.grid_stretching_ratio = 1.025
+#erf.initial_dz = 16.0
+
+geometry.is_periodic = 0 0 0
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+#zlo.type      = "MOST"
+#erf.most.z0   = 0.1
+#erf.most.zref = 8.0
+
+zlo.type = "SlipWall"
+zhi.type = "Outflow"
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+
+# TIME STEP CONTROL
+erf.use_native_mri = 1
+erf.fixed_dt       = 0.125  # fixed time step depending on grid resolution
+#erf.fixed_fast_dt  = 0.0025
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v                = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk       # root name of checkpoint file
+erf.check_int       = 10000        # number of timesteps between checkpoints
+#erf.restart         = chk02000
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_int_1      = 100       # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta QKE vorticity SMark
+
+# SOLVER CHOICE
+erf.alpha_T = 0.0
+erf.alpha_C = 1.0
+erf.use_gravity = false
+
+erf.molec_diff_type = "ConstantAlpha"
+erf.les_type        = "None"
+erf.Cs              = 1.5
+erf.dynamicViscosity = 100.0
+
+erf.pbl_type        = "None"
+
+erf.init_type = "uniform"
+
+# PROBLEM PARAMETERS
+prob.rho_0 = 1.0
+prob.A_0 = 1.0
+
+prob.U_0 = 7.07
+prob.V_0 = 7.07
+prob.W_0 = 0.0
+prob.T_0 = 300.0
+

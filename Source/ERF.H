@@ -26,15 +26,15 @@
 #include <AMReX_MemProfiler.H>
 #endif
 
-#include "prob_common.H"
+#include "ERF_prob_common.H"
 
-#include <IndexDefines.H>
-#include <DataStruct.H>
-#include <TurbPertStruct.H>
-#include <InputSoundingData.H>
-#include <InputSpongeData.H>
-#include <ABLMost.H>
-#include <Derive.H>
+#include <ERF_IndexDefines.H>
+#include <ERF_DataStruct.H>
+#include <ERF_TurbPertStruct.H>
+#include <ERF_InputSoundingData.H>
+#include <ERF_InputSpongeData.H>
+#include <ERF_ABLMost.H>
+#include <ERF_Derive.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
 #include <ERF_MRI.H>
@@ -42,18 +42,18 @@
 #include <ERF_FillPatcher.H>
 
 #ifdef ERF_USE_PARTICLES
-#include "ParticleData.H"
+#include "ERF_ParticleData.H"
 #endif
 
-#include "EulerianMicrophysics.H"
-#include "LagrangianMicrophysics.H"
-#include "LandSurface.H"
+#include "ERF_EulerianMicrophysics.H"
+#include "ERF_LagrangianMicrophysics.H"
+#include "ERF_LandSurface.H"
 #ifdef ERF_USE_WINDFARM
-#include "WindFarm.H"
+#include "ERF_WindFarm.H"
 #endif
 
 #ifdef ERF_USE_RRTMGP
-#include "Radiation.H"
+#include "ERF_Radiation.H"
 #endif
 
 #include <iostream>
@@ -431,7 +431,7 @@ private:
     void update_diffusive_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
     void init_zphys            (int lev, amrex::Real time);
-    void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
+    void remake_zphys          (int lev, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
 
     void Construct_ERFFillPatchers (int lev);
@@ -743,7 +743,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
     // Terrain / grid stretching
-    amrex::Vector<amrex::Real> zlevels_stag; // nominal height levels
+    amrex::Vector<amrex::Vector<amrex::Real>> zlevels_stag; // nominal height levels
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
 
@@ -835,8 +835,8 @@ private:
     static amrex::Real change_max;
 
     // Fixed dt for level 0 timesteps (only used if positive)
-    static amrex::Real fixed_dt;
-    static amrex::Real fixed_fast_dt;
+    amrex::Vector<amrex::Real> fixed_dt;
+    amrex::Vector<amrex::Real> fixed_fast_dt;
     static int fixed_mri_dt_ratio;
 
     // how often each level regrids the higher levels of refinement
@@ -870,7 +870,7 @@ private:
                                                      "rhoQ1", "rhoQ2", "rhoQ3",
                                                      "rhoQ4", "rhoQ5", "rhoQ6"};
 
-    // Note that the order of variable names here must match the order in Derive.cpp
+    // Note that the order of variable names here must match the order in ERF_Derive.cpp
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
@@ -1045,7 +1045,7 @@ private:
     //
     amrex::MultiFab fine_mask;
 
-    amrex::Real dz_min;
+    amrex::Vector<amrex::Real> dz_min;
 
     static AMREX_FORCE_INLINE
     int

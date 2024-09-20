@@ -2,9 +2,9 @@
 #include "AMReX_ParmParse.H"
 #include <AMReX_PlotFileUtil.H>
 #include "ERF_ReadBndryPlanes.H"
-#include "IndexDefines.H"
+#include "ERF_IndexDefines.H"
 #include "AMReX_MultiFabUtil.H"
-#include "EOS.H"
+#include "ERF_EOS.H"
 
 using namespace amrex;
 

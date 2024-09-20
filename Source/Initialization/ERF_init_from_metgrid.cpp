@@ -2,7 +2,7 @@
  * \file ERF_init_from_metgrid.cpp
  */
 
-#include <Metgrid_utils.H>
+#include <ERF_Metgrid_utils.H>
 
 using namespace amrex;
 
@@ -138,7 +138,7 @@ ERF::init_from_metgrid (int lev)
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag, phys_bc_type);
+    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag[lev], phys_bc_type);
 
     // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();

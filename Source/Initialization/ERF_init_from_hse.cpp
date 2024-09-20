@@ -3,8 +3,8 @@
  */
 
 #include <ERF.H>
-#include <TileNoZ.H>
-#include <EOS.H>
+#include <ERF_TileNoZ.H>
+#include <ERF_EOS.H>
 
 #include "AMReX_Print.H"
 

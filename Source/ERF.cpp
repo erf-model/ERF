@@ -6,17 +6,17 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
-#include <EOS.H>
+#include <ERF_EOS.H>
 #include <ERF.H>
 
 #include <AMReX_buildInfo.H>
 
-#include <Utils.H>
-#include <TerrainMetrics.H>
+#include <ERF_Utils.H>
+#include <ERF_TerrainMetrics.H>
 #include <memory>
 
 #ifdef ERF_USE_MULTIBLOCK
-#include <MultiBlockContainer.H>
+#include <ERF_MultiBlockContainer.H>
 #endif
 
 using namespace amrex;
@@ -30,8 +30,6 @@ SolverChoice ERF::solverChoice;
 
 // Time step control
 Real ERF::cfl           =  0.8;
-Real ERF::fixed_dt      = -1.0;
-Real ERF::fixed_fast_dt = -1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
 int  ERF::fixed_mri_dt_ratio = 0;
@@ -149,24 +147,26 @@ ERF::ERF_shared ()
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    // Initialize staggered vertical levels for grid stretching or terrain.
+    // Initialize staggered vertical levels for grid stretching or terrain, and
+    // to simplify Rayleigh damping layer calculations.
+    zlevels_stag.resize(max_level+1);
+    init_zlevels(zlevels_stag,
+                 geom,
+                 refRatio(),
+                 solverChoice.grid_stretching_ratio,
+                 solverChoice.zsurf,
+                 solverChoice.dz0);
 
     if (solverChoice.use_terrain) {
-        init_zlevels(zlevels_stag,
-                     geom[0],
-                     solverChoice.grid_stretching_ratio,
-                     solverChoice.zsurf,
-                     solverChoice.dz0);
-
         int nz = geom[0].Domain().length(2) + 1; // staggered
-        if (std::fabs(zlevels_stag[nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
+        if (std::fabs(zlevels_stag[0][nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
             Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)
-                << " does not match highest requested z level " << zlevels_stag[nz-1]
+                << " does not match highest requested z level " << zlevels_stag[0][nz-1]
                 << std::endl;
         }
-        if (std::fabs(zlevels_stag[0]-geom[0].ProbLo(2)) > 1.0e-4) {
+        if (std::fabs(zlevels_stag[0][0]-geom[0].ProbLo(2)) > 1.0e-4) {
             Print() << "Note: prob_lo[2]=" << geom[0].ProbLo(2)
-                << " does not match lowest requested level " << zlevels_stag[0]
+                << " does not match lowest requested level " << zlevels_stag[0][0]
                 << std::endl;
         }
 
@@ -791,7 +791,7 @@ ERF::InitData ()
                                       h_u_geos[lev], d_u_geos[lev],
                                       h_v_geos[lev], d_v_geos[lev],
                                       geom[lev],
-                                      zlevels_stag);
+                                      zlevels_stag[0]);
             }
         }
     }
@@ -893,6 +893,7 @@ ERF::InitData ()
         }
     }
 #endif
+
     // Copy from new into old just in case
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -907,10 +908,14 @@ ERF::InitData ()
         MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,    1,lev_new[Vars::zvel].nGrowVect());
     }
 
-    // Compute the minimum dz in the domain (to be used for setting the timestep)
-    dz_min = geom[0].CellSize(2);
-    if ( solverChoice.use_terrain ) {
-        dz_min *= (*detJ_cc[0]).min(0);
+    // Compute the minimum dz in the domain at each level (to be used for setting the timestep)
+    dz_min.resize(max_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        dz_min[lev] = geom[lev].CellSize(2);
+        if ( solverChoice.use_terrain ) {
+            dz_min[lev] *= (*detJ_cc[lev]).min(0);
+        }
     }
 
     ComputeDt();
@@ -1393,8 +1398,18 @@ ERF::ReadParameters ()
         pp.query("init_shrink", init_shrink);
         pp.query("change_max", change_max);
 
-        pp.query("fixed_dt", fixed_dt);
-        pp.query("fixed_fast_dt", fixed_fast_dt);
+        fixed_dt.resize(max_level+1,-1.);
+        fixed_fast_dt.resize(max_level+1,-1.);
+
+        pp.query("fixed_dt", fixed_dt[0]);
+        pp.query("fixed_fast_dt", fixed_fast_dt[0]);
+
+        for (int lev = 1; lev <= max_level; lev++)
+        {
+            fixed_dt[lev]      = fixed_dt[lev-1]     / static_cast<Real>(MaxRefRatio(lev-1));
+            fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(MaxRefRatio(lev-1));
+        }
+
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
         // How to initialize
@@ -1536,7 +1551,7 @@ ERF::ReadParameters ()
 void
 ERF::ParameterSanityChecks ()
 {
-    AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt > 0.);
+    AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt[0] > 0.);
 
     // We don't allow use_real_bcs to be true if init_type is not either real or metgrid
     AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == "real") || (init_type == "metgrid")) );
@@ -1583,31 +1598,33 @@ ERF::ParameterSanityChecks ()
         Abort("If you specify fixed_mri_dt_ratio, it must be even");
     }
 
-    // We ignore fixed_fast_dt if not substepping
-    if (solverChoice.no_substepping && fixed_fast_dt > 0.) {
-        fixed_fast_dt = -1.0;
-        Warning("fixed_fast_dt will be ignored since we are not substepping");
-
-
-    // If both fixed_dt and fast_dt are specified, their ratio must be an even integer
-    } else if (fixed_dt > 0. && fixed_fast_dt > 0. && fixed_mri_dt_ratio <= 0)
+    for (int lev = 0; lev <= max_level; lev++)
     {
-        Real eps = 1.e-12;
-        int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt ) / fixed_fast_dt );
-        if (fixed_dt / fixed_fast_dt != ratio)
-        {
-            Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
+        // We ignore fixed_fast_dt if not substepping
+        if (solverChoice.no_substepping) {
+            fixed_fast_dt[lev] = -1.0;
         }
-    }
 
-    // If all three are specified, they must be consistent
-    if (fixed_dt > 0. && fixed_fast_dt > 0. &&  fixed_mri_dt_ratio > 0)
-    {
-        if (fixed_dt / fixed_fast_dt != fixed_mri_dt_ratio)
+        // If both fixed_dt and fast_dt are specified, their ratio must be an even integer
+        if (fixed_dt[lev] > 0. && fixed_fast_dt[lev] > 0. && fixed_mri_dt_ratio <= 0)
         {
-            Abort("Dt is over-specfied");
+            Real eps = 1.e-12;
+            int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt[lev] ) / fixed_fast_dt[lev] );
+            if (fixed_dt[lev] / fixed_fast_dt[lev] != ratio)
+            {
+                Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
+            }
         }
-    }
+
+        // If all three are specified, they must be consistent
+        if (fixed_dt[lev] > 0. && fixed_fast_dt[lev] > 0. &&  fixed_mri_dt_ratio > 0)
+        {
+            if (fixed_dt[lev] / fixed_fast_dt[lev] != fixed_mri_dt_ratio)
+            {
+                Abort("Dt is over-specfied");
+            }
+        }
+    } // lev
 
     if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
         Abort("For two-way coupling you must set cf_width = 0");
@@ -1632,17 +1649,23 @@ ERF::MakeHorizontalAverages ()
     auto domain = geom[0].Domain();
 
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    bool is_anelastic = (solverChoice.anelastic[lev] == 1);
 
     for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto  fab_arr = mf.array(mfi);
+        auto const  hse_arr = base_state[lev].const_array(mfi);
         auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             Real dens = cons_arr(i, j, k, Rho_comp);
             fab_arr(i, j, k, 0) = dens;
             fab_arr(i, j, k, 1) = cons_arr(i, j, k, RhoTheta_comp) / dens;
             if (!use_moisture) {
-                fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp));
+                if (is_anelastic) {
+                    fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
+                } else {
+                    fab_arr(i,j,k,2) = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp));
+                }
             }
         });
     }
@@ -1652,13 +1675,18 @@ ERF::MakeHorizontalAverages ()
         for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto  fab_arr = mf.array(mfi);
+            auto const  hse_arr = base_state[lev].const_array(mfi);
             auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
             auto const   qv_arr = qmoist[lev][0]->const_array(mfi);
             int ncomp = vars_new[lev][Vars::cons].nComp();
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real dens = cons_arr(i, j, k, Rho_comp);
-                fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+                if (is_anelastic) {
+                    fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
+                } else {
+                    fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+                }
                 fab_arr(i, j, k, 3) = (ncomp > RhoQ1_comp ? cons_arr(i, j, k, RhoQ1_comp) / dens : 0.0);
                 fab_arr(i, j, k, 4) = (ncomp > RhoQ2_comp ? cons_arr(i, j, k, RhoQ2_comp) / dens : 0.0);
             });

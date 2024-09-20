@@ -7,14 +7,14 @@
  * The routines here call common routines in ERF_make_new_arrays.cpp
 */
 
-#include "prob_common.H"
+#include "ERF_prob_common.H"
 #include <ERF.H>
 #include <AMReX_buildInfo.H>
-#include <Utils.H>
+#include <ERF_Utils.H>
 #include <memory>
 
 #ifdef ERF_USE_MULTIBLOCK
-#include <MultiBlockContainer.H>
+#include <ERF_MultiBlockContainer.H>
 #endif
 
 using namespace amrex;
@@ -313,21 +313,17 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Update the base state at this level by interpolation from coarser level
     // ********************************************************************************************
-    // Interp all three components: rho, p, pi
-    int  icomp = 0; int bccomp = 0; int  ncomp = 3;
-
-    PhysBCFunctNoOp null_bc;
-    Interpolater* mapper = &cell_cons_interp;
-
-    Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
-    Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
-    Vector<Real> ftime    = {time, time};
-    Vector<Real> ctime    = {time, time};
-    InterpFromCoarseLevel(base_state[lev], time, base_state[lev-1],
-                          icomp, icomp, ncomp,
+    //
+    // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+    //       have been pre-filled - this includes ghost cells both inside and outside
+    //       the domain
+    //
+    InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
+                          IntVect(0,0,0), // do not fill ghost cells outside the domain
+                          base_state[lev-1], 0, 0, 3,
                           geom[lev-1], geom[lev],
-                          null_bc, 0, null_bc, 0, refRatio(lev-1),
-                          mapper, domain_bcs_type, bccomp);
+                          refRatio(lev-1), &cell_cons_interp,
+                          domain_bcs_type, BCVars::cons_bc);
 
     initHSE(lev);
 
@@ -377,6 +373,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 {
     // amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
 
+    AMREX_ALWAYS_ASSERT(lev > 0);
     AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::Moving);
 
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
@@ -405,7 +402,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Build the data structures for terrain-related quantities
     // ********************************************************************************************
-    remake_zphys(lev, time, temp_zphys_nd);
+    remake_zphys(lev, temp_zphys_nd);
     update_terrain_arrays(lev);
 
     //
@@ -451,13 +448,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                            icomp, icomp, ncomp, geom[lev-1], geom[lev],
                            null_bc, 0, null_bc, 0, refRatio(lev-1),
                            mapper, domain_bcs_type, bccomp);
+        std::swap(temp_base_state, base_state[lev]);
     }
-    std::swap(temp_base_state, base_state[lev]);
-
-    // ********************************************************************************************
-    // Enforce HSE on new grids
-    // ********************************************************************************************
-    initHSE(lev);
 
     // ********************************************************************************************
     // Copy from new into old just in case

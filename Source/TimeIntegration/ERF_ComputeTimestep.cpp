@@ -1,4 +1,4 @@
-#include <EOS.H>
+#include <ERF_EOS.H>
 #include <ERF.H>
 
 using namespace amrex;
@@ -27,7 +27,7 @@ ERF::ComputeDt (int step)
         dt_0 = amrex::min(dt_0, n_factor*dt_tmp[lev]);
         if (step == 0){
             dt_0 *= init_shrink;
-            if (verbose) {
+            if (verbose && init_shrink != 1.0) {
                 Print() << "Timestep 0: shrink initial dt at level " << lev << " by " << init_shrink << std::endl;
             }
         }
@@ -59,8 +59,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     Real estdt_comp = 1.e20;
     Real estdt_lowM = 1.e20;
 
+    // We intentionally use the level 0 domain to compute whether to use this direction in the dt calculation
+    const int nxc = geom[0].Domain().length(0);
+    const int nyc = geom[0].Domain().length(1);
+
     auto const dxinv = geom[level].InvCellSizeArray();
-    auto const dzinv = 1.0 / dz_min;
+    auto const dzinv = 1.0 / dz_min[level];
 
     MultiFab const& S_new = vars_new[level][Vars::cons];
 
@@ -72,7 +76,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                         &vars_new[level][Vars::zvel]});
 
     int l_no_substepping = solverChoice.no_substepping;
-    int l_incompressible = solverChoice.incompressible[level];
+    int l_anelastic      = solverChoice.anelastic[level];
 
 #ifdef ERF_USE_EB
     EBFArrayBoxFactory ebfact = EBFactory(level);
@@ -111,15 +115,33 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    // If we are not doing the acoustic substepping, then the z-direction contributes
                    //    to the computation of the time step
                    if (l_no_substepping) {
-                       new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
-                                                ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       if (nxc > 1 && nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       } else if (nxc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       } else if (nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       } else {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       }
 
                    // If we are     doing the acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
                    } else {
-                       new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                       if (nxc > 1 && nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                       } else if (nxc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]), new_comp_dt);
+                       } else if (nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                       } else {
+                           amrex::Abort("Not sure how to compute dt for this case");
+                       }
                    }
                }
            });
@@ -148,36 +170,37 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          estdt_lowM = cfl / estdt_lowM_inv;
 
      if (verbose) {
-         if (fixed_dt <= 0.0) {
-             Print() << "Using cfl = " << cfl << std::endl;
+         if (fixed_dt[level] <= 0.0) {
+             Print() << "Using cfl = " << cfl << " and dx/dy/dz_min = " <<
+               1.0/dxinv[0] << " " << 1.0/dxinv[1] << " " << dz_min[level] << std::endl;
              Print() << "Compressible dt at level " << level << ":  " << estdt_comp << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
-                 Print() << "Incompressible dt at level " << level << ":  " << estdt_lowM << std::endl;
+                 Print() << "Anelastic dt at level " << level << ":  " << estdt_lowM << std::endl;
              } else {
-                 Print() << "Incompressible dt at level " << level << ": undefined " << std::endl;
+                 Print() << "Anelastic dt at level " << level << ": undefined " << std::endl;
              }
          }
 
-         if (fixed_dt > 0.0) {
+         if (fixed_dt[level] > 0.0) {
              Print() << "Based on cfl of 1.0 " << std::endl;
              Print() << "Compressible dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
-                 Print() << "Incompressible dt at level " << level << " would be:  " << estdt_lowM/cfl << std::endl;
+                 Print() << "Anelastic dt at level " << level << " would be:  " << estdt_lowM/cfl << std::endl;
              } else {
-                 Print() << "Incompressible dt at level " << level << " would be undefined " << std::endl;
+                 Print() << "Anelastic dt at level " << level << " would be undefined " << std::endl;
              }
-             Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt << std::endl;
-             if (fixed_fast_dt > 0.0) {
-                 Print() << "Fixed fast dt at level " << level << "       is:  " << fixed_fast_dt << std::endl;
+             Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt[level] << std::endl;
+             if (fixed_fast_dt[level] > 0.0) {
+                 Print() << "Fixed fast dt at level " << level << "       is:  " << fixed_fast_dt[level] << std::endl;
              }
          }
      }
 
      if (!l_no_substepping) {
-         if (fixed_dt > 0. && fixed_fast_dt > 0.) {
-             dt_fast_ratio = static_cast<long>( fixed_dt / fixed_fast_dt );
-         } else if (fixed_dt > 0.) {
-             dt_fast_ratio = static_cast<long>( std::ceil((fixed_dt/estdt_comp)) );
+         if (fixed_dt[level] > 0. && fixed_fast_dt[level] > 0.) {
+             dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
+         } else if (fixed_dt[level] > 0.) {
+             dt_fast_ratio = static_cast<long>( std::ceil((fixed_dt[level]/estdt_comp)) );
          } else {
              dt_fast_ratio = (estdt_lowM_inv > 0.0) ? static_cast<long>( std::ceil((estdt_lowM/estdt_comp)) ) : 1;
          }
@@ -198,11 +221,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      } // if substepping
 
-     if (fixed_dt > 0.0) {
-         return fixed_dt;
+     if (fixed_dt[level] > 0.0) {
+         return fixed_dt[level];
      } else {
-         // Incompressible (substepping is not allowed)
-         if (l_incompressible) {
+         // Anelastic (substepping is not allowed)
+         if (l_anelastic) {
              return estdt_lowM;
 
          // Compressible with or without substepping

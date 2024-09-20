@@ -1,7 +1,7 @@
 #if defined(ERF_USE_NETCDF)
 
-#include <Src_headers.H>
-#include <Utils.H>
+#include <ERF_Src_headers.H>
+#include <ERF_Utils.H>
 
 using namespace amrex;
 

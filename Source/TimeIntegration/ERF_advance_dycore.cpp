@@ -1,15 +1,15 @@
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_TimeIntegrator.H>
 #include <ERF_MRI.H>
-#include <EddyViscosity.H>
-#include <EOS.H>
+#include <ERF_EddyViscosity.H>
+#include <ERF_EOS.H>
 #include <ERF.H>
-#include <TerrainMetrics.H>
+#include <ERF_TerrainMetrics.H>
 //#include <TI_headers.H>
-//#include <PlaneAverage.H>
-#include <Diffusion.H>
-#include <TileNoZ.H>
-#include <Utils.H>
+//#include <ERF_PlaneAverage.H>
+#include <ERF_Diffusion.H>
+#include <ERF_TileNoZ.H>
+#include <ERF_Utils.H>
 
 using namespace amrex;
 
@@ -71,9 +71,6 @@ void ERF::advance_dycore(int level,
 
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
-    bool rayleigh_damp_any = (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
-                              solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T);
-    d_rayleigh_ptrs_at_lev[Rayleigh::tau]      =              rayleigh_damp_any ? d_rayleigh_ptrs[level][Rayleigh::tau ].data() : nullptr;
     d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.rayleigh_damp_U   ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
     d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.rayleigh_damp_V   ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
     d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.rayleigh_damp_W   ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
@@ -188,7 +185,7 @@ void ERF::advance_dycore(int level,
 
     MultiFab Omega (state_old[IntVars::zmom].boxArray(),dm,1,1);
 
-#include "TI_utils.H"
+#include "ERF_TI_utils.H"
 
     // Additional SFS quantities, calculated once per timestep
     MultiFab* Hfx1 = SFS_hfx1_lev[level].get();
@@ -277,9 +274,9 @@ void ERF::advance_dycore(int level,
               fast_only, vel_and_mom_synced);
     cons_to_prim(state_old[IntVars::cons], state_old[IntVars::cons].nGrow());
 
-#include "TI_no_substep_fun.H"
-#include "TI_slow_rhs_fun.H"
-#include "TI_fast_rhs_fun.H"
+#include "ERF_TI_no_substep_fun.H"
+#include "ERF_TI_slow_rhs_fun.H"
+#include "ERF_TI_fast_rhs_fun.H"
 
     // ***************************************************************************************
     // Setup the integrator and integrate for a single timestep
@@ -294,7 +291,7 @@ void ERF::advance_dycore(int level,
     mri_integrator.set_post_update(post_update_fun);
 
 #ifdef ERF_USE_POISSON_SOLVE
-    if (solverChoice.incompressible[level]) {
+    if (solverChoice.anelastic[level]) {
         mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);
     }
 #endif

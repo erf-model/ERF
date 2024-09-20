@@ -3,8 +3,8 @@
 #include "AMReX_PlotFileUtil.H"
 #include "AMReX_MultiFabUtil.H"
 #include "ERF_WriteBndryPlanes.H"
-#include "IndexDefines.H"
-#include "Derive.H"
+#include "ERF_IndexDefines.H"
+#include "ERF_Derive.H"
 
 using namespace amrex;
 

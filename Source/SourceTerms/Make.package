@@ -4,12 +4,12 @@ CEXE_sources += ERF_make_mom_sources.cpp
 CEXE_sources += ERF_make_sources.cpp
 CEXE_sources += ERF_ApplySpongeZoneBCs.cpp
 CEXE_sources += ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
-CEXE_sources += NumericalDiffusion.cpp
+CEXE_sources += ERF_NumericalDiffusion.cpp
 
 ifeq ($(USE_NETCDF),TRUE)
 CEXE_sources += ERF_moist_set_rhs.cpp
 endif
 
-CEXE_headers += NumericalDiffusion.H
-CEXE_headers += Src_headers.H
+CEXE_headers += ERF_NumericalDiffusion.H
+CEXE_headers += ERF_Src_headers.H
 

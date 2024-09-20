@@ -8,7 +8,7 @@
 #include "ERF.H"
 
 #ifdef ERF_USE_MULTIBLOCK
-#include <MultiBlockContainer.H>
+#include <ERF_MultiBlockContainer.H>
 #endif
 
 #ifdef ERF_USE_WW3_COUPLING
