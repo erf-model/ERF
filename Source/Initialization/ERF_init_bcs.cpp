@@ -20,6 +20,9 @@ using namespace amrex;
 void ERF::init_bcs ()
 {
     bool rho_read = false;
+    Vector<Real> cons_dir_init(NBCVAR_max,0.0);
+    cons_dir_init[BCVars::Rho_bc_comp] = 1.0;
+    cons_dir_init[BCVars::RhoTheta_bc_comp] = -1.0;
     auto f = [this,&rho_read] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
@@ -205,6 +208,12 @@ void ERF::init_bcs ()
             if (pp.query("theta_grad", theta_grad_in))
             {
                 m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori] = theta_grad_in;
+            }
+
+            Real qv_in;
+            if (pp.query("qv", qv_in))
+            {
+                m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = qv_in*m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
             }
         }
         else if (bc_type == "slipwall")
@@ -453,17 +462,17 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::open);
                 }
             }
-            else if ( bct == ERF_BC::no_slip_wall)
+            else if ( bct == ERF_BC::no_slip_wall )
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
-                    }
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
-                        if (rho_read) {
-                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
-                        } else {
-                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir_prim);
+                        if (m_bc_extdir_vals[BCVars::cons_bc+i][ori] != cons_dir_init[BCVars::cons_bc+i]) {
+                            if (rho_read) {
+                                domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
+                            } else {
+                                domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_prim);
+                            }
                         }
                     }
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
@@ -472,12 +481,12 @@ void ERF::init_bcs ()
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
-                    }
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
-                        if (rho_read) {
-                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
-                        } else {
-                            domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir_prim);
+                        if (m_bc_extdir_vals[BCVars::cons_bc+i][ori] != cons_dir_init[BCVars::cons_bc+i]) {
+                            if (rho_read) {
+                                domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
+                            } else {
+                                domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_prim);
+                            }
                         }
                     }
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
