@@ -214,9 +214,9 @@ struct SolverChoice {
 
 #if defined(ERF_USE_POISSON_SOLVE)
         for (int lev = 0; lev <= max_level; lev++) {
-            if (anelastic[lev] != 0 && no_substepping == 0)
+            if (anelastic[lev] != 0 && no_substepping[lev] == 0)
             {
-                no_subtepping = 1;
+                no_substepping[lev] = 1;
             }
         }
 #endif
