@@ -1579,7 +1579,7 @@ ERF::ParameterSanityChecks ()
     for (int lev = 0; lev <= max_level; lev++)
     {
         // We ignore fixed_fast_dt if not substepping
-        if (solverChoice.no_substepping) {
+        if (solverChoice.no_substepping[lev]) {
             fixed_fast_dt[lev] = -1.0;
         }
 
