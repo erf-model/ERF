@@ -184,18 +184,7 @@ struct SolverChoice {
         // Should we project the initial velocity field to make it divergence-free?
         pp.query("project_initial_velocity", project_initial_velocity);
 
-        int nvals_inc = pp.countval("anelastic");
-        AMREX_ALWAYS_ASSERT(nvals_inc == 0 || nvals_inc == 1 || nvals_inc >= max_level+1);
-        amrex::Vector<int> anelastic_in; anelastic_in.resize(nvals_inc);
-        pp.queryarr("anelastic",anelastic_in);
-        if (nvals_inc == 0) {
-            for (int i = 0; i <= max_level; ++i) anelastic.push_back(0);
-            amrex::Warning("NOTE: ERF was built with the Poisson solver but the anelastic flag was not set");
-        } else if (nvals_inc == 1) {
-            for (int i = 0; i <= max_level; ++i) anelastic.push_back(anelastic_in[0]);
-        } else {
-            for (int i = 0; i <= max_level; ++i) anelastic.push_back(anelastic_in[0]);
-        }
+        read_int_string(max_level, "anelastic", anelastic, 0);
 
         bool any_anelastic = false;
         for (int i = 0; i <= max_level; ++i) {
@@ -219,15 +208,15 @@ struct SolverChoice {
         for (int i = 0; i <= max_level; ++i) anelastic[i] = 0;
 #endif
 
-        // Turn off acoustic substepping?
-        pp.query("no_substepping", no_substepping);
+        read_int_string(max_level, "no_substepping", no_substepping, 0);
+
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
 
 #if defined(ERF_USE_POISSON_SOLVE)
         for (int lev = 0; lev <= max_level; lev++) {
             if (anelastic[lev] != 0 && no_substepping == 0)
             {
-                amrex::Abort("If you specify anelastic, you must specific no_substepping");
+                no_subtepping = 1;
             }
         }
 #endif
@@ -363,7 +352,7 @@ struct SolverChoice {
         }
 
         // Which type of refinement
-        static std::string coupling_type_string = "OneWay";
+        static std::string coupling_type_string = "TwoWay";
         pp.query("coupling_type",coupling_type_string);
         if (coupling_type_string == "TwoWay") {
             coupling_type = CouplingType::TwoWay;
@@ -441,10 +430,10 @@ struct SolverChoice {
     void display(int max_level)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
-        amrex::Print() << "no_substepping              : " << no_substepping << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
-            amrex::Print() << "anelastic at level     : " << lev << " is " << anelastic[lev] << std::endl;
+            amrex::Print() << "anelastic      at level : " << lev << " is " <<     anelastic[lev] << std::endl;
+            amrex::Print() << "no_substepping at level : " << lev << " is " << no_substepping[lev] << std::endl;
         }
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
@@ -532,6 +521,24 @@ struct SolverChoice {
         }
     }
 
+    void read_int_string (int max_level, const char* string_to_read,
+                          amrex::Vector<int>& vec_to_fill, int default_int)
+    {
+        amrex::ParmParse pp("erf");
+        int nvals = pp.countval(string_to_read);
+        AMREX_ALWAYS_ASSERT(nvals == 0 || nvals == 1 || nvals >= max_level+1);
+        amrex::Vector<int> temp; temp.resize(nvals);
+        pp.queryarr(string_to_read,temp);
+        if (nvals == 0) {
+            for (int i = 0; i <= max_level; ++i) vec_to_fill.push_back(default_int);
+        } else if (nvals == 1) {
+            for (int i = 0; i <= max_level; ++i) vec_to_fill.push_back(temp[0]);
+        } else {
+            for (int i = 0; i <= max_level; ++i) vec_to_fill.push_back(temp[i]);
+        }
+    }
+
+
     AdvChoice    advChoice;
     DiffChoice   diffChoice;
     SpongeChoice spongeChoice;
@@ -540,10 +547,11 @@ struct SolverChoice {
     // Default prefix
     std::string pp_prefix {"erf"};
 
-    int         no_substepping              = 0;
     int         force_stage1_single_substep = 1;
 
+    amrex::Vector<int> no_substepping;
     amrex::Vector<int> anelastic;
+
     int         constant_density    = 0;
     int         project_every_stage = 1;
     int         ncorr               = 1;
