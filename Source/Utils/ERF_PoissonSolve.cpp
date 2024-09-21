@@ -51,10 +51,23 @@ bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
 void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, MultiFab& pmf)
 {
     BL_PROFILE("ERF::project_velocities()");
+
     AMREX_ALWAYS_ASSERT(!solverChoice.use_terrain);
 
-    // Make sure the solver only sees the levels over which we are solving
+    auto const dom_lo = lbound(geom[lev].Domain());
+    auto const dom_hi = ubound(geom[lev].Domain());
+
     LPInfo info;
+#if 0
+    // Allow a hidden direction if the domain is one cell wide in any lateral direction
+    if (dom_lo.x == dom_hi.x) {
+        info.setHiddenDirection(0);
+    } else if (dom_lo.y == dom_hi.y) {
+        info.setHiddenDirection(1);
+    }
+#endif
+
+    // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(mom_mf[Vars::cons].DistributionMap());
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
@@ -109,9 +122,6 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // Initialize phi to 0
     phi[0].setVal(0.0);
 
-    // Divide rhs by dt so that solution will actually be delta pressure, not delta pressure / time
-    rhs[0].mult(l_dt);
-
     MLMG mlmg(mlpoisson);
     int max_iter = 100;
     mlmg.setMaxIter(max_iter);
@@ -126,17 +136,14 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
     mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
 
-    // Update pressure variable with phi -- note that phi is change in pressure, not the full pressure
-    MultiFab::Saxpy(pmf, 1.0, phi[0],0,0,1,0);
-    pmf.FillBoundary(geom[lev].periodicity());
-
     // Subtract (dt rho0/rho) grad(phi) from the rho0-weighted velocity components
     MultiFab::Add(mom_mf[IntVars::xmom],fluxes[0][0],0,0,1,0);
     MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
     MultiFab::Add(mom_mf[IntVars::zmom],fluxes[0][2],0,0,1,0);
 
-    auto const dom_lo = lbound(geom[lev].Domain());
-    auto const dom_hi = ubound(geom[lev].Domain());
+    // Update pressure variable with phi -- note that phi is dt * change in pressure
+    MultiFab::Saxpy(pmf, 1.0/l_dt, phi[0],0,0,1,0);
+    pmf.FillBoundary(geom[lev].periodicity());
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
