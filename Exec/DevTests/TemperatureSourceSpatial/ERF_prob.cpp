@@ -1,6 +1,6 @@
 #include "ERF_prob.H"
 #include "AMReX_Random.H"
-#include <Utils/ParFunctions.H>
+#include <Utils/ERF_ParFunctions.H>
 
 using namespace amrex;
 

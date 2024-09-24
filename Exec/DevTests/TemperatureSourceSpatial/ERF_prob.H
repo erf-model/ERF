@@ -60,8 +60,8 @@ class Problem : public ProblemBase
 public:
     Problem(const amrex::Real* problo, const amrex::Real* probhi);
 
-#include "Prob/init_constant_density_hse.H"
-#include "Prob/init_rayleigh_damping.H"
+#include "Prob/ERF_init_constant_density_hse.H"
+#include "Prob/ERF_init_rayleigh_damping.H"
 
     void init_custom_pert (
         const amrex::Box&  bx,
