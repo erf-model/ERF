@@ -16,6 +16,8 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto phi = geom.ProbHiArray();
+    const auto dx_h = Geom(m_lev).CellSize();
+    const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
     const auto dx = geom.CellSizeArray();
     const auto dxi = geom.InvCellSizeArray();
     const auto domain = geom.Domain();
@@ -31,13 +33,10 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     int num_sd_per_cell = m_num_sd_per_cell;
     // number of physical particles per cell
     Real num_par_per_cell = 0.0;
-    if (m_numdens_init >= 0) {
-        const Real cell_volume = dx[0]*dx[1]*dx[2];
-        num_par_per_cell = std::ceil(m_numdens_init*cell_volume);
-    } else {
-        num_par_per_cell = 1;
+    for (int i = 0; i < m_num_initializations; i++) {
+        num_par_per_cell += m_initializations[i]->numParticlesPerCell(cell_volume);
     }
-    Real multiplicity = std::ceil(num_par_per_cell/num_sd_per_cell);
+    auto multiplicity = num_par_per_cell / num_sd_per_cell;
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

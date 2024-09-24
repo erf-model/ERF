@@ -55,6 +55,8 @@ MaterialProperties::MaterialProperties ( const std::string& a_name )
         setProperties_H2O();
     } else if (a_name == MaterialNames::nacl) {
         setProperties_NaCl();
+    } else if (a_name == MaterialNames::amsu) {
+        setProperties_AmSu();
     } else if (a_name == MaterialNames::soil) {
         setProperties_soil();
     } else {
@@ -87,6 +89,22 @@ void MaterialProperties::setProperties_NaCl()
     m_coeff_VP_solute = DBL_MAX; // m^3
     m_ionization = 2;
     m_mol_weight = 5.844e-02; //kg mol^-1
+    m_lat_vap = DBL_MAX;
+    m_Rv = DBL_MAX;
+    m_is_soluble = true;
+
+    m_saturation_pressure_func = nullptr;
+    m_saturation_vapfrac_func = nullptr;
+}
+
+void MaterialProperties::setProperties_AmSu()
+{
+    m_density = 1780.0;
+
+    m_coeff_curv = DBL_MAX; // m K
+    m_coeff_VP_solute = DBL_MAX; // m^3
+    m_ionization = 2;
+    m_mol_weight = 1.11511e-01; //kg mol^-1
     m_lat_vap = DBL_MAX;
     m_Rv = DBL_MAX;
     m_is_soluble = true;

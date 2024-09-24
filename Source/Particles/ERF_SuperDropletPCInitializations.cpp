@@ -33,14 +33,9 @@ void SuperDropletPC::readInputs ()
 
     /* default values */
     m_nucleate_particles = false;
-    m_max_multiplicity = 1000000;
-    m_numdens_init = -1;
-    m_numdens_sd_init = m_numdens_init / m_max_multiplicity;
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
     m_distribution_grid_size = 100;
-    m_ppc_seed = 0;
-    m_seed_mass = 0.0;
 
     /* Newton solver parameters */
     m_newton_rtol = 1.0e-6;
@@ -59,25 +54,16 @@ void SuperDropletPC::readInputs ()
     std::string coal_kernel_name = "";
     std::string term_vel_name = "";
     if (m_vapour_mat->name() == MaterialNames::h2o) {
-        m_mass_condensate_mean = 4.1887902e-42; // => radius = 1e-15 [m]
-        m_radius_condensate_min = 1e-15;
-        m_radius_condensate_max = 1e-15;
-        m_condensate_init_type = SupDropInit::attrib_init_lnr;
         m_coalescence_kernel = SDCoalescenceKernelType::sedimentation;
         coal_kernel_name = "sedimentation";
         m_include_brownian_coalescence = false;
         term_vel_name = "CloudRainShima";
+    } else {
+        amrex::Abort("Default values not being set for this vapour material");
     }
 
     /* read these parameters if specified */
     pp.query("nucleate_particles", m_nucleate_particles);
-    pp.query("initial_number_density", m_numdens_init);
-    pp.query("initial_super_droplet_density", m_numdens_sd_init);
-    pp.query("maximum_multiplicity", m_max_multiplicity);
-    pp.query("initial_condensate_distribution_type", m_condensate_init_type);
-    pp.query("initial_condensate_mass", m_mass_condensate_mean);
-    pp.query("initial_condensate_min_radius", m_radius_condensate_min);
-    pp.query("initial_condensate_max_radius", m_radius_condensate_max);
     pp.query("advect_with_flow", m_advect_w_flow);
     pp.query("advect_with_gravity", m_advect_w_gravity);
     pp.query("newton_solver_rtol", m_newton_rtol);
@@ -128,9 +114,6 @@ void SuperDropletPC::readInputs ()
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid terminal velocity choice!");
     }
 
-    pp.query("initial_seeds_per_cell", m_ppc_seed);
-    pp.query("seed_condensate_mass", m_seed_mass);
-
     {
         Vector<int> bin_size = {1,1,1};
         pp.queryarr("coalescence_bin_size", bin_size);
@@ -139,129 +122,26 @@ void SuperDropletPC::readInputs ()
         }
     }
 
-    {
-        if (m_initialization_type == SupDropInit::init_uniform)
-        {
-            Vector<Real> particle_box_lo(AMREX_SPACEDIM);
-            Vector<Real> particle_box_hi(AMREX_SPACEDIM);
+    pp.query("num_initializations", m_num_initializations);
+    m_initializations.resize(m_num_initializations);
+    for (int i = 0; i < m_num_initializations; i++) {
+        m_initializations[i] = std::make_unique<SDInitialization>();
 
-            // Defaults
-            for (int i = 0; i < AMREX_SPACEDIM; i++) {
-                particle_box_lo[i] = Geom(0).ProbLo(i);
-                particle_box_hi[i] = Geom(0).ProbHi(i);
-            }
-
-            pp.queryAdd("particle_box_lo", particle_box_lo, AMREX_SPACEDIM);
-            AMREX_ASSERT(particle_box_lo.size() == AMREX_SPACEDIM);
-
-            pp.queryAdd("particle_box_hi", particle_box_hi, AMREX_SPACEDIM);
-            AMREX_ASSERT(particle_box_hi.size() == AMREX_SPACEDIM);
-
-            m_init_particle_box.setLo(particle_box_lo);
-            m_init_particle_box.setHi(particle_box_hi);
-        } else if (m_initialization_type == SupDropInit::init_bubble){
-            Vector<Real> particle_bubble_center(AMREX_SPACEDIM);
-            Vector<Real> particle_bubble_radius(AMREX_SPACEDIM);
-
-            // Defaults
-            for (int i = 0; i < AMREX_SPACEDIM; i++) {
-                particle_bubble_center[i] = Geom(0).ProbHi(i)/2;
-                particle_bubble_radius[i] = Geom(0).ProbHi(i)/2;
-            }
-
-            pp.queryAdd("particle_bubble_center", particle_bubble_center, AMREX_SPACEDIM);
-            AMREX_ASSERT(particle_bubble_center.size() == AMREX_SPACEDIM);
-
-            pp.queryAdd("particle_bubble_radius", particle_bubble_radius, AMREX_SPACEDIM);
-            AMREX_ASSERT(particle_bubble_radius.size() == AMREX_SPACEDIM);
-
-            m_init_particle_box.setLo(particle_bubble_radius);
-            m_init_particle_box.setHi(particle_bubble_center);
-        }
-    }
-
-    for (int i = 0; i < m_num_aerosols; i++) {
-        // default values
-        m_aerosol_init_type[i] = SupDropInit::attrib_init_const;
-        if (m_aerosol_mat[i]->name() == MaterialNames::nacl) {
-            m_mass_aerosol_min[i] = 1.0e-22;
-            m_mass_aerosol_mean[i] = 1.0e-19;
-            // the following values for radius will result
-            // in mean salt mass of ~O(1e-19) kg
-            m_radius_aerosol_min[i] = 1.0e-9;
-            m_radius_aerosol_max[i] = 5.0e-8;
-        }
-
-        {
-            std::string key = "initial_aerosol_distribution_type_"+m_aerosol_mat[i]->name();
-            pp.query(key.c_str(), m_aerosol_init_type[i]);
-        }
-        {
-            std::string key = "initial_aerosol_min_mass_" + m_aerosol_mat[i]->name();
-            pp.query(key.c_str(), m_mass_aerosol_min[i]);
-        }
-        {
-            std::string key = "initial_aerosol_mean_mass_" + m_aerosol_mat[i]->name();
-            pp.query(key.c_str(), m_mass_aerosol_mean[i]);
-        }
-        {
-            std::string key = "initial_aerosol_min_radius_" + m_aerosol_mat[i]->name();
-            pp.query(key.c_str(), m_radius_aerosol_min[i]);
-        }
-        {
-            std::string key = "initial_aerosol_max_radius_" + m_aerosol_mat[i]->name();
-            pp.query(key.c_str(), m_radius_aerosol_max[i]);
-        }
+        char i_str[12]; sprintf(i_str, "%d", i);
+        std::string prefix = m_name + "." + std::string(i_str);
+        m_initializations[i]->setDefaults(m_aerosol_mat);
+        m_initializations[i]->readInputs(m_name, Geom(0), m_aerosol_mat);
+        m_initializations[i]->readInputs(prefix, Geom(0), m_aerosol_mat);
     }
 
     return;
-}
-
-/*! Get real-type particle attribute names */
-Vector<std::string> SuperDropletPC::varNames () const
-{
-    BL_PROFILE("ERFPCPC::varNames()");
-    amrex::Vector<std::string> retval = {   AMREX_D_DECL("xvel","yvel","zvel"),
-                                            "particle_mass",
-                                            "radius",
-                                            "multiplicity",
-                                            "superdroplet_mass",
-                                            "terminal_velocity",
-                                            "t_coalescence" };
-    for (int i = 0; i < m_num_aerosols; i++) {
-        retval.push_back(std::string("aerosol_mass_"+m_aerosol_mat[i]->name()));
-    }
-    return retval;
-}
-
-/*! Get Eulerian plot variable names */
-Vector<std::string> SuperDropletPC::meshPlotVarNames () const
-{
-    BL_PROFILE("ERFPCPC::varNames()");
-    amrex::Vector<std::string> retval = { AMREX_D_DECL("mass_flux_x",
-                                                       "mass_flux_y",
-                                                       "mass_flux_z"),
-                                          "number_density",
-                                          "mass_density",
-                                          "radius",
-                                          ("mass_density_"+m_vapour_mat->name()),
-                                          AMREX_D_DECL (
-                                              ("mass_flux_x_"+m_vapour_mat->name()),
-                                              ("mass_flux_y_"+m_vapour_mat->name()),
-                                              ("mass_flux_z_"+m_vapour_mat->name()) ) };
-    for (int i = 0; i < m_num_aerosols; i++) {
-        retval.push_back(std::string("aerosol_mass_density_"+m_aerosol_mat[i]->name()));
-        retval.push_back(std::string("aerosol_mass_flux_x_"+m_aerosol_mat[i]->name()));
-        retval.push_back(std::string("aerosol_mass_flux_y_"+m_aerosol_mat[i]->name()));
-        retval.push_back(std::string("aerosol_mass_flux_z_"+m_aerosol_mat[i]->name()));
-    }
-    return retval;
 }
 
 /*! define super-droplets */
 void SuperDropletPC::define (  const std::string&              a_vap_mat,
                                const std::vector<std::string>& a_aerosol_mat)
 {
+    m_num_sd_per_cell = 0;
     m_num_unconverged_particles = 0;
 
     m_aerosol_mat.clear();
@@ -269,11 +149,6 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
     setVapourMaterial( a_vap_mat );
     setAerosolMaterial( a_aerosol_mat );
     m_num_aerosols = m_aerosol_mat.size();
-    m_mass_aerosol_min.resize(m_num_aerosols);
-    m_mass_aerosol_mean.resize(m_num_aerosols);
-    m_radius_aerosol_min.resize(m_num_aerosols);
-    m_radius_aerosol_max.resize(m_num_aerosols);
-    m_aerosol_init_type.resize(m_num_aerosols);
     AMREX_ASSERT(m_num_aerosols <= SupDropInit::num_aerosols_max);
 
     add_superdroplet_attributes();
@@ -284,6 +159,54 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
 #endif
     if (m_mass_change_logging) {
         m_mass_change_log = fopen(m_mass_change_log_fname.c_str(), "w");
+    }
+}
+
+/*! Initialize the particles */
+void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
+{
+    Print() << "SuperDropletPC(" << m_name << "):\n"
+            << "    Coalescence bin size: " << m_coalescence_bin_size << "\n"
+            << "    Include Brownian coaslescence: "
+            << (m_include_brownian_coalescence ? "true" : "false") << "\n";
+    Print() << "    Coalescence kernel: ";
+    if (m_coalescence_kernel == SDCoalescenceKernelType::golovin) {
+        Print() << "golovin" << "\n";
+    } else if (m_coalescence_kernel == SDCoalescenceKernelType::sedimentation) {
+        Print() << "sedimentation" << "\n";
+    } else if (m_coalescence_kernel == SDCoalescenceKernelType::Longs) {
+        Print() << "Longs" << "\n";
+    } else if (m_coalescence_kernel == SDCoalescenceKernelType::Halls) {
+        Print() << "Halls" << "\n";
+    }
+    Print() << "    Mass change time integrator: ";
+    if (m_mass_change_ti == SDMassChangeTIMethod::RK3BS) {
+        Print() << "rk3bs";
+    } else if (m_mass_change_ti == SDMassChangeTIMethod::RK4) {
+        Print() << "rk4";
+    } else if (m_mass_change_ti == SDMassChangeTIMethod::BE) {
+        Print() << "backward_euler";
+    } else if (m_mass_change_ti == SDMassChangeTIMethod::CN) {
+        Print() << "crank_nicolson";
+    } else if (m_mass_change_ti == SDMassChangeTIMethod::DIRK2) {
+        Print() << "dirk2";
+    }
+    Print() << " (cfl = " << m_mass_change_cfl << ")\n";
+    Print() << "    Terminal velocity model: ";
+    if (m_term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
+        Print() << "AtlasUlbrich" << "\n";
+    } else if (m_term_vel_type ==  SDTerminalVelocityType::CloudRainShima) {
+        Print() << "CloudRainShima" << "\n";
+    }
+    Print() << "    Vapour material: " << m_vapour_mat->name() << "\n";
+
+    for (int i = 0; i < m_num_initializations; i++) {
+        Print() << "SuperDropletPC(" << m_name << ") Initialization";
+        if (m_num_initializations > 1) { Print() << " " << i; }
+        Print() << ":\n";
+        m_initializations[i]->printParameters(m_aerosol_mat);
+        initializeParticles( a_ptr, *(m_initializations[i]) );
+        Print() << "    Particle container size: " << NumSuperDroplets() << "\n";
     }
 }
 
@@ -399,8 +322,7 @@ void SuperDropletPC::setNumSDBubbleDistribution (iMultiFab& a_num_sd, /*!< integ
     return;
 }
 
-/*! Initialize super-droplets in domain given an initialization type */
-/*! Uniform distribution: initializes super-droplets uniformly throughout the domain.
+/*! Initialize super-droplets in domain given an initialization type
 
     + The number of physical particles per cell is computed from the initial number density
       ("initial_number_density"), if specified (if not specified, it is taken to be 1).
@@ -412,136 +334,52 @@ void SuperDropletPC::setNumSDBubbleDistribution (iMultiFab& a_num_sd, /*!< integ
     + The initial particle radius is the "equivalent radius" for the condensate material given
       the initial mass.
 */
-void SuperDropletPC::InitializeParticles (const std::string& a_initialization_type, /*!< init type */
-                                          const MFPtr& a_height_ptr, /*!< terrain */
-                                          const RealBox& a_particle_init_domain /*!< box within which to initialize particles */ )
+void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terrain */
+                                           const SDInitialization& a_init /*!< initialization parameters */ )
 {
-    BL_PROFILE("SuperDropletPC::initializeParticlesUniformDistribution");
+    BL_PROFILE("SuperDropletPC::initializeParticles");
 
+    const auto dx_h = Geom(m_lev).CellSize();
+    const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
     const auto dx = Geom(m_lev).CellSizeArray();
     const auto plo = Geom(m_lev).ProbLoArray();
 
-    const Real cell_volume = dx[0]*dx[1]*dx[2];
-
     // number of super-droplets per cell
-    int num_sd_per_cell = 0;
-    if (m_numdens_sd_init >= 0) {
-        num_sd_per_cell = static_cast<int>(std::ceil(m_numdens_sd_init*cell_volume));
-    } else {
-        num_sd_per_cell = m_ppc_init;
-    }
-    m_num_sd_per_cell = num_sd_per_cell;
+    int num_sd_per_cell = a_init.numSDPerCell(cell_volume);
+    m_num_sd_per_cell += num_sd_per_cell;
 
     // number of physical particles per cell
-    Real num_par_per_cell = 0.0;
-    if (m_numdens_init >= 0) {
-        num_par_per_cell = std::ceil(m_numdens_init*cell_volume);
-        if (!num_par_per_cell) {
-            return;
-        }
-    } else {
-        num_par_per_cell = 1;
-    }
+    Real num_par_per_cell = a_init.numParticlesPerCell(cell_volume);
+    if (!num_par_per_cell) { return; }
+
+    Print() << "    Number of physical particles per cell: " << num_par_per_cell << "\n"
+            << "    Number of super droplets per cell: " << num_sd_per_cell << "\n";
 
     const int n_aerosols = m_num_aerosols;
     const int n_aerosols_max = SupDropInit::num_aerosols_max;
     const Real mat_density = m_vapour_mat->density();
 
-    const int n_seeds = m_ppc_seed;
-    const Real condensate_mass_seed = m_seed_mass;
-
-    Print() << "SuperDropletPC(" << m_name << "):\n"
-            << "    Number of physical particles per cell: " << num_par_per_cell << "\n"
-            << "    Number of super droplets per cell: " << num_sd_per_cell << "\n"
-            << "    Initial particle box: " << a_particle_init_domain << "\n"
-            << "    Coalescence bin size: " << m_coalescence_bin_size << "\n"
-            << "    Include Brownian coaslescence: "
-            << (m_include_brownian_coalescence ? "true" : "false") << "\n";
-
-    Print() << "    Coalescence kernel: ";
-    if (m_coalescence_kernel == SDCoalescenceKernelType::golovin) {
-        Print() << "golovin" << "\n";
-    } else if (m_coalescence_kernel == SDCoalescenceKernelType::sedimentation) {
-        Print() << "sedimentation" << "\n";
-    } else if (m_coalescence_kernel == SDCoalescenceKernelType::Longs) {
-        Print() << "Longs" << "\n";
-    } else if (m_coalescence_kernel == SDCoalescenceKernelType::Halls) {
-        Print() << "Halls" << "\n";
-    }
-
-    Print() << "    Mass change time integrator: ";
-    if (m_mass_change_ti == SDMassChangeTIMethod::RK3BS) {
-        Print() << "rk3bs";
-    } else if (m_mass_change_ti == SDMassChangeTIMethod::RK4) {
-        Print() << "rk4";
-    } else if (m_mass_change_ti == SDMassChangeTIMethod::BE) {
-        Print() << "backward_euler";
-    } else if (m_mass_change_ti == SDMassChangeTIMethod::CN) {
-        Print() << "crank_nicolson";
-    } else if (m_mass_change_ti == SDMassChangeTIMethod::DIRK2) {
-        Print() << "dirk2";
-    }
-    Print() << " (cfl = " << m_mass_change_cfl << ")\n";
-
-    Print() << "    Terminal velocity model: ";
-    if (m_term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
-        Print() << "AtlasUlbrich" << "\n";
-    } else if (m_term_vel_type ==  SDTerminalVelocityType::CloudRainShima) {
-        Print() << "CloudRainShima" << "\n";
-    }
-
-    Print() << "    Vapour material: " << m_vapour_mat->name() << "\n";
-
-    Print() << "    Condensate initial distribution: " << m_condensate_init_type << " (";
-    if (m_condensate_init_type == SupDropInit::attrib_init_const) {
-        Print() << "value=" << m_mass_condensate_mean;
-    } else if (m_condensate_init_type == SupDropInit::attrib_init_exp) {
-        Print() << "mean=" << m_mass_condensate_mean;
-    } else if (m_condensate_init_type == SupDropInit::attrib_init_lnr) {
-        Print() << "min=" << m_radius_condensate_min
-                << ", max=" << m_radius_condensate_max;
-    }
-    Print() << ")\n";
-
-    if (m_aerosol_mat.size() > 0) {
-        Print() << "    Aerosol materials:\n";
-        for (unsigned long i=0; i < m_aerosol_mat.size(); i++) {
-            Print() << "        "
-                    << m_aerosol_mat[i]->name()
-                    << " (Initial distribution: " << m_aerosol_init_type[i];
-            if (m_aerosol_init_type[i] == SupDropInit::attrib_init_const) {
-                Print() << ", value=" << m_mass_aerosol_mean[i];
-            } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_exp) {
-                Print() << ", min=" << m_mass_aerosol_min[i]
-                        << ", mean=" << m_mass_aerosol_mean[i];
-            } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_lnr) {
-                Print() << ", min=" << m_radius_aerosol_min[i]
-                        << ", max=" << m_radius_aerosol_max[i];
-            }
-            Print() << ")" << "\n";
-        }
-    }
-    Print() << "    Number of seed particles per cell: " << m_ppc_seed << "\n"
-            << "    Seed condensate mass: " << m_seed_mass << "\n";
+    const int n_seeds = a_init.m_ppc_seed;
+    const Real condensate_mass_seed = a_init.m_seed_mass;
 
     iMultiFab num_superdroplets( ParticleBoxArray(m_lev),
                                  ParticleDistributionMap(m_lev),
                                  1, 0 );
 
-    if (a_initialization_type == SupDropInit::init_uniform) {
+    if (a_init.m_type == SupDropInit::init_uniform) {
         setNumSDBoxDistribution( num_superdroplets,
                                  num_sd_per_cell,
                                  a_height_ptr,
-                                 a_particle_init_domain );
-    } else if (a_initialization_type == SupDropInit::init_bubble) {
+                                 a_init.m_init_particle_box );
+    } else if (a_init.m_type == SupDropInit::init_bubble) {
         setNumSDBubbleDistribution( num_superdroplets,
-                                 num_sd_per_cell,
-                                 a_height_ptr,
-                                 a_particle_init_domain );
-    } else if (a_initialization_type == SupDropInit::init_null) {
+                                    num_sd_per_cell,
+                                    a_height_ptr,
+                                    a_init.m_init_particle_box );
+    } else if (a_init.m_type == SupDropInit::init_null) {
         num_superdroplets.setVal(0);
     } else {
-        amrex::Print() << "Error: " << a_initialization_type
+        amrex::Print() << "Error: " << a_init.m_type
                         << " is not a valid initialization for "
                         << m_name << " particle species.\n";
         amrex::Error("See error message!");
@@ -569,30 +407,6 @@ void SuperDropletPC::InitializeParticles (const std::string& a_initialization_ty
         auto offset_arr = offsets[mfi].array();
 
         auto& particle_tile = DefineAndReturnParticleTile(m_lev, mfi);
-        particle_tile.resize(np);
-        auto* aos = &particle_tile.GetArrayOfStructs()[0];
-        auto& soa = particle_tile.GetStructOfArrays();
-
-        /* SoA attributes */
-        auto* vx_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data();
-        auto* vy_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data();
-        auto* vz_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
-        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
-
-        /* Runtime-added SoA attributes */
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
-        auto* tcoal_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::t_coalescence).data();
-
-        GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
-        for (int i = 0; i < n_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
-                                                    + SuperDropletsRealIdxSoA_RT::ncomps
-                                                    + i ).data();
-        }
 
         auto my_proc = ParallelDescriptor::MyProc();
         Long pid;
@@ -603,40 +417,38 @@ void SuperDropletPC::InitializeParticles (const std::string& a_initialization_ty
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE( static_cast<Long>(pid + np) < LastParticleID,
                                           "Error: overflow on particle id numbers!" );
 
+        auto size_old = static_cast<Long>(particle_tile.size());
+        auto size_new = size_old + np;
+        particle_tile.resize(size_new);
+        auto* aos = &particle_tile.GetArrayOfStructs()[0];
+        auto& soa = particle_tile.GetStructOfArrays();
+
+        /* SoA attributes */
+        auto* vx_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data() + size_old;
+        auto* vy_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data() + size_old;
+        auto* vz_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data() + size_old;
+        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data() + size_old;
+
+        /* Runtime-added SoA attributes */
+        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data() + size_old;
+        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data() + size_old;
+        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data() + size_old;
+        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data() + size_old;
+        auto* tcoal_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::t_coalescence).data() + size_old;
+
+        GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
+        for (int i = 0; i < n_aerosols; i++) {
+            aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
+                                                    + SuperDropletsRealIdxSoA_RT::ncomps
+                                                    + i ).data() + size_old;
+        }
+
         Gpu::DeviceVector<Real> aerosol_mass_d;
         aerosol_mass_d.resize(n_aerosols*np);
         for (int i = 0; i < n_aerosols; i++) {
-            auto aerosol_density = m_aerosol_mat[i]->density();
             Vector<Real> aerosol_mass_h;
-            aerosol_mass_h.resize(np);
-            if (m_aerosol_init_type[i] == SupDropInit::attrib_init_const) {
-                for (int n = 0; n < np; n++) {
-                    aerosol_mass_h[n] = m_mass_aerosol_mean[i];
-                }
-            } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_exp) {
-                std::random_device rd;
-                std::mt19937 rng(rd());
-                auto delta = m_mass_aerosol_mean[i] - m_mass_aerosol_min[i];
-                std::exponential_distribution<Real> ed(1.0/delta);
-                for (int n = 0; n < np; n++) {
-                    aerosol_mass_h[n] = ed(rng) + m_mass_aerosol_min[i];
-                }
-            } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_lnr) {
-                std::random_device rd;
-                std::mt19937 rng(rd());
-                std::uniform_real_distribution<> urd(0.0, 1.0);
-                Real delta =   std::log(m_radius_aerosol_max[i])
-                             - std::log(m_radius_aerosol_min[i]);
-                for (int n = 0; n < np; n++) {
-                    Real term = std::log(m_radius_aerosol_min[i]) + urd(rng)*delta;
-                    Real dry_r = std::exp(term);
-                    aerosol_mass_h[n] = (4.0/3.0) * PI
-                                        * dry_r * dry_r * dry_r
-                                        * aerosol_density;
-                }
-            } else {
-                Abort("Unknown m_aerosol_init_type!");
-            }
+            a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->density() );
             Gpu::copy( Gpu::hostToDevice,
                        aerosol_mass_h.begin(),
                        aerosol_mass_h.end(),
@@ -645,36 +457,9 @@ void SuperDropletPC::InitializeParticles (const std::string& a_initialization_ty
 
         Gpu::DeviceVector<Real> condensate_mass_d;
         {
-            Vector<Real> condensate_mass_h;
-            condensate_mass_h.resize(np);
             condensate_mass_d.resize(np);
-            if (m_condensate_init_type == SupDropInit::attrib_init_exp) {
-                std::random_device rd;
-                std::mt19937 rng(rd());
-                std::exponential_distribution<Real> ed(1.0/m_mass_condensate_mean);
-                for (int n = 0; n < np; n++) {
-                    condensate_mass_h[n] = ed(rng);
-                }
-            } else if (m_condensate_init_type == SupDropInit::attrib_init_const) {
-                for (int n = 0; n < np; n++) {
-                    condensate_mass_h[n] = m_mass_condensate_mean;
-                }
-            } else if (m_condensate_init_type == SupDropInit::attrib_init_lnr) {
-                std::random_device rd;
-                std::mt19937 rng(rd());
-                std::uniform_real_distribution<> urd(0.0, 1.0);
-                Real delta =    std::log(m_radius_condensate_max)
-                             -  std::log(m_radius_condensate_min);
-                for (int n = 0; n < np; n++) {
-                    Real term = std::log(m_radius_condensate_min) + urd(rng)*delta;
-                    Real radius = std::exp(term);
-                    condensate_mass_h[n] =    (4.0/3.0) * PI
-                                            * radius * radius * radius
-                                            * mat_density;
-                }
-            } else {
-                Abort("Unknown m_condensate_init_type!");
-            }
+            Vector<Real> condensate_mass_h;
+            a_init.getCondensateDistribution( condensate_mass_h, np, mat_density );
             Gpu::copy( Gpu::hostToDevice,
                        condensate_mass_h.begin(),
                        condensate_mass_h.end(),
@@ -708,7 +493,7 @@ void SuperDropletPC::InitializeParticles (const std::string& a_initialization_ty
                 }
                 num_to_add -= multiplicity;
 
-                auto& p = aos[n];
+                auto& p = aos[n+size_old];
                 p.id()  = pid + n;
                 p.cpu() = my_proc;
                 p.pos(0) = x;
@@ -820,13 +605,13 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     BL_PROFILE("SuperDropletPC::SetAttributes");
 
     const auto plo = Geom(m_lev).ProbLoArray();
+    const auto dx_h = Geom(m_lev).CellSize();
+    const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
     const auto dx = Geom(m_lev).CellSize();
     const auto dxi = Geom(m_lev).InvCellSizeArray();
     const auto domain = Geom(m_lev).Domain();
 
-    const Real cell_volume = dx[0]*dx[1]*dx[2];
     const int num_sd_per_cell = m_num_sd_per_cell;
-
     const int n_aerosols = m_num_aerosols;
     const int n_aerosols_max = SupDropInit::num_aerosols_max;
 
