@@ -5,7 +5,7 @@
 
 #include "AMReX_REAL.H"
 
-#include "prob_common.H"
+#include "ERF_prob_common.H"
 
 struct ProbParm : ProbParmDefaults {
   amrex::Real rho_0 = 0.0;

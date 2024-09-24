@@ -1,4 +1,4 @@
-#include "prob.H"
+#include "ERF_prob.H"
 #include "AMReX_Random.H"
 #include <Utils/ParFunctions.H>
 
