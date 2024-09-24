@@ -96,7 +96,7 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Get vapour material */
-        virtual inline MaterialProperties& getVapourMaterial() const
+        [[nodiscard]] virtual inline MaterialProperties& getVapourMaterial() const
         {
             return (*m_vapour_mat);
         }
@@ -116,10 +116,10 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Get real-type particle attribute names */
-        virtual amrex::Vector<std::string> varNames () const override;
+        [[nodiscard]] virtual amrex::Vector<std::string> varNames () const override;
 
         /*! \brief Get Eulerian plot variable names */
-        virtual amrex::Vector<std::string> meshPlotVarNames () const override;
+        [[nodiscard]] virtual amrex::Vector<std::string> meshPlotVarNames () const override;
 
         /*! \brief Compute mesh variable from particles */
         virtual void computeMeshVar( const std::string&,
@@ -181,13 +181,13 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */
-        inline virtual amrex::Long NumSuperDroplets ()
+        [[nodiscard]] inline virtual amrex::Long NumSuperDroplets ()
         {
             return ERFPC::TotalNumberOfParticles();
         }
 
         /*! \brief Return the total number of physical particles */
-        virtual amrex::Real TotalNumberOfParticles ();
+        [[nodiscard]] virtual amrex::Real TotalNumberOfParticles ();
 
         /*! \brief Compute and print diagnostics */
         virtual void Diagnostics (const int&, const bool);

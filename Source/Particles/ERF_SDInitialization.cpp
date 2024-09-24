@@ -68,23 +68,10 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
     for (int i = 0; i < m_num_aerosols; i++) {
         // default values
         m_aerosol_init_type[i] = SupDropInit::attrib_init_const;
-        if (a_aerosol_mat[i]->name() == MaterialNames::nacl) {
-            m_mass_aerosol_min[i] = 1.0e-22;
-            m_mass_aerosol_mean[i] = 1.0e-19;
-            // the following values for radius will result
-            // in mean salt mass of ~O(1e-19) kg
-            m_radius_aerosol_min[i] = 1.0e-9;
-            m_radius_aerosol_max[i] = 5.0e-8;
-        } else if (a_aerosol_mat[i]->name() == MaterialNames::soil) {
-            m_mass_aerosol_min[i] = 1.0e-22;
-            m_mass_aerosol_mean[i] = 1.0e-19;
-            // the following values for radius will result
-            // in mean salt mass of ~O(1e-19) kg
-            m_radius_aerosol_min[i] = 1.0e-9;
-            m_radius_aerosol_max[i] = 5.0e-8;
-        } else {
-            amrex::Abort("Default values are not being set for this aerosol");
-        }
+        m_mass_aerosol_min[i]   = 0.0;
+        m_mass_aerosol_mean[i]  = 0.0;
+        m_radius_aerosol_min[i] = 1.0e-40;
+        m_radius_aerosol_max[i] = 1.0e-40;
 
         {
             std::string key = "initial_aerosol_distribution_type_"+a_aerosol_mat[i]->name();
