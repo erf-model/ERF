@@ -5,6 +5,7 @@
 
 #include "ERF_MaterialProperties.H"
 #include "ERFPC.H"
+#include "ERF_SDInitialization.H"
 
 /*! \brief Real-type array-of-struct attributes of a super-droplet */
 using SuperDropletsRealIdxAoS = ERFParticlesRealIdxAoS;
@@ -31,25 +32,6 @@ struct SuperDropletsRealIdxSoA_RT
 
 /*! \brief Int-type struct-of-array attributes of a super-droplet */
 using SuperDropletsIntIdxSoA = ERFParticlesIntIdxSoA;
-
-/*! \brief Utilities for super-droplet PC */
-/*! \brief List of super-droplet initializations */
-namespace SupDropInit
-{
-    /*! Uniform distribution throughout domain */
-    const std::string init_uniform = "uniform";
-    /*! Uniform distribution inside a bubble */
-    const std::string init_bubble = "bubble";
-    /*! No particles are initialized; nucleation generates them */
-    const std::string init_null = "null";
-
-    /*! Maximum number of aerosols */
-    const int num_aerosols_max = 8;
-
-    const std::string attrib_init_const = "mass_constant";
-    const std::string attrib_init_exp = "mass_exponential";
-    const std::string attrib_init_lnr = "radius_log_normal";
-}
 
 /*! \brief Types of terminal velocity models */
 enum struct SDTerminalVelocityType {
@@ -145,22 +127,10 @@ class SuperDropletPC : public ERFPC
                                      const int ) const override;
 
         /*! \brief Initialize super-droplets in domain */
-        inline virtual void InitializeParticles (const MFPtr& a_ptr = nullptr) override
-        {
-            InitializeParticles( m_initialization_type, a_ptr, m_init_particle_box );
-        }
+        virtual void InitializeParticles (const MFPtr& a_ptr = nullptr) override;
 
-        /*! \brief Initialize super-droplets in domain */
-        inline virtual void InitializeParticles (const std::string& a_type,
-                                                 const MFPtr& a_ptr = nullptr)
-        {
-            InitializeParticles( a_type, a_ptr, m_init_particle_box );
-        }
-
-        /*! \brief Initialize super-droplets in domain */
-        virtual void InitializeParticles (  const std::string&,
-                                            const MFPtr& a_ptr,
-                                            const amrex::RealBox& );
+        /*! \brief Initialize particles for a given set of initialization parameters */
+        void initializeParticles ( const MFPtr&, const SDInitialization& );
 
         /*! \brief Set initial number of superdroplets per cell as a box with uniform density */
         void setNumSDBoxDistribution( amrex::iMultiFab&,
@@ -258,43 +228,19 @@ class SuperDropletPC : public ERFPC
 
         const int m_lev = 0; /*!< AMR Level: always 0 for super-droplets PC */
 
-        amrex::Real m_max_multiplicity;     /*!< Maximum multiplicity */
-        amrex::Real m_numdens_init;         /*!< Initial number density of physical particles */
-        amrex::Real m_numdens_sd_init;      /*!< Initial number density of super-droplets */
-
-        std::string m_condensate_init_type; /*!< type of condensate initial distribution */
-        amrex::Real m_mass_condensate_mean; /*!< Initial mean condensate mass */
-        amrex::Real m_radius_condensate_min; /*!< Initial minimum condensate radius */
-        amrex::Real m_radius_condensate_max; /*!< Initial maximum condensate radius */
-
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
 
         SDTerminalVelocityType m_term_vel_type; /*!< Terminal velocity model */
 
-        int m_ppc_seed; /*!< Number of seed particles per cell */
-        amrex::Real m_seed_mass; /*!< Condensate mass of seed */
-
-        /*! Minimum aerosol mass */
-        std::vector<amrex::Real> m_mass_aerosol_min;
-        /*! Mean aerosol mass */
-        std::vector<amrex::Real> m_mass_aerosol_mean;
-        /*! Minimum aerosol dry radius */
-        std::vector<amrex::Real> m_radius_aerosol_min;
-        /*! Maximum aerosol dry radius */
-        std::vector<amrex::Real> m_radius_aerosol_max;
-        /*! Initial distribution type for aerosol */
-        std::vector<std::string> m_aerosol_init_type;
-        int m_num_aerosols; /*!< Number of aerosols */
-
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
         bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
-        amrex::RealBox m_init_particle_box; /*!<box within which to place particles*/
 
+        int m_num_aerosols; /*!< Number of aerosols */
         std::unique_ptr<MaterialProperties> m_vapour_mat; /*!< Vapour material */
         std::vector<std::unique_ptr<MaterialProperties>> m_aerosol_mat; /*!< Aerosol materials */
 
-        /* Newton solver parameters */
+        /* Mass change equation Newton solver parameters */
         amrex::Real m_newton_rtol;  /*!< Newton solver - relative tolerance */
         amrex::Real m_newton_atol;  /*!< Newton solver - absolute tolerance */
         amrex::Real m_newton_stol;  /*!< Newton solver - step tolerance */
@@ -315,6 +261,10 @@ class SuperDropletPC : public ERFPC
 
         /*! maximum coalescence time scale */
         amrex::Real m_t_coalescence;
+
+        /*! Initialization parameters objects */
+        int m_num_initializations = 1;
+        std::vector< std::unique_ptr<SDInitialization> > m_initializations;
 
         /*! \brief read inputs from file */
         virtual void readInputs ();

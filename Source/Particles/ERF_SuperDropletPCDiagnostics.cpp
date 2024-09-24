@@ -8,6 +8,47 @@
 
 using namespace amrex;
 
+/*! Get real-type particle attribute names */
+Vector<std::string> SuperDropletPC::varNames () const
+{
+    BL_PROFILE("ERFPCPC::varNames()");
+    amrex::Vector<std::string> retval = {   AMREX_D_DECL("xvel","yvel","zvel"),
+                                            "particle_mass",
+                                            "radius",
+                                            "multiplicity",
+                                            "superdroplet_mass",
+                                            "terminal_velocity",
+                                            "t_coalescence" };
+    for (int i = 0; i < m_num_aerosols; i++) {
+        retval.push_back(std::string("aerosol_mass_"+m_aerosol_mat[i]->name()));
+    }
+    return retval;
+}
+
+/*! Get Eulerian plot variable names */
+Vector<std::string> SuperDropletPC::meshPlotVarNames () const
+{
+    BL_PROFILE("ERFPCPC::varNames()");
+    amrex::Vector<std::string> retval = { AMREX_D_DECL("mass_flux_x",
+                                                       "mass_flux_y",
+                                                       "mass_flux_z"),
+                                          "number_density",
+                                          "mass_density",
+                                          "radius",
+                                          ("mass_density_"+m_vapour_mat->name()),
+                                          AMREX_D_DECL (
+                                              ("mass_flux_x_"+m_vapour_mat->name()),
+                                              ("mass_flux_y_"+m_vapour_mat->name()),
+                                              ("mass_flux_z_"+m_vapour_mat->name()) ) };
+    for (int i = 0; i < m_num_aerosols; i++) {
+        retval.push_back(std::string("aerosol_mass_density_"+m_aerosol_mat[i]->name()));
+        retval.push_back(std::string("aerosol_mass_flux_x_"+m_aerosol_mat[i]->name()));
+        retval.push_back(std::string("aerosol_mass_flux_y_"+m_aerosol_mat[i]->name()));
+        retval.push_back(std::string("aerosol_mass_flux_z_"+m_aerosol_mat[i]->name()));
+    }
+    return retval;
+}
+
 /*! Compute diagnostics (max, min, avg radius, mass, etc) */
 void SuperDropletPC::Diagnostics( const int& a_iter,
                                   const bool a_flag )
