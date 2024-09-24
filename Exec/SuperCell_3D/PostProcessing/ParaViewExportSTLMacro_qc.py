@@ -21,7 +21,7 @@ animationScene1 = GetAnimationScene()
 animationScene1.UpdateAnimationUsingDataTimeSteps()
 
 # Properties modified on plot_filesseries
-plot_filesseries.CellArrayStatus = ['qc', 'qrain', 'rain_accum']
+plot_filesseries.CellArrayStatus = ['qc', 'rain_accum']
 
 # get active view
 renderView1 = GetActiveViewOrCreate('RenderView')
@@ -74,21 +74,70 @@ renderView1.Update()
 # hide data in view
 Hide(cellDatatoPointData1, renderView1)
 
-for i in arange(0, n, 1):
+for i in arange(5, n, 1):
 
-    print("Doing scene %d of %d"%(i,n))
+	print("Doing scene %d of %d"%(i,n)) 
 
+	
+	if(i<=9):
+		filename = "/pscratch/sd/n/nataraj2/ERF/SuperCell_3D/SolnFiles/4th_Standard_alpha66_YOpenXPer/STLFiles/qr/supercell_3d_00%d.stl"%i
+	elif(i<=99):
+		filename = "/pscratch/sd/n/nataraj2/ERF/SuperCell_3D/SolnFiles/4th_Standard_alpha66_YOpenXPer/STLFiles/qr/supercell_3d_0%d.stl"%i
+	elif(i<=999):
+		filename = "/pscratch/sd/n/nataraj2/ERF/SuperCell_3D/SolnFiles/4th_Standard_alpha66_YOpenXPer/STLFiles/qr/supercell_3d_%d.stl"%i
 
-    if(i<=9):
-        filename = "/pscratch/sd/n/nataraj2/ERF/SuperCell_3D/SolnFiles/4th_Standard_alpha66_YOpenXPer/supercell_3d_00%d.stl"%i
-    elif(i<=99):
-        filename = "/pscratch/sd/n/nataraj2/ERF/SuperCell_3D/SolnFiles/4th_Standard_alpha66_YOpenXPer/supercell_3d_0%d.stl"%i
-    elif(i<=999):
-        filename = "/pscratch/sd/n/nataraj2/ERF/SuperCell_3D/SolnFiles/4th_Standard_alpha66_YOpenXPer/supercell_3d_%d.stl"%i
-
-    print("filename is %s", filename)
+	print("filename is %s", filename)
 
 # save data
-    SaveData(filename, proxy=contour1)
+	SaveData(filename, proxy=contour1)
 
-    animationScene1.GoToNext()
+	animationScene1.GoToNext()
+
+#================================================================
+# addendum: following script captures some of the application
+# state to faithfully reproduce the visualization during playback
+#================================================================
+
+# get layout
+#layout1 = GetLayout()
+
+#--------------------------------
+# saving layout sizes for layouts
+
+# layout/tab size in pixels
+#layout1.SetSize(1918, 1074)
+
+#-----------------------------------
+# saving camera placements for views
+
+# current camera placement for renderView1
+#renderView1.CameraPosition = [43318.13587266245, -345293.42631722393, 60345.64466193015]
+#renderView1.CameraFocalPoint = [0.0, 0.0, 12000.0]
+#renderView1.CameraViewUp = [-0.10221585482631135, 0.12534642745465943, 0.9868334166142126]
+#renderView1.CameraParallelScale = 90934.04203047394
+
+
+##--------------------------------------------
+## You may need to add some code at the end of this python script depending on your usage, eg:
+#
+## Render all views to see them appears
+# RenderAllViews()
+#
+## Interact with the view, usefull when running from pvpython
+# Interact()
+#
+## Save a screenshot of the active view
+# SaveScreenshot("path/to/screenshot.png")
+#
+## Save a screenshot of a layout (multiple splitted view)
+# SaveScreenshot("path/to/screenshot.png", GetLayout())
+#
+## Save all "Extractors" from the pipeline browser
+# SaveExtracts()
+#
+## Save a animation of the current active view
+# SaveAnimation()
+#
+## Please refer to the documentation of paraview.simple
+## https://kitware.github.io/paraview-docs/latest/python/paraview.simple.html
+##--------------------------------------------
