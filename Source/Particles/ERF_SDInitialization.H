@@ -78,6 +78,9 @@ struct SDInitialization
     /*! box within which to place particles*/
     amrex::RealBox m_init_particle_box;
 
+    /*! set default values */
+    void setDefaults ( const std::vector<std::unique_ptr<MaterialProperties>>& );
+
     /*! read super-droplets initialization parameters */
     void readInputs ( const std::string&,
                       const amrex::Geometry&,

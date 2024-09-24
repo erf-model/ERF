@@ -1,5 +1,26 @@
 #include "ERF_SDInitialization.H"
 
+void SDInitialization::setDefaults ( const std::vector<std::unique_ptr<MaterialProperties>>& a_aerosol_mat )
+{
+    BL_PROFILE("SDInitialization::setDefaults");
+
+    m_num_aerosols = a_aerosol_mat.size();
+    m_mass_aerosol_min.resize(m_num_aerosols);
+    m_mass_aerosol_mean.resize(m_num_aerosols);
+    m_radius_aerosol_min.resize(m_num_aerosols);
+    m_radius_aerosol_max.resize(m_num_aerosols);
+    m_aerosol_init_type.resize(m_num_aerosols);
+
+    for (int i = 0; i < m_num_aerosols; i++) {
+        // default values
+        m_aerosol_init_type[i] = SupDropInit::attrib_init_const;
+        m_mass_aerosol_min[i]   = 0.0;
+        m_mass_aerosol_mean[i]  = 0.0;
+        m_radius_aerosol_min[i] = 1.0e-40;
+        m_radius_aerosol_max[i] = 1.0e-40;
+    }
+}
+
 void SDInitialization::readInputs ( const std::string& a_prefix,
                                     const amrex::Geometry& a_geom,
                                     const std::vector<std::unique_ptr<MaterialProperties>>& a_aerosol_mat )
@@ -58,21 +79,7 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
         m_init_particle_box.setHi(particle_bubble_center);
     }
 
-    m_num_aerosols = a_aerosol_mat.size();
-    m_mass_aerosol_min.resize(m_num_aerosols);
-    m_mass_aerosol_mean.resize(m_num_aerosols);
-    m_radius_aerosol_min.resize(m_num_aerosols);
-    m_radius_aerosol_max.resize(m_num_aerosols);
-    m_aerosol_init_type.resize(m_num_aerosols);
-
     for (int i = 0; i < m_num_aerosols; i++) {
-        // default values
-        m_aerosol_init_type[i] = SupDropInit::attrib_init_const;
-        m_mass_aerosol_min[i]   = 0.0;
-        m_mass_aerosol_mean[i]  = 0.0;
-        m_radius_aerosol_min[i] = 1.0e-40;
-        m_radius_aerosol_max[i] = 1.0e-40;
-
         {
             std::string key = "initial_aerosol_distribution_type_"+a_aerosol_mat[i]->name();
             pp.query(key.c_str(), m_aerosol_init_type[i]);

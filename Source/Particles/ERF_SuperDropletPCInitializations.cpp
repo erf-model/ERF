@@ -129,6 +129,7 @@ void SuperDropletPC::readInputs ()
 
         char i_str[12]; sprintf(i_str, "%d", i);
         std::string prefix = m_name + "." + std::string(i_str);
+        m_initializations[i]->setDefaults(m_aerosol_mat);
         m_initializations[i]->readInputs(m_name, Geom(0), m_aerosol_mat);
         m_initializations[i]->readInputs(prefix, Geom(0), m_aerosol_mat);
     }
