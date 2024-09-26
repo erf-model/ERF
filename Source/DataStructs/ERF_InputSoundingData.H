@@ -12,6 +12,7 @@
 #include <ERF_EOS.H>
 #include <ERF_Constants.H>
 #include <ERF_Interpolation_1D.H>
+#include <ERF_HSE_utils.H>
 
 /**
  * Data structure storing input sounding data. Also
@@ -179,7 +180,7 @@ public:
          * from the surface up through the air column to get the dry density
          * and moist pressure.
          */
-        const int maxiter = 10;
+        const amrex::Real tol = 1.0e-12;
         const int Ninp = size(itime);
         pm_integ.resize(Ninp);
         rhod_integ.resize(Ninp);
@@ -199,8 +200,6 @@ public:
         //   p_tot = rho_m R_d T_v
         //         = rho_d(1 + q_v) R_d T_v
 
-        // integrate from surface to domain top
-        amrex::Real dz;
 #if 0   // Printing
         // In this absence of moisture, this moist profile will match the
         // following dry profile
@@ -214,21 +213,33 @@ public:
                        << " " << V_inp_sound[itime][0]
                        << std::endl;
 #endif
+
+         // integrate from surface to domain top
+        amrex::Real dz, F, C;
+        amrex::Real rho_tot_hi, rho_tot_lo;
         for (int k=1; k < size(itime); ++k)
         {
+            // Vertical grid spacing
             dz = z_inp_sound[itime][k] - z_inp_sound[itime][k-1];
-            rhod_integ[k] = rhod_integ[k-1]; // guess
-            for (int it=0; it < maxiter; ++it)
-            {
-                amrex::Real rho_tot_hi = rhod_integ[k  ] * (1. + qv_inp_sound[itime][k  ]);
-                amrex::Real rho_tot_lo = rhod_integ[k-1] * (1. + qv_inp_sound[itime][k-1]);
-                pm_integ[k] = pm_integ[k-1] - 0.5*dz*(rho_tot_hi + rho_tot_lo)*CONST_GRAV;
-                AMREX_ALWAYS_ASSERT(pm_integ[k] > 0);
-                rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
-                                                      pm_integ[k],
-                                                      R_d/Cp_d,
-                                                      qv_inp_sound[itime][k]);
-            }
+
+            // Establish known constant
+            rho_tot_lo = rhod_integ[k-1] * (1. + qv_inp_sound[itime][k-1]);
+            C  = -pm_integ[k-1] + 0.5*rho_tot_lo*CONST_GRAV*dz;
+
+            // Initial guess and residual
+            pm_integ[k]   = pm_integ[k-1];
+            rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
+                                                  pm_integ[k],
+                                                  R_d/Cp_d,
+                                                  qv_inp_sound[itime][k]);
+            rho_tot_hi = rhod_integ[k] * (1. + qv_inp_sound[itime][k]);
+            F = pm_integ[k] + 0.5*rho_tot_hi*CONST_GRAV*dz + C;
+
+            // Do iterations
+            if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                              CONST_GRAV, C, theta_inp_sound[itime][k],
+                                                              qv_inp_sound[itime][k], qv_inp_sound[itime][k],
+                                                              pm_integ[k], rhod_integ[k], F);
 #if 0       // Printing
             amrex::Print() << z_inp_sound[itime][k]
                            << " " << pm_integ[k]
