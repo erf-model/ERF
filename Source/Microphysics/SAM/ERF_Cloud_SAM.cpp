@@ -38,7 +38,7 @@ SAM::Cloud (const SolverChoice& sc)
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto  pres_array = mic_fab_vars[MicVar::pres]->array(mfi);
 
-        const auto& box3d = mfi.tilebox(IntVect(0), IntVect(0,0,1));
+        const auto& box3d = mfi.tilebox();
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
