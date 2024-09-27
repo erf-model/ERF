@@ -8,7 +8,11 @@
 #include "ERF.H"
 
 #ifdef ERF_USE_MULTIBLOCK
+#ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
 #include <ERF_MultiBlockContainer.H>
+#else
+#include <MultiBlockContainer.H>
+#endif
 #endif
 
 #ifdef ERF_USE_WW3_COUPLING

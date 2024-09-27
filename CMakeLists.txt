@@ -184,12 +184,6 @@ configure_file(
   @ONLY
 )
 
-configure_package_config_file(
-  CMake/${PROJECT_NAME}Config.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-  )
-
 # General information about machine, compiler, and build type
 message(STATUS "ERF Information:")
 message(STATUS "CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
@@ -211,3 +205,56 @@ endif()
 if(ERF_ENABLE_DOCUMENTATION)
    add_subdirectory(Docs)
 endif()
+
+# Installation rules
+include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
+
+# Create non-object library for use as external target
+add_library(erf_api)
+if (BUILD_SHARED_LIBS)
+  set_target_properties(erf_api PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif()
+if (ERF_GPU_BACKEND STREQUAL "CUDA")
+   setup_target_for_cuda_compilation(erf_api)
+endif ()
+target_link_libraries(erf_api PUBLIC erf_srclib)
+add_library(${PROJECT_NAME}::erf_api ALIAS erf_srclib)
+
+# Collect all headers and make them installable with the target
+set(ERF_INCLUDES "Source/ERF.H;Source/ERF_Constants.H;Source/WindFarmParametrization/SimpleActuatorDisk/ERF_SimpleAD.H;Source/WindFarmParametrization/EWP/ERF_EWP.H;Source/WindFarmParametrization/Null/ERF_NullWindFarm.H;Source/WindFarmParametrization/ERF_WindFarm.H;Source/WindFarmParametrization/Fitch/ERF_Fitch.H;Source/BoundaryConditions/ERF_PhysBCFunct.H;Source/BoundaryConditions/ERF_MOSTAverage.H;Source/BoundaryConditions/ERF_MOSTRoughness.H;Source/BoundaryConditions/ERF_ABLMost.H;Source/BoundaryConditions/ERF_FillPatcher.H;Source/BoundaryConditions/ERF_MOSTStress.H;Source/BoundaryConditions/ERF_TimeInterpolatedData.H;Source/Utils/ERF_Interpolation.H;Source/Utils/ERF_TileNoZ.H;Source/Utils/ERF_PlaneAverage.H;Source/Utils/ERF_Interpolation_WENO.H;Source/Utils/ERF_DirectionSelector.H;Source/Utils/ERF_ParFunctions.H;Source/Utils/ERF_Wstar.H;Source/Utils/ERF_Microphysics_Utils.H;Source/Utils/ERF_Sat_methods.H;Source/Utils/ERF_Interpolation_1D.H;Source/Utils/ERF_Interpolation_UPW.H;Source/Utils/ERF_TerrainMetrics.H;Source/Utils/ERF_Interpolation_WENO_Z.H;Source/Utils/ERF_Thetav.H;Source/Utils/ERF_Water_vapor_saturation.H;Source/Utils/ERF_Utils.H;Source/Utils/ERF_Orbit.H;Source/Utils/ERF_EOS.H;Source/Utils/ERF_HSE_utils.H;Source/EB/ERF_TerrainIF.H;Source/EB/ERF_FlowerIF.H;Source/EB/ERF_eb_if.H;Source/Particles/ERFPC.H;Source/Particles/ERF_ParticleData.H;Source/Prob/ERF_init_density_hse_dry.H;Source/Prob/ERF_init_rayleigh_damping.H;Source/Prob/ERF_init_constant_density_hse.H;Source/ERF_prob_common.H;Source/ERF_Derive.H;Source/Radiation/ERF_Mam4_constituents.H;Source/Radiation/ERF_Mam4_aero.H;Source/Radiation/ERF_Optics.H;Source/Radiation/ERF_Modal_aero_wateruptake.H;Source/Radiation/ERF_Cloud_rad_props.H;Source/Radiation/ERF_Phys_prop.H;Source/Radiation/ERF_Radiation.H;Source/Radiation/ERF_Albedo.H;Source/Radiation/ERF_Parameterizations.H;Source/Radiation/ERF_Rad_constants.H;Source/Radiation/ERF_Aero_rad_props.H;Source/Radiation/ERF_m2005_effradius.H;Source/Radiation/ERF_Linear_interpolate.H;Source/Radiation/ERF_Slingo.H;Source/Radiation/ERF_Rrtmgp.H;Source/Radiation/ERF_Ebert_curry.H;Source/SourceTerms/ERF_NumericalDiffusion.H;Source/SourceTerms/ERF_Src_headers.H;Source/IO/ERF_NCInterface.H;Source/IO/ERF_NCWpsFile.H;Source/IO/ERF_NCPlotFile.H;Source/IO/ERF_ReadBndryPlanes.H;Source/IO/ERF_WriteBndryPlanes.H;Source/PBL/ERF_MYNNStruct.H;Source/PBL/ERF_PBLModels.H;Source/PBL/ERF_PBLHeight.H;Source/TimeIntegration/ERF_TI_fast_rhs_fun.H;Source/TimeIntegration/ERF_TI_slow_headers.H;Source/TimeIntegration/ERF_TI_slow_rhs_fun.H;Source/TimeIntegration/ERF_TI_fast_headers.H;Source/TimeIntegration/ERF_TI_utils.H;Source/TimeIntegration/ERF_MRI.H;Source/TimeIntegration/ERF_TI_no_substep_fun.H;Source/LandSurfaceModel/Null/ERF_NullSurf.H;Source/LandSurfaceModel/ERF_LandSurface.H;Source/LandSurfaceModel/MM5/ERF_MM5.H;Source/LandSurfaceModel/SLM/ERF_SLM.H;Source/ERF_IndexDefines.H;Source/Advection/ERF_AdvectionSrcForMom_N.H;Source/Advection/ERF_AdvectionSrcForScalars.H;Source/Advection/ERF_AdvectionSrcForMom_T.H;Source/Advection/ERF_Advection.H;Source/MultiBlock/ERF_MultiBlockContainer.H;Source/Initialization/ERF_Metgrid_utils.H;Source/Diffusion/ERF_EddyViscosity.H;Source/Diffusion/ERF_Diffusion.H;Source/Microphysics/Null/ERF_NullMoistLagrangian.H;Source/Microphysics/Null/ERF_NullMoist.H;Source/Microphysics/ERF_Microphysics.H;Source/Microphysics/ERF_LagrangianMicrophysics.H;Source/Microphysics/ERF_EulerianMicrophysics.H;Source/Microphysics/Kessler/ERF_Kessler.H;Source/Microphysics/SAM/ERF_SAM.H;Source/DataStructs/ERF_InputSpongeData.H;Source/DataStructs/ERF_TurbPertStruct.H;Source/DataStructs/ERF_SpongeStruct.H;Source/DataStructs/ERF_AdvStruct.H;Source/DataStructs/ERF_DataStruct.H;Source/DataStructs/ERF_InputSoundingData.H;Source/DataStructs/ERF_DiffStruct.H;Source/DataStructs/ERF_TurbStruct.H")
+set_target_properties(
+  erf_srclib PROPERTIES PUBLIC_HEADER "${ERF_INCLUDES}")
+
+# Install ERF
+install(
+  TARGETS erf_api erf_srclib
+  EXPORT ${PROJECT_NAME}Targets
+  RUNTIME       DESTINATION bin
+  ARCHIVE       DESTINATION lib
+  LIBRARY       DESTINATION lib
+  INCLUDES      DESTINATION include
+  PUBLIC_HEADER DESTINATION include
+  )
+
+# Install all headers in include directories
+#install(
+#  DIRECTORY ${ERF_INCLUDE_DIRECTORIES}
+#  DESTINATION include
+#  FILES_MATCHING PATTERN "*.H")
+
+# Make ERF discoverable using `find_package`
+install(
+  EXPORT ${PROJECT_NAME}Targets
+  NAMESPACE ${PROJECT_NAME}::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  )
+configure_package_config_file(
+  CMake/${PROJECT_NAME}Config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  )
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  )

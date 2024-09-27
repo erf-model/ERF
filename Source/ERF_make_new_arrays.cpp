@@ -14,12 +14,8 @@
 
 #include <ERF_Utils.H>
 #include <ERF_TerrainMetrics.H>
-#include <Utils/ERF_ParFunctions.H>
+#include <ERF_ParFunctions.H>
 #include <memory>
-
-#ifdef ERF_USE_MULTIBLOCK
-#include <ERF_MultiBlockContainer.H>
-#endif
 
 using namespace amrex;
 

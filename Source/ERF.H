@@ -124,6 +124,12 @@ public:
     // Initialize multilevel data
     void InitData ();
 
+    // Initialize multilevel data before MultiBlock
+    void InitData_pre ();
+
+    // Initialize multilevel data after MultiBlock
+    void InitData_post ();
+
 #ifdef ERF_USE_EB
     void WriteMyEBSurface ();
 #endif
@@ -356,6 +362,9 @@ public:
 
     // Advance a block specified number of time steps
     void Evolve_MB (int MBstep, int max_block_step);
+
+    // Advance a block specified number of time steps
+    void Evolve_MB (MultiBlockContainer* mbc, int MBstep, int max_block_step);
 
     // get the current time values
     amrex::Real get_t_old() {return t_old[0];}

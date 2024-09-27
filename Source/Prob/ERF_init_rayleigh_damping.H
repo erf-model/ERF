@@ -1,4 +1,4 @@
-#include <Utils/ERF_ParFunctions.H>
+#include <ERF_ParFunctions.H>
 
 /**
  * Initialize a Rayleigh damping layer with the same structure as in WRF, based
