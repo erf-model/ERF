@@ -124,12 +124,12 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
   mf_vars_fitch.setVal(0.0);
   Real d_hub_height = hub_height;
   Real d_rotor_rad = rotor_rad;
-     Gpu::DeviceVector<Real> d_wind_speed(wind_speed.size());
-    Gpu::DeviceVector<Real> d_thrust_coeff(thrust_coeff.size());
+  Gpu::DeviceVector<Real> d_wind_speed(wind_speed.size());
+  Gpu::DeviceVector<Real> d_thrust_coeff(thrust_coeff.size());
 
   // Copy data from host vectors to device vectors
-    Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
-    Gpu::copy(Gpu::hostToDevice, thrust_coeff.begin(), thrust_coeff.end(), d_thrust_coeff.begin());
+  Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
+  Gpu::copy(Gpu::hostToDevice, thrust_coeff.begin(), thrust_coeff.end(), d_thrust_coeff.begin());
 
   for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
