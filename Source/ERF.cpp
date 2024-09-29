@@ -626,6 +626,7 @@ ERF::InitData_pre ()
 void
 ERF::InitData_post ()
 {
+    BL_PROFILE_VAR("ERF::InitData_post()", InitData_post);
     if (restart_chkfile.empty()) {
         if (solverChoice.use_terrain) {
             if (init_type == "ideal") {
@@ -1184,7 +1185,7 @@ ERF::InitData_post ()
 
     }
 
-    BL_PROFILE_VAR_STOP(InitData);
+   BL_PROFILE_VAR_STOP(InitData_post);
 
 #ifdef ERF_USE_EB
     bool write_eb_surface = false;
