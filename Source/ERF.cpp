@@ -578,6 +578,7 @@ ERF::InitData ()
 #endif
 #endif
     InitData_post();
+    BL_PROFILE_VAR_STOP(InitData);
 }
 // This is called from main.cpp and handles all initialization, whether from start or restart
 void
@@ -1183,8 +1184,6 @@ ERF::InitData_post ()
         }
 
     }
-
-    BL_PROFILE_VAR_STOP(InitData);
 
 #ifdef ERF_USE_EB
     bool write_eb_surface = false;
