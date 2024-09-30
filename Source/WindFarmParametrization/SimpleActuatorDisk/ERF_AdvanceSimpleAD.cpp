@@ -114,7 +114,6 @@ void SimpleAD::compute_freestream_velocity(const MultiFab& cons_in,
                                  amrex::ParallelContext::CommunicatorAll());
 
     get_turb_loc(xloc, yloc);
-    std::cout << "xloc size is " << xloc.size() << "\n";
     if (ParallelDescriptor::IOProcessor()){
         for(int it=0; it<xloc.size(); it++){
 
