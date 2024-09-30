@@ -42,7 +42,7 @@ WindFarm::read_windfarm_locations_table(const std::string windfarm_loc_table,
     }
     else {
         amrex::Abort("Are you using windfarms? For windfarm simulations, the inputs need to have an"
-                     " entry erf.windfarm_loc_table which should not be None. \n");
+                     " entry erf.windfarm_loc_type which should not be either lat_lon or x_y. \n");
     }
 
     set_turb_loc(xloc, yloc);
@@ -190,6 +190,12 @@ WindFarm::read_windfarm_spec_table(const std::string windfarm_spec_table)
 
     set_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
+
+}
+
+void
+WindFarm::read_windfarm_blade_table(const std::string windfarm_blade_table)
+{
 
 }
 

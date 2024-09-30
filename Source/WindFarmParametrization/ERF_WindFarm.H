@@ -55,6 +55,10 @@ public:
 
     void read_windfarm_spec_table(const std::string windfarm_spec_table);
 
+    void read_windfarm_blade_table(const std::string windfarm_blade_table);
+
+    void read_windfarm_airofil_tables(const std::string windfarm_airfoils_tables);
+
     void fill_Nturb_multifab(const amrex::Geometry& geom,
                              amrex::MultiFab& mf_Nturb);
 

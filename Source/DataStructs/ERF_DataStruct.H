@@ -38,7 +38,7 @@ enum struct MoistureType {
 };
 
 enum struct WindFarmType {
-    Fitch, EWP, SimpleAD, None
+    Fitch, EWP, SimpleAD, GeneralAD, None
 };
 
 enum struct WindFarmLocType{
@@ -374,6 +374,9 @@ struct SolverChoice {
         else if (windfarm_type_string == "SimpleActuatorDisk") {
             windfarm_type = WindFarmType::SimpleAD;
         }
+        else if (windfarm_type_string == "GeneralActuatorDisk") {
+            windfarm_type = WindFarmType::GeneralAD;
+        }
         else if (windfarm_type_string != "None") {
             amrex::Abort("Are you using windfarms? Dont know this windfarm_type. windfarm_type"
                          " has to be Fitch or EWP or None.");
@@ -395,6 +398,8 @@ struct SolverChoice {
 
         pp.query("windfarm_loc_table",  windfarm_loc_table);
         pp.query("windfarm_spec_table", windfarm_spec_table);
+        pp.query("windfarm_blade_table", windfarm_blade_table);
+        pp.query("windfarm_airofil_tables", windfarm_airfoil_tables);
 
         // Sampling distance upstream of the turbine to find the
         // incoming free stream velocity as a factor of the diameter of the
@@ -656,6 +661,7 @@ struct SolverChoice {
     int RhoQr_comp {-1};
 
     std::string windfarm_loc_table, windfarm_spec_table;
+    std::string windfarm_blade_table, windfarm_airfoil_tables;
     amrex::Real sampling_distance_by_D = -1.0;
     amrex::Real turb_disk_angle = -1.0;
     amrex::Real windfarm_x_shift = -1.0;
