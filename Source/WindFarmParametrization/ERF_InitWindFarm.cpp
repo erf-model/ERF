@@ -196,7 +196,15 @@ WindFarm::read_windfarm_spec_table(const std::string windfarm_spec_table)
 void
 WindFarm::read_windfarm_blade_table(const std::string windfarm_blade_table)
 {
-
+    std::ifstream filename(windfarm_blade_table);
+    if (!filename.is_open()) {
+        Error("You are using a generalized actuator disk model based on blade element theory. This needs info of blades."
+                      " An entry erf.windfarm_blade_table is needed. Either the entry is missing or the file specified"
+                      " in the entry - " + windfarm_blade_table + " is missing.");
+    }
+    else {
+        Print() << "Reading in wind farm blade table: " << windfarm_blade_table << "\n";
+    }
 }
 
 void
