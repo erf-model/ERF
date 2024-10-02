@@ -42,7 +42,7 @@ WindFarm::read_windfarm_locations_table(const std::string windfarm_loc_table,
     }
     else {
         amrex::Abort("Are you using windfarms? For windfarm simulations, the inputs need to have an"
-                     " entry erf.windfarm_loc_type which should not be either lat_lon or x_y. \n");
+                     " entry erf.windfarm_loc_type which should be either lat_lon or x_y. \n");
     }
 
     set_turb_loc(xloc, yloc);
