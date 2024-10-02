@@ -139,9 +139,6 @@ struct SolverChoice {
 
         // Which expression (1,2 or 3) to use for buoyancy
         pp.query("buoyancy_type", buoyancy_type);
-        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
-            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
-        }
 
         // What type of land surface model to use
         static std::string lsm_model_string = "None";
@@ -168,10 +165,6 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
 
-        if (!use_lagged_delta_rt && !(terrain_type == TerrainType::Moving)) {
-            amrex::Error("Can't turn off lagged_delta_rt when terrain not moving");
-        }
-
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
         gravity = use_gravity? CONST_GRAV: 0.0;
@@ -179,6 +172,7 @@ struct SolverChoice {
         pp.query("c_p", c_p);
         rdOcp = R_d / c_p;
 
+        read_int_string(max_level, "no_substepping", no_substepping, 0);
 
 #if defined(ERF_USE_POISSON_SOLVE)
         // Should we project the initial velocity field to make it divergence-free?
@@ -194,6 +188,7 @@ struct SolverChoice {
         // If anelastic at all, we do not advect rho -- it is always == rho0
         if (any_anelastic == 1) {
             constant_density = true;
+            buoyancy_type = 2; // uses Tprime
         } else {
             constant_density = false;  // We default to false but allow the user to set it
             pp.query("constant_density", constant_density);
@@ -203,23 +198,19 @@ struct SolverChoice {
         pp.query("ncorr", ncorr);
         pp.query("poisson_abstol", poisson_abstol);
         pp.query("poisson_reltol", poisson_reltol);
+
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (anelastic[lev] != 0)
+            {
+                no_substepping[lev] = 1;
+            }
+        }
 #else
         anelastic.resize(max_level+1);
         for (int i = 0; i <= max_level; ++i) anelastic[i] = 0;
 #endif
 
-        read_int_string(max_level, "no_substepping", no_substepping, 0);
-
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
-
-#if defined(ERF_USE_POISSON_SOLVE)
-        for (int lev = 0; lev <= max_level; lev++) {
-            if (anelastic[lev] != 0 && no_substepping[lev] == 0)
-            {
-                no_substepping[lev] = 1;
-            }
-        }
-#endif
 
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
@@ -344,12 +335,6 @@ struct SolverChoice {
             }
         }
 
-        // Warn for PBL models and moisture - these may not yet be compatible
-        for (int lev = 0; lev <= max_level; lev++) {
-            if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
-                amrex::Warning("\n*** WARNING: Moisture may not yet be compatible with PBL models, \n    proceed with caution ***");
-            }
-        }
 
         // Which type of refinement
         static std::string coupling_type_string = "TwoWay";
@@ -406,7 +391,39 @@ struct SolverChoice {
         // turbine. ie. the sampling distance will be this number multiplied
         // by the diameter of the turbine
         pp.query("sampling_distance_by_D", sampling_distance_by_D);
-        if(windfarm_type==WindFarmType::SimpleAD and sampling_distance_by_D < 0.0) {
+        pp.query("turb_disk_angle_from_x", turb_disk_angle);
+
+        pp.query("windfarm_x_shift",windfarm_x_shift);
+        pp.query("windfarm_y_shift",windfarm_y_shift);
+        // Test if time averaged data is to be output
+        pp.query("time_avg_vel",time_avg_vel);
+
+        check_params(max_level);
+    }
+
+    void check_params(int max_level)
+    {
+        // Warn for PBL models and moisture - these may not yet be compatible
+        for (int lev = 0; lev <= max_level; lev++) {
+            if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
+                amrex::Warning("\n*** WARNING: Moisture may not yet be compatible with PBL models, \n    proceed with caution ***");
+            }
+        }
+        //
+        // Buoyancy type check
+        //
+        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
+            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
+        }
+
+        if (!use_lagged_delta_rt && !(terrain_type == TerrainType::Moving)) {
+            amrex::Error("Can't turn off lagged_delta_rt when terrain not moving");
+        }
+
+        //
+        // Wind farm checks
+        //
+        if (windfarm_type==WindFarmType::SimpleAD and sampling_distance_by_D < 0.0) {
              amrex::Abort("To use simplified actuator disks, you need to provide a variable"
                            " erf.sampling_distance_by_D in the inputs which specifies the upstream"
                            " distance as a factor of the turbine diameter at which the incoming free stream"
@@ -419,17 +436,12 @@ struct SolverChoice {
                           " turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction"
                           " will have turb_disk_angle value of 90 deg.");
         }
-
-        pp.query("windfarm_x_shift",windfarm_x_shift);
-        pp.query("windfarm_y_shift",windfarm_y_shift);
-        if(windfarm_loc_type == WindFarmLocType::lat_lon and (windfarm_x_shift < 0.0 or windfarm_y_shift < 0.0)) {
+        if (windfarm_loc_type == WindFarmLocType::lat_lon and (windfarm_x_shift < 0.0 or windfarm_y_shift < 0.0)) {
             amrex::Abort("You are using windfarms with latitude-logitude option to position the turbines."
                          " For this you should provide the inputs erf.windfarm_x_shift and"
                          " erf.windfarm_y_shift which are the values by which the bounding box of the"
                          " windfarm is shifted from the x and the y axes.");
         }
-        // Test if time averaged data is to be output
-        pp.query("time_avg_vel",time_avg_vel);
     }
 
     void display(int max_level)
