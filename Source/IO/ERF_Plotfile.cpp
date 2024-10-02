@@ -125,11 +125,6 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
 #endif
 
-    for (int i = 0; i < tmp_plot_names.size(); ++i) {
-        std::cout << tmp_plot_names[i] << "\n";
-    }
-    //std::cout << "Size of tmp_plot_names is " << tmp_plot_names.size() << "\n";
-
     plot_var_names = tmp_plot_names;
 }
 

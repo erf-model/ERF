@@ -388,8 +388,6 @@ WindFarm::write_actuator_disks_vtk(const Geometry& geom)
         Real nx = std::cos(my_turb_disk_angle+0.5*M_PI);
         Real ny = std::sin(my_turb_disk_angle+0.5*M_PI);
 
-        std::cout << "nx and ny are " << my_turb_disk_angle << " "<< nx << " " << ny << "\n";
-
         for(int it=0; it<xloc.size(); it++){
             for(int pt=0;pt<100;pt++){
                 Real x, y, z;
