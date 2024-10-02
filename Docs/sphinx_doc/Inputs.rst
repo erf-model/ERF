@@ -13,6 +13,22 @@ The ERF executable reads run-time information from an inputs file which you name
 This section describes the inputs which can be specified either in the inputs file or on the command line.
 A value specified on the command line will override a value specified in the inputs file.
 
+Governing Equations
+===================
++--------------------------+-----------------------------+---------------+-------------+
+| Parameter                | Definition                  | Acceptable    | Default     |
+|                          |                             | Values        |             |
++==========================+=============================+===============+=============+
+| **erf.anelastic**        | solve the anelastic         | true / false  | false       |
+|                          | equations (instead of       |               |             |
+|                          | the compressible equations) |               |             |
++--------------------------+-----------------------------+---------------+-------------+
+
+.. note::
+
+   To solve the anelastic equations, you must set ERF_USE_POISSON_SOLVE = TRUE if using
+   gmake or ERF_ENABLE_POISSON_SOLVE if using cmake.
+
 Problem Geometry
 ================
 
@@ -432,6 +448,8 @@ List of Parameters
 
 Notes
 -----------------
+
+-  | If **erf.anelastic** is true then **no_substepping** is internally set to 1.
 
 -  | The time step controls work somewhat differently depending on whether one is using
      acoustic substepping in time; this is determined by the value of **no_substepping**.
