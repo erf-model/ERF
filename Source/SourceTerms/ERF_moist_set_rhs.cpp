@@ -54,7 +54,11 @@ moist_set_rhs (const Box& tbx,
     oma = 1.0; alpha = 0.0;
     */
 
-    // Boundary data at fixed time intervals
+    // NOTE: These operations use the BDY FABS, so they are
+    //       GLOBAL and occur over the entire BDY region.
+
+    // Populate FABs from bdy interpolation (primitive vars)
+    //==========================================================
     const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][WRFBdyVars::QV].const_array();
     const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][WRFBdyVars::QV].const_array();
     const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][WRFBdyVars::QV].const_array();
@@ -131,18 +135,46 @@ moist_set_rhs (const Box& tbx,
     });
 
 
+    // NOTE: These operations use current density, so they are
+    //       LOCAL and occur over the data owned by a given rank
+
+    // Convert to conserved variables
+    //==========================================================
+    Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+    compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                                  tbx_xlo, tbx_xhi,
+                                  tbx_ylo, tbx_yhi,
+                                  ng_vect, true);
+    ParallelFor(tbx_xlo, tbx_xhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        arr_xlo(i,j,k) *= new_cons(i,j,k,Rho_comp);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        arr_xhi(i,j,k) *= new_cons(i,j,k,Rho_comp);
+    });
+
+    ParallelFor(tbx_ylo, tbx_yhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        arr_ylo(i,j,k) *= new_cons(i,j,k,Rho_comp);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        arr_yhi(i,j,k) *= new_cons(i,j,k,Rho_comp);
+    });
+
+
     // NOTE: We pass 'old_cons' here since the tendencies are with
     //       respect to the start of the RK integration.
 
     // Compute RHS in specified region
     //==========================================================
     if (set_width > 0) {
-        compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                      bx_xlo, bx_xhi,
-                                      bx_ylo, bx_yhi);
         wrfbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
                                       width, set_width, dom_lo, dom_hi,
-                                      bx_xlo,  bx_xhi,  bx_ylo,  bx_yhi,
+                                      tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                       arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                       old_cons, cell_rhs);
     }
@@ -156,11 +188,11 @@ moist_set_rhs (const Box& tbx,
     //==========================================================
     if (width > set_width) {
         compute_interior_ghost_bxs_xy(tbx, domain, width, set_width,
-                                      bx_xlo, bx_xhi,
-                                      bx_ylo, bx_yhi);
+                                      tbx_xlo, tbx_xhi,
+                                      tbx_ylo, tbx_yhi);
         wrfbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
                                             width, set_width, dom_lo, dom_hi, F1, F2,
-                                            bx_xlo, bx_xhi, bx_ylo, bx_yhi,
+                                            tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                             arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                             new_cons, cell_rhs);
     }
