@@ -158,7 +158,7 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
     Vector<int> ivar_map = {IntVars::xmom, IntVars::ymom, IntVars::cons, IntVars::cons};
 
     // Variable icomp map
-    Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
+    Vector<int> comp_map = {0, 0, RhoTheta_comp};
 
     // Indices
     int  ivarU = RealBdyVars::U;
@@ -177,8 +177,9 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
         domain.convert(S_cur_data[var_idx].boxArray().ixType());
 
         // Grown domain to get the 4 halo boxes w/ ghost cells
-        // NOTE: 2 ghost cells needed for U -> rho*U
-        IntVect ng_vect{2,2,0};
+        // NOTE: 1 ghost cells needed here for Laplacian
+        //       halo cell.
+        IntVect ng_vect{1,1,0};
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
@@ -213,11 +214,9 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
-        // NOTE: 2 ghost cells needed here. The first
-        //       ghost cell is to access the Laplacian
-        //       halo cell. The second ghost cell is
-        //       for averaging u -> rho*u.
-        IntVect ng_vect{2,2,0};
+        // NOTE: 1 ghost cells needed here for Laplacian
+        //       halo cell.
+        IntVect ng_vect{1,1,0};
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
