@@ -1,7 +1,7 @@
 /**
  * \file ERF_init_from_metgrid.cpp
  */
-
+#include <ERF_Constants.H>
 #include <ERF_Metgrid_utils.H>
 
 using namespace amrex;
@@ -846,6 +846,8 @@ init_base_state_from_metgrid (const bool use_moisture,
     // Make sure this lives on CPU and GPU
     Arena_Used = The_Pinned_Arena();
 #endif
+    // Expose for copy to GPU
+    Real grav = CONST_GRAV;
 
     { // set pressure and density at initialization.
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
@@ -872,7 +874,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             z_vec[kmax+1] =  new_z(i,j,kmax+1);
 
             calc_rho_p(kmax, flag_psfc_vec[0], orig_psfc(i,j,0),
-                       Thetad_vec, Thetam_vec, Q_vec, z_vec,
+                       grav, Thetad_vec, Thetam_vec, Q_vec, z_vec,
                        Rhod_vec, Rhom_vec, Pd_vec, Pm_vec);
 
             for (int k=0; k<=kmax; k++) {
@@ -976,7 +978,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             z_vec[kmax+1] = new_z(i,j,kmax+1);
 
             calc_rho_p(kmax, flag_psfc_vec[it], orig_psfc(i,j,0),
-                       Thetad_vec, Thetam_vec, Q_vec, z_vec,
+                       grav, Thetad_vec, Thetam_vec, Q_vec, z_vec,
                        Rhod_vec, Rhom_vec, Pd_vec, Pm_vec);
 
             for (int k=0; k<=kmax; k++) {

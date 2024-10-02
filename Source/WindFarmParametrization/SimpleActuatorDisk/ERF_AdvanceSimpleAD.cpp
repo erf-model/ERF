@@ -1,5 +1,6 @@
 #include <ERF_SimpleAD.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_Interpolation_1D.H>
 
 using namespace amrex;
 
@@ -173,6 +174,17 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
     Real ny = -std::sin(turb_disk_angle);
     Real d_turb_disk_angle = turb_disk_angle;
 
+    Gpu::DeviceVector<Real> d_wind_speed(wind_speed.size());
+    Gpu::DeviceVector<Real> d_thrust_coeff(thrust_coeff.size());
+
+    // Copy data from host vectors to device vectors
+    Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
+    Gpu::copy(Gpu::hostToDevice, thrust_coeff.begin(), thrust_coeff.end(), d_thrust_coeff.begin());
+
+    const Real* wind_speed_d     = d_wind_speed.dataPtr();
+    const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
+    const int n_spec_table = d_wind_speed.size();
+
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& gbx      = mfi.growntilebox(1);
@@ -193,11 +205,22 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                 Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
                 Real phi      = d_freestream_phi_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
 
+                Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, avg_vel, n_spec_table);
+                Real a;
+                if(C_T <= 1) {
+                    a = 0.5 - 0.5*std::pow(1.0-C_T,0.5);
+                }
                 Real Uinfty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
                 if(SMark_array(ii,jj,kk,1) == static_cast<double>(it)) {
-                        check_int++;
-                        source_x = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*0.25*(1.0-0.25)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
-                        source_y = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*0.25*(1.0-0.25)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                    check_int++;
+                    if(C_T <= 1) {
+                        source_x = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
+                           source_y = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                    }
+                    else {
+                        source_x = -0.5*C_T*std::pow(Uinfty_dot_nhat, 2.0)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
+                        source_y = -0.5*C_T*std::pow(Uinfty_dot_nhat, 2.0)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                    }
                 }
             }
             if(check_int > 1){

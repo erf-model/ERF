@@ -3,9 +3,9 @@
 
 #include <ERF.H>
 #include <ERF_EOS.H>
-#include <ERF_Constants.H>
 #include <ERF_Utils.H>
 #include <ERF_prob_common.H>
+#include <ERF_HSE_utils.H>
 
 void
 read_from_metgrid (int lev,
@@ -106,6 +106,7 @@ void
 calc_rho_p (const int& kmax,
             const int& flag_psfc,
             const amrex::Real& psfc,
+            const amrex::Real& grav,
             amrex::Real* Thetad_vec,
             amrex::Real* Thetam_vec,
             amrex::Real* Q_vec,
@@ -116,6 +117,7 @@ calc_rho_p (const int& kmax,
             amrex::Real* Pm_vec)
 {
     const int maxiter = 10;
+    const amrex::Real tol = 1.0e-12;
 
     // Calculate or use moist pressure at the surface.
     amrex::Real Psurf;
@@ -124,7 +126,7 @@ calc_rho_p (const int& kmax,
     } else {
         amrex::Real t_0 = 290.0; // WRF's model_config_rec%base_temp
         amrex::Real a   = 50.0; // WRF's model_config_rec%base_lapse
-        Psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2)-2.0*CONST_GRAV*z_vec[0]/(a*R_d)), 0.5));
+        Psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2)-2.0*grav*z_vec[0]/(a*R_d)), 0.5));
     }
 
     // Iterations for the first CC point that is 1/2 dz off the surface
@@ -133,7 +135,7 @@ calc_rho_p (const int& kmax,
         amrex::Real qvf = 1.0+(R_v/R_d)*Q_vec[0];
         Thetam_vec[0] = Thetad_vec[0]*qvf;
         for (int it=0; it<maxiter; it++) {
-            Pm_vec[0] = Psurf-half_dz*(Rhom_vec[0])*(1.0+Q_vec[0])*CONST_GRAV;
+            Pm_vec[0] = Psurf-half_dz*(Rhom_vec[0])*(1.0+Q_vec[0])*grav;
             if (Pm_vec[0] < 0.0) Pm_vec[0] = 0.0;
             Rhom_vec[0] = (p_0/(R_d*Thetam_vec[0]))*std::pow(Pm_vec[0]/p_0, iGamma);
         } // it
@@ -141,17 +143,32 @@ calc_rho_p (const int& kmax,
 
     // Integrate from the first CC point to the top boundary.
     for (int k=1; k<=kmax; k++) {
-        amrex::Real dz = z_vec[k]-z_vec[k-1];
+
+        // Assignment only for downward integration in following loop
         amrex::Real qvf = 1.0+(R_v/R_d)*Q_vec[k];
-        Thetam_vec[k] = Thetad_vec[k]*qvf;
-          Rhom_vec[k] = Rhom_vec[k-1]; // an initial guess.
-        for (int it=0; it<maxiter; it++) {
-            amrex::Real Rho_tot_hi = Rhom_vec[k  ] * (1.0+Q_vec[k  ]);
-            amrex::Real Rho_tot_lo = Rhom_vec[k-1] * (1.0+Q_vec[k-1]);
-            Pm_vec[k] = Pm_vec[k-1]-0.5*dz*(Rho_tot_hi + Rho_tot_lo)*CONST_GRAV;
-            if (Pm_vec[k] < 0.0) Pm_vec[k] = 0.0;
-            Rhom_vec[k] = (p_0/(R_d*Thetam_vec[k]))*std::pow(Pm_vec[k]/p_0, iGamma);
-        } // it
+        Thetam_vec[k]   = Thetad_vec[k]*qvf;
+
+        // Vertical grid spacing
+        amrex::Real dz = z_vec[k]-z_vec[k-1];
+
+        // Establish known constant
+        amrex::Real rho_tot_lo = Rhom_vec[k-1] * (1. + Q_vec[k-1]);
+        amrex::Real C = -Pm_vec[k-1] + 0.5*rho_tot_lo*grav*dz;
+
+        // Initial guess and residual
+        Pm_vec[k]   = Pm_vec[k-1];
+        Rhom_vec[k] = getRhogivenThetaPress(Thetad_vec[k],
+                                            Pm_vec[k],
+                                            R_d/Cp_d,
+                                            Q_vec[k]);
+        amrex::Real rho_tot_hi = Rhom_vec[k] * (1. + Q_vec[k]);
+        amrex::Real F = Pm_vec[k] + 0.5*rho_tot_hi*grav*dz + C;
+
+        // Do iterations
+        if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                          grav, C, Thetad_vec[k],
+                                                          Q_vec[k], Q_vec[k],
+                                                          Pm_vec[k], Rhom_vec[k], F);
     } // k
 
     // integrate from the top back down to get dry pressure and density.
@@ -160,8 +177,8 @@ calc_rho_p (const int& kmax,
     for (int k=kmax-1; k>=0; k--) {
         amrex::Real dz = z_vec[k+1]-z_vec[k];
         Rhod_vec[k] = Rhod_vec[k+1]; // an initial guess.
-        for (int it=0; it < maxiter; it++) {
-            Pd_vec[k] = Pd_vec[k+1]+0.5*dz*(Rhod_vec[k]+Rhod_vec[k+1])*CONST_GRAV;
+        for (int it=0; it<maxiter; it++) {
+            Pd_vec[k] = Pd_vec[k+1]+0.5*dz*(Rhod_vec[k]+Rhod_vec[k+1])*grav;
             if (Pd_vec[k] < 0.0) Pd_vec[k] = 0.0;
             Rhod_vec[k] = (p_0/(R_d*Thetam_vec[k]))*std::pow(Pd_vec[k]/p_0, iGamma);
         } // it
