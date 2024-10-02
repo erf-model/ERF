@@ -37,7 +37,7 @@ using namespace amrex;
  * @param[in] n_qstate number of moisture components
  */
 
-void make_mom_sources (int /*level*/,
+void make_mom_sources (int level,
                        int /*nrk*/, Real dt, Real time,
                        Vector<MultiFab>& S_data,
                        const  MultiFab & S_prim,
@@ -48,7 +48,7 @@ void make_mom_sources (int /*level*/,
                               MultiFab & xmom_src,
                               MultiFab & ymom_src,
                               MultiFab & zmom_src,
-                       MultiFab* r0,
+                       MultiFab* r0, MultiFab* p0,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& mapfac_m,
@@ -190,7 +190,8 @@ void make_mom_sources (int /*level*/,
     // *****************************************************************************
     // 1. Create the BUOYANCY forcing term in the z-direction
     // *****************************************************************************
-    make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, r0, n_qstate);
+    make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, r0, p0,
+                  n_qstate, solverChoice.anelastic[level]);
 
     // *****************************************************************************
     // Add all the other forcings

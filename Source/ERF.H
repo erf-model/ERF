@@ -137,6 +137,8 @@ public:
 #ifdef ERF_USE_POISSON_SOLVE
     // Project the velocities to be divergence-free
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
+    void solve_with_heffte  (int lev, amrex::MultiFab& rhs, amrex::MultiFab& soln,
+                             amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 
     // Project the velocities to be divergence-free with a thin body
     void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
@@ -940,6 +942,7 @@ private:
     static int verbose;
 #ifdef ERF_USE_POISSON_SOLVE
     static int mg_verbose;
+    static bool use_heffte;
 #endif
 
     // Diagnostic output interval
