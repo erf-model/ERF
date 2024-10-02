@@ -34,7 +34,8 @@ ERF::init_windfarm (int lev)
 
     windfarm->write_turbine_locations_vtk();
 
-    if(solverChoice.windfarm_type == WindFarmType::SimpleAD) {
+    if(solverChoice.windfarm_type == WindFarmType::SimpleAD or
+       solverChoice.windfarm_type == WindFarmType::GeneralAD) {
         windfarm->fill_SMark_multifab(geom[lev], SMark[lev],
                                       solverChoice.sampling_distance_by_D,
                                       solverChoice.turb_disk_angle);
@@ -42,7 +43,7 @@ ERF::init_windfarm (int lev)
     }
 
     if(solverChoice.windfarm_type == WindFarmType::GeneralAD) {
-        windfarm->read_windfarm_blade_table(solverChoice.windfarm_blade_table);
+        //windfarm->read_windfarm_blade_table(solverChoice.windfarm_blade_table);
         //windfarm->read_airfoil_tables
     }
 }

@@ -138,6 +138,8 @@ WindFarm::init_windfarm_x_y (const std::string windfarm_loc_table)
     Real value1, value2;
 
     while (file >> value1 >> value2) {
+        value1 = value1 + 1e-3;
+        value2 = value2 + 1e-3;
         xloc.push_back(value1);
         yloc.push_back(value2);
     }
@@ -383,22 +385,21 @@ WindFarm::write_actuator_disks_vtk(const Geometry& geom)
         }
         fprintf(file_actuator_disks_in_dom, "%s %ld %s\n", "POINTS", static_cast<long int>(num_turb_in_dom*npts), "float");
 
-        Real nx = std::cos(my_turb_disk_angle);
-        Real ny = std::sin(my_turb_disk_angle);
+        Real nx = std::cos(my_turb_disk_angle+0.5*M_PI);
+        Real ny = std::sin(my_turb_disk_angle+0.5*M_PI);
+
+        std::cout << "nx and ny are " << my_turb_disk_angle << " "<< nx << " " << ny << "\n";
 
         for(int it=0; it<xloc.size(); it++){
-            Real x;
-            x = xloc[it]+1e-12;
             for(int pt=0;pt<100;pt++){
-                Real y, z;
+                Real x, y, z;
                 Real theta = 2.0*M_PI/npts*pt;
-                y = yloc[it]+rotor_rad*cos(theta);
-                z = hub_height+rotor_rad*sin(theta);
+                x = xloc[it] + rotor_rad*cos(theta)*nx;
+                y = yloc[it] + rotor_rad*cos(theta)*ny;
+                z = hub_height + rotor_rad*sin(theta);
                 fprintf(file_actuator_disks_all, "%0.15g %0.15g %0.15g\n", x, y, z);
                 if(xloc[it] > ProbLoArr[0] and xloc[it] < ProbHiArr[0] and yloc[it] > ProbLoArr[1] and yloc[it] < ProbHiArr[1]) {
-                    Real xp = (x-xloc[it])*nx - (y-yloc[it])*ny;
-                    Real yp = (x-xloc[it])*nx + (y-yloc[it])*ny;
-                    fprintf(file_actuator_disks_in_dom, "%0.15g %0.15g %0.15g\n", xloc[it]+xp, yloc[it]+yp, z);
+                    fprintf(file_actuator_disks_in_dom, "%0.15g %0.15g %0.15g\n", x, y, z);
                 }
             }
         }

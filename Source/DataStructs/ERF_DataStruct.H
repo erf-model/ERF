@@ -379,7 +379,7 @@ struct SolverChoice {
         }
         else if (windfarm_type_string != "None") {
             amrex::Abort("Are you using windfarms? Dont know this windfarm_type. windfarm_type"
-                         " has to be Fitch or EWP or None.");
+                         " has to be Fitch, EWP, SimpleActuatorDisk, GeneralActuatorDisk or None.");
         }
 
         static std::string windfarm_loc_type_string = "None";
@@ -413,7 +413,7 @@ struct SolverChoice {
                            " velocity will be computed at.");
         }
         pp.query("turb_disk_angle_from_x", turb_disk_angle);
-        if(windfarm_type==WindFarmType::SimpleAD and turb_disk_angle < 0.0) {
+        if((windfarm_type==WindFarmType::SimpleAD or windfarm_type==WindFarmType::GeneralAD) and turb_disk_angle < 0.0) {
             amrex::Abort("To use simplified actuator disks, you need to provide a variable"
                           " erf.turb_disk_angle_from_x in the inputs which is the angle of the face of the"
                           " turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction"

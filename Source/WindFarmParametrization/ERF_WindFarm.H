@@ -9,6 +9,7 @@
 #include "ERF_Fitch.H"
 #include "ERF_EWP.H"
 #include "ERF_SimpleAD.H"
+#include "ERF_GeneralAD.H"
 
 class WindFarm : public NullWindFarm {
 
@@ -24,14 +25,21 @@ public:
         m_windfarm_model.resize(nlev);
         if (a_windfarm_type == WindFarmType::Fitch) {
             SetModel<Fitch>();
+            amrex::Print() << "Fitch windfarm model!\n";
         }
         else if (a_windfarm_type == WindFarmType::EWP) {
             SetModel<EWP>();
+            amrex::Print() << "EWP windfarm model!\n";
         }
         else if (a_windfarm_type == WindFarmType::SimpleAD) {
             SetModel<SimpleAD>();
-            amrex::Print() << "Simple actuator disk windfarm model!\n";
-        } else {
+            amrex::Print() << "Simplified actuator disk windfarm model!\n";
+        }
+        else if (a_windfarm_type == WindFarmType::GeneralAD) {
+            SetModel<GeneralAD>();
+            amrex::Print() << "Generalized actuator disk windfarm model!\n";
+        }
+         else {
             amrex::Abort("WindFarm: Dont know this windfarm_type!") ;
         }
     }
