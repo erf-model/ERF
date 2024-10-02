@@ -41,8 +41,8 @@ int  ERF::fixed_mri_dt_ratio = 0;
 // Dictate verbosity in screen output
 int ERF::verbose       = 0;
 #ifdef ERF_USE_POISSON_SOLVE
-int ERF::mg_verbose    = 0;
-int ERF::use_heffte    = false;
+int  ERF::mg_verbose    = 0;
+bool ERF::use_heffte    = false;
 #endif
 
 // Frequency of diagnostic output

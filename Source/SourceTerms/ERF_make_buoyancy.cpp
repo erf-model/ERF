@@ -47,6 +47,8 @@ void make_buoyancy (Vector<MultiFab>& S_data,
     const int klo = geom.Domain().smallEnd()[2];
     const int khi = geom.Domain().bigEnd()[2] + 1;
 
+    Real rd_over_cp = solverChoice.rdOcp;
+
     if (anelastic == 1) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -69,13 +71,13 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rt0_hi = getRhoThetagivenP(p0_arr(i,j,k));
-                Real  t0_hi = getTgivenPandTh(p0_arr(i,j,k), rt0_hi/r0_arr(i,j,k), solverChoice.rdOcp);
-                Real   t_hi = getTgivenPandTh(p0_arr(i,j,k), cell_data(i,j,k,RhoTheta_comp)/r0_arr(i,j,k), solverChoice.rdOcp);
+                Real  t0_hi = getTgivenPandTh(p0_arr(i,j,k), rt0_hi/r0_arr(i,j,k), rd_over_cp);
+                Real   t_hi = getTgivenPandTh(p0_arr(i,j,k), cell_data(i,j,k,RhoTheta_comp)/r0_arr(i,j,k), rd_over_cp);
                 Real qplus   = (t_hi-t0_hi)/t0_hi;
 
                 Real rt0_lo = getRhoThetagivenP(p0_arr(i,j,k-1));
-                Real  t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), rt0_lo/r0_arr(i,j,k-1), solverChoice.rdOcp);
-                Real   t_lo = getTgivenPandTh(p0_arr(i,j,k-1), cell_data(i,j,k-1,RhoTheta_comp)/r0_arr(i,j,k-1), solverChoice.rdOcp);
+                Real  t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), rt0_lo/r0_arr(i,j,k-1), rd_over_cp);
+                Real   t_lo = getTgivenPandTh(p0_arr(i,j,k-1), cell_data(i,j,k-1,RhoTheta_comp)/r0_arr(i,j,k-1), rd_over_cp);
                 Real qminus  = (t_lo-t0_lo)/t0_lo;
 
                 Real r0_q_avg = Real(0.5) * (r0_arr(i,j,k) * qplus + r0_arr(i,j,k-1) * qminus);
