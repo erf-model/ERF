@@ -38,7 +38,7 @@ enum struct MoistureType {
 };
 
 enum struct WindFarmType {
-    Fitch, EWP, SimpleAD, None
+    Fitch, EWP, SimpleAD, GeneralAD, None
 };
 
 enum struct WindFarmLocType{
@@ -359,9 +359,12 @@ struct SolverChoice {
         else if (windfarm_type_string == "SimpleActuatorDisk") {
             windfarm_type = WindFarmType::SimpleAD;
         }
+        else if (windfarm_type_string == "GeneralActuatorDisk") {
+            windfarm_type = WindFarmType::GeneralAD;
+        }
         else if (windfarm_type_string != "None") {
             amrex::Abort("Are you using windfarms? Dont know this windfarm_type. windfarm_type"
-                         " has to be Fitch or EWP or None.");
+                         " has to be Fitch, EWP, SimpleActuatorDisk, GeneralActuatorDisk or None.");
         }
 
         static std::string windfarm_loc_type_string = "None";
@@ -380,6 +383,8 @@ struct SolverChoice {
 
         pp.query("windfarm_loc_table",  windfarm_loc_table);
         pp.query("windfarm_spec_table", windfarm_spec_table);
+        pp.query("windfarm_blade_table", windfarm_blade_table);
+        pp.query("windfarm_airofil_tables", windfarm_airfoil_tables);
 
         // Sampling distance upstream of the turbine to find the
         // incoming free stream velocity as a factor of the diameter of the
@@ -424,7 +429,7 @@ struct SolverChoice {
                            " distance as a factor of the turbine diameter at which the incoming free stream"
                            " velocity will be computed at.");
         }
-        if (windfarm_type==WindFarmType::SimpleAD and turb_disk_angle < 0.0) {
+        if((windfarm_type==WindFarmType::SimpleAD or windfarm_type==WindFarmType::GeneralAD) and turb_disk_angle < 0.0) {
             amrex::Abort("To use simplified actuator disks, you need to provide a variable"
                           " erf.turb_disk_angle_from_x in the inputs which is the angle of the face of the"
                           " turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction"
@@ -667,6 +672,7 @@ struct SolverChoice {
     int RhoQr_comp {-1};
 
     std::string windfarm_loc_table, windfarm_spec_table;
+    std::string windfarm_blade_table, windfarm_airfoil_tables;
     amrex::Real sampling_distance_by_D = -1.0;
     amrex::Real turb_disk_angle = -1.0;
     amrex::Real windfarm_x_shift = -1.0;

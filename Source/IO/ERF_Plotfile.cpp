@@ -83,13 +83,37 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                       derived_names[i] != "graup_accum") )
                 {
                     if ( (solverChoice.moisture_type != MoistureType::None)      ||
-                         (derived_names[i] != "qv" && derived_names[i] != "qc") ) {
+                         (derived_names[i] != "qv" && derived_names[i] != "qc" and
+                          derived_names[i] != "num_turb" and derived_names[i] != "SMark0" and
+                          derived_names[i] != "SMark1") ) {
                         tmp_plot_names.push_back(derived_names[i]);
                     }
                 } // moisture_type
             } // use_terrain?
         } // hasElement
     }
+
+#ifdef ERF_USE_WINDFARM
+    for (int i = 0; i < derived_names.size(); ++i) {
+        if ( containerHasElement(plot_var_names, derived_names[i]) ) {
+            if(solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP) {
+                if(derived_names[i] == "num_turb") {
+                    tmp_plot_names.push_back(derived_names[i]);
+                }
+            }
+            if(solverChoice.windfarm_type == WindFarmType::SimpleAD) {
+                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0" or derived_names[i] == "Smark1") {
+                    tmp_plot_names.push_back(derived_names[i]);
+                }
+            }
+            if(solverChoice.windfarm_type == WindFarmType::GeneralAD) {
+                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark1") {
+                    tmp_plot_names.push_back(derived_names[i]);
+                }
+            }
+        }
+    }
+#endif
 
 #ifdef ERF_USE_PARTICLES
     const auto& particles_namelist( particleData.getNamesUnalloc() );
@@ -444,7 +468,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         }
 
 #ifdef ERF_USE_WINDFARM
-        if (containerHasElement(plot_var_names, "num_turb"))
+        if (containerHasElement(plot_var_names, "num_turb") and
+            (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
+            solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD))
         {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -461,7 +487,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
-        if(containerHasElement(plot_var_names, "SMark") and solverChoice.windfarm_type == WindFarmType::SimpleAD) {
+        if(containerHasElement(plot_var_names, "SMark0") and
+           solverChoice.windfarm_type == WindFarmType::SimpleAD) {
              for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
@@ -473,6 +500,21 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
             mf_comp ++;
         }
+
+         if(containerHasElement(plot_var_names, "SMark1") and
+           (solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD)) {
+             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat  = mf[lev].array(mfi);
+                const Array4<Real const>& SMark_array = SMark[lev].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i, j, k, mf_comp) = SMark_array(i,j,k,1);
+                });
+            }
+            mf_comp ++;
+        }
+
 #endif
 
         int klo = geom[lev].Domain().smallEnd(2);

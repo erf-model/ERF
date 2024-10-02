@@ -114,7 +114,6 @@ void SimpleAD::compute_freestream_velocity(const MultiFab& cons_in,
                                  amrex::ParallelContext::CommunicatorAll());
 
     get_turb_loc(xloc, yloc);
-    std::cout << "xloc size is " << xloc.size() << "\n";
     if (ParallelDescriptor::IOProcessor()){
         for(int it=0; it<xloc.size(); it++){
 
@@ -215,7 +214,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                     check_int++;
                     if(C_T <= 1) {
                         source_x = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
-                           source_y = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                        source_y = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                     }
                     else {
                         source_x = -0.5*C_T*std::pow(Uinfty_dot_nhat, 2.0)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);

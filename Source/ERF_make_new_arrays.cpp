@@ -235,6 +235,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.windfarm_type == WindFarmType::SimpleAD) {
         vars_windfarm[lev].define(ba, dm, 2, ngrow_state);// dudt, dvdt
     }
+    if (solverChoice.windfarm_type == WindFarmType::GeneralAD) {
+        vars_windfarm[lev].define(ba, dm, 2, ngrow_state);// dudt, dvdt
+    }
         Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
         SMark[lev].define(ba, dm, 2, ngrow_state); // Free stream velocity/source term
                                                    // sampling marker in a cell - 2 components
