@@ -975,6 +975,20 @@ private:
     // used with init_type == "input_sounding"
     static bool init_sounding_ideal;
 
+    // Options for vertical interpolation of met_em*.nc data.
+    bool        metgrid_debug_quiescent{false};
+    bool        metgrid_debug_isothermal{false};
+    bool        metgrid_debug_dry{false};
+    bool        metgrid_debug_psfc{false};
+    bool        metgrid_debug_msf{false};
+    bool        metgrid_basic_linear{false};
+    bool        metgrid_use_below_sfc{true};
+    bool        metgrid_use_sfc{true};
+    bool        metgrid_retain_sfc{false};
+    amrex::Real metgrid_proximity{1000.0};
+    int         metgrid_order{2};
+    int         metgrid_force_sfc_k{0};
+
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
     static int         column_interval;
