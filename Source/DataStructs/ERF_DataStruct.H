@@ -429,7 +429,6 @@ struct SolverChoice {
                            " distance as a factor of the turbine diameter at which the incoming free stream"
                            " velocity will be computed at.");
         }
-        pp.query("turb_disk_angle_from_x", turb_disk_angle);
         if((windfarm_type==WindFarmType::SimpleAD or windfarm_type==WindFarmType::GeneralAD) and turb_disk_angle < 0.0) {
             amrex::Abort("To use simplified actuator disks, you need to provide a variable"
                           " erf.turb_disk_angle_from_x in the inputs which is the angle of the face of the"
