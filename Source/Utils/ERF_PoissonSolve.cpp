@@ -31,8 +31,6 @@ ERF::get_projection_bc (Orientation::Side side) const noexcept
             }
         }
     }
-    // r[2] = LinOpBCType::Neumann;
-    // amrex::Print() << "BCs for Poisson solve " << r[0] << " " << r[1] << " " << r[2] << std::endl;
     return r;
 }
 bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
@@ -58,14 +56,12 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     auto const dom_hi = ubound(geom[lev].Domain());
 
     LPInfo info;
-#if 0
     // Allow a hidden direction if the domain is one cell wide in any lateral direction
     if (dom_lo.x == dom_hi.x) {
         info.setHiddenDirection(0);
     } else if (dom_lo.y == dom_hi.y) {
         info.setHiddenDirection(1);
     }
-#endif
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
@@ -90,15 +86,10 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     Vector<MultiFab> phi;
     Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes;
 
-    rhs.resize(1);
-    phi.resize(1);
+    rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
+    phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
+
     fluxes.resize(1);
-
-    rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
-    phi[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
-    rhs[0].setVal(0.0);
-    phi[0].setVal(0.0);
-
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
         fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
     }
@@ -109,34 +100,52 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     rho0_u_const[2] = &mom_mf[IntVars::zmom];
 
     computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
-    Print() << "Max norm of divergence before at level " << lev << " : " << rhs[0].norm0() << std::endl;
+
+    if (mg_verbose > 0) {
+        Print() << "Max norm of divergence before at level " << lev << " : " << rhs[0].norm0() << std::endl;
+    }
 
     // If all Neumann BCs, adjust RHS to make sure we can converge
     if (need_adjust_rhs)
     {
         Real offset = volWgtSumMF(lev, rhs[0], 0, *mapfac_m[lev], false, false);
-        // amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
+        if (mg_verbose > 1) {
+            Print() << "Poisson solvability offset = " << offset << std::endl;
+        }
         rhs[0].plus(-offset, 0, 1);
     }
 
-    // Initialize phi to 0
-    phi[0].setVal(0.0);
+    Real start_step = static_cast<Real>(ParallelDescriptor::second());
 
-    MLMG mlmg(mlpoisson);
-    int max_iter = 100;
-    mlmg.setMaxIter(max_iter);
+#ifdef ERF_USE_HEFFTE
+    if (use_heffte) {
+        solve_with_heffte(lev, rhs[0], phi[0], fluxes[0]);
+    } else
+#endif
+    {
+        // Initialize phi to 0
+        phi[0].setVal(0.0);
 
-    mlmg.setVerbose(mg_verbose);
-    mlmg.setBottomVerbose(0);
+        MLMG mlmg(mlpoisson);
+        int max_iter = 100;
+        mlmg.setMaxIter(max_iter);
 
-    mlmg.solve(GetVecOfPtrs(phi),
-               GetVecOfConstPtrs(rhs),
-               solverChoice.poisson_reltol,
-               solverChoice.poisson_abstol);
+        mlmg.setVerbose(mg_verbose);
+        mlmg.setBottomVerbose(0);
 
-    mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
+        mlmg.solve(GetVecOfPtrs(phi),
+                   GetVecOfConstPtrs(rhs),
+                   solverChoice.poisson_reltol,
+                   solverChoice.poisson_abstol);
+        mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
+    }
 
-    // Subtract (dt rho0/rho) grad(phi) from the rho0-weighted velocity components
+    Real end_step = static_cast<Real>(ParallelDescriptor::second());
+    if (mg_verbose > 0) {
+        amrex::Print() << "Time in solve " << end_step - start_step << std::endl;
+    }
+
+    // Subtract dt grad(phi) from the momenta
     MultiFab::Add(mom_mf[IntVars::xmom],fluxes[0][0],0,0,1,0);
     MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
     MultiFab::Add(mom_mf[IntVars::zmom],fluxes[0][2],0,0,1,0);
@@ -223,12 +232,12 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // Now overwrite with periodic fill outside domain and fine-fine fill inside
     pmf.FillBoundary(geom[lev].periodicity());
 
-#if 0
     //
     // BELOW IS SIMPLY VERIFYING THE DIVERGENCE AFTER THE SOLVE
     //
-    computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
-    Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
-#endif
+    if (mg_verbose > 0) {
+        computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
+        Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
+    }
 }
 #endif
