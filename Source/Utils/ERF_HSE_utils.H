@@ -15,6 +15,60 @@ namespace HSEutils
 
     /**
      * Function to calculate the hydrostatic density and pressure
+     * from Newton-Raphson iterations
+     *
+     * @param[in]  m_tol     iteration tolerance
+     * @param[in]  RdOCp     Rd/Cp
+     * @param[out] dz        change in vertical height
+     * @param[out] g         magnitude of gravity
+     * @param[in]  C         sum of known terms in HSE balance
+     * @param[in]  T         theta at the current cell center
+     * @param[in] qt         total moisture (non-precip and precip)
+     * @param[in] qv         water vapor
+     * @param[in] P          pressure at cell center
+     * @param[in] rd         dry density at cell center
+     * @param[in] F          starting residual of non-linear eq
+    */
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    Newton_Raphson_hse (const Real& m_tol,
+                        const Real& RdOCp,
+                        const Real& dz,
+                        const Real& g,
+                        const Real& C,
+                        const Real& T,
+                        const Real& qt,
+                        const Real& qv,
+                        Real& P,
+                        Real& rd,
+                        Real& F)
+    {
+        int iter=0;
+        Real eps  = 1.0e-6;
+        Real ieps = 1.0e6;
+        do {
+            // Compute change in pressure
+            Real hi = getRhogivenThetaPress(T, P + eps, RdOCp, qv);
+            Real lo = getRhogivenThetaPress(T, P - eps, RdOCp, qv);
+            Real dFdp = 1.0 + 0.25*ieps*(hi - lo)*g*dz;
+            P -= F/dFdp;
+            AMREX_ALWAYS_ASSERT(P > 0.0);
+
+            // Diagnose density and residual
+            rd = getRhogivenThetaPress(T, P, RdOCp, qv);
+            AMREX_ALWAYS_ASSERT(rd > 0.0);
+            Real r_tot = rd * (1. + qt);
+            F = P + 0.5*r_tot*g*dz + C;
+            ++iter;
+        }
+        while (std::abs(F)>m_tol && iter<25);
+        if (iter>=25) printf("WARNING: HSE Newton iterations did not converge to tolerance!\n");
+    }
+
+
+    /**
+     * Function to calculate the hydrostatic density and pressure
      *
      * @param[in]  r_sfc     surface density
      * @param[in]  theta     surface potential temperature
@@ -122,6 +176,7 @@ namespace HSEutils
       }
       r[khi+1] = r[khi];
     }
+
 
     /**
      * Function to calculate the hydrostatic density and pressure over terrain
