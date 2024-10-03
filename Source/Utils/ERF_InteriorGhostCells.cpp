@@ -177,9 +177,9 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
         domain.convert(S_cur_data[var_idx].boxArray().ixType());
 
         // Grown domain to get the 4 halo boxes w/ ghost cells
-        // NOTE: 1 ghost cells needed here for Laplacian
+        // NOTE: 2 ghost cells needed here for Laplacian
         //       halo cell.
-        IntVect ng_vect{1,1,0};
+        IntVect ng_vect{2,2,0};
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
@@ -214,9 +214,9 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
-        // NOTE: 1 ghost cells needed here for Laplacian
+        // NOTE: 2 ghost cells needed here for Laplacian
         //       halo cell.
-        IntVect ng_vect{1,1,0};
+        IntVect ng_vect{2,2,0};
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
@@ -314,11 +314,9 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
 #endif
         for ( MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-            // NOTE: 1 ghost cell needed here. This first
-            //       ghost cell is to access the Laplacian
-            //       halo cell. We will touch the second ghost
-            //       cell when averaging u -> rho*u.
-            IntVect ng_vect{1,1,0};
+            // NOTE: 2 ghost cells needed here for Laplacian
+            //       halo cell.
+            IntVect ng_vect{2,2,0};
             Box tbx = mfi.tilebox(ixtype.toIntVect(),ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             compute_interior_ghost_bxs_xy(tbx, domain, width, 0,

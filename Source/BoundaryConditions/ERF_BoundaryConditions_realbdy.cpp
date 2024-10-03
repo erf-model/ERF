@@ -16,9 +16,15 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                         const Real time,
                         bool cons_only,
                         int icomp_cons,
-                        int ncomp_cons)
+                        int ncomp_cons,
+                        IntVect ngvect_cons,
+                        IntVect ngvect_vels)
 {
     int lev = 0;
+
+    // We do not operate on the z ghost cells
+    ngvect_cons[2] = 0;
+    ngvect_vels[2] = 0;
 
     // Time interpolation
     Real dT = bdy_time_interval;
@@ -72,6 +78,10 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         // Offset only applies to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
 
+
+        // Ghost cells to be filled
+        IntVect ng_vect = (var_idx == Vars::cons) ? ngvect_cons : ngvect_vels;
+
         // Loop over each component
         for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
         {
@@ -82,7 +92,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
             if (is_read[var_idx][comp_idx])
             {
                 int ivar  = ind_map[var_idx][comp_idx];
-                IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)
@@ -152,7 +161,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
             // Variable not read from wrf bdy
             //------------------------------------
             } else {
-                IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -161,11 +169,12 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                 {
                     // Grown tilebox so we fill exterior ghost cells as well
                     Box gbx = mfi.growntilebox(ng_vect);
-                    const Array4<Real>& dest_arr = mf.array(mfi);
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                     compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
                                                   bx_xlo, bx_xhi,
                                                   bx_ylo, bx_yhi, ng_vect);
+
+                    const Array4<Real>& dest_arr = mf.array(mfi);
 
                     // x-faces (includes y ghost cells)
                     ParallelFor(bx_xlo, bx_xhi,
