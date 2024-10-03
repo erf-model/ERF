@@ -112,7 +112,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Initialize the boundary conditions (must come after terrain defined)
     // ********************************************************************************************
-    amrex::Print() << "DID INITIALIZE " << std::endl;
     initialize_bcs(lev);
 
     //********************************************************************************************
@@ -329,7 +328,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         // Interp all three components: rho, p, pi
         int  icomp = 0; int bccomp = 0; int  ncomp = 3;
 
-        PhysBCFunctNoOp null_bc;
         Interpolater* mapper = &cell_cons_interp;
 
         Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
