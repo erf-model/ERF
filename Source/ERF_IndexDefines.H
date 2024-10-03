@@ -25,7 +25,8 @@
 
 // This is the number of components if we assume there is only one passive scalar
 // We can use this when we assume all passive scalars have the same bc's
-#define NBCVAR_max (NDRY + 1 + NMOIST_max)
+// We also assume (the final "+1" that the base state components have the same bcs)
+#define NBCVAR_max (NDRY + 1 + NMOIST_max + 1)
 
 // This is the number of components if we assume there is only one passive scalar
 // We can use this when we assume all passive scalars have the same diffusion coefficients
@@ -60,6 +61,7 @@
 
 // NOTE: we still use this indexing even if no moisture
 // NOTE: We assume a single boundary condition for all passive scalars
+// NOTE:    and a single boundary condition for all components of the base state
 namespace BCVars {
     enum {
         cons_bc = 0,
@@ -74,6 +76,7 @@ namespace BCVars {
         RhoQ4_bc_comp,
         RhoQ5_bc_comp,
         RhoQ6_bc_comp,
+        base_bc,
         xvel_bc = NBCVAR_max,
         yvel_bc = NBCVAR_max+1,
         zvel_bc = NBCVAR_max+2,

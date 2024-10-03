@@ -306,4 +306,39 @@ private:
     amrex::Real* m_w_bc_data;
 };
 
+class ERFPhysBCFunct_base
+{
+public:
+    ERFPhysBCFunct_base (const int lev,
+                         const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
+                         const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d)
+        : m_lev(lev), m_geom(geom),
+          m_domain_bcs_type(domain_bcs_type),
+          m_domain_bcs_type_d(domain_bcs_type_d)
+    {}
+
+    ~ERFPhysBCFunct_base () {}
+
+   /*
+    * Impose physical boundary conditions at domain boundaries
+    *
+    * @param[out] mfs         Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
+    * @param[in] icomp        starting component for conserved variables
+    * @param[in] ncomp        number of components for conserved variables
+    * @param[in] nghost       number of ghost cells to be filled for conserved variables
+    * @param[in] time         time at which the data should be filled
+    */
+    void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
+                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp_cons);
+
+    void impose_lateral_basestate_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                       const amrex::Box& bx, const amrex::Box& domain);
+
+private:
+    int                  m_lev;
+    amrex::Geometry      m_geom;
+    amrex::Vector<amrex::BCRec>            m_domain_bcs_type;
+    amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
+};
+
 #endif

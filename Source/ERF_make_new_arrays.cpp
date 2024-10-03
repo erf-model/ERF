@@ -577,4 +577,5 @@ ERF::initialize_bcs (int lev)
                                                            (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs,
                                                             w_bc_tmp);
+    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d);
 }

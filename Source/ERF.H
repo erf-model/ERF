@@ -353,6 +353,8 @@ public:
 
     void init_from_hse (int lev);
 
+    void init_immersed_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
@@ -684,6 +686,7 @@ private:
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w_no_terrain>> physbcs_w_no_terrain;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base;
 
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;

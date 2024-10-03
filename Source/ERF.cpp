@@ -222,6 +222,7 @@ ERF::ERF_shared ()
     physbcs_v.resize(nlevs_max);
     physbcs_w.resize(nlevs_max);
     physbcs_w_no_terrain.resize(nlevs_max);
+    physbcs_base.resize(nlevs_max);
 
     advflux_reg.resize(nlevs_max);
 
@@ -596,10 +597,6 @@ ERF::InitData_pre ()
         m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
     }
 
-    // Map the words in the inputs file to BC types, then translate
-    //     those types into what they mean for each variable
-    init_bcs();
-
     // Verify BCs are compatible with solver choice
     for (int lev(0); lev <= max_level; ++lev) {
         if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
@@ -622,6 +619,9 @@ ERF::InitData_pre ()
 
         const Real time = start_time;
         InitFromScratch(time);
+    } else {
+        // For initialization this is done in init_only; it is done here for restart
+        init_bcs();
     }
 }
 
@@ -726,7 +726,6 @@ ERF::InitData_post ()
     } else { // Restart from a checkpoint
 
         restart();
-
 
         // TODO: Check if this is needed. I don't think it is since we now
         //       advect all the scalars...
@@ -928,11 +927,11 @@ ERF::InitData_post ()
             Construct_ERFFillPatchers(lev);
         }
 
+        auto& lev_new = vars_new[lev];
         //
         // Fill boundary conditions -- not sure why we need this here
         //
         bool fillset = false;
-        auto& lev_new = vars_new[lev];
         FillPatch(lev, t_new[lev],
                   {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
                   {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
@@ -1265,6 +1264,13 @@ ERF::restart ()
 void
 ERF::init_only (int lev, Real time)
 {
+    // Map the words in the inputs file to BC types, then translate
+    //     those types into what they mean for each variable
+    // This must be called before initHSE (where the base state is initialized)
+    if (lev == 0) {
+        init_bcs();
+    }
+
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
@@ -1311,7 +1317,12 @@ ERF::init_only (int lev, Real time)
         // No background flow initialization specified, initialize the
         // background field to be equal to the base state, calculated from the
         // problem-specific erf_init_dens_hse
-        initHSE(lev); // need to call this first
+
+        // The bc's need the terrain but are needed for initHSE, so must be called here.
+        initialize_bcs(lev);
+
+        // We will initialize the state from the background state so must set that first
+        initHSE(lev);
         init_from_hse(lev);
     }
 

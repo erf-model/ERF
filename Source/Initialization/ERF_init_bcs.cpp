@@ -417,6 +417,7 @@ void ERF::init_bcs ()
     //
     // Here we translate the physical boundary conditions -- one type per face --
     //     into logical boundary conditions for each cell-centered variable
+    //     (including the base state variables)
     // NOTE: all "scalars" share the same type of boundary condition
     //
     // *****************************************************************************
