@@ -109,6 +109,15 @@ public:
         return m_moist_model[0]->Qstate_Size();
     }
 
+    /*! \brief get the indices and names of moisture model variables for restart
+               at a given level */
+    void Get_Qmoist_Restart_Vars ( const int a_lev, /*!< level */
+                                   std::vector<int>& a_idx, /*!< indices */
+                                   std::vector<std::string>& a_names /*!< names */ ) const override
+    {
+        m_moist_model[a_lev]->Qmoist_Restart_Vars( a_idx, a_names );
+    }
+
 protected:
 
     /*! \brief Create and set the specified moisture model */
