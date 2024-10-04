@@ -134,8 +134,7 @@ public:
     void WriteMyEBSurface ();
 #endif
 
-#ifdef ERF_USE_POISSON_SOLVE
-    // Project the velocities to be divergence-free
+    // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
     void solve_with_heffte  (int lev, amrex::MultiFab& rhs, amrex::MultiFab& soln,
                              amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
@@ -147,8 +146,6 @@ public:
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
     bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
-
-#endif
 
     // Init (NOT restart or regrid)
     void init_only (int lev, amrex::Real time);
@@ -353,6 +350,8 @@ public:
 
     void init_from_hse (int lev);
 
+    void init_immersed_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
@@ -473,8 +472,8 @@ private:
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
-    // Initialize the bc routines
-    void initialize_bcs        (int lev);
+    // Create the physbcs objects
+    void make_physbcs (int lev);
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
@@ -676,9 +675,7 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
-#ifdef ERF_USE_POISSON_SOLVE
     amrex::Vector<amrex::MultiFab> pp_inc;
-#endif
 
     // Vector over levels of routines to impose physical boundary conditions
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
@@ -686,6 +683,7 @@ private:
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w_no_terrain>> physbcs_w_no_terrain;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base;
 
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
@@ -942,10 +940,8 @@ private:
 #endif
 
     static int verbose;
-#ifdef ERF_USE_POISSON_SOLVE
     static int mg_verbose;
     static bool use_heffte;
-#endif
 
     // Diagnostic output interval
     static int sum_interval;

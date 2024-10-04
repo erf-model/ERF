@@ -122,6 +122,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_xvel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_yvel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_zvel.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_basestate.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_bndryreg.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_realbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
@@ -142,10 +143,12 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_init_from_input_sounding.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_wrfinput.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_metgrid.cpp
+       ${SRC_DIR}/Initialization/ERF_init_geowind.cpp
+       ${SRC_DIR}/Initialization/ERF_init_rayleigh.cpp
+       ${SRC_DIR}/Initialization/ERF_init_sponge.cpp
        ${SRC_DIR}/Initialization/ERF_init_uniform.cpp
        ${SRC_DIR}/Initialization/ERF_init1d.cpp
        ${SRC_DIR}/Initialization/ERF_init_TurbPert.cpp
-       ${SRC_DIR}/Initialization/ERF_input_sponge.cpp
        ${SRC_DIR}/IO/ERF_Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp

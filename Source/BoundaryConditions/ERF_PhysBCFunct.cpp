@@ -367,3 +367,49 @@ void ERFPhysBCFunct_w_no_terrain::operator() (MultiFab& mf, int /*icomp*/, int /
         } // MFIter
     } // OpenMP
 } // operator()
+
+void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
+                                      IntVect const& nghost, const Real /*time*/, int /*bccomp*/)
+{
+    BL_PROFILE("ERFPhysBCFunct_base::()");
+
+    if (m_geom.isAllPeriodic()) return;
+
+    const auto& domain = m_geom.Domain();
+
+    // Create a grown domain box containing valid + periodic cells
+    Box gdomain  = domain;
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        if (m_geom.isPeriodic(i)) {
+            gdomain.grow(i, nghost[i]);
+        }
+    }
+
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    {
+        for (MFIter mfi(mf,false); mfi.isValid(); ++mfi)
+        {
+            //
+            // This is the box we pass to the different routines
+            // NOTE -- this is the full grid box NOT the tile box
+            //
+            Box bx  = mfi.validbox();
+
+            //
+            // These are the boxes we use to test on relative to the domain
+            //
+            Box cbx1 = bx; cbx1.grow(IntVect(nghost[0],nghost[1],0));
+            Box cbx2 = bx; cbx2.grow(nghost);
+
+            if (!gdomain.contains(cbx2))
+            {
+                const Array4<Real> cons_arr = mf.array(mfi);;
+
+                impose_lateral_basestate_bcs(cons_arr,cbx1,domain);
+            }
+
+        } // MFIter
+    } // OpenMP
+} // operator()

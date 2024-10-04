@@ -129,10 +129,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
-#ifdef ERF_USE_POISSON_SOLVE
-    pp_inc[lev].define(ba, dm, 1, 1);
-    pp_inc[lev].setVal(0.0);
-#endif
+    if (solverChoice.anelastic[lev] == 1) {
+        pp_inc[lev].define(ba, dm, 1, 1);
+        pp_inc[lev].setVal(0.0);
+    }
 
     // ********************************************************************************************
     // These are just used for scratch in the time integrator but we might as well define them here
@@ -548,7 +548,7 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 }
 
 void
-ERF::initialize_bcs (int lev)
+ERF::make_physbcs (int lev)
 {
     // Dirichlet BC data only lives on level 0
     Real* u_bc_tmp(nullptr);
@@ -559,7 +559,6 @@ ERF::initialize_bcs (int lev)
         v_bc_tmp = yvel_bc_data.data();
         w_bc_tmp = zvel_bc_data.data();
     }
-
     physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                m_bc_extdir_vals, m_bc_neumann_vals,
                                                                z_phys_nd[lev], use_real_bcs);
@@ -577,4 +576,5 @@ ERF::initialize_bcs (int lev)
                                                            (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs,
                                                             w_bc_tmp);
+    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d);
 }

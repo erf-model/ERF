@@ -5,13 +5,10 @@
                               Vector<MultiFab>& S_old,
                               Vector<MultiFab>& F_slow,
                               const Real time_for_fp, const Real slow_dt,
-#ifdef ERF_USE_POISSON_SOLVE
                               const int nrk)
-#else
-                              const int /*nrk*/)
-#endif
     {
         BL_PROFILE("no_substep_fun");
+        amrex::ignore_unused(nrk);
         int n_data = IntVars::NumTypes;
 
         const auto& dxInv = fine_geom.InvCellSizeArray();

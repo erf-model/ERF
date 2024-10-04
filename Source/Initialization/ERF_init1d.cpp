@@ -13,193 +13,6 @@
 using namespace amrex;
 
 /**
- * Initialization function for host and device vectors
- * used to store averaged quantities when calculating
- * the effects of Rayleigh Damping.
- */
-void
-ERF::initRayleigh ()
-{
-    const int khi = geom[0].Domain().bigEnd(2);
-    solverChoice.rayleigh_ztop = (solverChoice.use_terrain) ? zlevels_stag[0][khi+1] : geom[0].ProbHi(2);
-
-    h_rayleigh_ptrs.resize(max_level+1);
-    d_rayleigh_ptrs.resize(max_level+1);
-
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        // These have 4 components: ubar, vbar, wbar, thetabar
-        h_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
-        d_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
-
-        const int zlen_rayleigh = geom[lev].Domain().length(2);
-
-        // Allocate space for these 1D vectors
-        for (int n = 0; n < Rayleigh::nvars; n++) {
-            h_rayleigh_ptrs[lev][n].resize(zlen_rayleigh, 0.0_rt);
-            d_rayleigh_ptrs[lev][n].resize(zlen_rayleigh, 0.0_rt);
-        }
-
-        // Init the host vectors
-        prob->erf_init_rayleigh(h_rayleigh_ptrs[lev], geom[lev], z_phys_nd[lev], solverChoice.rayleigh_zdamp);
-
-        // Copy from host vectors to device vectors
-        for (int n = 0; n < Rayleigh::nvars; n++) {
-            Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][n].begin(), h_rayleigh_ptrs[lev][n].end(),
-                      d_rayleigh_ptrs[lev][n].begin());
-        }
-    }
-}
-
-/**
- * Sets the Rayleigh Damping averaged quantities from an
- * externally supplied input sounding data file.
- *
- * @param[in] restarting Boolean parameter that indicates whether
-                         we are currently restarting from a checkpoint file.
- */
-void
-ERF::setRayleighRefFromSounding (bool restarting)
-{
-    // If we are restarting then we haven't read the input_sounding file yet
-    //    so we need to read it here
-    // TODO: should we store this information in the checkpoint file instead?
-    if (restarting) {
-        input_sounding_data.resize_arrays();
-        for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
-            input_sounding_data.read_from_file(geom[0], zlevels_stag[0], n);
-        }
-    }
-
-    const Real* z_inp_sound     = input_sounding_data.z_inp_sound[0].dataPtr();
-    const Real* U_inp_sound     = input_sounding_data.U_inp_sound[0].dataPtr();
-    const Real* V_inp_sound     = input_sounding_data.V_inp_sound[0].dataPtr();
-    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound[0].dataPtr();
-    const int   inp_sound_size  = input_sounding_data.size(0);
-
-    int refine_fac{1};
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        const int klo = geom[lev].Domain().smallEnd(2);
-        const int khi = geom[lev].Domain().bigEnd(2);
-        const int Nz = khi - klo + 1;
-
-        Vector<Real> zcc(Nz);
-        Vector<Real> zlevels_sub(zlevels_stag[0].begin()+klo/refine_fac,
-                                 zlevels_stag[0].begin()+khi/refine_fac+2);
-        expand_and_interpolate_1d(zcc, zlevels_sub, refine_fac, true);
-#if 0
-        amrex::AllPrint() << "lev="<<lev<<" : (refine_fac="<<refine_fac<<",klo="<<klo<<",khi="<<khi<<") ";
-        for (int k = 0; k < zlevels_sub.size(); k++) { amrex::AllPrint() << zlevels_sub[k] << " "; }
-        amrex::AllPrint() << " --> ";
-        for (int k = 0; k < Nz; k++) { amrex::AllPrint() << zcc[k] << " "; }
-        amrex::AllPrint() << std::endl;
-#endif
-
-        for (int k = 0; k < Nz; k++)
-        {
-            h_rayleigh_ptrs[lev][Rayleigh::ubar][k]     = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::vbar][k]     = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]     = Real(0.0);
-            h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc[k], inp_sound_size);
-        }
-
-        // Copy from host version to device version
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::ubar].begin(), h_rayleigh_ptrs[lev][Rayleigh::ubar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::ubar].begin());
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::vbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::vbar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::vbar].begin());
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::wbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::wbar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::wbar].begin());
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::thetabar].begin());
-
-        refine_fac *= ref_ratio[lev][2];
-    }
-}
-
-/**
- * Initialization function for host and device vectors
- * used to store the effects of sponge Damping.
- */
-void
-ERF::initSponge ()
-{
-    h_sponge_ptrs.resize(max_level+1);
-    d_sponge_ptrs.resize(max_level+1);
-
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        // These have 2 components: ubar, vbar
-        h_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
-        d_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
-
-        const int zlen_sponge = geom[lev].Domain().length(2);
-
-        // Allocate space for these 1D vectors
-        for (int n = 0; n < Sponge::nvars_sponge; n++) {
-            h_sponge_ptrs[lev][n].resize(zlen_sponge, 0.0_rt);
-            d_sponge_ptrs[lev][n].resize(zlen_sponge, 0.0_rt);
-        }
-
-    }
-}
-
-/**
- * Sets the sponge damping averaged quantities from an
- * externally supplied input sponge data file.
- *
- * @param[in] restarting Boolean parameter that indicates whether
-                         we are currently restarting from a checkpoint file.
- */
-void
-ERF::setSpongeRefFromSounding (bool restarting)
-{
-    // If we are restarting then we haven't read the input_sponge file yet
-    //    so we need to read it here
-    // TODO: should we store this information in the checkpoint file instead?
-    if (restarting) {
-        input_sponge_data.read_from_file(geom[0], zlevels_stag[0]);
-    }
-
-    const Real* z_inp_sponge     = input_sponge_data.z_inp_sponge.dataPtr();
-    const Real* U_inp_sponge     = input_sponge_data.U_inp_sponge.dataPtr();
-    const Real* V_inp_sponge     = input_sponge_data.V_inp_sponge.dataPtr();
-    const int   inp_sponge_size  = input_sponge_data.size();
-
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        const int khi = geom[lev].Domain().bigEnd()[2];
-        Vector<Real> zcc(khi+1);
-
-        if (z_phys_cc[lev]) {
-            // use_terrain=1
-            // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
-        } else {
-            const auto *const prob_lo = geom[lev].ProbLo();
-            const auto *const dx = geom[lev].CellSize();
-            for (int k = 0; k <= khi; k++)
-            {
-                zcc[k] = prob_lo[2] + (k+0.5) * dx[2];
-            }
-        }
-
-        for (int k = 0; k <= khi; k++)
-        {
-            h_sponge_ptrs[lev][Sponge::ubar_sponge][k] = interpolate_1d(z_inp_sponge, U_inp_sponge, zcc[k], inp_sponge_size);
-            h_sponge_ptrs[lev][Sponge::vbar_sponge][k] = interpolate_1d(z_inp_sponge, V_inp_sponge, zcc[k], inp_sponge_size);
-        }
-
-        // Copy from host version to device version
-        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Sponge::ubar_sponge].begin(), h_sponge_ptrs[lev][Sponge::ubar_sponge].end(),
-                         d_sponge_ptrs[lev][Sponge::ubar_sponge].begin());
-        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Sponge::vbar_sponge].begin(), h_sponge_ptrs[lev][Sponge::vbar_sponge].end(),
-                         d_sponge_ptrs[lev][Sponge::vbar_sponge].begin());
-    }
-}
-
-/**
  * Initialize density and pressure base state in
  * hydrostatic equilibrium.
  */
@@ -216,6 +29,10 @@ ERF::initHSE (int lev)
     bool all_boxes_touch_bottom = true;
     Box domain(geom[lev].Domain());
 
+    int icomp = 0; int bccomp = BCVars::base_bc; int ncomp = 3;
+
+    Real time = 0.;
+
     if (lev == 0) {
         BoxArray ba(base_state[lev].boxArray());
         for (int i = 0; i < ba.size(); i++) {
@@ -223,6 +40,30 @@ ERF::initHSE (int lev)
                 all_boxes_touch_bottom = false;
             }
         }
+    }
+    else
+    {
+        //
+        // We need to do this interp from coarse level in order to set the values of
+        // the base state inside the domain but outside of the fine region
+        //
+        base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
+        //
+        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+        //       have been pre-filled - this includes ghost cells both inside and outside
+        //       the domain
+        //
+        InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
+                              IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              base_state[lev-1], icomp, icomp, ncomp,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+
+         // We need to do this here because the interpolation above may leave corners unfilled
+         //    when the corners need to be filled by, for example, reflection of the fine ghost
+         //    cell outside the fine region but inide the domain.
+         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
     }
 
     if (all_boxes_touch_bottom || lev > 0) {
@@ -276,26 +117,13 @@ ERF::initHSE (int lev)
         base_state[lev].ParallelCopy(new_base_state,0,0,3,1,1);
     }
 
-    // Make sure to fill the ghost cells of the base state
-    if (lev > 0) {
-        // Interp all three components: rho, p, pi
-        int  icomp = 0; int bccomp = 0; int ncomp = 3;
+    //
+    // Impose physical bc's on the base state -- the values outside the fine region
+    //   but inside the domain have already been filled in the call above to InterpFromCoarseLevel
+    //
+    (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
 
-        PhysBCFunctNoOp null_bc;
-        Interpolater* mapper = &cell_cons_interp;
-
-        Real time = 0.;
-
-        Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
-        Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
-        Vector<Real> ftime    = {time, time};
-        Vector<Real> ctime    = {time, time};
-        FillPatchTwoLevels(base_state[lev], time,
-                           cmf, ctime, fmf, ftime,
-                           icomp, icomp, ncomp, geom[lev-1], geom[lev],
-                           null_bc, 0, null_bc, 0, refRatio(lev-1),
-                           mapper, domain_bcs_type, bccomp);
-    }
+    base_state[lev].FillBoundary(geom[lev].periodicity());
 }
 
 void
@@ -463,60 +291,4 @@ ERF::erf_enforce_hse (int lev,
 
     dens.FillBoundary(geom[lev].periodicity());
     pres.FillBoundary(geom[lev].periodicity());
-}
-
-void ERF::init_geo_wind_profile(const std::string input_file,
-                                Vector<Real>& u_geos,
-                                Gpu::DeviceVector<Real>& u_geos_d,
-                                Vector<Real>& v_geos,
-                                Gpu::DeviceVector<Real>& v_geos_d,
-                                const Geometry& lgeom,
-                                const Vector<Real>& zlev_stag)
-{
-    const int klo = 0;
-    const int khi = lgeom.Domain().bigEnd()[AMREX_SPACEDIM-1];
-    const amrex::Real dz = lgeom.CellSize()[AMREX_SPACEDIM-1];
-
-    const bool grid_stretch = (zlev_stag.size() > 0);
-    const Real zbot = (grid_stretch) ? zlev_stag[klo]   : lgeom.ProbLo(AMREX_SPACEDIM-1);
-    const Real ztop = (grid_stretch) ? zlev_stag[khi+1] : lgeom.ProbHi(AMREX_SPACEDIM-1);
-
-    amrex::Print() << "Reading geostrophic wind profile from " << input_file << std::endl;
-    std::ifstream profile_reader(input_file);
-    if(!profile_reader.is_open()) {
-        amrex::Error("Error opening the abl_geo_wind_table\n");
-    }
-
-    // First, read the input data into temp vectors
-    std::string line;
-    Vector<Real> z_inp, Ug_inp, Vg_inp;
-    Real z, Ug, Vg;
-    amrex::Print() << "z  Ug  Vg" << std::endl;
-    while(std::getline(profile_reader, line)) {
-        std::istringstream iss(line);
-        iss >> z >> Ug >> Vg;
-        amrex::Print() << z << " " << Ug << " " << Vg << std::endl;
-        z_inp.push_back(z);
-        Ug_inp.push_back(Ug);
-        Vg_inp.push_back(Vg);
-        if (z >= ztop) break;
-    }
-
-    const int Ninp = z_inp.size();
-    AMREX_ALWAYS_ASSERT(z_inp[0] <= zbot);
-    AMREX_ALWAYS_ASSERT(z_inp[Ninp-1] >= ztop);
-
-    // Now, interpolate vectors to the cell centers
-    for (int k = 0; k <= khi; k++) {
-        z = (grid_stretch) ? 0.5 * (zlev_stag[k] + zlev_stag[k+1])
-                           : zbot + (k + 0.5) * dz;
-        u_geos[k] = interpolate_1d(z_inp.dataPtr(), Ug_inp.dataPtr(), z, Ninp);
-        v_geos[k] = interpolate_1d(z_inp.dataPtr(), Vg_inp.dataPtr(), z, Ninp);
-    }
-
-    // Copy from host version to device version
-    Gpu::copy(Gpu::hostToDevice, u_geos.begin(), u_geos.end(), u_geos_d.begin());
-    Gpu::copy(Gpu::hostToDevice, v_geos.begin(), v_geos.end(), v_geos_d.begin());
-
-    profile_reader.close();
 }

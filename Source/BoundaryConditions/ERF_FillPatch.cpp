@@ -257,7 +257,7 @@ ERF::FillPatch (int lev, Real time,
  *
  * @param[in] lev  level of refinement at which to fill the data
  * @param[in] time time at which the data should be filled
- * @param[out] mf MultiFab to be filled (qmoist[lev])
+ * @param[out] mf  MultiFab to be filled (qmoist[lev])
  */
 void
 ERF::FillPatchMoistVars (int lev, MultiFab& mf)

@@ -396,11 +396,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
         if (containerHasElement(plot_var_names, "pert_pres"))
         {
-#ifdef ERF_USE_POISSON_SOLVE
             if (solverChoice.anelastic[lev] == 1) {
                 MultiFab::Copy(mf[lev], pp_inc[lev], 0, mf_comp, 1, 0);
             } else
-#endif
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
