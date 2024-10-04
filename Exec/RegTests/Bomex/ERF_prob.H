@@ -120,6 +120,7 @@ protected:
 private:
     ProbParm parms;
     amrex::Vector<amrex::Real> zlevels;
+    amrex::Gpu::DeviceVector<amrex::Real> d_zlevels;
 };
 
 #endif
