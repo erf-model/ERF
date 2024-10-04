@@ -158,8 +158,5 @@ read_from_wrfinput (int lev,
 
     const Real theta_ref = 300.0;
     NC_rhotheta_fab.template plus<RunOn::Device>(theta_ref);
-
-    // Now multiply by rho to get (rho theta) instead of theta
-    NC_rhotheta_fab.template mult<RunOn::Device>(NC_rho_fab,0,0,1);
 }
 #endif // ERF_USE_NETCDF

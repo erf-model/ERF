@@ -253,7 +253,7 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
     int Relax_z = width - Spec_z + 1;
     amrex::Real num     = amrex::Real(Spec_z + Relax_z);
     amrex::Real denom   = amrex::Real(Relax_z - 1);
-    amrex::Real SpecExp = -std::log(0.01) / amrex::Real(width - Spec_z);
+    amrex::Real SpecExp = -std::log(0.1) / amrex::Real(width - Spec_z);
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes

@@ -436,9 +436,10 @@ void erf_slow_rhs_post (int level, int finest_level,
 #if defined(ERF_USE_NETCDF)
         if (moist_set_rhs_bool)
         {
+            Box tbx_moist  = mfi.tilebox(IntVect(0),IntVect(2,2,0));
             const Array4<const Real> & old_cons_const = S_old[IntVars::cons].const_array(mfi);
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
-            moist_set_rhs(tbx, old_cons_const, new_cons_const, cell_rhs,
+            moist_set_rhs(tbx_moist, old_cons_const, new_cons_const, cell_rhs,
                           bdy_time_interval, start_bdy_time, new_stage_time, dt, width, set_width, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
         }
