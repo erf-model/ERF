@@ -196,12 +196,15 @@ Problem::update_rhotheta_sources (
         amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);
+        d_zlevels.resize(khi+1);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
     }
 
     if (time < parms.restart_time) {
         // Uniform temperature source
         src->setVal(parms.advection_heating_rate);
     } else {
+        const Real* d_zlevels_arr = d_zlevels.dataPtr();
         // Only apply temperature source below nominal inversion height
         for ( amrex::MFIter mfi(*src, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
@@ -213,12 +216,12 @@ Problem::update_rhotheta_sources (
                 src->setVal(0.0);
             } else {
                 bool use_zlevels = (z_phys_cc != nullptr);
-                ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    const Real z_cc = (use_zlevels) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
-                    if (z_cc < parms.cutoff) {
-                        src_arr(i, j, k) = parms.advection_heating_rate;
-                    } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
-                        src_arr(i, j, k) = parms.advection_heating_rate * (z_cc-parms.cutoff)/parms.cutoff_transition;
+                ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real z_cc = (use_zlevels) ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)* dx[2];
+                    if (z_cc < parms_d.cutoff) {
+                        src_arr(i, j, k) = parms_d.advection_heating_rate;
+                    } else if (z_cc < parms_d.cutoff+parms_d.cutoff_transition) {
+                        src_arr(i, j, k) = parms_d.advection_heating_rate * (z_cc-parms_d.cutoff)/parms_d.cutoff_transition;
                     } else {
                         src_arr(i, j, k) = 0.0;
                     }

@@ -248,9 +248,9 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);
         d_zlevels.resize(khi+1);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
     }
 
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
     const Real* d_zlevels_arr = d_zlevels.dataPtr();
 
     // Only apply temperature source below nominal inversion height
@@ -302,9 +302,9 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);
         d_zlevels.resize(khi+1);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
     }
 
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
     const Real* d_zlevels_arr = d_zlevels.dataPtr();
 
     // Only apply temperature source below nominal inversion height
