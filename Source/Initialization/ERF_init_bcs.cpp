@@ -70,8 +70,6 @@ void ERF::init_bcs ()
         ParmParse pp(pp_text);
         std::string bc_type_in = "null";
         pp.query("type", bc_type_in);
-        //if (pp.query("type", bc_type_in))
-        //   Print() << "INPUT BC TYPE " << bcid << " " << bc_type_in << std::endl;
         std::string bc_type = amrex::toLower(bc_type_in);
 
         if (bc_type == "symmetry")

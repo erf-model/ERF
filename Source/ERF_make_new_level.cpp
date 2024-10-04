@@ -27,7 +27,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     SetBoxArray(lev, ba);
     SetDistributionMap(lev, dm);
 
-    amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+    // amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+
+    if (lev == 0) init_bcs();
 
 #ifdef AMREX_USE_EB
     m_factory[lev] = makeEBFabFactory(geom[lev], grids[lev], dmap[lev],
@@ -102,17 +104,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             init_only(lev, start_time);
             init_zphys(lev, time);
             update_terrain_arrays(lev);
+            make_physbcs(lev);
         } else {
             init_zphys(lev, time);
             update_terrain_arrays(lev);
+            // Note that for init_type != real or metgrid,
+            // make_physbcs is called inside init_only
             init_only(lev, start_time);
         }
     }
-
-    // ********************************************************************************************
-    // Initialize the boundary conditions (must come after terrain defined)
-    // ********************************************************************************************
-    initialize_bcs(lev);
 
     //********************************************************************************************
     // Microphysics
@@ -227,7 +227,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // *****************************************************************************************************
     // Initialize the boundary conditions (after initializing the terrain but before calling FillCoarsePatch
     // *****************************************************************************************************
-    initialize_bcs(lev);
+    make_physbcs(lev);
 
     // ********************************************************************************************
     // Fill data at the new level by interpolation from the coarser level
@@ -308,9 +308,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
 
     // *****************************************************************************************************
-    // Initialize the boundary conditions (after initializing the terrain but before calling FillCoarsePatch
+    // Create the physbcs objects (after initializing the terrain but before calling FillCoarsePatch
     // *****************************************************************************************************
-    initialize_bcs(lev);
+    make_physbcs(lev);
 
     // ********************************************************************************************
     // This will fill the temporary MultiFabs with data from vars_new
@@ -427,9 +427,9 @@ ERF::ClearLevel (int lev)
     rW_new[lev].clear();
     rW_old[lev].clear();
 
-#ifdef ERF_USE_POISSON_SOLVE
-    pp_inc[lev].clear();
-#endif
+    if (solverChoice.anelastic[lev] == 1) {
+        pp_inc[lev].clear();
+    }
 
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();

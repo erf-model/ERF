@@ -6,11 +6,10 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
+
 #include <ERF_EOS.H>
 #include <ERF.H>
-
 #include <AMReX_buildInfo.H>
-
 #include <ERF_Utils.H>
 #include <ERF_TerrainMetrics.H>
 #include <memory>
@@ -39,11 +38,9 @@ Real ERF::change_max    =  1.1;
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
-int ERF::verbose       = 0;
-#ifdef ERF_USE_POISSON_SOLVE
+int ERF::verbose        = 0;
 int  ERF::mg_verbose    = 0;
 bool ERF::use_heffte    = false;
-#endif
 
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
@@ -196,9 +193,13 @@ ERF::ERF_shared ()
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
 
-#ifdef ERF_USE_POISSON_SOLVE
-    pp_inc.resize(nlevs_max);
-#endif
+    bool any_anelastic = false;
+    for (int i = 0; i <= max_level; ++i) {
+        if (solverChoice.anelastic[i] == 1) any_anelastic = true;
+    }
+    if (any_anelastic) {
+        pp_inc.resize(nlevs_max);
+    }
 
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
@@ -597,15 +598,6 @@ ERF::InitData_pre ()
         m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
     }
 
-    // Verify BCs are compatible with solver choice
-    for (int lev(0); lev <= max_level; ++lev) {
-        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
-               (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
-            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
-            Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
-        }
-    }
-
     if (!solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::Static) {
         Abort("We do not allow non-static terrain_type with use_terrain = false");
     }
@@ -622,6 +614,19 @@ ERF::InitData_pre ()
     } else {
         // For initialization this is done in init_only; it is done here for restart
         init_bcs();
+
+        for (int lev(0); lev <= max_level; ++lev) {
+            make_physbcs(lev);
+        }
+    }
+
+    // Verify BCs are compatible with solver choice
+    for (int lev(0); lev <= max_level; ++lev) {
+        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+               (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
+            Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
+        }
     }
 }
 
@@ -1289,6 +1294,10 @@ ERF::init_only (int lev, Real time)
         // input sounding, if the init_sounding_ideal flag is set; otherwise
         // it is set by initHSE()
         init_from_input_sounding(lev);
+
+        // The physbc's need the terrain but are needed for initHSE
+        make_physbcs(lev);
+
         if (init_sounding_ideal) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
                 "Gravity should be on to be consistent with sounding initialization.");
@@ -1311,6 +1320,10 @@ ERF::init_only (int lev, Real time)
     } else if (init_type == "uniform") {
         // Initialize a uniform background field and base state based on the
         // problem-specified reference density and temperature
+
+        // The physbc's need the terrain but are needed for initHSE
+        make_physbcs(lev);
+
         init_uniform(lev);
         initHSE(lev);
     } else {
@@ -1318,8 +1331,8 @@ ERF::init_only (int lev, Real time)
         // background field to be equal to the base state, calculated from the
         // problem-specific erf_init_dens_hse
 
-        // The bc's need the terrain but are needed for initHSE, so must be called here.
-        initialize_bcs(lev);
+        // The bc's need the terrain but are needed for initHSE
+        make_physbcs(lev);
 
         // We will initialize the state from the background state so must set that first
         initHSE(lev);
@@ -1390,10 +1403,8 @@ ERF::ReadParameters ()
 
         // Verbosity
         pp.query("v", verbose);
-#ifdef ERF_USE_POISSON_SOLVE
         pp.query("mg_v", mg_verbose);
         pp.query("use_heffte", use_heffte);
-#endif
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);

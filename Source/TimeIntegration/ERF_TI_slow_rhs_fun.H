@@ -379,7 +379,6 @@
         }
     }; // end slow_rhs_fun_post
 
-#ifdef ERF_USE_POISSON_SOLVE
     auto slow_rhs_fun_inc = [&](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_old,
                                 Vector<MultiFab>& S_data,
@@ -470,4 +469,3 @@
         }
 #endif
     }; // end slow_rhs_fun_inc
-#endif

@@ -134,8 +134,7 @@ public:
     void WriteMyEBSurface ();
 #endif
 
-#ifdef ERF_USE_POISSON_SOLVE
-    // Project the velocities to be divergence-free
+    // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
     void solve_with_heffte  (int lev, amrex::MultiFab& rhs, amrex::MultiFab& soln,
                              amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
@@ -147,8 +146,6 @@ public:
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
     bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
-
-#endif
 
     // Init (NOT restart or regrid)
     void init_only (int lev, amrex::Real time);
@@ -473,8 +470,8 @@ private:
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
-    // Initialize the bc routines
-    void initialize_bcs        (int lev);
+    // Create the physbcs objects
+    void make_physbcs (int lev);
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
@@ -676,9 +673,7 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
-#ifdef ERF_USE_POISSON_SOLVE
     amrex::Vector<amrex::MultiFab> pp_inc;
-#endif
 
     // Vector over levels of routines to impose physical boundary conditions
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
@@ -943,10 +938,8 @@ private:
 #endif
 
     static int verbose;
-#ifdef ERF_USE_POISSON_SOLVE
     static int mg_verbose;
     static bool use_heffte;
-#endif
 
     // Diagnostic output interval
     static int sum_interval;

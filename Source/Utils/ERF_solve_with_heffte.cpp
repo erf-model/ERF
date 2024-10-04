@@ -6,7 +6,6 @@
 #include "heffte.h"
 #endif
 
-#ifdef ERF_USE_POISSON_SOLVE
 #ifdef ERF_USE_HEFFTE
 
 using namespace amrex;
@@ -241,5 +240,4 @@ void ERF::solve_with_heffte (int lev, MultiFab& rhs, MultiFab& phi,
     } // mfi
 }
 
-#endif
 #endif

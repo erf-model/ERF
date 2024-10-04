@@ -172,14 +172,13 @@ struct SolverChoice {
         pp.query("c_p", c_p);
         rdOcp = R_d / c_p;
 
+        read_int_string(max_level, "anelastic", anelastic, 0);
         read_int_string(max_level, "no_substepping", no_substepping, 0);
 
-#if defined(ERF_USE_POISSON_SOLVE)
         // Should we project the initial velocity field to make it divergence-free?
         pp.query("project_initial_velocity", project_initial_velocity);
 
-        read_int_string(max_level, "anelastic", anelastic, 0);
-
+#ifdef ERF_USE_POISSON_SOLVE
         bool any_anelastic = false;
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) any_anelastic = true;
@@ -206,8 +205,12 @@ struct SolverChoice {
             }
         }
 #else
-        anelastic.resize(max_level+1);
-        for (int i = 0; i <= max_level; ++i) anelastic[i] = 0;
+        for (int i = 0; i <= max_level; ++i) {
+            if (anelastic[i] != 0) amrex::Abort("To run with anelastic you must compile with USE_POISSON_SOLVE = TRUE");
+        }
+        if (project_initial_velocity) {
+            amrex::Abort("To project the initial velocity you must compile with USE_POISSON_SOLVE = TRUE");
+        }
 #endif
 
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
@@ -607,7 +610,9 @@ struct SolverChoice {
     amrex::Real dz0;
 
 #if defined(ERF_USE_POISSON_SOLVE)
-    int project_initial_velocity = 1;
+    bool project_initial_velocity = true;
+#else
+    bool project_initial_velocity = false;
 #endif
 
     // Coriolis forcing

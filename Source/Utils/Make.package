@@ -23,8 +23,8 @@ CEXE_sources += ERF_InteriorGhostCells.cpp
 CEXE_sources += ERF_TerrainMetrics.cpp
 CEXE_sources += ERF_Time_Avg_Vel.cpp  
 
-ifeq ($(USE_POISSON_SOLVE),TRUE)
 CEXE_sources += ERF_PoissonSolve.cpp
 CEXE_sources += ERF_PoissonSolve_tb.cpp
+ifeq ($(USE_HEFFTE),TRUE)
 CEXE_sources += ERF_solve_with_heffte.cpp
 endif
