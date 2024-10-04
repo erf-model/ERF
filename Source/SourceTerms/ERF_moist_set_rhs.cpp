@@ -12,6 +12,7 @@ using namespace amrex;
 
 void
 moist_set_rhs (const Box& tbx,
+               const Box& gtbx,
                const Array4<Real const>& old_cons,
                const Array4<Real const>& new_cons,
                const Array4<Real      >& cell_rhs,
@@ -95,7 +96,7 @@ moist_set_rhs (const Box& tbx,
     Array4<Real> arr_ylo = QV_ylo.array();  Array4<Real> arr_yhi = QV_yhi.array();
 
     Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-    compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+    compute_interior_ghost_bxs_xy(gtbx, domain, width, 0,
                                   tbx_xlo, tbx_xhi,
                                   tbx_ylo, tbx_yhi,
                                   ng_vect, true);
@@ -155,6 +156,10 @@ moist_set_rhs (const Box& tbx,
     // Compute RHS in specified region
     //==========================================================
     if (set_width > 0) {
+        compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                                      tbx_xlo, tbx_xhi,
+                                      tbx_ylo, tbx_yhi,
+                                      ng_vect, true);
         wrfbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
                                       width, set_width, dom_lo, dom_hi,
                                       tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
