@@ -236,7 +236,7 @@ ERF::FillPatch (int lev, Real time,
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
     if (use_real_bcs && (lev==0)) {
-        fill_from_realbdy(mfs_vel,time,false,icomp_cons,ncomp_cons);
+        fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
     }
 #endif
 
@@ -504,7 +504,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
     if (use_real_bcs && (lev==0)) {
-        fill_from_realbdy(mfs_vel,time,false,icomp_cons,ncomp_cons);
+        fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons, ngvect_vels);
     }
 #endif
 

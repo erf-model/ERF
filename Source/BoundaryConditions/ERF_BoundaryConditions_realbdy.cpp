@@ -16,9 +16,15 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                         const Real time,
                         bool cons_only,
                         int icomp_cons,
-                        int ncomp_cons)
+                        int ncomp_cons,
+                        IntVect ngvect_cons,
+                        IntVect ngvect_vels)
 {
     int lev = 0;
+
+    // We do not operate on the z ghost cells
+    ngvect_cons[2] = 0;
+    ngvect_vels[2] = 0;
 
     // Time interpolation
     Real dT = bdy_time_interval;
@@ -29,8 +35,14 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     Real oma   = 1.0 - alpha;
 
     // Flags for read vars and index mapping
-    Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0, 0, 0};
-    Vector<int> cons_map = {RealBdyVars::R, RealBdyVars::T, 0, 0, 0, RealBdyVars::QV, 0, 0, 0};
+    Vector<int> cons_read = {0, 1, 0,
+                             0, 0, 1,
+                             0, 0, 0,
+                             0, 0};
+    Vector<int> cons_map = {Rho_comp,    RealBdyVars::T, RhoKE_comp,
+                            RhoQKE_comp, RhoScalar_comp, RealBdyVars::QV,
+                            RhoQ2_comp,  RhoQ3_comp,     RhoQ4_comp,
+                            RhoQ5_comp,  RhoQ6_comp};
 
     Vector<Vector<int>> is_read;
     is_read.push_back( cons_read );
@@ -66,6 +78,10 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         // Offset only applies to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
 
+
+        // Ghost cells to be filled
+        IntVect ng_vect = (var_idx == Vars::cons) ? ngvect_cons : ngvect_vels;
+
         // Loop over each component
         for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
         {
@@ -76,7 +92,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
             if (is_read[var_idx][comp_idx])
             {
                 int ivar  = ind_map[var_idx][comp_idx];
-                IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)
@@ -113,6 +128,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             jj = std::min(jj, dom_hi.y);
                         dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                  + alpha * bdatxlo_np1(ii,jj,k,0);
+                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -121,6 +137,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             jj = std::min(jj, dom_hi.y);
                         dest_arr(i,j,k,comp_idx) = oma   * bdatxhi_n  (ii,jj,k,0)
                                                  + alpha * bdatxhi_np1(ii,jj,k,0);
+                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                     });
 
                     // y-faces (do not include exterior x ghost cells)
@@ -130,19 +147,20 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                         int jj = std::max(j , dom_lo.y);
                         dest_arr(i,j,k,comp_idx) = oma   * bdatylo_n  (i,jj,k,0)
                                                  + alpha * bdatylo_np1(i,jj,k,0);
+                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         int jj = std::min(j , dom_hi.y);
                         dest_arr(i,j,k,comp_idx) = oma   * bdatyhi_n  (i,jj,k,0)
                                                  + alpha * bdatyhi_np1(i,jj,k,0);
+                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                     });
                 } // mfi
 
             // Variable not read from wrf bdy
             //------------------------------------
             } else {
-                IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -151,11 +169,12 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                 {
                     // Grown tilebox so we fill exterior ghost cells as well
                     Box gbx = mfi.growntilebox(ng_vect);
-                    const Array4<Real>& dest_arr = mf.array(mfi);
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                     compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
                                                   bx_xlo, bx_xhi,
                                                   bx_ylo, bx_yhi, ng_vect);
+
+                    const Array4<Real>& dest_arr = mf.array(mfi);
 
                     // x-faces (includes y ghost cells)
                     ParallelFor(bx_xlo, bx_xhi,

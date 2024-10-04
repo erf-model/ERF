@@ -88,9 +88,8 @@ namespace RealBdyVars {
     enum {
         U  = 0,
         V  = 1,
-        R  = 2,
-        T  = 3,
-        QV,
+        T  = 2,
+        QV = 3,
         NumTypes
     };
 }
@@ -99,8 +98,7 @@ namespace WRFBdyVars {
     enum {
         U  = 0,
         V  = 1,
-        R  = 2,
-        T  = 3,
+        T  = 2,
         QV    , // water vapor
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
         PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
@@ -112,8 +110,7 @@ namespace MetGridBdyVars {
     enum {
         U = 0,
         V = 1,
-        R = 2,
-        T = 3,
+        T = 2,
         QV,
         NumTypes
     };

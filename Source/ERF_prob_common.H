@@ -485,7 +485,7 @@ protected:
  * Function to init the physical bounds of the domain
  * and instantiate a Problem derived from ProblemBase
 */
-std::unique_ptr<ProblemBase> amrex_probinit (const amrex_real* problo,
-                                             const amrex_real* probhi);
+extern std::unique_ptr<ProblemBase> amrex_probinit (const amrex_real* problo,
+                                                    const amrex_real* probhi) AMREX_ATTRIBUTE_WEAK;
 
 #endif

@@ -137,6 +137,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeTurbulentViscosity.cpp
+       ${SRC_DIR}/Initialization/ERF_init_bcs.cpp
        ${SRC_DIR}/Initialization/ERF_init_custom.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_hse.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_input_sounding.cpp
@@ -299,11 +300,6 @@ function(build_erf_exe erf_exe_name)
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_exe_name})
 
-  target_sources(${erf_exe_name}
-     PRIVATE
-       ${SRC_DIR}/Initialization/ERF_init_bcs.cpp
-
-  )
   if(ERF_ENABLE_CUDA)
     set(pctargets "${erf_exe_name}")
     foreach(tgt IN LISTS pctargets)
