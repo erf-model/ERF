@@ -260,7 +260,7 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
             const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
             const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
 
-            // Current density to conver to conserved vars
+            // Current density to convert to conserved vars
             Array4<Real> r_arr = S_cur_data[IntVars::cons].array(mfi);
 
             // NOTE: width is now one less than the total bndy width
