@@ -439,7 +439,6 @@ ERF::ClearLevel (int lev)
     physbcs_u[lev].reset();
     physbcs_v[lev].reset();
     physbcs_w[lev].reset();
-    physbcs_w_no_terrain[lev].reset();
     physbcs_base[lev].reset();
 
     // Clears the flux register array

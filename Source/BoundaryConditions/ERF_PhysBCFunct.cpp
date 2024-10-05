@@ -316,58 +316,6 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     } // OpenMP
 } // operator()
 
-void ERFPhysBCFunct_w_no_terrain::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
-                                              IntVect const& nghost, const Real /*time*/, int bccomp)
-{
-    BL_PROFILE("ERFPhysBCFunct_w::()");
-
-    if (m_geom.isAllPeriodic()) return;
-
-    const auto& domain = m_geom.Domain();
-
-    Box gdomainz = surroundingNodes(domain,2);
-    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-        if (m_geom.isPeriodic(i)) {
-            gdomainz.grow(i, nghost[i]);
-        }
-    }
-
-#ifdef AMREX_USE_OMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    {
-        for (MFIter mfi(mf,false); mfi.isValid(); ++mfi)
-        {
-            //
-            // This is the box we pass to the different routines
-            // NOTE -- this is the full grid NOT the tile box
-            //
-            Box bx  = mfi.validbox();
-
-            //
-            // These are the boxes we use to test on relative to the domain
-            //
-            Box zbx = surroundingNodes(bx,2); zbx.grow(0,nghost[0]);
-                                              zbx.grow(1,nghost[1]);
-
-            if (!m_use_real_bcs)
-            {
-                Array4<      Real> const& velz_arr = mf.array(mfi);;
-                if (!gdomainz.contains(zbx))
-                {
-                    impose_lateral_zvel_bcs(velz_arr,zbx,domain,bccomp);
-                }
-            } // m_use_real_bcs
-
-            const Array4<      Real> velz_arr = mf.array(mfi);;
-            if (!gdomainz.contains(zbx)) {
-                impose_vertical_zvel_bcs(velz_arr,zbx,domain,bccomp);
-            }
-
-        } // MFIter
-    } // OpenMP
-} // operator()
-
 void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
                                       IntVect const& nghost, const Real /*time*/, int /*bccomp*/)
 {

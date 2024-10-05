@@ -682,7 +682,6 @@ private:
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_u>> physbcs_u;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
-    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w_no_terrain>> physbcs_w_no_terrain;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base;
 
     // Store primitive variable for MOST BC

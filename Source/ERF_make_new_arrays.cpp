@@ -577,9 +577,5 @@ ERF::make_physbcs (int lev)
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, z_phys_nd[lev],
                                                             use_real_bcs, w_bc_tmp);
-    physbcs_w_no_terrain[lev]    = std::make_unique<ERFPhysBCFunct_w_no_terrain>
-                                                           (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                            m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs,
-                                                            w_bc_tmp);
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d);
 }

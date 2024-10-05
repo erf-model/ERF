@@ -222,7 +222,6 @@ ERF::ERF_shared ()
     physbcs_u.resize(nlevs_max);
     physbcs_v.resize(nlevs_max);
     physbcs_w.resize(nlevs_max);
-    physbcs_w_no_terrain.resize(nlevs_max);
     physbcs_base.resize(nlevs_max);
 
     advflux_reg.resize(nlevs_max);
