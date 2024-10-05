@@ -263,6 +263,17 @@ public:
         return tabs;
     }
 
+    void
+    Qmoist_Restart_Vars ( std::vector<int>& a_idx,
+                          std::vector<std::string>& a_names) const override
+    {
+        a_idx.clear();
+        a_names.clear();
+        a_idx.push_back( 8); a_names.push_back("RainAccum");
+        a_idx.push_back( 9); a_names.push_back("SnowAccum");
+        a_idx.push_back(10); a_names.push_back("GraupAccum");
+    }
+
 private:
     // Number of qmoist variables (qt, qv, qcl, qci, qp, qpr, qps, qpg)
     int m_qmoist_size = 11;
