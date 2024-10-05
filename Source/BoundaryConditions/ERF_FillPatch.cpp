@@ -83,8 +83,6 @@ ERF::FillPatch (int lev, Real time,
 
     if (lev == 0)
     {
-        const int icomp = 0;
-
         Vector<Real> ftime    = {t_old[lev], t_new[lev]};
 
         //
@@ -626,12 +624,13 @@ ERF::FillCoarsePatch (int lev, Real time)
     // Interpolate cell-centered data from coarse to fine level
     // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
     // ************************************************************************************************
-    int      ncomp = vars_new[lev][Vars::cons].nComp();
-    IntVect ngvect = vars_new[lev][Vars::cons].nGrowVect();
-    InterpFromCoarseLevel(vars_new[lev  ][Vars::cons], vars_new[lev][Vars::cons].nGrowVect(), IntVect(0,0,0),
-                          vars_new[lev-1][Vars::cons], 0, 0, 1,
+    IntVect ngvect_cons = vars_new[lev][Vars::cons].nGrowVect();
+    int      ncomp_cons = vars_new[lev][Vars::cons].nComp();
+
+    InterpFromCoarseLevel(vars_new[lev  ][Vars::cons], ngvect_cons, IntVect(0,0,0),
+                          vars_new[lev-1][Vars::cons], 0, 0, ncomp_cons,
                           geom[lev-1], geom[lev],
-                          refRatio(lev-1), mapper_f, domain_bcs_type, BCVars::cons_bc);
+                          refRatio(lev-1), mapper_c, domain_bcs_type, BCVars::cons_bc);
 
     //
     //************************************************************************************************
@@ -686,10 +685,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     // ***************************************************************************
     // Physical bc's at domain boundary
     // ***************************************************************************
-    IntVect ngvect_cons = vars_new[lev][Vars::cons].nGrowVect();
     IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
-
-    int ncomp_cons = vars_new[lev][Vars::cons].nComp();
 
     (*physbcs_cons[lev])(vars_new[lev][Vars::cons],0,ncomp_cons,ngvect_cons,time,BCVars::cons_bc);
     (   *physbcs_u[lev])(vars_new[lev][Vars::xvel],0,1         ,ngvect_vels,time,BCVars::xvel_bc);
