@@ -1272,7 +1272,7 @@ ERF::init_only (int lev, Real time)
     // Map the words in the inputs file to BC types, then translate
     //     those types into what they mean for each variable
     // This must be called before initHSE (where the base state is initialized)
-    if (lev == 0) {
+    if (lev == 0 && init_type != "ideal") {
         init_bcs();
     }
 
@@ -1310,7 +1310,12 @@ ERF::init_only (int lev, Real time)
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
         init_from_wrfinput(lev);
-        if (init_type == "ideal") initHSE();
+
+        // The physbc's need the terrain but are needed for initHSE
+        if (init_type == "ideal") {
+            make_physbcs(lev);
+            initHSE(lev);
+        }
 
     } else if (init_type == "metgrid") {
         // The base state is initialized from data output by WPS metgrid;
