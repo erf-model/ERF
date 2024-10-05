@@ -144,19 +144,19 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(z_height, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
         }
 
-         // We must read and write qmoist with ghost cells because we don't directly impose BCs on these vars
-         // Write the moisture model restart variables
-         std::vector<int> indices(0);
-         std::vector<std::string> names(0);
-         micro->Get_Qmoist_Restart_Vars(lev, indices, names);
-         int nvar = indices.size();
-         for (int var = 0; var < nvar; var++) {
-            ng = qmoist[lev][indices[var]]->nGrowVect();
-            const int ncomp = 1;
-            MultiFab moist_vars(grids[lev],dmap[lev],ncomp,ng);
-            MultiFab::Copy(moist_vars,*(qmoist[lev][indices[var]]),0,0,ncomp,ng);
-            VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", names[var]));
-         }
+        // We must read and write qmoist with ghost cells because we don't directly impose BCs on these vars
+        // Write the moisture model restart variables
+        std::vector<int> indices(0);
+        std::vector<std::string> names(0);
+        micro->Get_Qmoist_Restart_Vars(lev, indices, names);
+        int nvar = indices.size();
+        for (int var = 0; var < nvar; var++) {
+           ng = qmoist[lev][indices[var]]->nGrowVect();
+           const int ncomp = 1;
+           MultiFab moist_vars(grids[lev],dmap[lev],ncomp,ng);
+           MultiFab::Copy(moist_vars,*(qmoist[lev][indices[var]]),0,0,ncomp,ng);
+           VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", names[var]));
+        }
 
 #if defined(ERF_USE_WINDFARM)
         if(solverChoice.windfarm_type == WindFarmType::Fitch or
@@ -168,7 +168,6 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(mf_Nturb, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "NumTurb"));
         }
 #endif
-
 
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
