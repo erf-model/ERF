@@ -559,6 +559,11 @@ ERF::make_physbcs (int lev)
         v_bc_tmp = yvel_bc_data.data();
         w_bc_tmp = zvel_bc_data.data();
     }
+
+    if (solverChoice.use_terrain) {
+        AMREX_ALWAYS_ASSERT(z_phys_nd[lev] != nullptr);
+    }
+
     physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                m_bc_extdir_vals, m_bc_neumann_vals,
                                                                z_phys_nd[lev], use_real_bcs);

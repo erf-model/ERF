@@ -587,7 +587,6 @@ ERF::InitData ()
 void
 ERF::InitData_pre ()
 {
-
     // Initialize the start time for our CPU-time tracker
     startCPUTime = ParallelDescriptor::second();
 
@@ -614,10 +613,6 @@ ERF::InitData_pre ()
     } else {
         // For initialization this is done in init_only; it is done here for restart
         init_bcs();
-
-        for (int lev(0); lev <= max_level; ++lev) {
-            make_physbcs(lev);
-        }
     }
 
     // Verify BCs are compatible with solver choice
@@ -731,6 +726,11 @@ ERF::InitData_post ()
     } else { // Restart from a checkpoint
 
         restart();
+
+        // Create the physbc objects for {cons, u, v, w, base state}
+        for (int lev(0); lev <= max_level; ++lev) {
+            make_physbcs(lev);
+        }
 
         // TODO: Check if this is needed. I don't think it is since we now
         //       advect all the scalars...
@@ -933,6 +933,7 @@ ERF::InitData_post ()
         }
 
         auto& lev_new = vars_new[lev];
+
         //
         // Fill boundary conditions -- not sure why we need this here
         //
