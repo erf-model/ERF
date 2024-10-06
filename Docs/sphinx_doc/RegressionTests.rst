@@ -27,10 +27,10 @@ The following problems are currently tested in the CI:
 | Bubble_Density_Current        | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | moist bubble          |
 |                               |          | Outflow  |          | SlipWall   |       |                       |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
-| CouetteFlow-x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous         |
+| CouetteFlow_x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous         |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (u = 2)     |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
-| CouetteFlow-y                 | 4 32  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous         |
+| CouetteFlow_y                 | 4 32  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous         |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (v = 2)     |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity              |
@@ -65,8 +65,11 @@ The following problems are currently tested in the CI:
 | MSF_Sub_IsentropicVortexAdv   | 48 48  4 | Periodic | Periodic | SlipWall   | None  | tests map factors     |
 |                               |          |          |          | SlipWall   |       | with substepping      |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
-| PoiseuilleFlow                | 32 4  16 | Periodic | Periodic | NoSlipWall | GradP |                       |
+| PoiseuilleFlow_x              | 32 4  16 | Periodic | Periodic | NoSlipWall | GradP |                       |
 |                               |          |          |          | NoSlipWall | in x  |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| PoiseuilleFlow_y              | 4 32  16 | Periodic | Periodic | NoSlipWall | GradP |                       |
+|                               |          |          |          | NoSlipWall | in y  |                       |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | RayleighDamping               | 64  4 64 | Periodic | Periodic | SlipWall   | None  | Rayleigh damping      |
 |                               |          |          |          | SlipWall   |       |                       |
@@ -107,66 +110,126 @@ The following problems are currently tested in the CI:
 
 while the following tests are run nightly:
 
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| Test                          | nx ny nz | xbc      | ybc      | zbc        | Ext   | Other            |
-+===============================+==========+==========+==========+============+=======+==================+
-| ABL-Deardorff                 | 64 64 64 | Periodic | Periodic | NoSlipWall | None  | LES              |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ABL-Smag                      | 64 64 64 | Periodic | Periodic | NoSlipWall | None  | LES              |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity         |
-|                               |          | Outflow  |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| EkmanSpiral                   | 4 4 400  | Periodic | Periodic | NoSlipWall | Geo   | +Coriolis        |
-|                               |          |          |          | SlipWall   |       | +gravity         |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| EkmanSpiral_restart           | 4 4 400  | Periodic | Periodic | NoSlipWall | Geo   | restart test     |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| IsentropicVortexAdvecting     | 48 48  4 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| IsentropicVortexStationary    | 48 48  4 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| PoiseuilleFlow-x              | 32 4  16 | Periodic | Periodic | NoSlipWall | GradP |                  |
-|                               |          |          |          | NoSlipWall | in x  |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| PoiseuilleFlow-y              | 4  32 16 | Periodic | Periodic | NoSlipWall | GradP |                  |
-|                               |          |          |          | NoSlipWall | in y  |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarAdvecDiffDoubleDen      | 32 32 32 | Periodic | Periodic | SlipWall   | None  | Density = 2      |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarAdvDiffInflowOutflow    | 32 32 32 | Inflow   | Periodic | SlipWall   | None  |                  |
-|                               |          | Outflow  |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarAdvecDiffUniformU       | 32 32 32 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarAdvecUniformU           | 64 64  4 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarAdvecShearedU           | 64  4 64 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarAdvecUniformU           | 64 64  4 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarDiffusionGaussian       | 64 64 64 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarDiffusionSine           | 64 64 4  | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| TaylorGreenAdvecting          | 64 64 64 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| TaylorGreenAdvDiffDoubleDen   | 64 64 64 | Periodic | Periodic | SlipWall   | None  | Density = 2      |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| Test                          | nx ny nz    | xbc      | ybc      | zbc        | Ext   | Other            |
++===============================+=============+==========+==========+============+=======+==================+
+| ABL-Deardorff                 | 64 64 64    | Periodic | Periodic | NoSlipWall | None  | LES              |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ABL-Deardorff-OMP             | 64 64 64    | Periodic | Periodic | NoSlipWall | None  | LES              |
+|                               |             |          |          | SlipWall   |       | uses OpenMP      |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ABL-MOST                      | 64 64 64    | Periodic | Periodic | NoSlipWall | None  | LES with MOST bc |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ABL-MOST-OMP                  | 64 64 64    | Periodic | Periodic | MOST       | None  | LES with MOST bc |
+|                               |             |          |          | SlipWall   |       | uses OpenMP      |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ABL-MYNN                      | 2  2  64    | Periodic | Periodic | MOST       | None  | MYNN2.5 Model    |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ABL-Smag                      | 64 64 64    | Periodic | Periodic | NoSlipWall | None  | LES              |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ABL-Smag-OMP                  | 64 64 64    | Periodic | Periodic | NoSlipWall | None  | LES              |
+|                               |             |          |          | SlipWall   |       | uses OpenMP      |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| Bomex                         | 32 32 100   | Periodic | Periodic | MOST       | None  | Kessler_NoRain   |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| Bubble_Kessler                | 100 4 100   | SlipWall | Periodic | SlipWall   | None  | Kessler          |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| Bubble_Kessler_NoRain         | 200 4 100   | SlipWall | Periodic | SlipWall   | None  | Kessler_NoRain   |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| DensityCurrent                | 256 4 64    | Symmetry | Periodic | SlipWall   | None  | +gravity         |
+|                               |             | Outflow  |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| DensityCurrent-OMP            | 256 4 64    | Symmetry | Periodic | SlipWall   | None  | +gravity         |
+|                               |             | Outflow  |          | SlipWall   |       | uses OpenMP      |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| DensityCurrent_Terrain        | 256 4 64    | Symmetry | Periodic | SlipWall   | None  | +gravity         |
+|                               |             | Outflow  |          | SlipWall   |       | uses terrain     |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| DensityCurrent_Terrain-OMP    | 256 4 64    | Symmetry | Periodic | SlipWall   | None  | +gravity         |
+|                               |             | Outflow  |          | SlipWall   |       | terrain, OpenMP  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| DensityCurrent_anelastic      | 256 4 64    | Symmetry | Periodic | SlipWall   | None  | +gravity         |
+|                               |             | Outflow  |          | SlipWall   |       | anelastic        |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| DensityCurrent_detJ2          | 256 4 64    | Symmetry | Periodic | SlipWall   | None  | +gravity         |
+|                               |             | Outflow  |          | SlipWall   |       | uses z_levels    |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| EkmanSpiral_custom            | 12 10 400   | Periodic | Periodic | NoSlipWall | Geo   | custom init      |
+|                               |             |          |          | SlipWall   | Cor   |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| EkmanSpiral_ideal             | 12 10 400   | Periodic | Periodic | NoSlipWall | Geo   | init from ideal  |
+|                               |             |          |          | SlipWall   | Cor   | wrfinput file    |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| EkmanSpiral_input_sounding    | 4 4 400     | Periodic | Periodic | NoSlipWall | Geo   | init from        |
+|                               |             |          |          | SlipWall   | Cor   | input_sounding   |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| EkmanSpiral_restart           | 4 4 400     | Periodic | Periodic | NoSlipWall | Geo   | restart test     |
+|                               |             |          |          | SlipWall   | Cor   |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| IsentropicVortexAdvecting     | 48 48  4    | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| IsentropicVortexStationary    | 48 48  4    | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| MetGrid                       | 140 80 100  | Outflow  | Outflow  | MOST       | None  | init from        |
+|                               |             |          |          | SlipWall   |       | metgrid file     |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| MovingTerrain_nosub           | 40  8  79   | Periodic | Periodic | SlipWall   | None  | moving terrain   |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ParticlesOverWoA              | 256 8  64   | Inflow   | Periodic | SlipWall   | None  | particle         |
+|                               |             | Outflow  |          | SlipWall   |       | advection        |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ScalarAdvecDiffDoubleDen      | 32 32 32    | Periodic | Periodic | SlipWall   | None  | Density = 2      |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ScalarAdvDiffInflowOutflow    | 32 32 32    | Inflow   | Periodic | SlipWall   | None  |                  |
+|                               |             | Outflow  |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ScalarAdvecDiffUniformU       | 32 32 32    | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ScalarAdvecUniformU           | 64 64  4    | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ScalarAdvecShearedU           | 64  4 64    | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ScalarAdvecUniformU           | 64 64  4    | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ScalarDiffusion               | 64 64 64    | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| ScalarDiffusionSine           | 64 64 4     | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| TaylorGreenAdvecting          | 64 64 64    | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| TaylorGreenAdvDiffDoubleDen   | 64 64 64    | Periodic | Periodic | SlipWall   | None  | Density = 2      |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| WPS_Test                      | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from        |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput         |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| WPS_Test_Terrain              | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from        |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput         |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| WPS_Test_Terrain-OMP          | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from        |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput         |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| WPS_Test_restart              | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from        |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput         |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
 
 More details about the CI tests are given below.
 
@@ -391,35 +454,67 @@ Problem Location: `Exec/RegTests/TaylorGreenVortex`_
    |   Flow field at t=0.                                |   Flow field at 10 steps (t = 1.6).                  |
    +-----------------------------------------------------+------------------------------------------------------+
 
-Couette Flow
-------------
+Couette Flow (x-direction)
+---------------------------
 
 This tests Couette flow in a channel.  The domain is periodic in the x- and y-directions, and has
 NoSlipWall bc's on the low-z and high-z faces.  At the high-z boundary
 the velocity is specified to be :math:`U = (2,0,0)`.   The steady solution for this problem is
 :math:`U = (z/8,0,0)` in the domain which is 16 units high in z.
 
-Test Location: `Tests/test_files/CouetteFlow`_
+Test Location: `Tests/test_files/CouetteFlow_x`_
 
-.. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow
+.. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_x
 
-Problem Location: `Exec/RegTests/CouetteFlow`_
+Problem Location: `Exec/RegTests/CouetteFlow_x`_
 
 .. _`Exec/RegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
 
-Poiseuille Flow
----------------
+Couette Flow (y-direction)
+---------------------------
+
+This tests Couette flow in a channel.  The domain is periodic in the x- and y-directions, and has
+NoSlipWall bc's on the low-z and high-z faces.  At the high-z boundary
+the velocity is specified to be :math:`U = (0,2,0)`.   The steady solution for this problem is
+:math:`U = (0,z/8,0)` in the domain which is 16 units high in z.
+
+Test Location: `Tests/test_files/CouetteFlow_y`_
+
+.. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_y
+
+Problem Location: `Exec/RegTests/CouetteFlow_y`_
+
+.. _`Exec/RegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
+
+Poiseuille Flow (x-direction)
+-----------------------------
 
 This tests Poiseuille flow in a channel.  The domain is periodic in the x- and y-directions, and has
 NoSlipWall bc's on the low-z and high-z faces.  We initialize the solution with the steady parabolic
 profile :math:`U = (1-z^2,0,0)` in the domain which runs from -1. to 1. in z.  The viscosity is
 specified to be 0.1 and the imposed pressure gradient is :math:`Gp = (-0.2,0,0)`.
 
-Test Location: `Tests/test_files/PoiseuilleFlow`_
+Test Location: `Tests/test_files/PoiseuilleFlow_x`_
 
-.. _`Tests/test_files/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/PoiseuilleFlow
+.. _`Tests/test_files/PoiseuilleFlow_x`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/PoiseuilleFlow_x
 
-Problem Location: `Exec/RegTests/PoiseuilleFlow`_
+Problem Location: `Exec/RegTests/PoiseuilleFlow_x`_
+
+.. _`Exec/RegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
+
+Poiseuille Flow (y-direction)
+-----------------------------
+
+This tests Poiseuille flow in a channel.  The domain is periodic in the x- and y-directions, and has
+NoSlipWall bc's on the low-z and high-z faces.  We initialize the solution with the steady parabolic
+profile :math:`U = (0,1-z^2,0)` in the domain which runs from -1. to 1. in z.  The viscosity is
+specified to be 0.1 and the imposed pressure gradient is :math:`Gp = (0,-0.2,0)`.
+
+Test Location: `Tests/test_files/PoiseuilleFlow_y`_
+
+.. _`Tests/test_files/PoiseuilleFlow_y`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/PoiseuilleFlow_y
+
+Problem Location: `Exec/RegTests/PoiseuilleFlow_y`_
 
 .. _`Exec/RegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
 
