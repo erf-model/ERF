@@ -20,7 +20,7 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.no_substepping = 0
+erf.substepping_type = Implicit
 erf.fixed_dt       = 0.000015
 
 # DIAGNOSTICS & VERBOSITY

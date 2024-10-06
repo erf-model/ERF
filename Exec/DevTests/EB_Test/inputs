@@ -30,8 +30,8 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.no_substepping = 1
-erf.fixed_dt       = 1.e-5
+erf.substepping_type = None
+erf.fixed_dt         = 1.e-5
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
