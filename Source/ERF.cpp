@@ -1541,7 +1541,7 @@ ERF::ReadParameters ()
 
     // No moving terrain with init real (we must do this after init_params
     //    because that is where we set terrain_type
-    if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {
+    if (init_type == "real" && solverChoice.terrain_type == TerrainType::Moving) {
         Abort("Moving terrain is not supported with init real");
     }
 
