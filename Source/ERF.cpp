@@ -1439,11 +1439,6 @@ ERF::ReadParameters ()
         use_real_bcs = ( (init_type == "real") || (init_type == "metgrid") );
         pp.query("use_real_bcs",use_real_bcs);
 
-        // No moving terrain with init real
-        if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {
-            Abort("Moving terrain is not supported with init real");
-        }
-
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
 
@@ -1543,6 +1538,12 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level);
+
+    // No moving terrain with init real (we must do this after init_params
+    //    because that is where we set terrain_type
+    if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {
+        Abort("Moving terrain is not supported with init real");
+    }
 
     // What type of land surface model to use
     // NOTE: Must be checked after init_params

@@ -83,7 +83,6 @@ struct SolverChoice {
 
         // Do we have terrain (or grid stretching)?
         pp.query("use_terrain", use_terrain);
-        amrex::Print() << "READING TERRAIN " << use_terrain << std::endl;
 
         pp.query("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
