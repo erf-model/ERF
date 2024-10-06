@@ -193,13 +193,8 @@ ERF::ERF_shared ()
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
 
-    bool any_anelastic = false;
-    for (int i = 0; i <= max_level; ++i) {
-        if (solverChoice.anelastic[i] == 1) any_anelastic = true;
-    }
-    if (any_anelastic) {
-        pp_inc.resize(nlevs_max);
-    }
+    // We resize this regardless in order to pass it without error
+    pp_inc.resize(nlevs_max);
 
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
@@ -222,7 +217,6 @@ ERF::ERF_shared ()
     physbcs_u.resize(nlevs_max);
     physbcs_v.resize(nlevs_max);
     physbcs_w.resize(nlevs_max);
-    physbcs_w_no_terrain.resize(nlevs_max);
     physbcs_base.resize(nlevs_max);
 
     advflux_reg.resize(nlevs_max);
@@ -501,8 +495,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         sum_integrated_quantities(time);
     }
 
-    if (solverChoice.pert_type == PerturbationType::perturbSource ||
-        solverChoice.pert_type == PerturbationType::perturbDirect) {
+    if (solverChoice.pert_type == PerturbationType::Source ||
+        solverChoice.pert_type == PerturbationType::Direct) {
         if (is_it_time_for_action(nstep, time, dt_lev0, pert_interval, -1.)) {
             turbPert.debug(time);
         }
@@ -597,8 +591,8 @@ ERF::InitData_pre ()
         m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
     }
 
-    if (!solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::Static) {
-        Abort("We do not allow non-static terrain_type with use_terrain = false");
+    if (!solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::None) {
+        Abort("We do not allow terrain_type to be moving or static with use_terrain = false");
     }
 
     last_plot_file_step_1 = -1;
@@ -863,8 +857,8 @@ ERF::InitData_post ()
         sum_integrated_quantities(t_new[0]);
     }
 
-    if (solverChoice.pert_type == PerturbationType::perturbSource ||
-        solverChoice.pert_type == PerturbationType::perturbDirect) {
+    if (solverChoice.pert_type == PerturbationType::Source ||
+        solverChoice.pert_type == PerturbationType::Direct) {
         if (is_it_time_for_action(istep[0], t_new[0], dt[0], pert_interval, -1.)) {
             turbPert.debug(t_new[0]);
         }
@@ -1365,8 +1359,8 @@ ERF::init_only (int lev, Real time)
    }
 
     // Initialize turbulent perturbation
-    if (solverChoice.pert_type == PerturbationType::perturbSource ||
-        solverChoice.pert_type == PerturbationType::perturbDirect) {
+    if (solverChoice.pert_type == PerturbationType::Source ||
+        solverChoice.pert_type == PerturbationType::Direct) {
         if (lev == 0) {
             turbPert_update(lev, 0.);
             turbPert_amplitude(lev);
@@ -1444,11 +1438,6 @@ ERF::ReadParameters ()
         // We default to yes if we have them, but the user can override that option
         use_real_bcs = ( (init_type == "real") || (init_type == "metgrid") );
         pp.query("use_real_bcs",use_real_bcs);
-
-        // No moving terrain with init real
-        if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {
-            Abort("Moving terrain is not supported with init real");
-        }
 
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
@@ -1550,6 +1539,12 @@ ERF::ReadParameters ()
 
     solverChoice.init_params(max_level);
 
+    // No moving terrain with init real (we must do this after init_params
+    //    because that is where we set terrain_type
+    if (init_type == "real" && solverChoice.terrain_type == TerrainType::Moving) {
+        Abort("Moving terrain is not supported with init real");
+    }
+
     // What type of land surface model to use
     // NOTE: Must be checked after init_params
     if (solverChoice.lsm_type == LandSurfaceType::SLM) {
@@ -1626,7 +1621,7 @@ ERF::ParameterSanityChecks ()
     for (int lev = 0; lev <= max_level; lev++)
     {
         // We ignore fixed_fast_dt if not substepping
-        if (solverChoice.no_substepping[lev]) {
+        if (solverChoice.substepping_type[lev] == SubsteppingType::None) {
             fixed_fast_dt[lev] = -1.0;
         }
 

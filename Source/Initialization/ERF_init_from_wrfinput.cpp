@@ -51,11 +51,8 @@ void
 convert_wrfbdy_data (const Box& domain,
                      Vector<Vector<FArrayBox>>& bdy_data,
                      const FArrayBox& NC_MUB_fab,
-                     const FArrayBox& NC_PH_fab,
-                     const FArrayBox& NC_PHB_fab,
                      const FArrayBox& NC_C1H_fab,
                      const FArrayBox& NC_C2H_fab,
-                     const FArrayBox& NC_RDNW_fab,
                      const FArrayBox& NC_xvel_fab,
                      const FArrayBox& NC_yvel_fab,
                      const FArrayBox& NC_theta_fab,
@@ -311,20 +308,16 @@ ERF::init_from_wrfinput (int lev)
                 << " and relaxation width: " << real_width - real_set_width << std::endl;
 
         convert_wrfbdy_data(domain,bdy_data_xlo,
-                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0]  ,
-                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0] ,
+                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0],
                             NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
         convert_wrfbdy_data(domain,bdy_data_xhi,
-                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0]  ,
-                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0] ,
+                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0],
                             NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
         convert_wrfbdy_data(domain,bdy_data_ylo,
-                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0]  ,
-                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0] ,
+                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0],
                             NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
         convert_wrfbdy_data(domain,bdy_data_yhi,
-                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0]  ,
-                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0] ,
+                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0] ,
                             NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
     }
 

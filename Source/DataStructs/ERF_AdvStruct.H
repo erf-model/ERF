@@ -96,9 +96,6 @@ struct AdvChoice {
              (dycore_horiz_adv_string == "Centered_6th") )
         {
             dycore_horiz_adv_type = adv_type_convert_string_to_advtype(dycore_horiz_adv_string);
-            amrex::Print() << "Using dycore_horiz_adv_type: " << dycore_horiz_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default dycore_horiz_adv_type" << std::endl;;
         }
 
         if ( (dycore_vert_adv_string == "Centered_2nd") ||
@@ -110,9 +107,6 @@ struct AdvChoice {
              (dycore_vert_adv_string == "Centered_6th") )
         {
             dycore_vert_adv_type = adv_type_convert_string_to_advtype(dycore_vert_adv_string);
-            amrex::Print() << "Using dycore_vert_adv_type: " << dycore_vert_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default dycore_vert_adv_type" << std::endl;;
         }
 
         if ( (dryscal_horiz_adv_string == "Centered_2nd") ||
@@ -129,9 +123,6 @@ struct AdvChoice {
              (dryscal_horiz_adv_string == "WENOZ5"      ) )
         {
             dryscal_horiz_adv_type = adv_type_convert_string_to_advtype(dryscal_horiz_adv_string);
-            amrex::Print() << "Using dryscal_horiz_adv_type: " << dryscal_horiz_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default dryscal_horiz_adv_type" << std::endl;;
         }
 
         if ( (dryscal_vert_adv_string == "Centered_2nd") ||
@@ -148,9 +139,6 @@ struct AdvChoice {
              (dryscal_vert_adv_string == "WENOZ5"      ) )
         {
             dryscal_vert_adv_type = adv_type_convert_string_to_advtype(dryscal_vert_adv_string);
-            amrex::Print() << "Using dryscal_vert_adv_type: " << dryscal_vert_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default dryscal_vert_adv_type" << std::endl;;
         }
 
         if ( (moistscal_horiz_adv_string == "Centered_2nd") ||
@@ -167,9 +155,6 @@ struct AdvChoice {
              (moistscal_horiz_adv_string == "WENOZ5"      ) )
         {
             moistscal_horiz_adv_type = adv_type_convert_string_to_advtype(moistscal_horiz_adv_string);
-            amrex::Print() << "Using moistscal_horiz_adv_type: " << moistscal_horiz_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default moistscal_horiz_adv_type" << std::endl;;
         }
 
         if ( (moistscal_vert_adv_string == "Centered_2nd") ||
@@ -186,9 +171,6 @@ struct AdvChoice {
              (moistscal_vert_adv_string == "WENOZ5"      ) )
         {
             moistscal_vert_adv_type = adv_type_convert_string_to_advtype(moistscal_vert_adv_string);
-            amrex::Print() << "Using moistscal_vert_adv_type: " << moistscal_vert_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default moistscal_vert_adv_type" << std::endl;;
         }
 
         pp.queryarr("zero_xflux_faces", zero_xflux);
@@ -199,22 +181,22 @@ struct AdvChoice {
     void display()
     {
         amrex::Print() << "Advection Choices: " << std::endl;
-        amrex::Print() << "dycore_horiz_adv_type       : " << adv_type_convert_int_to_string(dycore_horiz_adv_type);
+        amrex::Print() << "    dycore_horiz_adv_type       : " << adv_type_convert_int_to_string(dycore_horiz_adv_type);
         if (dycore_horiz_upw_frac < 1) amrex::Print() << " with " << 100*dycore_horiz_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
-        amrex::Print() << "dycore_vert_adv_type        : " << adv_type_convert_int_to_string(dycore_vert_adv_type);
+        amrex::Print() << "    dycore_vert_adv_type        : " << adv_type_convert_int_to_string(dycore_vert_adv_type);
         if (dycore_vert_upw_frac < 1) amrex::Print() << " with " << 100*dycore_vert_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
-        amrex::Print() << "dryscal_horiz_adv_type      : " << adv_type_convert_int_to_string(dryscal_horiz_adv_type);
+        amrex::Print() << "    dryscal_horiz_adv_type      : " << adv_type_convert_int_to_string(dryscal_horiz_adv_type);
         if (dryscal_horiz_upw_frac < 1) amrex::Print() << " with " << 100*dryscal_horiz_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
-        amrex::Print() << "dryscal_vert_adv_type       : " << adv_type_convert_int_to_string(dryscal_vert_adv_type);
+        amrex::Print() << "    dryscal_vert_adv_type       : " << adv_type_convert_int_to_string(dryscal_vert_adv_type);
         if (dryscal_vert_upw_frac < 1) amrex::Print() << " with " << 100*dryscal_vert_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
-        amrex::Print() << "moistscal_horiz_adv_type    : " << adv_type_convert_int_to_string(moistscal_horiz_adv_type);
+        amrex::Print() << "    moistscal_horiz_adv_type    : " << adv_type_convert_int_to_string(moistscal_horiz_adv_type);
         if (moistscal_horiz_upw_frac < 1) amrex::Print() << " with " << 100*moistscal_horiz_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
-        amrex::Print() << "moistscal_vert_adv_type     : " << adv_type_convert_int_to_string(moistscal_vert_adv_type);
+        amrex::Print() << "    moistscal_vert_adv_type     : " << adv_type_convert_int_to_string(moistscal_vert_adv_type);
         if (moistscal_vert_upw_frac < 1) amrex::Print() << " with " << 100*moistscal_vert_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
     }

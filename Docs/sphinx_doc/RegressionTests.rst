@@ -27,8 +27,11 @@ The following problems are currently tested in the CI:
 | Bubble_Density_Current        | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | moist bubble          |
 |                               |          | Outflow  |          | SlipWall   |       |                       |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
-| CouetteFlow                   | 32 4  16 | Periodic | Periodic | SlipWall   | None  | inhomogeneous         |
-|                               |          |          |          | SlipWall   |       | bc at zhi             |
+| CouetteFlow-x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous         |
+|                               |          |          |          | NoSlipWall |       | bc at zhi (u = 2)     |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| CouetteFlow-y                 | 4 32  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous         |
+|                               |          |          |          | NoSlipWall |       | bc at zhi (v = 2)     |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity              |
 |                               |          | Outflow  |          | SlipWall   |       |                       |
@@ -112,12 +115,6 @@ while the following tests are run nightly:
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
 | ABL-Smag                      | 64 64 64 | Periodic | Periodic | NoSlipWall | None  | LES              |
 |                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| CouetteFlow-x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous    |
-|                               |          |          |          | NoSlipWall |       | bc at zhi        |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| CouetteFlow-y                 | 4  32 16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous    |
-|                               |          |          |          | NoSlipWall |       | bc at zhi        |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
 | DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity         |
 |                               |          | Outflow  |          | SlipWall   |       |                  |

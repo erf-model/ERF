@@ -27,7 +27,7 @@ zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
 
 # TIME STEP CONTROL
-#erf.no_substepping     = 1
+#erf.substepping_type  = None
 erf.fixed_mri_dt_ratio = 4
 erf.fixed_dt           = 2.0
 

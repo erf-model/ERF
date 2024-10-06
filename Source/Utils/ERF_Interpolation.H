@@ -142,7 +142,7 @@ InterpolatePertFromCell (int i, int j, int k,
     if (upw != 0.)
         scaled_upw = upw / std::abs(upw);
 
-    if (coordDir ==  Coord::x) {
+    if (coordDir == Coord::x) {
         avg1  = (qty(i  , j, k, qty_index) + qty(i-1, j, k, qty_index));
         avg1 -= (r0_arr(i,j,k) + r0_arr(i-1,j,k));
         diff1 = (qty(i  , j, k, qty_index) - qty(i-1, j, k, qty_index));
@@ -158,7 +158,7 @@ InterpolatePertFromCell (int i, int j, int k,
             avg3 -= (r0_arr(i+2,j,k) + r0_arr(i-3,j,k));
             diff3 = (qty(i+2, j, k, qty_index) - qty(i-3, j, k, qty_index));
         }
-    } else if (coordDir ==  Coord::y) {
+    } else if (coordDir == Coord::y) {
         avg1  = (qty(i, j  , k, qty_index) + qty(i, j-1, k, qty_index));
         avg1 -= (r0_arr(i,j,k) + r0_arr(i,j-1,k));
         diff1 = (qty(i, j  , k, qty_index) - qty(i, j-1, k, qty_index));

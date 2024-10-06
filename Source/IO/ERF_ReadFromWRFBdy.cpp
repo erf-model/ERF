@@ -513,11 +513,8 @@ void
 convert_wrfbdy_data (const Box& domain,
                      Vector<Vector<FArrayBox>>& bdy_data,
                      const FArrayBox& NC_MUB_fab,
-                     const FArrayBox& NC_PH_fab,
-                     const FArrayBox& NC_PHB_fab,
                      const FArrayBox& NC_C1H_fab,
                      const FArrayBox& NC_C2H_fab,
-                     const FArrayBox& NC_RDNW_fab,
                      const FArrayBox& NC_xvel_fab,
                      const FArrayBox& NC_yvel_fab,
                      const FArrayBox& NC_theta_fab,
@@ -526,11 +523,7 @@ convert_wrfbdy_data (const Box& domain,
     // These were filled from wrfinput
     Array4<Real const> c1h_arr  = NC_C1H_fab.const_array();
     Array4<Real const> c2h_arr  = NC_C2H_fab.const_array();
-    Array4<Real const> rdnw_arr = NC_RDNW_fab.const_array();
     Array4<Real const> mub_arr  = NC_MUB_fab.const_array();
-
-    Array4<Real const>  ph_arr  = NC_PH_fab.const_array();
-    Array4<Real const> phb_arr  = NC_PHB_fab.const_array();
 
     int ntimes = bdy_data.size();
     for (int nt = 0; nt < ntimes; nt++)

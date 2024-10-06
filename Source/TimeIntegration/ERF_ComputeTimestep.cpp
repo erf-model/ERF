@@ -75,7 +75,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                         &vars_new[level][Vars::yvel],
                                                         &vars_new[level][Vars::zvel]});
 
-    int l_no_substepping = solverChoice.no_substepping[level];
+    int l_implicit_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
     int l_anelastic      = solverChoice.anelastic[level];
 
 #ifdef ERF_USE_EB
@@ -112,9 +112,23 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    Real pressure = getPgivenRTh(rhotheta);
                    Real c = std::sqrt(Gamma * pressure / rho);
 
-                   // If we are not doing the acoustic substepping, then the z-direction contributes
+                   // If we are doing implicit acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
-                   if (l_no_substepping) {
+                   if (l_implicit_substepping) {
+                       if (nxc > 1 && nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                       } else if (nxc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]), new_comp_dt);
+                       } else if (nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                       } else {
+                           amrex::Abort("Not sure how to compute dt for this case");
+                       }
+
+                   // If we are not doing implicit acoustic substepping, then the z-direction contributes
+                   //    to the computation of the time step
+                   } else {
                        if (nxc > 1 && nyc > 1) {
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
                                                     ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
@@ -129,19 +143,6 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
                        }
 
-                   // If we are     doing the acoustic substepping, then the z-direction does not contribute
-                   //    to the computation of the time step
-                   } else {
-                       if (nxc > 1 && nyc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
-                       } else if (nxc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]), new_comp_dt);
-                       } else if (nyc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
-                       } else {
-                           amrex::Abort("Not sure how to compute dt for this case");
-                       }
                    }
                }
            });
@@ -196,7 +197,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      }
 
-     if (!l_no_substepping) {
+     if (solverChoice.substepping_type[level] != SubsteppingType::None) {
          if (fixed_dt[level] > 0. && fixed_fast_dt[level] > 0.) {
              dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
          } else if (fixed_dt[level] > 0.) {
@@ -219,7 +220,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          if (verbose) {
              Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
          }
-     } // if substepping
+     } // if substepping, either explicit or implicit
 
      if (fixed_dt[level] > 0.0) {
          return fixed_dt[level];
