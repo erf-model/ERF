@@ -17,52 +17,58 @@
 #include <ERF_TurbStruct.H>
 #include <ERF_TurbPertStruct.H>
 
-enum struct ABLDriverType {
+AMREX_ENUM(ABLDriverType,
     None, PressureGradient, GeostrophicWind
-};
+);
 
-enum struct CouplingType {
+AMREX_ENUM(CouplingType,
     OneWay, TwoWay
-};
+);
 
-enum struct TerrainType {
-    Static, Moving
-};
+AMREX_ENUM(SubsteppingType,
+    None, Explicit, Implicit
+);
 
-enum struct MoistureModelType{
+AMREX_ENUM(TerrainType,
+    None, Static, Moving
+);
+
+AMREX_ENUM(MoistureModelType,
     Eulerian, Lagrangian, Undefined
-};
+);
 
-enum struct MoistureType {
+AMREX_ENUM(MoistureType,
     Kessler, SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler_NoRain, None
-};
+);
 
-enum struct WindFarmType {
-    Fitch, EWP, SimpleAD, GeneralAD, None
-};
+AMREX_ENUM(WindFarmType,
+    Fitch, EWP, SimpleActuatorDisk, GeneralActuatorDisk, None
+);
 
-enum struct WindFarmLocType{
+AMREX_ENUM(WindFarmLocType,
     lat_lon, x_y, None
-};
+);
 
-enum struct LandSurfaceType {
+AMREX_ENUM(LandSurfaceType,
     SLM, MM5, None
-};
+);
+
+AMREX_ENUM(PerturbationType,
+    Source, Direct, None
+);
 
 enum struct Coord {
     x, y, z
 };
 
+// These are used as integers so must be enum not enum struct
 enum Rayleigh {
     ubar, vbar, wbar, thetabar, nvars
 };
 
+// These are used as integers so must be enum not enum struct
 enum Sponge {
     ubar_sponge, vbar_sponge, nvars_sponge
-};
-
-enum struct PerturbationType {
-    perturbSource, perturbDirect, None
 };
 
 /**
@@ -77,6 +83,7 @@ struct SolverChoice {
 
         // Do we have terrain (or grid stretching)?
         pp.query("use_terrain", use_terrain);
+        amrex::Print() << "READING TERRAIN " << use_terrain << std::endl;
 
         pp.query("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
@@ -99,29 +106,23 @@ struct SolverChoice {
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
-        // What type of moisture model to use
-        static std::string moisture_model_string = "None";
-        pp.query("moisture_model", moisture_model_string);
-        if (moisture_model_string == "SAM") {
-            moisture_type = MoistureType::SAM;
+        // What type of moisture model to use?
+        moisture_type = MoistureType::None; // Default
+        pp.query_enum_case_insensitive("moisture_model",moisture_type);
+        if (moisture_type == MoistureType::SAM) {
             RhoQv_comp = RhoQ1_comp;
             RhoQr_comp = RhoQ4_comp;
-        } else if (moisture_model_string == "SAM_NoIce") {
-            moisture_type = MoistureType::SAM_NoIce;
+        } else if (moisture_type == MoistureType::SAM_NoIce) {
             RhoQv_comp = RhoQ1_comp;
             RhoQr_comp = RhoQ4_comp;
-        } else if (moisture_model_string == "SAM_NoPrecip_NoIce") {
-            moisture_type = MoistureType::SAM_NoPrecip_NoIce;
+        } else if (moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
             RhoQv_comp = RhoQ1_comp;
-        } else if (moisture_model_string == "Kessler") {
-            moisture_type = MoistureType::Kessler;
+        } else if (moisture_type == MoistureType::Kessler) {
             RhoQv_comp = RhoQ1_comp;
             RhoQr_comp = RhoQ3_comp;
-        }else if (moisture_model_string == "Kessler_NoRain") {
+        } else if (moisture_type == MoistureType::Kessler_NoRain) {
             moisture_type = MoistureType::Kessler_NoRain;
             RhoQv_comp = RhoQ1_comp;
-        } else {
-            moisture_type = MoistureType::None;
         }
 
         // TODO: should we set default for dry??
@@ -141,25 +142,13 @@ struct SolverChoice {
         pp.query("buoyancy_type", buoyancy_type);
 
         // What type of land surface model to use
-        static std::string lsm_model_string = "None";
-        pp.query("land_surface_model", lsm_model_string);
-        if (lsm_model_string == "SLM") {
-            lsm_type = LandSurfaceType::SLM;
-        } else if (lsm_model_string == "MM5") {
-            lsm_type = LandSurfaceType::MM5;
-        } else {
-            lsm_type = LandSurfaceType::None;
-        }
+        lsm_type = LandSurfaceType::None; // Default
+        pp.query_enum_case_insensitive("land_surface_model",lsm_type);
 
         // Is the terrain static or moving?
-        static std::string terrain_type_string = "Static";
-        pp.query("terrain_type",terrain_type_string);
-        if (terrain_type_string == "Moving" || terrain_type_string == "moving") {
-            terrain_type = TerrainType::Moving;
-        } else if (terrain_type_string == "Static" || terrain_type_string == "static") {
-            terrain_type = TerrainType::Static;
-        } else {
-            amrex::Abort("terrain_type can be either Moving/moving or Static/static");
+        terrain_type = (use_terrain) ? TerrainType::Static : TerrainType::None; // Default
+        if (use_terrain) {
+            pp.query_enum_case_insensitive("terrain_type",terrain_type);
         }
 
         // Use lagged_delta_rt in the fast integrator?
@@ -173,10 +162,43 @@ struct SolverChoice {
         rdOcp = R_d / c_p;
 
         read_int_string(max_level, "anelastic", anelastic, 0);
-        read_int_string(max_level, "no_substepping", no_substepping, 0);
+
+        // *******************************************************************************
+        // Read substepping_type and allow for different values at each level
+        // *******************************************************************************
+        substepping_type.resize(max_level+1);
+
+        for (int i = 0; i <= max_level; i++) {
+            substepping_type[i] = SubsteppingType::Implicit;
+        }
+
+        int nvals = pp.countval("substepping_type");
+        AMREX_ALWAYS_ASSERT(nvals == 0 || nvals == 1 || nvals >= max_level+1);
+
+        if (nvals == 1) {
+            pp.query_enum_case_insensitive("substepping_type",substepping_type[0]);
+            for (int i = 1; i <= max_level; i++) {
+                substepping_type[i] = substepping_type[0];
+            }
+        } else if (nvals > 1) { // in this case we have asserted nvals >= max_level+1
+            for (int i = 0; i <= max_level; i++) {
+                pp.query_enum_case_insensitive("substepping_type",substepping_type[i],i);
+            }
+        }
+
+        // *******************************************************************************
+        // Error check on deprecated input
+        // *******************************************************************************
+        int nvals_old = pp.countval("no_substepping");
+        if (nvals_old > 0) {
+            amrex::Abort("The no_substepping flag is deprecated -- set substepping_type instead");
+        }
+        // *******************************************************************************
 
         // Should we project the initial velocity field to make it divergence-free?
         pp.query("project_initial_velocity", project_initial_velocity);
+
+        // *******************************************************************************
 
 #ifdef ERF_USE_POISSON_SOLVE
         bool any_anelastic = false;
@@ -187,6 +209,7 @@ struct SolverChoice {
         // If anelastic at all, we do not advect rho -- it is always == rho0
         if (any_anelastic == 1) {
             constant_density = true;
+            project_initial_velocity = true;
             buoyancy_type = 2; // uses Tprime
         } else {
             constant_density = false;  // We default to false but allow the user to set it
@@ -201,7 +224,7 @@ struct SolverChoice {
         for (int lev = 0; lev <= max_level; lev++) {
             if (anelastic[lev] != 0)
             {
-                no_substepping[lev] = 1;
+                substepping_type[lev] = SubsteppingType::None;
             }
         }
 #else
@@ -237,34 +260,12 @@ struct SolverChoice {
         }
 
         // Which external forcings?
-        static std::string abl_driver_type_string = "None";
-        pp.query("abl_driver_type",abl_driver_type_string);
-
-        if (!abl_driver_type_string.compare("PressureGradient")) {
-            abl_driver_type = ABLDriverType::PressureGradient;
-        } else if (!abl_driver_type_string.compare("GeostrophicWind")) {
-            abl_driver_type = ABLDriverType::GeostrophicWind;
-        } else if (!abl_driver_type_string.compare("None")) {
-            abl_driver_type = ABLDriverType::None; // No ABL driver for simulating classical fluid dynamics problems
-        } else {
-            amrex::Error("Don't know this abl_driver_type");
-        }
+        abl_driver_type = ABLDriverType::None; // Default: no ABL driver for simulating classical fluid dynamics problems
+        pp.query_enum_case_insensitive("abl_driver_type",abl_driver_type);
 
         // Which type of inflow turbulent generation
-        static std::string turb_pert_type_string = "None";
-        pp.query("perturbation_type",turb_pert_type_string);
-        if (!turb_pert_type_string.compare("source")) {
-            pert_type = PerturbationType::perturbSource;
-            amrex::Print() << "Perturb temperature via source term\n";
-        } else if (!turb_pert_type_string.compare("direct")) {
-            pert_type = PerturbationType::perturbDirect;
-            amrex::Print() << "Perturb temperature via direct field add\n";
-        } else if (!turb_pert_type_string.compare("None")) {
-            pert_type = PerturbationType::None;
-            amrex::Print() << "No inflow perturbation method selected\n";
-        } else {
-            amrex::Abort("Dont know this perturbation_type");
-        }
+        pert_type = PerturbationType::None; // Default
+        pp.query_enum_case_insensitive("perturbation_type",pert_type);
 
         amrex::Vector<amrex::Real> abl_pressure_grad_in = {0.0, 0.0, 0.0};
         pp.queryarr("abl_pressure_grad",abl_pressure_grad_in);
@@ -339,50 +340,17 @@ struct SolverChoice {
         }
 
 
-        // Which type of refinement
-        static std::string coupling_type_string = "TwoWay";
-        pp.query("coupling_type",coupling_type_string);
-        if (coupling_type_string == "TwoWay") {
-            coupling_type = CouplingType::TwoWay;
-        } else if (coupling_type_string == "OneWay") {
-            coupling_type = CouplingType::OneWay;
-        } else {
-            amrex::Abort("Dont know this coupling_type");
-        }
+        // Which type of multilevel coupling
+        coupling_type = CouplingType::TwoWay; // Default
+        pp.query_enum_case_insensitive("coupling_type",coupling_type);
 
         // Which type of windfarm model
-        static std::string windfarm_type_string = "None";
-        pp.query("windfarm_type", windfarm_type_string);
-        if (windfarm_type_string == "Fitch") {
-            windfarm_type = WindFarmType::Fitch;
-        }
-        else if (windfarm_type_string == "EWP") {
-            windfarm_type = WindFarmType::EWP;
-        }
-        else if (windfarm_type_string == "SimpleActuatorDisk") {
-            windfarm_type = WindFarmType::SimpleAD;
-        }
-        else if (windfarm_type_string == "GeneralActuatorDisk") {
-            windfarm_type = WindFarmType::GeneralAD;
-        }
-        else if (windfarm_type_string != "None") {
-            amrex::Abort("Are you using windfarms? Dont know this windfarm_type. windfarm_type"
-                         " has to be Fitch, EWP, SimpleActuatorDisk, GeneralActuatorDisk or None.");
-        }
+        windfarm_type = WindFarmType::None; // Default
+        pp.query_enum_case_insensitive("windfarm_type",windfarm_type);
 
         static std::string windfarm_loc_type_string = "None";
         windfarm_loc_type = WindFarmLocType::None;
-        pp.query("windfarm_loc_type", windfarm_loc_type_string);
-        if (windfarm_loc_type_string == "lat_lon") {
-            windfarm_loc_type = WindFarmLocType::lat_lon;
-        }
-        else if (windfarm_loc_type_string == "x_y") {
-            windfarm_loc_type = WindFarmLocType::x_y;
-        }
-        else if (windfarm_loc_type_string != "None") {
-            amrex::Abort("Are you using windfarms? Dont know this windfarm_loc_type."
-                         " windfarm_loc_type has to be specified as lat_lon or x_y.");
-        }
+        pp.query_enum_case_insensitive("windfarm_loc_type",windfarm_loc_type);
 
         pp.query("windfarm_loc_table",  windfarm_loc_table);
         pp.query("windfarm_spec_table", windfarm_spec_table);
@@ -426,13 +394,14 @@ struct SolverChoice {
         //
         // Wind farm checks
         //
-        if (windfarm_type==WindFarmType::SimpleAD and sampling_distance_by_D < 0.0) {
+        if (windfarm_type==WindFarmType::SimpleActuatorDisk and sampling_distance_by_D < 0.0) {
              amrex::Abort("To use simplified actuator disks, you need to provide a variable"
                            " erf.sampling_distance_by_D in the inputs which specifies the upstream"
                            " distance as a factor of the turbine diameter at which the incoming free stream"
                            " velocity will be computed at.");
         }
-        if((windfarm_type==WindFarmType::SimpleAD or windfarm_type==WindFarmType::GeneralAD) and turb_disk_angle < 0.0) {
+        if ( (windfarm_type==WindFarmType::SimpleActuatorDisk ||
+              windfarm_type==WindFarmType::GeneralActuatorDisk ) && turb_disk_angle < 0.0) {
             amrex::Abort("To use simplified actuator disks, you need to provide a variable"
                           " erf.turb_disk_angle_from_x in the inputs which is the angle of the face of the"
                           " turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction"
@@ -452,7 +421,13 @@ struct SolverChoice {
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
             amrex::Print() << "anelastic      at level : " << lev << " is " <<     anelastic[lev] << std::endl;
-            amrex::Print() << "no_substepping at level : " << lev << " is " << no_substepping[lev] << std::endl;
+            if (substepping_type[lev] == SubsteppingType::None) {
+                amrex::Print() << "No substepping at level " << lev << std::endl;
+            } else if (substepping_type[lev] == SubsteppingType::Explicit) {
+                amrex::Print() << "Explicit substepping at level " << lev << std::endl;
+            } else if (substepping_type[lev] == SubsteppingType::Implicit) {
+                amrex::Print() << "Implicit substepping at level " << lev << std::endl;
+            }
         }
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
@@ -465,8 +440,10 @@ struct SolverChoice {
 
         if (terrain_type == TerrainType::Static) {
             amrex::Print() << "Using static terrain " << std::endl;
-        } else {
+        } else if (terrain_type == TerrainType::Moving) {
             amrex::Print() << "Using moving terrain " << std::endl;
+        } else {
+            amrex::Print() << "No terrain " << std::endl;
         }
 
         if (abl_driver_type == ABLDriverType::None) {
@@ -568,7 +545,7 @@ struct SolverChoice {
 
     int         force_stage1_single_substep = 1;
 
-    amrex::Vector<int> no_substepping;
+    amrex::Vector<SubsteppingType> substepping_type;
     amrex::Vector<int> anelastic;
 
     int         constant_density    = 0;
@@ -609,11 +586,7 @@ struct SolverChoice {
     amrex::Real zsurf                   = 0.0;
     amrex::Real dz0;
 
-#if defined(ERF_USE_POISSON_SOLVE)
-    bool project_initial_velocity = true;
-#else
     bool project_initial_velocity = false;
-#endif
 
     // Coriolis forcing
     amrex::Real coriolis_factor = 0.0;

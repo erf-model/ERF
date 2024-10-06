@@ -156,7 +156,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
  * @param[in] bccomp_u  index into m_domain_bcs_type corresponding to u
  * @param[in] bccomp_v  index into m_domain_bcs_type corresponding to v
  * @param[in] bccomp_w  index into m_domain_bcs_type corresponding to w
- * @param[in] terrain_type if 1 then the terrain is moving; otherwise fixed
+ * @param[in] terrain_type if Moving then the terrain is moving; otherwise fixed
  */
 
 void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,

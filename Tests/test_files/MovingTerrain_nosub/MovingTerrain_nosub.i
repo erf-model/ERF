@@ -19,7 +19,7 @@ erf.use_terrain = true      # enable terrain stencils
 erf.terrain_type = Moving   # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
-erf.no_substepping     = 1
+erf.substepping_type   = None
 erf.fixed_dt           = 0.005
 
 # DIAGNOSTICS & VERBOSITY
