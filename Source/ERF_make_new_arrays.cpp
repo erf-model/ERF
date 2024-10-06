@@ -550,16 +550,6 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 void
 ERF::make_physbcs (int lev)
 {
-    // Dirichlet BC data only lives on level 0
-    Real* u_bc_tmp(nullptr);
-    Real* v_bc_tmp(nullptr);
-    Real* w_bc_tmp(nullptr);
-    if (lev==0) {
-        u_bc_tmp = xvel_bc_data.data();
-        v_bc_tmp = yvel_bc_data.data();
-        w_bc_tmp = zvel_bc_data.data();
-    }
-
     if (solverChoice.use_terrain) {
         AMREX_ALWAYS_ASSERT(z_phys_nd[lev] != nullptr);
     }
@@ -569,13 +559,13 @@ ERF::make_physbcs (int lev)
                                                                z_phys_nd[lev], use_real_bcs);
     physbcs_u[lev]    = std::make_unique<ERFPhysBCFunct_u> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], use_real_bcs, u_bc_tmp);
+                                                            z_phys_nd[lev], use_real_bcs, xvel_bc_data[lev].data());
     physbcs_v[lev]    = std::make_unique<ERFPhysBCFunct_v> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], use_real_bcs, v_bc_tmp);
+                                                            z_phys_nd[lev], use_real_bcs, yvel_bc_data[lev].data());
     physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, z_phys_nd[lev],
-                                                            use_real_bcs, w_bc_tmp);
+                                                            use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d);
 }

@@ -219,6 +219,11 @@ ERF::ERF_shared ()
     physbcs_w.resize(nlevs_max);
     physbcs_base.resize(nlevs_max);
 
+    // Planes to hold Dirichlet values at boundaries
+    xvel_bc_data.resize(nlevs_max);
+    yvel_bc_data.resize(nlevs_max);
+    zvel_bc_data.resize(nlevs_max);
+
     advflux_reg.resize(nlevs_max);
 
     // Stresses
