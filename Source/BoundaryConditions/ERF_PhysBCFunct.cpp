@@ -73,7 +73,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
 
             if (!gdomain.contains(cbx2))
             {
-                const Array4<Real> cons_arr = mf.array(mfi);;
+                const Array4<Real> cons_arr = mf.array(mfi);
 
                 if (!m_use_real_bcs)
                 {
@@ -145,7 +145,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
             if (!gdomainx.contains(xbx2))
             {
-                const Array4<Real> velx_arr = mf.array(mfi);;
+                const Array4<Real> velx_arr = mf.array(mfi);
 
                 if (!m_use_real_bcs)
                 {
@@ -220,7 +220,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
             if (!gdomainy.contains(ybx2))
             {
-                const Array4<Real> vely_arr = mf.array(mfi);;
+                const Array4<Real> vely_arr = mf.array(mfi);
 
                 if (!m_use_real_bcs)
                 {
@@ -296,9 +296,9 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 z_nd_arr = z_nd_mf_loc.const_array(mfi);
             }
 
-            Array4<const Real> const& velx_arr = xvel.const_array(mfi);;
-            Array4<const Real> const& vely_arr = yvel.const_array(mfi);;
-            Array4<      Real> const& velz_arr = mf.array(mfi);;
+            Array4<const Real> const& velx_arr = xvel.const_array(mfi);
+            Array4<const Real> const& vely_arr = yvel.const_array(mfi);
+            Array4<      Real> const& velz_arr = mf.array(mfi);
 
             if (!m_use_real_bcs)
             {
@@ -353,7 +353,7 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/
 
             if (!gdomain.contains(cbx2))
             {
-                const Array4<Real> cons_arr = mf.array(mfi);;
+                const Array4<Real> cons_arr = mf.array(mfi);
 
                 impose_lateral_basestate_bcs(cons_arr,cbx1,domain);
             }

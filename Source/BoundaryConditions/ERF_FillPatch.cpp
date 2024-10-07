@@ -563,6 +563,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
                            Geom(lev).Domain(),
                            domain_bcs_type);
     }
+
+    mfs_mom[Vars::cons]->FillBoundary(geom[lev].periodicity());
 }
 
 /*

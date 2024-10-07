@@ -36,7 +36,7 @@ struct AdvChoice {
         pp.query("moistscal_vert_adv_type" , moistscal_vert_adv_string);
 
         if (use_efficient_advection){
-           amrex::Print() << "Using efficient advection scheme" << std::endl;;
+           amrex::Print() << "Using efficient advection scheme" << std::endl;
         }
 
         if ( (dycore_horiz_adv_string == "Blended_3rd4th") ||
