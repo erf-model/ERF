@@ -20,11 +20,27 @@ using namespace amrex;
 // (overrides the pure virtual function in AmrCore)
 // main.cpp --> ERF::InitData --> InitFromScratch --> MakeNewGrids --> MakeNewLevelFromScratch
 //                                       restart  --> MakeNewGrids --> MakeNewLevelFromScratch
-void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
-                                   const DistributionMapping& dm)
+void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
+                                   const DistributionMapping& dm_in)
 {
-    // Set BoxArray grids and DistributionMapping dmap in AMReX_AmrMesh.H class
+    BoxArray ba;
+    DistributionMapping dm;
+    if (lev == 0 && ba_in.size() != ParallelDescriptor::NProcs())
+    {
+        // We only decompose in z if max_grid_size_z indicates we should
+        bool decompose_in_z = (max_grid_size[0][2] < Geom(0).Domain().length(2));
+
+        ba = ERFPostProcessBaseGrids(Geom(0).Domain(),decompose_in_z);
+        dm = DistributionMapping(ba);
+    } else {
+        ba = ba_in;
+        dm = dm_in;
+    }
+
+    // Define grids[lev] to be ba
     SetBoxArray(lev, ba);
+
+    // Define dmap[lev] to be dm
     SetDistributionMap(lev, dm);
 
     // amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
