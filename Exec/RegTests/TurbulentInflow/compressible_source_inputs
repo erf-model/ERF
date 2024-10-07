@@ -7,12 +7,12 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 #Larger problem
-geometry.prob_extent =  80   2.5     10
-amr.n_cell           = 512    16     64
+#geometry.prob_extent =  80   2.5     10
+#amr.n_cell           = 512    16     64
 
 # Quick debug problem
-#geometry.prob_extent =  20     5     10
-#amr.n_cell           =  64    16     32
+geometry.prob_extent =  20     5     10
+amr.n_cell           =  64    16     32
 
 geometry.is_periodic = 0 1 0
 
@@ -36,6 +36,7 @@ xlo.dirichlet_file = "input_ReTau395Ana_inflow.txt"
 erf.fixed_dt = 0.0002
 erf.fixed_mri_dt_ratio = 4
 erf.dynamicViscosity = 0.001
+erf.fix_random_seed  = 1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 100     # timesteps between computing mass
@@ -52,8 +53,8 @@ erf.plot_per_1      = 0.1
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # CHECKPOINT FILES
-#erf.check_file      = chk    # root name of checkpoint file
-#erf.check_per       = 1.0
+erf.check_file      = chk    # root name of checkpoint file
+erf.check_per       = 1.0
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
