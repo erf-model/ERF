@@ -771,7 +771,7 @@ and "Centered_6th".
 The allowed advection types for the dry and moist scalars are
 "Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
 "Centered_6th" and in addition,
-"WENO3", "WENOZ3", "WENOMZQ3", "WENO5", and "WENOZ5."
+"WENO3", "WENOZ3", "WENOMZQ3", "WENO5", "WENOZ5", "WENO7", and "WENOZ7."
 
 Note: if using WENO schemes, the horizontal and vertical advection types must be set to
 the same string.
