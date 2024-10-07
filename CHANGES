@@ -1,4 +1,17 @@
-#24.09
+# 24.10
+    -- Add WENO7 advection operators (#1858)
+
+    -- Multi-level inflow plane capability (#1851)
+
+    -- Fast integrator fill bug fix (#1853)
+
+    -- Refactor set/nudging with real BDYs (#1841)
+
+    -- First pass at GAD sources (#1839)
+
+    -- Anelastic with FFT option for Poisson eq (#1838)
+    
+# 24.09
     -- AMReX submodule set to 24.09 release hash (74127d6)
 
     -- Arbitrary number of scalars similar to WRF chem (#1782)
