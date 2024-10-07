@@ -15,6 +15,13 @@
 void ChopGrids2D (amrex::BoxArray& ba, const amrex::Box& domain, int target_size);
 
 /*
+ * Create a new BoxArray with exactly the number of boxes as MPI ranks.
+ * This is designed to work only on the base level which covers the entire domain.
+ */
+amrex::BoxArray
+ERFPostProcessBaseGrids (const amrex::Box& domain, bool decompose_in_z);
+
+/*
  * Create the Jacobian for the metric transformation when use_terrain is true
  */
 void make_J (const amrex::Geometry& geom,

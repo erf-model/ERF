@@ -453,7 +453,6 @@ public:
         amrex::Real T_0 = base_parms.T_0;
         amrex::Print() << "Initializing uniform fields"
             << " rho=" << rho_0 << " theta=" << T_0
-            << " -- this probably only makes sense with gravity turned off"
             << std::endl;
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
