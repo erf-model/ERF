@@ -215,11 +215,14 @@ while the following tests are run nightly:
 | TaylorGreenAdvecting          | 64 64 64    | Periodic | Periodic | SlipWall   | None  |                  |
 |                               |             |          |          | SlipWall   |       |                  |
 +-------------------------------+-------------+----------+----------+------------+-------+------------------+
-| TaylorGreenAdvDiffDoubleDen   | 64 64 64    | Inflow   | Periodic | MOST       | None  | Density = 2      |
+| TaylorGreenAdvDiffDoubleDen   | 64 64 64    | Periodic | Periodic | SlipWall   | None  | Density = 2      |
+|                               |             |          |          | SlipWall   |       |                  |
++-------------------------------+-------------+----------+----------+------------+-------+------------------+
+| TurbulentInflow               | 64 16 32    | Inflow   | Periodic | MOST       | None  | LES              |
 |                               |             | Outflow  |          | SlipWall   |       |                  |
 +-------------------------------+-------------+----------+----------+------------+-------+------------------+
-| TurbulentInflow               | 64 16 32    | Periodic | Periodic | SlipWall   | None  | LES              |
-|                               |             |          |          | SlipWall   |       |                  |
+| TurbulentInflow_anelastic     | 64 16 32    | Inflow   | Periodic | MOST       | None  | LES              |
+|                               |             | Outflow  |          | SlipWall   |       |                  |
 +-------------------------------+-------------+----------+----------+------------+-------+------------------+
 | WPS_Test                      | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from        |
 |                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput         |
