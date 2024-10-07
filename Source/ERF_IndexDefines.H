@@ -193,6 +193,8 @@ enum struct AdvType : int {
     Weno_5        = 108,
     Weno_5Z       = 109,
     Weno_3MZQ     = 110,
-    Unknown       = 111
+    Weno_7        = 111,
+    Weno_7Z       = 112,
+    Unknown       = 113
 };
 #endif

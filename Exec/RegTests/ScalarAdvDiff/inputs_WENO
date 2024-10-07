@@ -19,10 +19,10 @@ erf.cfl            = 0.5     # cfl number for hyperbolic system
 
 erf.dycore_horiz_adv_type    = "Centered_2nd"
 erf.dycore_vert_adv_type     = "Centered_2nd"
-erf.dryscal_horiz_adv_type   = "WENO5"
-erf.dryscal_vert_adv_type    = "WENO5"
-erf.moistscal_horiz_adv_type = "WENO5"
-erf.moistscal_vert_adv_type  = "WENO5"
+erf.dryscal_horiz_adv_type   = "WENO7"
+erf.dryscal_vert_adv_type    = "WENO7"
+erf.moistscal_horiz_adv_type = "WENO7"
+erf.moistscal_vert_adv_type  = "WENO7"
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

@@ -1094,6 +1094,16 @@ private:
                || (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
                || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
             { return 3; }
+            else if (
+                  (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7)
+               || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_7)
+               || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_7)
+               || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_7)
+               || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_7Z)
+               || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_7Z)
+               || (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7Z)
+               || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_7Z) )
+            { return 4; }
             else
             { return 2; }
         }
