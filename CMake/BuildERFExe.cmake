@@ -130,6 +130,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_xvel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_yvel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_zvel.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_basestate.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_bndryreg.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_realbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
@@ -144,15 +145,18 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeTurbulentViscosity.cpp
+       ${SRC_DIR}/Initialization/ERF_init_bcs.cpp
        ${SRC_DIR}/Initialization/ERF_init_custom.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_hse.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_input_sounding.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_wrfinput.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_metgrid.cpp
+       ${SRC_DIR}/Initialization/ERF_init_geowind.cpp
+       ${SRC_DIR}/Initialization/ERF_init_rayleigh.cpp
+       ${SRC_DIR}/Initialization/ERF_init_sponge.cpp
        ${SRC_DIR}/Initialization/ERF_init_uniform.cpp
        ${SRC_DIR}/Initialization/ERF_init1d.cpp
        ${SRC_DIR}/Initialization/ERF_init_TurbPert.cpp
-       ${SRC_DIR}/Initialization/ERF_input_sponge.cpp
        ${SRC_DIR}/IO/ERF_Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
@@ -205,6 +209,7 @@ function(build_erf_lib erf_lib_name)
 	   ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
 	   ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
 	   ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
+	   ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/ERF_MM5.cpp
   )
@@ -255,12 +260,13 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SAM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>) 
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/MaterialProperties>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Fitch>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/EWP>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/SimpleActuatorDisk>)
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/MaterialProperties>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/GeneralActuatorDisk>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
@@ -304,11 +310,6 @@ function(build_erf_exe erf_exe_name)
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_exe_name})
 
-  target_sources(${erf_exe_name}
-     PRIVATE
-       ${SRC_DIR}/Initialization/ERF_init_bcs.cpp
-
-  )
   if(ERF_ENABLE_CUDA)
     set(pctargets "${erf_exe_name}")
     foreach(tgt IN LISTS pctargets)

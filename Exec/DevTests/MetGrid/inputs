@@ -7,7 +7,7 @@ amrex.fpe_trap_overflow = 1
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  28000 16000 8000
-amr.n_cell           =   140 80 100
+amr.n_cell           =   140     80  100
 
 geometry.is_periodic = 0 0 0
 

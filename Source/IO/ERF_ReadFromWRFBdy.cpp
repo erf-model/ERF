@@ -103,7 +103,7 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
     // WRFBdyVars:  U, V, R, T, QV, MU, PC
     // ******************************************************************
     Vector<std::string> nc_var_names;
-    Vector<std::string> nc_var_prefix = {"U","V","R","T","QVAPOR","MU","PC"};
+    Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","MU","PC"};
 
     for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
     {
@@ -145,8 +145,6 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
             bdyVarType = WRFBdyVars::U;
         } else if (first1 == "V") {
             bdyVarType = WRFBdyVars::V;
-        } else if (first1 == "R") {
-            bdyVarType = WRFBdyVars::R;
         } else if (first1 == "T") {
             bdyVarType = WRFBdyVars::T;
         } else if (first2 == "QV") {
@@ -182,179 +180,163 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
         if (bdyType == WRFBdyTypes::x_lo) {
 
-                // *******************************************************************************
-                // xlo bdy
-                // *******************************************************************************
-                plo[0] = lo[0]        ; plo[1] = lo[1]; plo[2] = lo[2];
-                phi[0] = lo[0]+width-1; phi[1] = hi[1]; phi[2] = hi[2];
-                const Box pbx_xlo(plo, phi);
+            // *******************************************************************************
+            // xlo bdy
+            // *******************************************************************************
+            plo[0] = lo[0]        ; plo[1] = lo[1]; plo[2] = lo[2];
+            phi[0] = lo[0]+width-1; phi[1] = hi[1]; phi[2] = hi[2];
+            const Box pbx_xlo(plo, phi);
 
-                Box xlo_plane_no_stag(pbx_xlo);
-                Box xlo_plane_x_stag = pbx_xlo; xlo_plane_x_stag.shiftHalf(0,-1);
-                Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
+            Box xlo_plane_no_stag(pbx_xlo);
+            Box xlo_plane_x_stag = pbx_xlo; xlo_plane_x_stag.shiftHalf(0,-1);
+            Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
 
-                Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+width-1, hi[1], 0));
+            Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+width-1, hi[1], 0));
 
-                if        (bdyVarType == WRFBdyVars::U) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used)); // U
-                    }
-                } else if (bdyVarType == WRFBdyVars::V) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_y_stag , 1, Arena_Used)); // V
-                    }
-                } else if (bdyVarType == WRFBdyVars::R) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // R
-                    }
-                } else if (bdyVarType == WRFBdyVars::T) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // T
-                    }
-                } else if (bdyVarType == WRFBdyVars::QV) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // QV
-                    }
-                } else if (bdyVarType == WRFBdyVars::MU ||
-                           bdyVarType == WRFBdyVars::PC) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_line, 1, Arena_Used));
-                    }
+            if        (bdyVarType == WRFBdyVars::U) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used)); // U
                 }
+            } else if (bdyVarType == WRFBdyVars::V) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_y_stag , 1, Arena_Used)); // V
+                }
+            } else if (bdyVarType == WRFBdyVars::T) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // T
+                }
+            } else if (bdyVarType == WRFBdyVars::QV) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // QV
+                }
+            } else if (bdyVarType == WRFBdyVars::MU ||
+                       bdyVarType == WRFBdyVars::PC) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_xlo[nt].push_back(FArrayBox(xlo_line, 1, Arena_Used));
+                }
+            }
 
-            } else if (bdyType == WRFBdyTypes::x_hi) {
+        } else if (bdyType == WRFBdyTypes::x_hi) {
 
-                // *******************************************************************************
-                // xhi bdy
-                // *******************************************************************************
-                plo[0] = hi[0]-width+1; plo[1] = lo[1]; plo[2] = lo[2];
-                phi[0] = hi[0]        ; phi[1] = hi[1]; phi[2] = hi[2];
-                const Box pbx_xhi(plo, phi);
+            // *******************************************************************************
+            // xhi bdy
+            // *******************************************************************************
+            plo[0] = hi[0]-width+1; plo[1] = lo[1]; plo[2] = lo[2];
+            phi[0] = hi[0]        ; phi[1] = hi[1]; phi[2] = hi[2];
+            const Box pbx_xhi(plo, phi);
 
-                Box xhi_plane_no_stag(pbx_xhi);
-                Box xhi_plane_x_stag = pbx_xhi; xhi_plane_x_stag.shiftHalf(0,1);
-                Box xhi_plane_y_stag = convert(pbx_xhi, {0, 1, 0});
+            Box xhi_plane_no_stag(pbx_xhi);
+            Box xhi_plane_x_stag = pbx_xhi; xhi_plane_x_stag.shiftHalf(0,1);
+            Box xhi_plane_y_stag = convert(pbx_xhi, {0, 1, 0});
 
-                Box xhi_line(IntVect(hi[0]-width+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
+            Box xhi_line(IntVect(hi[0]-width+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
 
-                //Print() << "HI XBX NO STAG " << pbx_xhi << std::endl;
-                //Print() << "HI XBX  X STAG " << xhi_plane_x_stag << std::endl;
-                //Print() << "HI XBX  Y STAG " << xhi_plane_y_stag << std::endl;
+            //Print() << "HI XBX NO STAG " << pbx_xhi << std::endl;
+            //Print() << "HI XBX  X STAG " << xhi_plane_x_stag << std::endl;
+            //Print() << "HI XBX  Y STAG " << xhi_plane_y_stag << std::endl;
 
-                if        (bdyVarType == WRFBdyVars::U) {
+            if        (bdyVarType == WRFBdyVars::U) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_x_stag, 1, Arena_Used)); // U
+                }
+            } else if (bdyVarType == WRFBdyVars::V) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_y_stag , 1, Arena_Used)); // V
+                }
+            } else if (bdyVarType == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_x_stag, 1, Arena_Used)); // U
+                        bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // T
                     }
-                } else if (bdyVarType == WRFBdyVars::V) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_y_stag , 1, Arena_Used)); // V
-                    }
-                } else if (bdyVarType == WRFBdyVars::R) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // R
-                    }
-                } else if (bdyVarType == WRFBdyVars::T) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // T
-                    }
-                } else if (bdyVarType == WRFBdyVars::QV) {
-                    for (int nt(0); nt < ntimes; ++nt) {
+            } else if (bdyVarType == WRFBdyVars::QV) {
+                for (int nt(0); nt < ntimes; ++nt) {
                       bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // QV
-                    }
-                } else if (bdyVarType == WRFBdyVars::MU ||
-                           bdyVarType == WRFBdyVars::PC) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_line, 1, Arena_Used)); // MU
-                    }
                 }
-
-            } else if (bdyType == WRFBdyTypes::y_lo) {
-
-                // *******************************************************************************
-                // ylo bdy
-                // *******************************************************************************
-                plo[1] = lo[1]        ; plo[0] = lo[0]; plo[2] = lo[2];
-                phi[1] = lo[1]+width-1; phi[0] = hi[0]; phi[2] = hi[2];
-                const Box pbx_ylo(plo, phi);
-
-                Box ylo_plane_no_stag(pbx_ylo);
-                Box ylo_plane_x_stag = convert(pbx_ylo, {1, 0, 0});
-                Box ylo_plane_y_stag = pbx_ylo; ylo_plane_y_stag.shiftHalf(1,-1);
-
-                Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+width-1, 0));
-
-                if        (bdyVarType == WRFBdyVars::U) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_x_stag , 1, Arena_Used)); // U
-                    }
-                } else if (bdyVarType == WRFBdyVars::V) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_y_stag, 1, Arena_Used)); // V
-                    }
-                } else if (bdyVarType == WRFBdyVars::R) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // R
-                    }
-                } else if (bdyVarType == WRFBdyVars::T) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // T
-                    }
-                } else if (bdyVarType == WRFBdyVars::QV) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // QV
-                    }
-                } else if (bdyVarType == WRFBdyVars::MU ||
-                           bdyVarType == WRFBdyVars::PC) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_line, 1, Arena_Used)); // PC
-                    }
+            } else if (bdyVarType == WRFBdyVars::MU ||
+                       bdyVarType == WRFBdyVars::PC) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_xhi[nt].push_back(FArrayBox(xhi_line, 1, Arena_Used)); // MU
                 }
+            }
 
-            } else if (bdyType == WRFBdyTypes::y_hi) {
+        } else if (bdyType == WRFBdyTypes::y_lo) {
 
-                // *******************************************************************************
-                // yhi bdy
-                // *******************************************************************************
-                plo[1] = hi[1]-width+1; plo[0] = lo[0]; plo[2] = lo[2];
-                phi[1] = hi[1]        ; phi[0] = hi[0]; phi[2] = hi[2];
-                const Box pbx_yhi(plo, phi);
+            // *******************************************************************************
+            // ylo bdy
+            // *******************************************************************************
+            plo[1] = lo[1]        ; plo[0] = lo[0]; plo[2] = lo[2];
+            phi[1] = lo[1]+width-1; phi[0] = hi[0]; phi[2] = hi[2];
+            const Box pbx_ylo(plo, phi);
 
-                Box yhi_plane_no_stag(pbx_yhi);
-                Box yhi_plane_x_stag = convert(pbx_yhi, {1, 0, 0});
-                Box yhi_plane_y_stag = pbx_yhi; yhi_plane_y_stag.shiftHalf(1,1);
+            Box ylo_plane_no_stag(pbx_ylo);
+            Box ylo_plane_x_stag = convert(pbx_ylo, {1, 0, 0});
+            Box ylo_plane_y_stag = pbx_ylo; ylo_plane_y_stag.shiftHalf(1,-1);
 
-                Box yhi_line(IntVect(lo[0], hi[1]-width+1, 0), IntVect(hi[0], hi[1], 0));
+            Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+width-1, 0));
 
-                //Print() << "HI YBX NO STAG " << pbx_yhi << std::endl;
-                //Print() << "HI YBX  X STAG " << yhi_plane_x_stag << std::endl;
-                //Print() << "HI YBX  Y STAG " << yhi_plane_y_stag << std::endl;
-
-                if        (bdyVarType == WRFBdyVars::U) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_x_stag , 1, Arena_Used)); // U
-                    }
-                } else if (bdyVarType == WRFBdyVars::V) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_y_stag, 1, Arena_Used)); // V
-                    }
-                } else if (bdyVarType == WRFBdyVars::R) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // R
-                    }
-                } else if (bdyVarType == WRFBdyVars::T) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // T
-                    }
-                } else if (bdyVarType == WRFBdyVars::QV) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // QV
-                    }
-                } else if (bdyVarType == WRFBdyVars::MU ||
-                           bdyVarType == WRFBdyVars::PC) {
-                    for (int nt(0); nt < ntimes; ++nt) {
-                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_line, 1, Arena_Used)); // PC
-                    }
+            if        (bdyVarType == WRFBdyVars::U) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_x_stag , 1, Arena_Used)); // U
                 }
+            } else if (bdyVarType == WRFBdyVars::V) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_y_stag, 1, Arena_Used)); // V
+                }
+            } else if (bdyVarType == WRFBdyVars::T) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // T
+                }
+            } else if (bdyVarType == WRFBdyVars::QV) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // QV
+                }
+            } else if (bdyVarType == WRFBdyVars::MU ||
+                       bdyVarType == WRFBdyVars::PC) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_ylo[nt].push_back(FArrayBox(ylo_line, 1, Arena_Used)); // PC
+                }
+            }
+
+        } else if (bdyType == WRFBdyTypes::y_hi) {
+
+            // *******************************************************************************
+            // yhi bdy
+            // *******************************************************************************
+            plo[1] = hi[1]-width+1; plo[0] = lo[0]; plo[2] = lo[2];
+            phi[1] = hi[1]        ; phi[0] = hi[0]; phi[2] = hi[2];
+            const Box pbx_yhi(plo, phi);
+
+            Box yhi_plane_no_stag(pbx_yhi);
+            Box yhi_plane_x_stag = convert(pbx_yhi, {1, 0, 0});
+            Box yhi_plane_y_stag = pbx_yhi; yhi_plane_y_stag.shiftHalf(1,1);
+
+            Box yhi_line(IntVect(lo[0], hi[1]-width+1, 0), IntVect(hi[0], hi[1], 0));
+
+            //Print() << "HI YBX NO STAG " << pbx_yhi << std::endl;
+            //Print() << "HI YBX  X STAG " << yhi_plane_x_stag << std::endl;
+            //Print() << "HI YBX  Y STAG " << yhi_plane_y_stag << std::endl;
+
+            if        (bdyVarType == WRFBdyVars::U) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_x_stag , 1, Arena_Used)); // U
+                }
+            } else if (bdyVarType == WRFBdyVars::V) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_y_stag, 1, Arena_Used)); // V
+                }
+            } else if (bdyVarType == WRFBdyVars::T) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // T
+                }
+            } else if (bdyVarType == WRFBdyVars::QV) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // QV
+                }
+            } else if (bdyVarType == WRFBdyVars::MU ||
+                       bdyVarType == WRFBdyVars::PC) {
+                for (int nt(0); nt < ntimes; ++nt) {
+                    bdy_data_yhi[nt].push_back(FArrayBox(yhi_line, 1, Arena_Used)); // PC
+                }
+            }
         }
 
         long num_pts;
@@ -369,8 +351,7 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
             Array4<Real> fab_arr;
             if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
-                bdyVarType == WRFBdyVars::R || bdyVarType == WRFBdyVars::T ||
-                bdyVarType == WRFBdyVars::QV)
+                bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV)
             {
                 int ns2 = arrays[iv].get_vshape()[2];
                 int ns3 = arrays[iv].get_vshape()[3];
@@ -529,30 +510,26 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 }
 
 void
-convert_wrfbdy_data (const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
+convert_wrfbdy_data (const Box& domain,
+                     Vector<Vector<FArrayBox>>& bdy_data,
                      const FArrayBox& NC_MUB_fab,
-                     const FArrayBox& NC_PH_fab, const FArrayBox& NC_PHB_fab,
-                     const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,
-                     const FArrayBox& NC_RDNW_fab,
-                     const FArrayBox& NC_xvel_fab, const FArrayBox& NC_yvel_fab,
-                     const FArrayBox& NC_rho_fab, const FArrayBox& NC_rhotheta_fab,
+                     const FArrayBox& NC_C1H_fab,
+                     const FArrayBox& NC_C2H_fab,
+                     const FArrayBox& NC_xvel_fab,
+                     const FArrayBox& NC_yvel_fab,
+                     const FArrayBox& NC_theta_fab,
                      const FArrayBox& NC_QVAPOR_fab)
 {
     // These were filled from wrfinput
     Array4<Real const> c1h_arr  = NC_C1H_fab.const_array();
     Array4<Real const> c2h_arr  = NC_C2H_fab.const_array();
-    Array4<Real const> rdnw_arr = NC_RDNW_fab.const_array();
     Array4<Real const> mub_arr  = NC_MUB_fab.const_array();
-
-    Array4<Real const>  ph_arr  = NC_PH_fab.const_array();
-    Array4<Real const> phb_arr  = NC_PHB_fab.const_array();
 
     int ntimes = bdy_data.size();
     for (int nt = 0; nt < ntimes; nt++)
     {
         Array4<Real> bdy_u_arr  = bdy_data[nt][WRFBdyVars::U].array();  // This is face-centered
         Array4<Real> bdy_v_arr  = bdy_data[nt][WRFBdyVars::V].array();
-        Array4<Real> bdy_r_arr  = bdy_data[nt][WRFBdyVars::R].array();
         Array4<Real> bdy_t_arr  = bdy_data[nt][WRFBdyVars::T].array();
         Array4<Real> bdy_qv_arr = bdy_data[nt][WRFBdyVars::QV].array();
         Array4<Real> mu_arr     = bdy_data[nt][WRFBdyVars::MU].array(); // This is cell-centered
@@ -563,12 +540,10 @@ convert_wrfbdy_data (const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
         int jhi  = domain.bigEnd()[1];
 
         if (nt==0) {
-            bdy_data[0][WRFBdyVars::U].template copy<RunOn::Device>(NC_xvel_fab);
-            bdy_data[0][WRFBdyVars::V].template copy<RunOn::Device>(NC_yvel_fab);
-            bdy_data[0][WRFBdyVars::R].template copy<RunOn::Device>(NC_rho_fab);
-            bdy_data[0][WRFBdyVars::T].template copy<RunOn::Device>(NC_rhotheta_fab);
+            bdy_data[0][WRFBdyVars::U].template  copy<RunOn::Device>(NC_xvel_fab);
+            bdy_data[0][WRFBdyVars::V].template  copy<RunOn::Device>(NC_yvel_fab);
+            bdy_data[0][WRFBdyVars::T].template  copy<RunOn::Device>(NC_theta_fab);
             bdy_data[0][WRFBdyVars::QV].template copy<RunOn::Device>(NC_QVAPOR_fab);
-            bdy_data[0][WRFBdyVars::QV].template mult<RunOn::Device>(NC_rho_fab);
         } else {
             // Define u velocity
             const auto & bx_u  = bdy_data[0][WRFBdyVars::U].box();
@@ -606,21 +581,9 @@ convert_wrfbdy_data (const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
                 bdy_v_arr(i,j,k) = new_bdy;
             });
 
-            // Define density
-            const auto & bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
-            ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real xmu  = c1h_arr(0,0,k) * (mu_arr(i,j,0) + mub_arr(i,j,0)) + c2h_arr(0,0,k);
-                Real dpht = (ph_arr(i,j,k+1) + phb_arr(i,j,k+1)) - (ph_arr(i,j,k) + phb_arr(i,j,k));
-                bdy_r_arr(i,j,k) = -xmu / ( dpht * rdnw_arr(0,0,k) );
-                //if (nt == 0 and std::abs(r_arr(i,j,k) - bdy_r_arr(i,j,k)) > 0.) {
-                //    Print() << "INIT VS BDY DEN " << IntVect(i,j,k) << " " << r_arr(i,j,k) << " " << bdy_r_arr(i,j,k) <<
-                //        " " << std::abs(r_arr(i,j,k) - bdy_r_arr(i,j,k)) << std::endl;
-                //}
-            });
-
             // Define theta
             Real theta_ref = 300.;
+            const auto & bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
             ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
@@ -628,7 +591,7 @@ convert_wrfbdy_data (const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
                 Real new_bdy_Th = bdy_t_arr(i,j,k) / xmu_mult + theta_ref;
                 Real qv_fac = (1. + bdy_qv_arr(i,j,k) / 0.622 / xmu_mult);
                 new_bdy_Th /= qv_fac;
-                bdy_t_arr(i,j,k) = new_bdy_Th * bdy_r_arr(i,j,k);
+                bdy_t_arr(i,j,k) = new_bdy_Th;
                 //if (nt == 0 and std::abs(rth_arr(i,j,k) - bdy_t_arr(i,j,k)) > 0.) {
                 //    Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << rth_arr(i,j,k) << " " << bdy_t_arr(i,j,k) <<
                 //             " " << std::abs(th_arr(i,j,k) - bdy_t_arr(i,j,k)) << std::endl;
@@ -642,7 +605,7 @@ convert_wrfbdy_data (const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
                 Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
                 Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy_QV = bdy_qv_arr(i,j,k) / xmu_mult;
-                bdy_qv_arr(i,j,k) = new_bdy_QV * bdy_r_arr(i,j,k);
+                bdy_qv_arr(i,j,k) = new_bdy_QV;
             });
 
         } // nt ==0

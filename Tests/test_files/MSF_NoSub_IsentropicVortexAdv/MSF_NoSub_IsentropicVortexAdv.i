@@ -6,7 +6,7 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 erf.test_mapfactor = 1
-erf.use_terrain = 0
+erf.use_terrain = false
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = -12  -12  -1
@@ -19,7 +19,7 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.no_substepping  = 1
+erf.substepping_type = None
 erf.fixed_dt        = 0.0003
 
 # DIAGNOSTICS & VERBOSITY

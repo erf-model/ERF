@@ -123,6 +123,20 @@ public:
         return m_moist_model->getName();
     }
 
+    /*! \brief get the indices and names of moisture model variables for restart
+               at a given level */
+    void Get_Qmoist_Restart_Vars ( const int a_lev, /*!< level */
+                                   std::vector<int>& a_idx, /*!< indices */
+                                   std::vector<std::string>& a_names /*!< names */ ) const override
+    {
+        if (a_lev == 0) {
+            m_moist_model->Qmoist_Restart_Vars( a_idx, a_names );
+        } else {
+            a_idx.clear();
+            a_names.clear();
+        }
+    }
+
 protected:
 
     /*! \brief Create and set the specified moisture model */

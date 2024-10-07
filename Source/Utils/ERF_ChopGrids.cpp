@@ -2,6 +2,21 @@
 
 using namespace amrex;
 
+BoxArray
+ERFPostProcessBaseGrids (const Box& domain, bool decompose_in_z)
+{
+    //
+    // This is used to avoid the case where the native amrex decomposition makes
+    //     too many grids for the number of processors.
+    //
+    // The idea is to not override the user preference if expressed by max_grid_size
+    //     but instead to ensure that the default behavior is what we want.
+    //
+    BoxArray ba0 = amrex::decompose(domain, ParallelDescriptor::NProcs(),
+                                    {true,true,decompose_in_z});
+    return ba0;
+}
+
 void
 ChopGrids2D (BoxArray& ba, const Box& domain, int target_size)
 {

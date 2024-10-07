@@ -160,17 +160,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_exp_most     = (solverChoice.use_explicit_most);
     const bool l_rot_most     = (solverChoice.use_rotate_most);
 
-#ifdef ERF_USE_POISSON_SOLVE
     const bool l_anelastic = solverChoice.anelastic[level];
     const bool l_const_rho = solverChoice.constant_density;
 
     // We cannot use anelastic with terrain or with moisture
     AMREX_ALWAYS_ASSERT(!l_use_terrain  || !l_anelastic);
     AMREX_ALWAYS_ASSERT(!l_use_moisture || !l_anelastic);
-#else
-    const bool l_anelastic = false;
-    const bool l_const_rho = false;
-#endif
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
@@ -362,6 +357,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 pptemp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
             });
         }
+
 #ifdef ERF_USE_POISSON_SOLVE
         const Array4<const Real>& pp_arr = (l_anelastic) ? pp_inc.const_array(mfi) : pprime.const_array();
 #else
@@ -722,7 +718,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
         if ( (bx.bigEnd(1) == domain.bigEnd(1)) &&
              (bc_ptr_h[BCVars::yvel_bc].hi(1) == ERFBCType::ext_dir) ) {
-            Box hi_y_dom_face(bx); hi_y_dom_face.setSmall(1,bx.bigEnd(1)+1); hi_y_dom_face.setBig(1,bx.bigEnd(1)+1);;
+            Box hi_y_dom_face(bx); hi_y_dom_face.setSmall(1,bx.bigEnd(1)+1); hi_y_dom_face.setBig(1,bx.bigEnd(1)+1);
             ParallelFor(hi_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 rho_v_rhs(i,j,k) = 0.;
             });

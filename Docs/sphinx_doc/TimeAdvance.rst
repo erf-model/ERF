@@ -7,18 +7,25 @@
 Time Advance
 ============
 
-To advance the fully compressible solution in time, ERF uses a 3rd order Runge-Kutta method with acoustic sub-stepping
-in each Runge-Kutta stage, following the approach of `Klemp, Skamarock and Dudhia (2007)`_
+Compressible Advance
+---------------------
+
+To advance the fully compressible solution in time, ERF uses a 3rd order Runge-Kutta method.
+By default, acoustic substepping which solves the perturbational equations
+implicitly in the vertical direction is used in each Runge-Kutta stage,
+following the approach of `Klemp, Skamarock and Dudhia (2007)`_
+However, there is a run-time option to turn off the substepping completely,
+or to use an explicit rather than implicit solve in the substepping.
 
 .. _`Klemp, Skamarock and Dudhia (2007)`: https://journals.ametsoc.org/view/journals/mwre/135/8/mwr3440.1.xml
 
-Specifically, for
+Specifically, the 3rd order Runge-Kutta method solves
 
 .. math::
 
   \frac{d \mathbf{S}}{dt} = f(\mathbf{S})
 
-where :math:`\mathbf{S}` is the solution vector, we solve
+where :math:`\mathbf{S}` is the solution vector, in the following three steps:
 
 .. math::
 
@@ -30,18 +37,19 @@ where :math:`\mathbf{S}` is the solution vector, we solve
 
 .. _AnelasticTimeAdvance:
 
-Anelastic Option
+Anelastic Advance
 ---------------------
 
-When solving the anelastic rather than fully compressible equations, ERF uses a 2nd order Runge-Kutta method:
+When solving the anelastic rather than fully compressible equations, ERF uses a 2nd order Runge-Kutta method
+(with no substepping):
 
-Specifically, for
+Specifically, the 2nd order Runge-Kutta method solves
 
 .. math::
 
   \frac{d \mathbf{S}}{dt} = f(\mathbf{S})
 
-where :math:`\mathbf{S}` is the solution vector, we solve
+where :math:`\mathbf{S}` is the solution vector, in the following two steps:
 
 .. math::
 
@@ -54,9 +62,9 @@ where :math:`\mathbf{S}` is the solution vector, we solve
 Acoustic Sub-stepping
 ---------------------
 
-When solving the fully compressible equation set, we sub-step the acoustic modes within each Runge-Kutta stage.
+When solving the fully compressible equation set, by default we substep the acoustic modes within each Runge-Kutta stage.
 
-We first recall the equations in the following form,
+Recall the equations in the following form,
 here defining :math:`\mathbf{R}` for each equation to include all additional terms that contribute to the time evolution.
 
 .. math::

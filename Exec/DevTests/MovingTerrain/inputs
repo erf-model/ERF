@@ -21,11 +21,11 @@ erf.terrain_type = Moving   # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
 # FOR NO SUBSTEPPING
-erf.no_substepping     = 1
+erf.substepping_type   = None
 erf.fixed_dt           = 0.005
 
 # FOR SUBSTEPPING (fac 20)
-#erf.no_substepping     = 0
+#erf.substepping_type   = Implicit
 #erf.fixed_mri_dt_ratio = 20
 #erf.fixed_dt           = 0.1
 #erf.use_lagged_delta_rt = false

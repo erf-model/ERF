@@ -97,8 +97,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               amrex::FArrayBox& z_phys_cc_fab,
                               const amrex::Vector<amrex::FArrayBox>& NC_ght_fab,
                               const amrex::Vector<amrex::FArrayBox>& NC_psfc_fab,
-                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& fabs_for_bcs,
-                              const amrex::Array4<const int>& mask_c_arr);
+                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& fabs_for_bcs);
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
@@ -117,7 +116,7 @@ calc_rho_p (const int& kmax,
             amrex::Real* Pm_vec)
 {
     const int maxiter = 10;
-    const amrex::Real tol = 1.0e-12;
+    const amrex::Real tol = 1.0e-10;
 
     // Calculate or use moist pressure at the surface.
     amrex::Real Psurf;

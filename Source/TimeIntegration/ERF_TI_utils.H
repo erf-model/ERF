@@ -130,7 +130,8 @@
         cons_only = false;
         FillIntermediatePatch(level, time_for_fp,
                               {&S_data[IntVars::cons], &xvel_new, &yvel_new, &zvel_new},
-                              {&S_data[IntVars::cons], &S_data[IntVars::xmom], &S_data[IntVars::ymom], &S_data[IntVars::zmom]},
+                              {&S_data[IntVars::cons], &S_data[IntVars::xmom],
+                               &S_data[IntVars::ymom], &S_data[IntVars::zmom]},
                               ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons,
                               allow_most_bcs);
     };
