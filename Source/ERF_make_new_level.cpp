@@ -25,10 +25,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 {
     BoxArray ba;
     DistributionMapping dm;
-    if (lev == 0 && ba_in.size() != ParallelDescriptor::NProcs())
+    Box domain(Geom(0).Domain());
+    if (lev == 0 &&
+        (max_grid_size[0][0] >= domain.length(0)) &&
+        (max_grid_size[0][1] >= domain.length(1)) &&
+        ba_in.size() != ParallelDescriptor::NProcs())
     {
         // We only decompose in z if max_grid_size_z indicates we should
-        bool decompose_in_z = (max_grid_size[0][2] < Geom(0).Domain().length(2));
+        bool decompose_in_z = (max_grid_size[0][2] < domain.length(2));
 
         ba = ERFPostProcessBaseGrids(Geom(0).Domain(),decompose_in_z);
         dm = DistributionMapping(ba);
