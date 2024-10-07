@@ -101,7 +101,7 @@ public:
                       const SolverChoice& /*sc*/)
     {
         amrex::Print() << "No perturbation to background fields supplied for "
-            << name() << " problem" << std::endl;;
+            << name() << " problem" << std::endl;
     }
 
     /**
