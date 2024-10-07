@@ -144,8 +144,9 @@ ERF::init_from_wrfinput (int lev)
     Vector<FArrayBox> NC_LON_fab;    NC_LON_fab.resize(num_boxes_at_level[lev]);
 
     // Print() << "Building initial FABS from file " << nc_init_file[lev][idx] << std::endl;
-    if (nc_init_file.empty())
+    if (nc_init_file.empty()) {
         amrex::Error("NetCDF initialization file name must be provided via input");
+    }
 
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
     {
@@ -297,8 +298,9 @@ ERF::init_from_wrfinput (int lev)
     }
 
     if (init_type == "real" && (lev == 0)) {
-        if (nc_bdy_file.empty())
+        if (nc_bdy_file.empty()) {
             amrex::Error("NetCDF boundary file name must be provided via input");
+        }
         bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              real_width, start_bdy_time);
@@ -571,6 +573,7 @@ verify_terrain_top_boundary (const Real& z_top,
         if ((z_top > MaxMax_h[0]) || (z_top < MaxMax_h[1])) {
             Print() << "Z problem extent " << z_top << " does not match NETCDF file min "
                     << MaxMax_h[1] << " and max " << MaxMax_h[0] << "!\n";
+            Print() << "To run you must set the z component of prob_hi or prob_extent to lie between the netcdf bounds" << std::endl;
             Abort("Domain specification error");
         }
     }
