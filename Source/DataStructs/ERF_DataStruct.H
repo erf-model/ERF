@@ -120,10 +120,8 @@ struct SolverChoice {
             RhoQv_comp = RhoQ1_comp;
             RhoQr_comp = RhoQ3_comp;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {
-            moisture_type = MoistureType::Kessler_NoRain;
             RhoQv_comp = RhoQ1_comp;
-        } else if (moisture_model_string == "SuperDroplets") {
-            moisture_type = MoistureType::SuperDroplets;
+        } else if (moisture_type == MoistureType::SuperDroplets) {
             RhoQv_comp = RhoQ1_comp;
             RhoQr_comp = RhoQ3_comp;
         }
