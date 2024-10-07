@@ -15,6 +15,13 @@
 void ChopGrids2D (amrex::BoxArray& ba, const amrex::Box& domain, int target_size);
 
 /*
+ * Create a new BoxArray with exactly the number of boxes as MPI ranks.
+ * This is designed to work only on the base level which covers the entire domain.
+ */
+amrex::BoxArray
+ERFPostProcessBaseGrids (const amrex::Box& domain, bool decompose_in_z);
+
+/*
  * Create the Jacobian for the metric transformation when use_terrain is true
  */
 void make_J (const amrex::Geometry& geom,
@@ -253,7 +260,7 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
     int Relax_z = width - Spec_z + 1;
     amrex::Real num     = amrex::Real(Spec_z + Relax_z);
     amrex::Real denom   = amrex::Real(Relax_z - 1);
-    amrex::Real SpecExp = -std::log(0.01) / amrex::Real(width - Spec_z);
+    amrex::Real SpecExp = -std::log(0.1) / amrex::Real(width - Spec_z);
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes

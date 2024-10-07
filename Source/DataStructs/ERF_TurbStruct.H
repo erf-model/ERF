@@ -116,15 +116,15 @@ struct TurbChoice {
         amrex::Print() << "Turbulence Settings at level " << lev << std::endl;
 
         if (les_type == LESType::None && pbl_type == PBLType::None) {
-            amrex::Print() << "Using DNS model at level " << lev << std::endl;
+            amrex::Print() << "    Using DNS model at level " << lev << std::endl;
         } else if  (les_type == LESType::Smagorinsky) {
-            amrex::Print() << "Using Smagorinsky LES model at level " << lev << std::endl;
+            amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
         } else if  (les_type == LESType::Deardorff) {
-            amrex::Print() << "Using Deardorff LES model at level " << lev << std::endl;
+            amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
         } else if  (pbl_type == PBLType::MYNN25) {
-            amrex::Print() << "Using MYNN2.5 PBL model at level " << lev << std::endl;
+            amrex::Print() << "    Using MYNN2.5 PBL model at level " << lev << std::endl;
         } else if  (pbl_type == PBLType::YSU) {
-            amrex::Print() << "Using YSU PBL model at level " << lev << std::endl;
+            amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
         }
 
         if (les_type != LESType::None) {

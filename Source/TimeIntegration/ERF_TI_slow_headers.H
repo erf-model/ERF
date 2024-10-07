@@ -169,7 +169,6 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::YAFluxRegister* fr_as_fine);
 
 
-#ifdef ERF_USE_POISSON_SOLVE
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
@@ -217,5 +216,4 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v);
-#endif
 #endif

@@ -45,6 +45,7 @@ namespace HSEutils
                         Real& F)
     {
         int iter=0;
+        int max_iter=30;
         Real eps  = 1.0e-6;
         Real ieps = 1.0e6;
         do {
@@ -62,8 +63,11 @@ namespace HSEutils
             F = P + 0.5*r_tot*g*dz + C;
             ++iter;
         }
-        while (std::abs(F)>m_tol && iter<25);
-        if (iter>=25) printf("WARNING: HSE Newton iterations did not converge to tolerance!\n");
+        while (std::abs(F)>m_tol && iter<max_iter);
+        if (iter>=max_iter) {
+            printf("WARNING: HSE Newton iterations did not converge to tolerance!\n");
+            printf("HSE Newton tol: %e %e\n",F,m_tol);
+        }
     }
 
 

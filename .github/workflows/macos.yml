@@ -31,7 +31,7 @@ jobs:
       run: |
         cmake \
           -B${{runner.workspace}}/ERF/build \
-          -DBUILD_SHARED_LIBS:BOOL=TRUE \
+          -DBUILD_SHARED_LIBS:BOOL=FALSE \
           -DCMAKE_CXX_COMPILER_LAUNCHER=$(which ccache) \
           -DCMAKE_BUILD_TYPE:STRING=Debug \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \

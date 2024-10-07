@@ -56,10 +56,10 @@ struct DiffChoice {
     void display()
     {
         amrex::Print() << "Diffusion choices: " << std::endl;
-        amrex::Print() << "rho0_trans                  : " << rho0_trans << std::endl;
-        amrex::Print() << "alpha_T                     : " << alpha_T << std::endl;
-        amrex::Print() << "alpha_C                     : " << alpha_C << std::endl;
-        amrex::Print() << "dynamicViscosity            : " << dynamicViscosity << std::endl;
+        amrex::Print() << "    rho0_trans              : " << rho0_trans << std::endl;
+        amrex::Print() << "    alpha_T                 : " << alpha_T << std::endl;
+        amrex::Print() << "    alpha_C                 : " << alpha_C << std::endl;
+        amrex::Print() << "    dynamicViscosity        : " << dynamicViscosity << std::endl;
 
         if (molec_diff_type == MolecDiffType::Constant) {
             amrex::Print() << "Using constant molecular diffusivity (relevant for DNS)" << std::endl;

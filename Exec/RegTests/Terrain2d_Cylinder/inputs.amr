@@ -39,7 +39,7 @@ erf.sponge_y_velocity = 0.0
 erf.sponge_z_velocity = 0.0
 
 # TIME STEP CONTROL
-erf.no_substepping     = 1
+erf.substepping_type    = None
 #erf.fixed_dt           = 1E-5
 erf.cfl = 0.3 
 

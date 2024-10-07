@@ -28,7 +28,7 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.no_substepping = 1
+erf.substepping_type = None
 erf.fixed_dt       = 0.000015
 erf.fixed_fast_dt  = 0.000005
 

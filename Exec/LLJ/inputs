@@ -27,7 +27,7 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.001  # fixed time step depending on grid resolution
-erf.no_substepping     = 1
+erf.substepping_type   = None
     
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

@@ -16,8 +16,8 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.no_substepping = 1
-erf.fixed_dt           = 0.0005
+erf.substepping_type = None
+erf.fixed_dt         = 0.0005
 
 # OPTIONAL INCOMPRESSIBLE/ANELASTIC ALTERNATIVE
 erf.anelastic = 0

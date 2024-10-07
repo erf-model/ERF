@@ -18,7 +18,7 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.no_substepping = 1
+erf.substepping_type = None
 #erf.cfl            = 0.9     # cfl number for hyperbolic system
 erf.fixed_dt = 0.0005
 

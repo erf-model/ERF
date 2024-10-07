@@ -113,7 +113,7 @@
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new,
                              xmom_src, ymom_src, zmom_src,
-                             r0_new, fine_geom, solverChoice,
+                             r0_new, p0_new, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -217,7 +217,7 @@
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new,
                              xmom_src, ymom_src, zmom_src,
-                             r0, fine_geom, solverChoice,
+                             r0, p0, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -249,12 +249,12 @@
         // Populate RHS for relaxation zones if using real bcs
         if (use_real_bcs && (level == 0)) {
             if (real_width>0) {
-                    realbdy_compute_interior_ghost_rhs(init_type,
-                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                                       real_width, real_set_width, fine_geom,
-                                                       S_rhs, S_old, S_data,
-                                                       bdy_data_xlo, bdy_data_xhi,
-                                                       bdy_data_ylo, bdy_data_yhi);
+                realbdy_compute_interior_ghost_rhs(init_type,
+                                                   bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                                   real_width, real_set_width, fine_geom,
+                                                   S_rhs, S_old, S_data,
+                                                   bdy_data_xlo, bdy_data_xhi,
+                                                   bdy_data_ylo, bdy_data_yhi);
             }
         }
 #endif
@@ -379,7 +379,6 @@
         }
     }; // end slow_rhs_fun_post
 
-#ifdef ERF_USE_POISSON_SOLVE
     auto slow_rhs_fun_inc = [&](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_old,
                                 Vector<MultiFab>& S_data,
@@ -428,7 +427,7 @@
                          z_phys_nd[level], z_phys_cc[level],
                          xvel_new, yvel_new,
                          xmom_src, ymom_src, zmom_src,
-                         r0, fine_geom, solverChoice,
+                         r0, p0, fine_geom, solverChoice,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -470,4 +469,3 @@
         }
 #endif
     }; // end slow_rhs_fun_inc
-#endif

@@ -6,11 +6,10 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
+
 #include <ERF_EOS.H>
 #include <ERF.H>
-
 #include <AMReX_buildInfo.H>
-
 #include <ERF_Utils.H>
 #include <ERF_TerrainMetrics.H>
 #include <memory>
@@ -39,10 +38,9 @@ Real ERF::change_max    =  1.1;
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
-int ERF::verbose       = 0;
-#ifdef ERF_USE_POISSON_SOLVE
-int ERF::mg_verbose    = 0;
-#endif
+int ERF::verbose        = 0;
+int  ERF::mg_verbose    = 0;
+bool ERF::use_heffte    = false;
 
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
@@ -198,9 +196,8 @@ ERF::ERF_shared ()
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
 
-#ifdef ERF_USE_POISSON_SOLVE
+    // We resize this regardless in order to pass it without error
     pp_inc.resize(nlevs_max);
-#endif
 
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
@@ -223,7 +220,12 @@ ERF::ERF_shared ()
     physbcs_u.resize(nlevs_max);
     physbcs_v.resize(nlevs_max);
     physbcs_w.resize(nlevs_max);
-    physbcs_w_no_terrain.resize(nlevs_max);
+    physbcs_base.resize(nlevs_max);
+
+    // Planes to hold Dirichlet values at boundaries
+    xvel_bc_data.resize(nlevs_max);
+    yvel_bc_data.resize(nlevs_max);
+    zvel_bc_data.resize(nlevs_max);
 
     advflux_reg.resize(nlevs_max);
 
@@ -501,8 +503,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         sum_integrated_quantities(time);
     }
 
-    if (solverChoice.pert_type == PerturbationType::perturbSource ||
-        solverChoice.pert_type == PerturbationType::perturbDirect) {
+    if (solverChoice.pert_type == PerturbationType::Source ||
+        solverChoice.pert_type == PerturbationType::Direct) {
         if (is_it_time_for_action(nstep, time, dt_lev0, pert_interval, -1.)) {
             turbPert.debug(time);
         }
@@ -587,7 +589,6 @@ ERF::InitData ()
 void
 ERF::InitData_pre ()
 {
-
     // Initialize the start time for our CPU-time tracker
     startCPUTime = ParallelDescriptor::second();
 
@@ -598,21 +599,8 @@ ERF::InitData_pre ()
         m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
     }
 
-    // Map the words in the inputs file to BC types, then translate
-    //     those types into what they mean for each variable
-    init_bcs();
-
-    // Verify BCs are compatible with solver choice
-    for (int lev(0); lev <= max_level; ++lev) {
-        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
-               (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
-            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
-            Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
-        }
-    }
-
-    if (!solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::Static) {
-        Abort("We do not allow non-static terrain_type with use_terrain = false");
+    if (!solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::None) {
+        Abort("We do not allow terrain_type to be moving or static with use_terrain = false");
     }
 
     last_plot_file_step_1 = -1;
@@ -624,6 +612,18 @@ ERF::InitData_pre ()
 
         const Real time = start_time;
         InitFromScratch(time);
+    } else {
+        // For initialization this is done in init_only; it is done here for restart
+        init_bcs();
+    }
+
+    // Verify BCs are compatible with solver choice
+    for (int lev(0); lev <= max_level; ++lev) {
+        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+               (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
+            Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
+        }
     }
 }
 
@@ -729,6 +729,10 @@ ERF::InitData_post ()
 
         restart();
 
+        // Create the physbc objects for {cons, u, v, w, base state}
+        for (int lev(0); lev <= max_level; ++lev) {
+            make_physbcs(lev);
+        }
 
         // TODO: Check if this is needed. I don't think it is since we now
         //       advect all the scalars...
@@ -877,8 +881,8 @@ ERF::InitData_post ()
         sum_integrated_quantities(t_new[0]);
     }
 
-    if (solverChoice.pert_type == PerturbationType::perturbSource ||
-        solverChoice.pert_type == PerturbationType::perturbDirect) {
+    if (solverChoice.pert_type == PerturbationType::Source ||
+        solverChoice.pert_type == PerturbationType::Direct) {
         if (is_it_time_for_action(istep[0], t_new[0], dt[0], pert_interval, -1.)) {
             turbPert.debug(t_new[0]);
         }
@@ -946,11 +950,12 @@ ERF::InitData_post ()
             Construct_ERFFillPatchers(lev);
         }
 
+        auto& lev_new = vars_new[lev];
+
         //
         // Fill boundary conditions -- not sure why we need this here
         //
         bool fillset = false;
-        auto& lev_new = vars_new[lev];
         FillPatch(lev, t_new[lev],
                   {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
                   {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
@@ -1286,6 +1291,13 @@ ERF::restart ()
 void
 ERF::init_only (int lev, Real time)
 {
+    // Map the words in the inputs file to BC types, then translate
+    //     those types into what they mean for each variable
+    // This must be called before initHSE (where the base state is initialized)
+    if (lev == 0 && init_type != "ideal") {
+        init_bcs();
+    }
+
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
@@ -1304,6 +1316,10 @@ ERF::init_only (int lev, Real time)
         // input sounding, if the init_sounding_ideal flag is set; otherwise
         // it is set by initHSE()
         init_from_input_sounding(lev);
+
+        // The physbc's need the terrain but are needed for initHSE
+        make_physbcs(lev);
+
         if (init_sounding_ideal) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
                 "Gravity should be on to be consistent with sounding initialization.");
@@ -1316,7 +1332,12 @@ ERF::init_only (int lev, Real time)
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
         init_from_wrfinput(lev);
-        if (init_type == "ideal") initHSE();
+
+        // The physbc's need the terrain but are needed for initHSE
+        if (init_type == "ideal") {
+            make_physbcs(lev);
+            initHSE(lev);
+        }
 
     } else if (init_type == "metgrid") {
         // The base state is initialized from data output by WPS metgrid;
@@ -1326,13 +1347,22 @@ ERF::init_only (int lev, Real time)
     } else if (init_type == "uniform") {
         // Initialize a uniform background field and base state based on the
         // problem-specified reference density and temperature
+
+        // The physbc's need the terrain but are needed for initHSE
+        make_physbcs(lev);
+
         init_uniform(lev);
         initHSE(lev);
     } else {
         // No background flow initialization specified, initialize the
         // background field to be equal to the base state, calculated from the
         // problem-specific erf_init_dens_hse
-        initHSE(lev); // need to call this first
+
+        // The bc's need the terrain but are needed for initHSE
+        make_physbcs(lev);
+
+        // We will initialize the state from the background state so must set that first
+        initHSE(lev);
         init_from_hse(lev);
     }
 
@@ -1356,8 +1386,8 @@ ERF::init_only (int lev, Real time)
    }
 
     // Initialize turbulent perturbation
-    if (solverChoice.pert_type == PerturbationType::perturbSource ||
-        solverChoice.pert_type == PerturbationType::perturbDirect) {
+    if (solverChoice.pert_type == PerturbationType::Source ||
+        solverChoice.pert_type == PerturbationType::Direct) {
         if (lev == 0) {
             turbPert_update(lev, 0.);
             turbPert_amplitude(lev);
@@ -1400,9 +1430,8 @@ ERF::ReadParameters ()
 
         // Verbosity
         pp.query("v", verbose);
-#ifdef ERF_USE_POISSON_SOLVE
         pp.query("mg_v", mg_verbose);
-#endif
+        pp.query("use_heffte", use_heffte);
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -1436,11 +1465,6 @@ ERF::ReadParameters ()
         // We default to yes if we have them, but the user can override that option
         use_real_bcs = ( (init_type == "real") || (init_type == "metgrid") );
         pp.query("use_real_bcs",use_real_bcs);
-
-        // No moving terrain with init real
-        if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {
-            Abort("Moving terrain is not supported with init real");
-        }
 
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
@@ -1542,6 +1566,12 @@ ERF::ReadParameters ()
 
     solverChoice.init_params(max_level);
 
+    // No moving terrain with init real (we must do this after init_params
+    //    because that is where we set terrain_type
+    if (init_type == "real" && solverChoice.terrain_type == TerrainType::Moving) {
+        Abort("Moving terrain is not supported with init real");
+    }
+
     // What type of land surface model to use
     // NOTE: Must be checked after init_params
     if (solverChoice.lsm_type == LandSurfaceType::SLM) {
@@ -1618,7 +1648,7 @@ ERF::ParameterSanityChecks ()
     for (int lev = 0; lev <= max_level; lev++)
     {
         // We ignore fixed_fast_dt if not substepping
-        if (solverChoice.no_substepping[lev]) {
+        if (solverChoice.substepping_type[lev] == SubsteppingType::None) {
             fixed_fast_dt[lev] = -1.0;
         }
 

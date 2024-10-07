@@ -54,8 +54,8 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
 
             amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
-                amrex::Array1D<amrex::Real,0,255> r;;
-                amrex::Array1D<amrex::Real,0,255> p;;
+                amrex::Array1D<amrex::Real,0,255> r;
+                amrex::Array1D<amrex::Real,0,255> p;
                 HSEutils::init_isentropic_hse_terrain(i,j,rho_local_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
 
                 for (int k = klo; k <= khi; k++) {

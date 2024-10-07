@@ -1,0 +1,80 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+stop_time = 370.
+
+amrex.fpe_trap_invalid = 1
+
+erf.anelastic = 1
+
+erf.init_type = "uniform"
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo = -1. -1.  0.
+geometry.prob_hi =  1.  1.  1.
+
+#coarse
+amr.n_cell       = 64  64  32
+
+#fine
+amr.n_cell       = 128 128 64
+
+geometry.is_periodic = 0 0 0
+
+xlo.type = "SlipWall"
+xhi.type = "SlipWall"
+ylo.type = "SlipWall"
+yhi.type = "SlipWall"
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+xlo.theta = 285.
+xhi.theta = 285.
+ylo.theta = 285.
+yhi.theta = 285.
+zlo.theta = 299.
+zhi.theta = 280.
+
+xlo.density = 1.2225686
+xhi.density = 1.2225686
+ylo.density = 1.2225686
+yhi.density = 1.2225686
+zlo.density = 1.2225686
+zhi.density = 1.2225686
+
+# TIME STEP CONTROL
+#erf.cfl            = 0.9
+erf.fixed_dt      = 0.025
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 1000       # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt        # prefix of plotfile name
+erf.plot_int_1      = 100        # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp theta
+
+erf.use_gravity = true
+
+# SOLVER CHOICE
+erf.molec_diff_type  = "None"
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
+
+erf.les_type  = "Smagorinsky"
+erf.Cs        = 0.1
+erf.Pr_t      = 0.33333333333333
+
+# PROBLEM PARAMETERS
+prob.rho_0 = 1.0
+prob.T_0          = 285.
+prob.T_0_Pert_Mag = 0.1

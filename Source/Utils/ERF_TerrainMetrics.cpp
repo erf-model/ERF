@@ -280,6 +280,9 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                 gbx.setBig(2,domhi_z);
             } else {
                 gbx.growHi(2,-1);
+                if (gbx.bigEnd(2) > domhi_z) {
+                    gbx.setBig(2,domhi_z);
+                }
             }
 
             Array4<Real> const& z_arr = z_phys_nd.array(mfi);

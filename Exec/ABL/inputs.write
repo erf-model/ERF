@@ -17,8 +17,8 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.no_substepping  = 1
-erf.fixed_dt        = 2.0e-2  # fixed time step depending on grid resolution
+erf.substepping_type = None
+erf.fixed_dt         = 2.0e-2  # fixed time step depending on grid resolution
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

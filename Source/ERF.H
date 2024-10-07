@@ -134,9 +134,10 @@ public:
     void WriteMyEBSurface ();
 #endif
 
-#ifdef ERF_USE_POISSON_SOLVE
-    // Project the velocities to be divergence-free
+    // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
+    void solve_with_heffte  (int lev, amrex::MultiFab& rhs, amrex::MultiFab& soln,
+                             amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 
     // Project the velocities to be divergence-free with a thin body
     void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
@@ -145,8 +146,6 @@ public:
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
     bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
-
-#endif
 
     // Init (NOT restart or regrid)
     void init_only (int lev, amrex::Real time);
@@ -351,6 +350,8 @@ public:
 
     void init_from_hse (int lev);
 
+    void init_immersed_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
@@ -397,7 +398,9 @@ public:
                             amrex::Real time,
                             bool cons_only,
                             int icomp_cons,
-                            int ncomp_cons);
+                            int ncomp_cons,
+                            amrex::IntVect ngvect_cons,
+                            amrex::IntVect ngvect_vels);
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -469,8 +472,8 @@ private:
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
-    // Initialize the bc routines
-    void initialize_bcs        (int lev);
+    // Create the physbcs objects
+    void make_physbcs (int lev);
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
@@ -611,9 +614,9 @@ private:
     InputSpongeData input_sponge_data;
 
     // Vector (6 planes) of DeviceVectors (ncell in plane) for Dirichlet BC data
-    amrex::Gpu::DeviceVector<amrex::Real> xvel_bc_data;
-    amrex::Gpu::DeviceVector<amrex::Real> yvel_bc_data;
-    amrex::Gpu::DeviceVector<amrex::Real> zvel_bc_data;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> xvel_bc_data;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> yvel_bc_data;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
 
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
@@ -672,16 +675,14 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
-#ifdef ERF_USE_POISSON_SOLVE
     amrex::Vector<amrex::MultiFab> pp_inc;
-#endif
 
     // Vector over levels of routines to impose physical boundary conditions
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_u>> physbcs_u;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
-    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w_no_terrain>> physbcs_w_no_terrain;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base;
 
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
@@ -886,7 +887,7 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
-                                                    "eq_pot_temp", "num_turb", "SMark",
+                                                    "eq_pot_temp", "num_turb", "SMark0", "SMark1",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
@@ -939,9 +940,8 @@ private:
 #endif
 
     static int verbose;
-#ifdef ERF_USE_POISSON_SOLVE
     static int mg_verbose;
-#endif
+    static bool use_heffte;
 
     // Diagnostic output interval
     static int sum_interval;

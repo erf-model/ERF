@@ -73,7 +73,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
 
             if (!gdomain.contains(cbx2))
             {
-                const Array4<Real> cons_arr = mf.array(mfi);;
+                const Array4<Real> cons_arr = mf.array(mfi);
 
                 if (!m_use_real_bcs)
                 {
@@ -145,7 +145,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
             if (!gdomainx.contains(xbx2))
             {
-                const Array4<Real> velx_arr = mf.array(mfi);;
+                const Array4<Real> velx_arr = mf.array(mfi);
 
                 if (!m_use_real_bcs)
                 {
@@ -220,7 +220,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
             if (!gdomainy.contains(ybx2))
             {
-                const Array4<Real> vely_arr = mf.array(mfi);;
+                const Array4<Real> vely_arr = mf.array(mfi);
 
                 if (!m_use_real_bcs)
                 {
@@ -296,9 +296,9 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 z_nd_arr = z_nd_mf_loc.const_array(mfi);
             }
 
-            Array4<const Real> const& velx_arr = xvel.const_array(mfi);;
-            Array4<const Real> const& vely_arr = yvel.const_array(mfi);;
-            Array4<      Real> const& velz_arr = mf.array(mfi);;
+            Array4<const Real> const& velx_arr = xvel.const_array(mfi);
+            Array4<const Real> const& vely_arr = yvel.const_array(mfi);
+            Array4<      Real> const& velz_arr = mf.array(mfi);
 
             if (!m_use_real_bcs)
             {
@@ -316,19 +316,20 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     } // OpenMP
 } // operator()
 
-void ERFPhysBCFunct_w_no_terrain::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
-                                              IntVect const& nghost, const Real /*time*/, int bccomp)
+void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
+                                      IntVect const& nghost, const Real /*time*/, int /*bccomp*/)
 {
-    BL_PROFILE("ERFPhysBCFunct_w::()");
+    BL_PROFILE("ERFPhysBCFunct_base::()");
 
     if (m_geom.isAllPeriodic()) return;
 
     const auto& domain = m_geom.Domain();
 
-    Box gdomainz = surroundingNodes(domain,2);
+    // Create a grown domain box containing valid + periodic cells
+    Box gdomain  = domain;
     for (int i = 0; i < AMREX_SPACEDIM; ++i) {
         if (m_geom.isPeriodic(i)) {
-            gdomainz.grow(i, nghost[i]);
+            gdomain.grow(i, nghost[i]);
         }
     }
 
@@ -340,28 +341,21 @@ void ERFPhysBCFunct_w_no_terrain::operator() (MultiFab& mf, int /*icomp*/, int /
         {
             //
             // This is the box we pass to the different routines
-            // NOTE -- this is the full grid NOT the tile box
+            // NOTE -- this is the full grid box NOT the tile box
             //
             Box bx  = mfi.validbox();
 
             //
             // These are the boxes we use to test on relative to the domain
             //
-            Box zbx = surroundingNodes(bx,2); zbx.grow(0,nghost[0]);
-                                              zbx.grow(1,nghost[1]);
+            Box cbx1 = bx; cbx1.grow(IntVect(nghost[0],nghost[1],0));
+            Box cbx2 = bx; cbx2.grow(nghost);
 
-            if (!m_use_real_bcs)
+            if (!gdomain.contains(cbx2))
             {
-                Array4<      Real> const& velz_arr = mf.array(mfi);;
-                if (!gdomainz.contains(zbx))
-                {
-                    impose_lateral_zvel_bcs(velz_arr,zbx,domain,bccomp);
-                }
-            } // m_use_real_bcs
+                const Array4<Real> cons_arr = mf.array(mfi);
 
-            const Array4<      Real> velz_arr = mf.array(mfi);;
-            if (!gdomainz.contains(zbx)) {
-                impose_vertical_zvel_bcs(velz_arr,zbx,domain,bccomp);
+                impose_lateral_basestate_bcs(cons_arr,cbx1,domain);
             }
 
         } // MFIter

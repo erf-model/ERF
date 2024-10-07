@@ -38,15 +38,15 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // TODO: Can test on multiple levels later
     // Update the inflow perturbation update time and amplitude
     if (lev == 0) {
-        if (solverChoice.pert_type == PerturbationType::perturbSource ||
-            solverChoice.pert_type == PerturbationType::perturbDirect)
+        if (solverChoice.pert_type == PerturbationType::Source ||
+            solverChoice.pert_type == PerturbationType::Direct)
         {
             turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
         }
 
-        // If perturbDirect is selected, directly add the computed perturbation
+        // If PerturbationType::Direct is selected, directly add the computed perturbation
         // on the conserved field
-        if (solverChoice.pert_type == PerturbationType::perturbDirect)
+        if (solverChoice.pert_type == PerturbationType::Direct)
         {
             auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
             for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {

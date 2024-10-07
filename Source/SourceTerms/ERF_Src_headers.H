@@ -21,7 +21,9 @@ void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
                     const amrex::MultiFab* r0,
-                    const int n_qstate);
+                    const amrex::MultiFab* p0,
+                    const int n_qstate,
+                    const int anelastic);
 
 void make_sources (int level, int nrk,
                    amrex::Real dt, amrex::Real time,
@@ -55,6 +57,7 @@ void make_mom_sources (int level, int nrk,
                              amrex::MultiFab& ymom_source,
                              amrex::MultiFab& zmom_source,
                        amrex::MultiFab* r0,
+                       amrex::MultiFab* p0,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
@@ -80,8 +83,8 @@ void add_thin_body_sources (amrex::MultiFab& xmom_source,
 
 #if defined(ERF_USE_NETCDF)
 void
-moist_set_rhs (
-               const amrex::Box& tbx,
+moist_set_rhs (const amrex::Box& tbx,
+               const amrex::Box& gtbx,
                const amrex::Array4<amrex::Real const>& old_cons,
                const amrex::Array4<amrex::Real const>& new_cons,
                const amrex::Array4<amrex::Real      >& cell_rhs,

@@ -14,7 +14,7 @@ Real compute_A(const Real z,
 
     Real d  = std::min(std::fabs(z - hub_height), rotor_rad);
     Real theta = std::acos(d/rotor_rad);
-    Real A_s = rotor_rad*rotor_rad*theta - d*std::pow(rotor_rad*rotor_rad - d*d, 0.5);
+    Real A_s = rotor_rad*rotor_rad*theta - d*std::pow(std::max(rotor_rad*rotor_rad - d*d,0.0), 0.5);
     Real A = PI*rotor_rad*rotor_rad/2.0 - A_s;
 
     return A;

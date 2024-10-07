@@ -4,7 +4,7 @@ Wind farm models
 Introduction
 -------------
 
-ERF supports models for wind farm parametrization in which the effects of wind turbines are represented by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE). Currently only the Fitch model (`Fitch et al. 2012`_) and Explicit Wake Parametrization (EWP) model (`Volker et al. 2015`_) are supported.
+ERF supports models for wind farm parametrization in which the effects of wind turbines are represented by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE). Currently the Fitch model (`Fitch et al. 2012`_), Explicit Wake Parametrization (EWP) model (`Volker et al. 2015`_) and Simplified actuator disk model (See Section 3.2 in `Wind Energy Handbook 2nd edition`_) are supported.
 
 .. _Fitch model:
 

@@ -151,33 +151,36 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
     // Temporary FABs for storage (owned/filled on all ranks)
     FArrayBox U_xlo, U_xhi, U_ylo, U_yhi;
     FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
-    FArrayBox R_xlo, R_xhi, R_ylo, R_yhi;
     FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
 
     // Variable index map (WRFBdyVars -> Vars)
-    Vector<int> var_map = {Vars::xvel, Vars::yvel, Vars::cons, Vars::cons};
+    Vector<int> var_map  = {Vars::xvel,    Vars::yvel,    Vars::cons,    Vars::cons};
     Vector<int> ivar_map = {IntVars::xmom, IntVars::ymom, IntVars::cons, IntVars::cons};
 
     // Variable icomp map
-    Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
+    Vector<int> comp_map = {0, 0, RhoTheta_comp};
 
     // Indices
-    int BdyEnd = RealBdyVars::NumTypes-1;
     int  ivarU = RealBdyVars::U;
     int  ivarV = RealBdyVars::V;
-    int  ivarR = RealBdyVars::R;
     int  ivarT = RealBdyVars::T;
+    int BdyEnd = RealBdyVars::NumTypes-1;
 
+
+    // NOTE: These sizing of the temporary BDY FABS is
+    //       GLOBAL and occurs over the entire BDY region.
 
     // Size the FABs
     //==========================================================
     for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
-        int var_idx = var_map[ivar];
-        Box domain  = geom.Domain();
-        domain.convert(S_cur_data[var_idx].boxArray().ixType());
+        int ivar_idx = var_map[ivar];
+        Box domain   = geom.Domain();
+        auto ixtype  = S_cur_data[ivar_idx].boxArray().ixType();
+        domain.convert(ixtype);
 
         // Grown domain to get the 4 halo boxes w/ ghost cells
-        // NOTE: 2 ghost cells needed for U -> rho*U
+        // NOTE: 2 ghost cells needed here for Laplacian
+        //       halo cell.
         IntVect ng_vect{2,2,0};
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
@@ -193,9 +196,6 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
         } else if (ivar  == ivarV) {
             V_xlo.resize(bx_xlo,1,The_Async_Arena()); V_xhi.resize(bx_xhi,1,The_Async_Arena());
             V_ylo.resize(bx_ylo,1,The_Async_Arena()); V_yhi.resize(bx_yhi,1,The_Async_Arena());
-        } else if (ivar  == ivarR) {
-            R_xlo.resize(bx_xlo,1,The_Async_Arena()); R_xhi.resize(bx_xhi,1,The_Async_Arena());
-            R_ylo.resize(bx_ylo,1,The_Async_Arena()); R_yhi.resize(bx_yhi,1,The_Async_Arena());
         } else if (ivar  == ivarT){
             T_xlo.resize(bx_xlo,1,The_Async_Arena()); T_xhi.resize(bx_xhi,1,The_Async_Arena());
             T_ylo.resize(bx_ylo,1,The_Async_Arena()); T_yhi.resize(bx_yhi,1,The_Async_Arena());
@@ -204,190 +204,158 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
         }
     } // ivar
 
-    // Populate FABs from bdy interpolation
+
+    // NOTE: These operations use the BDY FABS and RHO. The
+    //       use of RHO to go from PRIM -> CONS requires that
+    //       these operations be LOCAL. So we have allocated
+    //       enough space to do global operations (1 rank) but
+    //       will fill a subset of that data that the rank owns.
+
+    // Populate FABs from bdy interpolation (primitive vars)
     //==========================================================
     for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
-        int var_idx = var_map[ivar];
-        Box domain  = geom.Domain();
-        domain.convert(S_cur_data[var_idx].boxArray().ixType());
+        int ivar_idx = var_map[ivar];
+        Box domain   = geom.Domain();
+        auto ixtype  = S_cur_data[ivar_idx].boxArray().ixType();
+        domain.convert(ixtype);
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
-        // NOTE: 2 ghost cells needed here. The first
-        //       ghost cell is to access the Laplacian
-        //       halo cell. The second ghost cell is
-        //       for averaging u -> rho*u.
-        IntVect ng_vect{2,2,0};
-        Box gdom(domain); gdom.grow(ng_vect);
-        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
-                                      bx_xlo, bx_xhi,
-                                      bx_ylo, bx_yhi,
-                                      ng_vect, true);
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for ( MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            // NOTE: 2 ghost cells needed here for Laplacian
+            //       halo cell.
+            IntVect ng_vect{2,2,0};
+            Box tbx = mfi.tilebox(ixtype.toIntVect(),ng_vect);
+            Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                                          tbx_xlo, tbx_xhi,
+                                          tbx_ylo, tbx_yhi,
+                                          ng_vect, true);
 
-        Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
-        Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-        if (ivar  == ivarU) {
-            arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
-            arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
-        } else if (ivar  == ivarV) {
-            arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
-            arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
-        } else if (ivar  == ivarR) {
-            arr_xlo = R_xlo.array(); arr_xhi = R_xhi.array();
-            arr_ylo = R_ylo.array(); arr_yhi = R_yhi.array();
-        } else if (ivar  == ivarT){
-            arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
-            arr_ylo = T_ylo.array(); arr_yhi = T_yhi.array();
-        } else {
-            continue;
-        }
+            Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
+            Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
+            if (ivar  == ivarU) {
+                arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
+                arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
+            } else if (ivar  == ivarV) {
+                arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
+                arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
+            } else if (ivar  == ivarT){
+                arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
+                arr_ylo = T_ylo.array(); arr_yhi = T_yhi.array();
+            } else {
+                continue;
+            }
 
-        // Boundary data at fixed time intervals
-        const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
-        const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
-        const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][ivar].const_array();
-        const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][ivar].const_array();
-        const auto& bdatylo_n   = bdy_data_ylo[n_time  ][ivar].const_array();
-        const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][ivar].const_array();
-        const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
-        const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
+            // Boundary data at fixed time intervals
+            const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
+            const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
+            const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][ivar].const_array();
+            const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][ivar].const_array();
+            const auto& bdatylo_n   = bdy_data_ylo[n_time  ][ivar].const_array();
+            const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][ivar].const_array();
+            const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
+            const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
 
-        // NOTE: width is now one less than the total bndy width
-        //       if we have a relaxation zone; so we can access
-        //       dom_lo/hi +- width. If we do not have a relax
-        //       zone, this offset is set_width - 1.
-        int offset = set_width - 1;
-        if (width > set_width) offset = width;
+            // Current density to convert to conserved vars
+            Array4<Real> r_arr = S_cur_data[IntVars::cons].array(mfi);
 
-        // Populate with interpolation (protect from ghost cells)
-        ParallelFor(bx_xlo, bx_xhi,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            int ii = std::max(i , dom_lo.x);
-                ii = std::min(ii, dom_lo.x+offset);
-            int jj = std::max(j , dom_lo.y);
-                jj = std::min(jj, dom_hi.y);
-            arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
-                           + alpha * bdatxlo_np1(ii,jj,k,0);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            int ii = std::max(i , dom_hi.x-offset);
-                ii = std::min(ii, dom_hi.x);
-            int jj = std::max(j , dom_lo.y);
-                jj = std::min(jj, dom_hi.y);
-            arr_xhi(i,j,k) = oma   * bdatxhi_n  (ii,jj,k,0)
-                           + alpha * bdatxhi_np1(ii,jj,k,0);
-        });
+            // NOTE: width is now one less than the total bndy width
+            //       if we have a relaxation zone; so we can access
+            //       dom_lo/hi +- width. If we do not have a relax
+            //       zone, this offset is set_width - 1.
+            int offset = set_width - 1;
+            if (width > set_width) offset = width;
 
-        ParallelFor(bx_ylo, bx_yhi,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            int ii = std::max(i , dom_lo.x);
-                ii = std::min(ii, dom_hi.x);
-            int jj = std::max(j , dom_lo.y);
-                jj = std::min(jj, dom_lo.y+offset);
-            arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k,0)
-                           + alpha * bdatylo_np1(ii,jj,k,0);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            int ii = std::max(i , dom_lo.x);
-                ii = std::min(ii, dom_hi.x);
-            int jj = std::max(j , dom_hi.y-offset);
-                jj = std::min(jj, dom_hi.y);
-            arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k,0)
-                           + alpha * bdatyhi_np1(ii,jj,k,0);
-        });
+            // Populate with interpolation (protect from ghost cells)
+            ParallelFor(tbx_xlo, tbx_xhi,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_lo.x);
+                    ii = std::min(ii, dom_lo.x+offset);
+                int jj = std::max(j , dom_lo.y);
+                    jj = std::min(jj, dom_hi.y);
+
+                Real rho_interp;
+                if (ivar==ivarU) {
+                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                } else if (ivar==ivarV) {
+                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                } else {
+                    rho_interp = r_arr(i,j,k);
+                }
+                arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
+                                              + alpha * bdatxlo_np1(ii,jj,k,0) );
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_hi.x-offset);
+                    ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_lo.y);
+                    jj = std::min(jj, dom_hi.y);
+
+                Real rho_interp;
+                if (ivar==ivarU) {
+                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                } else if (ivar==ivarV) {
+                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                } else {
+                    rho_interp = r_arr(i,j,k);
+                }
+                arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
+                                              + alpha * bdatxhi_np1(ii,jj,k,0) );
+            });
+
+            ParallelFor(tbx_ylo, tbx_yhi,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_lo.x);
+                    ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_lo.y);
+                    jj = std::min(jj, dom_lo.y+offset);
+
+                Real rho_interp;
+                if (ivar==ivarU) {
+                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                } else if (ivar==ivarV) {
+                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                } else {
+                    rho_interp = r_arr(i,j,k);
+                }
+                arr_ylo(i,j,k) = rho_interp * ( oma   * bdatylo_n  (ii,jj,k,0)
+                                             + alpha * bdatylo_np1(ii,jj,k,0) );
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_lo.x);
+                    ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_hi.y-offset);
+                    jj = std::min(jj, dom_hi.y);
+
+                Real rho_interp;
+                if (ivar==ivarU) {
+                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                } else if (ivar==ivarV) {
+                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                } else {
+                    rho_interp = r_arr(i,j,k);
+                }
+                arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
+                                              + alpha * bdatyhi_np1(ii,jj,k,0) );
+            });
+        } // mfi
     } // ivar
 
 
-    // Velocity to momentum
-    //==========================================================
-    for (int ivar(ivarU); ivar <= ivarV; ivar++) {
-        int ivar_idx = ivar_map[ivar];
-        Box domain   = geom.Domain();
-        domain.convert(S_cur_data[ivar_idx].boxArray().ixType());
-
-        // NOTE: 1 ghost cell needed here. This first
-        //       ghost cell is to access the Laplacian
-        //       halo cell. We will touch the second ghost
-        //       cell when averaging u -> rho*u.
-        IntVect ng_vect{1,1,0};
-        Box gdom(domain); gdom.grow(ng_vect);
-        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
-                                      bx_xlo, bx_xhi,
-                                      bx_ylo, bx_yhi,
-                                      ng_vect, true);
-
-        Array4<Real> rarr_xlo = R_xlo.array();  Array4<Real> rarr_xhi = R_xhi.array();
-        Array4<Real> rarr_ylo = R_ylo.array();  Array4<Real> rarr_yhi = R_yhi.array();
-
-        Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
-        Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-        if (ivar  == ivarU) {
-            arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
-            arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
-
-            ParallelFor(bx_xlo, bx_xhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_interp = 0.5 * ( rarr_xlo(i-1,j,k) + rarr_xlo(i,j,k) );
-                arr_xlo(i,j,k) *= rho_interp;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_interp = 0.5 * ( rarr_xhi(i-1,j,k) + rarr_xhi(i,j,k) );
-                arr_xhi(i,j,k) *= rho_interp;
-            });
-
-            ParallelFor(bx_ylo, bx_yhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_interp = 0.5 * ( rarr_ylo(i-1,j,k) + rarr_ylo(i,j,k) );
-                arr_ylo(i,j,k) *= rho_interp;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_interp = 0.5 * ( rarr_yhi(i-1,j,k) + rarr_yhi(i,j,k) );
-                arr_yhi(i,j,k) *= rho_interp;
-            });
-        } else {
-            arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
-            arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
-
-            ParallelFor(bx_xlo, bx_xhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_interp = 0.5 * ( rarr_xlo(i,j-1,k) + rarr_xlo(i,j,k) );
-                arr_xlo(i,j,k) *= rho_interp;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_interp = 0.5 * ( rarr_xhi(i,j-1,k) + rarr_xhi(i,j,k) );
-                arr_xhi(i,j,k) *= rho_interp;
-            });
-
-            ParallelFor(bx_ylo, bx_yhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_interp = 0.5 * ( rarr_ylo(i,j-1,k) + rarr_ylo(i,j,k) );
-                arr_ylo(i,j,k) *= rho_interp;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real rho_interp = 0.5 * ( rarr_yhi(i,j-1,k) + rarr_yhi(i,j,k) );
-                arr_yhi(i,j,k) *= rho_interp;
-            });
-        }
-    } // ivar
-
+    // NOTE: These operations use current RHS, so they are
+    //       LOCAL and occur over the data owned by a given rank.
 
     // Compute RHS in specified region
     //==========================================================
-    if (set_width > 0 ) {
+    if (set_width > 0) {
         for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
             int ivar_idx = ivar_map[ivar];
             int icomp    = comp_map[ivar];
@@ -408,8 +376,8 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
                                               tbx_ylo, tbx_yhi);
 
                 Array4<Real> rhs_arr; Array4<Real> data_arr;
-                Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
-                Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
+                Array4<Real> arr_xlo; Array4<Real> arr_xhi;
+                Array4<Real> arr_ylo; Array4<Real> arr_yhi;
                 if (ivar  == ivarU) {
                     arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
                     arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
@@ -420,11 +388,6 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
                     arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
                     rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
                     data_arr = S_old_data[IntVars::ymom].array(mfi);
-                } else if (ivar  == ivarR) {
-                    arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
-                    arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::cons].array(mfi);
-                    data_arr = S_old_data[IntVars::cons].array(mfi);
                 } else if (ivar  == ivarT){
                     arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                     arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
@@ -443,6 +406,9 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
         } // ivar
     } // set_width
 
+
+    // NOTE: These operations use current density, so they are
+    //       LOCAL and occur over the data owned by a given rank
 
     // Compute RHS in relaxation region
     //==========================================================
@@ -482,11 +448,6 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
                     arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
                     rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
                     data_arr = S_cur_data[IntVars::ymom].array(mfi);
-                } else if (ivar  == ivarR) {
-                    arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
-                    arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::cons].array(mfi);
-                    data_arr = S_cur_data[IntVars::cons].array(mfi);
                 } else if (ivar  == ivarT){
                     arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                     arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
