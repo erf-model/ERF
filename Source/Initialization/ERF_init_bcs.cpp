@@ -508,9 +508,13 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
-                    }
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
-                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
+                        if (m_bc_extdir_vals[BCVars::cons_bc+i][ori] != cons_dir_init[BCVars::cons_bc+i]) {
+                            if (rho_read) {
+                                domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
+                            } else {
+                                domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_prim);
+                            }
+                        }
                     }
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
@@ -521,9 +525,13 @@ void ERF::init_bcs ()
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
-                    }
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
-                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
+                        if (m_bc_extdir_vals[BCVars::cons_bc+i][ori] != cons_dir_init[BCVars::cons_bc+i]) {
+                            if (rho_read) {
+                                domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
+                            } else {
+                                domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_prim);
+                            }
+                        }
                     }
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);
