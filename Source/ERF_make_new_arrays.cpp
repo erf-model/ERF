@@ -442,49 +442,36 @@ ERF::init_zphys (int lev, Real time)
 {
     if (solverChoice.use_terrain)
     {
-        if (lev > 0) {
-            //
-            // First interpolate from coarser level if there is one
-            // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-            //       have been pre-filled - this includes ghost cells both inside and outside
-            //       the domain
-            //
-            InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
-                                  IntVect(0,0,0), // do not fill ghost cells outside the domain
-                                  *z_phys_nd[lev-1], 0, 0, 1,
-                                  geom[lev-1], geom[lev],
-                                  refRatio(lev-1), &node_bilinear_interp,
-                                  domain_bcs_type, BCVars::cons_bc);
+        if (init_type != "real" && init_type != "metgrid")
+        {
+            if (lev > 0) {
+                //
+                // First interpolate from coarser level if there is one
+                // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+                //       have been pre-filled - this includes ghost cells both inside and outside
+                //       the domain
+                //
+                InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
+                                      IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                      *z_phys_nd[lev-1], 0, 0, 1,
+                                      geom[lev-1], geom[lev],
+                                      refRatio(lev-1), &node_bilinear_interp,
+                                      domain_bcs_type, BCVars::cons_bc);
+            }
 
-            // This recomputes the fine values using the bottom terrain at the fine resolution,
-            //    and also fills values of z_phys_nd outside the domain
+            z_phys_nd[lev]->setVal(-1.e23);
+            prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
             init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
-        }
 
-        //
-        // NOTE: we are NOT currently doing this as described -- we will simply use
-        //       the interpolation from coarse done above
-        // Then, if not using real/metgrid data,
-        // 1) redefine the terrain at k=0 for every fine box which includes k=0
-        // 2) recreate z_phys_nd at every fine node using
-        // the data at the bottom of each fine grid
-        // which has been either been interpolated from the coarse grid (k>0)
-        // or set in init_custom_terrain (k=0)
-        //
-        if (lev == 0) {
-            if (init_type != "real" && init_type != "metgrid")
-            {
-                z_phys_nd[lev]->setVal(-1.e23);
-                prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-                init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
-
+            if (lev == 0) {
                 Real zmax = z_phys_nd[0]->max(0,0,false);
                 Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
+            } // lev == 0
 
-            } // init_type
             z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
-        } // lev == 0
+
+        } // init_type
     } // terrain
 }
 
