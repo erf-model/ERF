@@ -454,7 +454,10 @@ ERF::ReadCheckpointFile ()
     }
 
 #ifdef ERF_USE_PARTICLES
-   particleData.Restart((ParGDBBase*)GetParGDB(),restart_chkfile);
+    restartTracers((ParGDBBase*)GetParGDB(),restart_chkfile);
+    if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+        dynamic_cast<LagrangianMicrophysics&>(*micro).restartParticles((ParGDBBase*)GetParGDB(),restart_chkfile);
+    }
 #endif
 
 #ifdef ERF_USE_NETCDF

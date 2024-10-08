@@ -159,18 +159,32 @@ ERF::refinement_criteria_setup ()
                         klo = domain.smallEnd(2) - 1;
                         khi = domain.smallEnd(2) - 1;
 
-                        for (int k=domain.smallEnd(2); k<=domain.bigEnd(2)+1; ++k) {
-                            if (zlevels_stag[lev_for_box][k] > rbox_lo[2]) {
-                                klo = k-1;
-                                break;
+                        if (rbox_lo[2] < zlevels_stag[lev_for_box][domain.smallEnd(2)])
+                        {
+                            klo = domain.smallEnd(2);
+                        }
+                        else
+                        {
+                            for (int k=domain.smallEnd(2); k<=domain.bigEnd(2)+1; ++k) {
+                                if (zlevels_stag[lev_for_box][k] > rbox_lo[2]) {
+                                    klo = k-1;
+                                    break;
+                                }
                             }
                         }
                         AMREX_ASSERT(klo >= domain.smallEnd(2));
 
-                        for (int k=klo+1; k<=domain.bigEnd(2)+1; ++k) {
-                            if (zlevels_stag[lev_for_box][k] > rbox_hi[2]) {
-                                khi = k-1;
-                                break;
+                        if (rbox_hi[2] > zlevels_stag[lev_for_box][domain.bigEnd(2)+1])
+                        {
+                            khi = domain.bigEnd(2);
+                        }
+                        else
+                        {
+                            for (int k=klo+1; k<=domain.bigEnd(2)+1; ++k) {
+                                if (zlevels_stag[lev_for_box][k] > rbox_hi[2]) {
+                                    khi = k-1;
+                                    break;
+                                }
                             }
                         }
                         AMREX_ASSERT((khi <= domain.bigEnd(2)) && (khi > klo));

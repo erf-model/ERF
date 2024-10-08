@@ -24,6 +24,14 @@ public:
     /*! \brief Default destructor */
     virtual ~NullMoistLagrangian () = default;
 
+    /*! \brief Initialize particles */
+    virtual
+    void InitParticles ( std::unique_ptr<amrex::MultiFab>& ) { }
+
+    /*! \brief Restart particles */
+    virtual
+    void RestartParticles ( amrex::ParGDBBase*, const std::string& ) { }
+
     /*! \brief get the particle container */
     virtual ERFPC* getParticleContainer ()
     {

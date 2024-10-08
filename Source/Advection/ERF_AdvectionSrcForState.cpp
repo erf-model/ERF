@@ -235,6 +235,11 @@ AdvectionSrcForScalars (const Real& dt,
                                                        avg_xmom, avg_ymom, avg_zmom,
                                                        horiz_upw_frac, vert_upw_frac);
             break;
+        case AdvType::Weno_7:
+            AdvectionSrcForScalarsWrapper<WENO7,WENO7>(bx, ncomp, icomp, flx_arr, cell_prim,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       horiz_upw_frac, vert_upw_frac);
+            break;
         case AdvType::Weno_3Z:
             AdvectionSrcForScalarsWrapper<WENO_Z3,WENO_Z3>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                            avg_xmom, avg_ymom, avg_zmom,
@@ -247,6 +252,11 @@ AdvectionSrcForScalars (const Real& dt,
             break;
         case AdvType::Weno_5Z:
             AdvectionSrcForScalarsWrapper<WENO_Z5,WENO_Z5>(bx, ncomp, icomp, flx_arr, cell_prim,
+                                                           avg_xmom, avg_ymom, avg_zmom,
+                                                           horiz_upw_frac, vert_upw_frac);
+            break;
+        case AdvType::Weno_7Z:
+            AdvectionSrcForScalarsWrapper<WENO_Z7,WENO_Z7>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                            avg_xmom, avg_ymom, avg_zmom,
                                                            horiz_upw_frac, vert_upw_frac);
             break;

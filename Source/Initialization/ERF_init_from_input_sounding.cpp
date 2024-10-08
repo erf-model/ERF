@@ -106,9 +106,6 @@ ERF::init_from_input_sounding (int lev)
         }
         else
         {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.use_terrain,
-                "Terrain is not supported without init_sounding_ideal option.");
-
             // HSE will be calculated later with call to initHSE
             init_bx_scalars_from_input_sounding(
                 bx, cons_arr,
@@ -175,7 +172,7 @@ init_bx_scalars_from_input_sounding (const Box &bx,
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                         : z_lo + (k + 0.5) * dz;
+                                  : z_lo + (k + 0.5) * dz;
 
         Real rho_0 = 1.0;
 
@@ -243,7 +240,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                         : z_lo + (k + 0.5) * dz;
+                                  : z_lo + (k + 0.5) * dz;
 
         Real rho_k, qv_k, rhoTh_k;
 
@@ -334,10 +331,10 @@ init_bx_velocities_from_input_sounding (const Box &bx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of x-faces
         const Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i,j  ,k  )
-                                                + z_nd_arr(i,j+1,k  )
-                                                + z_nd_arr(i,j  ,k+1)
-                                                + z_nd_arr(i,j+1,k+1))
-                                         : z_lo + (k + 0.5) * dz;
+                                         + z_nd_arr(i,j+1,k  )
+                                         + z_nd_arr(i,j  ,k+1)
+                                         + z_nd_arr(i,j+1,k+1))
+                                  : z_lo + (k + 0.5) * dz;
 
         // Set the x-velocity
         x_vel(i, j, k) = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
@@ -345,10 +342,10 @@ init_bx_velocities_from_input_sounding (const Box &bx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of y-faces
         const Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i  ,j,k  )
-                                                + z_nd_arr(i+1,j,k  )
-                                                + z_nd_arr(i  ,j,k+1)
-                                                + z_nd_arr(i+1,j,k+1))
-                                         : z_lo + (k + 0.5) * dz;
+                                         + z_nd_arr(i+1,j,k  )
+                                         + z_nd_arr(i  ,j,k+1)
+                                         + z_nd_arr(i+1,j,k+1))
+                                  : z_lo + (k + 0.5) * dz;
 
         // Set the y-velocity
         y_vel(i, j, k) = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);
