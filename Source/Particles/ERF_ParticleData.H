@@ -79,20 +79,6 @@ class ParticleData
             }
         }
 
-        /*! Read from restart file */
-        void Restart ( amrex::ParGDBBase* a_gdb, const std::string& a_fname )
-        {
-            BL_PROFILE("ParticleData::Restart()");
-            AMREX_ASSERT(isEmpty());
-            for (auto it = m_namelist_unalloc.begin(); it != m_namelist_unalloc.end(); ++it) {
-                std::string species_name( *it );
-                ERFPC* pc = new ERFPC( a_gdb, species_name );
-                pc->Restart(a_fname, species_name );
-                pushBack( species_name, pc );
-            }
-            m_namelist_unalloc.clear();
-        }
-
         /*! Get mesh plot quantities from each particle container */
         void GetMeshPlotVarNames ( amrex::Vector<std::string>& a_names ) const
         {

@@ -722,6 +722,14 @@ ERF::InitData_post ()
             }
         }
 
+#ifdef ERF_USE_PARTICLES
+        if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+            for (int lev = 0; lev <= finest_level; lev++) {
+                dynamic_cast<LagrangianMicrophysics&>(*micro).initParticles(z_phys_nd[lev]);
+            }
+        }
+#endif
+
     } else { // Restart from a checkpoint
 
         restart();

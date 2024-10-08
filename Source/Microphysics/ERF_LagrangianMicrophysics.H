@@ -111,6 +111,18 @@ public:
         return m_moist_model->Qstate_Size();
     }
 
+    /*! \brief initialize particles in particle container */
+    inline void initParticles ( std::unique_ptr<amrex::MultiFab>& z_phys_nd /*!< Nodal z heights */ )
+    {
+        m_moist_model->InitParticles(z_phys_nd);
+    }
+
+    /*! \brief restart particles in particle container */
+    inline void restartParticles ( amrex::ParGDBBase* a_gdb, const std::string& a_fname)
+    {
+        m_moist_model->RestartParticles(a_gdb, a_fname);
+    }
+
     /*! \brief get the particle container from the moisture model */
     inline ERFPC* getParticleContainer () const
     {
