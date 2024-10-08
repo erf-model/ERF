@@ -132,7 +132,6 @@ public:
         a_idx.clear();
         a_names.clear();
         if (a_sc.moisture_type == MoistureType::Kessler) {
-            printf("I AM HERE!!");
             a_idx.push_back(4); a_names.push_back("RainAccum");
         }
     }
