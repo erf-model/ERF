@@ -60,7 +60,7 @@ erf.Cs              = 0.1
 erf.use_terrain = true
 erf.terrain_smoothing = 2
 
-erf.moisture_model = "NullMoist"
+erf.moisture_model = "None"
 
 erf.land_surface_model = "MM5"
 

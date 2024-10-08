@@ -120,7 +120,9 @@ struct AdvChoice {
              (dryscal_horiz_adv_string == "WENOZ3"      ) ||
              (dryscal_horiz_adv_string == "WENOMZQ3"    ) ||
              (dryscal_horiz_adv_string == "WENO5"       ) ||
-             (dryscal_horiz_adv_string == "WENOZ5"      ) )
+             (dryscal_horiz_adv_string == "WENOZ5"      ) ||
+             (dryscal_horiz_adv_string == "WENO7"       ) ||
+             (dryscal_horiz_adv_string == "WENOZ7"      ) )
         {
             dryscal_horiz_adv_type = adv_type_convert_string_to_advtype(dryscal_horiz_adv_string);
         }
@@ -134,9 +136,11 @@ struct AdvChoice {
              (dryscal_vert_adv_string == "Centered_6th") ||
              (dryscal_vert_adv_string == "WENO3"       ) ||
              (dryscal_vert_adv_string == "WENOZ3"      ) ||
-             (dryscal_vert_adv_string == "WENOMZQ3"     ) ||
+             (dryscal_vert_adv_string == "WENOMZQ3"    ) ||
              (dryscal_vert_adv_string == "WENO5"       ) ||
-             (dryscal_vert_adv_string == "WENOZ5"      ) )
+             (dryscal_vert_adv_string == "WENOZ5"      ) ||
+             (dryscal_vert_adv_string == "WENO7"       ) ||
+             (dryscal_vert_adv_string == "WENOZ7"      ))
         {
             dryscal_vert_adv_type = adv_type_convert_string_to_advtype(dryscal_vert_adv_string);
         }
@@ -152,7 +156,9 @@ struct AdvChoice {
              (moistscal_horiz_adv_string == "WENOZ3"      ) ||
              (moistscal_horiz_adv_string == "WENOMZQ3"    ) ||
              (moistscal_horiz_adv_string == "WENO5"       ) ||
-             (moistscal_horiz_adv_string == "WENOZ5"      ) )
+             (moistscal_horiz_adv_string == "WENOZ5"      ) ||
+             (moistscal_horiz_adv_string == "WENO7"       ) ||
+             (moistscal_horiz_adv_string == "WENOZ7"      ))
         {
             moistscal_horiz_adv_type = adv_type_convert_string_to_advtype(moistscal_horiz_adv_string);
         }
@@ -168,7 +174,9 @@ struct AdvChoice {
              (moistscal_vert_adv_string == "WENOZ3"      ) ||
              (moistscal_vert_adv_string == "WENOMZQ3"    ) ||
              (moistscal_vert_adv_string == "WENO5"       ) ||
-             (moistscal_vert_adv_string == "WENOZ5"      ) )
+             (moistscal_vert_adv_string == "WENOZ5"      ) ||
+             (moistscal_vert_adv_string == "WENO7"       ) ||
+             (moistscal_vert_adv_string == "WENOZ7"      ))
         {
             moistscal_vert_adv_type = adv_type_convert_string_to_advtype(moistscal_vert_adv_string);
         }
@@ -224,6 +232,10 @@ struct AdvChoice {
             return "WENOZ5";
         } else if (adv_int == AdvType::Weno_3MZQ) {
             return "WENOMZQ3";
+        } else if (adv_int == AdvType::Weno_7) {
+            return "WENO7";
+        } else if (adv_int == AdvType::Weno_7Z) {
+            return "WENOZ7";
         } else {
             return "Unknown";
         }
@@ -251,6 +263,10 @@ struct AdvChoice {
             return AdvType::Weno_5Z;
         } else if (adv_string == "WENOMZQ3") {
             return AdvType::Weno_3MZQ;
+        } else if (adv_string == "WENO7") {
+            return AdvType::Weno_7;
+        } else if (adv_string == "WENOZ7") {
+            return AdvType::Weno_7Z;
         } else {
             return AdvType::Unknown;
         }

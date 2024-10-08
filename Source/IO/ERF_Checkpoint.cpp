@@ -148,7 +148,7 @@ ERF::WriteCheckpointFile () const
         // Write the moisture model restart variables
         std::vector<int> qmoist_indices(0);
         std::vector<std::string> qmoist_names(0);
-        micro->Get_Qmoist_Restart_Vars(lev, qmoist_indices, qmoist_names);
+        micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_indices, qmoist_names);
         int qmoist_nvar = qmoist_indices.size();
         for (int var = 0; var < qmoist_nvar; var++) {
            ng = qmoist[lev][qmoist_indices[var]]->nGrowVect();
@@ -397,7 +397,7 @@ ERF::ReadCheckpointFile ()
         // Read in the moisture model restart variables
         std::vector<int> qmoist_indices(0);
         std::vector<std::string> qmoist_names(0);
-        micro->Get_Qmoist_Restart_Vars(lev, qmoist_indices, qmoist_names);
+        micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_indices, qmoist_names);
         int qmoist_nvar = qmoist_indices.size();
         for (int var = 0; var < qmoist_nvar; var++) {
             ng = qmoist[lev][qmoist_indices[var]]->nGrowVect();
@@ -454,7 +454,10 @@ ERF::ReadCheckpointFile ()
     }
 
 #ifdef ERF_USE_PARTICLES
-   particleData.Restart((ParGDBBase*)GetParGDB(),restart_chkfile);
+    restartTracers((ParGDBBase*)GetParGDB(),restart_chkfile);
+    if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+        dynamic_cast<LagrangianMicrophysics&>(*micro).restartParticles((ParGDBBase*)GetParGDB(),restart_chkfile);
+    }
 #endif
 
 #ifdef ERF_USE_NETCDF

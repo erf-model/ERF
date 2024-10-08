@@ -58,7 +58,7 @@ public:
 
     /*! \brief get the indices and names of moisture model variables for restart
                at a given level */
-    virtual void Get_Qmoist_Restart_Vars ( int, std::vector<int>&, std::vector<std::string>& ) const = 0;
+    virtual void Get_Qmoist_Restart_Vars ( int, const SolverChoice&, std::vector<int>&, std::vector<std::string>& ) const = 0;
 
     /*! \brief query if a specified moisture model is Eulerian or Lagrangian */
     static MoistureModelType modelType (const MoistureType a_moisture_type)

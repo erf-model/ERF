@@ -9,12 +9,12 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 #Larger problem
-geometry.prob_extent =  80   2.5     10
-amr.n_cell           = 512    16     64
+#geometry.prob_extent =  80   2.5     10
+#amr.n_cell           = 512    16     64
 
 # Quick debug problem
-#geometry.prob_extent =  20     5     10
-#amr.n_cell           =  64    16     32
+geometry.prob_extent =  20     5     10
+amr.n_cell           =  64    16     32
 
 geometry.is_periodic = 0 1 0
 
@@ -38,6 +38,7 @@ xlo.theta   = 300.0
 # TIME STEP CONTROL
 erf.cfl = 0.5
 erf.dynamicViscosity = 0.001
+erf.fix_random_seed  = 1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 0       # timesteps between computing mass

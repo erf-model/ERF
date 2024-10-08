@@ -50,7 +50,7 @@ erf.dryscal_vert_adv_type    = "Upwind_5th"
 # PHYSICS OPTIONS
 erf.les_type        = "None"
 erf.pbl_type        = "None"
-erf.moisture_model  = "NullMoist"
+erf.moisture_model  = "None"
 erf.buoyancy_type   = 1
 erf.use_moist_background = false
 
