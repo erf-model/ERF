@@ -458,6 +458,8 @@ ERF::init_zphys (int lev, Real time)
 
             // This recomputes the fine values using the bottom terrain at the fine resolution,
             //    and also fills values of z_phys_nd outside the domain
+            z_phys_nd[lev]->setVal(-1.e23);
+            prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
             init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
         }
 
@@ -471,9 +473,9 @@ ERF::init_zphys (int lev, Real time)
         // which has been either been interpolated from the coarse grid (k>0)
         // or set in init_custom_terrain (k=0)
         //
-        if (lev == 0) {
-            if (init_type != "real" && init_type != "metgrid")
-            {
+        if (init_type != "real" && init_type != "metgrid")
+        {
+            if (lev == 0) {
                 z_phys_nd[lev]->setVal(-1.e23);
                 prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
                 init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
@@ -482,9 +484,9 @@ ERF::init_zphys (int lev, Real time)
                 Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
 
-            } // init_type
+            } // lev == 0
             z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
-        } // lev == 0
+        } // init_type
     } // terrain
 }
 
