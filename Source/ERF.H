@@ -930,6 +930,10 @@ private:
     /*! Initialize tracer and hydro particles */
     void initializeTracers ( amrex::ParGDBBase*,
                              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+
+    /*! Restart tracer and hydro particles */
+    void restartTracers ( amrex::ParGDBBase*, const std::string& );
+
     /*! Evolve tracers and hydro particles */
     void evolveTracers( int,
                         amrex::Real,
