@@ -137,16 +137,25 @@ ERF::refinement_criteria_setup ()
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
                     }
 
+                    const Real* plo = geom[lev_for_box].ProbLo();
+                    const Real* phi = geom[lev_for_box].ProbHi();
+
                     ppr.getarr("in_box_lo",rbox_lo,0,AMREX_SPACEDIM);
                     ppr.getarr("in_box_hi",rbox_hi,0,AMREX_SPACEDIM);
+
+                    if (rbox_lo[0] < plo[0]) rbox_lo[0] = plo[0];
+                    if (rbox_lo[1] < plo[1]) rbox_lo[1] = plo[1];
+                    if (rbox_hi[0] > phi[0]) rbox_hi[0] = phi[0];
+                    if (rbox_hi[1] > phi[1]) rbox_hi[1] = phi[1];
+
                     realbox = RealBox(&(rbox_lo[0]),&(rbox_hi[0]));
 
-                    Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
+                    Print() << "Realbox read in and intersected laterally with domain is " << realbox << std::endl;
+
                     num_boxes_at_level[lev_for_box] += 1;
 
                     int ilo, jlo, klo;
                     int ihi, jhi, khi;
-                    const Real* plo = geom[lev_for_box].ProbLo();
                     const auto* dx  = geom[lev_for_box].CellSize();
                     ilo = static_cast<int>((rbox_lo[0] - plo[0])/dx[0]);
                     jlo = static_cast<int>((rbox_lo[1] - plo[1])/dx[1]);

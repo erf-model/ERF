@@ -119,23 +119,6 @@ ERF::init_from_input_sounding (int lev)
             input_sounding_data);
 
     } //mfi
-
-    // Make sure to fill the ghost cells of the base state
-    if (lev > 0)
-    {
-        base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
-        //
-        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-        //       have been pre-filled - this includes ghost cells both inside and outside
-        //       the domain
-        //
-        InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
-                              IntVect(0,0,0), // do not fill ghost cells outside the domain
-                              base_state[lev-1], 0, 0, 3,
-                              geom[lev-1], geom[lev],
-                              refRatio(lev-1), &cell_cons_interp,
-                              domain_bcs_type, BCVars::cons_bc);
-    }
 }
 
 /**
