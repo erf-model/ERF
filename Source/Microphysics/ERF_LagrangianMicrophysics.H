@@ -138,11 +138,12 @@ public:
     /*! \brief get the indices and names of moisture model variables for restart
                at a given level */
     void Get_Qmoist_Restart_Vars ( const int a_lev, /*!< level */
+                                   const SolverChoice& a_sc, /*!< Solver choice object */
                                    std::vector<int>& a_idx, /*!< indices */
                                    std::vector<std::string>& a_names /*!< names */ ) const override
     {
         if (a_lev == 0) {
-            m_moist_model->Qmoist_Restart_Vars( a_idx, a_names );
+            m_moist_model->Qmoist_Restart_Vars( a_sc, a_idx, a_names );
         } else {
             a_idx.clear();
             a_names.clear();
