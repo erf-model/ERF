@@ -6,6 +6,7 @@
 
 #ifdef ERF_USE_PARTICLES
 
+#include <AMReX_AmrParGDB.H>
 #include "ERF_NullMoist.H"
 
 /* forward declaration */
