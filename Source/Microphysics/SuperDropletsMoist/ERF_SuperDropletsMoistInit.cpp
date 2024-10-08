@@ -155,6 +155,7 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase*, const std::string& a_fn
     struct timeval total_start, total_end;
     gettimeofday(&total_start, NULL);
     m_super_droplets->Restart(a_fname, m_name);
+    m_super_droplets->Redistribute();
     gettimeofday(&total_end,NULL);
     long long total_wtime;
     total_wtime = (   (total_end.tv_sec   * 1000000 + total_end.tv_usec  )
