@@ -204,7 +204,7 @@ Sauer, J. A., & Muñoz-Esparza, D. (2020). The FastEddy® resident-GPU accelerat
 
 WENO Methods
 ------------
-Additionally, weighted essentially non-oscillatory (WENO) schemes are available for :math:`3rd`, :math:`5th`, :math:`7th` and  order interpolation. The general formulation is as follows:
+Additionally, weighted essentially non-oscillatory (WENO) schemes are available for :math:`3rd`, :math:`5th`, and :math:`7th` order interpolation. The general formulation is as follows:
 
 .. math::
 
