@@ -25,6 +25,9 @@ public:
                std::unique_ptr<amrex::MultiFab>& /*detJ_cc*/) { }
 
     virtual
+    void InitParticles ( std::unique_ptr<amrex::MultiFab>& ) { }
+
+    virtual
     void
     Advance (const amrex::Real& /*dt_advance*/,
              const SolverChoice& /*solverChoce*/) { }
