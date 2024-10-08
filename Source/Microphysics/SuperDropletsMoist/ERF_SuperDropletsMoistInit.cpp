@@ -70,7 +70,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                                 const BoxArray&,                /*!< Grids */
                                 const Geometry&   a_geom,       /*!< Computational domain */
                                 const Real&       a_dt,         /*!< Timestep */
-                                MFPtr&            a_z_phys_nd,  /*!< terrain */
+                                MFPtr&,
                                 MFPtr& )
 {
     BL_PROFILE("SuperDropletsMoist::Init()");
@@ -103,21 +103,6 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                                             vapour_mat, m_aerosols,
                                             m_name );
 
-    if (m_init_type == SuperDropletsMoistInitializations::init_rhoc) {
-        /* The conserved variables are not set up yet; the initial condensate
-           density is not available. So, just initialize with a uniform distribution
-           for now; set the radius and multiplicity from condensate density when
-           Update_Micro_Vars() is called for the first time. */
-        m_super_droplets->InitializeParticles(a_z_phys_nd);
-    } else {
-        m_super_droplets->InitializeParticles(a_z_phys_nd);
-        amrex::Print() << "Initialized "
-                       << m_super_droplets->NumSuperDroplets()
-                       << " super-droplets representing "
-                       << m_super_droplets->TotalNumberOfParticles()
-                       << " particles in super-droplets moisture model.\n";
-    }
-
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
                    << "    cloud/rain radius: " << m_r_rain << " [m]\n"
@@ -135,6 +120,41 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                         << m_init_phase_change_time << "\n";
     }
 
+}
+
+/*! Initializes particles in the super-droplet moisture model: if not a restart run, initialize the particles
+ *  in the particle container for the super-droplets. */
+void SuperDropletsMoist::InitParticles ( MFPtr& a_z_phys_nd /*!< terrain */)
+{
+    BL_PROFILE("SuperDropletsMoist::InitParticles()");
+
+    if (m_init_type == SuperDropletsMoistInitializations::init_rhoc) {
+        /* The conserved variables are not set up yet; the initial condensate
+           density is not available. So, just initialize with a uniform distribution
+           for now; set the radius and multiplicity from condensate density when
+           Update_Micro_Vars() is called for the first time. */
+        m_super_droplets->InitializeParticles(a_z_phys_nd);
+    } else {
+        m_super_droplets->InitializeParticles(a_z_phys_nd);
+        amrex::Print() << "Initialized "
+                       << m_super_droplets->NumSuperDroplets()
+                       << " super-droplets representing "
+                       << m_super_droplets->TotalNumberOfParticles()
+                       << " particles in super-droplets moisture model.\n";
+    }
+}
+
+/*! Restarts particles in the super-droplet moisture model */
+void SuperDropletsMoist::RestartParticles ( ParGDBBase*, const std::string& a_fname )
+{
+    BL_PROFILE("SuperDropletsMoist::RestartParticles()");
+    m_super_droplets->Restart(a_fname, m_name);
+
+    amrex::Print() << "Restarted "
+                   << m_super_droplets->NumSuperDroplets()
+                   << " super-droplets representing "
+                   << m_super_droplets->TotalNumberOfParticles()
+                   << " particles in super-droplets moisture model.\n";
 }
 
 /*! Finish any initializations that depend on the conserved state variables

@@ -65,6 +65,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                             MFPtr&,
                             MFPtr& ) override;
 
+        /*! \brief Initialize particles */
+        virtual void InitParticles ( MFPtr& ) override;
+
+        /*! \brief Restart particles */
+        virtual void RestartParticles ( ParGDBBase*, const std::string& ) override;
+
         /*! \brief finish initializations */
         virtual void FinishInit(const int&,
                                 MultiFab&,
