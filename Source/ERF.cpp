@@ -1503,6 +1503,8 @@ ERF::ReadParameters ()
         pp.query("plot_per_1",  m_plot_per_1);
         pp.query("plot_per_2",  m_plot_per_2);
 
+        pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
+
         if ( (m_plot_int_1 > 0 && m_plot_per_1 > 0) ||
              (m_plot_int_2 > 0 && m_plot_per_2 > 0.) ) {
             Abort("Must choose only one of plot_int or plot_per");
