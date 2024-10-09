@@ -96,7 +96,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                  * static_cast<ParticleReal>(m_coalescence_bin_size[2]) );
     const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
 
-    long num_collisions = 0;
+    Real num_collisions = 0;
     const auto& gvec = a_temperature.nGrowVect();
 
     auto kernel_choice = m_coalescence_kernel;
@@ -248,8 +248,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
         }
         auto aero_density = aero_density_d.data();
 
-        Gpu::Buffer<amrex::Long> particle_collisions({0});
-        Long* particle_collisions_ptr = particle_collisions.data();
+        Gpu::Buffer<Real> particle_collisions({0});
+        auto particle_collisions_ptr = particle_collisions.data();
 
         Gpu::DeviceVector<int> coal_partner_idx, flag_prey, num_particles_bin;
         Gpu::DeviceVector<Real> coal_rate, coal_rmndr;
@@ -394,7 +394,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
             auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
             if (gamma > 0) {
-                amrex::Gpu::Atomic::Add(particle_collisions_ptr, amrex::Long(gamma));
+                amrex::Gpu::Atomic::Add(particle_collisions_ptr, gamma);
                 coal_rate_ptr[pi] = std::min(gamma,std::floor(mult_ptr[pi]/mult_ptr[pj]));
                 coal_rate_ptr[pj] = coal_rate_ptr[pi];
                 coal_rmndr_ptr[pi] = mult_ptr[pi] - coal_rate_ptr[pi]*mult_ptr[pj];
@@ -435,7 +435,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
     }
 
-    ParallelDescriptor::ReduceLongSum(  &num_collisions,
+    ParallelDescriptor::ReduceRealSum(  &num_collisions,
                                         1,
                                         ParallelDescriptor::IOProcessorNumber() );
 
