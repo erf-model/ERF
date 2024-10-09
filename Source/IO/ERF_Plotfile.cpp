@@ -1359,6 +1359,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     }
 #endif
 
+    // Single level
     if (finest_level == 0)
     {
         if (plotfile_type == "amrex") {
@@ -1399,16 +1400,17 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             Abort("Dont know this plot_filetype");
         }
 
-    } else { // multilevel
+    } else { // Multilevel
 
         if (plotfile_type == "amrex") {
 
-            // NOTE: this assumes that -- at least -- there is refinement in the x-direction
-            // Otherwise the logic will be wrong
             int lev0 = 0;
-            int desired_ratio = ref_ratio[lev0][0];
-            if (ref_ratio[lev0][2] == 1) {
+            int desired_ratio = std::max(std::max(ref_ratio[lev0][0],ref_ratio[lev0][1]),ref_ratio[lev0][2]);
+            bool any_ratio_one = ( ( (ref_ratio[lev0][0] == 0) || (ref_ratio[lev0][1] == 0) ) ||
+                                     (ref_ratio[lev0][2] == 0) );
 
+            if (any_ratio_one == 1 && m_expand_plotvars_to_unif_rr)
+            {
                 Vector<IntVect>   r2(finest_level);
                 Vector<Geometry>  g2(finest_level+1);
                 Vector<MultiFab> mf2(finest_level+1);
@@ -1423,12 +1425,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                              {Geom()[lev0].isPeriodic(0),Geom()[lev0].isPeriodic(1),Geom()[lev0].isPeriodic(2)};
                 g2[lev0].define(Geom()[lev0].Domain(),&(Geom()[lev0].ProbDomain()),0,periodicity.data());
 
-                r2[0] = IntVect(1,desired_ratio, desired_ratio);
+                r2[0] = IntVect(desired_ratio/ref_ratio[lev0][0],
+                                desired_ratio/ref_ratio[lev0][1],
+                                desired_ratio/ref_ratio[lev0][2]);
+
                 for (int lev = 1; lev <= finest_level; ++lev) {
                     if (lev > 1) {
-                        r2[lev-1][0] = 1;
-                        r2[lev-1][1] *= desired_ratio / ref_ratio[lev0][1];
-                        r2[lev-1][2] *= desired_ratio / ref_ratio[lev0][2];
+                        r2[lev-1][0] *= desired_ratio / ref_ratio[lev-1][0];
+                        r2[lev-1][1] *= desired_ratio / ref_ratio[lev-1][1];
+                        r2[lev-1][2] *= desired_ratio / ref_ratio[lev-1][2];
                     }
 
                     mf2[lev].define(refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);
@@ -1469,7 +1474,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                            g2, t_new[0], istep, rr);
                }
 
-            } else if (ref_ratio[0][2] != 1) {
+            } else {
                 if (solverChoice.use_terrain) {
                     WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                        GetVecOfConstPtrs(mf),

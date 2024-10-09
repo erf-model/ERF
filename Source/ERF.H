@@ -862,6 +862,7 @@ private:
     // plotfile prefix and frequency
     std::string plot_file_1 {"plt_1_"};
     std::string plot_file_2 {"plt_2_"};
+    bool m_expand_plotvars_to_unif_rr = false;
     int m_plot_int_1 = -1;
     int m_plot_int_2 = -1;
     amrex::Real m_plot_per_1 = -1.0;
