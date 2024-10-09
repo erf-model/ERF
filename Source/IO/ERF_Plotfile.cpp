@@ -101,13 +101,9 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                     tmp_plot_names.push_back(derived_names[i]);
                 }
             }
-            if(solverChoice.windfarm_type == WindFarmType::SimpleAD) {
-                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0" or derived_names[i] == "Smark1") {
-                    tmp_plot_names.push_back(derived_names[i]);
-                }
-            }
-            if(solverChoice.windfarm_type == WindFarmType::GeneralAD) {
-                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark1") {
+            if( solverChoice.windfarm_type == WindFarmType::SimpleAD or
+                solverChoice.windfarm_type == WindFarmType::GeneralAD ) {
+                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0" or derived_names[i] == "SMark1") {
                     tmp_plot_names.push_back(derived_names[i]);
                 }
             }
