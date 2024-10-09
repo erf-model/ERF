@@ -1301,10 +1301,14 @@ ERF::init_only (int lev, Real time)
         // The base state is initialized by integrating vertically through the
         // input sounding, if the init_sounding_ideal flag is set; otherwise
         // it is set by initHSE()
-        init_from_input_sounding(lev);
 
         // The physbc's need the terrain but are needed for initHSE
+        // We have already made the terrain in the call to init_zphys
+        //    in MakeNewLevelFromScratch
         make_physbcs(lev);
+
+        // Now init the base state and the data itself
+        init_from_input_sounding(lev);
 
         if (init_sounding_ideal) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,

@@ -1368,7 +1368,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                    GetVecOfConstPtrs(mf),
                                                    GetVecOfConstPtrs(mf_nd),
                                                    varnames,
-                                                   t_new[0], istep);
+                                                   Geom(), t_new[0], istep, refRatio());
             } else {
                 WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                         GetVecOfConstPtrs(mf),
@@ -1403,7 +1403,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
         if (plotfile_type == "amrex") {
 
-            if (ref_ratio[0][2] == 1) {
+            // NOTE: this assumes that -- at least -- there is refinement in the x-direction
+            // Otherwise the logic will be wrong
+            int lev0 = 0;
+            int desired_ratio = ref_ratio[lev0][0];
+            if (ref_ratio[lev0][2] == 1) {
 
                 Vector<IntVect>   r2(finest_level);
                 Vector<Geometry>  g2(finest_level+1);
@@ -1416,15 +1420,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
                 // Define a new multi-level array of Geometry's so that we pass the new "domain" at lev > 0
                 Array<int,AMREX_SPACEDIM> periodicity =
-                             {Geom()[0].isPeriodic(0),Geom()[0].isPeriodic(1),Geom()[0].isPeriodic(2)};
-                g2[0].define(Geom()[0].Domain(),&(Geom()[0].ProbDomain()),0,periodicity.data());
+                             {Geom()[lev0].isPeriodic(0),Geom()[lev0].isPeriodic(1),Geom()[lev0].isPeriodic(2)};
+                g2[lev0].define(Geom()[lev0].Domain(),&(Geom()[lev0].ProbDomain()),0,periodicity.data());
 
-                r2[0] = IntVect(1,1,ref_ratio[0][0]);
+                r2[0] = IntVect(1,desired_ratio, desired_ratio);
                 for (int lev = 1; lev <= finest_level; ++lev) {
                     if (lev > 1) {
                         r2[lev-1][0] = 1;
-                        r2[lev-1][1] = 1;
-                        r2[lev-1][2] = r2[lev-2][2] * ref_ratio[lev-1][0];
+                        r2[lev-1][1] *= desired_ratio / ref_ratio[lev0][1];
+                        r2[lev-1][2] *= desired_ratio / ref_ratio[lev0][2];
                     }
 
                     mf2[lev].define(refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);
@@ -1449,16 +1453,16 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
                 Vector<IntVect> rr(finest_level);
                 for (int lev = 0; lev < finest_level; ++lev) {
-                    rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
+                    rr[lev] = IntVect(desired_ratio);
                 }
 
                Print() << "Writing plotfile " << plotfilename << "\n";
                if (solverChoice.use_terrain) {
                    WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
-                                                      GetVecOfConstPtrs(mf),
+                                                      GetVecOfConstPtrs(mf2),
                                                       GetVecOfConstPtrs(mf_nd),
                                                       varnames,
-                                                      t_new[0], istep);
+                                                      g2, t_new[0], istep, rr);
                } else {
                    WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                            GetVecOfConstPtrs(mf2), varnames,
@@ -1471,7 +1475,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                        GetVecOfConstPtrs(mf),
                                                        GetVecOfConstPtrs(mf_nd),
                                                        varnames,
-                                                       t_new[0], istep);
+                                                       geom, t_new[0], istep, ref_ratio);
                 } else {
                     WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                             GetVecOfConstPtrs(mf), varnames,
@@ -1502,8 +1506,10 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
                                          const Vector<const MultiFab*>& mf,
                                          const Vector<const MultiFab*>& mf_nd,
                                          const Vector<std::string>& varnames,
+                                         const Vector<Geometry>& geom,
                                          Real time,
                                          const Vector<int>& level_steps,
+                                         const Vector<IntVect>& ref_ratio,
                                          const std::string &versionName,
                                          const std::string &levelPrefix,
                                          const std::string &mfPrefix,
@@ -1542,7 +1548,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
                                                     std::ofstream::binary);
             if( ! HeaderFile.good()) FileOpenFailed(HeaderFileName);
             WriteGenericPlotfileHeaderWithTerrain(HeaderFile, nlevels, boxArrays, varnames,
-                                                  time, level_steps, versionName,
+                                                  geom, time, level_steps, ref_ratio, versionName,
                                                   levelPrefix, mfPrefix);
         };
 
@@ -1587,14 +1593,16 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                                             int nlevels,
                                             const Vector<BoxArray> &bArray,
                                             const Vector<std::string> &varnames,
-                                            Real time,
-                                            const Vector<int> &level_steps,
+                                            const Vector<Geometry>& my_geom,
+                                            Real my_time,
+                                            const Vector<int>& level_steps,
+                                            const Vector<IntVect>& my_ref_ratio,
                                             const std::string &versionName,
                                             const std::string &levelPrefix,
                                             const std::string &mfPrefix) const
 {
     AMREX_ALWAYS_ASSERT(nlevels <= bArray.size());
-    AMREX_ALWAYS_ASSERT(nlevels <= ref_ratio.size()+1);
+    AMREX_ALWAYS_ASSERT(nlevels <= my_ref_ratio.size()+1);
     AMREX_ALWAYS_ASSERT(nlevels <= level_steps.size());
 
     HeaderFile.precision(17);
@@ -1608,22 +1616,22 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
         HeaderFile << varnames[ivar] << "\n";
     }
     HeaderFile << AMREX_SPACEDIM << '\n';
-    HeaderFile << time << '\n';
+    HeaderFile << my_time << '\n';
     HeaderFile << finest_level << '\n';
     for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-        HeaderFile << geom[0].ProbLo(i) << ' ';
+        HeaderFile << my_geom[0].ProbLo(i) << ' ';
     }
     HeaderFile << '\n';
     for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-        HeaderFile << geom[0].ProbHi(i) << ' ';
+        HeaderFile << my_geom[0].ProbHi(i) << ' ';
     }
     HeaderFile << '\n';
     for (int i = 0; i < finest_level; ++i) {
-        HeaderFile << ref_ratio[i][0] << ' ';
+        HeaderFile << my_ref_ratio[i][0] << ' ';
     }
     HeaderFile << '\n';
     for (int i = 0; i <= finest_level; ++i) {
-        HeaderFile << geom[i].Domain() << ' ';
+        HeaderFile << my_geom[i].Domain() << ' ';
     }
     HeaderFile << '\n';
     for (int i = 0; i <= finest_level; ++i) {
@@ -1632,25 +1640,25 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
     HeaderFile << '\n';
     for (int i = 0; i <= finest_level; ++i) {
         for (int k = 0; k < AMREX_SPACEDIM; ++k) {
-            HeaderFile << geom[i].CellSize()[k] << ' ';
+            HeaderFile << my_geom[i].CellSize()[k] << ' ';
         }
         HeaderFile << '\n';
     }
-    HeaderFile << (int) geom[0].Coord() << '\n';
+    HeaderFile << (int) my_geom[0].Coord() << '\n';
     HeaderFile << "0\n";
 
     for (int level = 0; level <= finest_level; ++level) {
-        HeaderFile << level << ' ' << bArray[level].size() << ' ' << time << '\n';
+        HeaderFile << level << ' ' << bArray[level].size() << ' ' << my_time << '\n';
         HeaderFile << level_steps[level] << '\n';
 
-        const IntVect& domain_lo = geom[level].Domain().smallEnd();
+        const IntVect& domain_lo = my_geom[level].Domain().smallEnd();
         for (int i = 0; i < bArray[level].size(); ++i)
         {
             // Need to shift because the RealBox ctor we call takes the
             // physical location of index (0,0,0).  This does not affect
             // the usual cases where the domain index starts with 0.
             const Box& b = shift(bArray[level][i], -domain_lo);
-            RealBox loc = RealBox(b, geom[level].CellSize(), geom[level].ProbLo());
+            RealBox loc = RealBox(b, my_geom[level].CellSize(), my_geom[level].ProbLo());
             for (int n = 0; n < AMREX_SPACEDIM; ++n) {
                 HeaderFile << loc.lo(n) << ' ' << loc.hi(n) << '\n';
             }
