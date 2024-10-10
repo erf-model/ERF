@@ -45,6 +45,8 @@ protected:
     amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
     amrex::Vector<amrex::Real> freestream_velocity, freestream_phi, disk_cell_count;
+    amrex::Vector<amrex::Real> bld_rad_loc, bld_twist, bld_chord;
+
 };
 
 #endif

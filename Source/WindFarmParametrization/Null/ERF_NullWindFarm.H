@@ -49,6 +49,15 @@ public:
         m_turb_disk_angle = turb_disk_angle;
     }
 
+    virtual void set_blade_spec(const amrex::Vector<amrex::Real>& bld_rad_loc,
+                                const amrex::Vector<amrex::Real>& bld_twist,
+                                const amrex::Vector<amrex::Real>& bld_chord)
+    {
+        m_bld_rad_loc = bld_rad_loc;
+        m_bld_twist = bld_twist;
+        m_bld_chord = bld_chord;
+    }
+
     void get_turb_spec (amrex::Real& rotor_rad, amrex::Real& hub_height,
                         amrex::Real& thrust_coeff_standing, amrex::Vector<amrex::Real>& wind_speed,
                         amrex::Vector<amrex::Real>& thrust_coeff, amrex::Vector<amrex::Real>& power)
@@ -71,6 +80,15 @@ public:
     void get_turb_disk_angle (amrex::Real& turb_disk_angle)
     {
         turb_disk_angle = m_turb_disk_angle;
+    }
+
+    void get_blade_spec(amrex::Vector<amrex::Real>& bld_rad_loc,
+                        amrex::Vector<amrex::Real>& bld_twist,
+                        amrex::Vector<amrex::Real>& bld_chord)
+    {
+        bld_rad_loc = m_bld_rad_loc;
+        bld_twist = m_bld_twist;
+        bld_chord = m_bld_chord;
     }
 
 
@@ -121,6 +139,7 @@ protected:
     amrex::Real m_turb_disk_angle;
     amrex::Real m_hub_height, m_rotor_rad, m_thrust_coeff_standing, m_nominal_power;
     amrex::Vector<amrex::Real> m_wind_speed, m_thrust_coeff, m_power;
+    amrex::Vector<amrex::Real> m_bld_rad_loc, m_bld_twist, m_bld_chord;
 };
 
 

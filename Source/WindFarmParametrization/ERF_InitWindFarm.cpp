@@ -199,6 +199,8 @@ void
 WindFarm::read_windfarm_blade_table(const std::string windfarm_blade_table)
 {
     std::ifstream filename(windfarm_blade_table);
+    std::string line;
+    Real temp, var1, var2, var3;
     if (!filename.is_open()) {
         Error("You are using a generalized actuator disk model based on blade element theory. This needs info of blades."
                       " An entry erf.windfarm_blade_table is needed. Either the entry is missing or the file specified"
@@ -206,6 +208,22 @@ WindFarm::read_windfarm_blade_table(const std::string windfarm_blade_table)
     }
     else {
         Print() << "Reading in wind farm blade table: " << windfarm_blade_table << "\n";
+
+        // First 6 lines are comments
+
+        for (int i = 0; i < 6; ++i) {
+            if (std::getline(filename, line)) {  // Read one line into the array
+            }
+        }
+
+        while(filename >> var1 >> temp >> temp >> temp >> var2 >> var3 >> temp) {
+            bld_rad_loc.push_back(var1);
+            bld_twist.push_back(var2);
+            bld_chord.push_back(var3);
+            //int idx = bld_rad_loc.size()-1;
+            //printf("Values are = %0.15g %0.15g %0.15g\n", bld_rad_loc[idx], bld_twist[idx], bld_chord[idx]);
+        }
+        set_blade_spec(bld_rad_loc, bld_twist, bld_chord);
     }
 }
 

@@ -220,12 +220,17 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                                      MultiFab& mf_vars_generalAD)
 {
 
-    //Real Fn, Ft;
-    //compute_source_terms_Fn_Ft(80.0,10.0,Fn,Ft);
-
     get_turb_loc(xloc, yloc);
+
     get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
+
+    get_blade_spec(bld_rad_loc,bld_twist,bld_chord);
+
+    for(int i=0;i<bld_rad_loc.size();i++) {
+        std::cout << "I am here ...." << bld_rad_loc[i] << " " << bld_twist[i] << " " << bld_chord[i] << "\n";
+    }
+
 
     Real d_hub_height = hub_height;
     Real d_rotor_rad = rotor_rad;

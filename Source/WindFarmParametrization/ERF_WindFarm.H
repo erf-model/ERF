@@ -108,9 +108,17 @@ public:
         m_windfarm_model[0]->set_turb_loc(a_xloc, a_yloc);
     }
 
-    void set_turb_disk_angle (const amrex::Real& turb_disk_angle) override
+    void set_turb_disk_angle (const amrex::Real& a_turb_disk_angle) override
     {
-        m_windfarm_model[0]->set_turb_disk_angle(turb_disk_angle);
+        m_windfarm_model[0]->set_turb_disk_angle(a_turb_disk_angle);
+    }
+
+
+    void set_blade_spec (const amrex::Vector<amrex::Real>& a_bld_rad_loc,
+                         const amrex::Vector<amrex::Real>& a_bld_twist,
+                         const amrex::Vector<amrex::Real>& a_bld_chord) override
+    {
+        m_windfarm_model[0]->set_blade_spec(a_bld_rad_loc, a_bld_twist, a_bld_chord);
     }
 
 protected:
@@ -119,6 +127,7 @@ protected:
     amrex::Real my_turb_disk_angle;
     amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
+    amrex::Vector<amrex::Real> bld_rad_loc, bld_twist, bld_chord;
 
    /*! \brief Create and set the specified windfarm model */
     template<class NewWindFarmModel>

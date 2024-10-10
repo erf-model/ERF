@@ -43,7 +43,7 @@ ERF::init_windfarm (int lev)
     }
 
     if(solverChoice.windfarm_type == WindFarmType::GeneralAD) {
-        //windfarm->read_windfarm_blade_table(solverChoice.windfarm_blade_table);
+        windfarm->read_windfarm_blade_table(solverChoice.windfarm_blade_table);
         //windfarm->read_airfoil_tables
     }
 }

@@ -483,8 +483,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
-        if(containerHasElement(plot_var_names, "SMark0") and
-           solverChoice.windfarm_type == WindFarmType::SimpleAD) {
+        if( containerHasElement(plot_var_names, "SMark0") and
+           (solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) ) {
              for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
