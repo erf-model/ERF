@@ -26,7 +26,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     BoxArray ba;
     DistributionMapping dm;
     Box domain(Geom(0).Domain());
-    if (lev == 0 &&
+    if (lev == 0 && restart_chkfile.empty() &&
         (max_grid_size[0][0] >= domain.length(0)) &&
         (max_grid_size[0][1] >= domain.length(1)) &&
         ba_in.size() != ParallelDescriptor::NProcs())

@@ -25,6 +25,7 @@ using namespace amrex;
  * @param[in] z_nd nodal array of physical z heights
  * @param[in] bc_ptr container with boundary condition types
  * @param[in] dxInv inverse cell size array
+ * @param[in] mf_m map factor at cell center
  * @param[in] mf_u map factor at x-face
  * @param[in] mf_v map factor at y-face
  */
@@ -38,7 +39,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& z_nd,
                  const Array4<const Real>& detJ,
                  const BCRec* bc_ptr, const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
-                 const Array4<const Real>& /*mf_m*/,
+                 const Array4<const Real>& mf_m,
                  const Array4<const Real>& mf_u,
                  const Array4<const Real>& mf_v)
 {
@@ -452,9 +453,9 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         met_h_zeta = detJ(i,j,k);
 
         tau11(i,j,k) = ( (u(i+1, j, k)/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]
-                       - (met_h_xi/met_h_zeta)*GradUz ) * mf_u(i,j,0)*mf_u(i,j,0);
+                       - (met_h_xi/met_h_zeta)*GradUz ) * mf_m(i,j,0)*mf_m(i,j,0);
         tau22(i,j,k) = ( (v(i, j+1, k)/mf_v(i,j+1,0) - v(i, j, k)/mf_v(i,j,0))*dxInv[1]
-                       - (met_h_eta/met_h_zeta)*GradVz ) * mf_v(i,j,0)*mf_v(i,j,0);
+                       - (met_h_eta/met_h_zeta)*GradVz ) * mf_m(i,j,0)*mf_m(i,j,0);
         tau33(i,j,k) = (w(i, j, k+1) - w(i, j, k))*dxInv[2]/met_h_zeta;
     });
 

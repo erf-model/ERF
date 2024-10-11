@@ -43,20 +43,9 @@ ERF::FillPatch (int lev, Real time,
             FPr_c[lev-1].FillSet(*mfs_vel[Vars::cons], time, null_bc, domain_bcs_type);
         }
         if (cf_set_width >= 0 && !cons_only) {
-            //
-            // This is an optimization since we won't need more than one ghost
-            // cell of momentum in the integrator if not using NumDiff
-            //
-            //IntVect ngu = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : mfs_vel[Vars::xvel]->nGrowVect();
-            //IntVect ngv = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : mfs_vel[Vars::yvel]->nGrowVect();
-            //IntVect ngw = (solverChoice.use_NumDiff) ? IntVect(1,1,0) : mfs_vel[Vars::zvel]->nGrowVect();
-            IntVect ngu = IntVect::TheZeroVector();
-            IntVect ngv = IntVect::TheZeroVector();
-            IntVect ngw = IntVect::TheZeroVector();
-
-            VelocityToMomentum(*mfs_vel[Vars::xvel], ngu,
-                               *mfs_vel[Vars::yvel], ngv,
-                               *mfs_vel[Vars::zvel], ngw,
+            VelocityToMomentum(*mfs_vel[Vars::xvel], IntVect{0},
+                               *mfs_vel[Vars::yvel], IntVect{0},
+                               *mfs_vel[Vars::zvel], IntVect{0},
                                *mfs_vel[Vars::cons],
                                *mfs_mom[IntVars::xmom],
                                *mfs_mom[IntVars::ymom],
@@ -545,16 +534,12 @@ ERF::FillIntermediatePatch (int lev, Real time,
     // We always come in to this call with momenta so we need to leave with momenta!
     // We need to make sure we convert back on all ghost cells/faces because this is
     // how velocity from fine-fine copies (as well as physical and interpolated bcs) will be filled
-    if (!cons_only) {
-        IntVect ngu = mfs_vel[Vars::xvel]->nGrowVect();
-        IntVect ngv = mfs_vel[Vars::yvel]->nGrowVect();
-        IntVect ngw = mfs_vel[Vars::zvel]->nGrowVect();
+    if (!cons_only)
+    {
+        IntVect ngu = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : mfs_vel[Vars::xvel]->nGrowVect();
+        IntVect ngv = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : mfs_vel[Vars::yvel]->nGrowVect();
+        IntVect ngw = (!solverChoice.use_NumDiff) ? IntVect(1,1,0) : mfs_vel[Vars::zvel]->nGrowVect();
 
-        if (!solverChoice.use_NumDiff) {
-            ngu = IntVect(1,1,1);
-            ngv = IntVect(1,1,1);
-            ngw = IntVect(1,1,1);
-        }
         VelocityToMomentum(*mfs_vel[Vars::xvel], ngu,
                            *mfs_vel[Vars::yvel], ngv,
                            *mfs_vel[Vars::zvel], ngw,
@@ -600,13 +585,9 @@ ERF::FillCoarsePatch (int lev, Real time)
     // Convert velocity to momentum at the COARSE level
     // ************************************************
     //
-    IntVect ngu = IntVect(0,0,0);
-    IntVect ngv = IntVect(0,0,0);
-    IntVect ngw = IntVect(0,0,0);
-
-    VelocityToMomentum(vars_new[lev-1][Vars::xvel], ngu,
-                       vars_new[lev-1][Vars::yvel], ngv,
-                       vars_new[lev-1][Vars::zvel], ngw,
+    VelocityToMomentum(vars_new[lev-1][Vars::xvel], IntVect{0},
+                       vars_new[lev-1][Vars::yvel], IntVect{0},
+                       vars_new[lev-1][Vars::zvel], IntVect{0},
                        vars_new[lev-1][Vars::cons],
                          rU_new[lev-1],
                          rV_new[lev-1],
@@ -640,7 +621,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
     // ************************************************************************************************
     //
-    InterpFromCoarseLevel(rU_new[lev], ngu, IntVect(0,0,0), rU_new[lev-1], 0, 0, 1,
+    InterpFromCoarseLevel(rU_new[lev], IntVect{0}, IntVect{0}, rU_new[lev-1], 0, 0, 1,
                           geom[lev-1], geom[lev],
                           refRatio(lev-1), mapper_f, domain_bcs_type, BCVars::xvel_bc);
 
@@ -650,7 +631,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
     // ************************************************************************************************
     //
-    InterpFromCoarseLevel(rV_new[lev], ngv, IntVect(0,0,0), rV_new[lev-1], 0, 0, 1,
+    InterpFromCoarseLevel(rV_new[lev], IntVect{0}, IntVect{0}, rV_new[lev-1], 0, 0, 1,
                           geom[lev-1], geom[lev],
                           refRatio(lev-1), mapper_f, domain_bcs_type, BCVars::yvel_bc);
 
@@ -658,7 +639,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     // Interpolate z-momentum from coarse to fine level
     // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
     // ************************************************************************************************
-    InterpFromCoarseLevel(rW_new[lev], ngw, IntVect(0,0,0), rW_new[lev-1], 0, 0, 1,
+    InterpFromCoarseLevel(rW_new[lev],  IntVect{0}, IntVect{0}, rW_new[lev-1], 0, 0, 1,
                           geom[lev-1], geom[lev],
                           refRatio(lev-1), mapper_f, domain_bcs_type, BCVars::zvel_bc);
     //
