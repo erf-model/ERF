@@ -147,6 +147,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
     // We do this here just so they won't be undefined in the initial FillPatch
+    rU_old[lev].setVal(1.2e21);
+    rV_old[lev].setVal(3.4e22);
+    rW_old[lev].setVal(5.6e23);
     rU_new[lev].setVal(1.2e21);
     rV_new[lev].setVal(3.4e22);
     rW_new[lev].setVal(5.6e23);
