@@ -65,7 +65,8 @@ public:
 
     void read_windfarm_blade_table(const std::string windfarm_blade_table);
 
-    void read_windfarm_airofil_tables(const std::string windfarm_airfoils_tables);
+    void read_windfarm_airfoil_tables(const std::string windfarm_airfoil_tables,
+                                      const std::string windfarm_blade_table);
 
     void fill_Nturb_multifab(const amrex::Geometry& geom,
                              amrex::MultiFab& mf_Nturb);
@@ -113,7 +114,6 @@ public:
         m_windfarm_model[0]->set_turb_disk_angle(a_turb_disk_angle);
     }
 
-
     void set_blade_spec (const amrex::Vector<amrex::Real>& a_bld_rad_loc,
                          const amrex::Vector<amrex::Real>& a_bld_twist,
                          const amrex::Vector<amrex::Real>& a_bld_chord) override
@@ -128,6 +128,7 @@ protected:
     amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
     amrex::Vector<amrex::Real> bld_rad_loc, bld_twist, bld_chord;
+    int n_bld_sections;
 
    /*! \brief Create and set the specified windfarm model */
     template<class NewWindFarmModel>

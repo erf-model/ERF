@@ -130,17 +130,27 @@ void GeneralAD::compute_freestream_velocity(const MultiFab& cons_in,
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-std::array<Real,2> compute_source_terms_Fn_Ft (const Real rad,
-                                const Real avg_vel)
+std::array<Real,2>
+compute_source_terms_Fn_Ft (const Real rad,
+                            const Real avg_vel,
+                            Real* bld_rad_loc,
+                            Real* bld_twist,
+                            Real* bld_chord,
+                            int n_bld_sections)
 {
+
+    Real twist = interpolate_1d(bld_rad_loc, bld_twist, rad, n_bld_sections);
+    Real c = interpolate_1d(bld_rad_loc, bld_chord, rad, n_bld_sections);
+
+    //printf("Values are %0.15g %0.15g %0.15g\n",rad,twist,c);
+
     // Iteration procedure
-    Real Omega = 7.0/60.0*2.0*M_PI;
+    Real Omega = 9.0/60.0*2.0*M_PI;
     Real rho = 1.226;
 
-    Real c = 2.0;
     Real B = 3.0;
     Real rhub = 2.0;
-    Real rtip = 89.0;
+    Real rtip = 63.5;
 
     Real s = 0.5*c*B/(M_PI*rad);
 
@@ -157,7 +167,7 @@ std::array<Real,2> compute_source_terms_Fn_Ft (const Real rad,
         Vt = Omega*(1.0+at)*rad;
         Vr = std::pow(V1*V1+Vt*Vt,0.5);
 
-        psi = std::atan(V1/(Vt+1e-10));
+        psi = std::atan2(V1,Vt);
 
         Cl = 1.0;
         Cd = 0.8;
@@ -205,7 +215,7 @@ std::array<Real,2> compute_source_terms_Fn_Ft (const Real rad,
 
     std::array<Real, 2> Fn_and_Ft;
     Fn_and_Ft[0] = Fn;
-    Fn_and_Ft[1] = Ft;
+    Fn_and_Ft[1] = -Ft;
 
     return Fn_and_Ft;
 
@@ -228,7 +238,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     get_blade_spec(bld_rad_loc,bld_twist,bld_chord);
 
     for(int i=0;i<bld_rad_loc.size();i++) {
-        std::cout << "I am here ...." << bld_rad_loc[i] << " " << bld_twist[i] << " " << bld_chord[i] << "\n";
+        //std::cout << "I am here ...." << bld_rad_loc[i] << " " << bld_twist[i] << " " << bld_chord[i] << "\n";
     }
 
 
@@ -270,10 +280,24 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     Gpu::copy(Gpu::hostToDevice, freestream_velocity.begin(), freestream_velocity.end(), d_freestream_velocity.begin());
     Gpu::copy(Gpu::hostToDevice, disk_cell_count.begin(), disk_cell_count.end(), d_disk_cell_count.begin());
 
-     Real* d_xloc_ptr = d_xloc.data();
-     Real* d_yloc_ptr = d_yloc.data();
-     Real* d_freestream_velocity_ptr = d_freestream_velocity.data();
-     Real* d_disk_cell_count_ptr     = d_disk_cell_count.data();
+    Real* d_xloc_ptr = d_xloc.data();
+    Real* d_yloc_ptr = d_yloc.data();
+    Real* d_freestream_velocity_ptr = d_freestream_velocity.data();
+    Real* d_disk_cell_count_ptr     = d_disk_cell_count.data();
+
+    int n_bld_sections = bld_rad_loc.size();
+
+    Gpu::DeviceVector<Real>    d_bld_rad_loc(n_bld_sections);
+    Gpu::DeviceVector<Real>    d_bld_twist(n_bld_sections);
+    Gpu::DeviceVector<Real>    d_bld_chord(n_bld_sections);
+
+    Gpu::copy(Gpu::hostToDevice, bld_rad_loc.begin(), bld_rad_loc.end(), d_bld_rad_loc.begin());
+    Gpu::copy(Gpu::hostToDevice, bld_twist.begin(), bld_twist.end(), d_bld_twist.begin());
+    Gpu::copy(Gpu::hostToDevice, bld_chord.begin(), bld_chord.end(), d_bld_chord.begin());
+
+    Real* bld_rad_loc_ptr = d_bld_rad_loc.data();
+    Real* bld_twist_ptr = d_bld_twist.data();
+    Real* bld_chord_ptr = d_bld_chord.data();
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -325,7 +349,11 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
 
                         Real zeta = std::atan2(z-d_hub_height, vec_proj);
                         //printf("zeta val is %0.15g\n", zeta*180.0/M_PI);
-                        Fn_and_Ft = compute_source_terms_Fn_Ft(rad,avg_vel);
+                        Fn_and_Ft = compute_source_terms_Fn_Ft(rad, avg_vel,
+                                                               bld_rad_loc_ptr,
+                                                               bld_twist_ptr,
+                                                               bld_chord_ptr,
+                                                               n_bld_sections);
 
                         Real Fn = Fn_and_Ft[0];
                         Real Ft = Fn_and_Ft[1];

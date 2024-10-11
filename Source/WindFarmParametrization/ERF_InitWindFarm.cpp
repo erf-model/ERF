@@ -3,8 +3,13 @@
  */
 
 #include <ERF_WindFarm.H>
+#include <filesystem>
+#include <dirent.h>   // For POSIX directory handling
 
 using namespace amrex;
+namespace fs = std::filesystem;
+
+
 
 /**
  * Read in the turbine locations in latitude-longitude from windturbines.txt
@@ -224,6 +229,64 @@ WindFarm::read_windfarm_blade_table(const std::string windfarm_blade_table)
             //printf("Values are = %0.15g %0.15g %0.15g\n", bld_rad_loc[idx], bld_twist[idx], bld_chord[idx]);
         }
         set_blade_spec(bld_rad_loc, bld_twist, bld_chord);
+        n_bld_sections = bld_rad_loc.size();
+    }
+}
+
+void
+WindFarm::read_windfarm_airfoil_tables(const std::string windfarm_airfoil_tables,
+                                       const std::string windfarm_blade_table)
+{
+    DIR* dir;
+    struct dirent* entry;
+    std::vector<std::string> files;
+
+    // Check if directory exists
+    if ((dir = opendir(windfarm_airfoil_tables.c_str())) == nullptr) {
+       Abort("You are using a generalized actuator disk model based on blade element theory. This needs info of airfoil"
+             " cross sections over the span of the blade. There needs to be an entry erf.airfoil_tables which is the directory that"
+             " contains the angle of attack, Cl, Cd data for each airfoil cross-section. Either the entry is missing or the directory specified"
+             " in the entry - " + windfarm_airfoil_tables + " is missing. Exiting...");
+    }
+
+    // Loop through directory entries and collect filenames
+    while ((entry = readdir(dir)) != nullptr) {
+        // Skip special directory entries "." and ".."
+        if (std::string(entry->d_name) == "." || std::string(entry->d_name) == "..") {
+            continue;
+        }
+        files.emplace_back(windfarm_airfoil_tables + "/" + entry->d_name);  // Add file path to vector
+    }
+
+    // Close the directory
+    closedir(dir);
+
+    if (files.empty()) {
+        Abort("It seems the directory containing the info of airfoil cross sections of the blades - " + windfarm_airfoil_tables +
+              " is empty. Exiting...");
+    }
+
+    if(files.size() != n_bld_sections) {
+        printf("There are %d airfoil sections in the last column of %s. But the number"
+               " of files in %s is only %d.\n", n_bld_sections, windfarm_blade_table.c_str(),
+                windfarm_airfoil_tables.c_str(), files.size());
+        Abort("The number of blade sections from " + windfarm_blade_table + " should match the number of"
+              " files in " + windfarm_airfoil_tables + ". Exiting...");
+    }
+
+    // Sort filenames in lexicographical (alphabetical) order
+    std::sort(files.begin(), files.end());
+
+    // Process each file
+    for (const auto& filePath : files) {
+        std::ifstream file(filePath);
+
+        if (!file.is_open()) {
+            std::cerr << "Failed to open file: " << filePath << std::endl;
+            continue;  // Move on to the next file
+        }
+
+        std::cout << "Reading file: " << filePath << std::endl;
     }
 }
 

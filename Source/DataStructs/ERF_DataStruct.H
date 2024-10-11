@@ -384,7 +384,7 @@ struct SolverChoice {
         pp.query("windfarm_loc_table",  windfarm_loc_table);
         pp.query("windfarm_spec_table", windfarm_spec_table);
         pp.query("windfarm_blade_table", windfarm_blade_table);
-        pp.query("windfarm_airofil_tables", windfarm_airfoil_tables);
+        pp.query("windfarm_airfoil_tables", windfarm_airfoil_tables);
 
         // Sampling distance upstream of the turbine to find the
         // incoming free stream velocity as a factor of the diameter of the
