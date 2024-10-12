@@ -368,9 +368,6 @@ public:
     // Advance a block specified number of time steps
     void Evolve_MB (int MBstep, int max_block_step);
 
-    // Advance a block specified number of time steps
-    void Evolve_MB (MultiBlockContainer* mbc, int MBstep, int max_block_step);
-
     // get the current time values
     amrex::Real get_t_old() {return t_old[0];}
     amrex::Real get_t_new() {return t_new[0];}
@@ -383,15 +380,14 @@ public:
 
     // Public data copy for MB
     std::vector<amrex::Box> domain_p;
-    MultiBlockContainer *m_mbc = nullptr;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<amrex::Real> t_avg_cnt;
-
 #endif
+
     std::string pp_prefix {"erf"};
 
     void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
@@ -945,6 +941,10 @@ private:
                         amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
+#endif
+
+#ifdef ERF_USE_MULTIBLOCK
+    MultiBlockContainer *m_mbc = nullptr;
 #endif
 
     static int verbose;
