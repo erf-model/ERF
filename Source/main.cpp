@@ -7,14 +7,6 @@
 //#include "IO.H"
 #include "ERF.H"
 
-#ifdef ERF_USE_MULTIBLOCK
-#ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
-#include <ERF_MultiBlockContainer.H>
-#else
-#include <MultiBlockContainer.H>
-#endif
-#endif
-
 #ifdef ERF_USE_WW3_COUPLING
 #include <mpi.h>
 #include <AMReX_MPMD.H>
@@ -124,101 +116,6 @@ int main (int argc, char* argv[])
     // wallclock time
     const Real strt_total = amrex::second();
 
-#ifdef ERF_USE_MULTIBLOCK
-    {
-        // Vector of constructor parameters for MultiBlock
-        std::vector<RealBox> rb_v;
-        std::vector<int> max_level_v;
-        std::vector<int> coord_v;
-        std::vector<amrex::Vector<int>> n_cell_v;
-        std::vector<amrex::Array<int,AMREX_SPACEDIM>> is_per_v;
-        std::vector<amrex::Vector<amrex::IntVect>> ref_rat_v;
-        std::vector<std::string> prefix_v;
-        int max_step{1};
-
-        // Local constructor parameters for vector
-        RealBox rb;
-        int max_level{0};
-        int coord{0};
-        amrex::Vector<int> n_cell = {1,1,1};
-        amrex::Array<int,AMREX_SPACEDIM> is_per = {1,1,1};
-        amrex::Vector<amrex::IntVect> ref_rat = {amrex::IntVect(1,1,1)};
-
-        // Parse max steps for the block
-        {
-            ParmParse pp;
-            pp.query("max_step", max_step);
-        }
-
-        // Parse data for erf1 constructor
-        {
-            ParmParse pp("erf1");
-            amrex::Vector<Real> lo  = {0.,0.,0.};
-            amrex::Vector<Real> hi  = {0.,0.,0.};
-            amrex::Vector<int> periodicity = {1,1,1};
-            pp.queryarr("prob_lo",lo);
-            pp.queryarr("prob_hi",hi);
-            rb.setLo(lo);
-            rb.setHi(hi);
-            pp.query("max_level",max_level);
-            pp.query("coord",coord);
-            pp.queryarr("n_cell",n_cell);
-            pp.queryarr("is_periodic",periodicity);
-            {
-                for( int i(0); i<AMREX_SPACEDIM; i++ ) is_per[i] = periodicity[i];
-            }
-            pp.queryarr("ref_ratio",ref_rat);
-
-            rb_v.push_back(rb);
-            max_level_v.push_back(max_level);
-            coord_v.push_back(coord);
-            n_cell_v.push_back(n_cell);
-            is_per_v.push_back(is_per);
-            ref_rat_v.push_back(ref_rat);
-            prefix_v.push_back("erf1");
-        }
-
-        // Parse data for erf2 constructor
-        {
-            ParmParse pp("erf2");
-            amrex::Vector<Real> lo  = {0.,0.,0.};
-            amrex::Vector<Real> hi  = {0.,0.,0.};
-            amrex::Vector<int> periodicity = {1,1,1};
-            pp.queryarr("prob_lo",lo);
-            pp.queryarr("prob_hi",hi);
-            rb.setLo(lo);
-            rb.setHi(hi);
-            pp.query("max_level",max_level);
-            pp.query("coord",coord);
-            pp.queryarr("n_cell",n_cell);
-            pp.queryarr("is_periodic",periodicity);
-            {
-                for( int i(0); i<AMREX_SPACEDIM; i++ ) is_per[i] = periodicity[i];
-            }
-            pp.queryarr("ref_ratio",ref_rat);
-
-            rb_v.push_back(rb);
-            max_level_v.push_back(max_level);
-            coord_v.push_back(coord);
-            n_cell_v.push_back(n_cell);
-            is_per_v.push_back(is_per);
-            ref_rat_v.push_back(ref_rat);
-            prefix_v.push_back("erf2");
-
-        }
-
-        // Construct a MultiBlockContainer
-        MultiBlockContainer mbc(rb_v, max_level_v, n_cell_v,
-                                coord_v, ref_rat_v, is_per_v,
-                                prefix_v, max_step);
-
-        // Initialize data
-        mbc.InitializeBlocks();
-
-        // Advance blocks a timestep
-        mbc.AdvanceBlocks();
-    }
-#else
     {
         // constructor - reads in parameters from inputs file
         //             - sizes multilevel arrays and data structures
@@ -239,7 +136,6 @@ int main (int argc, char* argv[])
             amrex::Print() << "\nTotal Time: " << end_total << '\n';
         }
     }
-#endif
 
     // destroy timer for profiling
     BL_PROFILE_VAR_STOP(pmain);
