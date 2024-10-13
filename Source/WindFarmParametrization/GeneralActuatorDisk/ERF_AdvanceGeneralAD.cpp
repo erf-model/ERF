@@ -162,7 +162,7 @@ int find_rad_loc_index(const Real rad,
         index = n_bld_sections-1;
     }
     if(index == -1) {
-        printf("The radial section is at %0.15g m\n",rad);
+        //printf("The radial section is at %0.15g m\n",rad);
         Abort("Could not find index of the radial section.");
     }
 
@@ -220,7 +220,7 @@ compute_source_terms_Fn_Ft (const Real rad,
         //Cl = 1.37;
         //Cd = 0.014;
 
-        printf("rad, aoa, Cl, Cd    = %0.15g %0.15g %0.15g %0.15g\n", rad, aoa, Cl, Cd);
+        //printf("rad, aoa, Cl, Cd    = %0.15g %0.15g %0.15g %0.15g\n", rad, aoa, Cl, Cd);
 
         Cn = Cl*std::cos(psi) + Cd*std::sin(psi);
         Ct = Cl*std::sin(psi) - Cd*std::cos(psi);
