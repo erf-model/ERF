@@ -199,7 +199,7 @@ The generalized actuator model (GAD) based on blade element theory (`Mirocha et.
 where :math:`\rho` is the density of air in the cell, and :math:`\Delta x, \Delta y, \Delta z` are the mesh spacing in the x, y, and z directions. The forces on the GAD are given by:
 
 .. math::
-   :label: GAD_forces	
+   :label: GAD_forces
 
    F_x &= F_n \cos{\Phi} + F_t \sin\zeta \sin\Phi \\
    F_y &= F_n \sin{\Phi} - F_t \sin\zeta \cos\Phi \\
