@@ -7,9 +7,6 @@
 #include <dirent.h>   // For POSIX directory handling
 
 using namespace amrex;
-namespace fs = std::filesystem;
-
-
 
 /**
  * Read in the turbine locations in latitude-longitude from windturbines.txt
@@ -266,9 +263,9 @@ WindFarm::read_windfarm_airfoil_tables(const std::string windfarm_airfoil_tables
               " is empty. Exiting...");
     }
 
-    if(files.size() != n_bld_sections) {
+    if(files.size() != static_cast<long double>(n_bld_sections)) {
         printf("There are %d airfoil sections in the last column of %s. But the number"
-               " of files in %s is only %d.\n", n_bld_sections, windfarm_blade_table.c_str(),
+               " of files in %s is only %ld.\n", n_bld_sections, windfarm_blade_table.c_str(),
                 windfarm_airfoil_tables.c_str(), files.size());
         Abort("The number of blade sections from " + windfarm_blade_table + " should match the number of"
               " files in " + windfarm_airfoil_tables + ". Exiting...");
@@ -278,16 +275,39 @@ WindFarm::read_windfarm_airfoil_tables(const std::string windfarm_airfoil_tables
     std::sort(files.begin(), files.end());
 
     // Process each file
+    int count = 0;
+    bld_airfoil_aoa.resize(n_bld_sections);
+    bld_airfoil_Cl.resize(n_bld_sections);
+    bld_airfoil_Cd.resize(n_bld_sections);
     for (const auto& filePath : files) {
-        std::ifstream file(filePath);
+        std::ifstream filename(filePath.c_str());
 
-        if (!file.is_open()) {
+        if (!filename.is_open()) {
             std::cerr << "Failed to open file: " << filePath << std::endl;
             continue;  // Move on to the next file
         }
 
-        std::cout << "Reading file: " << filePath << std::endl;
+           std::cout << "Reading file: " << filePath << std::endl;
+
+        std::string line;
+        for (int i = 0; i < 54; ++i) {
+            if (std::getline(filename, line)) {  // Read one line into the array
+            }
+        }
+
+        Real var1, var2, var3, temp;
+
+        while(filename >> var1 >> var2 >> var3 >> temp) {
+            bld_airfoil_aoa[count].push_back(var1);
+            bld_airfoil_Cl[count].push_back(var2);
+            bld_airfoil_Cd[count].push_back(var3);
+            //int idx = bld_airfoil_aoa.size()-1;
+            //printf("Values are = %0.15g %0.15g %0.15g\n", bld_airfoil_aoa[idx], bld_airfoil_Cl[idx], bld_airfoil_Cd[idx]);
+        }
+        count++;
     }
+
+    set_blade_airfoil_spec(bld_airfoil_aoa, bld_airfoil_Cl, bld_airfoil_Cd);
 }
 
 void

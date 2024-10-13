@@ -58,6 +58,15 @@ public:
         m_bld_chord = bld_chord;
     }
 
+    virtual void set_blade_airfoil_spec(const amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_aoa,
+                                        const amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cl,
+                                        const amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cd)
+    {
+        m_bld_airfoil_aoa = bld_airfoil_aoa;
+        m_bld_airfoil_Cl = bld_airfoil_Cl;
+        m_bld_airfoil_Cd = bld_airfoil_Cd;
+    }
+
     void get_turb_spec (amrex::Real& rotor_rad, amrex::Real& hub_height,
                         amrex::Real& thrust_coeff_standing, amrex::Vector<amrex::Real>& wind_speed,
                         amrex::Vector<amrex::Real>& thrust_coeff, amrex::Vector<amrex::Real>& power)
@@ -91,6 +100,14 @@ public:
         bld_chord = m_bld_chord;
     }
 
+    void get_blade_airfoil_spec(amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_aoa,
+                                amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cl,
+                                amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cd)
+    {
+        bld_airfoil_aoa = m_bld_airfoil_aoa;
+        bld_airfoil_Cl = m_bld_airfoil_Cl;
+        bld_airfoil_Cd = m_bld_airfoil_Cd;
+    }
 
 static AMREX_GPU_DEVICE
 bool find_if_marked(amrex::Real x1, amrex::Real x2, amrex::Real y1, amrex::Real y2,
@@ -140,6 +157,7 @@ protected:
     amrex::Real m_hub_height, m_rotor_rad, m_thrust_coeff_standing, m_nominal_power;
     amrex::Vector<amrex::Real> m_wind_speed, m_thrust_coeff, m_power;
     amrex::Vector<amrex::Real> m_bld_rad_loc, m_bld_twist, m_bld_chord;
+    amrex::Vector<amrex::Vector<amrex::Real>> m_bld_airfoil_aoa, m_bld_airfoil_Cl, m_bld_airfoil_Cd;
 };
 
 

@@ -20,13 +20,15 @@ GeneralAD::advance (const Geometry& geom,
     AMREX_ALWAYS_ASSERT(mf_vars_generalAD.nComp() > 0);
     compute_freestream_velocity(cons_in, U_old, V_old, mf_SMark);
     source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_generalAD);
-    update(dt_advance, cons_in, U_old, V_old, mf_vars_generalAD);
+    update(dt_advance, cons_in, U_old, V_old, W_old, mf_vars_generalAD);
 }
 
 void
 GeneralAD::update (const Real& dt_advance,
                   MultiFab& cons_in,
-                  MultiFab& U_old, MultiFab& V_old,
+                  MultiFab& U_old,
+                  MultiFab& V_old,
+                  MultiFab& W_old,
                   const MultiFab& mf_vars_generalAD)
 {
 
@@ -34,12 +36,14 @@ GeneralAD::update (const Real& dt_advance,
 
         Box tbx = mfi.nodaltilebox(0);
         Box tby = mfi.nodaltilebox(1);
+        Box tbz = mfi.nodaltilebox(2);
 
         auto generalAD_array = mf_vars_generalAD.array(mfi);
         auto u_vel       = U_old.array(mfi);
         auto v_vel       = V_old.array(mfi);
+        auto w_vel       = W_old.array(mfi);
 
-        ParallelFor(tbx, tby,
+        ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             u_vel(i,j,k) = u_vel(i,j,k) + (generalAD_array(i-1,j,k,0) + generalAD_array(i,j,k,0))/2.0*dt_advance;
@@ -47,7 +51,12 @@ GeneralAD::update (const Real& dt_advance,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             v_vel(i,j,k) = v_vel(i,j,k) + (generalAD_array(i,j-1,k,1) + generalAD_array(i,j,k,1))/2.0*dt_advance;
+        },
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            w_vel(i,j,k) = w_vel(i,j,k) + (generalAD_array(i,j-1,k,2) + generalAD_array(i,j,k,2))/2.0*dt_advance;
         });
+
     }
 }
 
@@ -119,13 +128,44 @@ void GeneralAD::compute_freestream_velocity(const MultiFab& cons_in,
 
     if (ParallelDescriptor::IOProcessor()){
         for(int it=0; it<xloc.size(); it++){
-
-            std::cout << "turbine index, freestream velocity is " << it << " " << freestream_velocity[it] << " " <<
-                                                               disk_cell_count[it]  <<  " " <<
-                                                                freestream_velocity[it]/(disk_cell_count[it] + 1e-10) << " " <<
-                                                                freestream_phi[it]/(disk_cell_count[it] + 1e-10) << "\n";
+            //std::cout << "turbine index, freestream velocity is " << it << " " << freestream_velocity[it] << " " <<
+            //                                                 disk_cell_count[it]  <<  " " <<
+            //                                                freestream_velocity[it]/(disk_cell_count[it] + 1e-10) << " " <<
+            //                                              freestream_phi[it]/(disk_cell_count[it] + 1e-10) << "\n";
         }
     }
+}
+
+AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE
+int find_rad_loc_index(const Real rad,
+                       const Real* bld_rad_loc,
+                       const int n_bld_sections)
+{
+      // Find the index of the radial location
+    int index=-1;
+    Real rhub = 2.0;
+    Real rad_from_hub = rad - rhub;
+    if(rad_from_hub < 0.0) {
+        index = 0;
+    }
+    else {
+        for(int i=0;i<n_bld_sections;i++){
+            if(bld_rad_loc[i] > rad) {
+                index = i;
+                break;
+            }
+        }
+    }
+    if(index == -1 and rad > bld_rad_loc[n_bld_sections-1]) {
+        index = n_bld_sections-1;
+    }
+    if(index == -1) {
+        printf("The radial section is at %0.15g m\n",rad);
+        Abort("Could not find index of the radial section.");
+    }
+
+    return index;
 }
 
 AMREX_FORCE_INLINE
@@ -133,24 +173,26 @@ AMREX_GPU_DEVICE
 std::array<Real,2>
 compute_source_terms_Fn_Ft (const Real rad,
                             const Real avg_vel,
-                            Real* bld_rad_loc,
-                            Real* bld_twist,
-                            Real* bld_chord,
-                            int n_bld_sections)
+                            const Real* bld_rad_loc,
+                            const Real* bld_twist,
+                            const Real* bld_chord,
+                            int n_bld_sections,
+                            const Real* bld_airfoil_aoa,
+                            const Real* bld_airfoil_Cl,
+                            const Real* bld_airfoil_Cd,
+                            const int n_pts_airfoil)
 {
-
-    Real twist = interpolate_1d(bld_rad_loc, bld_twist, rad, n_bld_sections);
-    Real c = interpolate_1d(bld_rad_loc, bld_chord, rad, n_bld_sections);
-
-    //printf("Values are %0.15g %0.15g %0.15g\n",rad,twist,c);
-
-    // Iteration procedure
     Real Omega = 9.0/60.0*2.0*M_PI;
     Real rho = 1.226;
 
     Real B = 3.0;
     Real rhub = 2.0;
     Real rtip = 63.5;
+
+    Real twist = interpolate_1d(bld_rad_loc, bld_twist, rad, n_bld_sections);
+    Real c = interpolate_1d(bld_rad_loc, bld_chord, rad, n_bld_sections);
+
+    // Iteration procedure
 
     Real s = 0.5*c*B/(M_PI*rad);
 
@@ -169,8 +211,15 @@ compute_source_terms_Fn_Ft (const Real rad,
 
         psi = std::atan2(V1,Vt);
 
-        Cl = 1.0;
-        Cd = 0.8;
+        Real aoa = psi*180.0/M_PI - twist;
+
+        Cl = interpolate_1d(bld_airfoil_aoa, bld_airfoil_Cl, aoa, n_pts_airfoil);
+        Cd = interpolate_1d(bld_airfoil_aoa, bld_airfoil_Cd, aoa, n_pts_airfoil);
+
+        //Cl = 1.37;
+        //Cd = 0.014;
+
+        printf("rad, aoa, Cl, Cd    = %0.15g %0.15g %0.15g %0.15g\n", rad, aoa, Cl, Cd);
 
         Cn = Cl*std::cos(psi) + Cd*std::sin(psi);
         Ct = Cl*std::sin(psi) - Cd*std::cos(psi);
@@ -215,7 +264,7 @@ compute_source_terms_Fn_Ft (const Real rad,
 
     std::array<Real, 2> Fn_and_Ft;
     Fn_and_Ft[0] = Fn;
-    Fn_and_Ft[1] = -Ft;
+    Fn_and_Ft[1] = Ft;
 
     return Fn_and_Ft;
 
@@ -236,6 +285,8 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                   wind_speed, thrust_coeff, power);
 
     get_blade_spec(bld_rad_loc,bld_twist,bld_chord);
+
+    get_blade_airfoil_spec(bld_airfoil_aoa, bld_airfoil_Cl, bld_airfoil_Cd);
 
     for(int i=0;i<bld_rad_loc.size();i++) {
         //std::cout << "I am here ...." << bld_rad_loc[i] << " " << bld_twist[i] << " " << bld_chord[i] << "\n";
@@ -271,8 +322,6 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     // set_turb_disk angle in ERF_InitWindFarm.cpp sets this phi as
     // the turb_disk_angle
     get_turb_disk_angle(turb_disk_angle);
-    Real nx = -std::cos(turb_disk_angle);
-    Real ny = -std::sin(turb_disk_angle);
     Real d_turb_disk_angle = turb_disk_angle;
 
     Gpu::DeviceVector<Real> d_freestream_velocity(nturbs);
@@ -298,6 +347,40 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     Real* bld_rad_loc_ptr = d_bld_rad_loc.data();
     Real* bld_twist_ptr = d_bld_twist.data();
     Real* bld_chord_ptr = d_bld_chord.data();
+
+    Vector<Gpu::DeviceVector<Real>> d_bld_airfoil_aoa(n_bld_sections);
+    Vector<Gpu::DeviceVector<Real>> d_bld_airfoil_Cl(n_bld_sections);
+    Vector<Gpu::DeviceVector<Real>> d_bld_airfoil_Cd(n_bld_sections);
+
+    int n_pts_airfoil = bld_airfoil_aoa[0].size();
+
+    for(int i=0;i<n_bld_sections;i++){
+        d_bld_airfoil_aoa[i].resize(n_pts_airfoil);
+        d_bld_airfoil_Cl[i].resize(n_pts_airfoil);
+        d_bld_airfoil_Cd[i].resize(n_pts_airfoil);
+        Gpu::copy(Gpu::hostToDevice, bld_airfoil_aoa[i].begin(), bld_airfoil_aoa[i].end(), d_bld_airfoil_aoa[i].begin());
+        Gpu::copy(Gpu::hostToDevice, bld_airfoil_Cl[i].begin(), bld_airfoil_Cl[i].end(), d_bld_airfoil_Cl[i].begin());
+        Gpu::copy(Gpu::hostToDevice, bld_airfoil_Cd[i].begin(), bld_airfoil_Cd[i].end(), d_bld_airfoil_Cd[i].begin());
+    }
+
+    Vector<Real*> hp_bld_airfoil_aoa, hp_bld_airfoil_Cl, hp_bld_airfoil_Cd;
+    for (auto & v :d_bld_airfoil_aoa) {
+        hp_bld_airfoil_aoa.push_back(v.data());
+    }
+    for (auto & v :d_bld_airfoil_Cl) {
+        hp_bld_airfoil_Cl.push_back(v.data());
+    }
+    for (auto & v :d_bld_airfoil_Cd) {
+        hp_bld_airfoil_Cd.push_back(v.data());
+    }
+
+    Gpu::AsyncArray<Real*> aoa(hp_bld_airfoil_aoa.data(), n_bld_sections);
+    Gpu::AsyncArray<Real*> Cl(hp_bld_airfoil_Cl.data(), n_bld_sections);
+    Gpu::AsyncArray<Real*> Cd(hp_bld_airfoil_Cd.data(), n_bld_sections);
+
+    auto d_bld_airfoil_aoa_ptr = aoa.data();
+    auto d_bld_airfoil_Cl_ptr  = Cl.data();
+    auto d_bld_airfoil_Cd_ptr  = Cd.data();
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -332,7 +415,9 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                     // Find radial distance of the point and the zeta angle
                     Real rad = std::pow( (x-d_xloc_ptr[it])*(x-d_xloc_ptr[it]) +
                                          (y-d_yloc_ptr[it])*(y-d_yloc_ptr[it]) +
-                                         (z-d_hub_height)*(z-d_hub_height),0.5 );
+                                         (z-d_hub_height)*(z-d_hub_height), 0.5 );
+
+                    int index = find_rad_loc_index(rad, bld_rad_loc_ptr, n_bld_sections);
 
                     // This if check makes sure it is a point with radial distance
                     // between the hub radius and the rotor radius.
@@ -353,7 +438,11 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                                                                bld_rad_loc_ptr,
                                                                bld_twist_ptr,
                                                                bld_chord_ptr,
-                                                               n_bld_sections);
+                                                               n_bld_sections,
+                                                               d_bld_airfoil_aoa_ptr[index],
+                                                               d_bld_airfoil_Cl_ptr[index],
+                                                               d_bld_airfoil_Cd_ptr[index],
+                                                               n_pts_airfoil);
 
                         Real Fn = Fn_and_Ft[0];
                         Real Ft = Fn_and_Ft[1];

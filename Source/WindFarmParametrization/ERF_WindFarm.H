@@ -121,6 +121,13 @@ public:
         m_windfarm_model[0]->set_blade_spec(a_bld_rad_loc, a_bld_twist, a_bld_chord);
     }
 
+    void set_blade_airfoil_spec (const amrex::Vector<amrex::Vector<amrex::Real>>& a_bld_airfoil_aoa,
+                                 const amrex::Vector<amrex::Vector<amrex::Real>>& a_bld_airfoil_Cl,
+                                 const amrex::Vector<amrex::Vector<amrex::Real>>& a_bld_airfoil_Cd) override
+    {
+        m_windfarm_model[0]->set_blade_airfoil_spec(a_bld_airfoil_aoa, a_bld_airfoil_Cl, a_bld_airfoil_Cd);
+    }
+
 protected:
 
     amrex::Vector<amrex::Real> xloc, yloc;
@@ -128,6 +135,7 @@ protected:
     amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
     amrex::Vector<amrex::Real> bld_rad_loc, bld_twist, bld_chord;
+    amrex::Vector<amrex::Vector<amrex::Real>> bld_airfoil_aoa, bld_airfoil_Cl, bld_airfoil_Cd;
     int n_bld_sections;
 
    /*! \brief Create and set the specified windfarm model */
