@@ -1,6 +1,7 @@
 #include <ERF_GeneralAD.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_Interpolation_1D.H>
+#include <ERF_Constants.H>
 
 using namespace amrex;
 
@@ -182,7 +183,7 @@ compute_source_terms_Fn_Ft (const Real rad,
                             const Real* bld_airfoil_Cd,
                             const int n_pts_airfoil)
 {
-    Real Omega = 9.0/60.0*2.0*M_PI;
+    Real Omega = 9.0/60.0*2.0*PI;
     Real rho = 1.226;
 
     Real B = 3.0;
@@ -194,7 +195,7 @@ compute_source_terms_Fn_Ft (const Real rad,
 
     // Iteration procedure
 
-    Real s = 0.5*c*B/(M_PI*rad);
+    Real s = 0.5*c*B/(PI*rad);
 
     Real at, an, V1, Vt, Vr, psi, L, D, Cn, Ct;
     Real ftip, fhub, F, Cl, Cd, at_new, an_new;
@@ -211,7 +212,7 @@ compute_source_terms_Fn_Ft (const Real rad,
 
         psi = std::atan2(V1,Vt);
 
-        Real aoa = psi*180.0/M_PI - twist;
+        Real aoa = psi*180.0/PI - twist;
 
         Cl = interpolate_1d(bld_airfoil_aoa, bld_airfoil_Cl, aoa, n_pts_airfoil);
         Cd = interpolate_1d(bld_airfoil_aoa, bld_airfoil_Cd, aoa, n_pts_airfoil);
@@ -230,7 +231,7 @@ compute_source_terms_Fn_Ft (const Real rad,
         AMREX_ALWAYS_ASSERT(std::fabs(std::exp(-fhub))<=1.0);
         AMREX_ALWAYS_ASSERT(std::fabs(std::exp(-ftip))<=1.0);
 
-        F = 1.0;//2.0/M_PI*(std::acos(std::exp(-ftip)) + std::acos(std::exp(-fhub)) );
+        F = 1.0;//2.0/PI*(std::acos(std::exp(-ftip)) + std::acos(std::exp(-fhub)) );
 
         at_new = 1.0/ ( 4.0*F*std::sin(psi)*std::cos(psi)/(s*Ct+1e-10) - 1.0 );
         an_new = 1.0/ ( 1.0 + 4.0*F*std::pow(std::sin(psi),2)/(s*Cn + 1e-10) );
@@ -433,7 +434,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
 
 
                         Real zeta = std::atan2(z-d_hub_height, vec_proj);
-                        //printf("zeta val is %0.15g\n", zeta*180.0/M_PI);
+                        //printf("zeta val is %0.15g\n", zeta*180.0/PI);
                         Fn_and_Ft = compute_source_terms_Fn_Ft(rad, avg_vel,
                                                                bld_rad_loc_ptr,
                                                                bld_twist_ptr,
