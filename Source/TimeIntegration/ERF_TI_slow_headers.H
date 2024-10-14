@@ -10,6 +10,7 @@
 
 #include <ERF_Advection.H>
 #include <ERF_Diffusion.H>
+#include <ERF_PBLModels.H>
 #include <ERF_EddyViscosity.H>
 #include <ERF_PlaneAverage.H>
 #include <ERF_TerrainMetrics.H>

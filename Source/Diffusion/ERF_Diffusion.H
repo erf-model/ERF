@@ -38,8 +38,6 @@ void DiffusionSrcForMom_T (const amrex::Box& bxx, const amrex::Box& bxy, const a
                            const amrex::Array4<const amrex::Real>& mf_u      ,
                            const amrex::Array4<const amrex::Real>& mf_v      );
 
-
-
 void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,
                              const bool& exp_most,
