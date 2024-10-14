@@ -519,7 +519,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_most);
             }
             if (l_use_ysu_pbl) {
-                DiffusionSrcForStateYSU(bx, domain, n_start, n_comp, l_exp_most, l_rot_most, u, v,
+                DiffusionSrcForStateYSU(bx, domain, RhoTheta_comp, 1, l_exp_most, l_rot_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        z_nd, ax_arr, ay_arr, az_arr, detJ_arr,

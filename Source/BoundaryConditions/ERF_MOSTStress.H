@@ -1389,7 +1389,7 @@ struct moeng_flux
             je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
             ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v_YSU); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
             // Note: Kh = eta/rho
             //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
@@ -1676,7 +1676,7 @@ struct donelan_flux
             je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
             ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v_YSU); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
             // Note: Kh = eta/rho
             //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
@@ -1954,7 +1954,7 @@ struct custom_flux
             je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
             ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v_YSU); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
             dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
         }

@@ -429,7 +429,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 
     if (l_use_kturb) {
         int numdiff = l_use_ysu_pbl ? EddyDiff::NumDiffsYSU : EddyDiff::NumDiffs;
-        eddyDiffs_lev[lev] = std::make_unique<MultiFab>(ba, dm, EddyDiff::NumDiffs, 2);
+        eddyDiffs_lev[lev] = std::make_unique<MultiFab>(ba, dm, numdiff, 2);
         eddyDiffs_lev[lev]->setVal(0.0);
         if(l_use_ddorf) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
