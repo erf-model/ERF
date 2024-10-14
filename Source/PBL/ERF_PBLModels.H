@@ -106,6 +106,22 @@ DiffusionSrcForStateYSU (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr,
                              const bool use_most);
 
+void DiffusionSrcForMomYSU (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                           const amrex::Array4<      amrex::Real>& rho_u_rhs,
+                           const amrex::Array4<      amrex::Real>& rho_v_rhs,
+                           const amrex::Array4<      amrex::Real>& rho_w_rhs,
+                           const amrex::Array4<const amrex::Real>& tau11    ,
+                           const amrex::Array4<const amrex::Real>& tau22    , const amrex::Array4<const amrex::Real>& tau33    ,
+                           const amrex::Array4<const amrex::Real>& tau12    , const amrex::Array4<const amrex::Real>& tau13,
+                           const amrex::Array4<const amrex::Real>& tau21    , const amrex::Array4<const amrex::Real>& tau23,
+                           const amrex::Array4<const amrex::Real>& tau31    , const amrex::Array4<const amrex::Real>& tau32,
+                           const amrex::Array4<const amrex::Real>& detJ,
+                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
+                           const amrex::Array4<const amrex::Real>& mf_m      ,
+                           const amrex::Array4<const amrex::Real>& mf_u      ,
+                           const amrex::Array4<const amrex::Real>& mf_v      );
+
+
 /**
  * Function for computing vertical derivatives for use in PBL model
  *
