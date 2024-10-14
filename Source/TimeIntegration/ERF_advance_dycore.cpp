@@ -236,6 +236,12 @@ void ERF::advance_dycore(int level,
                                    fine_geom, z_phys_cc[level]);
     }
 
+    if (solverChoice.custom_w_subsidence) {
+        prob->update_w_subsidence(old_time,
+                                  h_w_subsid[level], d_w_subsid[level],
+                                  fine_geom, z_phys_cc[level]);
+    }
+
     if (solverChoice.custom_geostrophic_profile) {
         prob->update_geostrophic_profile(old_time,
                                    h_u_geos[level], d_u_geos[level],
