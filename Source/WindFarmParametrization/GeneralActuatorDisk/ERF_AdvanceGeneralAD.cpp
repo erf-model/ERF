@@ -220,7 +220,7 @@ compute_source_terms_Fn_Ft (const Real rad,
 
         psi = std::atan2(V1,Vt);
 
-        Real aoa = psi*180.0/PI - twist;
+        Real aoa = psi*180.0/PI - twist + pitch;
 
         Cl = interpolate_1d(bld_airfoil_aoa, bld_airfoil_Cl, aoa, n_pts_airfoil);
         Cd = interpolate_1d(bld_airfoil_aoa, bld_airfoil_Cd, aoa, n_pts_airfoil);
