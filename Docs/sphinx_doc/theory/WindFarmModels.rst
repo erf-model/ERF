@@ -4,7 +4,7 @@ Wind farm models
 Introduction
 -------------
 
-ERF supports models for wind farm parametrization in which the effects of wind turbines are represented by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE). Currently the Fitch model (`Fitch et al. 2012`_), Explicit Wake Parametrization (EWP) model (`Volker et al. 2015`_) and Simplified actuator disk model (See Section 3.2 in `Wind Energy Handbook 2nd edition`_) are supported.
+ERF supports models for wind farm parametrization in which the effects of wind turbines are represented by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE). Currently the Fitch model (`Fitch et al. 2012`_), Explicit Wake Parametrization (EWP) model (`Volker et al. 2015`_), Simplified actuator disk model (See Section 3.2 in `Wind Energy Handbook 2nd edition`_), and Generalized actuator disk model (`Mirocha et. al. 2014`_, see Chapter 3 of `Small Wind Turbines`_) are supported.
 
 .. _Fitch model:
 
@@ -187,7 +187,7 @@ where :math:`dA` is the area of the actuator disk in the mesh cell (see Fig. :nu
 Generalized actuator disk model
 ===============================
 
-The generalized actuator model (GAD) based on blade element theory (`Mirocha et. al. 2014`_, see Chapter 3 of `Small Wind Turbines`_) is implemented. Similar to the simplified actuator disk model, GAD also models the wind turbine as a disk, but takes into account the details of the blade geometry (see :numref:`fig:GAD_Schematic`). The forces on the blades in the x, y, z directions are computed, and that contributes to the source terms for the fluid momentum equations. The source terms in a mesh cell inside the actuator disk are given as:
+The generalized actuator model (GAD) based on blade element theory (`Mirocha et. al. 2014`_, see Chapter 3 of `Small Wind Turbines`_) is implemented. Similar to the simplified actuator disk model, GAD also models the wind turbine as a disk, but takes into account the details of the blade geometry (see Fig. :numref:`fig:GAD_Schematic`). The forces on the blades in the x, y, z directions are computed, and that contributes to the source terms for the fluid momentum equations. The source terms in a mesh cell inside the actuator disk are given as:
 
 .. math::
    :label: GAD_source_terms
@@ -238,7 +238,7 @@ and
    V_n &= V_0(1-a_n) \\
    V_t &= \Omega(1+a_t)r,
 
-where :math:`\Omega` is the rotational speed of the turbine, :math:`r` is the radial location along the blade span, and :math:`a_n` and :math:`a_t` are the normal and tangential induction factors. The lift and drag forces are given by:
+where :math:`V_0` is the freestream velocity at a user specified distance upstream from the disk plane as described in Section :ref:`actuator_disk_model_simplified` (also see Fig. :numref:`fig:ActuatorDisk_Sampling`), :math:`\Omega` is the rotational speed of the turbine, :math:`r` is the radial location along the blade span, and :math:`a_n` and :math:`a_t` are the normal and tangential induction factors. The lift and drag forces are given by:
 
 .. math::
    :label: GAD_L_D
@@ -246,7 +246,7 @@ where :math:`\Omega` is the rotational speed of the turbine, :math:`r` is the ra
    L &= \frac{1}{2} \rho V_r^2 c C_l \\
    D &= \frac{1}{2} \rho V_r^2 c C_d,
 
-where :math:`\rho` is the density of air, :math:`c` is the chord length of the airfoil cross-section, :math:`C_l` and :math:`C_d` are the sectional lift and drag coefficients on the airfoil cross-section, and the relative wind velocity is :math:`V_r = \sqrt{V_n^2 + V_t^2}`. The normal and tangential sectional coefficients are computed as:
+where :math:`\rho` is the density of air, :math:`c` is the chord length of the airfoil cross-section, :math:`C_l` and :math:`C_d` are the sectional lift and drag coefficients on the airfoil cross-section (which is a function of the incoming angle :math:`\psi`, blade twist :math:`\xi`, and blade pitch :math:`\phi`. See Fig. :numref:`fig:GAD_Schematic`), and the relative wind velocity is :math:`V_r = \sqrt{V_n^2 + V_t^2}`. The normal and tangential sectional coefficients are computed as:
 
 .. math::
    :label: GAD_Cn_Ct
@@ -291,8 +291,8 @@ where :math:`r_\text{hub}` and :math:`r_\text{tip}` are the radius of the hub an
 An iterative procedure is needed to compute the source terms, and is as follows:
 
 1. An initial value is assumed for the normal and tangential induction factors :math:`a_n` and :math:`a_t`.
-2. Compute the normal and tangential velocities from Eqn. :eq:`GAD_Vn_Vt`.
-3. From the tables for the `details of the blade geometry`_ and the `sectional coefficients of the airfoil cross sections`_, compute the values of :math:`C_l` and :math:`C_d` corresponding to the radial location :math:`r` along the blade span and the angle of attack :math:`\alpha = \psi - \xi`.
+2. Compute the normal and tangential velocities from Eqn. :eq:`GAD_Vn_Vt`. . 
+3. From the tables for the `turbine specifications`_, `details of the blade geometry`_ and the `sectional coefficients of the airfoil cross sections`_, compute the values of :math:`C_l` and :math:`C_d` corresponding to the radial location :math:`r` along the blade span and the angle of attack :math:`\alpha = \psi - \xi + \phi`.
 4. Compute the normal and tangential sectional coefficients :math:`C_n` and :math:`C_t` from Eqn. :eq:`GAD_Cn_Ct`.
 5. Compute the normal and tangential induction factors :math:`a_n` and :math:`a_t` using Eqn. :eq:`GAD_an_at`.
 6. Repeat steps 2 to 5 until the error in the normal and tangential induction factors, :math:`a_n` and :math:`a_t`, are less than :math:`1 \times 10^{-5}`.
@@ -301,16 +301,19 @@ An iterative procedure is needed to compute the source terms, and is as follows:
 9. Compute the forces on the disk using Eqn. :eq:`GAD_forces`.
 10. Compute the source terms in the momentum equation using Eqn. :eq:`GAD_source_terms`.
 
+
+
 .. _fig:GAD_Schematic:
 
 .. figure:: ../figures/GAD_Schematic.png
    :width: 600
    :align: center
 
-   Different views of the GAD showing the forces and angles involved: Blade cross section showing the normal (:math:`V_n`) and tangential (:math:`V_t`) components of velocity with the normal (:math:`a_n`) and tangential (:math:`a_t`) induction factors, relative wind velocity :math:`V_r`, blade twist angle :math:`\xi`, angle of relative wind :math:`\psi`, lift (:math:`L`) and drag (:math:`D`) forces, and normal (:math:`F_n`) and tangential (:math:`F_t`) forces; top view showing the flow direction and inclination angle :math:`\Phi`; and front view showing the actuator disk rotating clockwise.
+   Different views of the GAD showing the forces and angles involved: Blade cross section showing the normal (:math:`V_n`) and tangential (:math:`V_t`) components of velocity with the normal (:math:`a_n`) and tangential (:math:`a_t`) induction factors, relative wind velocity :math:`V_r`, blade twist angle :math:`\xi`, angle of relative wind :math:`\psi`, blade pitch angle :math:`\phi`, lift (:math:`L`) and drag (:math:`D`) forces, and normal (:math:`F_n`) and tangential (:math:`F_t`) forces; top view showing the flow direction and inclination angle :math:`\Phi`; and front view showing the actuator disk rotating clockwise.
 
 .. _`Mirocha et. al. 2014`: https://doi.org/10.1063/1.4861061
 .. _`Small Wind Turbines`: https://doi.org/10.1007/978-1-84996-175-2
+.. _`turbine specifications`: https://github.com/NREL/openfast-turbine-models/blob/main/IEA-scaled/NREL-2.8-127/NREL-2.82-127_performance.csv
 .. _`details of the blade geometry`: https://github.com/NREL/openfast-turbine-models/blob/main/IEA-scaled/NREL-2.8-127/20_monolithic_opt2/OpenFAST/NREL-2p8-127_AeroDyn15_blade.dat
 .. _`sectional coefficients of the airfoil cross sections` : https://github.com/NREL/openfast-turbine-models/tree/main/IEA-scaled/NREL-2.8-127/20_monolithic_opt2/OpenFAST/Airfoils
 
@@ -342,7 +345,7 @@ The following are the inputs required for wind farm simulations.
     // have the same specifications
     erf.windfarm_spec_table = "wind-turbine_1WT.tbl"
 
-    // For simplified actuator disk model the following parameters are needed
+    // In addition to the above, for simplified actuator disk model the following parameters are needed
 
     // The distance of the freestream velocity sampling disk from the turbine actuator
     // disk
@@ -350,6 +353,33 @@ The following are the inputs required for wind farm simulations.
 
     // The angle of the turbine actuator disk from the x axis
     erf.turb_disk_angle_from_x = 135.0
+
+    // In addition to the above, for generalized actuator disk model the following parameters are needed  
+
+    // Table containing additional specification information of the wind turbine.   
+    // See Note below
+    erf.windfarm_spec_table_extra = "NREL-2.82-127_performance.csv"    
+
+    // Table containing details of blade geometry  
+    // See Note below 
+    erf.windfarm_blade_table = "NREL-2p8-127_AeroDyn15_blade.dat"  
+    
+    // Tables containing the sectional lift and drag coefficients for the   
+    // blade airfoil cross-sections.  
+    // See Note below. 
+    erf.windfarm_airfoil_tables = "Airfoils"
+
+.. note::
+
+   The format for the files required for the generalized actuator disk model are 
+     
+   1. erf.windfarm_spec_table_extra = `NREL-2.82-127_performance.csv`_  
+   2. erf.windfarm_blade_table = `NREL-2p8-127_AeroDyn15_blade.dat`_   
+   3. erf.windfarm_airfoil_tables = `Airfoils`_.      
+
+.. _`NREL-2.82-127_performance.csv`: https://github.com/NREL/openfast-turbine-models/blob/main/IEA-scaled/NREL-2.8-127/NREL-2.82-127_performance.csv
+.. _`NREL-2p8-127_AeroDyn15_blade.dat`: https://github.com/NREL/openfast-turbine-models/blob/main/IEA-scaled/NREL-2.8-127/20_monolithic_opt2/OpenFAST/NREL-2p8-127_AeroDyn15_blade.dat
+.. _`Airfoils`: https://github.com/NREL/openfast-turbine-models/tree/main/IEA-scaled/NREL-2.8-127/20_monolithic_opt2/OpenFAST/Airfoils
 
 1. ``erf.windfarm_type`` has to be one of the supported models - ``Fitch``, ``EWP``, ``SimpleActuatorDisk``.
 2. ``erf.windfarm_loc_type`` is a variable to specify how the wind turbine locations in the wind farm is specified. If using the latitude and longitude of the turbine location, this has to be ``lat_lon`` or if using x and y coordinates to specify the turbine locations, this input is ``x_y``.
