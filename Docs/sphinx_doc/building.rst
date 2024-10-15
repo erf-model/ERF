@@ -276,11 +276,22 @@ For Perlmutter at NERSC, look at the general instructions for building ERF using
    module load PrgEnv-gnu
    module load cudatoolkit
 
+If you will be using NetCDF, we suggest you add the following four lines to you ``.bashrc_ext``  file.
+
+::
+
+   module load cray-hdf5-parallel/1.12.2.9
+   module load cray-netcdf-hdf5parallel
+   export HDF5_DIR=/opt/cray/pe/hdf5-parallel/1.12.2.9
+   export NETCDF_DIR=/opt/cray/pe/netcdf-hdf5parallel/4.9.0.9
+
 Then build ERF as, for example (specify your own path to the AMReX submodule in ``ERF/Submodules/AMReX``):
 
 ::
 
-   make -j 4 COMP=gnu USE_MPI=TRUE USE_OMP=FALSE USE_CUDA=TRUE AMREX_HOME=/global/u2/d/dwillcox/dev-erf/ERF/Submodules/AMReX
+   make -j 4 COMP=gnu USE_MPI=TRUE USE_OMP=FALSE USE_CUDA=TRUE AMREX_HOME=/path_to_here/ERF/Submodules/AMReX
+
+where ``/path_to_here`` is the path to your ERF repository.
 
 Finally, you can prepare your SLURM job script, using the following as a guide:
 

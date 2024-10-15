@@ -65,6 +65,31 @@ ERF::init_from_input_sounding (int lev)
         // this will calculate the hydrostatically balanced density and pressure
         // profiles following WRF ideal.exe
         if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);
+
+    } else {
+        //
+        // We need to do this interp from coarse level in order to set the values of
+        // the base state inside the domain but outside of the fine region
+        //
+        base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
+        //
+        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+        //       have been pre-filled - this includes ghost cells both inside and outside
+        //       the domain
+        //
+        InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
+                              IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              base_state[lev-1], 0, 0, 3,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::base_bc);
+
+         // We need to do this here because the interpolation above may leave corners unfilled
+         //    when the corners need to be filled by, for example, reflection of the fine ghost
+         //    cell outside the fine region but inide the domain.
+         int bccomp = BCVars::base_bc;
+         int icomp = 0; int ncomp = 3; Real dummy_time = 0.;
+         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),dummy_time,bccomp);
     }
 
     auto& lev_new = vars_new[lev];
@@ -106,9 +131,6 @@ ERF::init_from_input_sounding (int lev)
         }
         else
         {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.use_terrain,
-                "Terrain is not supported without init_sounding_ideal option.");
-
             // HSE will be calculated later with call to initHSE
             init_bx_scalars_from_input_sounding(
                 bx, cons_arr,
@@ -122,23 +144,6 @@ ERF::init_from_input_sounding (int lev)
             input_sounding_data);
 
     } //mfi
-
-    // Make sure to fill the ghost cells of the base state
-    if (lev > 0)
-    {
-        base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
-        //
-        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-        //       have been pre-filled - this includes ghost cells both inside and outside
-        //       the domain
-        //
-        InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
-                              IntVect(0,0,0), // do not fill ghost cells outside the domain
-                              base_state[lev-1], 0, 0, 3,
-                              geom[lev-1], geom[lev],
-                              refRatio(lev-1), &cell_cons_interp,
-                              domain_bcs_type, BCVars::cons_bc);
-    }
 }
 
 /**
@@ -175,7 +180,7 @@ init_bx_scalars_from_input_sounding (const Box &bx,
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                         : z_lo + (k + 0.5) * dz;
+                                  : z_lo + (k + 0.5) * dz;
 
         Real rho_0 = 1.0;
 
@@ -231,11 +236,13 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
     const int   inp_sound_size  = inputSoundingData.size(0);
 
     // Geometry
-    int ktop = bx.bigEnd(2);
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real  z_lo = prob_lo[2];
     const Real  dz   = dx[2];
+
+    int kbot = geomdata.Domain().smallEnd(2);
+    int ktop = geomdata.Domain().bigEnd(2);
 
     // We want to set the lateral BC values, too
     Box gbx = bx; // Copy constructor
@@ -243,7 +250,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                         : z_lo + (k + 0.5) * dz;
+                                  : z_lo + (k + 0.5) * dz;
 
         Real rho_k, qv_k, rhoTh_k;
 
@@ -267,7 +274,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
 
         // FOEXTRAP hse arrays
-        if (k==0)
+        if (k==kbot)
         {
             r_hse_arr (i, j, k-1) = r_hse_arr (i,j,k);
             p_hse_arr (i, j, k-1) = p_hse_arr (i,j,k);
@@ -334,10 +341,10 @@ init_bx_velocities_from_input_sounding (const Box &bx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of x-faces
         const Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i,j  ,k  )
-                                                + z_nd_arr(i,j+1,k  )
-                                                + z_nd_arr(i,j  ,k+1)
-                                                + z_nd_arr(i,j+1,k+1))
-                                         : z_lo + (k + 0.5) * dz;
+                                         + z_nd_arr(i,j+1,k  )
+                                         + z_nd_arr(i,j  ,k+1)
+                                         + z_nd_arr(i,j+1,k+1))
+                                  : z_lo + (k + 0.5) * dz;
 
         // Set the x-velocity
         x_vel(i, j, k) = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
@@ -345,10 +352,10 @@ init_bx_velocities_from_input_sounding (const Box &bx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of y-faces
         const Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i  ,j,k  )
-                                                + z_nd_arr(i+1,j,k  )
-                                                + z_nd_arr(i  ,j,k+1)
-                                                + z_nd_arr(i+1,j,k+1))
-                                         : z_lo + (k + 0.5) * dz;
+                                         + z_nd_arr(i+1,j,k  )
+                                         + z_nd_arr(i  ,j,k+1)
+                                         + z_nd_arr(i+1,j,k+1))
+                                  : z_lo + (k + 0.5) * dz;
 
         // Set the y-velocity
         y_vel(i, j, k) = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);

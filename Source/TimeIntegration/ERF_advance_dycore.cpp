@@ -1,12 +1,11 @@
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_TimeIntegrator.H>
+
+#include <ERF.H>
 #include <ERF_MRI.H>
 #include <ERF_EddyViscosity.H>
 #include <ERF_EOS.H>
-#include <ERF.H>
 #include <ERF_TerrainMetrics.H>
-//#include <TI_headers.H>
-//#include <ERF_PlaneAverage.H>
 #include <ERF_Diffusion.H>
 #include <ERF_TileNoZ.H>
 #include <ERF_Utils.H>
@@ -253,9 +252,10 @@ void ERF::advance_dycore(int level,
     // This is an optimization since we won't need more than one ghost
     // cell of momentum in the integrator if not using NumDiff
     //
-    IntVect ngu = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
-    IntVect ngv = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
-    IntVect ngw = (solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+    IntVect ngu = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
+    IntVect ngv = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
+    IntVect ngw = (!solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+
     VelocityToMomentum(xvel_old, ngu, yvel_old, ngv, zvel_old, ngw, density,
                        state_old[IntVars::xmom],
                        state_old[IntVars::ymom],
@@ -290,11 +290,9 @@ void ERF::advance_dycore(int level,
     mri_integrator.set_pre_update (pre_update_fun);
     mri_integrator.set_post_update(post_update_fun);
 
-#ifdef ERF_USE_POISSON_SOLVE
     if (solverChoice.anelastic[level]) {
         mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);
     }
-#endif
 
     mri_integrator.set_fast_rhs(fast_rhs_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);

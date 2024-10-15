@@ -204,7 +204,7 @@ Sauer, J. A., & Muñoz-Esparza, D. (2020). The FastEddy® resident-GPU accelerat
 
 WENO Methods
 ------------
-Additionally, weighted essentially non-oscillatory (WENO) schemes are available for :math:`3rd` and :math:`5th` order interpolation. The general formulation is as follows:
+Additionally, weighted essentially non-oscillatory (WENO) schemes are available for :math:`3rd`, :math:`5th`, and :math:`7th` order interpolation. The general formulation is as follows:
 
 .. math::
 
@@ -237,8 +237,11 @@ With the WENO5 scheme, one has :math:`N=3, \; \omega_{1} = 1/10, \; \omega_{2} =
    q_{m + \frac{1}{2}}^{(3)} = \frac{1}{3} q_{m} + \frac{5}{6} q_{m+1} - \frac{1}{6} q_{m+2}
    \end{array}
 
-By default, the WENO3 scheme will be employed for moisture variables if the code is compiled with moisture support.
-However, users may utilize the WENO scheme for dry scalar variables as well.   The scheme for each type is specified by
+Details for the WENO7 scheme are provided in `Shu, C.W. (1997)`_.
+By default, the WENO3 scheme will be employed for moisture variables if the code is compiled with moisture support. However, users may
+utilize the WENO scheme for dry scalar variables as well.   The scheme for each type is specified by
+
+.. _`Shu, C.W. (1997)`: https://www3.nd.edu/~zxu2/acms60790S13/Shu-WENO-notes.pdf
 
 ::
 
@@ -247,7 +250,9 @@ However, users may utilize the WENO scheme for dry scalar variables as well.   T
    erf.moistscal_horiz_adv_type =
    erf.moistscal_vert_adv_type  =
 
-Ref: Muñoz-Esparza, D., Sauer, J. A., Jensen, A. A., Xue, L., & Grabowski, W. W. (2022). The FastEddy® resident-GPU accelerated large-eddy simulation framework: Moist dynamics extension, validation and sensitivities of modeling non-precipitating shallow cumulus clouds. Journal of Advances in Modeling Earth Systems, 14, e2021MS002904.
+Ref: Muñoz-Esparza, D., Sauer, J. A., Jensen, A. A., Xue, L., & Grabowski, W. W. (2022). The FastEddy® resident-GPU accelerated large-eddy
+simulation framework: Moist dynamics extension, validation and sensitivities of modeling non-precipitating shallow cumulus clouds.
+Journal of Advances in Modeling Earth Systems, 14, e2021MS002904.
 `doi:10.1029/2021MS002904 <https://onlinelibrary.wiley.com/doi/10.1029/2021MS002904>`_
 
 Momentum, Thermal, and Scalar Diffusion Contribution to DNS

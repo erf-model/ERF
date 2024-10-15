@@ -340,8 +340,6 @@ ERF::init_from_metgrid (int lev)
         FArrayBox&      cons_fab = lev_new[Vars::cons][mfi];
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
 
-        const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
-
         // Fill base state data using origin data (initialization and BC arrays)
         //     p_hse     calculate dry pressure
         //     r_hse     calculate dry density
@@ -352,7 +350,7 @@ ERF::init_from_metgrid (int lev)
                                      flag_psfc,
                                      cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab,
                                      z_phys_nd_fab, NC_ght_fab, NC_psfc_fab,
-                                     fabs_for_bcs, mask_c_arr);
+                                     fabs_for_bcs);
     } // mf
 
     // FillBoundary to populate the internal halo cells
@@ -378,7 +376,7 @@ ERF::init_from_metgrid (int lev)
     //       Otherwise, we make the total width match the set width.
     if (real_width-1 <= real_set_width) real_width = real_set_width;
     Print() << "Running with specification width: " << real_set_width
-                   << " and relaxation width: " << real_width - real_set_width << std::endl;
+            << " and relaxation width: " << real_width - real_set_width << std::endl;
 
     // Set up boxes for lateral boundary arrays.
     bdy_data_xlo.resize(ntimes);
@@ -431,11 +429,6 @@ ERF::init_from_metgrid (int lev)
                 bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_y_stag, 1));
                 bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_y_stag, 1));
                 bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_y_stag, 1));
-            } else if (ivar == MetGridBdyVars::R) {
-                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
-                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
-                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
-                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
             } else if (ivar == MetGridBdyVars::T) {
                 bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
                 bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
@@ -459,12 +452,8 @@ ERF::init_from_metgrid (int lev)
     // we only need the whole domain processed at initialization and the lateral boundaries
     // at subsequent times. We can optimize this later if needed. For now, we need to fill
     // the lateral boundary arrays using the info set aside earlier.
-    bool multiply_rho = false;
     amrex::Box xlo_plane, xhi_plane, ylo_plane, yhi_plane;
     for (int it(0); it < ntimes; it++) {
-
-        const Array4<Real const>& R_bcs_arr = fabs_for_bcs[it][MetGridBdyVars::R].const_array();
-
         for (int ivar(MetGridBdyVars::U); ivar < MetGridBdyEnd; ivar++) {
 
             auto xlo_arr = bdy_data_xlo[it][ivar].array();
@@ -474,23 +463,15 @@ ERF::init_from_metgrid (int lev)
             const Array4<Real const>& fabs_for_bcs_arr = fabs_for_bcs[it][ivar].const_array();
 
             if (ivar == MetGridBdyVars::U) {
-                multiply_rho = false;
                 xlo_plane = xlo_plane_x_stag; xhi_plane = xhi_plane_x_stag;
                 ylo_plane = ylo_plane_x_stag; yhi_plane = yhi_plane_x_stag;
             } else if (ivar == MetGridBdyVars::V) {
-                multiply_rho = false;
                 xlo_plane = xlo_plane_y_stag; xhi_plane = xhi_plane_y_stag;
                 ylo_plane = ylo_plane_y_stag; yhi_plane = yhi_plane_y_stag;
-            } else if (ivar == MetGridBdyVars::R) {
-                multiply_rho = false;
-                xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
-                ylo_plane = ylo_plane_no_stag; yhi_plane = yhi_plane_no_stag;
             } else if (ivar == MetGridBdyVars::T) {
-                multiply_rho = false;
                 xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
                 ylo_plane = ylo_plane_no_stag; yhi_plane = yhi_plane_no_stag;
             } else if (ivar == MetGridBdyVars::QV) {
-                multiply_rho = false;
                 xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
                 ylo_plane = ylo_plane_no_stag; yhi_plane = yhi_plane_no_stag;
             } // MetGridBdyVars::QV
@@ -498,26 +479,22 @@ ERF::init_from_metgrid (int lev)
             // west boundary
             ParallelFor(xlo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                xlo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
+                xlo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
             });
             // xvel at east boundary
             ParallelFor(xhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                xhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
+                xhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
             });
             // xvel at south boundary
             ParallelFor(ylo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                ylo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
+                ylo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
             });
             // xvel at north boundary
             ParallelFor(yhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                yhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
+                yhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
             });
 
         } // ivar
@@ -803,8 +780,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& z_phys_cc_fab,
                               const Vector<FArrayBox>& /*NC_ght_fab*/,
                               const Vector<FArrayBox>& NC_psfc_fab,
-                              Vector<Vector<FArrayBox>>& fabs_for_bcs,
-                              const amrex::Array4<const int>& mask_c_arr)
+                              Vector<Vector<FArrayBox>>& fabs_for_bcs)
 {
     int RhoQ_comp = RhoQ1_comp;
     int kmax = amrex::ubound(valid_bx).z;
@@ -885,11 +861,11 @@ init_base_state_from_metgrid (const bool use_moisture,
 
         ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-             // Multiply by Rho to get conserved vars
+            // Multiply by Rho to get conserved vars
             Real Qv = 0.0;
-            new_data(i,j,k,Rho_comp) = r_hse_arr(i,j,k);
+            new_data(i,j,k,Rho_comp)       = r_hse_arr(i,j,k);
             new_data(i,j,k,RhoTheta_comp) *= r_hse_arr(i,j,k);
-            if (use_moisture){
+            if (use_moisture) {
                 Qv = new_data(i,j,k,RhoQ_comp);
                 new_data(i,j,k,RhoQ_comp) *= r_hse_arr(i,j,k);
             }
@@ -963,7 +939,6 @@ init_base_state_from_metgrid (const bool use_moisture,
         valid_bx2d.setRange(2,0);
         auto const orig_psfc = NC_psfc_fab[it].const_array();
         auto const     new_z = z_phys_cc_fab.const_array();
-        auto           r_arr = fabs_for_bcs[it][MetGridBdyVars::R].array();
         auto       Theta_arr = fabs_for_bcs[it][MetGridBdyVars::T].array();
         auto           Q_arr = (use_moisture ) ? fabs_for_bcs[it][MetGridBdyVars::QV].array() : Array4<Real>{};
         auto       p_hse_arr = p_hse_bcs_fab.array();
@@ -983,11 +958,6 @@ init_base_state_from_metgrid (const bool use_moisture,
 
             for (int k=0; k<=kmax; k++) {
                 p_hse_arr(i,j,k) = Pm_vec[k];
-                if (mask_c_arr(i,j,k)) {
-                    r_arr(i,j,k) = Rhom_vec[k];
-                    if (use_moisture) Q_arr(i,j,k) = Rhom_vec[k]*Q_vec[k];
-                    Theta_arr(i,j,k) = Rhom_vec[k]*Thetad_vec[k];
-                  }
             } // k
         });
     } // it

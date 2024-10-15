@@ -36,7 +36,7 @@ struct AdvChoice {
         pp.query("moistscal_vert_adv_type" , moistscal_vert_adv_string);
 
         if (use_efficient_advection){
-           amrex::Print() << "Using efficient advection scheme" << std::endl;;
+           amrex::Print() << "Using efficient advection scheme" << std::endl;
         }
 
         if ( (dycore_horiz_adv_string == "Blended_3rd4th") ||
@@ -96,9 +96,6 @@ struct AdvChoice {
              (dycore_horiz_adv_string == "Centered_6th") )
         {
             dycore_horiz_adv_type = adv_type_convert_string_to_advtype(dycore_horiz_adv_string);
-            amrex::Print() << "Using dycore_horiz_adv_type: " << dycore_horiz_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default dycore_horiz_adv_type" << std::endl;;
         }
 
         if ( (dycore_vert_adv_string == "Centered_2nd") ||
@@ -110,9 +107,6 @@ struct AdvChoice {
              (dycore_vert_adv_string == "Centered_6th") )
         {
             dycore_vert_adv_type = adv_type_convert_string_to_advtype(dycore_vert_adv_string);
-            amrex::Print() << "Using dycore_vert_adv_type: " << dycore_vert_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default dycore_vert_adv_type" << std::endl;;
         }
 
         if ( (dryscal_horiz_adv_string == "Centered_2nd") ||
@@ -126,12 +120,11 @@ struct AdvChoice {
              (dryscal_horiz_adv_string == "WENOZ3"      ) ||
              (dryscal_horiz_adv_string == "WENOMZQ3"    ) ||
              (dryscal_horiz_adv_string == "WENO5"       ) ||
-             (dryscal_horiz_adv_string == "WENOZ5"      ) )
+             (dryscal_horiz_adv_string == "WENOZ5"      ) ||
+             (dryscal_horiz_adv_string == "WENO7"       ) ||
+             (dryscal_horiz_adv_string == "WENOZ7"      ) )
         {
             dryscal_horiz_adv_type = adv_type_convert_string_to_advtype(dryscal_horiz_adv_string);
-            amrex::Print() << "Using dryscal_horiz_adv_type: " << dryscal_horiz_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default dryscal_horiz_adv_type" << std::endl;;
         }
 
         if ( (dryscal_vert_adv_string == "Centered_2nd") ||
@@ -143,14 +136,13 @@ struct AdvChoice {
              (dryscal_vert_adv_string == "Centered_6th") ||
              (dryscal_vert_adv_string == "WENO3"       ) ||
              (dryscal_vert_adv_string == "WENOZ3"      ) ||
-             (dryscal_vert_adv_string == "WENOMZQ3"     ) ||
+             (dryscal_vert_adv_string == "WENOMZQ3"    ) ||
              (dryscal_vert_adv_string == "WENO5"       ) ||
-             (dryscal_vert_adv_string == "WENOZ5"      ) )
+             (dryscal_vert_adv_string == "WENOZ5"      ) ||
+             (dryscal_vert_adv_string == "WENO7"       ) ||
+             (dryscal_vert_adv_string == "WENOZ7"      ))
         {
             dryscal_vert_adv_type = adv_type_convert_string_to_advtype(dryscal_vert_adv_string);
-            amrex::Print() << "Using dryscal_vert_adv_type: " << dryscal_vert_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default dryscal_vert_adv_type" << std::endl;;
         }
 
         if ( (moistscal_horiz_adv_string == "Centered_2nd") ||
@@ -164,12 +156,11 @@ struct AdvChoice {
              (moistscal_horiz_adv_string == "WENOZ3"      ) ||
              (moistscal_horiz_adv_string == "WENOMZQ3"    ) ||
              (moistscal_horiz_adv_string == "WENO5"       ) ||
-             (moistscal_horiz_adv_string == "WENOZ5"      ) )
+             (moistscal_horiz_adv_string == "WENOZ5"      ) ||
+             (moistscal_horiz_adv_string == "WENO7"       ) ||
+             (moistscal_horiz_adv_string == "WENOZ7"      ))
         {
             moistscal_horiz_adv_type = adv_type_convert_string_to_advtype(moistscal_horiz_adv_string);
-            amrex::Print() << "Using moistscal_horiz_adv_type: " << moistscal_horiz_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default moistscal_horiz_adv_type" << std::endl;;
         }
 
         if ( (moistscal_vert_adv_string == "Centered_2nd") ||
@@ -183,12 +174,11 @@ struct AdvChoice {
              (moistscal_vert_adv_string == "WENOZ3"      ) ||
              (moistscal_vert_adv_string == "WENOMZQ3"    ) ||
              (moistscal_vert_adv_string == "WENO5"       ) ||
-             (moistscal_vert_adv_string == "WENOZ5"      ) )
+             (moistscal_vert_adv_string == "WENOZ5"      ) ||
+             (moistscal_vert_adv_string == "WENO7"       ) ||
+             (moistscal_vert_adv_string == "WENOZ7"      ))
         {
             moistscal_vert_adv_type = adv_type_convert_string_to_advtype(moistscal_vert_adv_string);
-            amrex::Print() << "Using moistscal_vert_adv_type: " << moistscal_vert_adv_string << std::endl;
-        } else {
-            amrex::Print() << "Using default moistscal_vert_adv_type" << std::endl;;
         }
 
         pp.queryarr("zero_xflux_faces", zero_xflux);
@@ -199,22 +189,22 @@ struct AdvChoice {
     void display()
     {
         amrex::Print() << "Advection Choices: " << std::endl;
-        amrex::Print() << "dycore_horiz_adv_type       : " << adv_type_convert_int_to_string(dycore_horiz_adv_type);
+        amrex::Print() << "    dycore_horiz_adv_type       : " << adv_type_convert_int_to_string(dycore_horiz_adv_type);
         if (dycore_horiz_upw_frac < 1) amrex::Print() << " with " << 100*dycore_horiz_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
-        amrex::Print() << "dycore_vert_adv_type        : " << adv_type_convert_int_to_string(dycore_vert_adv_type);
+        amrex::Print() << "    dycore_vert_adv_type        : " << adv_type_convert_int_to_string(dycore_vert_adv_type);
         if (dycore_vert_upw_frac < 1) amrex::Print() << " with " << 100*dycore_vert_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
-        amrex::Print() << "dryscal_horiz_adv_type      : " << adv_type_convert_int_to_string(dryscal_horiz_adv_type);
+        amrex::Print() << "    dryscal_horiz_adv_type      : " << adv_type_convert_int_to_string(dryscal_horiz_adv_type);
         if (dryscal_horiz_upw_frac < 1) amrex::Print() << " with " << 100*dryscal_horiz_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
-        amrex::Print() << "dryscal_vert_adv_type       : " << adv_type_convert_int_to_string(dryscal_vert_adv_type);
+        amrex::Print() << "    dryscal_vert_adv_type       : " << adv_type_convert_int_to_string(dryscal_vert_adv_type);
         if (dryscal_vert_upw_frac < 1) amrex::Print() << " with " << 100*dryscal_vert_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
-        amrex::Print() << "moistscal_horiz_adv_type    : " << adv_type_convert_int_to_string(moistscal_horiz_adv_type);
+        amrex::Print() << "    moistscal_horiz_adv_type    : " << adv_type_convert_int_to_string(moistscal_horiz_adv_type);
         if (moistscal_horiz_upw_frac < 1) amrex::Print() << " with " << 100*moistscal_horiz_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
-        amrex::Print() << "moistscal_vert_adv_type     : " << adv_type_convert_int_to_string(moistscal_vert_adv_type);
+        amrex::Print() << "    moistscal_vert_adv_type     : " << adv_type_convert_int_to_string(moistscal_vert_adv_type);
         if (moistscal_vert_upw_frac < 1) amrex::Print() << " with " << 100*moistscal_vert_upw_frac << "% upwinding";
         amrex::Print() << std::endl;
     }
@@ -242,6 +232,10 @@ struct AdvChoice {
             return "WENOZ5";
         } else if (adv_int == AdvType::Weno_3MZQ) {
             return "WENOMZQ3";
+        } else if (adv_int == AdvType::Weno_7) {
+            return "WENO7";
+        } else if (adv_int == AdvType::Weno_7Z) {
+            return "WENOZ7";
         } else {
             return "Unknown";
         }
@@ -269,6 +263,10 @@ struct AdvChoice {
             return AdvType::Weno_5Z;
         } else if (adv_string == "WENOMZQ3") {
             return AdvType::Weno_3MZQ;
+        } else if (adv_string == "WENO7") {
+            return AdvType::Weno_7;
+        } else if (adv_string == "WENOZ7") {
+            return AdvType::Weno_7Z;
         } else {
             return AdvType::Unknown;
         }

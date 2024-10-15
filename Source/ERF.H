@@ -134,8 +134,7 @@ public:
     void WriteMyEBSurface ();
 #endif
 
-#ifdef ERF_USE_POISSON_SOLVE
-    // Project the velocities to be divergence-free
+    // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
     void solve_with_heffte  (int lev, amrex::MultiFab& rhs, amrex::MultiFab& soln,
                              amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
@@ -147,8 +146,6 @@ public:
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
     bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
-
-#endif
 
     // Init (NOT restart or regrid)
     void init_only (int lev, amrex::Real time);
@@ -318,8 +315,10 @@ public:
                                              const amrex::Vector<const amrex::MultiFab*> &mf,
                                              const amrex::Vector<const amrex::MultiFab*> &mf_nd,
                                              const amrex::Vector<std::string> &varnames,
+                                             const amrex::Vector<amrex::Geometry>& my_geom,
                                              amrex::Real time,
                                              const amrex::Vector<int> &level_steps,
+                                             const amrex::Vector<amrex::IntVect>& my_ref_ratio,
                                              const std::string &versionName = "HyperCLaw-V1.1",
                                              const std::string &levelPrefix = "Level_",
                                              const std::string &mfPrefix = "Cell",
@@ -330,8 +329,10 @@ public:
                                                 int nlevels,
                                                 const amrex::Vector<amrex::BoxArray> &bArray,
                                                 const amrex::Vector<std::string> &varnames,
+                                                const amrex::Vector<amrex::Geometry>& my_geom,
                                                 amrex::Real time,
                                                 const amrex::Vector<int> &level_steps,
+                                                const amrex::Vector<amrex::IntVect>& my_ref_ratio,
                                                 const std::string &versionName,
                                                 const std::string &levelPrefix,
                                                 const std::string &mfPrefix) const;
@@ -353,6 +354,8 @@ public:
 
     void init_from_hse (int lev);
 
+    void init_immersed_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
@@ -364,9 +367,6 @@ public:
 
     // Advance a block specified number of time steps
     void Evolve_MB (int MBstep, int max_block_step);
-
-    // Advance a block specified number of time steps
-    void Evolve_MB (MultiBlockContainer* mbc, int MBstep, int max_block_step);
 
     // get the current time values
     amrex::Real get_t_old() {return t_old[0];}
@@ -380,15 +380,14 @@ public:
 
     // Public data copy for MB
     std::vector<amrex::Box> domain_p;
-    MultiBlockContainer *m_mbc = nullptr;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<amrex::Real> t_avg_cnt;
-
 #endif
+
     std::string pp_prefix {"erf"};
 
     void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
@@ -399,7 +398,9 @@ public:
                             amrex::Real time,
                             bool cons_only,
                             int icomp_cons,
-                            int ncomp_cons);
+                            int ncomp_cons,
+                            amrex::IntVect ngvect_cons,
+                            amrex::IntVect ngvect_vels);
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -471,8 +472,8 @@ private:
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
-    // Initialize the bc routines
-    void initialize_bcs        (int lev);
+    // Create the physbcs objects
+    void make_physbcs (int lev);
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
@@ -490,9 +491,6 @@ private:
                     const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                     const amrex::Vector<amrex::MultiFab*>& mfs_mom,
                     bool fillset=true, bool cons_only=false);
-
-    // Compute a new MultiFab by copying from valid region and filling ghost cells -
-    void FillPatchMoistVars (int lev, amrex::MultiFab& mf);
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
     // Unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.
@@ -613,9 +611,9 @@ private:
     InputSpongeData input_sponge_data;
 
     // Vector (6 planes) of DeviceVectors (ncell in plane) for Dirichlet BC data
-    amrex::Gpu::DeviceVector<amrex::Real> xvel_bc_data;
-    amrex::Gpu::DeviceVector<amrex::Real> yvel_bc_data;
-    amrex::Gpu::DeviceVector<amrex::Real> zvel_bc_data;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> xvel_bc_data;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> yvel_bc_data;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
 
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
@@ -674,16 +672,14 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
-#ifdef ERF_USE_POISSON_SOLVE
     amrex::Vector<amrex::MultiFab> pp_inc;
-#endif
 
     // Vector over levels of routines to impose physical boundary conditions
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_u>> physbcs_u;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
-    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w_no_terrain>> physbcs_w_no_terrain;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base;
 
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
@@ -859,6 +855,7 @@ private:
     // plotfile prefix and frequency
     std::string plot_file_1 {"plt_1_"};
     std::string plot_file_2 {"plt_2_"};
+    bool m_expand_plotvars_to_unif_rr = false;
     int m_plot_int_1 = -1;
     int m_plot_int_2 = -1;
     amrex::Real m_plot_per_1 = -1.0;
@@ -931,6 +928,10 @@ private:
     /*! Initialize tracer and hydro particles */
     void initializeTracers ( amrex::ParGDBBase*,
                              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+
+    /*! Restart tracer and hydro particles */
+    void restartTracers ( amrex::ParGDBBase*, const std::string& );
+
     /*! Evolve tracers and hydro particles */
     void evolveTracers( int,
                         amrex::Real,
@@ -939,11 +940,13 @@ private:
 
 #endif
 
+#ifdef ERF_USE_MULTIBLOCK
+    MultiBlockContainer *m_mbc = nullptr;
+#endif
+
     static int verbose;
-#ifdef ERF_USE_POISSON_SOLVE
     static int mg_verbose;
     static bool use_heffte;
-#endif
 
     // Diagnostic output interval
     static int sum_interval;
@@ -1097,6 +1100,16 @@ private:
                || (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
                || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
             { return 3; }
+            else if (
+                  (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7)
+               || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_7)
+               || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_7)
+               || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_7)
+               || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_7Z)
+               || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_7Z)
+               || (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7Z)
+               || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_7Z) )
+            { return 4; }
             else
             { return 2; }
         }

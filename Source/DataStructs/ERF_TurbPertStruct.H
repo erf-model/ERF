@@ -73,31 +73,31 @@ struct TurbulentPerturbation {
         amrex::IntVect boxSize(tpi_boxDim[0],tpi_boxDim[1],tpi_boxDim[2]);
 
         // Starting logic to set the size of the perturbation region(s)
-        amrex::PrintToFile("BoxPerturbationOutput") << "Setting perturbation region in:";
+        //amrex::PrintToFile("BoxPerturbationOutput") << "Setting perturbation region in:";
         // ***** X-direction perturbation *****
         if (tpi_direction[0]) { // West
             lo_x_bx.setSmall(amrex::IntVect(tpi_offset, tpi_direction[1]*tpi_offset, 0));
             lo_x_bx.setBig(amrex::IntVect((tpi_layers*tpi_boxDim[0]-1)+tpi_offset, nx[1]-(tpi_direction[4]*tpi_offset), nx[2]));
-            amrex::PrintToFile("BoxPerturbationOutput") << " West face";
+            //amrex::PrintToFile("BoxPerturbationOutput") << " West face";
         }
 
         if (tpi_direction[3]) { // East
             hi_x_bx.setSmall(amrex::IntVect(nx[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), tpi_direction[1]*tpi_offset, 0));
             hi_x_bx.setBig(amrex::IntVect(nx[0]-tpi_offset, nx[1]-(tpi_direction[4]*tpi_offset), nx[2]));
-            amrex::PrintToFile("BoxPerturbationOutput") << " East face";
+            //amrex::PrintToFile("BoxPerturbationOutput") << " East face";
         }
 
         // ***** Y-direction Perturbation *****
         if (tpi_direction[1]) { // North
             lo_y_bx.setSmall(amrex::IntVect(tpi_direction[0]*tpi_offset, tpi_offset, 0));
             lo_y_bx.setBig(amrex::IntVect(nx[0]-tpi_direction[3]*tpi_offset, ((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, nx[2]));
-            amrex::PrintToFile("BoxPerturbationOutput") << " North face";
+            //amrex::PrintToFile("BoxPerturbationOutput") << " North face";
         }
 
         if (tpi_direction[4]) { // South
             hi_y_bx.setSmall(amrex::IntVect(tpi_direction[0]*tpi_offset, nx[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), 0));
             hi_y_bx.setBig(amrex::IntVect(nx[0]-tpi_direction[3]*tpi_offset, nx[1]-tpi_offset, nx[2]));
-            amrex::PrintToFile("BoxPerturbationOutput") << " South face";
+            //amrex::PrintToFile("BoxPerturbationOutput") << " South face";
         }
 
         if (tpi_direction[2] || tpi_direction[5]) { amrex::Abort("Currently not supporting z-direction flow perturbation"); }
@@ -128,7 +128,7 @@ struct TurbulentPerturbation {
         if (tpi_direction[1]) { tmp_bl.push_back(lo_y_bx); }
         if (tpi_direction[3]) { tmp_bl.push_back(hi_x_bx); }
         if (tpi_direction[4]) { tmp_bl.push_back(hi_y_bx); }
-        amrex::PrintToFile("BoxPerturbationOutput") << "\nBoxList: " << tmp_bl << "\n";
+        //amrex::PrintToFile("BoxPerturbationOutput") << "\nBoxList: " << tmp_bl << "\n";
         amrex::BoxArray tmp_ba(tmp_bl);
         tmp_ba.maxSize(boxSize);
         pb_ba.push_back(tmp_ba);
@@ -155,6 +155,7 @@ struct TurbulentPerturbation {
         tpi_pert_adjust = 0.;
         tpi_net_buoyant = 0.;
 
+        /*
         // Function check point message
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_box_dims: "
                                                     << tpi_boxDim[0] << " "
@@ -171,6 +172,7 @@ struct TurbulentPerturbation {
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_T_intensity: " << tpi_Ti << "\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "Reference length per box = " << tpi_lref << "\n\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "Turbulent perturbation BoxArray:\n" << pb_ba[lev] << "\n";
+        */
     }
 
 
@@ -294,6 +296,13 @@ struct TurbulentPerturbation {
                            const int& lev,
                            const amrex::IndexType& m_ixtype)
     {
+        // Seed the random generator at 1024UL for regression testing
+        int fix_random_seed = 0;
+        amrex::ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
+        if (fix_random_seed) {
+            amrex::InitRandom(1024UL);
+        }
+
         for (amrex::MFIter mfi(pb_cell,TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box vbx = mfi.validbox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
@@ -496,8 +505,9 @@ struct TurbulentPerturbation {
     amrex::Real* get_pb_netZero() { return pb_netZero.data(); }
 
     // Output debug message into a file
-    void debug (amrex::Real time)
+    void debug (amrex::Real /*time*/)
     {
+        /*
         amrex::PrintToFile("BoxPerturbationOutput") << "#################### PB output at time = "
             << time << " ####################\n";
         amrex::PrintToFile("BoxPerturbationOutput") << " Using type: " <<  pt_type << "\n";
@@ -510,6 +520,7 @@ struct TurbulentPerturbation {
                 << ") | pb_amp=" << pb_amp[i] << "\n";
         }
         amrex::PrintToFile("BoxPerturbationOutput") << "\n";
+        */
     }
 
     std::string pp_prefix {"erf"};

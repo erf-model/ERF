@@ -34,6 +34,7 @@ amrex::Real erf_esati (amrex::Real t) {
 
     amrex::Real dtt = t-273.16;
     AMREX_ALWAYS_ASSERT(dtt>-85);
+
     amrex::Real esati;
     if (dtt > 0.0) {
         esati = 0.0;
@@ -59,9 +60,12 @@ amrex::Real erf_esatw (amrex::Real t) {
     amrex::Real const a7 = -0.952447341e-13;
     amrex::Real const a8 = -0.976195544e-15;
 
-    amrex::Real dtt = t-273.16;
-    AMREX_ALWAYS_ASSERT(dtt>-85);
-    AMREX_ALWAYS_ASSERT(dtt<70);
+    amrex::Real dtt_in = t-273.16;
+    AMREX_ALWAYS_ASSERT(dtt_in>-85);
+    //
+    // Rather than assert dt < 70, we impose that the saturation pressure does not change above 70
+    //
+    amrex::Real dtt = std::min(dtt_in,70.);
     amrex::Real esatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
     return esatw;
 }
@@ -111,8 +115,19 @@ amrex::Real erf_dtesatw (amrex::Real t) {
 
     amrex::Real dtt = t-273.16;
     AMREX_ALWAYS_ASSERT(dtt>-85);
-    AMREX_ALWAYS_ASSERT(dtt<70);
-    amrex::Real dtesatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
+
+    amrex::Real dtesatw;
+
+    //
+    // Rather than assert dt < 70, we impose that the saturation pressure does not change above 70,
+    //     hence the derivative is 0.
+    //
+    if (dtt >= 70.) {
+        dtesatw = amrex::Real(0.0);
+    } else {
+        dtesatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
+    }
+
     return dtesatw;
 }
 

@@ -101,7 +101,7 @@ public:
                       const SolverChoice& /*sc*/)
     {
         amrex::Print() << "No perturbation to background fields supplied for "
-            << name() << " problem" << std::endl;;
+            << name() << " problem" << std::endl;
     }
 
     /**
@@ -453,7 +453,6 @@ public:
         amrex::Real T_0 = base_parms.T_0;
         amrex::Print() << "Initializing uniform fields"
             << " rho=" << rho_0 << " theta=" << T_0
-            << " -- this probably only makes sense with gravity turned off"
             << std::endl;
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -485,7 +484,7 @@ protected:
  * Function to init the physical bounds of the domain
  * and instantiate a Problem derived from ProblemBase
 */
-std::unique_ptr<ProblemBase> amrex_probinit (const amrex_real* problo,
-                                             const amrex_real* probhi);
+extern std::unique_ptr<ProblemBase> amrex_probinit (const amrex_real* problo,
+                                                    const amrex_real* probhi) AMREX_ATTRIBUTE_WEAK;
 
 #endif

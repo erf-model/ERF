@@ -124,6 +124,18 @@ public:
     int
     Qstate_Size () override { return Kessler::m_qstate_size; }
 
+    void
+    Qmoist_Restart_Vars ( const SolverChoice& a_sc,
+                          std::vector<int>& a_idx,
+                          std::vector<std::string>& a_names) const override
+    {
+        a_idx.clear();
+        a_names.clear();
+        if (a_sc.moisture_type == MoistureType::Kessler) {
+            a_idx.push_back(4); a_names.push_back("RainAccum");
+        }
+    }
+
 private:
     // Number of qmoist variables (qt, qv, qcl, qp)
     int m_qmoist_size = 5;

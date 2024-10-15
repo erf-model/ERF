@@ -57,6 +57,14 @@ public:
     int
     Qstate_Size () { return NullMoist::m_qstate_size; }
 
+    virtual
+    void
+    Qmoist_Restart_Vars ( const SolverChoice&, std::vector<int>& a_idx, std::vector<std::string>& a_names) const
+    {
+        a_idx.clear();
+        a_names.clear();
+    }
+
 private:
     int m_qmoist_size = 1;
     int m_qstate_size = 0;

@@ -1,9 +1,11 @@
+CEXE_sources += ERF_init_bcs.cpp
 CEXE_sources += ERF_init_uniform.cpp
 CEXE_sources += ERF_init_from_hse.cpp
 CEXE_sources += ERF_init_custom.cpp
 CEXE_sources += ERF_init_from_input_sounding.cpp
-CEXE_sources += ERF_input_sponge.cpp
-CEXE_sources += ERF_init_bcs.cpp
+CEXE_sources += ERF_init_geowind.cpp
+CEXE_sources += ERF_init_rayleigh.cpp
+CEXE_sources += ERF_init_sponge.cpp
 CEXE_sources += ERF_init1d.cpp
 CEXE_sources += ERF_init_TurbPert.cpp
 

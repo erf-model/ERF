@@ -1,9 +1,10 @@
 #include "ERF.H"
-#include <AMReX_MLMG.H>
-#include <AMReX_MLPoisson.H>
 #include "ERF_Utils.H"
 
 #ifdef ERF_USE_POISSON_SOLVE
+#include <AMReX_MLMG.H>
+#include <AMReX_MLPoisson.H>
+#endif
 
 using namespace amrex;
 
@@ -13,7 +14,8 @@ using namespace amrex;
  */
 void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFab& pmf)
 {
-    BL_PROFILE("ERF::project_velocities()");
+#ifdef ERF_USE_POISSON_SOLVE
+    BL_PROFILE("ERF::project_velocities_tb()");
     AMREX_ALWAYS_ASSERT(!solverChoice.use_terrain);
 
     // Make sure the solver only sees the levels over which we are solving
@@ -245,8 +247,13 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
                     << std::endl;
             }
         });
-    }
+    } // mfi
 #endif
+#endif
+#else
+    amrex::ignore_unused(lev);
+    amrex::ignore_unused(l_dt);
+    amrex::ignore_unused(vmf);
+    amrex::ignore_unused(pmf);
 #endif
 }
-#endif

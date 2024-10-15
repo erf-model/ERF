@@ -111,6 +111,18 @@ public:
         return m_moist_model->Qstate_Size();
     }
 
+    /*! \brief initialize particles in particle container */
+    inline void initParticles ( std::unique_ptr<amrex::MultiFab>& z_phys_nd /*!< Nodal z heights */ )
+    {
+        m_moist_model->InitParticles(z_phys_nd);
+    }
+
+    /*! \brief restart particles in particle container */
+    inline void restartParticles ( amrex::ParGDBBase* a_gdb, const std::string& a_fname)
+    {
+        m_moist_model->RestartParticles(a_gdb, a_fname);
+    }
+
     /*! \brief get the particle container from the moisture model */
     inline ERFPC* getParticleContainer () const
     {
@@ -121,6 +133,21 @@ public:
     inline const std::string& getName () const
     {
         return m_moist_model->getName();
+    }
+
+    /*! \brief get the indices and names of moisture model variables for restart
+               at a given level */
+    void Get_Qmoist_Restart_Vars ( const int a_lev, /*!< level */
+                                   const SolverChoice& a_sc, /*!< Solver choice object */
+                                   std::vector<int>& a_idx, /*!< indices */
+                                   std::vector<std::string>& a_names /*!< names */ ) const override
+    {
+        if (a_lev == 0) {
+            m_moist_model->Qmoist_Restart_Vars( a_sc, a_idx, a_names );
+        } else {
+            a_idx.clear();
+            a_names.clear();
+        }
     }
 
 protected:

@@ -38,15 +38,15 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // TODO: Can test on multiple levels later
     // Update the inflow perturbation update time and amplitude
     if (lev == 0) {
-        if (solverChoice.pert_type == PerturbationType::perturbSource ||
-            solverChoice.pert_type == PerturbationType::perturbDirect)
+        if (solverChoice.pert_type == PerturbationType::Source ||
+            solverChoice.pert_type == PerturbationType::Direct)
         {
             turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
         }
 
-        // If perturbDirect is selected, directly add the computed perturbation
+        // If PerturbationType::Direct is selected, directly add the computed perturbation
         // on the conserved field
-        if (solverChoice.pert_type == PerturbationType::perturbDirect)
+        if (solverChoice.pert_type == PerturbationType::Direct)
         {
             auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
             for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
@@ -92,14 +92,20 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     V_new.setVal(1.e34,V_new.nGrowVect());
     W_new.setVal(1.e34,W_new.nGrowVect());
 
+    //
+    // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
+    //
     FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
                          {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]});
-
-    if (solverChoice.moisture_type != MoistureType::None) {
-        // TODO: This is only qv
-        if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0]));
-    }
-
+    //
+    // So we must convert the fillpatched to momenta, including the ghost values
+    //
+    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
+                       V_old, rV_old[lev].nGrowVect(),
+                       W_old, rW_old[lev].nGrowVect(),
+                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
+                       Geom(lev).Domain(),
+                       domain_bcs_type);
 
 #if defined(ERF_USE_WINDFARM)
     if (solverChoice.windfarm_type != WindFarmType::None) {

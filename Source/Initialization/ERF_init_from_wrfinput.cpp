@@ -17,7 +17,7 @@ void
 read_from_wrfinput (int lev, const Box& domain, const std::string& fname,
                     FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
                     FArrayBox& NC_zvel_fab, FArrayBox& NC_rho_fab,
-                    FArrayBox& NC_rhop_fab, FArrayBox& NC_rhotheta_fab,
+                    FArrayBox& NC_rhop_fab, FArrayBox& NC_theta_fab,
                     FArrayBox& NC_MUB_fab ,
                     FArrayBox& NC_MSFU_fab, FArrayBox& NC_MSFV_fab,
                     FArrayBox& NC_MSFM_fab, FArrayBox& NC_SST_fab,
@@ -51,15 +51,11 @@ void
 convert_wrfbdy_data (const Box& domain,
                      Vector<Vector<FArrayBox>>& bdy_data,
                      const FArrayBox& NC_MUB_fab,
-                     const FArrayBox& NC_PH_fab,
-                     const FArrayBox& NC_PHB_fab,
                      const FArrayBox& NC_C1H_fab,
                      const FArrayBox& NC_C2H_fab,
-                     const FArrayBox& NC_RDNW_fab,
                      const FArrayBox& NC_xvel_fab,
                      const FArrayBox& NC_yvel_fab,
-                     const FArrayBox& NC_rho_fab,
-                     const FArrayBox& NC_rhoth_fab,
+                     const FArrayBox& NC_theta_fab,
                      const FArrayBox& NC_QVAPOR_fab);
 
 void
@@ -75,7 +71,7 @@ init_state_from_wrfinput (int lev,
                           const Vector<FArrayBox>& NC_yvel_fab,
                           const Vector<FArrayBox>& NC_zvel_fab,
                           const Vector<FArrayBox>& NC_rho_fab,
-                          const Vector<FArrayBox>& NC_rhotheta_fab,
+                          const Vector<FArrayBox>& NC_theta_fab,
                           const int n_qstate,
                           const int RhoQr_comp);
 
@@ -126,7 +122,7 @@ ERF::init_from_wrfinput (int lev)
     Vector<FArrayBox> NC_zvel_fab;   NC_zvel_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_rho_fab;    NC_rho_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_rhop_fab;   NC_rhop_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_rhoth_fab;  NC_rhoth_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_theta_fab;  NC_theta_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_MUB_fab;    NC_MUB_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_MSFU_fab;   NC_MSFU_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_MSFV_fab;   NC_MSFV_fab.resize(num_boxes_at_level[lev]);
@@ -148,21 +144,22 @@ ERF::init_from_wrfinput (int lev)
     Vector<FArrayBox> NC_LON_fab;    NC_LON_fab.resize(num_boxes_at_level[lev]);
 
     // Print() << "Building initial FABS from file " << nc_init_file[lev][idx] << std::endl;
-    if (nc_init_file.empty())
+    if (nc_init_file.empty()) {
         amrex::Error("NetCDF initialization file name must be provided via input");
+    }
 
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
     {
         read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
-                           NC_xvel_fab[idx]  , NC_yvel_fab[idx]  , NC_zvel_fab[idx] , NC_rho_fab[idx],
-                           NC_rhop_fab[idx]  , NC_rhoth_fab[idx] , NC_MUB_fab[idx]  ,
-                           NC_MSFU_fab[idx]  , NC_MSFV_fab[idx]  , NC_MSFM_fab[idx] ,
-                           NC_SST_fab[idx]   , NC_LANDMSK_fab[idx], NC_C1H_fab[idx] ,
-                           NC_C2H_fab[idx]  , NC_RDNW_fab[idx],
-                           NC_QVAPOR_fab[idx], NC_QCLOUD_fab[idx], NC_QRAIN_fab[idx],
-                           NC_PH_fab[idx]    , NC_P_fab[idx]     , NC_PHB_fab[idx]  ,
-                           NC_ALB_fab[idx]   , NC_PB_fab[idx]    ,
-                           NC_LAT_fab[idx]   , NC_LON_fab[idx],
+                           NC_xvel_fab[idx]  , NC_yvel_fab[idx]   , NC_zvel_fab[idx] , NC_rho_fab[idx],
+                           NC_rhop_fab[idx]  , NC_theta_fab[idx]  , NC_MUB_fab[idx]  ,
+                           NC_MSFU_fab[idx]  , NC_MSFV_fab[idx]   , NC_MSFM_fab[idx] ,
+                           NC_SST_fab[idx]   , NC_LANDMSK_fab[idx], NC_C1H_fab[idx]  ,
+                           NC_C2H_fab[idx]   , NC_RDNW_fab[idx]   ,
+                           NC_QVAPOR_fab[idx], NC_QCLOUD_fab[idx] , NC_QRAIN_fab[idx],
+                           NC_PH_fab[idx]    , NC_P_fab[idx]      , NC_PHB_fab[idx]  ,
+                           NC_ALB_fab[idx]   , NC_PB_fab[idx]     ,
+                           NC_LAT_fab[idx]   , NC_LON_fab[idx]    ,
                            solverChoice.moisture_type, Latitude, Longitude, geom[lev]);
     }
 
@@ -184,7 +181,7 @@ ERF::init_from_wrfinput (int lev)
         init_state_from_wrfinput(lev, cons_fab, xvel_fab, yvel_fab, zvel_fab,
                                  NC_QVAPOR_fab, NC_QCLOUD_fab, NC_QRAIN_fab,
                                  NC_xvel_fab, NC_yvel_fab, NC_zvel_fab,
-                                 NC_rho_fab, NC_rhoth_fab,
+                                 NC_rho_fab, NC_theta_fab,
                                  n_qstate, solverChoice.RhoQr_comp);
     } // mf
 
@@ -301,8 +298,9 @@ ERF::init_from_wrfinput (int lev)
     }
 
     if (init_type == "real" && (lev == 0)) {
-        if (nc_bdy_file.empty())
+        if (nc_bdy_file.empty()) {
             amrex::Error("NetCDF boundary file name must be provided via input");
+        }
         bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              real_width, start_bdy_time);
@@ -312,21 +310,17 @@ ERF::init_from_wrfinput (int lev)
                 << " and relaxation width: " << real_width - real_set_width << std::endl;
 
         convert_wrfbdy_data(domain,bdy_data_xlo,
-                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
-                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
-                            NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
+                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0],
+                            NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
         convert_wrfbdy_data(domain,bdy_data_xhi,
-                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
-                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
-                            NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
+                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0],
+                            NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
         convert_wrfbdy_data(domain,bdy_data_ylo,
-                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
-                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
-                            NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
+                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0],
+                            NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
         convert_wrfbdy_data(domain,bdy_data_yhi,
-                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
-                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
-                            NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
+                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0] ,
+                            NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
     }
 
     // Start at the earliest time (read_from_wrfbdy)
@@ -346,7 +340,7 @@ ERF::init_from_wrfinput (int lev)
  * @param NC_yvel_fab Vector of FArrayBox objects with the WRF dataset specifying y-velocity
  * @param NC_zvel_fab Vector of FArrayBox objects with the WRF dataset specifying z-velocity
  * @param NC_rho_fab Vector of FArrayBox objects with the WRF dataset specifying density
- * @param NC_rhotheta_fab Vector of FArrayBox objects with the WRF dataset specifying density*(potential temperature)
+ * @param NC_theta_fab Vector of FArrayBox objects with the WRF dataset specifying density*(potential temperature)
  */
 void
 init_state_from_wrfinput (int /*lev*/,
@@ -361,7 +355,7 @@ init_state_from_wrfinput (int /*lev*/,
                           const Vector<FArrayBox>& NC_yvel_fab,
                           const Vector<FArrayBox>& NC_zvel_fab,
                           const Vector<FArrayBox>& NC_rho_fab,
-                          const Vector<FArrayBox>& NC_rhotheta_fab,
+                          const Vector<FArrayBox>& NC_theta_fab,
                           const int n_qstate,
                           const int RhoQr_comp)
 {
@@ -386,8 +380,10 @@ init_state_from_wrfinput (int /*lev*/,
 
         // This copies the density
         state_fab.template copy<RunOn::Device>(NC_rho_fab[idx], 0, Rho_comp, 1);
+
         // This copies (rho*theta)
-        state_fab.template copy<RunOn::Device>(NC_rhotheta_fab[idx], 0, RhoTheta_comp, 1);
+        state_fab.template copy<RunOn::Device>(NC_theta_fab[idx], 0, RhoTheta_comp, 1);
+        state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]  , 0, RhoTheta_comp, 1);
 
         if (n_qstate >= 1) {
           state_fab.template copy<RunOn::Device>(NC_QVAPOR_fab[idx], 0, RhoQ1_comp, 1);
@@ -577,6 +573,7 @@ verify_terrain_top_boundary (const Real& z_top,
         if ((z_top > MaxMax_h[0]) || (z_top < MaxMax_h[1])) {
             Print() << "Z problem extent " << z_top << " does not match NETCDF file min "
                     << MaxMax_h[1] << " and max " << MaxMax_h[0] << "!\n";
+            Print() << "To run you must set the z component of prob_hi or prob_extent to lie between the netcdf bounds" << std::endl;
             Abort("Domain specification error");
         }
     }

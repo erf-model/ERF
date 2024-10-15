@@ -126,7 +126,7 @@ The EWP model does not have a concept of intersected area by the turbine rotor l
 
 .. _actuator_disk_model_simplified:
 
-Actuator Disk Model - Simplified
+Simplified actuator disk model
 =================================
 
 A simplified actuator disk model based on one-dimensional momentum theory is implemented (See Section 3.2 in `Wind Energy Handbook 2nd edition`_). A schematic of the actuator disk is shown in  Fig. :numref:`fig:ActuatorDisk_Schematic`.
@@ -137,7 +137,7 @@ The model is implemented as source terms in the equations for the horizontal vel
     F = 2 \rho \pi R^2 (\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1-a) \\
       = \int_0^{2\pi}\int_0^R 2 \rho (\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a) r\,dr\,d\theta,
 
-where :math:`\rho` is the density of incoming air, :math:`\mathbf{U}_\infty` is the velocity vector of incoming air at some distance (say :math:`d=2.5` times the turbine diameter) upstream of the turbine (see Fig. :numref:`fig:ActuatorDisk_Sampling`), :math:`\mathbf{n}` is the surface normal vector of the actuator disk, and :math:`a = 1 - \cfrac{C_P}{C_T}`, is the axial induction factor for the turbine, and :math:`R` is the radius of the wind turbine swept area. The integration is performed over the swept area of the disk. Hence, the force on an elemental annular disc of thickness :math:`dr` is
+where :math:`\rho` is the density of incoming air, :math:`\mathbf{U}_\infty` is the velocity vector of incoming air at some distance (say :math:`d=2.5` times the turbine diameter) upstream of the turbine (see Fig. :numref:`fig:ActuatorDisk_Sampling`), :math:`\mathbf{n}` is the surface normal vector of the actuator disk, and :math:`a = 1 - \cfrac{C_P}{C_T}`, is the axial induction factor for the turbine, and :math:`R` is the radius of the wind turbine swept area. The integration is performed over the swept area of the disk. Hence, the force on an elemental annular disk of thickness :math:`dr` is
 
 .. math::
 
@@ -180,6 +180,139 @@ where :math:`dA` is the area of the actuator disk in the mesh cell (see Fig. :nu
 .. _`Wind Energy Handbook 2nd edition`: https://www.wiley.com/en-us/Wind+Energy+Handbook%2C+2nd+Edition-p-9781119993926
 
 .. _Inputs:
+
+
+.. _generalized_actuator_disk_model:
+
+Generalized actuator disk model
+===============================
+
+The generalized actuator model (GAD) based on blade element theory (`Mirocha et. al. 2014`_, see Chapter 3 of `Small Wind Turbines`_) is implemented. Similar to the simplified actuator disk model, GAD also models the wind turbine as a disk, but takes into account the details of the blade geometry (see :numref:`fig:GAD_Schematic`). The forces on the blades in the x, y, z directions are computed, and that contributes to the source terms for the fluid momentum equations. The source terms in a mesh cell inside the actuator disk are given as:
+
+.. math::
+   :label: GAD_source_terms
+
+   \frac{\partial u}{\partial t} &= -\frac{F_x}{\rho \Delta x\Delta y\Delta z} \\
+   \frac{\partial v}{\partial t} &= -\frac{F_y}{\rho \Delta x\Delta y\Delta z} \\
+   \frac{\partial w}{\partial t} &= -\frac{F_z}{\rho \Delta x\Delta y\Delta z},
+
+where :math:`\rho` is the density of air in the cell, and :math:`\Delta x, \Delta y, \Delta z` are the mesh spacing in the x, y, and z directions. The forces on the GAD are given by:
+
+.. math::
+   :label: GAD_forces
+
+   F_x &= F_n \cos{\Phi} + F_t \sin\zeta \sin\Phi \\
+   F_y &= F_n \sin{\Phi} - F_t \sin\zeta \cos\Phi \\
+   F_z &= -F_t \cos\zeta,
+
+where :math:`F_n` and :math:`F_t` are the normal and tangential forces, and the angles are as shown in Figure :numref:`fig:GAD_Schematic`. The normal and tangential forces are:
+
+.. math::
+   :label: GAD_Fn_Ft
+
+   \begin{bmatrix}
+   F_n \\
+   F_t
+   \end{bmatrix}
+   =
+   \begin{bmatrix}
+   \cos\Psi & \sin\Psi \\
+   \sin\Psi & -\cos\Psi
+   \end{bmatrix}
+   \begin{bmatrix}
+   L \\
+   D
+   \end{bmatrix},
+
+where
+
+.. math::
+
+   \Psi = \tan^{-1}\left(\frac{V_n}{V_t}\right),
+
+and
+
+.. math::
+   :label: GAD_Vn_Vt
+
+   V_n &= V_0(1-a_n) \\
+   V_t &= \Omega(1+a_t)r,
+
+where :math:`\Omega` is the rotational speed of the turbine, :math:`r` is the radial location along the blade span, and :math:`a_n` and :math:`a_t` are the normal and tangential induction factors. The lift and drag forces are given by:
+
+.. math::
+   :label: GAD_L_D
+
+   L &= \frac{1}{2} \rho V_r^2 c C_l \\
+   D &= \frac{1}{2} \rho V_r^2 c C_d,
+
+where :math:`\rho` is the density of air, :math:`c` is the chord length of the airfoil cross-section, :math:`C_l` and :math:`C_d` are the sectional lift and drag coefficients on the airfoil cross-section, and the relative wind velocity is :math:`V_r = \sqrt{V_n^2 + V_t^2}`. The normal and tangential sectional coefficients are computed as:
+
+.. math::
+   :label: GAD_Cn_Ct
+
+   \begin{bmatrix}
+   C_n \\
+   C_t
+   \end{bmatrix}
+   =
+   \begin{bmatrix}
+   \cos\Psi & \sin\Psi \\
+   \sin\Psi & -\cos\Psi
+   \end{bmatrix}
+   \begin{bmatrix}
+   C_l \\
+   C_d
+   \end{bmatrix},
+
+and the normal and tangential induction factors are given by:
+
+.. math::
+   :label: GAD_an_at
+
+   a_n &= \left[1 + \frac{4F \sin^2\psi}{s C_n}\right]^{-1} \\
+   a_t &= \left[\frac{4F \sin\psi \cos\psi}{s C_t} - 1\right]^{-1},
+
+where
+
+.. math::
+
+   F = F_\text{tip} + F_\text{hub} = \frac{2}{\pi} \left[\cos^{-1}\left(\exp(-f_\text{tip})\right) + \cos^{-1}\left(\exp(-f_\text{hub})\right)\right],
+
+and
+
+.. math::
+
+   f_\text{tip} &= B \frac{(r_\text{tip}-r)}{2r \sin\psi} \\
+   f_\text{hub} &= B \frac{(r-r_\text{hub})}{2r \sin\psi},
+
+where :math:`r_\text{hub}` and :math:`r_\text{tip}` are the radius of the hub and the blade tip from the center of rotation of the disk, :math:`r` is the radial location along the blade span, and the solidity factor is :math:`s=\frac{cB}{2\pi r}`, where :math:`B` is the number of blades.
+
+An iterative procedure is needed to compute the source terms, and is as follows:
+
+1. An initial value is assumed for the normal and tangential induction factors :math:`a_n` and :math:`a_t`.
+2. Compute the normal and tangential velocities from Eqn. :eq:`GAD_Vn_Vt`.
+3. From the tables for the `details of the blade geometry`_ and the `sectional coefficients of the airfoil cross sections`_, compute the values of :math:`C_l` and :math:`C_d` corresponding to the radial location :math:`r` along the blade span and the angle of attack :math:`\alpha = \psi - \xi`.
+4. Compute the normal and tangential sectional coefficients :math:`C_n` and :math:`C_t` from Eqn. :eq:`GAD_Cn_Ct`.
+5. Compute the normal and tangential induction factors :math:`a_n` and :math:`a_t` using Eqn. :eq:`GAD_an_at`.
+6. Repeat steps 2 to 5 until the error in the normal and tangential induction factors, :math:`a_n` and :math:`a_t`, are less than :math:`1 \times 10^{-5}`.
+7. Once the iterations converge, compute the sectional lift and drag forces, :math:`L` and :math:`D`, using Eqn. :eq:`GAD_L_D`.
+8. Compute the normal and tangential forces, :math:`F_n` and :math:`F_t`, using Eqn. :eq:`GAD_Fn_Ft`.
+9. Compute the forces on the disk using Eqn. :eq:`GAD_forces`.
+10. Compute the source terms in the momentum equation using Eqn. :eq:`GAD_source_terms`.
+
+.. _fig:GAD_Schematic:
+
+.. figure:: ../figures/GAD_Schematic.png
+   :width: 600
+   :align: center
+
+   Different views of the GAD showing the forces and angles involved: Blade cross section showing the normal (:math:`V_n`) and tangential (:math:`V_t`) components of velocity with the normal (:math:`a_n`) and tangential (:math:`a_t`) induction factors, relative wind velocity :math:`V_r`, blade twist angle :math:`\xi`, angle of relative wind :math:`\psi`, lift (:math:`L`) and drag (:math:`D`) forces, and normal (:math:`F_n`) and tangential (:math:`F_t`) forces; top view showing the flow direction and inclination angle :math:`\Phi`; and front view showing the actuator disk rotating clockwise.
+
+.. _`Mirocha et. al. 2014`: https://doi.org/10.1063/1.4861061
+.. _`Small Wind Turbines`: https://doi.org/10.1007/978-1-84996-175-2
+.. _`details of the blade geometry`: https://github.com/NREL/openfast-turbine-models/blob/main/IEA-scaled/NREL-2.8-127/20_monolithic_opt2/OpenFAST/NREL-2p8-127_AeroDyn15_blade.dat
+.. _`sectional coefficients of the airfoil cross sections` : https://github.com/NREL/openfast-turbine-models/tree/main/IEA-scaled/NREL-2.8-127/20_monolithic_opt2/OpenFAST/Airfoils
 
 Inputs for wind farm parametrization models
 ------------------------------------------------------------

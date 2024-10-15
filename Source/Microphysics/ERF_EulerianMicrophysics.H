@@ -31,14 +31,11 @@ public:
             a_model_type == MoistureType::SAM_NoIce ||
             a_model_type == MoistureType::SAM_NoPrecip_NoIce) {
             SetModel<SAM>();
-            amrex::Print() << "SAM moisture model!\n";
         } else if (a_model_type == MoistureType::Kessler ||
                    a_model_type == MoistureType::Kessler_NoRain) {
             SetModel<Kessler>();
-            amrex::Print() << "Kessler moisture model!\n";
         } else if (a_model_type == MoistureType::None) {
             SetModel<NullMoist>();
-            amrex::Print() << "No moisture model!\n";
         } else {
             amrex::Abort("EulerianMicrophysics: Dont know this moisture_type!") ;
         }
@@ -107,6 +104,16 @@ public:
     int Get_Qstate_Size () override
     {
         return m_moist_model[0]->Qstate_Size();
+    }
+
+    /*! \brief get the indices and names of moisture model variables for restart
+               at a given level */
+    void Get_Qmoist_Restart_Vars ( const int a_lev, /*!< level */
+                                   const SolverChoice& a_sc, /*!< Solver choice object */
+                                   std::vector<int>& a_idx, /*!< indices */
+                                   std::vector<std::string>& a_names /*!< names */ ) const override
+    {
+        m_moist_model[a_lev]->Qmoist_Restart_Vars( a_sc, a_idx, a_names );
     }
 
 protected:
