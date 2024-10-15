@@ -15,18 +15,31 @@
           const Box& gbx = mfi.growntilebox(ng);
           const Array4<const Real>& cons_arr     = cons_state.array(mfi);
           const Array4<      Real>& prim_arr     = S_prim.array(mfi);
-          const Array4<      Real>& pi_stage_arr = pi_stage.array(mfi);
-          const Real rdOcp = solverChoice.rdOcp;
 
+          //
+          // We may need > one ghost cells of prim in order to compute higher order advective terms
+          //
           amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
             Real rho       = cons_arr(i,j,k,Rho_comp);
             Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
             prim_arr(i,j,k,PrimTheta_comp) = rho_theta / rho;
-            pi_stage_arr(i,j,k) = getExnergivenRTh(rho_theta, rdOcp);
             for (int n = 1; n < ncomp_prim; ++n) {
               prim_arr(i,j,k,PrimTheta_comp + n) = cons_arr(i,j,k,RhoTheta_comp + n) / rho;
             }
+          });
+
+          //
+          // We only use one ghost cell of pi_stage so we only fill one here
+          //
+          const Box& gbx1 = mfi.growntilebox(1);
+
+          const Array4<      Real>& pi_stage_arr = pi_stage.array(mfi);
+          const Real rdOcp = solverChoice.rdOcp;
+
+          amrex::ParallelFor(gbx1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+          {
+            pi_stage_arr(i,j,k) = getExnergivenRTh(cons_arr(i,j,k,RhoTheta_comp), rdOcp);
           });
       } // mfi
     };

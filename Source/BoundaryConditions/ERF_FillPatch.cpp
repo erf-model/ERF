@@ -84,24 +84,18 @@ ERF::FillPatch (int lev, Real time,
         FillPatchSingleLevel(*mfs_vel[Vars::cons], ngvect_cons, time, fmf, IntVect(0,0,0), ftime,
                              0, 0, ncomp, geom[lev]);
 
-        (*physbcs_cons[lev])(*mfs_vel[Vars::cons],0,ncomp,ngvect_cons,time,BCVars::cons_bc);
-
         if (!cons_only) {
             fmf = {&vars_old[lev][Vars::xvel], &vars_new[lev][Vars::xvel]};
             FillPatchSingleLevel(*mfs_vel[Vars::xvel], ngvect_vels, time, fmf,
                                  IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
-            (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
 
             fmf = {&vars_old[lev][Vars::yvel], &vars_new[lev][Vars::yvel]};
             FillPatchSingleLevel(*mfs_vel[Vars::yvel], ngvect_vels, time, fmf,
                                  IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
-            (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
 
             fmf = {&vars_old[lev][Vars::zvel], &vars_new[lev][Vars::zvel]};
             FillPatchSingleLevel(*mfs_vel[Vars::zvel], ngvect_vels, time, fmf,
                                  IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
-            (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                              ngvect_vels,time,BCVars::zvel_bc);
         } // !cons_only
 
     } else {
@@ -115,12 +109,9 @@ ERF::FillPatch (int lev, Real time,
         mapper = &cell_cons_interp;
 
         // Impose physical bc's on coarse data (note time and 0 are not used)
+        // Note that we call FillBoundary inside the physbcs call
         (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],0,mf_c.nComp(),ngvect_cons,time,BCVars::cons_bc);
         (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],0,mf_c.nComp(),ngvect_cons,time,BCVars::cons_bc);
-
-        // Make sure internal ghost cells are filled as well
-        vars_old[lev-1][Vars::cons].FillBoundary(geom[lev-1].periodicity());
-        vars_new[lev-1][Vars::cons].FillBoundary(geom[lev-1].periodicity());
 
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
         FillPatchTwoLevels(mf_c, ngvect_cons, IntVect(0,0,0),
@@ -128,9 +119,6 @@ ERF::FillPatch (int lev, Real time,
                            0, 0, mf_c.nComp(), geom[lev-1], geom[lev],
                            refRatio(lev-1), mapper, domain_bcs_type,
                            BCVars::cons_bc);
-
-        // Impose physical bc's on fine data
-        (*physbcs_cons[lev])(mf_c,0,mf_c.nComp(),ngvect_cons,time,BCVars::cons_bc);
 
         if (!cons_only)
         {
@@ -143,12 +131,9 @@ ERF::FillPatch (int lev, Real time,
             // **********************************************************************
 
             // Impose physical bc's on coarse data (note time and 0 are not used)
+            // Note that we call FillBoundary inside the physbcs call
             (*physbcs_u[lev-1])(vars_old[lev-1][Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
             (*physbcs_u[lev-1])(vars_new[lev-1][Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
-
-            // Make sure internal ghost cells are filled as well
-            vars_old[lev-1][Vars::xvel].FillBoundary(geom[lev-1].periodicity());
-            vars_new[lev-1][Vars::xvel].FillBoundary(geom[lev-1].periodicity());
 
             fmf = {&vars_old[lev  ][Vars::xvel], &vars_new[lev  ][Vars::xvel]};
             cmf = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
@@ -160,18 +145,12 @@ ERF::FillPatch (int lev, Real time,
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BCVars::xvel_bc);
 
-            // Impose physical bc's on fine data
-            (*physbcs_u[lev])(vars_new[lev][Vars::xvel],0,mf_u.nComp(),ngvect_vels,time,BCVars::xvel_bc);
-
             // **********************************************************************
 
             // Impose physical bc's on coarse data (note time and 0 are not used)
+            // Note that we call FillBoundary inside the physbcs call
             (*physbcs_v[lev-1])(vars_old[lev-1][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
             (*physbcs_v[lev-1])(vars_new[lev-1][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
-
-            // Make sure internal ghost cells are filled as well
-            vars_old[lev-1][Vars::yvel].FillBoundary(geom[lev-1].periodicity());
-            vars_new[lev-1][Vars::yvel].FillBoundary(geom[lev-1].periodicity());
 
             fmf = {&vars_old[lev  ][Vars::yvel], &vars_new[lev  ][Vars::yvel]};
             cmf = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
@@ -183,12 +162,10 @@ ERF::FillPatch (int lev, Real time,
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BCVars::yvel_bc);
 
-            // Impose physical bc's on fine data
-            (*physbcs_v[lev])(vars_new[lev][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
-
             // **********************************************************************
 
             // Impose physical bc's on coarse data (note time and 0 are not used)
+            // Note that we call FillBoundary inside the physbcs call
             (*physbcs_w[lev-1])(vars_old[lev-1][Vars::zvel],
                                 vars_old[lev-1][Vars::xvel],
                                 vars_old[lev-1][Vars::yvel],
@@ -197,10 +174,6 @@ ERF::FillPatch (int lev, Real time,
                                 vars_new[lev-1][Vars::xvel],
                                 vars_new[lev-1][Vars::yvel],
                                 ngvect_vels,time,BCVars::zvel_bc);
-
-            // Make sure internal ghost cells are filled as well
-            vars_old[lev-1][Vars::zvel].FillBoundary(geom[lev-1].periodicity());
-            vars_new[lev-1][Vars::zvel].FillBoundary(geom[lev-1].periodicity());
 
             fmf = {&vars_old[lev  ][Vars::zvel], &vars_new[lev  ][Vars::zvel]};
             cmf = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
@@ -211,12 +184,6 @@ ERF::FillPatch (int lev, Real time,
                                0, 0, 1, geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BCVars::zvel_bc);
-
-
-            // Impose physical bc's on fine data -- note the u and v have been filled above
-            (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                              ngvect_vels,time,BCVars::zvel_bc);
-
         } // !cons_only
     } // lev > 0
 
@@ -236,6 +203,7 @@ ERF::FillPatch (int lev, Real time,
     if (m_r2d) fill_from_bndryregs(mfs_vel,time);
 
     // We call these even if init_type == real because these will fill the vertical bcs
+    // Note that we call FillBoundary inside the physbcs call
     (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc);
     if (!cons_only) {
         (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
@@ -243,37 +211,6 @@ ERF::FillPatch (int lev, Real time,
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
                           ngvect_vels,time,BCVars::zvel_bc);
     }
-}
-
-/*
- * Fill ghost cells of qmoist
- *
- * @param[in] lev  level of refinement at which to fill the data
- * @param[in] time time at which the data should be filled
- * @param[out] mf  MultiFab to be filled (qmoist[lev])
- */
-void
-ERF::FillPatchMoistVars (int lev, MultiFab& mf)
-{
-    BL_PROFILE_VAR("ERF::FillPatchMoistVars()",ERF_FillPatchMoistVars);
-    // ***************************************************************************
-    // Physical bc's at domain boundary
-    // ***************************************************************************
-    int icomp_cons = 0;
-    int ncomp_cons = 1; // We only fill qv, the first component
-
-    // Note that we are filling qv, stored in qmoist[lev], with the input data (if there is any), stored
-    // in RhoQ1_comp.
-
-    if (!use_real_bcs) {
-        Real time = Real(0.0);
-        IntVect ngvect_cons = mf.nGrowVect();
-        int bccomp_cons = BCVars::RhoQ1_bc_comp;
-
-        (*physbcs_cons[lev])(mf,icomp_cons,ncomp_cons,ngvect_cons,time,bccomp_cons);
-    }
-
-    mf.FillBoundary(geom[lev].periodicity());
 }
 
 /*
@@ -549,7 +486,10 @@ ERF::FillIntermediatePatch (int lev, Real time,
                            domain_bcs_type);
     }
 
-    mfs_mom[Vars::cons]->FillBoundary(geom[lev].periodicity());
+    mfs_mom[IntVars::cons]->FillBoundary(geom[lev].periodicity());
+    mfs_mom[IntVars::xmom]->FillBoundary(geom[lev].periodicity());
+    mfs_mom[IntVars::ymom]->FillBoundary(geom[lev].periodicity());
+    mfs_mom[IntVars::zmom]->FillBoundary(geom[lev].periodicity());
 }
 
 /*
