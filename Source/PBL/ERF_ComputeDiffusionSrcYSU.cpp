@@ -53,6 +53,7 @@ DiffusionSrcForStateYSU (const Box& bx, const Box& domain,
 
     // For now, only theta is diffused. TODO: Moisture
     int eddy_diff_idz[1] {EddyDiff::Theta_v};
+    int entrainment_idz[1] {EddyDiff::Theta_ent_YSU};
     if (num_comp != 1 ) {
         Abort("DiffusionSrcForStateYSU(): num_comp must be 1");
     } else if ( start_comp != RhoTheta_comp) {
@@ -69,9 +70,13 @@ DiffusionSrcForStateYSU (const Box& bx, const Box& domain,
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - 1;
             const int diff_idx  = eddy_diff_idz[prim_index];
+            const int entrainment_idx =  eddy_diff_idz[prim_index];
 
             const amrex::Real rhoAlpha = 0.5 * ( mu_turb(i, j, k  , diff_idx)
                                                + mu_turb(i, j, k-1, diff_idx) );
+
+            const amrex::Real entrainment = 0.5 * ( mu_turb(i, j, k  , entrainment_idx)
+                                                  + mu_turb(i, j, k-1, entrainment_idx) );
 
             Real met_h_zeta = az(i,j,k);
 
@@ -103,7 +108,7 @@ DiffusionSrcForStateYSU (const Box& bx, const Box& domain,
             // Always True for now
             if (qty_index == RhoTheta_comp) {
                 if (!most_on_zlo) {
-                    zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
+                    zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta - entrainment;
                     hfx_z(i,j,k) = zflux(i,j,k,qty_index);
                 } else {
                     zflux(i,j,k,qty_index) = hfx_z(i,j,0);
