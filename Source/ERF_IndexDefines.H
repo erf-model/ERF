@@ -153,7 +153,10 @@ namespace EddyDiff {
         Scalar_v,
         Q_v,
         PBL_lengthscale,
-        NumDiffs
+        NumDiffs,
+        Mom_ent_YSU = NumDiffs,
+        Theta_ent_YSU,
+        NumDiffsYSU
     };
 }
 

@@ -50,6 +50,7 @@ void erf_make_tau_terms (int level, int nrk,
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
+    const bool l_use_ysu_pbl    =   tc.pbl_type == PBLType::YSU;
 
     const bool use_most     = (most != nullptr);
     const bool exp_most     = (solverChoice.use_explicit_most);
@@ -280,7 +281,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            s12, s13,
                                            s21, s23,
                                            s31, s32,
-                                           er_arr, z_nd, detJ_arr, dxInv);
+                                           er_arr, z_nd, detJ_arr, dxInv, l_use_ysu_pbl);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -394,7 +395,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            cell_data,
                                            s11, s22, s33,
                                            s12, s13, s23,
-                                           er_arr);
+                                           er_arr, l_use_ysu_pbl);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
