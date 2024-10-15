@@ -46,6 +46,7 @@ ERF::init_windfarm (int lev)
         windfarm->read_windfarm_blade_table(solverChoice.windfarm_blade_table);
         windfarm->read_windfarm_airfoil_tables(solverChoice.windfarm_airfoil_tables,
                                                solverChoice.windfarm_blade_table);
+        windfarm->read_windfarm_spec_table_extra(solverChoice.windfarm_spec_table_extra);
     }
 }
 

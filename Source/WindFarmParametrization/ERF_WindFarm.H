@@ -68,6 +68,8 @@ public:
     void read_windfarm_airfoil_tables(const std::string windfarm_airfoil_tables,
                                       const std::string windfarm_blade_table);
 
+    void read_windfarm_spec_table_extra(const std::string windfarm_spec_table_extra);
+
     void fill_Nturb_multifab(const amrex::Geometry& geom,
                              amrex::MultiFab& mf_Nturb);
 
@@ -128,6 +130,15 @@ public:
         m_windfarm_model[0]->set_blade_airfoil_spec(a_bld_airfoil_aoa, a_bld_airfoil_Cl, a_bld_airfoil_Cd);
     }
 
+    void set_turb_spec_extra (const amrex::Vector<amrex::Real>& a_velocity,
+                              const amrex::Vector<amrex::Real>& a_C_P,
+                              const amrex::Vector<amrex::Real>& a_C_T,
+                              const amrex::Vector<amrex::Real>& a_rotor_RPM,
+                              const amrex::Vector<amrex::Real>& a_blade_pitch) override
+    {
+        m_windfarm_model[0]->set_turb_spec_extra(a_velocity, a_C_P, a_C_T, a_rotor_RPM, a_blade_pitch);
+    }
+
 protected:
 
     amrex::Vector<amrex::Real> xloc, yloc;
@@ -137,6 +148,7 @@ protected:
     amrex::Vector<amrex::Real> bld_rad_loc, bld_twist, bld_chord;
     amrex::Vector<amrex::Vector<amrex::Real>> bld_airfoil_aoa, bld_airfoil_Cl, bld_airfoil_Cd;
     int n_bld_sections;
+    amrex::Vector<amrex::Real> velocity, C_P, C_T, rotor_RPM, blade_pitch;
 
    /*! \brief Create and set the specified windfarm model */
     template<class NewWindFarmModel>

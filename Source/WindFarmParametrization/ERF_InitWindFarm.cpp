@@ -125,6 +125,14 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         xloc[it] = xloc[it] - xloc_min + windfarm_x_shift;
         yloc[it] = yloc[it] - yloc_min + windfarm_y_shift;
     }
+
+    FILE* file_xy_loc;
+    file_xy_loc = fopen("file_xy_loc_KingPlains.txt","w");
+
+    for(int it = 0;it<xloc.size(); it++){
+        fprintf(file_xy_loc,"%0.15g %0.15g %0.15g\n", xloc[it], yloc[it], 89.0);
+    }
+    fclose(file_xy_loc);
 }
 
 void
@@ -229,6 +237,45 @@ WindFarm::read_windfarm_blade_table(const std::string windfarm_blade_table)
         n_bld_sections = bld_rad_loc.size();
     }
 }
+
+void
+WindFarm::read_windfarm_spec_table_extra(const std::string windfarm_spec_table_extra)
+{
+    // Open the file
+    std::ifstream file(windfarm_spec_table_extra);
+
+    // Check if file opened successfully
+    if (!file.is_open()) {
+        Abort("Error: You are using generalized wind farms option. This requires an input file erf.windfarm_spec_table_extra."
+              " Either this entry is missing in the inputs or the file specified -" + windfarm_spec_table_extra + " does"
+              " not exist. Exiting...");
+    } else {
+        printf("Reading in windfarm_spec_table_extra %s", windfarm_spec_table_extra.c_str());
+    }
+
+    // Ignore the first line (header)
+    std::string header;
+    std::getline(file, header);
+
+    // Variables to hold each row's values
+    double V, Cp, Ct, rpm, pitch, temp;
+
+    // Read the file row by row
+    while (file >> V) {
+        char comma;  // To ignore the commas
+        file >> comma >> Cp >> comma >> Ct >> comma >> temp >> comma >> temp >> comma
+             >> temp >> comma >> rpm >> comma >> pitch >> comma >> temp;
+
+        velocity.push_back(V);
+        C_P.push_back(Cp);
+        C_T.push_back(Ct);
+        rotor_RPM.push_back(rpm);
+        blade_pitch.push_back(pitch);
+    }
+
+    set_turb_spec_extra(velocity, C_P, C_T, rotor_RPM, blade_pitch);
+}
+
 
 void
 WindFarm::read_windfarm_airfoil_tables(const std::string windfarm_airfoil_tables,

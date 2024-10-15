@@ -181,9 +181,17 @@ compute_source_terms_Fn_Ft (const Real rad,
                             const Real* bld_airfoil_aoa,
                             const Real* bld_airfoil_Cl,
                             const Real* bld_airfoil_Cd,
-                            const int n_pts_airfoil)
+                            const int n_pts_airfoil,
+                            const Real* velocity,
+                            const Real* rotor_RPM,
+                            const Real* blade_pitch,
+                            const int n_spec_extra)
 {
-    Real Omega = 9.0/60.0*2.0*PI;
+
+    Real rpm = interpolate_1d(velocity, rotor_RPM, avg_vel, n_spec_extra);
+    Real pitch = interpolate_1d(velocity, blade_pitch, avg_vel, n_spec_extra);
+
+    Real Omega = rpm/60.0*2.0*PI;
     Real rho = 1.226;
 
     Real B = 3.0;
@@ -192,6 +200,8 @@ compute_source_terms_Fn_Ft (const Real rad,
 
     Real twist = interpolate_1d(bld_rad_loc, bld_twist, rad, n_bld_sections);
     Real c = interpolate_1d(bld_rad_loc, bld_chord, rad, n_bld_sections);
+
+    printf("The avg_vel, rpm, pitch are %0.15g %0.15g %0.15g\n", avg_vel, rpm, pitch);
 
     // Iteration procedure
 
@@ -289,10 +299,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
 
     get_blade_airfoil_spec(bld_airfoil_aoa, bld_airfoil_Cl, bld_airfoil_Cd);
 
-    for(int i=0;i<bld_rad_loc.size();i++) {
-        //std::cout << "I am here ...." << bld_rad_loc[i] << " " << bld_twist[i] << " " << bld_chord[i] << "\n";
-    }
-
+    get_turb_spec_extra(velocity, C_P, C_T, rotor_RPM, blade_pitch);
 
     Real d_hub_height = hub_height;
     Real d_rotor_rad = rotor_rad;
@@ -383,6 +390,20 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     auto d_bld_airfoil_Cl_ptr  = Cl.data();
     auto d_bld_airfoil_Cd_ptr  = Cd.data();
 
+    int n_spec_extra = velocity.size();
+
+    Gpu::DeviceVector<Real> d_velocity(n_spec_extra);
+    Gpu::DeviceVector<Real> d_rotor_RPM(n_spec_extra);
+    Gpu::DeviceVector<Real> d_blade_pitch(n_spec_extra);
+
+    Gpu::copy(Gpu::hostToDevice, velocity.begin(), velocity.end(), d_velocity.begin());
+    Gpu::copy(Gpu::hostToDevice, rotor_RPM.begin(), rotor_RPM.end(), d_rotor_RPM.begin());
+    Gpu::copy(Gpu::hostToDevice, blade_pitch.begin(), blade_pitch.end(), d_blade_pitch.begin());
+
+    auto d_velocity_ptr = d_velocity.data();
+    auto d_rotor_RPM_ptr = d_rotor_RPM.data();
+    auto d_blade_pitch_ptr = d_blade_pitch.data();
+
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& gbx      = mfi.growntilebox(1);
@@ -443,7 +464,11 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                                                                d_bld_airfoil_aoa_ptr[index],
                                                                d_bld_airfoil_Cl_ptr[index],
                                                                d_bld_airfoil_Cd_ptr[index],
-                                                               n_pts_airfoil);
+                                                               n_pts_airfoil,
+                                                               d_velocity_ptr,
+                                                               d_rotor_RPM_ptr,
+                                                               d_blade_pitch_ptr,
+                                                               n_spec_extra);
 
                         Real Fn = Fn_and_Ft[0];
                         Real Ft = Fn_and_Ft[1];

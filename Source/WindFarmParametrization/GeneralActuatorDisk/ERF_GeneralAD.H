@@ -48,6 +48,7 @@ protected:
     amrex::Vector<amrex::Real> freestream_velocity, freestream_phi, disk_cell_count;
     amrex::Vector<amrex::Real> bld_rad_loc, bld_twist, bld_chord;
     amrex::Vector<amrex::Vector<amrex::Real>> bld_airfoil_aoa, bld_airfoil_Cl, bld_airfoil_Cd;
+    amrex::Vector<amrex::Real> velocity, C_P, C_T, rotor_RPM, blade_pitch;
 };
 
 #endif
