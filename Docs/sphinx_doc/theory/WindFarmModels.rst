@@ -291,7 +291,7 @@ where :math:`r_\text{hub}` and :math:`r_\text{tip}` are the radius of the hub an
 An iterative procedure is needed to compute the source terms, and is as follows:
 
 1. An initial value is assumed for the normal and tangential induction factors :math:`a_n` and :math:`a_t`.
-2. Compute the normal and tangential velocities from Eqn. :eq:`GAD_Vn_Vt`. . 
+2. Compute the normal and tangential velocities from Eqn. :eq:`GAD_Vn_Vt`. .
 3. From the tables for the `turbine specifications`_, `details of the blade geometry`_ and the `sectional coefficients of the airfoil cross sections`_, compute the values of :math:`C_l` and :math:`C_d` corresponding to the radial location :math:`r` along the blade span and the angle of attack :math:`\alpha = \psi - \xi + \phi`.
 4. Compute the normal and tangential sectional coefficients :math:`C_n` and :math:`C_t` from Eqn. :eq:`GAD_Cn_Ct`.
 5. Compute the normal and tangential induction factors :math:`a_n` and :math:`a_t` using Eqn. :eq:`GAD_an_at`.
@@ -354,28 +354,28 @@ The following are the inputs required for wind farm simulations.
     // The angle of the turbine actuator disk from the x axis
     erf.turb_disk_angle_from_x = 135.0
 
-    // In addition to the above, for generalized actuator disk model the following parameters are needed  
+    // In addition to the above, for generalized actuator disk model the following parameters are needed
 
-    // Table containing additional specification information of the wind turbine.   
+    // Table containing additional specification information of the wind turbine.
     // See Note below
-    erf.windfarm_spec_table_extra = "NREL-2.82-127_performance.csv"    
+    erf.windfarm_spec_table_extra = "NREL-2.82-127_performance.csv"
 
-    // Table containing details of blade geometry  
-    // See Note below 
-    erf.windfarm_blade_table = "NREL-2p8-127_AeroDyn15_blade.dat"  
-    
-    // Tables containing the sectional lift and drag coefficients for the   
-    // blade airfoil cross-sections.  
-    // See Note below. 
+    // Table containing details of blade geometry
+    // See Note below
+    erf.windfarm_blade_table = "NREL-2p8-127_AeroDyn15_blade.dat"
+
+    // Tables containing the sectional lift and drag coefficients for the
+    // blade airfoil cross-sections.
+    // See Note below.
     erf.windfarm_airfoil_tables = "Airfoils"
 
 .. note::
 
-   The format for the files required for the generalized actuator disk model are 
-     
-   1. erf.windfarm_spec_table_extra = `NREL-2.82-127_performance.csv`_  
-   2. erf.windfarm_blade_table = `NREL-2p8-127_AeroDyn15_blade.dat`_   
-   3. erf.windfarm_airfoil_tables = `Airfoils`_.      
+   The format for the files required for the generalized actuator disk model are
+
+   1. erf.windfarm_spec_table_extra = `NREL-2.82-127_performance.csv`_
+   2. erf.windfarm_blade_table = `NREL-2p8-127_AeroDyn15_blade.dat`_
+   3. erf.windfarm_airfoil_tables = `Airfoils`_.
 
 .. _`NREL-2.82-127_performance.csv`: https://github.com/NREL/openfast-turbine-models/blob/main/IEA-scaled/NREL-2.8-127/NREL-2.82-127_performance.csv
 .. _`NREL-2p8-127_AeroDyn15_blade.dat`: https://github.com/NREL/openfast-turbine-models/blob/main/IEA-scaled/NREL-2.8-127/20_monolithic_opt2/OpenFAST/NREL-2p8-127_AeroDyn15_blade.dat
