@@ -201,8 +201,6 @@ compute_source_terms_Fn_Ft (const Real rad,
     Real twist = interpolate_1d(bld_rad_loc, bld_twist, rad, n_bld_sections);
     Real c = interpolate_1d(bld_rad_loc, bld_chord, rad, n_bld_sections);
 
-    printf("The avg_vel, rpm, pitch are %0.15g %0.15g %0.15g\n", avg_vel, rpm, pitch);
-
     // Iteration procedure
 
     Real s = 0.5*c*B/(PI*rad);
