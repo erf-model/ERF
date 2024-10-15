@@ -1,8 +1,0 @@
-#include "ERF_ABLMost.H"
-#include "ERF_DirectionSelector.H"
-#include "ERF_Diffusion.H"
-#include "ERF_Constants.H"
-#include "ERF_TurbStruct.H"
-#include "ERF_PBLModels.H"
-
-using namespace amrex;
