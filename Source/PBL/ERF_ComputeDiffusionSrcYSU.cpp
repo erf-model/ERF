@@ -129,20 +129,22 @@ DiffusionSrcForStateYSU (const Box& bx, const Box& domain,
 }
 
 void
-DiffusionSrcForMomYSU (const Box& bxx, const Box& bxy , const Box& bxz,
-                      const Array4<Real>& rho_u_rhs  ,
-                      const Array4<Real>& rho_v_rhs  ,
-                      const Array4<Real>& rho_w_rhs  ,
-                      const Array4<const Real>& tau11, const Array4<const Real>& tau22, const Array4<const Real>& tau33,
-                      const Array4<const Real>& tau12, const Array4<const Real>& tau13,
-                      const Array4<const Real>& tau21, const Array4<const Real>& tau23,
-                      const Array4<const Real>& tau31, const Array4<const Real>& tau32,
-                      const Array4<const Real>& detJ ,
-                      const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
-                      const Array4<const Real>& mf_m,
-                      const Array4<const Real>& /*mf_u*/,
-                      const Array4<const Real>& /*mf_v*/)
+DiffusionSrcForMomYSU (const Box& bxcc, const Box& bxxz , const Box& bxyz,
+                       const Array4<const Real>& uvel ,
+                       const Array4<const Real>& vvel ,
+                       const Array4<const Real>& wvel ,
+                       const Array4<Real>& tau33,
+                       const Array4<Real>& tau13, const Array4<Real>& tau23,
+                       const Array4<Real>& tau31, const Array4<Real>& tau32,
+                       const Array4<const Real>& detJ ,
+                       const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
+                       const Array4<const Real>& mf_m,
+                       const Array4<const Real>& /*mf_u*/,
+                       const Array4<const Real>& /*mf_v*/)
 {
     BL_PROFILE_VAR("DiffusionSrcForMomYSU",DiffusionSrcForMomYSU);
     Print() << "Computing YSU diffusion SRC for mom" << std::endl;
+
+    // YSU PBL: always only vertical diffusion
+    // For now - only diffuse x and y velocity
 }

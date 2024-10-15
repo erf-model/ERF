@@ -582,17 +582,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // viscosity") means that there is no contribution from a
             // turbulence model. However, whether this field truly is constant
             // depends on whether MolecDiffType is Constant or ConstantAlpha.
-            if (l_use_ysu_pbl) {
-                DiffusionSrcForMomYSU(tbx, tby, tbz,
-                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                     tau11, tau22, tau33,
-                                     tau12, tau13,
-                                     tau21, tau23,
-                                     tau31, tau32,
-                                     detJ_arr, dxInv,
-                                     mf_m, mf_u, mf_v);
-
-            }
             if (l_use_terrain) {
                 DiffusionSrcForMom_T(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
@@ -609,17 +598,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                      tau12, tau13, tau23,
                                      dxInv,
                                      mf_m, mf_u, mf_v);
-            }
-            if (l_use_ysu_pbl) {
-                DiffusionSrcForMomYSU(tbx, tby, tbz,
-                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                     tau11, tau22, tau33,
-                                     tau12, tau13,
-                                     tau21, tau23,
-                                     tau31, tau32,
-                                     detJ_arr, dxInv,
-                                     mf_m, mf_u, mf_v);
-
             }
         }
 
