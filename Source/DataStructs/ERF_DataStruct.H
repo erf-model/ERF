@@ -339,7 +339,7 @@ struct SolverChoice {
 
 
         // Which type of multilevel coupling
-        coupling_type = CouplingType::TwoWay; // Default
+        coupling_type = CouplingType::OneWay; // Default
         pp.query_enum_case_insensitive("coupling_type",coupling_type);
 
         // Which type of windfarm model
