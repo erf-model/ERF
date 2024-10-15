@@ -196,7 +196,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                     const Real phi_term = 1 + 5 * zval / l_obuk_arr(i,j,0); // phi_term appears in WRF but not papers
                     wscalek = std::max(u_star_arr(i,j,0) / phi_term, 0.001); // 0.001 limit appears in WRF but not papers
                     K_turb(i,j,k,EddyDiff::Mom_v) = rho * wscalek * KAPPA * zval * std::pow(zfac, pfac);
-                    K_turb(i,j,k,EddyDiff::Theta_v_YSU) = K_turb(i,j,k,EddyDiff::Mom_v);
+                    K_turb(i,j,k,EddyDiff::Theta_v) = K_turb(i,j,k,EddyDiff::Mom_v);
                 } else {
                     // -- Compute coefficients in free stream above PBL
                     constexpr Real lam0 = 30.0;
@@ -222,12 +222,12 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                         richardson = max(richardson, min_richardson);
                         Real sqrt_richardson = std::sqrt(-richardson);
                         K_turb(i,j,k,EddyDiff::Mom_v) = rho * turbfact * (1.0 - 8.0 * richardson / (1.0 + 1.746 * sqrt_richardson));
-                        K_turb(i,j,k,EddyDiff::Theta_v_YSU) = rho * turbfact * (1.0 - 8.0 * richardson / (1.0 + 1.286 * sqrt_richardson));
+                        K_turb(i,j,k,EddyDiff::Theta_v) = rho * turbfact * (1.0 - 8.0 * richardson / (1.0 + 1.286 * sqrt_richardson));
                     } else {
                         const Real oneplus5ri = 1.0 + 5.0 * richardson;
-                        K_turb(i,j,k,EddyDiff::Theta_v_YSU) = rho * turbfact / (oneplus5ri * oneplus5ri);
+                        K_turb(i,j,k,EddyDiff::Theta_v) = rho * turbfact / (oneplus5ri * oneplus5ri);
                         const Real prandtl = std::min(1.0+2.1*richardson, prandtl_max); // limit from WRF
-                        K_turb(i,j,k,EddyDiff::Mom_v) = K_turb(i,j,k,EddyDiff::Theta_v_YSU) * prandtl;
+                        K_turb(i,j,k,EddyDiff::Mom_v) = K_turb(i,j,k,EddyDiff::Theta_v) * prandtl;
                     }
                 }
 
@@ -237,7 +237,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 const Real rhoKmin = ckz * dz_terrain * rho;
                 const Real rhoKmax = rho * Kmax;
                 K_turb(i,j,k,EddyDiff::Mom_v) = std::max(std::min(K_turb(i,j,k,EddyDiff::Mom_v) ,rhoKmax), rhoKmin);
-                K_turb(i,j,k,EddyDiff::Theta_v_YSU) = std::max(std::min(K_turb(i,j,k,EddyDiff::Theta_v_YSU) ,rhoKmax), rhoKmin);
+                K_turb(i,j,k,EddyDiff::Theta_v) = std::max(std::min(K_turb(i,j,k,EddyDiff::Theta_v) ,rhoKmax), rhoKmin);
                 K_turb(i,j,k,EddyDiff::PBL_lengthscale) = pblh_arr(i,j,0);
 
             });
@@ -247,7 +247,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             {
                 if (k==-1) {
                     K_turb(i,j,k,EddyDiff::Mom_v) = K_turb(i,j,0,EddyDiff::Mom_v);
-                    K_turb(i,j,k,EddyDiff::Theta_v_YSU) = K_turb(i,j,0,EddyDiff::Theta_v_YSU);
+                    K_turb(i,j,k,EddyDiff::Theta_v) = K_turb(i,j,0,EddyDiff::Theta_v);
                 }
             });
         }

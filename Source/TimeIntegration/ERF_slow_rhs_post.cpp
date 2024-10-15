@@ -130,6 +130,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
+    const bool l_use_ysu_pbl =      tc.pbl_type == PBLType::YSU;
     const bool exp_most         = (solverChoice.use_explicit_most);
     const bool rot_most         = (solverChoice.use_rotate_most);
 
@@ -419,7 +420,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most, l_use_ysu_pbl);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
                                                new_cons, cur_prim, cell_rhs,
@@ -427,7 +428,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most, l_use_ysu_pbl);
                     }
                 } // use_diff
             } // valid slow var

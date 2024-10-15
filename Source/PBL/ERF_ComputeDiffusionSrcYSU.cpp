@@ -52,7 +52,7 @@ DiffusionSrcForStateYSU (const Box& bx, const Box& domain,
     Print() << "Computing YSU diffusion SRC for state" << std::endl;
 
     // For now, only theta is diffused. TODO: Moisture
-    int eddy_diff_idz[1] {EddyDiff::Theta_v_YSU};
+    int eddy_diff_idz[1] {EddyDiff::Theta_v};
     if (num_comp != 1 ) {
         Abort("DiffusionSrcForStateYSU(): num_comp must be 1");
     } else if ( start_comp != RhoTheta_comp) {

@@ -508,7 +508,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most, l_use_ysu_pbl);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, l_exp_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -516,7 +516,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most, l_use_ysu_pbl);
             }
             if (l_use_ysu_pbl) {
                 DiffusionSrcForStateYSU(bx, domain, RhoTheta_comp, 1, l_exp_most, l_rot_most, u, v,
@@ -582,6 +582,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // viscosity") means that there is no contribution from a
             // turbulence model. However, whether this field truly is constant
             // depends on whether MolecDiffType is Constant or ConstantAlpha.
+            if (l_use_ysu_pbl) {
+                DiffusionSrcForMomYSU(tbx, tby, tbz,
+                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                     tau11, tau22, tau33,
+                                     tau12, tau13,
+                                     tau21, tau23,
+                                     tau31, tau32,
+                                     detJ_arr, dxInv,
+                                     mf_m, mf_u, mf_v);
+
+            }
             if (l_use_terrain) {
                 DiffusionSrcForMom_T(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
