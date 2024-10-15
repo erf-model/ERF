@@ -719,17 +719,6 @@ ERF::InitData_post ()
         for (int lev(0); lev <= max_level; ++lev) {
             make_physbcs(lev);
         }
-
-        // TODO: Check if this is needed. I don't think it is since we now
-        //       advect all the scalars...
-
-        // Need to fill ghost cells here since we will use this qmoist in advance
-        if (solverChoice.moisture_type != MoistureType::None)
-        {
-            for (int lev = 0; lev <= finest_level; lev++) {
-                if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0])); // qv component
-            }
-        }
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -1697,7 +1686,6 @@ ERF::MakeHorizontalAverages ()
             auto  fab_arr = mf.array(mfi);
             auto const  hse_arr = base_state[lev].const_array(mfi);
             auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
-            auto const   qv_arr = qmoist[lev][0]->const_array(mfi);
             int ncomp = vars_new[lev][Vars::cons].nComp();
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -1705,7 +1693,8 @@ ERF::MakeHorizontalAverages ()
                 if (is_anelastic) {
                     fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
                 } else {
-                    fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+                    Real qv = cons_arr(i, j, k, RhoQ1_comp) / dens;
+                    fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
                 }
                 fab_arr(i, j, k, 3) = (ncomp > RhoQ1_comp ? cons_arr(i, j, k, RhoQ1_comp) / dens : 0.0);
                 fab_arr(i, j, k, 4) = (ncomp > RhoQ2_comp ? cons_arr(i, j, k, RhoQ2_comp) / dens : 0.0);

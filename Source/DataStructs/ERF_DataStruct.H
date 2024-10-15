@@ -430,35 +430,35 @@ struct SolverChoice {
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
-        if (coupling_type == CouplingType::TwoWay) {
-            amrex::Print() << "Using two-way coupling " << std::endl;
-        } else if (coupling_type == CouplingType::OneWay) {
-            amrex::Print() << "Using one-way coupling " << std::endl;
-        }
-
+        amrex::Print() << "Terrain Type: " << std::endl;
         if (terrain_type == TerrainType::Static) {
-            amrex::Print() << "Using static terrain " << std::endl;
+            amrex::Print() << "    Static" << std::endl;
         } else if (terrain_type == TerrainType::Moving) {
-            amrex::Print() << "Using moving terrain " << std::endl;
+            amrex::Print() << "    Moving" << std::endl;
         } else {
-            amrex::Print() << "No terrain " << std::endl;
+            amrex::Print() << "    None" << std::endl;
         }
 
+        amrex::Print() << "ABL Driver Type: " << std::endl;
         if (abl_driver_type == ABLDriverType::None) {
-            amrex::Print() << "ABL Driver Type: " << "None" << std::endl;
-            amrex::Print() << "No ABL driver selected " << std::endl;
+            amrex::Print() << "    None" << std::endl;
         } else if (abl_driver_type == ABLDriverType::PressureGradient) {
-            amrex::Print() << "ABL Driver Type: " << "PressureGradient" << std::endl;
-            amrex::Print() << "Driving abl_pressure_grad: (";
-            for (int i = 0; i < AMREX_SPACEDIM; ++i)
-                amrex::Print() << abl_pressure_grad[i] << " ";
-            amrex::Print() << ")" << std::endl;
+            amrex::Print() << "    Pressure Gradient "
+                           << amrex::RealVect(abl_pressure_grad[0],abl_pressure_grad[1],abl_pressure_grad[2])
+                           << std::endl;
         } else if (abl_driver_type == ABLDriverType::GeostrophicWind) {
-            amrex::Print() << "ABL Driver Type: " << "GeostrophicWind" << std::endl;
-            amrex::Print() << "Driving abl_geo_forcing: (";
-            for (int i = 0; i < AMREX_SPACEDIM; ++i)
-                amrex::Print() << abl_geo_forcing[i] << " ";
-            amrex::Print() << ")" << std::endl;
+            amrex::Print() << "    Geostrophic Wind "
+                           << amrex::RealVect(abl_geo_forcing[0],abl_geo_forcing[1],abl_geo_forcing[2])
+                           << std::endl;
+        }
+
+        if (max_level > 0) {
+            amrex::Print() << "Coupling Type: " << std::endl;
+            if (coupling_type == CouplingType::TwoWay) {
+                amrex::Print() << "    Two-way" << std::endl;
+            } else if (coupling_type == CouplingType::OneWay) {
+                amrex::Print() << "    One-way" << std::endl;
+            }
         }
 
         amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;

@@ -283,7 +283,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
-    // amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
+    amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
 
     AMREX_ALWAYS_ASSERT(lev > 0);
     AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::Moving);
@@ -332,9 +332,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // *****************************************************************************************************
     make_physbcs(lev);
 
-    // ********************************************************************************************
+    // *************************************************************************************************
     // This will fill the temporary MultiFabs with data from vars_new
-    // ********************************************************************************************
+    // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
+    // *************************************************************************************************
     FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
                           &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
                          {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
