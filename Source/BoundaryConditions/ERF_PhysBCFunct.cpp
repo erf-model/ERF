@@ -279,7 +279,9 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             gdomainz.grow(i, nghost[i]);
         }
     }
+    //
     // We want to make sure we impose the z-vels at k=0  if the box includes k=0
+    //
     if (gdomainz.smallEnd(2) == 0) gdomainz.setSmall(2,1);
 
     Box ndomain  = convert(domain,IntVect(1,1,1));
@@ -318,17 +320,10 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             //
             // These are the boxes we use to test on relative to the domain
             //
-            Box zbx1 = surroundingNodes(bx,2); zbx1.grow(nghost);
-            if (zbx1.smallEnd(2) < domain.smallEnd(2)) zbx1.setSmall(2,domain.smallEnd(2));
-            if (zbx1.bigEnd(2)   > domain.bigEnd(2))   zbx1.setBig(2,domain.bigEnd(2)+1);
+            Box zbx = surroundingNodes(bx,2); zbx.grow(nghost);
+            if (zbx.smallEnd(2) < domain.smallEnd(2)) zbx.setSmall(2,domain.smallEnd(2));
+            if (zbx.bigEnd(2)   > domain.bigEnd(2))   zbx.setBig(2,domain.bigEnd(2)+1);
 
-            Box zbx2 = surroundingNodes(bx,2); zbx2.grow(nghost);
-
-            //
-            // These are the boxes we use to test on relative to the domain
-            //
-            // Box zbx = surroundingNodes(bx,2); zbx.grow(0,nghost[0]);
-            //                                   zbx.grow(1,nghost[1]);
             Array4<const Real> z_nd_arr;
 
             if (m_z_phys_nd)
@@ -336,7 +331,10 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 z_nd_arr = z_nd_mf_loc.const_array(mfi);
             }
 
-            if (!gdomainz.contains(zbx2))
+            //
+            // Recall that gdomainz.smallEnd(2) = 1 not 0!
+            //
+            if (!gdomainz.contains(zbx))
             {
                 Array4<const Real> const& velx_arr = xvel.const_array(mfi);
                 Array4<const Real> const& vely_arr = yvel.const_array(mfi);
@@ -344,13 +342,13 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
                 if (!m_use_real_bcs)
                 {
-                    if (!gdomainz.contains(zbx1))
+                    if (!gdomainz.contains(zbx))
                     {
-                        impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx1,domain,z_nd_arr,dxInv,bccomp_w);
+                        impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,bccomp_w);
                     }
                 }
 
-                impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx2,domain,z_nd_arr,dxInv,
+                impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,
                                          bccomp_u, bccomp_v, bccomp_w, m_terrain_type);
             }
         } // MFIter
