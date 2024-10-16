@@ -249,7 +249,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
                             bool allow_most_bcs)
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
-    int bccomp;
     Interpolater* mapper;
 
     //
