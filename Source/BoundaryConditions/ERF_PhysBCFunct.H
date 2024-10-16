@@ -52,7 +52,8 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp_cons);
+                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp_cons,
+                     bool do_fb);
 
     void impose_lateral_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
@@ -106,7 +107,8 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp);
+                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp,
+                     bool do_fb);
 
     void impose_lateral_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
@@ -164,7 +166,8 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp);
+                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp,
+                     bool do_fb);
 
     void impose_lateral_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
@@ -222,7 +225,8 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp);
+                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp,
+                     bool do_fb);
 
     void impose_lateral_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
