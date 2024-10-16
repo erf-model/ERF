@@ -110,7 +110,8 @@ ERF::FillPatch (int lev, Real time,
 
         // Impose physical bc's on coarse data (note time and 0 are not used)
         // Note that we call FillBoundary inside the physbcs call
-        (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],0,mf_c.nComp(),ngvect_cons,time,BCVars::cons_bc);
+        // We should not need to call this on old data since that would have been filled before the timestep started
+        // (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],0,mf_c.nComp(),ngvect_cons,time,BCVars::cons_bc);
         (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],0,mf_c.nComp(),ngvect_cons,time,BCVars::cons_bc);
 
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
@@ -130,9 +131,12 @@ ERF::FillPatch (int lev, Real time,
 
             // **********************************************************************
 
+            cmf = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
+
             // Impose physical bc's on coarse data (note time and 0 are not used)
             // Note that we call FillBoundary inside the physbcs call
-            (*physbcs_u[lev-1])(vars_old[lev-1][Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
+            // We should not need to call this on old data since that would have been filled before the timestep started
+            // (*physbcs_u[lev-1])(vars_old[lev-1][Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
             (*physbcs_u[lev-1])(vars_new[lev-1][Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
 
             fmf = {&vars_old[lev  ][Vars::xvel], &vars_new[lev  ][Vars::xvel]};
@@ -147,9 +151,12 @@ ERF::FillPatch (int lev, Real time,
 
             // **********************************************************************
 
+            cmf = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
+
             // Impose physical bc's on coarse data (note time and 0 are not used)
             // Note that we call FillBoundary inside the physbcs call
-            (*physbcs_v[lev-1])(vars_old[lev-1][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
+            // We should not need to call this on old data since that would have been filled before the timestep started
+            // (*physbcs_v[lev-1])(vars_old[lev-1][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
             (*physbcs_v[lev-1])(vars_new[lev-1][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
 
             fmf = {&vars_old[lev  ][Vars::yvel], &vars_new[lev  ][Vars::yvel]};
@@ -164,12 +171,15 @@ ERF::FillPatch (int lev, Real time,
 
             // **********************************************************************
 
+            cmf = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
+
             // Impose physical bc's on coarse data (note time and 0 are not used)
             // Note that we call FillBoundary inside the physbcs call
-            (*physbcs_w[lev-1])(vars_old[lev-1][Vars::zvel],
-                                vars_old[lev-1][Vars::xvel],
-                                vars_old[lev-1][Vars::yvel],
-                                ngvect_vels,time,BCVars::zvel_bc);
+            // We should not need to call this on old data since that would have been filled before the timestep started
+            // (*physbcs_w[lev-1])(vars_old[lev-1][Vars::zvel],
+            //                     vars_old[lev-1][Vars::xvel],
+            //                     vars_old[lev-1][Vars::yvel],
+            //                     ngvect_vels,time,BCVars::zvel_bc);
             (*physbcs_w[lev-1])(vars_new[lev-1][Vars::zvel],
                                 vars_new[lev-1][Vars::xvel],
                                 vars_new[lev-1][Vars::yvel],
@@ -290,55 +300,42 @@ ERF::FillIntermediatePatch (int lev, Real time,
                             Geom(lev).Domain(), domain_bcs_type);
     }
 
+    //
     // We now start working on conserved quantities + VELOCITY
-    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
+    //
+    if (lev == 0)
     {
-        if (cons_only && var_idx != Vars::cons) continue;
+        // We don't do anything here because we will call the physbcs routines below,
+        // which calls FillBoundary and fills other domain boundary conditions
+        // Physical boundaries will be filled below
+    }
+    else
+    {
+        MultiFab& mf = *mfs_vel[Vars::cons];
 
-        MultiFab& mf = *mfs_vel[var_idx];
+        Vector<MultiFab*> fmf = {&mf,&mf};
+        Vector<MultiFab*> cmf = {&vars_old[lev-1][Vars::cons], &vars_new[lev-1][Vars::cons]};
+        Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
+        Vector<Real> ftime    = {time,time};
 
-        IntVect ngvect;
-        int icomp, ncomp;
-        if (var_idx == Vars::cons)
-        {
-            bccomp = icomp_cons;
-            mapper = &cell_cons_interp;
-            ngvect = IntVect(ng_cons,ng_cons,ng_cons);
-            icomp  = icomp_cons;
-            ncomp  = ncomp_cons;
-        }
-        else if (var_idx == IntVars::xmom)
-        {
-            bccomp = BCVars::xvel_bc;
-            mapper = &face_cons_linear_interp;
-            ngvect = IntVect(ng_vel,ng_vel,ng_vel);
-            icomp  = 0;
-            ncomp  = 1;
-        }
-        else if (var_idx == IntVars::ymom)
-        {
-            bccomp = BCVars::yvel_bc;
-            mapper = &face_cons_linear_interp;
-            ngvect = IntVect(ng_vel,ng_vel,ng_vel);
-            icomp  = 0;
-            ncomp  = 1;
-        }
-        else if (var_idx == IntVars::zmom)
-        {
-            bccomp = BCVars::zvel_bc;
-            mapper = &face_cons_linear_interp;
-            ngvect = IntVect(ng_vel,ng_vel,ng_vel);
-            icomp  = 0;
-            ncomp  = 1;
-        }
+        // Impose physical bc's on coarse data (note time and 0 are not used)
+        (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],0,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc);
+        (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],0,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc);
 
-        if (lev == 0)
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
+        mapper = &cell_cons_interp;
+        FillPatchTwoLevels(mf, IntVect{ng_cons}, IntVect(0,0,0),
+                           time, cmf, ctime, fmf, ftime,
+                           0, 0, ncomp_cons, geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           icomp_cons);
+
+        // *****************************************************************************************
+
+        if (!cons_only)
         {
-            // This fills fine-fine ghost values of cons and VELOCITY (not momentum)
-            mf.FillBoundary(icomp,ncomp,ngvect,geom[lev].periodicity());
-        }
-        else
-        {
+            mapper = &face_cons_linear_interp;
+
             //
             // NOTE: All interpolation here happens on velocities not momenta;
             //       note we only do the interpolation and FillBoundary here,
@@ -347,83 +344,66 @@ ERF::FillIntermediatePatch (int lev, Real time,
             // NOTE: This will only fill velocity from coarse grid *outside* the fine grids
             //       unlike the FillSet calls above which filled momenta on the coarse/fine bdy
             //
-            Vector<MultiFab*> fmf = {&mf,&mf};
-            Vector<MultiFab*> cmf = {&vars_old[lev-1][var_idx], &vars_new[lev-1][var_idx]};
-            Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
-            Vector<Real> ftime    = {time,time};
 
-            if (var_idx == Vars::cons) {
-                // Impose physical bc's on coarse data (note time and 0 are not used)
-                (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],0,ncomp,ngvect,time,BCVars::cons_bc);
-                (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],0,ncomp,ngvect,time,BCVars::cons_bc);
+            MultiFab& mfu = *mfs_vel[Vars::xvel];
 
-                // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
-                FillPatchTwoLevels(mf, ngvect, IntVect(0,0,0),
-                                   time, cmf, ctime, fmf, ftime,
-                                   0, 0, ncomp, geom[lev-1], geom[lev],
-                                   refRatio(lev-1), mapper, domain_bcs_type,
-                                   bccomp);
+            fmf = {&mfu,&mfu};
+            cmf = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
 
-                // Impose physical bc's on fine data
-                (*physbcs_cons[lev])(mf,0,ncomp,ngvect,time,BCVars::cons_bc);
+            // Impose physical bc's on coarse data (note time and 0 are not used)
+            (*physbcs_u[lev-1])(vars_old[lev-1][Vars::xvel],0,1,IntVect{ng_vel},time,BCVars::xvel_bc);
+            (*physbcs_u[lev-1])(vars_new[lev-1][Vars::xvel],0,1,IntVect{ng_vel},time,BCVars::xvel_bc);
 
-            } else if (var_idx == Vars::xvel) {
+            // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
+            FillPatchTwoLevels(mfu, IntVect{ng_vel}, IntVect(0,0,0),
+                               time, cmf, ctime, fmf, ftime,
+                               0, 0, ncomp_cons, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::xvel_bc);
 
-                // Impose physical bc's on coarse data (note time and 0 are not used)
-                (*physbcs_u[lev-1])(vars_old[lev-1][Vars::xvel],0,1,ngvect,time,BCVars::xvel_bc);
-                (*physbcs_u[lev-1])(vars_new[lev-1][Vars::xvel],0,1,ngvect,time,BCVars::xvel_bc);
+            // *****************************************************************************************
 
-                // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
-                FillPatchTwoLevels(mf, ngvect, IntVect(0,0,0),
-                                   time, cmf, ctime, fmf, ftime,
-                                   0, 0, ncomp, geom[lev-1], geom[lev],
-                                   refRatio(lev-1), mapper, domain_bcs_type,
-                                   bccomp);
+            MultiFab& mfv = *mfs_vel[Vars::yvel];
 
-                // Impose physical bc's on fine data
-                (*physbcs_u[lev])(mf,0,1,ngvect,time,BCVars::xvel_bc);
+            fmf = {&mfv,&mfv};
+            cmf = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
 
-            } else if (var_idx == Vars::yvel) {
+            // Impose physical bc's on coarse data (note time and 0 are not used)
+            (*physbcs_v[lev-1])(vars_old[lev-1][Vars::yvel],0,1,IntVect{ng_vel},time,BCVars::yvel_bc);
+            (*physbcs_v[lev-1])(vars_new[lev-1][Vars::yvel],0,1,IntVect{ng_vel},time,BCVars::yvel_bc);
 
-                // Impose physical bc's on coarse data (note time and 0 are not used)
-                (*physbcs_v[lev-1])(vars_old[lev-1][Vars::yvel],0,1,ngvect,time,BCVars::yvel_bc);
-                (*physbcs_v[lev-1])(vars_new[lev-1][Vars::yvel],0,1,ngvect,time,BCVars::yvel_bc);
+            // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
+            FillPatchTwoLevels(mfv, IntVect{ng_vel}, IntVect(0,0,0),
+                               time, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::yvel_bc);
 
-                // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
-                FillPatchTwoLevels(mf, ngvect, IntVect(0,0,0),
-                                   time, cmf, ctime, fmf, ftime,
-                                   0, 0, 1, geom[lev-1], geom[lev],
-                                   refRatio(lev-1), mapper, domain_bcs_type,
-                                   bccomp);
+            // *****************************************************************************************
 
-                // Impose physical bc's on fine data
-                (*physbcs_v[lev])(mf,0,1,ngvect,time,BCVars::yvel_bc);
+            MultiFab& mfw = *mfs_vel[Vars::zvel];
 
-            } else if (var_idx == Vars::zvel) {
+            fmf = {&mfw,&mfw};
+            cmf = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
 
-                // Impose physical bc's on coarse data (note time and 0 are not used)
-                (*physbcs_w[lev-1])(vars_old[lev-1][Vars::zvel],
-                                    vars_old[lev-1][Vars::xvel],
-                                    vars_old[lev-1][Vars::yvel],
-                                    ngvect,time,BCVars::zvel_bc);
-                (*physbcs_w[lev-1])(vars_new[lev-1][Vars::zvel],
-                                    vars_new[lev-1][Vars::xvel],
-                                    vars_new[lev-1][Vars::yvel],
-                                    ngvect,time,BCVars::zvel_bc);
+            // Impose physical bc's on coarse data (note time and 0 are not used)
+            (*physbcs_w[lev-1])(vars_old[lev-1][Vars::zvel],
+                                vars_old[lev-1][Vars::xvel],
+                                vars_old[lev-1][Vars::yvel],
+                                IntVect{ng_vel},time,BCVars::zvel_bc);
+            (*physbcs_w[lev-1])(vars_new[lev-1][Vars::zvel],
+                                vars_new[lev-1][Vars::xvel],
+                                vars_new[lev-1][Vars::yvel],
+                                IntVect{ng_vel},time,BCVars::zvel_bc);
 
-                // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
-                FillPatchTwoLevels(mf, ngvect, IntVect(0,0,0),
-                                   time, cmf, ctime, fmf, ftime,
-                                   0, 0, 1, geom[lev-1], geom[lev],
-                                   refRatio(lev-1), mapper, domain_bcs_type,
-                                   bccomp);
-
-                // Impose physical bc's on fine data
-                (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                                   ngvect,time,BCVars::zvel_bc);
-            }
-        } // lev > 0
-    } // var_idx
+            // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
+            FillPatchTwoLevels(mfw, IntVect{ng_vel}, IntVect(0,0,0),
+                               time, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::zvel_bc);
+        } // !cons_only
+    } // lev > 0
 
     // ***************************************************************************
     // Physical bc's at domain boundary
