@@ -55,7 +55,7 @@ GeneralAD::update (const Real& dt_advance,
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            w_vel(i,j,k) = w_vel(i,j,k) + (generalAD_array(i,j-1,k,2) + generalAD_array(i,j,k,2))/2.0*dt_advance;
+            w_vel(i,j,k) = w_vel(i,j,k) + (generalAD_array(i,j,k-1,2) + generalAD_array(i,j,k,2))/2.0*dt_advance;
         });
 
     }
