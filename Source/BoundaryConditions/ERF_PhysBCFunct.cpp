@@ -14,7 +14,8 @@ using namespace amrex;
  */
 
 void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
-                                      IntVect const& nghost, const Real /*time*/, int /*bccomp*/)
+                                      IntVect const& nghost, const Real /*time*/, int /*bccomp*/,
+                                      bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_cons::()");
 
@@ -50,7 +51,9 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
     // We fill all of the interior and periodic ghost cells first, so we can fill
     //    those directly inside the lateral and vertical calls.
     //
-    mf.FillBoundary(m_geom.periodicity());
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
+    }
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -96,7 +99,8 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
 } // operator()
 
 void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
-                                   IntVect const& nghost, const Real time, int bccomp)
+                                   IntVect const& nghost, const Real time, int bccomp,
+                                   bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_u::()");
 
@@ -130,7 +134,9 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
     // We fill all of the interior and periodic ghost cells first, so we can fill
     //    those directly inside the lateral and vertical calls.
     //
-    mf.FillBoundary(m_geom.periodicity());
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
+    }
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -179,7 +185,8 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 } // operator()
 
 void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
-                                   IntVect const& nghost, const Real /*time*/, int bccomp)
+                                   IntVect const& nghost, const Real /*time*/, int bccomp,
+                                   bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_v::()");
 
@@ -213,7 +220,9 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
     // We fill all of the interior and periodic ghost cells first, so we can fill
     //    those directly inside the lateral and vertical calls.
     //
-    mf.FillBoundary(m_geom.periodicity());
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
+    }
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -261,7 +270,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
 void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                                    IntVect const& nghost, const Real /*time*/,
-                                   const int bccomp_w)
+                                   const int bccomp_w, bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_w::()");
 
@@ -303,7 +312,9 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     // We fill all of the interior and periodic ghost cells first, so we can fill
     //    those directly inside the lateral and vertical calls.
     //
-    mf.FillBoundary(m_geom.periodicity());
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
+    }
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

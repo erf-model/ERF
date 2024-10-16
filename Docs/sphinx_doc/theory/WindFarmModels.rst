@@ -311,7 +311,7 @@ An iterative procedure is needed to compute the source terms, and is as follows:
 
    Different views of the GAD showing the forces and angles involved: Blade cross section showing the normal (:math:`V_n`) and tangential (:math:`V_t`) components of velocity with the normal (:math:`a_n`) and tangential (:math:`a_t`) induction factors, relative wind velocity :math:`V_r`, blade twist angle :math:`\xi`, angle of relative wind :math:`\psi`, blade pitch angle :math:`\phi`, lift (:math:`L`) and drag (:math:`D`) forces, and normal (:math:`F_n`) and tangential (:math:`F_t`) forces; top view showing the flow direction and inclination angle :math:`\Phi`; and front view showing the actuator disk rotating clockwise.
 
-.. _`Mirocha et. al. 2014`: https://n2t.org/ark:/85065/d7ww7jmh
+.. _`Mirocha et. al. 2014`: https://opensky.ucar.edu/islandora/object/articles:13295
 .. _`Small Wind Turbines`: https://doi.org/10.1007/978-1-84996-175-2
 .. _`turbine specifications`: https://github.com/NREL/openfast-turbine-models/blob/main/IEA-scaled/NREL-2.8-127/NREL-2.82-127_performance.csv
 .. _`details of the blade geometry`: https://github.com/NREL/openfast-turbine-models/blob/main/IEA-scaled/NREL-2.8-127/20_monolithic_opt2/OpenFAST/NREL-2p8-127_AeroDyn15_blade.dat
