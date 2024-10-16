@@ -444,7 +444,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                     // ?? hub radius needed here
                     if(rad >= 2.0 and rad <= d_rotor_rad) {
                         //AMREX_ASSERT( (z-d_hub_height) <= rad );
-                        // Conside the vector that joines the point and the turbine center.
+                        // Consider the vector that joines the point and the turbine center.
                         // Dot it on to the vector that joins the turbine center and along
                         // the plane of the disk. See fig. 10 in Mirocha et. al. 2014.
 
