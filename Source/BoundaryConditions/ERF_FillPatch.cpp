@@ -352,7 +352,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
             FillPatchTwoLevels(mfu, IntVect{ng_vel}, IntVect(0,0,0),
                                time, cmf, ctime, fmf, ftime,
-                               0, 0, ncomp_cons, geom[lev-1], geom[lev],
+                               0, 0, 1, geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BCVars::xvel_bc);
 
