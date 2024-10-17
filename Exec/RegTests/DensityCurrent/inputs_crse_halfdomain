@@ -1,13 +1,13 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 stop_time = 900.0
 
-erf.anelastic   = 1
-erf.check_file  = chka
-erf.plot_file_1 = plta
+#erf.anelastic   = 1
+#erf.check_file  = chka
+#erf.plot_file_1 = plta
 
-#erf.anelastic   = 0
-#erf.check_file  = chk
-#erf.plot_file_1 = plt
+erf.anelastic   = 0
+erf.check_file  = chk
+erf.plot_file_1 = plt
 
 erf.buoyancy_type = 2
 
