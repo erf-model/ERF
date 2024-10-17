@@ -127,7 +127,7 @@ The EWP model does not have a concept of intersected area by the turbine rotor l
 .. _actuator_disk_model_simplified:
 
 Simplified actuator disk model
-=================================
+-----------------------------------
 
 A simplified actuator disk model based on one-dimensional momentum theory is implemented (See Section 3.2 in `Wind Energy Handbook 2nd edition`_). A schematic of the actuator disk is shown in  Fig. :numref:`fig:ActuatorDisk_Schematic`.
 The model is implemented as source terms in the equations for the horizontal velocity components (ie. `x` and `y` directions). The thrust force from the one-dimensional momentum theory is given by
@@ -185,7 +185,7 @@ where :math:`dA` is the area of the actuator disk in the mesh cell (see Fig. :nu
 .. _generalized_actuator_disk_model:
 
 Generalized actuator disk model
-===============================
+------------------------------------
 
 The generalized actuator model (GAD) based on blade element theory (`Mirocha et. al. 2014`_, see Chapter 3 of `Small Wind Turbines`_) is implemented. Similar to the simplified actuator disk model, GAD also models the wind turbine as a disk, but takes into account the details of the blade geometry (see Fig. :numref:`fig:GAD_Schematic`). The forces on the blades in the x, y, z directions are computed, and that contributes to the source terms for the fluid momentum equations. The source terms in a mesh cell inside the actuator disk are given as:
 

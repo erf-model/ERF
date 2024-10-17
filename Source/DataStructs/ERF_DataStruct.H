@@ -353,7 +353,8 @@ struct SolverChoice {
         pp.query("windfarm_loc_table",  windfarm_loc_table);
         pp.query("windfarm_spec_table", windfarm_spec_table);
         pp.query("windfarm_blade_table", windfarm_blade_table);
-        pp.query("windfarm_airofil_tables", windfarm_airfoil_tables);
+        pp.query("windfarm_airfoil_tables", windfarm_airfoil_tables);
+        pp.query("windfarm_spec_table_extra", windfarm_spec_table_extra);
 
         // Sampling distance upstream of the turbine to find the
         // incoming free stream velocity as a factor of the diameter of the
@@ -647,7 +648,7 @@ struct SolverChoice {
     // if     SAM, then it will be set to RhoQ4
     int RhoQr_comp {-1};
 
-    std::string windfarm_loc_table, windfarm_spec_table;
+    std::string windfarm_loc_table, windfarm_spec_table, windfarm_spec_table_extra;
     std::string windfarm_blade_table, windfarm_airfoil_tables;
     amrex::Real sampling_distance_by_D = -1.0;
     amrex::Real turb_disk_angle = -1.0;

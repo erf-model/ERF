@@ -3,6 +3,8 @@
  */
 
 #include <ERF_WindFarm.H>
+#include <filesystem>
+#include <dirent.h>   // For POSIX directory handling
 
 using namespace amrex;
 
@@ -123,6 +125,14 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         xloc[it] = xloc[it] - xloc_min + windfarm_x_shift;
         yloc[it] = yloc[it] - yloc_min + windfarm_y_shift;
     }
+
+    FILE* file_xy_loc;
+    file_xy_loc = fopen("file_xy_loc_KingPlains.txt","w");
+
+    for(int it = 0;it<xloc.size(); it++){
+        fprintf(file_xy_loc,"%0.15g %0.15g %0.15g\n", xloc[it], yloc[it], 89.0);
+    }
+    fclose(file_xy_loc);
 }
 
 void
@@ -199,6 +209,8 @@ void
 WindFarm::read_windfarm_blade_table(const std::string windfarm_blade_table)
 {
     std::ifstream filename(windfarm_blade_table);
+    std::string line;
+    Real temp, var1, var2, var3;
     if (!filename.is_open()) {
         Error("You are using a generalized actuator disk model based on blade element theory. This needs info of blades."
                       " An entry erf.windfarm_blade_table is needed. Either the entry is missing or the file specified"
@@ -206,7 +218,143 @@ WindFarm::read_windfarm_blade_table(const std::string windfarm_blade_table)
     }
     else {
         Print() << "Reading in wind farm blade table: " << windfarm_blade_table << "\n";
+
+        // First 6 lines are comments
+
+        for (int i = 0; i < 6; ++i) {
+            if (std::getline(filename, line)) {  // Read one line into the array
+            }
+        }
+
+        while(filename >> var1 >> temp >> temp >> temp >> var2 >> var3 >> temp) {
+            bld_rad_loc.push_back(var1);
+            bld_twist.push_back(var2);
+            bld_chord.push_back(var3);
+            //int idx = bld_rad_loc.size()-1;
+            //printf("Values are = %0.15g %0.15g %0.15g\n", bld_rad_loc[idx], bld_twist[idx], bld_chord[idx]);
+        }
+        set_blade_spec(bld_rad_loc, bld_twist, bld_chord);
+        n_bld_sections = bld_rad_loc.size();
     }
+}
+
+void
+WindFarm::read_windfarm_spec_table_extra(const std::string windfarm_spec_table_extra)
+{
+    // Open the file
+    std::ifstream file(windfarm_spec_table_extra);
+
+    // Check if file opened successfully
+    if (!file.is_open()) {
+        Abort("Error: You are using generalized wind farms option. This requires an input file erf.windfarm_spec_table_extra."
+              " Either this entry is missing in the inputs or the file specified -" + windfarm_spec_table_extra + " does"
+              " not exist. Exiting...");
+    } else {
+        printf("Reading in windfarm_spec_table_extra %s", windfarm_spec_table_extra.c_str());
+    }
+
+    // Ignore the first line (header)
+    std::string header;
+    std::getline(file, header);
+
+    // Variables to hold each row's values
+    double V, Cp, Ct, rpm, pitch, temp;
+
+    // Read the file row by row
+    while (file >> V) {
+        char comma;  // To ignore the commas
+        file >> comma >> Cp >> comma >> Ct >> comma >> temp >> comma >> temp >> comma
+             >> temp >> comma >> rpm >> comma >> pitch >> comma >> temp;
+
+        velocity.push_back(V);
+        C_P.push_back(Cp);
+        C_T.push_back(Ct);
+        rotor_RPM.push_back(rpm);
+        blade_pitch.push_back(pitch);
+    }
+
+    set_turb_spec_extra(velocity, C_P, C_T, rotor_RPM, blade_pitch);
+}
+
+
+void
+WindFarm::read_windfarm_airfoil_tables(const std::string windfarm_airfoil_tables,
+                                       const std::string windfarm_blade_table)
+{
+    DIR* dir;
+    struct dirent* entry;
+    std::vector<std::string> files;
+
+    // Check if directory exists
+    if ((dir = opendir(windfarm_airfoil_tables.c_str())) == nullptr) {
+       Abort("You are using a generalized actuator disk model based on blade element theory. This needs info of airfoil"
+             " cross sections over the span of the blade. There needs to be an entry erf.airfoil_tables which is the directory that"
+             " contains the angle of attack, Cl, Cd data for each airfoil cross-section. Either the entry is missing or the directory specified"
+             " in the entry - " + windfarm_airfoil_tables + " is missing. Exiting...");
+    }
+
+    // Loop through directory entries and collect filenames
+    while ((entry = readdir(dir)) != nullptr) {
+        // Skip special directory entries "." and ".."
+        if (std::string(entry->d_name) == "." || std::string(entry->d_name) == "..") {
+            continue;
+        }
+        files.emplace_back(windfarm_airfoil_tables + "/" + entry->d_name);  // Add file path to vector
+    }
+
+    // Close the directory
+    closedir(dir);
+
+    if (files.empty()) {
+        Abort("It seems the directory containing the info of airfoil cross sections of the blades - " + windfarm_airfoil_tables +
+              " is empty. Exiting...");
+    }
+
+    if(files.size() != static_cast<long double>(n_bld_sections)) {
+        printf("There are %d airfoil sections in the last column of %s. But the number"
+               " of files in %s is only %ld.\n", n_bld_sections, windfarm_blade_table.c_str(),
+                windfarm_airfoil_tables.c_str(), files.size());
+        Abort("The number of blade sections from " + windfarm_blade_table + " should match the number of"
+              " files in " + windfarm_airfoil_tables + ". Exiting...");
+    }
+
+    // Sort filenames in lexicographical (alphabetical) order
+    std::sort(files.begin(), files.end());
+
+    // Process each file
+    int count = 0;
+    bld_airfoil_aoa.resize(n_bld_sections);
+    bld_airfoil_Cl.resize(n_bld_sections);
+    bld_airfoil_Cd.resize(n_bld_sections);
+    for (const auto& filePath : files) {
+        std::ifstream filename(filePath.c_str());
+
+        if (!filename.is_open()) {
+            std::cerr << "Failed to open file: " << filePath << std::endl;
+            continue;  // Move on to the next file
+        }
+
+           std::cout << "Reading file: " << filePath << std::endl;
+
+        std::string line;
+        for (int i = 0; i < 54; ++i) {
+            if (std::getline(filename, line)) {  // Read one line into the array
+            }
+        }
+
+        Real var1, var2, var3, temp;
+
+        while(filename >> var1 >> var2 >> var3 >> temp) {
+            bld_airfoil_aoa[count].push_back(var1);
+            bld_airfoil_Cl[count].push_back(var2);
+            bld_airfoil_Cd[count].push_back(var3);
+            //int idx = bld_airfoil_aoa.size()-1;
+            //printf("Values are = %0.15g %0.15g %0.15g\n", bld_airfoil_aoa[idx], bld_airfoil_Cl[idx], bld_airfoil_Cd[idx]);
+        }
+        count++;
+    }
+
+    set_blade_airfoil_spec(bld_airfoil_aoa, bld_airfoil_Cl, bld_airfoil_Cd);
 }
 
 void
