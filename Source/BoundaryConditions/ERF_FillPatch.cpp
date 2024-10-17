@@ -208,7 +208,7 @@ ERF::FillPatch (int lev, Real time,
 
     if (m_r2d) fill_from_bndryregs(mfs_vel,time);
 
-    // We call these even if init_type == real because these will fill the vertical bcs
+    // We call these even if init_type == InitType::Real because these will fill the vertical bcs
     // Note that we call FillBoundary inside the physbcs call
     (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
     if (!cons_only) {
@@ -418,7 +418,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
     if (m_r2d) fill_from_bndryregs(mfs_vel,time);
 
-    // We call this even if init_type == real because this routine will fill the vertical bcs
+    // We call this even if init_type == InitType::Real because this routine will fill the vertical bcs
     (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
     if (!cons_only) {
         (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc, do_fb);

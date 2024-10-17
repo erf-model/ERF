@@ -67,6 +67,13 @@ class MultiBlockContainer;
 #endif
 
 /**
+ * Enum of possible initialization types
+*/
+AMREX_ENUM(InitType,
+    None, Input_Sounding, Ideal, Real, Metgrid, Uniform
+);
+
+/**
  * Enum of possible coarse/fine interpolation options
 */
 namespace InterpType {
@@ -956,13 +963,12 @@ private:
     // Native or NetCDF
     static std::string plotfile_type;
 
-    // init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
-    static std::string init_type;
+    static InitType init_type;
 
     // sponge_type:  "input_sponge"
     static std::string sponge_type;
 
-    // use_real_bcs: only true if 1) ( (init_type == real) or (init_type == metgrid) )
+    // use_real_bcs: only true if 1) ( (init_type == InitType::Real) or (init_type == InitType::Metgrid) )
     //                        AND 2) we want to use the bc's from the WRF bdy file
     static bool use_real_bcs;
 
@@ -975,7 +981,7 @@ private:
     int real_set_width{0};
 
     // Flag to trigger initialization from input_sounding like WRF's ideal.exe
-    // used with init_type == "input_sounding"
+    // used with init_type == InitType::Input_Sounding
     static bool init_sounding_ideal;
 
     // 1D CDF output (for ingestion in AMR-Wind)

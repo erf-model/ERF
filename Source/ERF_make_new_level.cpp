@@ -47,7 +47,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // Define dmap[lev] to be dm
     SetDistributionMap(lev, dm);
 
-    // amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+    amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
 
     if (lev == 0) init_bcs();
 
@@ -113,14 +113,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     // ********************************************************************************************
     // Initialize the data itself
-    // If (init_type == "real") then we are initializing terrain and the initial data in
-    //                          the same call so we must call init_only before update_terrain_arrays
-    // If (init_type != "real") then we want to initialize the terrain before the initial data
-    //                          since we may need to use the grid information before constructing
-    //                          initial idealized data
+    // If (init_type == InitType::Real) then we are initializing terrain and the initial data in
+    //                                  the same call so we must call init_only before update_terrain_arrays
+    // If (init_type != InitType::Real) then we want to initialize the terrain before the initial data
+    //                                  since we may need to use the grid information before constructing
+    //                                  initial idealized data
     // ********************************************************************************************
     if (restart_chkfile.empty()) {
-        if ((init_type == "real") || (init_type == "metgrid")) {
+        if ((init_type == InitType::Real) || (init_type == InitType::Metgrid)) {
             init_only(lev, start_time);
             init_zphys(lev, time);
             update_terrain_arrays(lev);
@@ -128,7 +128,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         } else {
             init_zphys(lev, time);
             update_terrain_arrays(lev);
-            // Note that for init_type != real or metgrid,
+            // Note that for init_type != InitType::Real or InitType::Metgrid,
             // make_physbcs is called inside init_only
             init_only(lev, start_time);
         }
