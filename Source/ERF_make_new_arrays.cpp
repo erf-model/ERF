@@ -445,7 +445,7 @@ ERF::init_zphys (int lev, Real time)
 {
     if (solverChoice.use_terrain)
     {
-        if (init_type != "real" && init_type != "metgrid")
+        if (init_type != InitType::Real && init_type != InitType::Metgrid)
         {
             if (lev > 0) {
                 //

@@ -43,10 +43,9 @@ int  ERF::pert_interval = -1;
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
-// init_type:  "uniform", "ideal", "real", "input_sounding", "metgrid" or ""
-std::string ERF::init_type;
+InitType ERF::init_type;
 
-// use_real_bcs: only true if 1) ( (init_type == real) or (init_type == metgrid) )
+// use_real_bcs: only true if 1) ( (init_type == InitType::Real) or (init_type == InitGrid::Metgrid) )
 //                        AND 2) we want to use the bc's from the WRF bdy file
 bool ERF::use_real_bcs;
 
@@ -610,7 +609,7 @@ ERF::InitData_post ()
 {
     if (restart_chkfile.empty()) {
         if (solverChoice.use_terrain) {
-            if (init_type == "ideal") {
+            if (init_type == InitType::Ideal) {
                 Abort("We do not currently support init_type = ideal with terrain");
             }
         }
@@ -818,7 +817,7 @@ ERF::InitData_post ()
         solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
     {
         initRayleigh();
-        if (init_type == "input_sounding")
+        if (init_type == InitType::Input_Sounding)
         {
             // Overwrite ubar, vbar, and thetabar with input profiles;
             // wbar is assumed to be 0. Note: the tau coefficient set by
@@ -1250,7 +1249,7 @@ ERF::init_only (int lev, Real time)
     // Map the words in the inputs file to BC types, then translate
     //     those types into what they mean for each variable
     // This must be called before initHSE (where the base state is initialized)
-    if (lev == 0 && init_type != "ideal") {
+    if (lev == 0 && init_type != InitType::Ideal) {
         init_bcs();
     }
 
@@ -1267,7 +1266,7 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::zvel].setVal(0.0); lev_old[Vars::zvel].setVal(0.0);
 
     // Initialize background flow (optional)
-    if (init_type == "input_sounding") {
+    if (init_type == InitType::Input_Sounding) {
         // The base state is initialized by integrating vertically through the
         // input sounding, if the init_sounding_ideal flag is set; otherwise
         // it is set by initHSE()
@@ -1288,23 +1287,23 @@ ERF::init_only (int lev, Real time)
         }
 
 #ifdef ERF_USE_NETCDF
-    } else if (init_type == "ideal" || init_type == "real") {
+    } else if (init_type == InitType::Ideal || init_type == InitType::Real) {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
         init_from_wrfinput(lev);
 
         // The physbc's need the terrain but are needed for initHSE
-        if (init_type == "ideal") {
+        if (init_type == InitType::Ideal) {
             make_physbcs(lev);
             initHSE(lev);
         }
 
-    } else if (init_type == "metgrid") {
+    } else if (init_type == InitType::Metgrid) {
         // The base state is initialized from data output by WPS metgrid;
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    } else if (init_type == "uniform") {
+    } else if (init_type == InitType::Uniform) {
         // Initialize a uniform background field and base state based on the
         // problem-specified reference density and temperature
 
@@ -1419,11 +1418,12 @@ ERF::ReadParameters ()
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
         // How to initialize
-        pp.query("init_type",init_type);
+        init_type = InitType::None;
+        pp.query_enum_case_insensitive("init_type",init_type);
 
         // Should we use the bcs we've read in from wrfbdy or metgrid files?
         // We default to yes if we have them, but the user can override that option
-        use_real_bcs = ( (init_type == "real") || (init_type == "metgrid") );
+        use_real_bcs = ( (init_type == InitType::Real) || (init_type == InitType::Metgrid) );
         pp.query("use_real_bcs",use_real_bcs);
 
         // We use this to keep track of how many boxes we read in from WRF initialization
@@ -1530,7 +1530,7 @@ ERF::ReadParameters ()
 
     // No moving terrain with init real (we must do this after init_params
     //    because that is where we set terrain_type
-    if (init_type == "real" && solverChoice.terrain_type == TerrainType::Moving) {
+    if (init_type == InitType::Real && solverChoice.terrain_type == TerrainType::Moving) {
         Abort("Moving terrain is not supported with init real");
     }
 
@@ -1562,8 +1562,8 @@ ERF::ParameterSanityChecks ()
 {
     AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt[0] > 0.);
 
-    // We don't allow use_real_bcs to be true if init_type is not either real or metgrid
-    AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == "real") || (init_type == "metgrid")) );
+    // We don't allow use_real_bcs to be true if init_type is not either InitType::Rreal or InitType::Metgrid
+    AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == InitType::Real) || (init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
     AMREX_ALWAYS_ASSERT(real_set_width >= 0);
@@ -1588,17 +1588,6 @@ ERF::ParameterSanityChecks ()
     {
         Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
         Abort("Dont know this plotfile_type");
-    }
-
-    // Enforce the init_type is one we know
-    if (!init_type.empty() &&
-        init_type != "uniform" &&
-        init_type != "ideal" &&
-        init_type != "real" &&
-        init_type != "metgrid" &&
-        init_type != "input_sounding")
-    {
-        Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
     }
 
     // If fixed_mri_dt_ratio is set, it must be even
