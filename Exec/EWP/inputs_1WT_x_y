@@ -49,7 +49,6 @@ xlo.theta    = 300.
 
 
 # TIME STEP CONTROL
-erf.use_native_mri = 1
 erf.fixed_dt       = 3.0  # fixed time step depending on grid resolution
 #erf.fixed_fast_dt  = 0.0025
 

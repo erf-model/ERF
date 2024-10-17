@@ -428,9 +428,8 @@ List of Parameters
 |                            | cfl or other         |                |                   |
 |                            | settings             |                |                   |
 +----------------------------+----------------------+----------------+-------------------+
-| **erf.fixed_fast_dt**      | set fast dt          | Real > 0       | only relevant     |
-|                            | as this value        |                | if use_native_mri |
-|                            |                      |                | is true           |
+| **erf.fixed_fast_dt**      | set fast dt          | Real > 0       |                   |
+|                            | as this value        |                |                   |
 +----------------------------+----------------------+----------------+-------------------+
 | **erf.fixed_mri_dt_ratio** | set fast dt          | even int > 0   | only relevant     |
 |                            | as slow dt /         |                | if no_substepping |

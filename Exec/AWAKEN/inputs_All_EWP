@@ -49,7 +49,6 @@ yhi.type = "Outflow"
 
 
 # TIME STEP CONTROL
-erf.use_native_mri = 1
 erf.fixed_dt       = 0.125  # fixed time step depending on grid resolution
 #erf.fixed_fast_dt  = 0.0025
 
