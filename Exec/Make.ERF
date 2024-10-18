@@ -112,7 +112,9 @@ AMReXdirs             += EB
 endif
 
 ifeq ($(USE_POISSON_SOLVE),TRUE)
-AMReXdirs             += LinearSolvers/MLMG
+USE_LINEAR_SOLVERS_INCFLO = FALSE
+USE_LINEAR_SOLVERS_EM     = FALSE
+AMReXdirs                += LinearSolvers
 endif
 
 ifeq ($(USE_HDF5),TRUE)
