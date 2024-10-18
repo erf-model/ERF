@@ -539,6 +539,12 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       }
     }
 
+    // Write plane/line sampler data
+    if (is_it_time_for_action(nstep, time, dt_lev0, sampler_interval, sampler_per) && (data_sampler) ) {
+        data_sampler->get_sample_data(geom, vars_new);
+        data_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    }
+
     // Moving terrain
     if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
     {
@@ -1138,12 +1144,6 @@ ERF::InitData_post ()
 
     }
 
-    // DEBUG
-    data_sampler = std::make_unique<SampleData>();
-    data_sampler->get_sample_data(vars_new);
-    data_sampler->write_sample_data(geom);
-    exit(0);
-
     if (pp.contains("sample_line_log") && pp.contains("sample_line"))
     {
         int lev = 0;
@@ -1173,6 +1173,11 @@ ERF::InitData_post ()
         }
 
     }
+
+    // Create object to do line and plane sampling if neeeded
+    bool do_line = false; bool do_plane = false;
+    pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
+    if (do_line || do_plane) { data_sampler = std::make_unique<SampleData>(do_line, do_plane); }
 
 #ifdef ERF_USE_EB
     bool write_eb_surface = false;
@@ -1500,6 +1505,10 @@ ERF::ReadParameters ()
         pp.query("column_loc_x", column_loc_x);
         pp.query("column_loc_y", column_loc_y);
         pp.query("column_file_name", column_file_name);
+
+        // Sampler output frequency
+        pp.query("sampler_per", sampler_per);
+        pp.query("sampler_interval", sampler_interval);
 
         // Specify information about outputting planes of data
         pp.query("output_bndry_planes", output_bndry_planes);

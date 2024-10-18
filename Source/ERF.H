@@ -1255,6 +1255,9 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleLineInfo");
     }
 
+    // Data sampler for line and plane output
+    int sampler_interval = -1;
+    amrex::Real sampler_per = -1.0;
     std::unique_ptr<SampleData> data_sampler = nullptr;
 
     amrex::Vector<std::unique_ptr<std::fstream> > datalog;
