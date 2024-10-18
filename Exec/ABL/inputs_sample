@@ -20,7 +20,7 @@ erf.fixed_dt           = 0.1  # fixed time step depending on grid resolution
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
-amr.v                = 1       # verbosity in Amr.cpp
+amr.v              = 1       # verbosity in Amr.cpp
 
 erf.data_log = my_data_file
 
@@ -28,7 +28,11 @@ erf.sample_point_log = my_sample_point
 erf.sample_point = 6 63 5
 
 erf.sample_line_log = my_sample_line
-erf.sample_line = 63 63 5
+erf.sample_line = 5 32 5
+
+erf.sample_line_lo  = 5 32  5 10 32  5
+erf.sample_line_hi  = 5 32 25 10 32 25
+erf.sample_line_dir = 2 2
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed

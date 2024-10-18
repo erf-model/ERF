@@ -1138,6 +1138,12 @@ ERF::InitData_post ()
 
     }
 
+    // DEBUG
+    data_sampler = std::make_unique<SampleData>();
+    data_sampler->get_sample_data(vars_new);
+    data_sampler->write_sample_data(geom);
+    exit(0);
+
     if (pp.contains("sample_line_log") && pp.contains("sample_line"))
     {
         int lev = 0;

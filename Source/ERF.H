@@ -40,6 +40,7 @@
 #include <ERF_MRI.H>
 #include <ERF_PhysBCFunct.H>
 #include <ERF_FillPatcher.H>
+#include <ERF_SampleData.H>
 
 #ifdef ERF_USE_PARTICLES
 #include "ERF_ParticleData.H"
@@ -1253,6 +1254,8 @@ private:
         }
         amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleLineInfo");
     }
+
+    std::unique_ptr<SampleData> data_sampler = nullptr;
 
     amrex::Vector<std::unique_ptr<std::fstream> > datalog;
     amrex::Vector<std::string> datalogname;

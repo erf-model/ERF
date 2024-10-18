@@ -302,8 +302,14 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
     // In this case we sample in the vertical direction so dir = 2
     // The "k" value of "cell" is ignored
     //
+    AllPrint() << "PRE GET LINE\n";
+    IntVect cell2 = cell; cell2[2] += 20;
+    IntVect cell3 = cell; cell3[0] += 20;
+    Box bnd_bx_z(cell,cell2);
+    Box bnd_bx_x(cell,cell3);
     int dir = 2;
-    MultiFab my_line       = get_line_data(mf,              dir, cell);
+    MultiFab my_line       = get_line_data(mf,              dir, cell, bnd_bx_z);
+    MultiFab my_line2      = get_line_data(mf,              0  , cell, bnd_bx_x);
     MultiFab my_line_vels  = get_line_data(mf_vels,         dir, cell);
     MultiFab my_line_tau11 = get_line_data(*Tau11_lev[lev], dir, cell);
     MultiFab my_line_tau12 = get_line_data(*Tau12_lev[lev], dir, cell);
@@ -311,6 +317,19 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
     MultiFab my_line_tau22 = get_line_data(*Tau22_lev[lev], dir, cell);
     MultiFab my_line_tau23 = get_line_data(*Tau23_lev[lev], dir, cell);
     MultiFab my_line_tau33 = get_line_data(*Tau33_lev[lev], dir, cell);
+
+    Vector<Real> low  = {  16.0,  16.0, 80.0};
+    Vector<Real> high = {1008.0, 512.0, 80.0};
+    RealBox bnd_rbx(low.data(),high.data());
+    std::unique_ptr<MultiFab> test = get_slice_data(2, 80.0, mf, geom[lev], 0, 1, true, bnd_rbx);
+
+    AllPrint() << "CHECK Z: " << bnd_bx_z << ' ' << my_line.boxArray() << ' '
+               << my_line.DistributionMap() << "\n";
+    AllPrint() << "CHECK X: " << bnd_bx_x << ' ' << my_line2.boxArray() << ' '
+               << my_line2.DistributionMap() << "\n";
+    AllPrint() << "CHECK T: " << bnd_rbx << ' ' << test->boxArray() << ' '
+               << test->DistributionMap() << "\n";
+    exit(0);
 
     for (MFIter mfi(my_line, false); mfi.isValid(); ++mfi)
     {
