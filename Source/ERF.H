@@ -368,9 +368,10 @@ public:
     // Advance a block specified number of time steps
     void Evolve_MB (int MBstep, int max_block_step);
 
-    // get the current time values
+    // get the current time values and dt
     amrex::Real get_t_old() {return t_old[0];}
     amrex::Real get_t_new() {return t_new[0];}
+    amrex::Real get_dt() {return dt[0];}
 
     // Set parmparse prefix for MultiBlock
     void SetParmParsePrefix (std::string name) { pp_prefix = name; }
