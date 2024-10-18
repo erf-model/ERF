@@ -89,7 +89,6 @@ compute_interior_ghost_bxs_xy (const Box& bx,
 /**
  * Compute the RHS in the relaxation zone
  *
- * @param[in] init_type initialization method for this simulation
  * @param[in] bdy_time_interval time interval between boundary condition time stamps
  * @param[in] time    current time
  * @param[in] delta_t timestep
@@ -105,8 +104,7 @@ compute_interior_ghost_bxs_xy (const Box& bx,
  * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
-realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
-                                    const Real& bdy_time_interval,
+realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     const Real& start_bdy_time,
                                     const Real& time,
                                     const Real& delta_t,
