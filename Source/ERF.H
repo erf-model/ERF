@@ -369,9 +369,9 @@ public:
     void Evolve_MB (int MBstep, int max_block_step);
 
     // get the current time values and dt
-    amrex::Real get_t_old() {return t_old[0];}
-    amrex::Real get_t_new() {return t_new[0];}
-    amrex::Real get_dt() {return dt[0];}
+    amrex::Real get_t_old (int lev) { return t_old[lev]; }
+    amrex::Real get_t_new (int lev) { return t_new[lev]; }
+    amrex::Real get_dt    (int lev) { return dt[lev];    }
 
     // Set parmparse prefix for MultiBlock
     void SetParmParsePrefix (std::string name) { pp_prefix = name; }
