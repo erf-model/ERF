@@ -20,7 +20,13 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         // Per p2902 of Klemp-Skamarock-Dudhia-2007
         // beta_s = -1.0 : fully explicit
         // beta_s =  1.0 : fully implicit
-        Real beta_s = 0.1;
+        Real beta_s;
+        if (solverChoice.substepping_type[level] == SubsteppingType::Implicit)
+        {
+            beta_s = 0.1;
+        } else { // Fully explicit
+            beta_s = -1.0;
+        }
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling
@@ -99,7 +105,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
+                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
@@ -111,7 +117,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
+                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
         } else if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Static) {
             if (fast_step == 0) {
@@ -127,7 +133,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
+                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
@@ -135,7 +141,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
+                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
         } else {
             if (fast_step == 0) {
@@ -151,7 +157,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
+                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_N(fast_step, nrk, level, finest_level,
@@ -159,7 +165,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
+                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
         }
 

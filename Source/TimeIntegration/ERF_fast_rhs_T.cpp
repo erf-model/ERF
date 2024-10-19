@@ -57,7 +57,8 @@ void erf_fast_rhs_T (int step, int nrk,
                      YAFluxRegister* fr_as_crse,
                      YAFluxRegister* fr_as_fine,
                      bool l_use_moisture,
-                     bool l_reflux)
+                     bool l_reflux,
+                     bool l_implicit_substepping)
 {
     BL_PROFILE_REGION("erf_fast_rhs_T()");
 

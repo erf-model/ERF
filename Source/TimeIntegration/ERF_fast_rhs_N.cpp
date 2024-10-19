@@ -51,7 +51,8 @@ void erf_fast_rhs_N (int step, int nrk,
                      YAFluxRegister* fr_as_crse,
                      YAFluxRegister* fr_as_fine,
                      bool l_use_moisture,
-                     bool l_reflux)
+                     bool l_reflux,
+                     bool l_implicit_substepping)
 {
     BL_PROFILE_REGION("erf_fast_rhs_N()");
 
@@ -368,8 +369,6 @@ void erf_fast_rhs_N (int step, int nrk,
         // *********************************************************************
         // fast_loop_on_shrunk
         // *********************************************************************
-        {
-        BL_PROFILE("fast_loop_on_shrunk");
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -409,90 +408,129 @@ void erf_fast_rhs_N (int step, int nrk,
 
             // line 1
             RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau * beta_2 * R1_tmp);
-        });
-        } // end profile
+        }); // bx_shrunk_in_k
 
         Box b2d = tbz; // Copy constructor
         b2d.setRange(2,0);
 
-        {
-        BL_PROFILE("fast_rhs_b2d_loop");
 #ifdef AMREX_USE_GPU
         auto const lo = lbound(bx);
         auto const hi = ubound(bx);
-        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
-          // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
-          RHS_a(i,j,lo.z) = dtau * slow_rhs_rho_w(i,j,lo.z);
 
-          // w at top boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
-          // TODO TODO: Note that if we ever change this, we will need to include it in avg_zmom at the top
-          RHS_a(i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
+        if (l_implicit_substepping) {
 
-          // w = specified Dirichlet value at k = lo.z
-            soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
-          cur_zmom(i,j,lo.z) = stage_zmom(i,j,lo.z) + soln_a(i,j,lo.z);
+            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+              // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
+              RHS_a(i,j,lo.z) = dtau * slow_rhs_rho_w(i,j,lo.z);
 
-          for (int k = lo.z+1; k <= hi.z+1; k++) {
-              soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
-          }
+              // w at top boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
+              RHS_a(i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
 
-          cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
+              // w = specified Dirichlet value at k = lo.z
+                soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
+              cur_zmom(i,j,lo.z) = stage_zmom(i,j,lo.z) + soln_a(i,j,lo.z);
 
-          for (int k = hi.z; k >= lo.z; k--) {
-              soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
-              cur_zmom(i,j,k) = stage_zmom(i,j,k) + soln_a(i,j,k);
-          }
-        }); // b2d
+              for (int k = lo.z+1; k <= hi.z+1; k++) {
+                  soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
+              }
+
+              cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
+
+              for (int k = hi.z; k >= lo.z; k--) {
+                  soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
+                  cur_zmom(i,j,k) = stage_zmom(i,j,k) + soln_a(i,j,k);
+              }
+            }); // b2d
+
+        } else { // explicit substepping
+
+            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+              // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
+              RHS_a(i,j,lo.z) = dtau * slow_rhs_rho_w(i,j,lo.z);
+
+              // w at top boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
+              RHS_a(i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
+
+              for (int k = lo.z; k <= hi.z+1; k++) {
+                  soln_a(i,j,k) = RHS_a(i,j,k) * inv_coeffB_a(i,j,k);
+                  cur_zmom(i,j,k) = stage_zmom(i,j,k) + soln_a(i,j,k);
+              }
+            }); // b2d
+        } // end of explicit substepping
 #else
         auto const lo = lbound(bx);
         auto const hi = ubound(bx);
-        for (int j = lo.y; j <= hi.y; ++j) {
-            AMREX_PRAGMA_SIMD
-            for (int i = lo.x; i <= hi.x; ++i) {
-                // w at bottom boundary of grid is 0 if at domain boundary, otherwise w_old + dtau * slow_rhs
-                RHS_a (i,j,lo.z) = dtau * slow_rhs_rho_w(i,j,lo.z);
-                soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
-            }
-        }
-        // Note that if we ever change this, we will need to include it in avg_zmom at the top
-        for (int j = lo.y; j <= hi.y; ++j) {
-            AMREX_PRAGMA_SIMD
-            for (int i = lo.x; i <= hi.x; ++i) {
-                RHS_a (i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
-            }
-        }
-        for (int k = lo.z+1; k <= hi.z+1; ++k) {
+
+        if (l_implicit_substepping) {
+
             for (int j = lo.y; j <= hi.y; ++j) {
                 AMREX_PRAGMA_SIMD
                 for (int i = lo.x; i <= hi.x; ++i) {
-                    soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
+                    // w at bottom boundary of grid is 0 if at domain boundary, otherwise w_old + dtau * slow_rhs
+                    RHS_a (i,j,lo.z) = dtau * slow_rhs_rho_w(i,j,lo.z);
+                    soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
                 }
             }
-        }
-        for (int j = lo.y; j <= hi.y; ++j) {
-            AMREX_PRAGMA_SIMD
-            for (int i = lo.x; i <= hi.x; ++i) {
-                cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
-            }
-        }
-        for (int k = hi.z; k >= lo.z; --k) {
+            // Note that if we ever change this, we will need to include it in avg_zmom at the top
             for (int j = lo.y; j <= hi.y; ++j) {
                 AMREX_PRAGMA_SIMD
                 for (int i = lo.x; i <= hi.x; ++i) {
-                    soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) * soln_a(i,j,k+1);
-                    cur_zmom(i,j,k) = stage_zmom(i,j,k) + soln_a(i,j,k);
+                    RHS_a (i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
                 }
             }
-        }
+            for (int k = lo.z+1; k <= hi.z+1; ++k) {
+                for (int j = lo.y; j <= hi.y; ++j) {
+                    AMREX_PRAGMA_SIMD
+                    for (int i = lo.x; i <= hi.x; ++i) {
+                        soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
+                    }
+                }
+            }
+            for (int j = lo.y; j <= hi.y; ++j) {
+                AMREX_PRAGMA_SIMD
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
+                }
+            }
+            for (int k = hi.z; k >= lo.z; --k) {
+                for (int j = lo.y; j <= hi.y; ++j) {
+                    AMREX_PRAGMA_SIMD
+                    for (int i = lo.x; i <= hi.x; ++i) {
+                        soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) * soln_a(i,j,k+1);
+                        cur_zmom(i,j,k) = stage_zmom(i,j,k) + soln_a(i,j,k);
+                    }
+                }
+            }
+        } else { // explicit substepping
+
+            for (int j = lo.y; j <= hi.y; ++j) {
+                AMREX_PRAGMA_SIMD
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    RHS_a (i,j,lo.z  ) = dtau * slow_rhs_rho_w(i,j,lo.z);
+                    RHS_a (i,j,hi.z+1) = dtau * slow_rhs_rho_w(i,j,hi.z+1);
+                }
+            }
+
+            for (int k = lo.z; k <= hi.z+1; ++k) {
+                for (int j = lo.y; j <= hi.y; ++j) {
+                    AMREX_PRAGMA_SIMD
+                    for (int i = lo.x; i <= hi.x; ++i) {
+                          AMREX_ASSERT(coeffA_a(i,j,k) == 0.0);
+                          AMREX_ASSERT(coeffC_a(i,j,k) == 0.0);
+                          soln_a(i,j,k) = RHS_a(i,j,k) * inv_coeffB_a(i,j,k);
+                        cur_zmom(i,j,k) = stage_zmom(i,j,k) + soln_a(i,j,k);
+                    }
+                }
+            }
+
+        } // end of explicit substepping
 #endif
-        } // end profile
 
         // **************************************************************************
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
-        {
-        BL_PROFILE("fast_rho_final_update");
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * old_drho_w(i,j,k  );
@@ -512,7 +550,6 @@ void erf_fast_rhs_N (int step, int nrk,
             temp_rhs_arr(i,j,k,RhoTheta_comp) += 0.5 * dzi * ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
                                                              - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
         });
-        } // end profile
 
         // We only add to the flux registers in the final RK step
         if (l_reflux && nrk == 2) {
