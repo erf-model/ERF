@@ -22,6 +22,10 @@
 #include <AMReX_YAFluxRegister.H>
 #include <AMReX_ErrorList.H>
 
+#ifdef ERF_USE_FFT
+#include <AMReX_FFT_Poisson.H>
+#endif
+
 #ifdef AMREX_MEM_PROFILING
 #include <AMReX_MemProfiler.H>
 #endif
@@ -143,8 +147,6 @@ public:
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
-    void solve_with_heffte  (int lev, amrex::MultiFab& rhs, amrex::MultiFab& soln,
-                             amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 
     // Project the velocities to be divergence-free with a thin body
     void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
@@ -954,7 +956,7 @@ private:
 
     static int verbose;
     static int mg_verbose;
-    static bool use_heffte;
+    static bool use_fft;
 
     // Diagnostic output interval
     static int sum_interval;
@@ -1300,6 +1302,10 @@ private:
 
     [[nodiscard]] static int nghost_eb_full ()
     { return 4; }
+#endif
+
+#ifdef ERF_USE_FFT
+    std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_poisson;
 #endif
 
 public:

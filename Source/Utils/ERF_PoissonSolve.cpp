@@ -119,10 +119,57 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
     Real start_step = static_cast<Real>(ParallelDescriptor::second());
 
-#ifdef ERF_USE_HEFFTE
-    if (use_heffte) {
-        solve_with_heffte(lev, rhs[0], phi[0], fluxes[0]);
-    } else
+#ifdef ERF_USE_FFT
+    if (use_fft) {
+        AMREX_ALWAYS_ASSERT(lev == 0);
+        if (!m_poisson) {
+            m_poisson = std::make_unique<FFT::PoissonHybrid<MultiFab>>(Geom(0));
+        }
+        m_poisson->solve(phi[lev], rhs[lev]);
+
+        phi[lev].FillBoundary(geom[lev].periodicity());
+
+        auto dxInv = geom[lev].InvCellSizeArray();
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(phi[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Array4<Real const> const&  p_arr  = phi[lev].array(mfi);
+
+        Box const& xbx = mfi.nodaltilebox(0);
+        const Real dx_inv = dxInv[0];
+        Array4<Real> const& fx_arr  = fluxes[lev][0].array(mfi);
+        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            fx_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i-1,j,k)) * dx_inv;
+        });
+
+        Box const& ybx = mfi.nodaltilebox(1);
+        const Real dy_inv = dxInv[1];
+        Array4<Real> const& fy_arr  = fluxes[lev][1].array(mfi);
+        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            fy_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j-1,k)) * dy_inv;
+        });
+
+        auto const dom_lo = lbound(geom[lev].Domain());
+        auto const dom_hi = ubound(geom[lev].Domain());
+
+        Box const& zbx = mfi.nodaltilebox(2);
+        const Real dz_inv = dxInv[2];
+        Array4<Real> const& fz_arr  = fluxes[lev][2].array(mfi);
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (k == dom_lo.z || k == dom_hi.z+1) {
+                fz_arr(i,j,k) = 0.0;
+            } else {
+                fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;
+            }
+        });
+    } // mfi
+     } else
 #endif
     {
         // Initialize phi to 0
@@ -142,11 +189,6 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
     }
 
-    Real end_step = static_cast<Real>(ParallelDescriptor::second());
-    if (mg_verbose > 0) {
-        amrex::Print() << "Time in solve " << end_step - start_step << std::endl;
-    }
-
     // Subtract dt grad(phi) from the momenta
     MultiFab::Add(mom_mf[IntVars::xmom],fluxes[0][0],0,0,1,0);
     MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
@@ -155,6 +197,11 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // Update pressure variable with phi -- note that phi is dt * change in pressure
     MultiFab::Saxpy(pmf, 1.0/l_dt, phi[0],0,0,1,0);
     pmf.FillBoundary(geom[lev].periodicity());
+
+    Real end_step = static_cast<Real>(ParallelDescriptor::second());
+    if (mg_verbose > 0) {
+        amrex::Print() << "Time in solve " << end_step - start_step << std::endl;
+    }
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

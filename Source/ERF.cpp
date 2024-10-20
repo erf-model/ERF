@@ -32,7 +32,7 @@ int  ERF::fixed_mri_dt_ratio = 0;
 // Dictate verbosity in screen output
 int ERF::verbose        = 0;
 int  ERF::mg_verbose    = 0;
-bool ERF::use_heffte    = false;
+bool ERF::use_fft       = false;
 
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
@@ -1390,7 +1390,7 @@ ERF::ReadParameters ()
         // Verbosity
         pp.query("v", verbose);
         pp.query("mg_v", mg_verbose);
-        pp.query("use_heffte", use_heffte);
+        pp.query("use_fft", use_fft);
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
