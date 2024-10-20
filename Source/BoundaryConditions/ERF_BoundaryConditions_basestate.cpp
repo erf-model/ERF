@@ -13,7 +13,7 @@ using namespace amrex;
 
 void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain)
 {
-    BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
+    BL_PROFILE_VAR("impose_lateral_base_bcs()",impose_lateral_base_bcs);
 
     int icomp = 0;
     int ncomp = 3;
