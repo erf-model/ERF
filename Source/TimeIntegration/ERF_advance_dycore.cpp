@@ -90,6 +90,7 @@ void ERF::advance_dycore(int level,
     bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
                            (tc.pbl_type != PBLType::None) );
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
+    bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
     const bool use_most = (m_most != nullptr);
     const bool exp_most = (solverChoice.use_explicit_most);
