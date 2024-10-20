@@ -572,8 +572,6 @@ void erf_fast_rhs_N (int step, int nrk,
         auto const& temp_rhs_arr     = temp_rhs.const_array(mfi);
         auto const& slow_rhs_cons    = S_slow_rhs[IntVars::cons].const_array(mfi);
 
-        const Array4<const Real>& stage_cons = S_stage_data[IntVars::cons].const_array(mfi);
-
         if (step == 0) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
