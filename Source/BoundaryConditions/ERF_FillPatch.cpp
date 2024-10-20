@@ -321,7 +321,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         mapper = &cell_cons_interp;
         FillPatchTwoLevels(mf, IntVect{ng_cons}, IntVect(0,0,0),
                            time, cmf, ctime, fmf, ftime,
-                           0, 0, ncomp_cons, geom[lev-1], geom[lev],
+                           icomp_cons, icomp_cons, ncomp_cons, geom[lev-1], geom[lev],
                            refRatio(lev-1), mapper, domain_bcs_type,
                            icomp_cons);
 
