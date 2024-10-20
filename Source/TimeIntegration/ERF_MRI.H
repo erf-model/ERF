@@ -273,6 +273,10 @@ public:
                     nsubsteps =             1;   dtau =     timestep;
                 } else {
                     nsubsteps = substep_ratio;   dtau = sub_timestep;
+
+                    // STRT HACK -- this hack can be used to approximate the no-substepping algorithm
+                    // nsubsteps = 1;   dtau = timestep;
+                    // END HACK
                 }
                 time_stage = time + timestep;
             }

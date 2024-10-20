@@ -6,39 +6,41 @@ using namespace amrex;
 /**
  * Function for computing the fast RHS with fixed terrain
  *
- * @param[in]    step  which fast time step within each Runge-Kutta step
- * @param[in]    nrk   which Runge-Kutta step
- * @param[in]    level level of resolution
- * @param[in]    finest_level finest level of resolution
- * @param[in]    S_slow_rhs slow RHS computed in erf_slow_rhs_pre
- * @param[in]    S_prev previous solution
- * @param[in]    S_stage_data solution            at previous RK stage
- * @param[in]    S_stage_prim primitive variables at previous RK stage
- * @param[in]    pi_stage     Exner function      at previous RK stage
- * @param[in]    fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
- * @param[out]   S_data current solution
- * @param[in]    S_scratch scratch space
- * @param[in]    geom container for geometric information
- * @param[in]    gravity magnitude of gravity
- * @param[in]    Omega component of the momentum normal to the z-coordinate surface
- * @param[in]    z_phys_nd height coordinate at nodes
- * @param[in]    detJ_cc Jacobian of the metric transformation
- * @param[in]    dtau fast time step
- * @param[in]    beta_s  Coefficient which determines how implicit vs explicit the solve is
- * @param[in]    facinv inverse factor for time-averaging the momenta
- * @param[in]    mapfac_m map factor at cell centers
- * @param[in]    mapfac_u map factor at x-faces
- * @param[in]    mapfac_v map factor at y-faces
+ * @param[in   ] step  which fast time step within each Runge-Kutta step
+ * @param[in   ] nrk   which Runge-Kutta step
+ * @param[in   ] level level of resolution
+ * @param[in   ] finest_level finest level of resolution
+ * @param[in   ] S_slow_rhs slow RHS computed in erf_slow_rhs_pre
+ * @param[in   ] S_prev previous solution
+ * @param[in   ] S_stage_data solution            at previous RK stage
+ * @param[in   ] S_stage_prim primitive variables at previous RK stage
+ * @param[in   ] pi_stage     Exner function      at previous RK stage
+ * @param[in   ] fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
+ * @param[  out] S_data current solution
+ * @param[in   ] S_scratch scratch space
+ * @param[in   ] geom container for geometric information
+ * @param[in   ] gravity magnitude of gravity
+ * @param[in   ] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in   ] z_phys_nd height coordinate at nodes
+ * @param[in   ] detJ_cc Jacobian of the metric transformation
+ * @param[in   ] dtau fast time step
+ * @param[in   ] beta_s  Coefficient which determines how implicit vs explicit the solve is
+ * @param[in   ] facinv inverse factor for time-averaging the momenta
+ * @param[in   ] mapfac_m map factor at cell centers
+ * @param[in   ] mapfac_u map factor at x-faces
+ * @param[in   ] mapfac_v map factor at y-faces
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
- * @param[in]    l_reflux should we add fluxes to the FluxRegisters?
+ * @param[in   ] l_use_moisture
+ * @param[in   ] l_reflux should we add fluxes to the FluxRegisters?
+ * @param[in   ] l_implicit_substepping
  */
 
 void erf_fast_rhs_T (int step, int nrk,
                      int level, int finest_level,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
-                     Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
+                     Vector<MultiFab>& S_stage_data,                 // S_stage = S^n, S^* or S^**
                      const MultiFab& S_stage_prim,                   // Primitive version of S_stage_data[IntVars::cons]
                      const MultiFab& pi_stage,                       // Exner function evaluated at last stage
                      const MultiFab& fast_coeffs,                    // Coeffs for tridiagonal solve
@@ -58,7 +60,7 @@ void erf_fast_rhs_T (int step, int nrk,
                      YAFluxRegister* fr_as_fine,
                      bool l_use_moisture,
                      bool l_reflux,
-                     bool l_implicit_substepping)
+                     bool /*l_implicit_substepping*/)
 {
     BL_PROFILE_REGION("erf_fast_rhs_T()");
 
