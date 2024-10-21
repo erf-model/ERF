@@ -362,6 +362,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
                            (solverChoice.turbChoice[lev].pbl_type        !=       PBLType::None) );
     bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type        != LESType::None)   ||
                            (solverChoice.turbChoice[lev].pbl_type        != PBLType::None) );
+    bool l_use_ysu_pbl =    solverChoice.turbChoice[lev].pbl_type        == PBLType::YSU;
     bool l_use_ddorf   = (  solverChoice.turbChoice[lev].les_type        == LESType::Deardorff);
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
 
@@ -427,7 +428,8 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     }
 
     if (l_use_kturb) {
-        eddyDiffs_lev[lev] = std::make_unique<MultiFab>(ba, dm, EddyDiff::NumDiffs, 2);
+        int numdiff = l_use_ysu_pbl ? EddyDiff::NumDiffsYSU : EddyDiff::NumDiffs;
+        eddyDiffs_lev[lev] = std::make_unique<MultiFab>(ba, dm, numdiff, 2);
         eddyDiffs_lev[lev]->setVal(0.0);
         if(l_use_ddorf) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
