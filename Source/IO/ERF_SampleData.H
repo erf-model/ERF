@@ -71,6 +71,7 @@ struct LineSampler
     {
         int nlev  = vars_new.size();
         int nline = m_bnd_bx.size();
+        int ncomp  = 2;
 
         // Loop over each line
         for (int iline(0); iline<nline; ++iline) {
@@ -80,9 +81,40 @@ struct LineSampler
 
             // Search each level to get the finest data possible
             for (int ilev(nlev-1); ilev>=0; --ilev) {
-                amrex::MultiFab& mf = vars_new[ilev][Vars::cons];
+
+                // Construct CC velocities
+                amrex::MultiFab mf_cc_vel;
+                auto ba = vars_new[ilev][Vars::cons].boxArray();
+                auto dm = vars_new[ilev][Vars::cons].DistributionMap();
+                mf_cc_vel.define(ba, dm, AMREX_SPACEDIM, amrex::IntVect(1,1,1));
+                average_face_to_cellcenter(mf_cc_vel,0,
+                                           amrex::Array<const amrex::MultiFab*,3>{&vars_new[ilev][Vars::xvel],
+                                                                                  &vars_new[ilev][Vars::yvel],
+                                                                                  &vars_new[ilev][Vars::zvel]});
+
+                // Construct vector of MFs holding T and WSP
+                amrex::MultiFab mf_cc_data;
+                mf_cc_data.define(ba, dm, ncomp, 1);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const amrex::Box& tbx = mfi.tilebox();
+                    auto const& dfab = mf_cc_data.array(mfi);
+                    auto const& tfab = vars_new[ilev][Vars::cons].array(mfi);
+                    auto const& wfab = mf_cc_vel.array(mfi);
+                    amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        dfab(i,j,k,0) = tfab(i,j,k,1)/tfab(i,j,k,0);
+                        dfab(i,j,k,1) = std::sqrt(wfab(i,j,k,0)*wfab(i,j,k,0)
+                                                + wfab(i,j,k,1)*wfab(i,j,k,1)
+                                                + wfab(i,j,k,2)*wfab(i,j,k,2)) ;
+                    });
+
+                }
+
                   m_lev[iline] = ilev;
-                m_ls_mf[iline] = get_line_data(mf, dir, cell, bnd_bx);
+                m_ls_mf[iline] = get_line_data(mf_cc_data, dir, cell, bnd_bx);
 
                 // We can stop if we got the entire line
                 auto min_bnd_bx = m_ls_mf[iline].boxArray().minimalBox();
@@ -99,7 +131,7 @@ struct LineSampler
                     amrex::Vector<amrex::Geometry>& geom)
     {
         std::string name_base = "plt_line_";
-        amrex::Vector<std::string> varnames = {"r", "rT", "rKE", "rQKE", "rS"};
+        amrex::Vector<std::string> varnames = {"T", "Wsp"};
 
         int nline = m_ls_mf.size();
         for (int iline(0); iline<nline; ++iline) {
@@ -118,9 +150,9 @@ struct LineSampler
             amrex::Box m_dom = m_bnd_bx[iline];
             amrex::RealBox m_rb;
             for (int d(0); d<AMREX_SPACEDIM; ++d) {
-                int offset = (d==dir) ? 0 : 1;
-                amrex::Real lo = plo[d] + ( m_dom.smallEnd(d)        ) * dx[d];
-                amrex::Real hi = plo[d] + ( m_dom.bigEnd(d) + offset ) * dx[d];
+                amrex::Real offset = (d==dir) ? 0 : 0.5;
+                amrex::Real lo = plo[d] + ( m_dom.smallEnd(d) - offset ) * dx[d];
+                amrex::Real hi = plo[d] + ( m_dom.bigEnd(d)   + offset ) * dx[d];
 
                 m_rb.setLo(d,lo);
                 m_rb.setHi(d,hi);
@@ -230,7 +262,7 @@ struct PlaneSampler
     {
         int nlev   = vars_new.size();
         int nplane = m_bnd_rbx.size();
-        int ncomp  = vars_new[0][Vars::cons].nComp();
+        int ncomp  = 2;
         bool interpolate = true;
 
         // Loop over each plane
@@ -241,9 +273,40 @@ struct PlaneSampler
 
             // Search each level to get the finest data possible
             for (int ilev(nlev-1); ilev>=0; --ilev) {
-                amrex::MultiFab& mf = vars_new[ilev][Vars::cons];
+
+                // Construct CC velocities
+                amrex::MultiFab mf_cc_vel;
+                auto ba = vars_new[ilev][Vars::cons].boxArray();
+                auto dm = vars_new[ilev][Vars::cons].DistributionMap();
+                mf_cc_vel.define(ba, dm, AMREX_SPACEDIM, amrex::IntVect(1,1,1));
+                average_face_to_cellcenter(mf_cc_vel,0,
+                                           amrex::Array<const amrex::MultiFab*,3>{&vars_new[ilev][Vars::xvel],
+                                                                                  &vars_new[ilev][Vars::yvel],
+                                                                                  &vars_new[ilev][Vars::zvel]});
+
+                // Construct vector of MFs holding T and WSP
+                amrex::MultiFab mf_cc_data;
+                mf_cc_data.define(ba, dm, ncomp, 1);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const amrex::Box& tbx = mfi.tilebox();
+                    auto const& dfab = mf_cc_data.array(mfi);
+                    auto const& tfab = vars_new[ilev][Vars::cons].array(mfi);
+                    auto const& wfab = mf_cc_vel.array(mfi);
+                    amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        dfab(i,j,k,0) = tfab(i,j,k,1)/tfab(i,j,k,0);
+                        dfab(i,j,k,1) = std::sqrt(wfab(i,j,k,0)*wfab(i,j,k,0)
+                                                + wfab(i,j,k,1)*wfab(i,j,k,1)
+                                                + wfab(i,j,k,2)*wfab(i,j,k,2)) ;
+                    });
+
+                }
+
                   m_lev[iplane] = ilev;
-                m_ps_mf[iplane] = get_slice_data(dir, point, mf, geom[ilev],
+                m_ps_mf[iplane] = get_slice_data(dir, point, mf_cc_data, geom[ilev],
                                                  0, ncomp, interpolate, bnd_rbx);
 
                 // We can stop if we got the entire plane
@@ -262,7 +325,7 @@ struct PlaneSampler
                      amrex::Vector<amrex::Geometry>& geom)
     {
         std::string name_base = "plt_plane_";
-        amrex::Vector<std::string> varnames = {"r", "rT", "rKE", "rQKE", "rS"};
+        amrex::Vector<std::string> varnames = {"T", "Wsp"};
 
         int nplane = m_ps_mf.size();
         for (int iplane(0); iplane<nplane; ++iplane) {
@@ -280,8 +343,8 @@ struct PlaneSampler
             amrex::Vector<int> is_per(AMREX_SPACEDIM,0);
             for (int d(0); d<AMREX_SPACEDIM; ++d) {
                 if (d==dir) {
-                    m_dom.growHi(d,1);
-                    m_rb.setHi(d,point+geom[lev].CellSize(d));
+                    m_rb.setLo(d,point-0.5*geom[lev].CellSize(d));
+                    m_rb.setHi(d,point+0.5*geom[lev].CellSize(d));
                 }
                 is_per[d] = geom[lev].isPeriodic(d);
             }
@@ -325,7 +388,7 @@ public:
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
     {
         if (m_ls) m_ls->get_line_mfs(vars_new);
-        if (m_ps) m_ps->get_plane_mfs(geom,vars_new);
+        if (m_ps) m_ps->get_plane_mfs(geom, vars_new);
     }
 
     void
