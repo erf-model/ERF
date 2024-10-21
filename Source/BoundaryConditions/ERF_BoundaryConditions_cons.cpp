@@ -263,7 +263,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                                                     const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                     int icomp, int ncomp)
 {
-    BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
+    BL_PROFILE_VAR("impose_vertical_cons_bcs()",impose_vertical_cons_bcs);
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 

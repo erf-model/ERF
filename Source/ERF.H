@@ -22,6 +22,10 @@
 #include <AMReX_YAFluxRegister.H>
 #include <AMReX_ErrorList.H>
 
+#ifdef ERF_USE_FFT
+#include <AMReX_FFT_Poisson.H>
+#endif
+
 #ifdef AMREX_MEM_PROFILING
 #include <AMReX_MemProfiler.H>
 #endif
@@ -144,8 +148,6 @@ public:
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
-    void solve_with_heffte  (int lev, amrex::MultiFab& rhs, amrex::MultiFab& soln,
-                             amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 
     // Project the velocities to be divergence-free with a thin body
     void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
@@ -376,9 +378,10 @@ public:
     // Advance a block specified number of time steps
     void Evolve_MB (int MBstep, int max_block_step);
 
-    // get the current time values
-    amrex::Real get_t_old() {return t_old[0];}
-    amrex::Real get_t_new() {return t_new[0];}
+    // get the current time values and dt
+    amrex::Real get_t_old (int lev) { return t_old[lev]; }
+    amrex::Real get_t_new (int lev) { return t_new[lev]; }
+    amrex::Real get_dt    (int lev) { return dt[lev];    }
 
     // Set parmparse prefix for MultiBlock
     void SetParmParsePrefix (std::string name) { pp_prefix = name; }
@@ -954,7 +957,7 @@ private:
 
     static int verbose;
     static int mg_verbose;
-    static bool use_heffte;
+    static bool use_fft;
 
     // Diagnostic output interval
     static int sum_interval;
@@ -1305,6 +1308,10 @@ private:
 
     [[nodiscard]] static int nghost_eb_full ()
     { return 4; }
+#endif
+
+#ifdef ERF_USE_FFT
+    std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_poisson;
 #endif
 
 public:
