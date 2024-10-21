@@ -14,6 +14,8 @@ CEXE_sources += ERF_WriteScalarProfiles.cpp
 
 CEXE_sources += ERF_console_io.cpp
 
+CEXE_headers += ERF_SampleData.H
+
 ifeq ($(USE_NETCDF), TRUE)
   CEXE_sources += ERF_ReadFromWRFBdy.cpp
   CEXE_sources += ERF_ReadFromWRFInput.cpp
