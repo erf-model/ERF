@@ -9,7 +9,7 @@ MOST Boundaries
 Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), the lowest part of the atmospheric boundary layer.  The implementation of MOST in ERF follows that in `AMR-Wind <https://github.com/Exawind/amr-wind/>`_, which is based on the surface layer profiles presented in
 `P. van der Laan, et al., Wind Energy, 2017 <https://onlinelibrary.wiley.com/doi/10.1002/we.2017>`_ and
 `D. Etling, "Modeling the vertical ABL structure", 1999 <https://www.worldscientific.com/doi/abs/10.1142/9789814447164_0003>`_.
-MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and kinematic fluxes due to turbulent transport (:math:`\overline{u^{'}w^{'}}`, :math:`\overline{v^{'}w^{'}}`, and :math:`\overline{\theta^{'}w^{'}}`) are constant with height.
+MOST theory assumes that the ASL is in a steady state and horizontally homogeneous, and kinematic fluxes due to turbulent transport (:math:`\overline{u^{'}w^{'}}`, :math:`\overline{v^{'}w^{'}}`, and :math:`\overline{\theta^{'}w^{'}}`) are constant with height.
 :math:`\Phi_m` and :math:`\Phi_h` are the nondimensional wind shear and temperature gradient, respectively, which are assumed to follow universal similarity laws based on dimensional arguments.
 With these assumptions, the MOST theory can be written as:
 
@@ -120,7 +120,7 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
    of the velocity terms from the form of the
    equations presented in Moeng to match the form implemented in AMR-Wind.
 
-#. These local flux values are used to populate values in the ghost cells that will lead to appropiate fluxes, assuming the fluxes are computed from the turbulent transport coefficients (in the vertical direction, if applicable) :math:`K_{m,v}` and :math:`K_{\theta,v}` as follows:
+#. These local flux values are used to populate values in the ghost cells that will lead to appropriate fluxes, assuming the fluxes are computed from the turbulent transport coefficients (in the vertical direction, if applicable) :math:`K_{m,v}` and :math:`K_{\theta,v}` as follows:
 
    .. math::
 
@@ -134,21 +134,36 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
    .. math::
 
-      (\rho \theta)_{i,j,-n} = \rho_{i,j,-n} \left[ \frac{(\rho\theta)_{i,j,0}}{\rho_{i,j,0}} - \left. \frac{\tau_{\theta z}}{\rho} \right|_{i,j,0} \frac{\rho_{i,j,0}}{K_{\theta,v,(i,j,0)}} n \Delta z \right]
+      (\rho \theta)_{i,j,-n} = \rho_{i,j,-n} \left[ \frac{(\rho\theta)_{i,j,0}}{\rho_{i,j,0}} - \left. \frac{\tau_{\theta z}}{\rho} \right|_{i,j,0} \frac{\rho_{i,j,0}}{K_{\theta,v,(i,j,0)}} n \Delta z \right].
 
-   Finally, it must be noted that complex terrain will modify the surface normal and tangent vectors. Consequently, the MOST implentation with terrain will require local vector rotations. While the ERF dycore accounts for
+   The above implementation explicitly sets the ghost cells so that the local stresses in (6) are recovered. This formulation will depend upon the eddy diffusivity :math:`K_{\phi,v}` in the near-wall region. Since :math:`K_{\phi,v}` may be a function of near-wall gradients, circular dependencies may occur. An **explicit MOST** formulation has also been implemented where the stress tensors are directly populated with the values computed for :math:`\tau_{\phi z}` and the ghost cells are filled according the recommendation made in `Moeng, Journal of the Atmospheric Sciences, 1984 <https://journals.ametsoc.org/view/journals/atsc/41/13/1520-0469_1984_041_2052_alesmf_2_0_co_2.xml>`_; see below. To enable the **explicit MOST** formulation, users may add the line ``erf.use_explicit_most = true``.
+
+   .. math::
+
+      (\rho \theta)_{z} = \frac{(\rho \theta)_{i,j,1} - (\rho \theta)_{i,j,0}}{\Delta z}
+      (\rho \theta)_{i,j,-n} = (\rho \theta)_{i,j,0} - (\rho \theta)_{z} n \Delta z .
+
+   Finally, it must be noted that complex terrain will modify the surface normal and tangent vectors. Consequently, the MOST implementation with terrain will require local vector rotations. While the ERF dycore accounts for
    terrain metrics when computing fluxes (e.g. for advection, diffusion, etc.), the impact of terrain metrics on MOST is still a work in progress. Therefore, running with terrain (``erf.use_terrain = true``) and with MOST
    (``zlo.type = "Most"``) should be cautioned.
 
 MOST Inputs
 ~~~~~~~~~~~~~~~~~~~
-To evaluate the fluxes with MOST, the surface rougness parameter :math:`z_{0}` must be specified. This quantity may be considered a constant or may be parameterized through the friction velocity :math:`u_{\star}`. ERF supports three methods for parameterizing the surface roughness: ``constant``, ``charnock``, and ``modified_charnock``. The latter two methods parameterize :math:`z_{0} = f(u_{\star})` and are described in `Jimenez & Dudhia, American Meteorological Society, 2018 <https://doi.org/10.1175/JAMC-D-17-0137.1>`_. The rougness calculation method may be specified with
+To evaluate the fluxes with MOST, the surface rougness parameter :math:`z_{0}` must be specified. This quantity may be considered a constant or may be parameterized through the friction velocity :math:`u_{\star}`. ERF supports four methods for parameterizing the surface roughness: ``constant``, ``charnock``, ``modified_charnock``, and ``wave_coupled``. The latter three methods parameterize :math:`z_{0} = f(u_{\star})` and are described in `Jimenez & Dudhia, American Meteorological Society, 2018 <https://doi.org/10.1175/JAMC-D-17-0137.1>`_ and `Warner et. al, Ocean Modelling, 2010 <https://doi.org/10.1016/j.ocemod.2010.07.010>`_. The rougness calculation method may be specified with
 
 ::
 
-   erf.most.roughness_type    = STRING    #Z_0 type (constant, charnock, modified_charnock)
+   erf.most.roughness_type    = STRING    #Z_0 type (constant, charnock, modified_charnock, wave_couples)
 
-If the ``charnock`` method is employed, the :math:`a` constant may be specified with ``erf.most.charnock_constant`` (defaults to 0.0185). If the ``modified_charnock`` method is employed, the depth :math:`d` may be specified with ``erf.most.modified_charnock_depth`` (defaults to 30 m).
+If the ``charnock`` method is employed, the :math:`a` constant may be specified with ``erf.most.charnock_constant`` (defaults to 0.0185). If the ``modified_charnock`` method is employed, the depth :math:`d` may be specified with ``erf.most.modified_charnock_depth`` (defaults to 30 m). If the ``wave_coupled`` method is employed, the user must provide wave height and mean wavelength data.
+
+While the MOST methods relevant to air-sea interfaces (``charnock``, ``modified_charnock``, and ``wave_coupled``) dynamically compute :math:`z_{0}`, the ``constant`` case can also allow for spatially varying :math:`z_{0}` if an inputs file is employed. More specifically, one may specify
+
+::
+
+   erf.most.roughness_file_name    = STRING    #Name of file that contains (x,y,z_0)
+
+in the inputs file and ERF will populate the 2D :math:`z_{0}` array with values contained in the text file.
 
 When computing an average :math:`\overline{\phi}` for the MOST boundary, where :math:`\phi` denotes a generic variable, ERF supports a variety of approaches. Specifically, ``planar averages`` and ``local region averages`` may be computed with or without ``time averaging``. With each averaging methodology, the query point :math:`z` may be determined from the following procedures: specified vertical distance :math:`z_{ref}` from the bottom surface, specified :math:`k_{index}`, or (when employing terrain-fit coordinates) specified normal vector length :math:`z_{ref}`. The available inputs to the MOST boundary and their associated data types are
 
@@ -197,3 +212,29 @@ In the above case, ``use_normal_vector`` utilizes the a local surface-normal vec
    \frac{1}{\tau} \int_{-\infty}^{0} \exp{\left(t/\tau\right)} \, f(t) \; \rm{d}t.
 
 Due to the form of the above integral, it is advantageous to consider :math:`\tau` as a multiple of the simulation time step :math:`\Delta t`, which is specified by ``erf.most.time_window``. As ``erf.most.time_window`` is reduced to 0, the exponential filter function tends to a Dirac delta function (prior averages are irrelevant). Increasing ``erf.most.time_window`` extends the tail of the exponential and more heavily weights prior averages.
+
+Low-speed corrections
+~~~~~~~~~~~~~~~~~~~~~
+The following options are available:
+
+::
+
+   erf.most.include_wstar       = true
+   erf.most.include_subgrid_vel = true
+
+These correspond to a mean surface velocity of
+
+.. math::
+
+   |\bar{\mathbf{u}}| = \sqrt{u^2 + v^2 + (\beta w_*)^2 + V_{sg}^2}
+
+where :math:`w_*` is the (Deardorff) convective velocity scale and
+:math:`\beta=1.2` (Beljaars 1995, QJRMS). The subgrid velocity scale
+:math:`V_{sg}` handles weak large-scale flow that is underresolved (Mahrt & Sun
+1995, MWR). This is parameterized as
+
+.. math::
+
+   V_{sg} = 0.32 \left(\frac{\Delta x}{5000} - 1 \right)^{0.33}
+
+which vanishes for grid spacings of :math:`\Delta x < 5` km.

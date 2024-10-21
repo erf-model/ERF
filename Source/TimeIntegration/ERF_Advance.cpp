@@ -1,8 +1,8 @@
 #include <ERF.H>
-#include <Utils.H>
+#include <ERF_Utils.H>
 
 #ifdef ERF_USE_WINDFARM
-#include <Fitch.H>
+#include <ERF_WindFarm.H>
 #endif
 
 using namespace amrex;
@@ -35,6 +35,28 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
+    // TODO: Can test on multiple levels later
+    // Update the inflow perturbation update time and amplitude
+    if (lev == 0) {
+        if (solverChoice.pert_type == PerturbationType::Source ||
+            solverChoice.pert_type == PerturbationType::Direct)
+        {
+            turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
+        }
+
+        // If PerturbationType::Direct is selected, directly add the computed perturbation
+        // on the conserved field
+        if (solverChoice.pert_type == PerturbationType::Direct)
+        {
+            auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
+            for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
+                Box bx  = mfi.tilebox();
+                const Array4<Real> &cell_data  = S_old.array(mfi);
+                const Array4<const Real> &pert_cell = turbPert.pb_cell.array(mfi);
+                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
+            }
+        }
+    }
 
     // configure ABLMost params if used MostWall boundary condition
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
@@ -44,12 +66,22 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
             if (solverChoice.moisture_type != MoistureType::None) {
                 ng = Qv_prim[lev]->nGrowVect();
+
                 MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
                 MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+
+                if (solverChoice.RhoQr_comp > -1) {
+                    MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.RhoQr_comp, 0, 1, ng);
+                    MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+                } else {
+                    Qr_prim[lev]->setVal(0.0);
+                }
             }
             // NOTE: std::swap above causes the field ptrs to be out of date.
             //       Reassign the field ptrs for MAC avg computation.
-            m_most->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim);
+            m_most->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
+            m_most->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
+                                solverChoice.RhoQv_comp, solverChoice.RhoQr_comp);
             m_most->update_fluxes(lev, time);
         }
     }
@@ -60,20 +92,27 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     V_new.setVal(1.e34,V_new.nGrowVect());
     W_new.setVal(1.e34,W_new.nGrowVect());
 
+    //
+    // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
+    //
     FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
                          {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]});
-
-    if (solverChoice.moisture_type != MoistureType::None) {
-        // TODO: This is only qv
-        if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0]));
-    }
+    //
+    // So we must convert the fillpatched to momenta, including the ghost values
+    //
+    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
+                       V_old, rV_old[lev].nGrowVect(),
+                       W_old, rW_old[lev].nGrowVect(),
+                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
+                       Geom(lev).Domain(),
+                       domain_bcs_type);
 
 #if defined(ERF_USE_WINDFARM)
-    // Update with the Fitch source terms
-    if (solverChoice.windfarm_type == WindFarmType::Fitch) {
-        fitch_advance(lev, Geom(lev), dt_lev, S_old,
-                      U_old, V_old, W_old, vars_fitch[lev], Nturb[lev]);
+    if (solverChoice.windfarm_type != WindFarmType::None) {
+        advance_windfarm(Geom(lev), dt_lev, S_old,
+                         U_old, V_old, W_old, vars_windfarm[lev], Nturb[lev], SMark[lev]);
     }
+
 #endif
 
     const BoxArray&            ba = S_old.boxArray();
@@ -82,14 +121,19 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     int nvars = S_old.nComp();
 
     // Source array for conserved cell-centered quantities -- this will be filled
-    //     in the call to make_sources in TI_slow_rhs_fun.H
+    //     in the call to make_sources in ERF_TI_slow_rhs_fun.H
     MultiFab cc_source(ba,dm,nvars,1); cc_source.setVal(0.0);
 
     // Source arrays for momenta -- these will be filled
-    //     in the call to make_mom_sources in TI_slow_rhs_fun.H
-    MultiFab xmom_source(ba,dm,nvars,1); xmom_source.setVal(0.0);
-    MultiFab ymom_source(ba,dm,nvars,1); ymom_source.setVal(0.0);
-    MultiFab zmom_source(ba,dm,nvars,1); zmom_source.setVal(0.0);
+    //     in the call to make_mom_sources in ERF_TI_slow_rhs_fun.H
+    BoxArray ba_x(ba); ba_x.surroundingNodes(0);
+    MultiFab xmom_source(ba_x,dm,nvars,1); xmom_source.setVal(0.0);
+
+    BoxArray ba_y(ba); ba_y.surroundingNodes(1);
+    MultiFab ymom_source(ba_y,dm,nvars,1); ymom_source.setVal(0.0);
+
+    BoxArray ba_z(ba); ba_z.surroundingNodes(2);
+    MultiFab zmom_source(ba_z,dm,nvars,1); zmom_source.setVal(0.0);
 
     // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
     MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
@@ -178,5 +222,12 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             FPr_w[lev].RegisterCoarseData({&state_old[IntVars::zmom], &state_new[IntVars::zmom]},
                                           {time, time + dt_lev});
         }
+    }
+
+    // ***********************************************************************************************
+    // Update the time averaged velocities if they are requested
+    // ***********************************************************************************************
+    if (solverChoice.time_avg_vel) {
+        Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 }

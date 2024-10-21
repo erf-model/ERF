@@ -8,11 +8,15 @@
 
 .. _DryEquations:
 
-Prognostic Equations (Dry)
+Compressible Equations (Dry)
 =============================
 
-The following partial differential equations governing dry compressible flow
-are solved in ERF for mass, momentum, potential temperature, and scalars:
+ERF can be run in two different modes: in the first, ERF solves the fully compressible fluid equations,
+in the second, ERF solves a modified set of equations which approximates the density field with the
+hydrostatic density and imposes the anelastic constraint on the velocity field.
+
+In compressible mode, in the absence of moisture, ERF solves the following partial differential equations
+expressing conservation of mass, momentum, potential temperature, and scalars.
 
 .. math::
   \frac{\partial \rho}{\partial t} &= - \nabla \cdot (\rho \mathbf{u}),
@@ -55,6 +59,9 @@ with
 .. math::
 
   \frac{d \overline{p}}{d z} = - \overline{\rho} g
+
+We note that there is an alternative option under development in ERF that solves the governing
+equations with an anelastic constraint rather than the fully compressible equations.  The equation set is described below.
 
 Assumptions
 ------------------------

@@ -1,15 +1,14 @@
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_TimeIntegrator.H>
-#include <ERF_MRI.H>
-#include <EddyViscosity.H>
-#include <EOS.H>
+
 #include <ERF.H>
-#include <TerrainMetrics.H>
-//#include <TI_headers.H>
-//#include <PlaneAverage.H>
-#include <Diffusion.H>
-#include <TileNoZ.H>
-#include <Utils.H>
+#include <ERF_MRI.H>
+#include <ERF_EddyViscosity.H>
+#include <ERF_EOS.H>
+#include <ERF_TerrainMetrics.H>
+#include <ERF_Diffusion.H>
+#include <ERF_TileNoZ.H>
+#include <ERF_Utils.H>
 
 using namespace amrex;
 
@@ -49,8 +48,9 @@ void ERF::advance_dycore(int level,
 
     const Box& domain = fine_geom.Domain();
 
-    DiffChoice dc = solverChoice.diffChoice;
-    TurbChoice tc = solverChoice.turbChoice[level];
+    DiffChoice dc    = solverChoice.diffChoice;
+    TurbChoice tc    = solverChoice.turbChoice[level];
+    SpongeChoice sc  = solverChoice.spongeChoice;
 
     MultiFab r_hse (base_state[level], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse (base_state[level], make_alias, 1, 1); // p_0 is second component
@@ -65,15 +65,23 @@ void ERF::advance_dycore(int level,
     Real* dptr_rhoqt_src    = solverChoice.custom_moisture_forcing ? d_rhoqt_src[level].data()    : nullptr;
     Real* dptr_wbar_sub     = solverChoice.custom_w_subsidence     ? d_w_subsid[level].data()     : nullptr;
 
+    // Turbulent Perturbation Pointer
+    //Real* dptr_rhotheta_src = solverChoice.pert_type ? d_rhotheta_src[level].data() : nullptr;
+
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
-    bool rayleigh_damp_any = (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
-                              solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T);
-    d_rayleigh_ptrs_at_lev[Rayleigh::tau]      =              rayleigh_damp_any ? d_rayleigh_ptrs[level][Rayleigh::tau ].data() : nullptr;
     d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.rayleigh_damp_U   ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
     d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.rayleigh_damp_V   ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
     d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.rayleigh_damp_W   ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
     d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.rayleigh_damp_T   ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
+
+    Vector<Real*> d_sponge_ptrs_at_lev;
+    if(sc.sponge_type=="input_sponge")
+    {
+        d_sponge_ptrs_at_lev.resize(Sponge::nvars_sponge);
+        d_sponge_ptrs_at_lev[Sponge::ubar_sponge]  =  d_sponge_ptrs[level][Sponge::ubar_sponge].data();
+        d_sponge_ptrs_at_lev[Sponge::vbar_sponge]  =  d_sponge_ptrs[level][Sponge::vbar_sponge].data();
+    }
 
     bool l_use_terrain = solverChoice.use_terrain;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
@@ -81,8 +89,11 @@ void ERF::advance_dycore(int level,
                            (tc.pbl_type        !=       PBLType::None) );
     bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
                            (tc.pbl_type != PBLType::None) );
+    bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
+    bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
     const bool use_most = (m_most != nullptr);
+    const bool exp_most = (solverChoice.use_explicit_most);
     amrex::ignore_unused(use_most);
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
@@ -116,6 +127,20 @@ void ERF::advance_dycore(int level,
             Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
             Box tbxyz = mfi.tilebox(IntVect(0,1,1),IntVect(1,1,0));
+
+            if (bxcc.smallEnd(2) != domain.smallEnd(2)) {
+                 bxcc.growLo(2,1);
+                tbxxy.growLo(2,1);
+                tbxxz.growLo(2,1);
+                tbxyz.growLo(2,1);
+            }
+
+            if (bxcc.bigEnd(2) != domain.bigEnd(2)) {
+                 bxcc.growHi(2,1);
+                tbxxy.growHi(2,1);
+                tbxxz.growHi(2,1);
+                tbxyz.growHi(2,1);
+            }
 
             const Array4<const Real> & u = xvel_old.array(mfi);
             const Array4<const Real> & v = yvel_old.array(mfi);
@@ -160,12 +185,16 @@ void ERF::advance_dycore(int level,
 
     MultiFab Omega (state_old[IntVars::zmom].boxArray(),dm,1,1);
 
-#include "TI_utils.H"
+#include "ERF_TI_utils.H"
 
     // Additional SFS quantities, calculated once per timestep
     MultiFab* Hfx1 = SFS_hfx1_lev[level].get();
     MultiFab* Hfx2 = SFS_hfx2_lev[level].get();
     MultiFab* Hfx3 = SFS_hfx3_lev[level].get();
+    MultiFab* Q1fx1 = SFS_q1fx1_lev[level].get();
+    MultiFab* Q1fx2 = SFS_q1fx2_lev[level].get();
+    MultiFab* Q1fx3 = SFS_q1fx3_lev[level].get();
+    MultiFab* Q2fx3 = SFS_q2fx3_lev[level].get();
     MultiFab* Diss = SFS_diss_lev[level].get();
 
     // *************************************************************************
@@ -182,15 +211,15 @@ void ERF::advance_dycore(int level,
     if (l_use_kturb)
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
-        const BCRec* bc_ptr_d = domain_bcs_type_d.data();
+        const BCRec* bc_ptr_h = domain_bcs_type.data();
         ComputeTurbulentViscosity(xvel_old, yvel_old,
                                   *Tau11_lev[level].get(), *Tau22_lev[level].get(), *Tau33_lev[level].get(),
                                   *Tau12_lev[level].get(), *Tau13_lev[level].get(), *Tau23_lev[level].get(),
                                   state_old[IntVars::cons],
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
-                                  z_phys_nd[level], tc, solverChoice.gravity,
-                                  m_most, level, bc_ptr_d);
+                                  z_phys_nd[level], solverChoice,
+                                  m_most, exp_most, l_use_moisture, level, bc_ptr_h);
     }
 
     // ***********************************************************************************************
@@ -224,9 +253,10 @@ void ERF::advance_dycore(int level,
     // This is an optimization since we won't need more than one ghost
     // cell of momentum in the integrator if not using NumDiff
     //
-    IntVect ngu = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
-    IntVect ngv = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
-    IntVect ngw = (solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+    IntVect ngu = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
+    IntVect ngv = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
+    IntVect ngw = (!solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+
     VelocityToMomentum(xvel_old, ngu, yvel_old, ngv, zvel_old, ngw, density,
                        state_old[IntVars::xmom],
                        state_old[IntVars::ymom],
@@ -245,9 +275,9 @@ void ERF::advance_dycore(int level,
               fast_only, vel_and_mom_synced);
     cons_to_prim(state_old[IntVars::cons], state_old[IntVars::cons].nGrow());
 
-#include "TI_no_substep_fun.H"
-#include "TI_slow_rhs_fun.H"
-#include "TI_fast_rhs_fun.H"
+#include "ERF_TI_no_substep_fun.H"
+#include "ERF_TI_slow_rhs_fun.H"
+#include "ERF_TI_fast_rhs_fun.H"
 
     // ***************************************************************************************
     // Setup the integrator and integrate for a single timestep
@@ -261,11 +291,9 @@ void ERF::advance_dycore(int level,
     mri_integrator.set_pre_update (pre_update_fun);
     mri_integrator.set_post_update(post_update_fun);
 
-#ifdef ERF_USE_POISSON_SOLVE
-    if (solverChoice.incompressible) {
+    if (solverChoice.anelastic[level]) {
         mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);
     }
-#endif
 
     mri_integrator.set_fast_rhs(fast_rhs_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);

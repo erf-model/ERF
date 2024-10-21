@@ -3,10 +3,10 @@
  */
 
 #include <ERF.H>
-#include <EOS.H>
+#include <ERF_EOS.H>
 #include <ERF_Constants.H>
-#include <Utils.H>
-#include <prob_common.H>
+#include <ERF_Utils.H>
+#include <ERF_prob_common.H>
 
 using namespace amrex;
 
@@ -50,16 +50,46 @@ ERF::init_from_input_sounding (int lev)
 {
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
-        if (input_sounding_file.empty())
+        if (input_sounding_data.input_sounding_file.empty()) {
             Error("input_sounding file name must be provided via input");
+        }
+
+        input_sounding_data.resize_arrays();
 
         // this will interpolate the input profiles to the nominal height levels
         // (ranging from 0 to the domain top)
-        input_sounding_data.read_from_file(input_sounding_file, geom[lev], zlevels_stag);
+        for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
+            input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n);
+        }
 
         // this will calculate the hydrostatically balanced density and pressure
         // profiles following WRF ideal.exe
-        if (init_sounding_ideal) input_sounding_data.calc_rho_p();
+        if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);
+
+    } else {
+        //
+        // We need to do this interp from coarse level in order to set the values of
+        // the base state inside the domain but outside of the fine region
+        //
+        base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
+        //
+        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+        //       have been pre-filled - this includes ghost cells both inside and outside
+        //       the domain
+        //
+        InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
+                              IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              base_state[lev-1], 0, 0, 3,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::base_bc);
+
+         // We need to do this here because the interpolation above may leave corners unfilled
+         //    when the corners need to be filled by, for example, reflection of the fine ghost
+         //    cell outside the fine region but inide the domain.
+         int bccomp = BCVars::base_bc;
+         int icomp = 0; int ncomp = 3; Real dummy_time = 0.;
+         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),dummy_time,bccomp);
     }
 
     auto& lev_new = vars_new[lev];
@@ -101,9 +131,6 @@ ERF::init_from_input_sounding (int lev)
         }
         else
         {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.use_terrain,
-                "Terrain is not supported without init_sounding_ideal option.");
-
             // HSE will be calculated later with call to initHSE
             init_bx_scalars_from_input_sounding(
                 bx, cons_arr,
@@ -136,10 +163,10 @@ init_bx_scalars_from_input_sounding (const Box &bx,
                                      const bool& l_moist,
                                      InputSoundingData const &inputSoundingData)
 {
-    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
-    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
-    const int   inp_sound_size  = inputSoundingData.size();
+    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
+    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d[0].dataPtr();
+    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d[0].dataPtr();
+    const int   inp_sound_size  = inputSoundingData.size(0);
 
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
@@ -153,7 +180,7 @@ init_bx_scalars_from_input_sounding (const Box &bx,
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                         : z_lo + (k + 0.5) * dz;
+                                  : z_lo + (k + 0.5) * dz;
 
         Real rho_0 = 1.0;
 
@@ -163,13 +190,15 @@ init_bx_scalars_from_input_sounding (const Box &bx,
         // Initial Rho0*Theta0
         state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
 
-        // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-        state(i, j, k, RhoScalar_comp) = 0;
+        // Initialize all scalars to 0.
+        for (int n = 0; n < NSCALARS; n++) {
+            state(i, j, k, RhoScalar_comp+n) = 0;
+        }
 
         // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there is no cloud water or cloud ice
-        if (l_moist)
+        if (l_moist) {
             state(i, j, k, RhoQ1_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
-
+        }
     });
 }
 
@@ -195,23 +224,25 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          Array4<Real> const &pi_hse_arr,
                                          GeometryData const &geomdata,
                                          Array4<const Real> const &z_cc_arr,
-                                         const Real& l_gravity,
+                                         const Real& /*l_gravity*/,
                                          const Real& l_rdOcp,
                                          const bool& l_moist,
                                          InputSoundingData const &inputSoundingData)
 {
-    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
+    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
     const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
-    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
-    const int   inp_sound_size  = inputSoundingData.size();
+    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d[0].dataPtr();
+    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d[0].dataPtr();
+    const int   inp_sound_size  = inputSoundingData.size(0);
 
     // Geometry
-    int ktop = bx.bigEnd(2);
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real  z_lo = prob_lo[2];
     const Real  dz   = dx[2];
+
+    int kbot = geomdata.Domain().smallEnd(2);
+    int ktop = geomdata.Domain().bigEnd(2);
 
     // We want to set the lateral BC values, too
     Box gbx = bx; // Copy constructor
@@ -219,7 +250,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                         : z_lo + (k + 0.5) * dz;
+                                  : z_lo + (k + 0.5) * dz;
 
         Real rho_k, qv_k, rhoTh_k;
 
@@ -231,8 +262,10 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         rhoTh_k = rho_k * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
         state(i, j, k, RhoTheta_comp) = rhoTh_k;
 
-        // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-        state(i, j, k, RhoScalar_comp) = 0;
+        // Initialize all scalars to 0.
+        for (int n = 0; n < NSCALARS; n++) {
+            state(i, j, k, RhoScalar_comp+n) = 0;
+        }
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
         qv_k = (l_moist) ? interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size) : 0.0;
@@ -240,28 +273,25 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k, qv_k);
         pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
 
-        // Boundary treatment
-        if (k==0)
+        // FOEXTRAP hse arrays
+        if (k==kbot)
         {
-            // set the ghost cell with dz and rho at boundary
-            Real rho_surf =
-                interpolate_1d(z_inp_sound, rho_inp_sound, 0.0, inp_sound_size);
-            p_hse_arr (i, j, k-1) = p_hse_arr(i,j,k) + dz * rho_surf * l_gravity;
-            pi_hse_arr(i, j, k-1) = getExnergivenP(p_hse_arr(i, j, k-1), l_rdOcp);
+            r_hse_arr (i, j, k-1) = r_hse_arr (i,j,k);
+            p_hse_arr (i, j, k-1) = p_hse_arr (i,j,k);
+            pi_hse_arr(i, j, k-1) = pi_hse_arr(i,j,k);
         }
         else if (k==ktop)
         {
-            // set the ghost cell with dz and rho at boundary
-            Real rho_top =
-                interpolate_1d(z_inp_sound, rho_inp_sound, z+dz/2, inp_sound_size);
-            p_hse_arr (i, j, k+1) = p_hse_arr(i,j,k) - dz * rho_top * l_gravity;
-            pi_hse_arr(i, j, k+1) = getExnergivenP(p_hse_arr(i, j, k+1), l_rdOcp);
+            r_hse_arr (i, j, k+1) = r_hse_arr (i,j,k);
+            p_hse_arr (i, j, k+1) = p_hse_arr (i,j,k);
+            pi_hse_arr(i, j, k+1) = pi_hse_arr(i,j,k);
         }
 
         // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
         // is no cloud water or cloud ice
-        if (l_moist)
+        if (l_moist) {
             state(i, j, k, RhoQ1_comp) = rho_k * qv_k;
+        }
     });
 }
 
@@ -284,10 +314,10 @@ init_bx_velocities_from_input_sounding (const Box &bx,
                                         Array4<const Real> const &z_nd_arr,
                                         InputSoundingData const &inputSoundingData)
 {
-    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
-    const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d.dataPtr();
-    const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d.dataPtr();
-    const int   inp_sound_size  = inputSoundingData.size();
+    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
+    const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d[0].dataPtr();
+    const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d[0].dataPtr();
+    const int   inp_sound_size  = inputSoundingData.size(0);
 
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
@@ -311,10 +341,10 @@ init_bx_velocities_from_input_sounding (const Box &bx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of x-faces
         const Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i,j  ,k  )
-                                                + z_nd_arr(i,j+1,k  )
-                                                + z_nd_arr(i,j  ,k+1)
-                                                + z_nd_arr(i,j+1,k+1))
-                                         : z_lo + (k + 0.5) * dz;
+                                         + z_nd_arr(i,j+1,k  )
+                                         + z_nd_arr(i,j  ,k+1)
+                                         + z_nd_arr(i,j+1,k+1))
+                                  : z_lo + (k + 0.5) * dz;
 
         // Set the x-velocity
         x_vel(i, j, k) = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
@@ -322,10 +352,10 @@ init_bx_velocities_from_input_sounding (const Box &bx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of y-faces
         const Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i  ,j,k  )
-                                                + z_nd_arr(i+1,j,k  )
-                                                + z_nd_arr(i  ,j,k+1)
-                                                + z_nd_arr(i+1,j,k+1))
-                                         : z_lo + (k + 0.5) * dz;
+                                         + z_nd_arr(i+1,j,k  )
+                                         + z_nd_arr(i  ,j,k+1)
+                                         + z_nd_arr(i+1,j,k+1))
+                                  : z_lo + (k + 0.5) * dz;
 
         // Set the y-velocity
         y_vel(i, j, k) = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);

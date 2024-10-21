@@ -7,18 +7,25 @@
 Time Advance
 ============
 
-To advance the solution in time, ERF uses a 3rd order Runge-Kutta method with acoustic sub-stepping
-in each Runge-Kutta stage, following the approach of `Klemp, Skamarock and Dudhia (2007)`_
+Compressible Advance
+---------------------
+
+To advance the fully compressible solution in time, ERF uses a 3rd order Runge-Kutta method.
+By default, acoustic substepping which solves the perturbational equations
+implicitly in the vertical direction is used in each Runge-Kutta stage,
+following the approach of `Klemp, Skamarock and Dudhia (2007)`_
+However, there is a run-time option to turn off the substepping completely,
+or to use an explicit rather than implicit solve in the substepping.
 
 .. _`Klemp, Skamarock and Dudhia (2007)`: https://journals.ametsoc.org/view/journals/mwre/135/8/mwr3440.1.xml
 
-Specifically, for
+Specifically, the 3rd order Runge-Kutta method solves
 
 .. math::
 
   \frac{d \mathbf{S}}{dt} = f(\mathbf{S})
 
-where :math:`\mathbf{S}` is the solution vector, we solve
+where :math:`\mathbf{S}` is the solution vector, in the following three steps:
 
 .. math::
 
@@ -28,14 +35,36 @@ where :math:`\mathbf{S}` is the solution vector, we solve
 
   \mathbf{S}^{n+1} &=& \mathbf{S}^n +             \Delta t f(\mathbf{S}^{**})
 
+.. _AnelasticTimeAdvance:
+
+Anelastic Advance
+---------------------
+
+When solving the anelastic rather than fully compressible equations, ERF uses a 2nd order Runge-Kutta method
+(with no substepping):
+
+Specifically, the 2nd order Runge-Kutta method solves
+
+.. math::
+
+  \frac{d \mathbf{S}}{dt} = f(\mathbf{S})
+
+where :math:`\mathbf{S}` is the solution vector, in the following two steps:
+
+.. math::
+
+  \mathbf{S}^{*}   &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^n)
+
+  \mathbf{S}^{n+1} &=& \mathbf{S}^n + \frac{\Delta t}{2} ( f(\mathbf{S}^{n}) + f(\mathbf{S}^{*}) )
+
 .. _AcousticSubstep:
 
 Acoustic Sub-stepping
 ---------------------
 
-We sub-step the acoustic modes within each Runge-Kutta stage.
+When solving the fully compressible equation set, by default we substep the acoustic modes within each Runge-Kutta stage.
 
-We first recall the equations in the following form,
+Recall the equations in the following form,
 here defining :math:`\mathbf{R}` for each equation to include all additional terms that contribute to the time evolution.
 
 .. math::
@@ -106,8 +135,14 @@ Then the acoustic substepping evolves the equations in the form
           - \frac{\partial (\beta_1 W^{\prime \prime, \tau} + \beta_2 W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho}
             \right)
 
-where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)` with :math:`\beta_s = 0.1`.
-:math:`\beta_s` is the acoustic step off-centering coefficient and 0.1 is the typical WRF value. This off-centering is intended to provide damping of both horizontally and vertically propagating sound waves by biasing the time average toward the future time step.
+where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)`.
+
+:math:`\beta_s` is the acoustic step off-centering coefficient.  When we do implicit substepping, we use
+the typical WRF value of 0.1. This off-centering is intended to provide damping of both horizontally
+and vertically propagating sound waves by biasing the time average toward the future time step.
+
+When we do fully explicit substepping, we set :math:`\beta_s = -1.0`, which sets
+:math:`\beta_1 = 1` and :math:`\beta_2 = 0`.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.
@@ -120,10 +155,10 @@ to control horizontally propagating sound waves.
 .. math::
 
    p^{\prime\prime,\tau*} = p^{\prime\prime,\tau}
-     + \beta_d \left( p^{\prime\prime,\tau} + p^{\prime\prime,\tau-\delta\tau} \right)
+     + \beta_d \left( p^{\prime\prime,\tau} - p^{\prime\prime,\tau-\delta\tau} \right)
 
 where :math:`\tau*` is the forward projected value used in RHS of the acoustic
 substepping equations for horizontal momentum. According to Skamarock et al,
-This is equivalent to including a horizontal diffusion term in the continuity
+this is equivalent to including a horizontal diffusion term in the continuity
 equation. A typical damping coefficient of :math:`\beta_d = 0.1` is used, as in
 WRF.

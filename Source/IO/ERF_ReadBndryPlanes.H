@@ -4,8 +4,8 @@
 #include "AMReX_Gpu.H"
 #include "AMReX_AmrCore.H"
 #include <AMReX_BndryRegister.H>
-#include "IndexDefines.H"
-#include "DataStruct.H"
+#include "ERF_IndexDefines.H"
+#include "ERF_DataStruct.H"
 
 using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
@@ -27,11 +27,11 @@ public:
 
     void read_input_files (amrex::Real time,
                            amrex::Real dt,
-                           amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals);
+                           amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals);
 
     void read_file (int idx,
                     amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
-                    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals);
+                    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals);
 
     // Return the pointer to PlaneVectors at time "time"
     amrex::Vector<std::unique_ptr<PlaneVector>>& interp_in_time (const amrex::Real& time);

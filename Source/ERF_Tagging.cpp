@@ -1,5 +1,5 @@
 #include <ERF.H>
-#include <Derive.H>
+#include <ERF_Derive.H>
 
 using namespace amrex;
 
@@ -28,16 +28,14 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         // This allows dynamic refinement based on the value of qv
         } else if ( ref_tags[j].Field() == "qv" ) {
-            MultiFab qv(vars_new[levc][Vars::cons],make_alias,0,RhoQ1_comp+1);
-            MultiFab::Copy(  *mf, qv, RhoQ1_comp, 0, 1, 0);
-            MultiFab::Divide(*mf, qv, Rho_comp  , 0, 1, 0);
+            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ1_comp, 0, 1, 0);
+            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 0);
 
 
         // This allows dynamic refinement based on the value of qc
         } else if (ref_tags[j].Field() == "qc" ) {
-            MultiFab qc(vars_new[levc][Vars::cons],make_alias,0,RhoQ2_comp+1);
-            MultiFab::Copy(  *mf, qc, RhoQ2_comp, 0, 1, 0);
-            MultiFab::Divide(*mf, qc, Rho_comp  , 0, 1, 0);
+            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ2_comp, 0, 1, 0);
+            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 0);
 
 
         // This allows dynamic refinement based on the value of the scalar/pressure/theta
@@ -119,36 +117,153 @@ ERF::refinement_criteria_setup ()
             ParmParse ppr(ref_prefix);
             RealBox realbox;
             int lev_for_box;
-            if (ppr.countval("in_box_lo")) {
-                std::vector<Real> box_lo(3), box_hi(3);
+
+            int num_real_lo = ppr.countval("in_box_lo");
+            int num_indx_lo = ppr.countval("in_box_lo_indices");
+
+            if ( !((num_real_lo == AMREX_SPACEDIM && num_indx_lo == 0) ||
+                   (num_indx_lo == AMREX_SPACEDIM && num_real_lo == 0) ||
+                   (num_indx_lo ==              0 && num_real_lo == 0)) )
+            {
+                amrex::Abort("Must only specify box for refinement using real OR index space");
+            }
+
+            if (num_real_lo > 0) {
+                std::vector<Real> rbox_lo(3), rbox_hi(3);
                 ppr.get("max_level",lev_for_box);
                 if (lev_for_box <= max_level)
                 {
-                    ppr.getarr("in_box_lo",box_lo,0,AMREX_SPACEDIM);
-                    ppr.getarr("in_box_hi",box_hi,0,AMREX_SPACEDIM);
-                    realbox = RealBox(&(box_lo[0]),&(box_hi[0]));
+                    if (n_error_buf[0] != IntVect::TheZeroVector()) {
+                        amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
+                    }
 
-                    Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
+                    const Real* plo = geom[lev_for_box].ProbLo();
+                    const Real* phi = geom[lev_for_box].ProbHi();
+
+                    ppr.getarr("in_box_lo",rbox_lo,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_hi",rbox_hi,0,AMREX_SPACEDIM);
+
+                    if (rbox_lo[0] < plo[0]) rbox_lo[0] = plo[0];
+                    if (rbox_lo[1] < plo[1]) rbox_lo[1] = plo[1];
+                    if (rbox_hi[0] > phi[0]) rbox_hi[0] = phi[0];
+                    if (rbox_hi[1] > phi[1]) rbox_hi[1] = phi[1];
+
+                    realbox = RealBox(&(rbox_lo[0]),&(rbox_hi[0]));
+
+                    Print() << "Realbox read in and intersected laterally with domain is " << realbox << std::endl;
+
                     num_boxes_at_level[lev_for_box] += 1;
+
+                    int ilo, jlo, klo;
+                    int ihi, jhi, khi;
+                    const auto* dx  = geom[lev_for_box].CellSize();
+                    ilo = static_cast<int>((rbox_lo[0] - plo[0])/dx[0]);
+                    jlo = static_cast<int>((rbox_lo[1] - plo[1])/dx[1]);
+                    ihi = static_cast<int>((rbox_hi[0] - plo[0])/dx[0]-1);
+                    jhi = static_cast<int>((rbox_hi[1] - plo[1])/dx[1]-1);
+                    if (solverChoice.use_terrain) {
+                        // Search for k indices corresponding to nominal grid
+                        // AGL heights
+                        const Box& domain = geom[lev_for_box].Domain();
+                        klo = domain.smallEnd(2) - 1;
+                        khi = domain.smallEnd(2) - 1;
+
+                        if (rbox_lo[2] < zlevels_stag[lev_for_box][domain.smallEnd(2)])
+                        {
+                            klo = domain.smallEnd(2);
+                        }
+                        else
+                        {
+                            for (int k=domain.smallEnd(2); k<=domain.bigEnd(2)+1; ++k) {
+                                if (zlevels_stag[lev_for_box][k] > rbox_lo[2]) {
+                                    klo = k-1;
+                                    break;
+                                }
+                            }
+                        }
+                        AMREX_ASSERT(klo >= domain.smallEnd(2));
+
+                        if (rbox_hi[2] > zlevels_stag[lev_for_box][domain.bigEnd(2)+1])
+                        {
+                            khi = domain.bigEnd(2);
+                        }
+                        else
+                        {
+                            for (int k=klo+1; k<=domain.bigEnd(2)+1; ++k) {
+                                if (zlevels_stag[lev_for_box][k] > rbox_hi[2]) {
+                                    khi = k-1;
+                                    break;
+                                }
+                            }
+                        }
+                        AMREX_ASSERT((khi <= domain.bigEnd(2)) && (khi > klo));
+
+                        // Need to update realbox because tagging is based on
+                        // the initial _un_deformed grid
+                        realbox = RealBox(plo[0]+ ilo   *dx[0], plo[1]+ jlo   *dx[1], plo[2]+ klo   *dx[2],
+                                          plo[0]+(ihi+1)*dx[0], plo[1]+(jhi+1)*dx[1], plo[2]+(khi+1)*dx[2]);
+                    } else {
+                        klo = static_cast<int>((rbox_lo[2] - plo[2])/dx[2]);
+                        khi = static_cast<int>((rbox_hi[2] - plo[2])/dx[2]-1);
+                    }
+
+                    Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
+                    if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
+                         (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) ||
+                         (klo%ref_ratio[lev_for_box-1][2] != 0) || ((khi+1)%ref_ratio[lev_for_box-1][2] != 0) )
+                    {
+                        amrex::Print() << "Box : " << bx << std::endl;
+                        amrex::Print() << "RealBox : " << realbox << std::endl;
+                        amrex::Print() << "ilo, ihi+1, jlo, jhi+1, klo, khi+1 by ref_ratio : "
+                                       << ilo%ref_ratio[lev_for_box-1][0] << " " << (ihi+1)%ref_ratio[lev_for_box-1][0] << " "
+                                       << jlo%ref_ratio[lev_for_box-1][1] << " " << (jhi+1)%ref_ratio[lev_for_box-1][1] << " "
+                                       << klo%ref_ratio[lev_for_box-1][2] << " " << (khi+1)%ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Error("Fine box is not legit with this ref_ratio");
+                    }
+                    boxes_at_level[lev_for_box].push_back(bx);
+                    Print() << "Saving in 'boxes at level' as " << bx << std::endl;
+                } // lev
+                if (init_type == InitType::Real || init_type == InitType::Metgrid) {
+                    if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
+                        amrex::Error("Number of boxes doesn't match number of input files");
+
+                    }
+                }
+
+            } else if (num_indx_lo > 0) {
+
+                std::vector<int> box_lo(3), box_hi(3);
+                ppr.get("max_level",lev_for_box);
+                if (lev_for_box <= max_level)
+                {
+                    if (n_error_buf[0] != IntVect::TheZeroVector()) {
+                        amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
+                    }
+
+                    ppr.getarr("in_box_lo_indices",box_lo,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_hi_indices",box_hi,0,AMREX_SPACEDIM);
+
+                    Box bx(IntVect(box_lo[0],box_lo[1],box_lo[2]),IntVect(box_hi[0],box_hi[1],box_hi[2]));
+                    amrex::Print() << "BOX " << bx << std::endl;
 
                     const auto* dx  = geom[lev_for_box].CellSize();
                     const Real* plo = geom[lev_for_box].ProbLo();
-                    int ilo = static_cast<int>((box_lo[0] - plo[0])/dx[0]);
-                    int jlo = static_cast<int>((box_lo[1] - plo[1])/dx[1]);
-                    int klo = static_cast<int>((box_lo[2] - plo[2])/dx[2]);
-                    int ihi = static_cast<int>((box_hi[0] - plo[0])/dx[0]-1);
-                    int jhi = static_cast<int>((box_hi[1] - plo[1])/dx[1]-1);
-                    int khi = static_cast<int>((box_hi[2] - plo[2])/dx[2]-1);
-                    Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
-                    if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
-                         (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) )
+                    realbox = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
+                                      plo[0]+(box_hi[0]+1)*dx[0], plo[1]+(box_hi[1]+1)*dx[1], plo[2]+(box_hi[2]+1)*dx[2]);
+
+                    Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
+                    num_boxes_at_level[lev_for_box] += 1;
+
+                    if ( (box_lo[0]%ref_ratio[lev_for_box-1][0] != 0) || ((box_hi[0]+1)%ref_ratio[lev_for_box-1][0] != 0) ||
+                         (box_lo[1]%ref_ratio[lev_for_box-1][1] != 0) || ((box_hi[1]+1)%ref_ratio[lev_for_box-1][1] != 0) ||
+                         (box_lo[2]%ref_ratio[lev_for_box-1][2] != 0) || ((box_hi[2]+1)%ref_ratio[lev_for_box-1][2] != 0) )
                          amrex::Error("Fine box is not legit with this ref_ratio");
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
-                if (init_type == "real" || init_type == "metgrid") {
+                if (init_type == InitType::Real || init_type == InitType::Metgrid) {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
-                        amrex::Error("Number of boxes doesnt match number of input files");
+                        amrex::Error("Number of boxes doesn't match number of input files");
 
                     }
                 }
@@ -202,4 +317,3 @@ ERF::refinement_criteria_setup ()
         } // loop over criteria
     } // if max_level > 0
 }
-

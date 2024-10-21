@@ -36,7 +36,6 @@ erf.rayleigh_damp_T = true
 
 # TIME STEP CONTROL
 erf.cfl             = 0.5
-erf.no_substepping  = 0
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1     # timesteps between computing mass

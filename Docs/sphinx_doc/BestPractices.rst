@@ -45,7 +45,7 @@ Large-Eddy Simulations
 * Time Integration
 
   - Split timestepping offers some computational cost savings but still does
-    not allow you to run with an incompressible time-step size.
+    not allow you to run with an incompressible/anelastic time-step size.
   - The acoustic CFL should be less than 0.5, with 4--6 fast timesteps
     (substeps) according to WRF best practices.
 
@@ -74,9 +74,12 @@ Single-Column Model
 
   .. code-block:: python
 
-     geometry.prob_extent = 25  25  400
-     amr.n_cell           =  4   4   64
-     geometry.is_periodic =  1   1    0
+     geometry.prob_extent = 400  400  400
+     amr.n_cell           =   2    2   64
+     geometry.is_periodic =   1    1    0
+
+  When set up this way, the solution is not sensitive to horizontal problem
+  extent.
 
 * An SCM was successfully run with third-order advection in the horizontal and
   vertical.

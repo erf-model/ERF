@@ -1,0 +1,28 @@
+HyperCLaw-V1.1
+9
+density
+rhoQKE
+x_velocity
+y_velocity
+z_velocity
+theta
+pressure
+Kmv
+Khv
+3
+100
+0
+0 0 0 
+400 400 400 
+
+((0,0,0) (1,1,63) (0,0,0)) 
+100 
+200 200 6.25 
+0
+0
+0 1 100
+100
+0 400
+0 400
+0 400
+Level_0/Cell

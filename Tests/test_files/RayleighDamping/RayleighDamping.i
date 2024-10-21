@@ -14,7 +14,7 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.no_substepping     = 1
+erf.substepping_type   = None
 erf.cfl                = 0.9     # cfl number for hyperbolic system
 erf.init_shrink        = 1.0     # scale back initial timestep
 erf.change_max         = 1.05    # scale back initial timestep
@@ -47,6 +47,8 @@ erf.rayleigh_damp_T = true
 erf.rayleigh_damp_U = true
 erf.rayleigh_damp_V = true
 erf.rayleigh_damp_W = true
+erf.rayleigh_zdamp = 1.0e34  # uniform damping layer
+erf.rayleigh_dampcoef = 1.0  # tau==1
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"

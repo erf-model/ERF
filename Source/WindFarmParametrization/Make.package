@@ -1,0 +1,2 @@
+CEXE_headers += ERF_WindFarm.H
+CEXE_sources += ERF_InitWindFarm.cpp

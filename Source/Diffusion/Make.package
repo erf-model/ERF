@@ -1,18 +1,16 @@
-CEXE_sources += DiffusionSrcForMom_N.cpp
-CEXE_sources += DiffusionSrcForMom_T.cpp
+CEXE_sources += ERF_DiffusionSrcForMom_N.cpp
+CEXE_sources += ERF_DiffusionSrcForMom_T.cpp
 
-CEXE_sources += DiffusionSrcForState_N.cpp
-CEXE_sources += DiffusionSrcForState_T.cpp
+CEXE_sources += ERF_DiffusionSrcForState_N.cpp
+CEXE_sources += ERF_DiffusionSrcForState_T.cpp
 
-CEXE_sources += ComputeStress_N.cpp
-CEXE_sources += ComputeStress_T.cpp
+CEXE_sources += ERF_ComputeStress_N.cpp
+CEXE_sources += ERF_ComputeStress_T.cpp
 
-CEXE_sources += ComputeStrain_N.cpp
-CEXE_sources += ComputeStrain_T.cpp
+CEXE_sources += ERF_ComputeStrain_N.cpp
+CEXE_sources += ERF_ComputeStrain_T.cpp
 
-CEXE_sources += PBLModels.cpp
-CEXE_sources += ComputeTurbulentViscosity.cpp
+CEXE_sources += ERF_ComputeTurbulentViscosity.cpp
 
-CEXE_headers += Diffusion.H
-CEXE_headers += EddyViscosity.H
-CEXE_headers += PBLModels.H
+CEXE_headers += ERF_Diffusion.H
+CEXE_headers += ERF_EddyViscosity.H

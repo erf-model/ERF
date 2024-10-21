@@ -16,8 +16,11 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.no_substepping = 1
-erf.fixed_dt           = 0.0005
+erf.substepping_type = None
+erf.fixed_dt         = 0.0005
+
+# OPTIONAL INCOMPRESSIBLE/ANELASTIC ALTERNATIVE
+erf.anelastic = 0
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass
@@ -53,3 +56,27 @@ prob.alpha = 0.7853981633974483  # inflow angle, 0 --> x-aligned [rad]
 prob.beta  = 1.1088514254079065 # non-dimensional max perturbation strength [-]
 prob.R     = 1.0  # characteristic length scale for grid [m]
 prob.sigma = 1.0  # Gaussian standard deviation [-]
+
+#
+# SET max_level to greater than 0 for refinement 
+#
+erf.coupling_type = TwoWay
+erf.regrid_int    = 2
+
+amr.ref_ratio_vect = 2 2 1 2 2 1
+amr.max_level       = 0       # maximum level number allowed
+
+# USE THESE FOR STATIC REFINEMENT
+#erf.refinement_indicators = box1
+#erf.box1.max_level = 1
+#erf.box1.in_box_lo =  5 5
+
+# USE THESE FOR DYNAMIC REFINEMENT
+erf.refinement_indicators = lo_scalar
+
+erf.lo_scalar.max_level     = 2
+erf.lo_scalar.field_name    = scalar
+erf.lo_scalar.value_greater = 0.1
+
+amr.n_error_buf  = 5 5
+amr.grid_eff     = 0.8

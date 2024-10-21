@@ -43,15 +43,18 @@ erf.plot_int_1      = 3840       # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
 erf.use_coriolis = false
 
 erf.les_type         = "None"
-erf.molec_diff_type  = "ConstantAlpha"
-# diffusion = 75 m^2/s, rho_0 = 1e5/(287*300) = 1.1614401858
-erf.dynamicViscosity = 87.108013935 # kg/(m-s)
+#
+# Diffusion coefficient from Straka, K = 75 m^2/s
+#
+erf.molec_diff_type  = "ConstantAlpha" # where alpha == "K" in Straka et al 1993
+erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities
+erf.dynamicViscosity = 75.0 # [kg/(m-s)] ==> alpha = 75.0 m^2/s
+erf.alpha_T          = 75.0 # [m^2/s]
 
 erf.c_p = 1004.0
 
@@ -66,5 +69,5 @@ erf.init_shrink    = 1.0     # scale back initial timestep
 erf.terrain_z_levels = 0. 100. 200. 300. 400. 500. 600. 700. 800. 900. 1000. 1100. 1200. 1300. 1400. 1500. 1600. 1700. 1800. 1900. 2000. 2100. 2200. 2300. 2400. 2500. 2600. 2700. 2800. 2900. 3000. 3100. 3200. 3300. 3400. 3500. 3600. 3700. 3800. 3900. 4000. 4100. 4200. 4300. 4400. 4500. 4600. 4700. 4800. 4900. 5000. 5100. 5200. 5300. 5400. 5500. 5600. 5700. 5800. 5900. 6000. 6100. 6200. 6300. 6400.
 
 # TERRRAIN GRID TYPE
-erf.use_terrain = 1
+erf.use_terrain = true
 erf.terrain_smoothing = 1

@@ -1,0 +1,18 @@
+@PACKAGE_INIT@
+
+find_package(AMReX QUIET REQUIRED @AMREX_COMPONENTS@)
+
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+
+set(@PROJECT_NAME@_INCLUDE_DIRS "${PROJECT_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@")
+set(@PROJECT_NAME@_LIBRARY_DIRS "${PROJECT_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@")
+set(@PROJECT_NAME@_LIBRARIES "@PROJECT_NAME@::erf_srclib")
+
+# CMake targets aliases: last dimension built will be our legacy target
+# protection in case of multiple inclusions
+if( NOT TARGET @PROJECT_NAME@::erf_api)
+    add_library(@PROJECT_NAME@::erf_api ALIAS erf_srclib)
+endif()
+
+set(@PROJECT_NAME@_FOUND TRUE)
+check_required_components(@PROJECT_NAME@)

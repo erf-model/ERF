@@ -7,7 +7,7 @@ amrex.fpe_trap_overflow = 1
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  28000 16000 8000
-amr.n_cell           =   140 80 100
+amr.n_cell           =   140     80  100
 
 geometry.is_periodic = 0 0 0
 
@@ -55,7 +55,7 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 
-erf.moisture_model = "NullMoist"
+erf.moisture_model = "None"
 
 #erf.terrain_z_levels = 0 130 354 583 816 1054 1549 2068 2615 3193 3803 4450 5142 5892 6709 7603 8591 9702 10967 12442 14230 16610 18711 20752 22133 23960 26579 28493 31236 33699 36068 40000
 
