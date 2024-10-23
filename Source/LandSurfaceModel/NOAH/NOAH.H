@@ -9,10 +9,10 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFabUtil.H>
 
-#include <NullSurf.H>
+#include <ERF_NullSurf.H>
 #include <ERF_Constants.H>
-#include <IndexDefines.H>
-#include <DataStruct.H>
+#include <ERF_IndexDefines.H>
+#include <ERF_DataStruct.H>
 
 // External include from the noahmp library
 #include <NoahmpIO.H>
