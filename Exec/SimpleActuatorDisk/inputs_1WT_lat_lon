@@ -1,0 +1,105 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 3000
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  100000.0 100000.0  1000
+amr.n_cell           =   50     50       80
+
+# WINDFARM PARAMETRIZATION PARAMETERS
+erf.windfarm_type = "SimpleActuatorDisk"
+erf.windfarm_loc_type = "lat_lon"
+erf.latitude_lo      =   35.0
+erf.longitude_lo     = -100.0
+erf.windfarm_loc_table = "windturbines_loc_lat_lon_1WT.txt"
+erf.windfarm_spec_table = "windturbines_spec_1WT.tbl"
+
+#erf.grid_stretching_ratio = 1.025
+#erf.initial_dz = 16.0
+
+geometry.is_periodic = 0 0 0
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+#zlo.type      = "MOST"
+#erf.most.z0   = 0.1
+#erf.most.zref = 8.0
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+xlo.type = "Inflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+
+xlo.velocity = 10. 0. 0.
+xlo.density  = 1.226
+xlo.theta    = 300.
+
+#erf.sponge_strength = 0.1
+#erf.use_xlo_sponge_damping = true
+#erf.xlo_sponge_end = 10000.0
+#erf.use_xhi_sponge_damping = true
+#erf.xhi_sponge_start = 90000.0
+
+#erf.sponge_density = 1.226
+#erf.sponge_x_velocity = 10.0
+#erf.sponge_y_velocity = 0.0
+#erf.sponge_z_velocity = 0.0
+
+
+# TIME STEP CONTROL
+erf.fixed_dt       = 3.0  # fixed time step depending on grid resolution
+#erf.fixed_fast_dt  = 0.0025
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk       # root name of checkpoint file
+erf.check_int       = 1000        # number of timesteps between checkpoints
+#erf.restart         = chk02000
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_int_1      = 100       # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta QKE num_turb vorticity
+
+# ADVECTION SCHEMES
+erf.dycore_horiz_adv_type    = "Centered_2nd"
+erf.dycore_vert_adv_type     = "Centered_2nd"
+erf.dryscal_horiz_adv_type   = "Centered_2nd"
+erf.dryscal_vert_adv_type    = "Centered_2nd"
+erf.moistscal_horiz_adv_type = "Centered_2nd"
+erf.moistscal_vert_adv_type  = "Centered_2nd"
+
+# SOLVER CHOICE
+erf.alpha_T = 0.0
+erf.alpha_C = 1.0
+erf.use_gravity = false
+
+erf.molec_diff_type = "ConstantAlpha"
+erf.les_type        = "None"
+erf.Cs              = 1.5
+erf.dynamicViscosity = 10.0
+
+erf.pbl_type        = "None"
+
+erf.init_type = "uniform"
+
+
+# PROBLEM PARAMETERS
+prob.rho_0 = 1.226
+prob.A_0 = 1.0
+
+prob.U_0 = 10.0
+prob.V_0 = 0.0
+prob.W_0 = 0.0
+prob.T_0 = 300.0

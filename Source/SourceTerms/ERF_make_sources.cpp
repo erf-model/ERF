@@ -4,9 +4,9 @@
 #include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
 
-#include <NumericalDiffusion.H>
-#include <Src_headers.H>
-#include <TI_slow_headers.H>
+#include <ERF_NumericalDiffusion.H>
+#include <ERF_Src_headers.H>
+#include <ERF_TI_slow_headers.H>
 
 using namespace amrex;
 
@@ -30,12 +30,13 @@ using namespace amrex;
  */
 
 void make_sources (int level,
-                   int /*nrk*/, Real dt,
+                   int /*nrk*/, Real dt, Real time,
                    Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
+                   std::unique_ptr<MultiFab>& z_phys_cc,
 #ifdef ERF_USE_RRTMGP
-                   const MultiFab& qheating_rates,
+                   const MultiFab* qheating_rates,
 #endif
                    const Geometry geom,
                    const SolverChoice& solverChoice,
@@ -44,53 +45,77 @@ void make_sources (int level,
                    const Real* dptr_rhotheta_src,
                    const Real* dptr_rhoqt_src,
                    const Real* dptr_wbar_sub,
-                   const Vector<Real*> d_rayleigh_ptrs_at_lev)
+                   const Vector<Real*> d_rayleigh_ptrs_at_lev,
+                   InputSoundingData& input_sounding_data,
+                   TurbulentPerturbation& turbPert)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
     // *****************************************************************************
-    // Initialize source to zero since we re-compute it ever RK stage
+    // Initialize source to zero since we re-compute it every RK stage
     // *****************************************************************************
     source.setVal(0.0);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
+    const bool use_terrain      = solverChoice.use_terrain;
 
     TurbChoice tc = solverChoice.turbChoice[level];
     const bool l_use_deardorff  = (tc.les_type == LESType::Deardorff);
-    const bool l_use_QKE        = tc.use_QKE && tc.advect_QKE;
+    const bool l_use_QKE        = tc.use_QKE && tc.diffuse_QKE_3D;
 
     const Box& domain = geom.Domain();
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
-    Real*      tau = d_rayleigh_ptrs_at_lev[Rayleigh::tau];
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
     // *****************************************************************************
     // Planar averages for subsidence terms
     // *****************************************************************************
-    Table1D<Real>      dptr_t_plane, dptr_q_plane;
-    TableData<Real, 1>  t_plane_tab,  q_plane_tab;
-    if (dptr_wbar_sub)
+    Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
+    TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
+    if (dptr_wbar_sub || solverChoice.nudging_from_input_sounding)
     {
-        PlaneAverage t_ave(&S_prim, geom, solverChoice.ave_plane, true);
+        // Rho
+        PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+        r_ave.compute_averages(ZDir(), r_ave.field());
+
+        int ncell = r_ave.ncell_line();
+        Gpu::HostVector<    Real> r_plane_h(ncell);
+        Gpu::DeviceVector<  Real> r_plane_d(ncell);
+
+        r_ave.line_average(Rho_comp, r_plane_h);
+
+        Gpu::copyAsync(Gpu::hostToDevice, r_plane_h.begin(), r_plane_h.end(), r_plane_d.begin());
+
+        Real* dptr_r = r_plane_d.data();
+
+        IntVect ng_c = S_data[IntVars::cons].nGrowVect();
+        Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
+        r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+
+        int offset = ng_c[2];
+        dptr_r_plane = r_plane_tab.table();
+        ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        {
+            dptr_r_plane(k-offset) = dptr_r[k];
+        });
+
+        // Rho * Theta
+        PlaneAverage t_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
         t_ave.compute_averages(ZDir(), t_ave.field());
 
-        int ncell = t_ave.ncell_line();
         Gpu::HostVector<    Real> t_plane_h(ncell);
         Gpu::DeviceVector<  Real> t_plane_d(ncell);
 
-        t_ave.line_average(PrimTheta_comp, t_plane_h);
+        t_ave.line_average(RhoTheta_comp, t_plane_h);
 
         Gpu::copyAsync(Gpu::hostToDevice, t_plane_h.begin(), t_plane_h.end(), t_plane_d.begin());
 
         Real* dptr_t = t_plane_d.data();
 
-        IntVect ng_c = S_prim.nGrowVect();
-        Box tdomain = domain; tdomain.grow(2,ng_c[2]);
         t_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
 
-        int offset = ng_c[2];
         dptr_t_plane = t_plane_tab.table();
         ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
@@ -99,23 +124,33 @@ void make_sources (int level,
 
         if (solverChoice.moisture_type != MoistureType::None)
         {
-            PlaneAverage q_ave(&S_prim, geom, solverChoice.ave_plane, true);
-            q_ave.compute_averages(ZDir(), q_ave.field());
+            Gpu::HostVector<  Real> qv_plane_h(ncell), qc_plane_h(ncell);
+            Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
 
-            Gpu::HostVector<  Real> q_plane_h(ncell);
-            Gpu::DeviceVector<Real> q_plane_d(ncell);
+            // Water vapor
+            PlaneAverage qv_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+            qv_ave.compute_averages(ZDir(), qv_ave.field());
+            qv_ave.line_average(RhoQ1_comp, qv_plane_h);
+            Gpu::copyAsync(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
 
-            q_ave.line_average(PrimQ1_comp, q_plane_h);
-            Gpu::copyAsync(Gpu::hostToDevice, q_plane_h.begin(), q_plane_h.end(), q_plane_d.begin());
+            // Cloud water
+            PlaneAverage qc_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+            qc_ave.compute_averages(ZDir(), qc_ave.field());
+            qc_ave.line_average(RhoQ2_comp, qc_plane_h);
+            Gpu::copyAsync(Gpu::hostToDevice, qc_plane_h.begin(), qc_plane_h.end(), qc_plane_d.begin());
 
-            Real* dptr_q = q_plane_d.data();
+            Real* dptr_qv = qv_plane_d.data();
+            Real* dptr_qc = qc_plane_d.data();
 
-            q_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+            qv_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+            qc_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
 
-            dptr_q_plane = q_plane_tab.table();
+            dptr_qv_plane = qv_plane_tab.table();
+            dptr_qc_plane = qc_plane_tab.table();
             ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
             {
-                dptr_q_plane(k-offset) = dptr_q[k];
+                dptr_qv_plane(k-offset) = dptr_qv[k];
+                dptr_qc_plane(k-offset) = dptr_qc[k];
             });
         }
     }
@@ -123,11 +158,14 @@ void make_sources (int level,
     // *****************************************************************************
     // Define source term for cell-centered conserved variables, from
     //    1. user-defined source terms for (rho theta) and (rho q_t)
-    //    1. radiation           for (rho theta)
-    //    2. Rayleigh damping    for (rho theta)
-    //    3. custom forcing      for (rho theta) and (rho Q1)
-    //    4. custom subsidence   for (rho theta) and (rho Q1)
-    //    5. numerical diffusion for (rho theta)
+    //    2. radiation           for (rho theta)
+    //    3. Rayleigh damping    for (rho theta)
+    //    4. custom forcing      for (rho theta) and (rho Q1)
+    //    5. custom subsidence   for (rho theta) and (rho Q1)
+    //    6. numerical diffusion for (rho theta)
+    //    7. sponging
+    //    8. turbulent perturbation
+    //    9. nudging towards input sounding values (only for theta)
     // *****************************************************************************
 
     // ***********************************************************************************************
@@ -145,14 +183,17 @@ void make_sources (int level,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_src   = source.array(mfi);
 
+        const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+
 #ifdef ERF_USE_RRTMGP
         // *************************************************************************************
-        // Add radiation source terms to (rho theta)
+        // 2. Add radiation source terms to (rho theta)
         // *************************************************************************************
         {
-            auto const& qheating_arr = qheating_rates.const_array(mfi);
+            auto const& qheating_arr = qheating_rates->const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+                // Short-wavelength and long-wavelength radiation source terms
                 cell_src(i,j,k,RhoTheta_comp) += qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1);
             });
         }
@@ -160,21 +201,32 @@ void make_sources (int level,
 #endif
 
         // *************************************************************************************
-        // Add Rayleigh damping for (rho theta)
+        // 3. Add Rayleigh damping for (rho theta)
         // *************************************************************************************
+        Real zlo      = geom.ProbLo(2);
+        Real dz       = geom.CellSize(2);
+        Real ztop     = solverChoice.rayleigh_ztop;
+        Real zdamp    = solverChoice.rayleigh_zdamp;
+        Real dampcoef = solverChoice.rayleigh_dampcoef;
+
         if (solverChoice.rayleigh_damp_T) {
             int n  = RhoTheta_comp;
             int nr = Rho_comp;
             int np = PrimTheta_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real theta = cell_prim(i,j,k,np);
-                cell_src(i, j, k, n) -= tau[k] * (theta - thetabar[k]) * cell_data(i,j,k,nr);
+                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                Real zfrac = 1 - (ztop - zcc) / zdamp;
+                if (zfrac > 0) {
+                    Real theta = cell_prim(i,j,k,np);
+                    Real sinefac = std::sin(PIoTwo*zfrac);
+                    cell_src(i, j, k, n) -= dampcoef*sinefac*sinefac * (theta - thetabar[k]) * cell_data(i,j,k,nr);
+                }
             });
         }
 
         // *************************************************************************************
-        // Add custom forcing for (rho theta)
+        // 4. Add custom forcing for (rho theta)
         // *************************************************************************************
         if (solverChoice.custom_rhotheta_forcing) {
             const int n = RhoTheta_comp;
@@ -193,7 +245,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Add custom forcing for RhoQ1
+        // 4. Add custom forcing for RhoQ1
         // *************************************************************************************
         if (solverChoice.custom_moisture_forcing) {
             const int n = RhoQ1_comp;
@@ -212,32 +264,69 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Add custom subsidence for (rho theta)
+        // 5. Add custom subsidence for (rho theta)
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence) {
             const int n = RhoTheta_comp;
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                cell_src(i, j, k, n) += dptr_wbar_sub[k] *
-                    0.5 * (dptr_t_plane(k+1) - dptr_t_plane(k-1)) * dxInv[2];
-
-            });
+            if (solverChoice.custom_forcing_prim_vars) {
+                const int nr = Rho_comp;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
+                    Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * wbar_cc *
+                                            0.5 * (T_hi - T_lo) * dxInv[2];
+                });
+            } else {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
+                    Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    cell_src(i, j, k, n) -= wbar_cc *
+                                            0.5 * (T_hi - T_lo) * dxInv[2];
+                });
+            }
         }
 
         // *************************************************************************************
-        // Add custom subsidence for RhoQ1
+        // 5. Add custom subsidence for RhoQ1 and RhoQ2
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None)) {
-            const int n = RhoQ1_comp;
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                cell_src(i,j,k,n) += dptr_wbar_sub[k] *
-                    0.5 * (dptr_q_plane(k+1) - dptr_q_plane(k-1)) * dxInv[2];
-            });
+            const int nv = RhoQ1_comp;
+            if (solverChoice.custom_forcing_prim_vars) {
+                const int nr = Rho_comp;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
+                    Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
+                    Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
+                    Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    cell_src(i, j, k, nv  ) -= cell_data(i,j,k,nr) * wbar_cc *
+                                               0.5 * (Qv_hi - Qv_lo) * dxInv[2];
+                    cell_src(i, j, k, nv+1) -= cell_data(i,j,k,nr) * wbar_cc *
+                                               0.5 * (Qc_hi - Qc_lo) * dxInv[2];
+                });
+            } else {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
+                    Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
+                    Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
+                    Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    cell_src(i, j, k, nv  ) -= wbar_cc *
+                                               0.5 * (Qv_hi - Qv_lo) * dxInv[2];
+                    cell_src(i, j, k, nv+1) -= wbar_cc *
+                                               0.5 * (Qc_hi - Qc_lo) * dxInv[2];
+                });
+            }
         }
 
         // *************************************************************************************
-        // Add numerical diffuion for rho and (rho theta)
+        // 6. Add numerical diffuion for rho and (rho theta)
         // *************************************************************************************
         if (l_use_ndiff) {
             int start_comp = 0;
@@ -263,17 +352,67 @@ void make_sources (int level,
             }
             {
                 int sc = RhoScalar_comp;
-                int nc = 1;
+                int nc = NSCALARS;
                 NumericalDiffusion(bx, sc, nc, dt, solverChoice.NumDiffCoeff,
                                    cell_data, cell_src, mf_u, mf_v, false, false);
             }
         }
 
         // *************************************************************************************
-        // Add sponging
+        // 7. Add sponging
         // *************************************************************************************
-        ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
+        if(!(solverChoice.spongeChoice.sponge_type == "input_sponge")){
+            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
+        }
 
+        // *************************************************************************************
+        // 8. Add perturbation
+        // *************************************************************************************
+        if (solverChoice.pert_type == PerturbationType::Source) {
+            auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
+            const amrex::Array4<const amrex::Real>& pert_cell = turbPert.pb_cell.const_array(mfi);
+            turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src, pert_cell); // Applied as source term
+        }
+
+        // *************************************************************************************
+        // 9. Add nudging towards value specified in input sounding
+        // *************************************************************************************
+        if (solverChoice.nudging_from_input_sounding)
+        {
+            int itime_n    = 0;
+            int itime_np1  = 0;
+            Real coeff_n   = Real(1.0);
+            Real coeff_np1 = Real(0.0);
+
+            Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
+
+            int n_sounding_times = input_sounding_data.input_sounding_time.size();
+
+            for (int nt = 1; nt < n_sounding_times; nt++) {
+                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
+            }
+            if (itime_n == n_sounding_times-1) {
+                itime_np1 = itime_n;
+            } else {
+                itime_np1 = itime_n+1;
+                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
+                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
+                coeff_n   = Real(1.0) - coeff_np1;
+            }
+
+            const Real* theta_inp_sound_n   = input_sounding_data.theta_inp_sound_d[itime_n].dataPtr();
+            const Real* theta_inp_sound_np1 = input_sounding_data.theta_inp_sound_d[itime_np1].dataPtr();
+
+            const int n  = RhoTheta_comp;
+            const int nr = Rho_comp;
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real nudge = (coeff_n*theta_inp_sound_n[k] + coeff_np1*theta_inp_sound_np1[k]) - (dptr_t_plane(k)/dptr_r_plane(k));
+                nudge *= tau_inv;
+                cell_src(i, j, k, n) += cell_data(i, j, k, nr) * nudge;
+            });
+        }
     } // mfi
     } // OMP
 }

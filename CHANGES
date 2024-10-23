@@ -1,5 +1,76 @@
+# 24.10
+    -- Add WENO7 advection operators (#1858)
+
+    -- Multi-level inflow plane capability (#1851)
+
+    -- Fast integrator fill bug fix (#1853)
+
+    -- Refactor set/nudging with real BDYs (#1841)
+
+    -- First pass at GAD sources (#1839)
+
+    -- Anelastic with FFT option for Poisson eq (#1838)
+    
+# 24.09
+    -- AMReX submodule set to 24.09 release hash (74127d6)
+
+    -- Arbitrary number of scalars similar to WRF chem (#1782)
+
+    -- PBL reorganization and additions for hurricane sims (#1756)
+
+    -- Vertical decomposition (#1766)
+
+    -- Upstream velocity computation for actuator disk (#1751)
+
+    -- High order diffusion stencil at all Dirichlet faces (#1753)
+
+    -- MOST stress rotations with terrain (#1739)
+
+    -- Anlestic option (#1745)
+
+# 24.08
+    -- AMReX submodule set to 24.08 release hash (ac5dde3)
+
+    -- Fix diffusion stencil with Dirichlet boundary (#1723)
+
+    -- Turbulent inflow perturbation (#1722/#1721/#1716/#1695)
+
+    -- BOMEX regtest (#1714/#1707)
+
+    -- Output SGS fluxes (#1713)
+
+    -- Wind model for SAD (#1667)
+
+    -- ERF container (#1703)
+
+    -- Inflow face prescribed from a data file (#1698)
+
+    -- YSU PBL updates (#1694)
+
+# 24.06
+    -- AMReX submodule set to 24.06 release hash (f141191)
+
+    -- SAM microphysics corrections (#1634/#1629)
+
+    -- Open boundaries with viscous terms (#1615)
+
+    -- Incompressible pathway (#1612/#1613)
+
+# 24.05
+    -- AMReX submodule set to 24.05 release hash (76d09f5)
+    
+    -- Explict MOST as runtime option (#1605)
+    
+    -- High order extrapolation (#1602)
+
+    -- Various radiation module fixes (#1601 etc)
+
+    -- Correct FITCH (#1595)
+
+    -- Read entire Lat/Lon data from netcdf (#1589)   
+
 # 24.04
-    -- AMReX submodule set to 24.03 release hash (bb7d5cf)
+    -- AMReX submodule set to 24.04 release hash (bb7d5cf)
 
     -- Start of EB functionality (#1541)
 

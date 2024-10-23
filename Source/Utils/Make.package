@@ -1,25 +1,27 @@
-CEXE_sources += MomentumToVelocity.cpp
-CEXE_sources += VelocityToMomentum.cpp
-CEXE_sources += InteriorGhostCells.cpp
+CEXE_headers += ERF_EOS.H
+CEXE_headers += ERF_HSE_Utils.H
+CEXE_headers += ERF_Interpolation_UPW.H
+CEXE_headers += ERF_Interpolation_WENO.H
+CEXE_headers += ERF_Interpolation_WENO_Z.H
+CEXE_headers += ERF_Interpolation.H
+CEXE_headers += ERF_Interpolation_1D.H
+CEXE_headers += ERF_Microphysics_Utils.H
+CEXE_headers += ERF_TerrainMetrics.H
+CEXE_headers += ERF_TileNoZ.H
+CEXE_headers += ERF_Utils.H
 
-CEXE_headers += TerrainMetrics.H
-CEXE_headers += Microphysics_Utils.H
-CEXE_headers += TileNoZ.H
-CEXE_headers += Utils.H
-CEXE_headers += Interpolation_UPW.H
-CEXE_headers += Interpolation_WENO.H
-CEXE_headers += Interpolation_WENO_Z.H
-CEXE_headers += Interpolation.H
-CEXE_headers += Interpolation_1D.H
-CEXE_sources += TerrainMetrics.cpp
+CEXE_headers += ERF_ParFunctions.H
 
-CEXE_headers += ParFunctions.H
+CEXE_headers += ERF_Sat_methods.H
+CEXE_headers += ERF_Water_vapor_saturation.H
+CEXE_headers += ERF_DirectionSelector.H
 
-CEXE_headers += Sat_methods.H
-CEXE_headers += Water_vapor_saturation.H
-CEXE_headers += DirectionSelector.H
+CEXE_sources += ERF_ChopGrids.cpp
+CEXE_sources += ERF_MomentumToVelocity.cpp
+CEXE_sources += ERF_VelocityToMomentum.cpp
+CEXE_sources += ERF_InteriorGhostCells.cpp
+CEXE_sources += ERF_TerrainMetrics.cpp
+CEXE_sources += ERF_Time_Avg_Vel.cpp  
 
-ifeq ($(USE_POISSON_SOLVE),TRUE)
 CEXE_sources += ERF_PoissonSolve.cpp
 CEXE_sources += ERF_PoissonSolve_tb.cpp
-endif

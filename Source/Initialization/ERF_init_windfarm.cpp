@@ -1,7 +1,6 @@
 /**
  * \file ERF_init_windfarm.cpp
  */
-
 #include <ERF.H>
 
 using namespace amrex;
@@ -12,114 +11,56 @@ using namespace amrex;
  *
  * @param lev Integer specifying the current level
  */
+
+// Explicit instantiation
+
 void
 ERF::init_windfarm (int lev)
 {
-    // Read turbine locations from windturbines.txt
-    std::ifstream file("windturbines.txt");
-    if (!file.is_open()) {
-        amrex::Error("Wind turbines location file windturbines.txt not found");
-    }
-    // Vector of vectors to store the matrix
-    std::vector<Real> lat, lon, xloc, yloc;
-    Real value1, value2, value3;
-    while (file >> value1 >> value2 >> value3) {
-        lat.push_back(value1);
-        lon.push_back(value2);
-    }
-    file.close();
-
-    Real rad_earth = 6371.0e3; // Radius of the earth
-    Real lat_lo  = solverChoice.latitude_lo*M_PI/180.0;
-    Real lon_lo  = solverChoice.longitude_lo*M_PI/180.0;
-
-    // (lat_lo, lon_lo) is mapped to (0,0)
-
-    for(int it=0;it<lat.size();it++){
-        lat[it] = lat[it]*M_PI/180.0;
-        lon[it] = lon[it]*M_PI/180.0;
-        Real delta_lat = (lat[it] - lat_lo);
-        Real delta_lon = (lon[it] - lon_lo);
-
-        Real term1 = std::pow(sin(delta_lat/2.0),2);
-        Real term2 = cos(lat[it])*cos(lat_lo)*std::pow(sin(delta_lon/2.0),2);
-        Real dist =  2.0*rad_earth*std::asin(std::sqrt(term1 + term2));
-        Real dy_turb = (lat[it] - lat_lo) * 111000.0 * 180.0/M_PI ;
-        yloc.push_back(dy_turb);
-        Real dx_turb = std::sqrt(std::pow(dist,2) - std::pow(dy_turb,2));
-        xloc.push_back(dx_turb);
-    }
-
-    // Write out a vtk file for turbine locations
-    if (ParallelDescriptor::IOProcessor()){
-        FILE* file_turbloc_vtk;
-        file_turbloc_vtk = fopen("turbine_locations.vtk","w");
-        fprintf(file_turbloc_vtk, "%s\n","# vtk DataFile Version 3.0");
-        fprintf(file_turbloc_vtk, "%s\n","Wind turbine locations");
-        fprintf(file_turbloc_vtk, "%s\n","ASCII");
-        fprintf(file_turbloc_vtk, "%s\n","DATASET POLYDATA");
-        fprintf(file_turbloc_vtk, "%s %ld %s\n", "POINTS", xloc.size(), "float");
-        for(int it=0; it<xloc.size(); it++){
-            fprintf(file_turbloc_vtk, "%0.15g %0.15g %0.15g\n", xloc[it], yloc[it], 1e-12);
-        }
-        fclose(file_turbloc_vtk);
-    }
-
-    Nturb[lev].setVal(0);
-
-    int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
-    int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
-
-     // Initialize wind farm
-    for ( MFIter mfi(Nturb[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx     = mfi.tilebox();
-        auto  Nturb_array = Nturb[lev].array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            int li = amrex::min(amrex::max(i, i_lo), i_hi);
-            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-
-            auto dx = geom[lev].CellSizeArray();
-            Real x1 = li*dx[0], x2 = (li+1)*dx[0];
-            Real y1 = lj*dx[1], y2 = (lj+1)*dx[1];
-
-            for(int it=0; it<xloc.size(); it++){
-                if( xloc[it]+1e-12 > x1 and xloc[it]+1e-12 < x2 and
-                    yloc[it]+1e-12 > y1 and yloc[it]+1e-12 < y2){
-                    Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
-                }
-            }
-        });
+    if(solverChoice.windfarm_loc_type == WindFarmLocType::lat_lon) {
+        windfarm->read_tables(solverChoice.windfarm_loc_table,
+                              solverChoice.windfarm_spec_table,
+                              false, true,
+                              solverChoice.windfarm_x_shift,
+                              solverChoice.windfarm_y_shift);
+    } else if(solverChoice.windfarm_loc_type == WindFarmLocType::x_y) {
+        windfarm->read_tables(solverChoice.windfarm_loc_table,
+                             solverChoice.windfarm_spec_table,
+                             true, false);
     }
 
 
-    //The first line is the number of pairs entries for the power curve and thrust coefficient.
-    //The second line gives first the height in meters of the turbine hub, second, the diameter in
-    //meters of the rotor, third the standing thrust coefficient, and fourth the nominal power of
-    //the turbine in MW.
-    //The remaining lines contain the three values of: wind speed, thrust coefficient, and power production in kW.
+    windfarm->fill_Nturb_multifab(geom[lev], Nturb[lev]);
 
-     // Read turbine data from wind-turbine-1.tbl
-    std::ifstream file_turb_table("wind-turbine-1.tbl");
-    if (!file_turb_table.is_open()) {
-        amrex::Error("Wind turbines location file wind-turbine-1.tbl not found");
+    windfarm->write_turbine_locations_vtk();
+
+    if(solverChoice.windfarm_type == WindFarmType::SimpleAD or
+       solverChoice.windfarm_type == WindFarmType::GeneralAD) {
+        windfarm->fill_SMark_multifab(geom[lev], SMark[lev],
+                                      solverChoice.sampling_distance_by_D,
+                                      solverChoice.turb_disk_angle);
+        windfarm->write_actuator_disks_vtk(geom[lev]);
     }
 
-    int nlines;
-    file_turb_table >> nlines;
-    wind_speed.resize(nlines);
-    thrust_coeff.resize(nlines);
-    power.resize(nlines);
-
-    file_turb_table >>     hub_height >> rotor_dia >> thrust_coeff_standing >> nominal_power;
-    if(rotor_dia/2.0 > hub_height)
-    {
-        amrex::Abort("The blade length is more than the hub height. Check the second line in wind-turbine-1.tbl. Aborting.....");
+    if(solverChoice.windfarm_type == WindFarmType::GeneralAD) {
+        windfarm->read_windfarm_blade_table(solverChoice.windfarm_blade_table);
+        windfarm->read_windfarm_airfoil_tables(solverChoice.windfarm_airfoil_tables,
+                                               solverChoice.windfarm_blade_table);
+        windfarm->read_windfarm_spec_table_extra(solverChoice.windfarm_spec_table_extra);
     }
-
-    for(int iline=0;iline<nlines;iline++){
-        file_turb_table >> wind_speed[iline] >> thrust_coeff[iline] >> power[iline];
-    }
-    file.close();
 }
 
-
+void
+ERF::advance_windfarm (const Geometry& a_geom,
+                       const Real& dt_advance,
+                       MultiFab& cons_in,
+                       MultiFab& U_old,
+                       MultiFab& V_old,
+                       MultiFab& W_old,
+                       MultiFab& mf_vars_windfarm,
+                       const MultiFab& mf_Nturb,
+                       const MultiFab& mf_SMark)
+{
+        windfarm->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
+                          U_old, V_old, W_old, mf_Nturb, mf_SMark);
+}

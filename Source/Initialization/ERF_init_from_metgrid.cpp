@@ -1,8 +1,8 @@
 /**
  * \file ERF_init_from_metgrid.cpp
  */
-
-#include <Metgrid_utils.H>
+#include <ERF_Constants.H>
+#include <ERF_Metgrid_utils.H>
 
 using namespace amrex;
 
@@ -138,9 +138,9 @@ ERF::init_from_metgrid (int lev)
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag);
+    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag[lev], phys_bc_type);
 
-    // Copy SST and LANDMASK data into MF and iMF data structures
+    // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();
     auto& dm = lev_new[Vars::cons].DistributionMap();
     auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
@@ -172,6 +172,7 @@ ERF::init_from_metgrid (int lev)
     } else {
         for (int it = 0; it < ntimes; ++it) sst_lev[lev][it] = nullptr;
     }
+
     if (flag_lmask[0]) {
         for (int it = 0; it < ntimes; ++it) {
             lmask_lev[lev][it] = std::make_unique<iMultiFab>(ba2d,dm,1,ngv);
@@ -190,8 +191,36 @@ ERF::init_from_metgrid (int lev)
             }
             lmask_lev[lev][it]->FillBoundary(geom[lev].periodicity());
         }
-    } else {
-        for (int it = 0; it < ntimes; ++it) lmask_lev[lev][it] = nullptr;
+    }
+
+    lat_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        Box gtbx = mfi.growntilebox();
+        FArrayBox& dst = (*(lat_m[lev]))[mfi];
+        FArrayBox& src = NC_LAT_fab[0];
+        const Array4<      Real>& dst_arr = dst.array();
+        const Array4<const Real>& src_arr = src.const_array();
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            dst_arr(i,j,0) = src_arr(li,lj,0);
+        });
+    }
+
+    lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        Box gtbx = mfi.growntilebox();
+        FArrayBox& dst = (*(lon_m[lev]))[mfi];
+        FArrayBox& src = NC_LON_fab[0];
+        const Array4<      Real>& dst_arr = dst.array();
+        const Array4<const Real>& src_arr = src.const_array();
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            dst_arr(i,j,0) = src_arr(li,lj,0);
+        });
     }
 
     for (int it = 0; it < ntimes; it++) {
@@ -311,8 +340,6 @@ ERF::init_from_metgrid (int lev)
         FArrayBox&      cons_fab = lev_new[Vars::cons][mfi];
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
 
-        const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
-
         // Fill base state data using origin data (initialization and BC arrays)
         //     p_hse     calculate dry pressure
         //     r_hse     calculate dry density
@@ -323,7 +350,7 @@ ERF::init_from_metgrid (int lev)
                                      flag_psfc,
                                      cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab,
                                      z_phys_nd_fab, NC_ght_fab, NC_psfc_fab,
-                                     fabs_for_bcs, mask_c_arr);
+                                     fabs_for_bcs);
     } // mf
 
     // FillBoundary to populate the internal halo cells
@@ -349,7 +376,7 @@ ERF::init_from_metgrid (int lev)
     //       Otherwise, we make the total width match the set width.
     if (real_width-1 <= real_set_width) real_width = real_set_width;
     Print() << "Running with specification width: " << real_set_width
-                   << " and relaxation width: " << real_width - real_set_width << std::endl;
+            << " and relaxation width: " << real_width - real_set_width << std::endl;
 
     // Set up boxes for lateral boundary arrays.
     bdy_data_xlo.resize(ntimes);
@@ -402,11 +429,6 @@ ERF::init_from_metgrid (int lev)
                 bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_y_stag, 1));
                 bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_y_stag, 1));
                 bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_y_stag, 1));
-            } else if (ivar == MetGridBdyVars::R) {
-                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
-                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
-                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
-                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
             } else if (ivar == MetGridBdyVars::T) {
                 bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
                 bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
@@ -430,12 +452,8 @@ ERF::init_from_metgrid (int lev)
     // we only need the whole domain processed at initialization and the lateral boundaries
     // at subsequent times. We can optimize this later if needed. For now, we need to fill
     // the lateral boundary arrays using the info set aside earlier.
-    bool multiply_rho = false;
     amrex::Box xlo_plane, xhi_plane, ylo_plane, yhi_plane;
     for (int it(0); it < ntimes; it++) {
-
-        const Array4<Real const>& R_bcs_arr = fabs_for_bcs[it][MetGridBdyVars::R].const_array();
-
         for (int ivar(MetGridBdyVars::U); ivar < MetGridBdyEnd; ivar++) {
 
             auto xlo_arr = bdy_data_xlo[it][ivar].array();
@@ -445,23 +463,15 @@ ERF::init_from_metgrid (int lev)
             const Array4<Real const>& fabs_for_bcs_arr = fabs_for_bcs[it][ivar].const_array();
 
             if (ivar == MetGridBdyVars::U) {
-                multiply_rho = false;
                 xlo_plane = xlo_plane_x_stag; xhi_plane = xhi_plane_x_stag;
                 ylo_plane = ylo_plane_x_stag; yhi_plane = yhi_plane_x_stag;
             } else if (ivar == MetGridBdyVars::V) {
-                multiply_rho = false;
                 xlo_plane = xlo_plane_y_stag; xhi_plane = xhi_plane_y_stag;
                 ylo_plane = ylo_plane_y_stag; yhi_plane = yhi_plane_y_stag;
-            } else if (ivar == MetGridBdyVars::R) {
-                multiply_rho = false;
-                xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
-                ylo_plane = ylo_plane_no_stag; yhi_plane = yhi_plane_no_stag;
             } else if (ivar == MetGridBdyVars::T) {
-                multiply_rho = false;
                 xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
                 ylo_plane = ylo_plane_no_stag; yhi_plane = yhi_plane_no_stag;
             } else if (ivar == MetGridBdyVars::QV) {
-                multiply_rho = false;
                 xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
                 ylo_plane = ylo_plane_no_stag; yhi_plane = yhi_plane_no_stag;
             } // MetGridBdyVars::QV
@@ -469,26 +479,22 @@ ERF::init_from_metgrid (int lev)
             // west boundary
             ParallelFor(xlo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                xlo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
+                xlo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
             });
             // xvel at east boundary
             ParallelFor(xhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                xhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
+                xhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
             });
             // xvel at south boundary
             ParallelFor(ylo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                ylo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
+                ylo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
             });
             // xvel at north boundary
             ParallelFor(yhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                yhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
+                yhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
             });
 
         } // ivar
@@ -546,16 +552,16 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
  * @param y_vel_fab FArrayBox holding the y-velocity data to initialize
  * @param z_vel_fab FArrayBox holding the z-velocity data to initialize
  * @param z_phys_nd_fab FArrayBox holding nodal z coordinate data for terrain
- * @param NC_hgt_fab Vector of FArrayBox obects holding metgrid data for terrain height
- * @param NC_ght_fab Vector of FArrayBox objects holding metgrid data for height of cell centers
- * @param NC_xvel_fab Vector of FArrayBox obects holding metgrid data for x-velocity
- * @param NC_yvel_fab Vector of FArrayBox obects holding metgrid data for y-velocity
- * @param NC_zvel_fab Vector of FArrayBox obects holding metgrid data for z-velocity
- * @param NC_temp_fab Vector of FArrayBox obects holding metgrid data for temperature
- * @param NC_rhum_fab Vector of FArrayBox obects holding metgrid data for relative humidity
- * @param NC_pres_fab Vector of FArrayBox obects holding metgrid data for pressure
- * @param theta_fab Vector of FArrayBox obects holding potential temperature calculated from temperature and pressure
- * @param mxrat_fab Vector of FArrayBox obects holding vapor mixing ratio calculated from relative humidity
+ * @param NC_hgt_fab  Vector of FArrayBox objects holding metgrid data for terrain height
+ * @param NC_ght_fab  Vector of FArrayBox objects holding metgrid data for height of cell centers
+ * @param NC_xvel_fab Vector of FArrayBox objects holding metgrid data for x-velocity
+ * @param NC_yvel_fab Vector of FArrayBox objects holding metgrid data for y-velocity
+ * @param NC_zvel_fab Vector of FArrayBox objects holding metgrid data for z-velocity
+ * @param NC_temp_fab Vector of FArrayBox objects holding metgrid data for temperature
+ * @param NC_rhum_fab Vector of FArrayBox objects holding metgrid data for relative humidity
+ * @param NC_pres_fab Vector of FArrayBox objects holding metgrid data for pressure
+ * @param theta_fab Vector of FArrayBox objects holding potential temperature calculated from temperature and pressure
+ * @param mxrat_fab Vector of FArrayBox objects holding vapor mixing ratio calculated from relative humidity
  * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
  */
 void
@@ -774,8 +780,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& z_phys_cc_fab,
                               const Vector<FArrayBox>& /*NC_ght_fab*/,
                               const Vector<FArrayBox>& NC_psfc_fab,
-                              Vector<Vector<FArrayBox>>& fabs_for_bcs,
-                              const amrex::Array4<const int>& mask_c_arr)
+                              Vector<Vector<FArrayBox>>& fabs_for_bcs)
 {
     int RhoQ_comp = RhoQ1_comp;
     int kmax = amrex::ubound(valid_bx).z;
@@ -796,16 +801,6 @@ init_base_state_from_metgrid (const bool use_moisture,
     gvbx_ylo.makeSlab(1,gvbx_ylo.smallEnd(1)); gvbx_yhi.makeSlab(1,gvbx_yhi.bigEnd(1));
     gvbx_zlo.makeSlab(2,gvbx_zlo.smallEnd(2)); gvbx_zhi.makeSlab(2,gvbx_zhi.bigEnd(2));
 
-    // Device vectors for columnwise operations
-    Gpu::DeviceVector<Real>      z_vec_d(kmax+2,0); Real* z_vec      =      z_vec_d.data();
-    Gpu::DeviceVector<Real> Thetad_vec_d(kmax+1,0); Real* Thetad_vec = Thetad_vec_d.data();
-    Gpu::DeviceVector<Real> Thetam_vec_d(kmax+1,0); Real* Thetam_vec = Thetam_vec_d.data();
-    Gpu::DeviceVector<Real>   Rhod_vec_d(kmax+1,0); Real* Rhod_vec   =   Rhod_vec_d.data();
-    Gpu::DeviceVector<Real>   Rhom_vec_d(kmax+1,0); Real* Rhom_vec   =   Rhom_vec_d.data();
-    Gpu::DeviceVector<Real>     Pd_vec_d(kmax+1,0); Real* Pd_vec     =     Pd_vec_d.data();
-    Gpu::DeviceVector<Real>     Pm_vec_d(kmax+1,0); Real* Pm_vec     =     Pm_vec_d.data();
-    Gpu::DeviceVector<Real>      Q_vec_d(kmax+1,0); Real* Q_vec      =      Q_vec_d.data();
-
     // Device vectors for psfc flags
     Gpu::DeviceVector<int>flag_psfc_d(flag_psfc.size());
     Gpu::copy(Gpu::hostToDevice, flag_psfc.begin(), flag_psfc.end(), flag_psfc_d.begin());
@@ -814,14 +809,17 @@ init_base_state_from_metgrid (const bool use_moisture,
     // Define the arena to be used for data allocation
     Arena* Arena_Used = The_Arena();
 #ifdef AMREX_USE_GPU
-    // Make sure this lives on CPU and GPU
-    Arena_Used = The_Pinned_Arena();
+    // Inside MFiter use async arena
+    Arena_Used = The_Async_Arena();
 #endif
+    // Expose for copy to GPU
+    Real grav = CONST_GRAV;
 
     { // set pressure and density at initialization.
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();
         const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
+        auto psfc_flag = flag_psfc_vec[0];
 
         // ********************************************************
         // calculate dry density and dry pressure
@@ -835,34 +833,102 @@ init_base_state_from_metgrid (const bool use_moisture,
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
-            for (int k=0; k<=kmax; k++) {
-                     z_vec[k] = new_z(i,j,k);
-                Thetad_vec[k] = new_data(i,j,k,RhoTheta_comp);
-                    Q_vec[k]  = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : 0.0;
+            const int maxiter = 10;
+            const amrex::Real tol = 1.0e-10;
+
+            // Low and Hi column variables
+            Real psurf;
+            Real z_lo,   z_hi;
+            Real p_lo,   p_hi;
+            Real qv_lo, qv_hi;
+            Real rd_lo, rd_hi;
+            Real thetad_lo, thetad_hi;
+
+            // Calculate or use pressure at the surface.
+            if (psfc_flag == 1) {
+                psurf = orig_psfc(i,j,0);
+            } else {
+                z_lo     = new_z(i,j,0);
+                Real t_0 = 290.0; // WRF's model_config_rec%base_temp
+                Real a   = 50.0;  // WRF's model_config_rec%base_lapse
+                psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2.)-2.0*grav*z_lo/(a*R_d)), 0.5));
             }
-            z_vec[kmax+1] =  new_z(i,j,kmax+1);
 
-            calc_rho_p(kmax, flag_psfc_vec[0], orig_psfc(i,j,0),
-                       Thetad_vec, Thetam_vec, Q_vec, z_vec,
-                       Rhod_vec, Rhom_vec, Pd_vec, Pm_vec);
+            // Iterations for the first CC point that is 1/2 dz off the surface
+            {
+                z_lo      = new_z(i,j,0);
+                qv_lo     = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : 0.0;
+                rd_lo     = 0.0; // initial guess
+                thetad_lo = new_data(i,j,0,RhoTheta_comp);
+                Real half_dz = z_lo;
+                Real qvf     = 1.0+(R_v/R_d)*qv_lo;
+                Real thetam  = thetad_lo*qvf;
+                for (int it=0; it<maxiter; it++) {
+                    p_lo = psurf-half_dz*rd_lo*(1.0+qv_lo)*grav;
+                    if (p_lo < 0.0) p_lo = 0.0;
+                    rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
+                } // it
+                p_hse_arr(i,j,0) =  p_lo;
+                r_hse_arr(i,j,0) = rd_lo;
+            }
 
-            for (int k=0; k<=kmax; k++) {
-                p_hse_arr(i,j,k) =   Pm_vec[k];
-                r_hse_arr(i,j,k) = Rhom_vec[k];
+            // Iterations for k \in [1 kmax]
+            for (int k=1; k<=kmax; k++) {
+                // Known hi data
+                z_hi  = new_z(i,j,k);
+                qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : 0.0;
+                thetad_hi = new_data(i,j,k,RhoTheta_comp);
+
+                // Initial guesses for hi data
+                 p_hi = p_lo;
+                rd_hi = getRhogivenThetaPress(thetad_hi,
+                                              p_hi,
+                                              R_d/Cp_d,
+                                              qv_hi);
+
+                // Vertical grid spacing
+                Real dz = z_hi - z_lo;
+
+                // Establish known constant
+                Real rho_tot_lo = rd_lo * (1. + qv_lo);
+                Real C = -p_lo + 0.5*rho_tot_lo*grav*dz;
+
+                // Initial residual
+                Real rho_tot_hi = rd_hi * (1. + qv_hi);
+                Real F = p_hi + 0.5*rho_tot_hi*grav*dz + C;
+
+                // Do iterations
+                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                                  grav, C, thetad_hi,
+                                                                  qv_hi, qv_hi, p_hi,
+                                                                  rd_hi, F);
+
+                // Copy solution to base state
+                p_hse_arr(i,j,k) =  p_hi;
+                r_hse_arr(i,j,k) = rd_hi;
+
+                // Copy hi to lo
+                z_lo  = z_hi;
+                p_lo  = p_hi;
+                qv_lo = qv_hi;
+                rd_lo = rd_hi;
+                thetad_lo = thetad_hi;
             }
         });
 
         ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-             // Multiply by Rho to get conserved vars
+            // Multiply by Rho to get conserved vars
             Real Qv = 0.0;
-            new_data(i,j,k,Rho_comp) = r_hse_arr(i,j,k);
+            new_data(i,j,k,Rho_comp)       = r_hse_arr(i,j,k);
             new_data(i,j,k,RhoTheta_comp) *= r_hse_arr(i,j,k);
-            if (use_moisture){
+            if (use_moisture) {
                 Qv = new_data(i,j,k,RhoQ_comp);
                 new_data(i,j,k,RhoQ_comp) *= r_hse_arr(i,j,k);
             }
-            new_data(i,j,k,RhoScalar_comp) = 0.0;
+            for (int n = 0; n < NSCALARS; n++) {
+                new_data(i,j,k,RhoScalar_comp+n) = 0.0;
+            }
 
             // r_hse needs to include the moisture (account for that here)
             r_hse_arr(i,j,k) *= (1.0 + Qv);
@@ -917,10 +983,11 @@ init_base_state_from_metgrid (const bool use_moisture,
     }
 
     int ntimes = NC_psfc_fab.size();
-    for (int it=0; it<ntimes; it++) {
+    for (int itime=0; itime<ntimes; itime++) {
         FArrayBox p_hse_bcs_fab;
         FArrayBox pi_hse_bcs_fab;
         p_hse_bcs_fab.resize(state_fab.box(), 1, Arena_Used);
+        auto psfc_flag = flag_psfc_vec[itime];
 
         // ********************************************************
         // calculate dry density and dry pressure
@@ -928,36 +995,96 @@ init_base_state_from_metgrid (const bool use_moisture,
         // calculate density and dry pressure on the new grid.
         Box valid_bx2d = valid_bx;
         valid_bx2d.setRange(2,0);
-        auto const orig_psfc = NC_psfc_fab[it].const_array();
+        auto const orig_psfc = NC_psfc_fab[itime].const_array();
         auto const     new_z = z_phys_cc_fab.const_array();
-        auto           r_arr = fabs_for_bcs[it][MetGridBdyVars::R].array();
-        auto       Theta_arr = fabs_for_bcs[it][MetGridBdyVars::T].array();
-        auto           Q_arr = (use_moisture ) ? fabs_for_bcs[it][MetGridBdyVars::QV].array() : Array4<Real>{};
+        auto       Theta_arr = fabs_for_bcs[itime][MetGridBdyVars::T].array();
+        auto           Q_arr = (use_moisture ) ? fabs_for_bcs[itime][MetGridBdyVars::QV].array() : Array4<Real>{};
         auto       p_hse_arr = p_hse_bcs_fab.array();
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
-            for (int k=0; k<=kmax; k++) {
-                     z_vec[k] = new_z(i,j,k);
-                Thetad_vec[k] = Theta_arr(i,j,k);
-                Q_vec[k] = (use_moisture) ? Q_arr(i,j,k) : 0.0;
+            const int maxiter = 10;
+            const amrex::Real tol = 1.0e-10;
+
+            // Low and Hi column variables
+            Real psurf;
+            Real z_lo,   z_hi;
+            Real p_lo,   p_hi;
+            Real qv_lo, qv_hi;
+            Real rd_lo, rd_hi;
+            Real thetad_lo, thetad_hi;
+
+            // Calculate or use pressure at the surface.
+            if (psfc_flag  == 1) {
+                psurf = orig_psfc(i,j,0);
+            } else {
+                z_lo     = new_z(i,j,0);
+                Real t_0 = 290.0; // WRF's model_config_rec%base_temp
+                Real a   = 50.0;  // WRF's model_config_rec%base_lapse
+                psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2.)-2.0*grav*z_lo/(a*R_d)), 0.5));
             }
-            z_vec[kmax+1] = new_z(i,j,kmax+1);
 
-            calc_rho_p(kmax, flag_psfc_vec[it], orig_psfc(i,j,0),
-                       Thetad_vec, Thetam_vec, Q_vec, z_vec,
-                       Rhod_vec, Rhom_vec, Pd_vec, Pm_vec);
+            // Iterations for the first CC point that is 1/2 dz off the surface
+            {
+                z_lo      = new_z(i,j,0);
+                qv_lo     = (use_moisture) ? Q_arr(i,j,0) : 0.0;
+                rd_lo     = 0.0; // initial guess
+                thetad_lo = Theta_arr(i,j,0);
+                Real half_dz = z_lo;
+                Real qvf     = 1.0+(R_v/R_d)*qv_lo;
+                Real thetam  = thetad_lo*qvf;
+                for (int it=0; it<maxiter; it++) {
+                    p_lo = psurf-half_dz*rd_lo*(1.0+qv_lo)*grav;
+                    if (p_lo < 0.0) p_lo = 0.0;
+                    rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
+                } // it
+                p_hse_arr(i,j,0) =  p_lo;
+            }
 
-            for (int k=0; k<=kmax; k++) {
-                p_hse_arr(i,j,k) = Pm_vec[k];
-                if (mask_c_arr(i,j,k)) {
-                    r_arr(i,j,k) = Rhom_vec[k];
-                    if (use_moisture) Q_arr(i,j,k) = Rhom_vec[k]*Q_vec[k];
-                    Theta_arr(i,j,k) = Rhom_vec[k]*Thetad_vec[k];
-                  }
-            } // k
+            // Iterations for k \in [1 kmax]
+            for (int k=1; k<=kmax; k++) {
+                // Known hi data
+                z_hi  = new_z(i,j,k);
+                qv_hi = (use_moisture) ? Q_arr(i,j,k) : 0.0;
+                thetad_hi = Theta_arr(i,j,k);
+
+                // Initial guesses for hi data
+                 p_hi = p_lo;
+                rd_hi = getRhogivenThetaPress(thetad_hi,
+                                              p_hi,
+                                              R_d/Cp_d,
+                                              qv_hi);
+
+                // Vertical grid spacing
+                Real dz = z_hi - z_lo;
+
+                // Establish known constant
+                Real rho_tot_lo = rd_lo * (1. + qv_lo);
+                Real C = -p_lo + 0.5*rho_tot_lo*grav*dz;
+
+                // Initial residual
+                Real rho_tot_hi = rd_hi * (1. + qv_hi);
+                Real F = p_hi + 0.5*rho_tot_hi*grav*dz + C;
+
+                // Do iterations
+                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                                  grav, C, thetad_hi,
+                                                                  qv_hi, qv_hi, p_hi,
+                                                                  rd_hi, F);
+
+                // Copy solution to base state
+                p_hse_arr(i,j,k) =  p_hi;
+
+                // Copy hi to lo
+                z_lo  = z_hi;
+                p_lo  = p_hi;
+                qv_lo = qv_hi;
+                rd_lo = rd_hi;
+                thetad_lo = thetad_hi;
+            }
+
         });
-    } // it
+    } // itime
 }
 
 

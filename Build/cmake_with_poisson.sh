@@ -8,7 +8,6 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
       -DCMAKE_Fortran_COMPILER:STRING=mpifort \
       -DMPIEXEC_PREFLAGS:STRING=--oversubscribe \
       -DCMAKE_BUILD_TYPE:STRING=Release \
-      -DAMREX_LINEAR_SOLVERS:BOOL=ON \
       -DERF_DIM:STRING=3 \
       -DERF_ENABLE_MPI:BOOL=ON \
       -DERF_ENABLE_TESTS:BOOL=ON \

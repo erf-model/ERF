@@ -1,18 +1,20 @@
+CEXE_sources += ERF_init_bcs.cpp
 CEXE_sources += ERF_init_uniform.cpp
 CEXE_sources += ERF_init_from_hse.cpp
 CEXE_sources += ERF_init_custom.cpp
 CEXE_sources += ERF_init_from_input_sounding.cpp
-CEXE_sources += ERF_init_bcs.cpp
+CEXE_sources += ERF_init_geowind.cpp
+CEXE_sources += ERF_init_rayleigh.cpp
+CEXE_sources += ERF_init_sponge.cpp
 CEXE_sources += ERF_init1d.cpp
+CEXE_sources += ERF_init_TurbPert.cpp
 
 ifeq ($(USE_WINDFARM),TRUE)
 CEXE_sources += ERF_init_windfarm.cpp
 endif
 
-CEXE_headers += InputSoundingData.H
-
 ifeq ($(USE_NETCDF),TRUE)
-CEXE_headers += Metgrid_utils.H
+CEXE_headers += ERF_Metgrid_utils.H
 CEXE_sources += ERF_init_from_wrfinput.cpp
 CEXE_sources += ERF_init_from_metgrid.cpp
 endif

@@ -1,31 +1,35 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 50
+max_step = 5000
 
-amrex.fpe_trap_invalid = 1
+amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_lo     = 0.   0.  0. 
-geometry.prob_hi     = 10.  1.  2.
-
-amr.n_cell           = 256  8   64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+geometry.prob_lo     = -30000. 0.     0. 
+geometry.prob_hi     =  30000. 1. 20000. # zhi not used with grid stretching
+amr.n_cell           =     80  1     64.
 
 geometry.is_periodic = 0 1 0
 
+erf.initial_dz = 50
+erf.grid_stretching_ratio = 1.05
+
 xlo.type = "Inflow"
 xhi.type = "Outflow"
-xlo.velocity = 1. 0. 0.
-xlo.density  = 1.16
-xlo.theta    = 300.
-xlo.scalar   = 0.
+xlo.velocity = 10. 0. 0.
+#xlo.density  = 1.0
+#xlo.theta    = 300.
+#xlo.scalar   = 0.
     
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
 
 # TIME STEP CONTROL
-erf.no_substepping     = 1
-erf.fixed_dt           = 1E-5     
+#erf.substepping_type  = None
+erf.fixed_mri_dt_ratio = 4
+erf.fixed_dt           = 2.0
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
@@ -37,37 +41,53 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file
-erf.check_int       = -57600  # number of timesteps between checkpoints
+erf.check_int       = 1000    # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 10      # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y
+erf.plot_int_1      = 100     # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pert_pres pert_dens
 
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.use_coriolis = false
 erf.les_type = "None"
 
-# TERRRAIN GRID TYPE
-erf.use_terrain = true
-erf.terrain_smoothing = 0
+erf.molec_diff_type = "None"
+#erf.dynamicViscosity = 1e-5 # [kg/(m-s)]
 
-# Diffusion coefficient from Straka, K = 75 m^2/s
-erf.molec_diff_type = "ConstantAlpha"
-erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 0.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
-erf.alpha_T = 0.0 # [m^2/s]
-
-# PROBLEM PARAMETERS (optional)
-prob.T_0   = 300.0
-prob.U_0   = 1.0
-prob.rho_0 = 1.16
-
-erf.rayleigh_damp_U = true
-erf.rayleigh_damp_V = true
 erf.rayleigh_damp_W = true
-erf.rayleigh_damp_T = true
+erf.rayleigh_zdamp = 5000.0
+erf.rayleigh_dampcoef = 0.2
 
-prob.dampcoef = 2000. # ==> time scale = 0.0005 s (for testing)
-prob.zdamp = 1.0
+erf.init_type = "input_sounding"
+erf.init_sounding_ideal = true
+
+# MULTILEVEL
+amr.max_level = 3
+amr.ref_ratio_vect = 2 1 1  2 1 1  2 1 1
+erf.refinement_indicators = box1 box2 box3
+
+# levels >1 is where the action is; level 0 is to provide numerical dissipation
+# at the inlet/outlet
+erf.box1.max_level = 1
+erf.box1.in_box_lo =  -24750. 0      0
+erf.box1.in_box_hi =   24750. 1  17000
+
+erf.box2.max_level = 2
+erf.box2.in_box_lo =  -10125. 0     0
+erf.box2.in_box_hi =   10125. 1  2000
+
+erf.box3.max_level = 3
+erf.box3.in_box_lo =  -5062.5 0     0
+erf.box3.in_box_hi =   5062.5 1  1000
+
+# TERRRAIN GRID TYPE
+erf.use_terrain = 1
+#erf.terrain_smoothing = 1 # Smoothed Terrain Following coords (Klemp 2011)
+#erf.terrain_gamma_m = 0.5
+erf.terrain_smoothing = 2 # Sullivan TF
+
+# PROBLEM PARAMETERS
+prob.hmax  = 100.0  # full hill height
+prob.L     = 1000.0 # hill length at half-height

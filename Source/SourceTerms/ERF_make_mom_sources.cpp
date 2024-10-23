@@ -4,11 +4,11 @@
 #include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
 
-#include <NumericalDiffusion.H>
-#include <PlaneAverage.H>
-#include <TI_slow_headers.H>
-#include <Src_headers.H>
-#include <Utils.H>
+#include <ERF_NumericalDiffusion.H>
+#include <ERF_PlaneAverage.H>
+#include <ERF_TI_slow_headers.H>
+#include <ERF_Src_headers.H>
+#include <ERF_Utils.H>
 
 using namespace amrex;
 
@@ -37,16 +37,18 @@ using namespace amrex;
  * @param[in] n_qstate number of moisture components
  */
 
-void make_mom_sources (int /*level*/,
-                       int /*nrk*/, Real dt,
+void make_mom_sources (int level,
+                       int /*nrk*/, Real dt, Real time,
                        Vector<MultiFab>& S_data,
                        const  MultiFab & S_prim,
-                       const  MultiFab & xvel,
-                       const  MultiFab & yvel,
+                       std::unique_ptr<MultiFab>& z_phys_nd,
+                       std::unique_ptr<MultiFab>& z_phys_cc,
+                       const  MultiFab & /*xvel*/,
+                       const  MultiFab & /*yvel*/,
                               MultiFab & xmom_src,
                               MultiFab & ymom_src,
                               MultiFab & zmom_src,
-                       MultiFab* r0,
+                       MultiFab* r0, MultiFab* p0,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& mapfac_m,
@@ -56,6 +58,8 @@ void make_mom_sources (int /*level*/,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
+                       const Vector<Real*> d_sponge_ptrs_at_lev,
+                       InputSoundingData& input_sounding_data,
                        int n_qstate)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
@@ -75,10 +79,12 @@ void make_mom_sources (int /*level*/,
     //    3. Rayleigh damping   for (xmom,ymom,zmom)
     //    4. Constant / height-dependent geostrophic forcing
     //    5. subsidence
-    //    6. numerical diffusion for (xmom,ymom,zmom)
-    //    7. sponge
+    //    6. nudging towards input sounding data
+    //    7. numerical diffusion for (xmom,ymom,zmom)
+    //    8. sponge
     // *****************************************************************************
-    const bool l_use_ndiff      = solverChoice.use_NumDiff;
+    const bool l_use_ndiff    = solverChoice.use_NumDiff;
+    const bool use_terrain    = solverChoice.use_terrain;
 
     // *****************************************************************************
     // Data for Coriolis forcing
@@ -92,7 +98,7 @@ void make_mom_sources (int /*level*/,
     // Flag for Geostrophic forcing
     // *****************************************************************************
     auto abl_geo_forcing  = solverChoice.abl_geo_forcing;
-    auto geostrophic_wind = solverChoice.custom_geostrophic_profile;
+    auto geo_wind_profile = solverChoice.have_geo_wind_profile;
 
     // *****************************************************************************
     // Data for Rayleigh damping
@@ -101,7 +107,6 @@ void make_mom_sources (int /*level*/,
     auto rayleigh_damp_V  = solverChoice.rayleigh_damp_V;
     auto rayleigh_damp_W  = solverChoice.rayleigh_damp_W;
 
-    Real*      tau = d_rayleigh_ptrs_at_lev[Rayleigh::tau];
     Real*     ubar = d_rayleigh_ptrs_at_lev[Rayleigh::ubar];
     Real*     vbar = d_rayleigh_ptrs_at_lev[Rayleigh::vbar];
     Real*     wbar = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
@@ -109,12 +114,39 @@ void make_mom_sources (int /*level*/,
     // *****************************************************************************
     // Planar averages for subsidence terms
     // *****************************************************************************
-    Table1D<Real> dptr_u_plane, dptr_v_plane;
-    TableData<Real, 1> u_plane_tab, v_plane_tab;
+    Table1D<Real>     dptr_r_plane, dptr_u_plane, dptr_v_plane;
+    TableData<Real, 1> r_plane_tab,  u_plane_tab,  v_plane_tab;
 
-    if (dptr_wbar_sub) {
-        PlaneAverage u_ave(&xvel  , geom, solverChoice.ave_plane, true);
-        PlaneAverage v_ave(&yvel  , geom, solverChoice.ave_plane, true);
+    if (dptr_wbar_sub || solverChoice.nudging_from_input_sounding)
+    {
+        // Rho
+        PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+        r_ave.compute_averages(ZDir(), r_ave.field());
+
+        int ncell = r_ave.ncell_line();
+        Gpu::HostVector<    Real> r_plane_h(ncell);
+        Gpu::DeviceVector<  Real> r_plane_d(ncell);
+
+        r_ave.line_average(Rho_comp, r_plane_h);
+
+        Gpu::copyAsync(Gpu::hostToDevice, r_plane_h.begin(), r_plane_h.end(), r_plane_d.begin());
+
+        Real* dptr_r = r_plane_d.data();
+
+        IntVect ng_c = S_data[IntVars::cons].nGrowVect();
+        Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
+        r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+
+        int offset = ng_c[2];
+        dptr_r_plane = r_plane_tab.table();
+        ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        {
+            dptr_r_plane(k-offset) = dptr_r[k];
+        });
+
+        // U and V momentum
+        PlaneAverage u_ave(&(S_data[IntVars::xmom]), geom, solverChoice.ave_plane, true);
+        PlaneAverage v_ave(&(S_data[IntVars::ymom]), geom, solverChoice.ave_plane, true);
 
         u_ave.compute_averages(ZDir(), u_ave.field());
         v_ave.compute_averages(ZDir(), v_ave.field());
@@ -124,8 +156,8 @@ void make_mom_sources (int /*level*/,
         Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
         Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
 
-        u_ave.line_average(0             , u_plane_h);
-        v_ave.line_average(0             , v_plane_h);
+        u_ave.line_average(0, u_plane_h);
+        v_ave.line_average(0, v_plane_h);
 
         Gpu::copyAsync(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
         Gpu::copyAsync(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
@@ -133,8 +165,8 @@ void make_mom_sources (int /*level*/,
         Real* dptr_u = u_plane_d.data();
         Real* dptr_v = v_plane_d.data();
 
-        IntVect ng_u = xvel.nGrowVect();
-        IntVect ng_v = yvel.nGrowVect();
+        IntVect ng_u = S_data[IntVars::xmom].nGrowVect();
+        IntVect ng_v = S_data[IntVars::ymom].nGrowVect();
         Box udomain = domain; udomain.grow(2,ng_u[2]);
         Box vdomain = domain; vdomain.grow(2,ng_v[2]);
         u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
@@ -156,10 +188,10 @@ void make_mom_sources (int /*level*/,
     }
 
     // *****************************************************************************
-    // Create the BUOYANCY forcing term in the z-direction
+    // 1. Create the BUOYANCY forcing term in the z-direction
     // *****************************************************************************
-    make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, r0, n_qstate);
-
+    make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, r0, p0,
+                  n_qstate, solverChoice.anelastic[level]);
 
     // *****************************************************************************
     // Add all the other forcings
@@ -185,8 +217,11 @@ void make_mom_sources (int /*level*/,
         const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
+        const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+
         // *****************************************************************************
-        // Add CORIOLIS forcing (this assumes east is +x, north is +y)
+        // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis) {
             ParallelFor(tbx, tby, tbz,
@@ -209,37 +244,58 @@ void make_mom_sources (int /*level*/,
         } // use_coriolis
 
         // *****************************************************************************
-        // Add RAYLEIGH damping
+        // 3. Add RAYLEIGH damping
         // *****************************************************************************
+        Real zlo      = geom.ProbLo(2);
+        Real dz       = geom.CellSize(2);
+        Real ztop     = solverChoice.rayleigh_ztop;
+        Real zdamp    = solverChoice.rayleigh_zdamp;
+        Real dampcoef = solverChoice.rayleigh_dampcoef;
+
         if (rayleigh_damp_U) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                Real uu = rho_u(i,j,k) / rho_on_u_face;
-                xmom_src_arr(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
+                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                Real zfrac = 1 - (ztop - zcc) / zdamp;
+                if (zfrac > 0) {
+                    Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                    Real uu = rho_u(i,j,k) / rho_on_u_face;
+                    Real sinefac = std::sin(PIoTwo*zfrac);
+                    xmom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (uu - ubar[k]) * rho_on_u_face;
+                }
             });
         }
 
         if (rayleigh_damp_V) {
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                Real vv = rho_v(i,j,k) / rho_on_v_face;
-                ymom_src_arr(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
+                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                Real zfrac = 1 - (ztop - zcc) / zdamp;
+                if (zfrac > 0) {
+                    Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                    Real vv = rho_v(i,j,k) / rho_on_v_face;
+                    Real sinefac = std::sin(PIoTwo*zfrac);
+                    ymom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (vv - vbar[k]) * rho_on_v_face;
+                }
             });
         }
 
         if (rayleigh_damp_W) {
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                Real ww = rho_w(i,j,k) / rho_on_w_face;
-                zmom_src_arr(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
+                Real zstag = (z_nd_arr) ? z_nd_arr(i,j,k) : zlo + k*dz;
+                Real zfrac = 1 - (ztop - zstag) / zdamp;
+                if (zfrac > 0) {
+                    Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real ww = rho_w(i,j,k) / rho_on_w_face;
+                    Real sinefac = std::sin(PIoTwo*zfrac);
+                    zmom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (ww - wbar[k]) * rho_on_w_face;
+                }
             });
         }
 
         // *****************************************************************************
-        // Add constant GEOSTROPHIC forcing
+        // 4. Add constant GEOSTROPHIC forcing
         // *****************************************************************************
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -258,39 +314,114 @@ void make_mom_sources (int /*level*/,
         });
 
         // *****************************************************************************
-        // Add height-dependent GEOSTROPHIC forcing
+        // 4. Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
-        if (geostrophic_wind) {
+        if (geo_wind_profile) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                xmom_src_arr(i, j, k) += rho_on_u_face * dptr_u_geos[k];
+                xmom_src_arr(i, j, k) -= coriolis_factor * rho_on_u_face * dptr_v_geos[k] * sinphi;
             });
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                ymom_src_arr(i, j, k) += rho_on_v_face * dptr_v_geos[k];
+                ymom_src_arr(i, j, k) += coriolis_factor * rho_on_v_face * dptr_u_geos[k] * sinphi;
             });
-        } // geostrophic_wind
+        } // geo_wind_profile
 
         // *****************************************************************************
-        // Add custom SUBSIDENCE terms
+        // 5. Add custom SUBSIDENCE terms
         // *****************************************************************************
         if (solverChoice.custom_w_subsidence) {
+            if (solverChoice.custom_forcing_prim_vars) {
+                const int nr = Rho_comp;
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,nr) + cell_data(i-1,j,k,nr) );
+                    Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
+                    Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_xf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    xmom_src_arr(i, j, k) -= rho_on_u_face * wbar_xf *
+                                             0.5 * (U_hi - U_lo) * dxInv[2];
+                });
+                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,nr) + cell_data(i,j-1,k,nr) );
+                    Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
+                    Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_yf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    ymom_src_arr(i, j, k) -= rho_on_v_face * wbar_yf *
+                                             0.5 * (V_hi - V_lo) * dxInv[2];
+                });
+            } else {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
+                    Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_xf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    xmom_src_arr(i, j, k) -= wbar_xf *
+                                             0.5 * (U_hi - U_lo) * dxInv[2];
+                });
+                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
+                    Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_yf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    ymom_src_arr(i, j, k) -= wbar_yf *
+                                             0.5 * (V_hi - V_lo) * dxInv[2];
+                });
+            }
+        }
+
+        // *************************************************************************************
+        // 6. Add nudging towards value specified in input sounding
+        // *************************************************************************************
+        if (solverChoice.nudging_from_input_sounding)
+        {
+            int itime_n    = 0;
+            int itime_np1  = 0;
+            Real coeff_n   = Real(1.0);
+            Real coeff_np1 = Real(0.0);
+
+            Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
+
+            int n_sounding_times = input_sounding_data.input_sounding_time.size();
+
+            for (int nt = 1; nt < n_sounding_times; nt++) {
+                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
+            }
+            if (itime_n == n_sounding_times-1) {
+                itime_np1 = itime_n;
+            } else {
+                itime_np1 = itime_n+1;
+                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
+                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
+                coeff_n   = Real(1.0) - coeff_np1;
+            }
+
+            int nr = Rho_comp;
+
+            const Real* u_inp_sound_n   = input_sounding_data.U_inp_sound_d[itime_n].dataPtr();
+            const Real* u_inp_sound_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr();
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                xmom_src_arr(i, j, k) += dptr_wbar_sub[k] *
-                    0.5 * (dptr_u_plane(k+1) - dptr_u_plane(k-1)) * dxInv[2];
+                Real nudge_u = (coeff_n*u_inp_sound_n[k] + coeff_np1*u_inp_sound_np1[k]) - (dptr_u_plane(k)/dptr_r_plane(k));
+                nudge_u *= tau_inv;
+                xmom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_u;
             });
+
+            const Real* v_inp_sound_n   = input_sounding_data.V_inp_sound_d[itime_n].dataPtr();
+            const Real* v_inp_sound_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr();
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                ymom_src_arr(i, j, k) += dptr_wbar_sub[k] *
-                    0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
+                Real nudge_v = (coeff_n*v_inp_sound_n[k] + coeff_np1*v_inp_sound_np1[k]) - (dptr_v_plane(k)/dptr_r_plane(k));
+                nudge_v *= tau_inv;
+                ymom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_v;
             });
         }
 
         // *****************************************************************************
-        // Add NUMERICAL DIFFUSION terms
+        // 7. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
         if (l_use_ndiff) {
             NumericalDiffusion(tbx, 0, 1, dt, solverChoice.NumDiffCoeff,
@@ -302,10 +433,18 @@ void make_mom_sources (int /*level*/,
         }
 
         // *****************************************************************************
-        // Add SPONGING
+        // 8. Add SPONGING
         // *****************************************************************************
-        ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
+        if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+        {
+             ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
+                                 xmom_src_arr, ymom_src_arr, rho_u, rho_v, d_sponge_ptrs_at_lev);
+        }
+        else
+        {
+            ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                  xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w);
+        }
 
     } // mfi
 }

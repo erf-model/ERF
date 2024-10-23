@@ -3,9 +3,9 @@ name: cpp-linter
 on: [pull_request]
 jobs:
   cpp-linter:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -30,7 +30,7 @@ jobs:
         run: python3 Submodules/cpp-linter-action/run_on_changed_files.py ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} -header-filter=Source/ -ignore-files="AMReX|GoogleTest" -run-linter
 
       - name: Archive clang tidy report
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         with:
           name: clang-tidy-report
           path: clang-tidy-report.txt

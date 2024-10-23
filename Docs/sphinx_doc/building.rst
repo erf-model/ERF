@@ -96,6 +96,8 @@ or if using tcsh,
    +--------------------+------------------------------+------------------+-------------+
    | USE_PARTICLES      | Whether to enable particles  | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
+   | USE_POISSON_SOLVE  | Whether to enable anelastic  | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
    | USE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
    | USE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
@@ -112,7 +114,10 @@ or if using tcsh,
    +--------------------+------------------------------+------------------+-------------+
 
    .. note::
-      **Do not set both USE_OMP and USE_CUDA to true.**
+      **To run with the anelastic option, USE_POISSON_SOLVE must be set to TRUE.**
+
+   .. note::
+      **At most one of USE_OMP, USE_CUDA, USE_HIP, USE_SYCL should be set to true.**
 
    Information on using other compilers can be found in the AMReX documentation at
    https://amrex-codes.github.io/amrex/docs_html/BuildingAMReX.html .
@@ -187,6 +192,8 @@ Analogous to GNU Make, the list of cmake directives is as follows:
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_PARTICLES      | Whether to enable particles  | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_POISSON_SOVLE  | Whether to enable anelastic  | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
@@ -197,6 +204,12 @@ Analogous to GNU Make, the list of cmake directives is as follows:
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_FCOMPARE       | Whether to enable fcompare   | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
+
+   .. note::
+      **To run with the anelastic option, ERF_ENABLE_POISSON_SOLVE must be set to TRUE.**
+
+   .. note::
+      **At most one of ERF_ENABLE_OMP, ERF_ENABLE_CUDA, ERF_ENABLE_HIP and ERF_ENABLE_SYCL should be set to true.**
 
 
 Mac with CMake
@@ -214,7 +227,7 @@ HDF5 (tested with v1.14.3)
 #. Configure for your system ``../configure --prefix=/usr/local --enable-parallel``
 #. Build ``make -j8`` and ``sudo make install``
 
-.. _hdfgroup.org: https://www.hdfgroup.org/downloads/hdf5/source-code/
+.. _hdfgroup.org: https://www.hdfgroup.org/download-hdf5/source-code/
 
 NetCDF (tested with v4.9.2)
 
@@ -263,11 +276,22 @@ For Perlmutter at NERSC, look at the general instructions for building ERF using
    module load PrgEnv-gnu
    module load cudatoolkit
 
-Then build ERF as, for example (specify your own path to the AMReX submodule in `ERF/Submodules/AMReX`):
+If you will be using NetCDF, we suggest you add the following four lines to you ``.bashrc_ext``  file.
 
 ::
 
-   make -j 4 COMP=gnu USE_MPI=TRUE USE_OMP=FALSE USE_CUDA=TRUE AMREX_HOME=/global/u2/d/dwillcox/dev-erf/ERF/Submodules/AMReX
+   module load cray-hdf5-parallel/1.12.2.9
+   module load cray-netcdf-hdf5parallel
+   export HDF5_DIR=/opt/cray/pe/hdf5-parallel/1.12.2.9
+   export NETCDF_DIR=/opt/cray/pe/netcdf-hdf5parallel/4.9.0.9
+
+Then build ERF as, for example (specify your own path to the AMReX submodule in ``ERF/Submodules/AMReX``):
+
+::
+
+   make -j 4 COMP=gnu USE_MPI=TRUE USE_OMP=FALSE USE_CUDA=TRUE AMREX_HOME=/path_to_here/ERF/Submodules/AMReX
+
+where ``/path_to_here`` is the path to your ERF repository.
 
 Finally, you can prepare your SLURM job script, using the following as a guide:
 
@@ -308,5 +332,148 @@ Finally, you can prepare your SLURM job script, using the following as a guide:
                ./ERF3d.gnu.MPI.CUDA.ex inputs_wrf_baseline max_step=100 ${GPU_AWARE_MPI}" \
              > test.out
 
-To submit your job script, do `sbatch [your job script]` and you can check its status by doing `squeue -u [your username]`.
+To submit your job script, do ``sbatch [your job script]`` and you can check its status by doing ``squeue -u [your username]``.
 
+AMReX--Kokkos on `Perlmutter`_ (NERSC)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There is an `example in amrex-devtests`_ of how one can build `Kokkos`_ and `AMReX`_. This uses ``cmake`` to first compile
+Kokkos and AMReX, and then the example is built. This section describes the build procedure on `Perlmutter`_, though this can be used as
+a template for other machines as well.
+
+Load the following modules, and specify ``MPI_INCLUDE_PATH`` in ``~/.bash_profile``. The ``cmake`` version has to be ``3.24.3``.
+
+.. code-block:: bash
+
+   module load cray-mpich
+   module load PrgEnv-gnu
+   module load cudatoolkit/12.2
+   module load cmake/3.24.3
+
+   export MPI_INCLUDE_PATH=/opt/cray/pe/mpich/8.1.28/ofi/gnu/12.3/include
+
+Make sure to do ``source ~/.bash_profile``.
+
+**Kokkos installation on Perlmutter**
+
+To install `Kokkos`_, execute the following commands. In the ``cmake`` command, specify the path where the Kokkos installation should reside
+``-DCMAKE_INSTALL_PREFIX=<path-to-kokkos-install-dir>``. The full path to the ``kokkos`` directory has to be specified in
+``-DCMAKE_CXX_COMPILER=<full-path-to-kokkos-dir>/bin/nvcc_wrapper``.
+
+.. code-block:: bash
+
+   git clone https://github.com/kokkos/kokkos.git
+   cd kokkos
+   mkdir build
+   cd build
+   cmake .. -DCMAKE_INSTALL_PREFIX=<path-to-kokkos-install-dir> -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 -DKokkos_ENABLE_CUDA=ON -DCMAKE_CXX_COMPILER=<full-path-to-kokkos-dir>/bin/nvcc_wrapper -DKokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE=ON -DKokkos_ARCH_PASCAL60=ON
+   make -j8
+   make install
+
+**AMReX installation on Perlmutter**
+
+.. note::
+
+   After cloning the repository in the first step below, add the following lines to ``amrex/CMakeLists.txt`` for MPI installation.
+
+   .. code-block:: bash
+
+      # Find MPI
+      find_package(MPI REQUIRED)
+
+      # Include MPI headers
+      include_directories(${MPI_INCLUDE_PATH})
+
+To install `AMReX`_, execute the following commands. In the ``cmake`` command, specify the path where the installation AMReX installation should reside
+``-DCMAKE_INSTALL_PREFIX=<path-to-amrex-install-dir>``.
+
+.. code-block:: bash
+
+   git clone https://github.com/AMReX-Codes/amrex.git
+   cd amrex
+   mkdir build
+   cd build
+   cmake .. -DCMAKE_INSTALL_PREFIX=<path-to-amrex-install-dir> -DAMReX_GPU_BACKEND=CUDA -DAMReX_CUDA_ARCH=60 -DAMReX_MPI=OFF -DCMAKE_PREFIX_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/23.9/math_libs/12.2/lib64 -DAMReX_MPI=ON -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DMPI_INCLUDE_PATH=/opt/cray/pe/mpich/8.1.28/ofi/gnu/12.3/include
+   make -j8
+   make install
+
+**Compiling the AMReX-Kokkos example on Perlmutter**
+
+.. note::
+
+   After cloning the repository in the first step below, add the following lines to ``amrex-devtests/kokkos/CMakeLists.txt`` for MPI installation.
+
+   .. code-block:: bash
+
+      # Find MPI
+      find_package(MPI REQUIRED)
+
+      # Include MPI headers
+      include_directories(${MPI_INCLUDE_PATH})
+
+To compile the AMReX-Kokkos example, execute the following commands. In the ``cmake`` command, specify the full path to the amrex installation
+directory ``-DAMReX_ROOT=<full-path-to-amrex-install-dir>``, and the Kokkos installation directory ``-DKokkos_ROOT=<full-path-to-kokkos-install-dir>``.
+
+.. code-block:: bash
+
+   git clone https://github.com/WeiqunZhang/amrex-devtests.git
+   cd amrex-devtests/kokkos
+   mkdir build
+   cd build
+   cmake .. -DENABLE_CUDA=ON -DAMReX_ROOT=<full-path-to-amrex-install-dir> -DKokkos_ROOT=<full-path-to-kokkos-install-dir> -DCMAKE_CUDA_ARCHITECTURES=60 -DMPI_INCLUDE_PATH=/opt/cray/pe/mpich/8.1.28/ofi/gnu/12.3/include
+   make -j8
+
+.. _`example in amrex-devtests`: https://github.com/WeiqunZhang/amrex-devtests/tree/main/kokkos
+.. _`Kokkos`: https://github.com/kokkos/kokkos
+.. _`AMReX`: https://github.com/AMReX-Codes/amrex
+.. _`Perlmutter`: https://docs.nersc.gov/systems/perlmutter/architecture/
+
+Kestrel (NREL)
+~~~~~~~~~~~~~~
+
+The `Kestrel <https://nrel.github.io/HPC/Documentation/Systems/Kestrel/>`_ cluster is an HPE Cray machine
+composed primarily of CPU compute nodes with 104 core
+Intel Xeon Sapphire Rapids nodes. It also contains a GPU partition with 4 Nvidia H100 GPUs per node.
+
+As with Perlmutter, the GNU Make build system is preferred. To compile and run on CPUs, the default modules
+loaded when logging into Kestrel can be used. If you are unsure about your environment, you can reset to
+the default modules: ::
+
+  module restore
+
+Then, build ERF using the cray compilers (if wishing to use other compilers, you can swap the ``PrgEnv-cray`` module
+for another module as appropriate, see Kestrel user documentation for more details): ::
+
+  make realclean; make -j COMP=cray
+
+To run on GPUs on Kestrel, note that the machine has separate login nodes for GPU use and GPU jobs should only
+be started from GPU login nodes (accessed via ``kestrel-gpu.hpc.nrel.gov``). For compiling and running on GPUs,
+the following commands can be used to set up your environment: ::
+
+  module purge;
+  module load PrgEnv-gnu/8.5.0;
+  module load cuda/12.3;
+  module load craype-x86-milan;
+
+And then compile (for example, in ``ERF/Exec/ABL``): ::
+
+  make realclean; make -j COMP=gnu USE_CUDA=TRUE
+
+As a word of warning, system updates on Kestrel periodically change the necessary modules that must be loaded
+in order to build and run ERF, so these instructions may become out of date.
+
+When running on Kestrel, GPU node hours are charged allocation units (AUs) at 10 times the rate of CPU node hours.
+For ERF, the performance running on a Kestrel GPU node with 4 GPUs is typically 10-20x running on a CPU node
+with 96-104 MPI ranks per node, so the performance gain from on on GPUs is likely worth the higher charge
+rate for node hours, in addition to providing faster time to solution. However, for smaller problem sizes,
+or problems distributed across too many nodes (resulting in fewer than around 1 million cells/GPU),
+the compute capability of the GPUs may be unsaturated and the performance gain from running on GPUs
+may not justify the higher AU charge. The trade-off is problem dependent, so users may wish to assess
+performance for their particular case and objectives in terms of wall time, AUs used, etc to determine the
+optimal strategy if running large jobs.
+
+Another note about using Kestrel is that partial node allocations are possible, which means the full memory
+available on each node may not be assigned by default. In general, using the ``--exclusive`` flag when
+requesting nodes through the slurm scheduler, which will allocate entire nodes exlcusively for your request,
+is recommended. Otherwise, memory intensive operations such as CUDA compilation may fail. You can alternatively
+request a particular amount of memory with the ``--mem=XXX`` or ``--mem-per-cpu=XXX`` slurm inputs.

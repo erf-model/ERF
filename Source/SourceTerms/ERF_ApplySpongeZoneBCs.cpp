@@ -1,9 +1,9 @@
 #include <AMReX_MultiFab.H>
-#include <Src_headers.H>
+#include <ERF_Src_headers.H>
 
-//#include <TerrainMetrics.H>
-//#include <IndexDefines.H>
-//#include <PlaneAverage.H>
+//#include <ERF_TerrainMetrics.H>
+//#include <ERF_IndexDefines.H>
+//#include <ERF_PlaneAverage.H>
 
 using namespace amrex;
 
@@ -59,9 +59,9 @@ ApplySpongeZoneBCsForCC (
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
         int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-        Real x = (ii+0.5) * dx[0];
-        Real y = (jj+0.5) * dx[1];
-        Real z = (kk+0.5) * dx[2];
+        Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
+        Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
+        Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
 
         // x left sponge
         if(use_xlo_sponge_damping){
@@ -171,9 +171,9 @@ ApplySpongeZoneBCsForMom (
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
         int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-        Real x = ii * dx[0];
-        Real y = (jj+0.5) * dx[1];
-        Real z = (kk+0.5) * dx[2];
+        Real x = ProbLoArr[0] + ii * dx[0];
+        Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
+        Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
 
         // x lo sponge
         if(use_xlo_sponge_damping){
@@ -230,9 +230,9 @@ ApplySpongeZoneBCsForMom (
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
         int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-        Real x = (ii+0.5) * dx[0];
-        Real y = jj * dx[1];
-        Real z = (kk+0.5) * dx[2];
+        Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
+        Real y = ProbLoArr[1] + jj * dx[1];
+        Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
 
         // x lo sponge
         if(use_xlo_sponge_damping){
@@ -289,9 +289,9 @@ ApplySpongeZoneBCsForMom (
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
         int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-        Real x = (ii+0.5) * dx[0];
-        Real y = (jj+0.5) * dx[1];
-        Real z = kk * dx[2];
+        Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
+        Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
+        Real z = ProbLoArr[2] + kk * dx[2];
 
         // x left sponge
         if(use_xlo_sponge_damping){

@@ -62,6 +62,41 @@ void ERF::initializeTracers ( ParGDBBase* a_gdb,
     return;
 }
 
+/*! Restart tracer and hydro particles */
+void ERF::restartTracers ( ParGDBBase* a_gdb,
+                           const std::string& a_fname )
+{
+    auto& namelist_unalloc( particleData.getNamesUnalloc() );
+
+    for (auto it = namelist_unalloc.begin(); it != namelist_unalloc.end(); ++it) {
+
+        std::string species_name( *it );
+
+        if (species_name == ERFParticleNames::tracers) {
+
+            AMREX_ASSERT(m_use_tracer_particles);
+            ERFPC* pc = new ERFPC(a_gdb, ERFParticleNames::tracers);
+            pc->Restart(a_fname, ERFParticleNames::tracers);
+            amrex::Print() << "Restarted " << pc->TotalNumberOfParticles() << " tracer particles.\n";
+            particleData.pushBack(ERFParticleNames::tracers, pc);
+
+        } else if (species_name == ERFParticleNames::hydro) {
+
+            AMREX_ASSERT(m_use_hydro_particles);
+            ERFPC* pc = new ERFPC(a_gdb, ERFParticleNames::hydro);
+            pc->Restart(a_fname, ERFParticleNames::hydro);
+            amrex::Print() << "Restarted " << pc->TotalNumberOfParticles() << " hydro particles.\n";
+            particleData.pushBack(ERFParticleNames::hydro, pc);
+
+        }
+    }
+
+    if (m_use_tracer_particles) namelist_unalloc.remove( ERFParticleNames::tracers );
+    if (m_use_hydro_particles)  namelist_unalloc.remove( ERFParticleNames::hydro );
+
+    return;
+}
+
 /*! Evolve tracers and hydro particles for one time step*/
 void ERF::evolveTracers ( int                                        a_lev,
                           Real                                       a_dt_lev,

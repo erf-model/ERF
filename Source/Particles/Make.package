@@ -3,5 +3,5 @@ CEXE_sources += ERFPCInitializations.cpp
 CEXE_sources += ERFPCEvolve.cpp
 CEXE_sources += ERFPCUtils.cpp
 
-CEXE_headers += ParticleData.H
+CEXE_headers += ERF_ParticleData.H
 CEXE_headers += ERFPC.H

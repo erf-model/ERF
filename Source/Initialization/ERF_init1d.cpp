@@ -1,118 +1,16 @@
 /**
  * \file ERF_init1d.cpp
  */
-#include <EOS.H>
+#include <ERF_EOS.H>
 #include <ERF.H>
-#include <TileNoZ.H>
-#include <prob_common.H>
-#include <Utils/ParFunctions.H>
+#include <ERF_TileNoZ.H>
+#include <ERF_prob_common.H>
+#include <ERF_ParFunctions.H>
+#include <ERF_Utils.H>
+
+#include <ERF_Interpolation_1D.H>
 
 using namespace amrex;
-
-/**
- * Initialization function for host and device vectors
- * used to store averaged quantities when calculating
- * the effects of Rayleigh Damping.
- */
-void
-ERF::initRayleigh ()
-{
-    h_rayleigh_ptrs.resize(max_level+1);
-    d_rayleigh_ptrs.resize(max_level+1);
-
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        // These have 5 components: tau, ubar, vbar, wbar, thetabar
-        h_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
-        d_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
-
-        const int zlen_rayleigh = geom[lev].Domain().length(2);
-
-        // Allocate space for these 1D vectors
-        for (int n = 0; n < Rayleigh::nvars; n++) {
-            h_rayleigh_ptrs[lev][n].resize(zlen_rayleigh, 0.0_rt);
-            d_rayleigh_ptrs[lev][n].resize(zlen_rayleigh, 0.0_rt);
-        }
-
-        // Init the host vectors
-        prob->erf_init_rayleigh(h_rayleigh_ptrs[lev], geom[lev], z_phys_cc[lev]);
-
-        // Copy from host vectors to device vectors
-        for (int n = 0; n < Rayleigh::nvars; n++) {
-            Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][n].begin(), h_rayleigh_ptrs[lev][n].end(),
-                      d_rayleigh_ptrs[lev][n].begin());
-        }
-    }
-}
-
-/**
- * Sets the Rayleigh Damping averaged quantities from an
- * externally supplied input sounding data file.
- *
- * @param[in] restarting Boolean parameter that indicates whether
-                         we are currently restarting from a checkpoint file.
- */
-void
-ERF::setRayleighRefFromSounding (bool restarting)
-{
-    // If we are restarting then we haven't read the input_sounding file yet
-    //    so we need to read it here
-    // TODO: should we store this information in the checkpoint file instead?
-    if (restarting) {
-        input_sounding_data.read_from_file(input_sounding_file, geom[0], zlevels_stag);
-    }
-
-    const Real* z_inp_sound     = input_sounding_data.z_inp_sound.dataPtr();
-    const Real* U_inp_sound     = input_sounding_data.U_inp_sound.dataPtr();
-    const Real* V_inp_sound     = input_sounding_data.V_inp_sound.dataPtr();
-    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound.dataPtr();
-    const int   inp_sound_size  = input_sounding_data.size();
-
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        const int khi = geom[lev].Domain().bigEnd()[2];
-        Vector<Real> zcc(khi+1);
-
-        if (z_phys_cc[lev]) {
-            // use_terrain=1
-            // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
-        } else {
-            const auto *const prob_lo = geom[lev].ProbLo();
-            const auto *const dx = geom[lev].CellSize();
-            for (int k = 0; k <= khi; k++)
-            {
-                zcc[k] = prob_lo[2] + (k+0.5) * dx[2];
-            }
-        }
-
-        for (int k = 0; k <= khi; k++)
-        {
-            h_rayleigh_ptrs[lev][Rayleigh::ubar][k]         = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::vbar][k]         = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]         = Real(0.0);
-            h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc[k], inp_sound_size);
-            if (h_rayleigh_ptrs[lev][Rayleigh::tau][k] > 0) {
-                                                  Print() << zcc[k] << ":" << " tau=" << h_rayleigh_ptrs[lev][Rayleigh::tau][k];
-                if (solverChoice.rayleigh_damp_U) Print() << " ubar    = " << h_rayleigh_ptrs[lev][Rayleigh::ubar][k];
-                if (solverChoice.rayleigh_damp_V) Print() << " vbar    = " << h_rayleigh_ptrs[lev][Rayleigh::vbar][k];
-                if (solverChoice.rayleigh_damp_W) Print() << " wbar    = " << h_rayleigh_ptrs[lev][Rayleigh::wbar][k];
-                if (solverChoice.rayleigh_damp_T) Print() << " thetabar= " << h_rayleigh_ptrs[lev][Rayleigh::thetabar][k];
-                Print() << std::endl;
-            }
-        }
-
-        // Copy from host version to device version
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::ubar].begin(), h_rayleigh_ptrs[lev][Rayleigh::ubar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::ubar].begin());
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::vbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::vbar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::vbar].begin());
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::wbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::wbar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::wbar].begin());
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::thetabar].begin());
-    }
-}
 
 /**
  * Initialize density and pressure base state in
@@ -121,37 +19,111 @@ ERF::setRayleighRefFromSounding (bool restarting)
 void
 ERF::initHSE (int lev)
 {
+    // This integrates up through column to update p_hse, pi_hse;
+    // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
+
     MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
-    if (lev > 0) {
+    bool all_boxes_touch_bottom = true;
+    Box domain(geom[lev].Domain());
 
-        // Interp all three components: rho, p, pi
-        int  icomp = 0; int bccomp = 0; int  ncomp = 3;
+    int icomp = 0; int bccomp = BCVars::base_bc; int ncomp = 3;
 
-        PhysBCFunctNoOp null_bc;
-        Real time = 0.;
-        Interpolater* mapper = &cell_cons_interp;
+    Real time = 0.;
 
-        InterpFromCoarseLevel(base_state[lev], time, base_state[lev-1],
-                              icomp, icomp, ncomp,
+    if (lev == 0) {
+        BoxArray ba(base_state[lev].boxArray());
+        for (int i = 0; i < ba.size(); i++) {
+            if (ba[i].smallEnd(2) != domain.smallEnd(2)) {
+                all_boxes_touch_bottom = false;
+            }
+        }
+    }
+    else
+    {
+        //
+        // We need to do this interp from coarse level in order to set the values of
+        // the base state inside the domain but outside of the fine region
+        //
+        base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
+        //
+        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+        //       have been pre-filled - this includes ghost cells both inside and outside
+        //       the domain
+        //
+        InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
+                              IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              base_state[lev-1], icomp, icomp, ncomp,
                               geom[lev-1], geom[lev],
-                              null_bc, 0, null_bc, 0, refRatio(lev-1),
-                              mapper, domain_bcs_type, bccomp);
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+
+         // We need to do this here because the interpolation above may leave corners unfilled
+         //    when the corners need to be filled by, for example, reflection of the fine ghost
+         //    cell outside the fine region but inide the domain.
+         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
     }
 
-    // Initial r_hse may or may not be in HSE -- defined in prob.cpp
-    if (solverChoice.use_moist_background){
-        prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
+    if (all_boxes_touch_bottom || lev > 0) {
+
+        // Initial r_hse may or may not be in HSE -- defined in ERF_prob.cpp
+        if (solverChoice.use_moist_background){
+            prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
+        } else {
+            prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+        }
+
+        erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+
     } else {
-        prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+
+        BoxArray ba_new(domain);
+
+        ChopGrids2D(ba_new, domain, ParallelDescriptor::NProcs());
+
+        DistributionMapping dm_new(ba_new);
+
+        MultiFab new_base_state(ba_new, dm_new, 3, 1);
+        new_base_state.ParallelCopy(base_state[lev],0,0,3,1,1);
+
+        MultiFab new_r_hse (new_base_state, make_alias, 0, 1); // r_0  is first  component
+        MultiFab new_p_hse (new_base_state, make_alias, 1, 1); // p_0  is second component
+        MultiFab new_pi_hse(new_base_state, make_alias, 2, 1); // pi_0 is third  component
+
+        std::unique_ptr<MultiFab> new_z_phys_cc;
+        std::unique_ptr<MultiFab> new_z_phys_nd;
+        if (solverChoice.use_terrain) {
+            new_z_phys_cc = std::make_unique<MultiFab>(ba_new,dm_new,1,1);
+            new_z_phys_cc->ParallelCopy(*z_phys_cc[lev],0,0,1,1,1);
+
+            BoxArray ba_new_nd(ba_new);
+            ba_new_nd.surroundingNodes();
+            new_z_phys_nd = std::make_unique<MultiFab>(ba_new_nd,dm_new,1,1);
+            new_z_phys_nd->ParallelCopy(*z_phys_nd[lev],0,0,1,1,1);
+        }
+
+        // Initial r_hse may or may not be in HSE -- defined in ERF_prob.cpp
+        if (solverChoice.use_moist_background){
+            prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev]);
+        } else {
+            prob->erf_init_dens_hse(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev]);
+        }
+
+        erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_z_phys_cc);
+
+        // Now copy back into the original arrays
+        base_state[lev].ParallelCopy(new_base_state,0,0,3,1,1);
     }
 
-    // This integrates up through column to update p_hse, pi_hse;
-    // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
-    erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+    //
+    // Impose physical bc's on the base state -- the values outside the fine region
+    //   but inside the domain have already been filled in the call above to InterpFromCoarseLevel
+    //
+    (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
 
+    base_state[lev].FillBoundary(geom[lev].periodicity());
 }
 
 void
@@ -236,7 +208,7 @@ ERF::erf_enforce_hse (int lev,
                 pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
 
             } else {
-                // If klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
+                // If level > 0 and klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
                 //    filled from FillPatch-ing it.
                 Real dz_loc;
                 if (l_use_terrain) {
@@ -244,6 +216,7 @@ ERF::erf_enforce_hse (int lev,
                 } else {
                     dz_loc = dz;
                 }
+
                 Real dens_interp = 0.5*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
                 pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
 
