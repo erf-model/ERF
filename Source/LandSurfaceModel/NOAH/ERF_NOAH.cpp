@@ -11,7 +11,7 @@ void
 NOAH::Init (const MultiFab& cons_in,
             const Geometry& geom,
             const Real& dt)
-{ 
+{
     // Initialize Noahmp IO
     amrex::Print() << "Initializing Noahmp IO" << std::endl;
 
