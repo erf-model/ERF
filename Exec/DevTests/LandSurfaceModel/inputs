@@ -55,7 +55,7 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 #erf.pbl_type        = "MYNN2.5"
-#erf.QKE_0           = 0.5
+#erf.KE_0           = 0.5
      
 erf.use_terrain = true
 erf.terrain_smoothing = 2

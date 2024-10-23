@@ -971,8 +971,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Theta_h,mf_comp,1,0);
             mf_comp ++;
         }
-        if (containerHasElement(plot_var_names, "Lpbl")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::PBL_lengthscale,mf_comp,1,0);
+        if (containerHasElement(plot_var_names, "Lturb")) {
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Turb_lengthscale,mf_comp,1,0);
             mf_comp ++;
         }
 

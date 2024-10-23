@@ -906,7 +906,7 @@ private:
                                                     // eddy diffusivity of heat
                                                     "Khv","Khh",
                                                     // mynn pbl lengthscale
-                                                    "Lpbl",
+                                                    "Lturb",
                                                     // moisture vars
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum"

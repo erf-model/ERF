@@ -121,7 +121,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_use_KE         = ( (tc.les_type == LESType::Deardorff) ||
-                                    (tc.pbl_type == PBLType::MYNN) );
+                                    (tc.pbl_type == PBLType::MYNN25) );
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
                                    (tc.pbl_type        !=       PBLType::None) );
@@ -395,25 +395,26 @@ void erf_slow_rhs_post (int level, int finest_level,
 
                 if (l_use_diff) {
 
-                    const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
+                    const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) :
+                                                                  Array4<const Real>{};
 
                     if (l_use_terrain) {
-                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, rot_most, u, v,
+                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, rot_most,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
+                                               grav_gpu, bc_ptr_d, use_most);
                     } else {
-                        DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
+                        DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
+                                               grav_gpu, bc_ptr_d, use_most);
                     }
                 } // use_diff
             } // valid slow var

@@ -60,7 +60,7 @@ erf.check_int       = 10000        # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt       # prefix of plotfile name
 erf.plot_int_1      = 100       # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta QKE vorticity SMark
+erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta KE vorticity SMark
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0

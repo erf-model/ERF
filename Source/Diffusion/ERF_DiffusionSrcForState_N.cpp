@@ -40,8 +40,6 @@ void
 DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         int start_comp, int num_comp,
                         const bool& exp_most,
-                        const Array4<const Real>& u,
-                        const Array4<const Real>& v,
                         const Array4<const Real>& cell_data,
                         const Array4<const Real>& cell_prim,
                         const Array4<Real>& cell_rhs,
@@ -60,7 +58,6 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
                         const int level,
-                        const Array4<const Real>& tm_arr,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
                         const bool use_most)
@@ -83,7 +80,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     Real l_abs_g         = std::abs(grav_gpu[2]);
 
     bool l_use_KE = ( (turbChoice.les_type == LESType::Deardorff) ||
-                      (turbChoice.pbl_type == PBLType::MYNN) );
+                      (turbChoice.pbl_type == PBLType::MYNN25) );
     bool l_consA  = (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = ( (turbChoice.les_type == LESType::Smagorinsky) ||
                       (turbChoice.les_type == LESType::Deardorff  ) ||

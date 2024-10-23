@@ -72,7 +72,7 @@ ComputeSmnSmn (int& i, int& j, int& k,
     }
 
     amrex::Real s11bar(0.), s22bar(0.), s33bar(0.), s12bar(0.);
-    if (!use_pbl) {
+    if (!only_pbl) {
         s11bar = tau11(i,j,k);
         s22bar = tau22(i,j,k);
         s33bar = tau33(i,j,k);

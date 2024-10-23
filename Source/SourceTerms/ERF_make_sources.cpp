@@ -61,7 +61,7 @@ void make_sources (int level,
 
     TurbChoice tc = solverChoice.turbChoice[level];
     const bool l_use_KE  =  ( (tc.les_type == LESType::Deardorff) ||
-                              (tc.pbl_type == PBLType::MYNN) );
+                              (tc.pbl_type == PBLType::MYNN25) );
 
     const Box& domain = geom.Domain();
 
