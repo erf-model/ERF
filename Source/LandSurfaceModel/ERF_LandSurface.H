@@ -8,7 +8,7 @@
 #include <ERF_MM5.H>
 
 #if ERF_USE_NOAH
-#include <NOAH.H>
+#include <ERF_NOAH.H>
 #endif
 
 class LandSurface {

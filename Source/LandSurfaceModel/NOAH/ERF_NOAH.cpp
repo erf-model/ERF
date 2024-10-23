@@ -2,9 +2,7 @@
 #include<iostream>
 
 #include <AMReX_Print.H>
-#include <NoahmpIO.H>
-
-#include <NOAH.H>
+#include <ERF_NOAH.H>
 
 using namespace amrex;
 

@@ -72,9 +72,9 @@ function(build_erf_lib erf_lib_name)
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/NOAH>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/NOAH-MP/drivers/hrldas>)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/LandSurfaceModel/NOAH/NOAH.cpp)
+                   ${SRC_DIR}/LandSurfaceModel/NOAH/ERF_NOAH.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAH)
-    target_link_libraries(${erf_lib_name} PUBLIC NoahMP)
+    target_link_libraries_system(${erf_lib_name} PUBLIC NoahMP::noahmp)
   endif()
 
   if(ERF_ENABLE_RRTMGP)

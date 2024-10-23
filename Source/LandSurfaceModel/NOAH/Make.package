@@ -1,2 +1,2 @@
-CEXE_sources += NOAH.cpp
-CEXE_headers += NOAH.H
+CEXE_sources += ERF_NOAH.cpp
+CEXE_headers += ERF_NOAH.H
