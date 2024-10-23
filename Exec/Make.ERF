@@ -207,11 +207,21 @@ VPATH_LOCATIONS   += $(ERF_LSM_SLM_DIR)
 INCLUDE_LOCATIONS += $(ERF_LSM_SLM_DIR)
 
 # If using NOAH-MP model, then compile relevant source and headers
-ifeq ($(ERF_USE_NOAH), TRUE)
-	ERF_LSM_NOAH_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/NOAH
-	include $(ERF_LSM_NOAH_DIR)/Make.package
-	VPATH_LOCATIONS   += $(ERF_LSM_NOAH_DIR)
-	INCLUDE_LOCATIONS += $(ERF_LSM_NOAH_DIR)
+ifeq ($(USE_NOAH), TRUE)
+  ifneq ($(USE_NETCDF), TRUE)
+    $(error USE_NETCDF must be true for using NOAH-MP interface)
+  else
+    DEFINES += -DERF_USE_NOAH
+    includes += $(shell pkg-config --cflags netcdf-fortran)
+    LIBRARIES += $(shell pkg-config --libs netcdf-fortran)
+    NOAH_HOME  ?= $(ERF_HOME)/Submodules/NOAH-MP
+    VPATH_LOCATIONS += $(NOAH_HOME)/drivers/hrldas
+    INCLUDE_LOCATIONS += $(NOAH_HOME)/drivers/hrldas
+    ERF_LSM_NOAH_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/NOAH
+    include $(ERF_LSM_NOAH_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_LSM_NOAH_DIR)
+    INCLUDE_LOCATIONS += $(ERF_LSM_NOAH_DIR)
+  endif
 endif
 
 
