@@ -30,7 +30,6 @@ void ERF::init_bcs ()
         m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori]  = -1.0; // It is important to set this negative
                                                                  // because the sign is tested on below
         m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
         m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
         m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori]     = 0.0;
         m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori]     = 0.0;
@@ -48,7 +47,6 @@ void ERF::init_bcs ()
         m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]  = 0.0;
 
         m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
         m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
         m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]     = 0.0;
         m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]     = 0.0;
@@ -172,14 +170,6 @@ void ERF::init_bcs ()
                 if (pp.query("KE", KE_in))
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
             }
-            Real QKE_in = 0.;
-            if (input_bndry_planes && m_r2d->ingested_QKE()) {
-                m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori] = 0.;
-            } else {
-                if (pp.query("QKE", QKE_in))
-                m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori] = rho_in*QKE_in;
-            }
-
         }
         else if (bc_type == "noslipwall")
         {
@@ -550,7 +540,6 @@ void ERF::init_bcs ()
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
-                           ( (BCVars::cons_bc+i == BCVars::RhoQKE_bc_comp)    && m_r2d->ingested_QKE()    ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQ1_bc_comp)     && m_r2d->ingested_q1()     ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )) )
@@ -568,7 +557,6 @@ void ERF::init_bcs ()
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
-                           ( (BCVars::cons_bc+i == BCVars::RhoQKE_bc_comp)    && m_r2d->ingested_QKE()    ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQ1_bc_comp)     && m_r2d->ingested_q1()     ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )

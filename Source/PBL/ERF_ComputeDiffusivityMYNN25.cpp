@@ -12,6 +12,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const MultiFab& yvel,
                           const MultiFab& cons_in,
                           MultiFab& eddyViscosity,
+                          MultiFab& diss,
                           const Geometry& geom,
                           const TurbChoice& turbChoice,
                           std::unique_ptr<ABLMost>& most,
@@ -48,10 +49,11 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
     for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.growntilebox(1);
-        const Array4<Real const> &cell_data = cons_in.array(mfi);
-        const Array4<Real      > &K_turb    = eddyViscosity.array(mfi);
-        const Array4<Real const> &uvel      = xvel.array(mfi);
-        const Array4<Real const> &vvel      = yvel.array(mfi);
+        const Array4<Real const>& cell_data = cons_in.array(mfi);
+        const Array4<Real      >& K_turb    = eddyViscosity.array(mfi);
+        const Array4<Real      >& diss_arr  = diss.array(mfi);
+        const Array4<Real const>& uvel      = xvel.array(mfi);
+        const Array4<Real const>& vvel      = yvel.array(mfi);
 
         // Compute some quantities that are constant in each column
         // Sbox is shrunk to only include the interior of the domain in the vertical direction to compute integrals
@@ -76,20 +78,20 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             const auto invCellSize = geom.InvCellSizeArray();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
-                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
+                qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
+                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
 
                 Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                 const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
-                const Real dz = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
+                const Real dz   = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz*fac);
                 Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*dz*fac);
             });
         } else {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
-                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
+                qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
+                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
 
                 // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
 
@@ -237,7 +239,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             const Real rho = cell_data(i,j,k,Rho_comp);
             K_turb(i,j,k,EddyDiff::Mom_v)   = rho * Lm * qvel(i,j,k) * SM;
             K_turb(i,j,k,EddyDiff::Theta_v) = rho * Lm * qvel(i,j,k) * SH;
-            K_turb(i,j,k,EddyDiff::QKE_v)   = rho * Lm * qvel(i,j,k) * SQ;
+            K_turb(i,j,k,EddyDiff::KE_v)    = rho * Lm * qvel(i,j,k) * SQ;
 
             // TODO: implement partial-condensation scheme?
             // Currently, implementation matches NN09 without rain (i.e.,
@@ -250,7 +252,11 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                 K_turb(i,j,k,EddyDiff::Q_v) = rho * Lm * qvel(i,j,k) * SH;
             }
 
-            K_turb(i,j,k,EddyDiff::PBL_lengthscale) = Lm;
+            K_turb(i,j,k,EddyDiff::Turb_lengthscale) = Lm;
+
+            // NOTE: qvel is sqrt(2 * TKE)
+            diss_arr(i,j,k) = rho * std::pow(qvel(i,j,k),3.0) /
+                              (mynn.B1 * K_turb(i,j,k,EddyDiff::Turb_lengthscale));
         });
     }
 }

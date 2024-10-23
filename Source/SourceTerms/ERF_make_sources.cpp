@@ -60,8 +60,8 @@ void make_sources (int level,
     const bool use_terrain      = solverChoice.use_terrain;
 
     TurbChoice tc = solverChoice.turbChoice[level];
-    const bool l_use_deardorff  = (tc.les_type == LESType::Deardorff);
-    const bool l_use_QKE        = tc.use_QKE && tc.diffuse_QKE_3D;
+    const bool l_use_KE  =  ( (tc.les_type == LESType::Deardorff) ||
+                              (tc.pbl_type == PBLType::MYNN) );
 
     const Box& domain = geom.Domain();
 
@@ -338,14 +338,8 @@ void make_sources (int level,
             NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
                                cell_data, cell_src, mf_u, mf_v, false, false);
 
-            if (l_use_deardorff) {
+            if (l_use_KE) {
                 int sc = RhoKE_comp;
-                int nc = 1;
-                NumericalDiffusion(bx, sc, nc, dt, solverChoice.NumDiffCoeff,
-                                   cell_data, cell_src, mf_u, mf_v, false, false);
-            }
-            if (l_use_QKE) {
-                int sc = RhoQKE_comp;
                 int nc = 1;
                 NumericalDiffusion(bx, sc, nc, dt, solverChoice.NumDiffCoeff,
                                    cell_data, cell_src, mf_u, mf_v, false, false);

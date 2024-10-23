@@ -9,8 +9,8 @@
 */
 
 // This defines the ACTUAL number of non-moisture vars =
-//      rho, rhotheta, rhoKE, rhoQKE
-#define NDRY       4
+//      rho, rhotheta, rhoKE
+#define NDRY       3
 
 // This defines the ACTUAL number of non-moisture scalar vars
 #define NSCALARS   1
@@ -35,10 +35,9 @@
 // Cell-centered state variables
 #define Rho_comp       0
 #define RhoTheta_comp  (Rho_comp+1)
-#define RhoKE_comp     (Rho_comp+2) // for Deardorff LES Model
-#define RhoQKE_comp    (Rho_comp+3) // for MYNN or YSU PBL Model
+#define RhoKE_comp     (Rho_comp+2) // for Deardorff LES Model or MYNN PBL Model
 
-#define RhoScalar_comp (RhoQKE_comp+1)
+#define RhoScalar_comp (RhoKE_comp+1)
 
 #define RhoQ1_comp     (RhoScalar_comp+NSCALARS)
 #define RhoQ2_comp     (RhoQ1_comp+1)
@@ -50,7 +49,6 @@
 // Cell-centered primitive variables
 #define PrimTheta_comp   (RhoTheta_comp -1)
 #define PrimKE_comp      (RhoKE_comp    -1)
-#define PrimQKE_comp     (RhoQKE_comp   -1)
 #define PrimScalar_comp  (RhoScalar_comp-1)
 #define PrimQ1_comp      (RhoQ1_comp-1)
 #define PrimQ2_comp      (RhoQ2_comp-1)
@@ -68,7 +66,6 @@ namespace BCVars {
         Rho_bc_comp = 0,
         RhoTheta_bc_comp,
         RhoKE_bc_comp,
-        RhoQKE_bc_comp,
         RhoScalar_bc_comp,
         RhoQ1_bc_comp,
         RhoQ2_bc_comp,
@@ -143,16 +140,14 @@ namespace EddyDiff {
         Mom_h = 0,
         Theta_h,
         KE_h,
-        QKE_h,
         Scalar_h,
         Q_h,
         Mom_v,
         Theta_v,
         KE_v,
-        QKE_v,
         Scalar_v,
         Q_v,
-        PBL_lengthscale,
+        Turb_lengthscale,
         NumDiffs
     };
 }

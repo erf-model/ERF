@@ -120,9 +120,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
-    const bool l_use_QKE        = tc.use_QKE;
-    const bool l_advect_QKE     = tc.use_QKE && tc.advect_QKE;
-    const bool l_use_deardorff  = (tc.les_type == LESType::Deardorff);
+    const bool l_use_KE         = ( (tc.les_type == LESType::Deardorff) ||
+                                    (tc.pbl_type == PBLType::MYNN) );
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
                                    (tc.pbl_type        !=       PBLType::None) );
@@ -167,9 +166,8 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     // Valid vars
     Vector<int> is_valid_slow_var; is_valid_slow_var.resize(RhoQ1_comp+1,0);
-    if (l_use_deardorff) {is_valid_slow_var[    RhoKE_comp] = 1;}
-    if (l_use_QKE)       {is_valid_slow_var[   RhoQKE_comp] = 1;}
-                          is_valid_slow_var[RhoScalar_comp] = 1;
+    if (l_use_KE) {is_valid_slow_var[    RhoKE_comp] = 1;}
+                   is_valid_slow_var[RhoScalar_comp] = 1;
     if (solverChoice.moisture_type != MoistureType::None) {
          is_valid_slow_var[RhoQ1_comp] = 1;
     }
@@ -282,7 +280,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
         // SmnSmn for KE src with Deardorff
-        const Array4<const Real>& SmnSmn_a = l_use_deardorff ? SmnSmn->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& SmnSmn_a = l_use_KE ? SmnSmn->const_array(mfi) : Array4<const Real>{};
 
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
@@ -395,18 +393,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                     num_comp = 1;
                 }
 
-                if (( ivar != RhoQKE_comp                 ) ||
-                    ((ivar == RhoQKE_comp) && l_advect_QKE))
-                {
-                    AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                           cur_cons, cur_prim, cell_rhs,
-                                           l_use_mono_adv, max_s_ptr, min_s_ptr,
-                                           detJ_arr, dxInv, mf_m,
-                                           horiz_adv_type, vert_adv_type,
-                                           horiz_upw_frac, vert_upw_frac,
-                                           flx_arr, flx_tmp_arr, domain, bc_ptr_h);
-                }
-
                 if (l_use_diff) {
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
@@ -475,8 +461,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                         cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
-                        } else if (ivar == RhoQKE_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
                         }
                     });
 
@@ -489,8 +473,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                         cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
-                        } else if (ivar == RhoQKE_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
                         } else if (ivar >= RhoQ1_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 0.0);
                         }

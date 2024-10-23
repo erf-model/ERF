@@ -84,7 +84,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
           ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
+              bool only_pbl = false;
+              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most,only_pbl);
               Real dxInv = cellSizeInv[0];
               Real dyInv = cellSizeInv[1];
               Real dzInv = cellSizeInv[2];
@@ -207,6 +208,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 mu_turb(i,j,k,EddyDiff::Mom_v) = mu_turb(i,j,k,EddyDiff::Mom_h);
                 // KH = (1 + 2*l/delta) * mu_turb
                 mu_turb(i,j,k,EddyDiff::Theta_v) = (1.+2.*length/DeltaMsf) * mu_turb(i,j,k,EddyDiff::Mom_v);
+                // Store lengthscale for TKE source terms
+                mu_turb(i,j,k,EddyDiff::Turb_lengthscale) = length;
 
                 // Calculate SFS quantities
                 // - dissipation
@@ -217,6 +220,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
                 }
                 diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
+
                 // - heat flux
                 //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
                 //    be overwritten when BCs are applied)
@@ -230,14 +234,14 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     // Extrapolate Kturb in x/y, fill remaining elements (relevant to lev==0)
     //***********************************************************************************
     int ngc(1);
-    // EddyDiff mapping :   Theta_h     KE_h         QKE_h      Scalar_h    Q_h
-    Vector<Real> Factors = {inv_Pr_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
+    // EddyDiff mapping :   Theta_h     KE_h       Scalar_h    Q_h
+    Vector<Real> Factors = {inv_Pr_t, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
     Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());
     Gpu::copy(Gpu::hostToDevice, Factors.begin(), Factors.end(), d_Factors.begin());
     Real* fac_ptr = d_Factors.data();
 
-    bool use_KE  = (turbChoice.les_type == LESType::Deardorff);
-    bool use_QKE = turbChoice.use_QKE;
+    const bool use_KE = ( (turbChoice.les_type == LESType::Deardorff) ||
+                          (turbChoice.pbl_type == PBLType::MYNN25) );
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -324,18 +328,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
             int offset = (EddyDiff::NumDiffs-1)/2;
             switch (n)
             {
-              case EddyDiff::QKE_h:
-                 // Populate element other than mom_h/v on the whole grid
-                 if(use_QKE) {
-                   ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                   {
-                       int indx   = n;
-                       int indx_v = indx + offset;
-                       mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
-                       mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
-                  });
-                 }
-                 break;
              case EddyDiff::KE_h:
                 if (use_KE) {
                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -389,20 +381,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
             int offset = (EddyDiff::NumDiffs-1)/2;
             switch (n)
             {
-              case EddyDiff::QKE_h:
-                 // Extrap all components at top & bottom
-                 if(use_QKE) {
-                    ParallelFor(planez, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        int indx = n;
-                        int indx_v = indx + offset;
-                        mu_turb(i, j, k_lo-k, indx  ) = mu_turb(i, j, k_lo, indx  );
-                        mu_turb(i, j, k_hi+k, indx  ) = mu_turb(i, j, k_hi, indx  );
-                        mu_turb(i, j, k_lo-k, indx_v) = mu_turb(i, j, k_lo, indx_v);
-                        mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
-                    });
-                 }
-                 break;
               case EddyDiff::KE_h:
                  if (use_KE) {
                     ParallelFor(planez, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -509,7 +487,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     }
 
     if (turbChoice.pbl_type == PBLType::MYNN25) {
-        ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
+        ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity, Diss,
                                  geom, turbChoice, most, use_moisture,
                                  level, bc_ptr, vert_only, z_phys_nd,
                                  solverChoice.RhoQv_comp, solverChoice.RhoQr_comp);

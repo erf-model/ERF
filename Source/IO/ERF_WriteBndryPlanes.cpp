@@ -196,17 +196,6 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
                 derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoKE_comp);
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-
-        } else if (var_name == "qke") {
-
-            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
-            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQKE_comp);
-            }
-            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-
         } else if (var_name == "qv") {
             if (S.nComp() > RhoQ2_comp) {
                 MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);

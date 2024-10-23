@@ -25,6 +25,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
                           const amrex::MultiFab& yvel,
                           const amrex::MultiFab& cons_in,
                           amrex::MultiFab& eddyViscosity,
+                          amrex::MultiFab& diss,
                           const amrex::Geometry& geom,
                           const TurbChoice& turbChoice,
                           std::unique_ptr<ABLMost>& most,
@@ -136,83 +137,5 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
     } else {
         dvdz = 0.25*( vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv;
     }
-}
-
-/**
- * Function for computing the QKE source terms (NN09, Eqn. 5).
- *
- * @param[in] u velocity in x-dir
- * @param[in] v velocity in y-dir
- * @param[in] cell_data conserved cell center vars
- * @param[in] cell_prim primitive cell center vars
- * @param[in] K_turb turbulent viscosity
- * @param[in] cellSizeInv inverse cell size array
- * @param[in] domain box of the whole domain
- * @param[in] pbl_mynn_B1_l a parameter
- * @param[in] theta_mean average theta
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-ComputeQKESourceTerms (int i, int j, int k,
-                       const amrex::Array4<const amrex::Real>& uvel,
-                       const amrex::Array4<const amrex::Real>& vvel,
-                       const amrex::Array4<const amrex::Real>& cell_data,
-                       const amrex::Array4<const amrex::Real>& cell_prim,
-                       const amrex::Array4<const amrex::Real>& K_turb,
-                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                       const amrex::Box& domain,
-                       amrex::Real pbl_mynn_B1_l,
-                       const amrex::Real theta_mean,
-                       const int RhoQv_comp,
-                       const int RhoQr_comp,
-                       bool c_ext_dir_on_zlo,
-                       bool c_ext_dir_on_zhi,
-                       bool u_ext_dir_on_zlo,
-                       bool u_ext_dir_on_zhi,
-                       bool v_ext_dir_on_zlo,
-                       bool v_ext_dir_on_zhi,
-                       const bool use_most=false,
-                       const amrex::Real met_h_zeta=1.0)
-{
-    // Compute some relevant derivatives
-    amrex::Real dthetadz, dudz, dvdz;
-    amrex::Real source_term = 0.0;
-
-    amrex::Real dz_inv = cellSizeInv[2];
-    int izmin = domain.smallEnd(2);
-    int izmax = domain.bigEnd(2);
-
-    // NOTE: With MOST, the ghost cells are filled AFTER k_turb is computed
-    //       so that the non-explicit pathway works. Therefore, at this
-    //       point we DO have valid ghost cells from MOST. We are passing
-    //       the MOST flag to use one-sided diffs here to be consistent with
-    //       the explicit pathway.
-
-    ComputeVerticalDerivativesPBL(i, j, k,
-                                  uvel, vvel, cell_data, izmin, izmax, dz_inv/met_h_zeta,
-                                  c_ext_dir_on_zlo, c_ext_dir_on_zhi,
-                                  u_ext_dir_on_zlo, u_ext_dir_on_zhi,
-                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                  dthetadz, dudz, dvdz,
-                                  RhoQv_comp, RhoQr_comp, use_most);
-
-    // Note: Transport terms due to turbulence and pressure are included when
-    // DiffusionSrcForState_* is called from ERF_slow_rhs_post.
-
-    // Shear Production
-    source_term += 2.0*K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
-
-    // Buoyancy Production
-    source_term -= 2.0*(CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
-
-    // Dissipation
-    amrex::Real qke = cell_prim(i,j,k,PrimQKE_comp);
-    if (std::abs(qke) > 0.0) {
-        source_term -= 2.0 * cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
-            (pbl_mynn_B1_l * K_turb(i,j,k,EddyDiff::PBL_lengthscale));
-    }
-
-    return source_term;
 }
 #endif

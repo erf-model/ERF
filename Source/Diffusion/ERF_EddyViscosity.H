@@ -37,14 +37,9 @@ ComputeSmnSmn (int& i, int& j, int& k,
                const amrex::Array4<amrex::Real const>& tau23,
                const int& klo,
                const bool& use_most,
-               const bool& exp_most)
+               const bool& exp_most,
+               const bool& only_pbl)
 {
-    amrex::Real s11bar = tau11(i,j,k);
-    amrex::Real s22bar = tau22(i,j,k);
-    amrex::Real s33bar = tau33(i,j,k);
-    amrex::Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
-                                + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
-
     // NOTES:
     // - If ERF_EXPLICIT_MOST_STRESS is not used, then we do not use the
     //   strains lying on the bottom boundary with MOST. These values are
@@ -74,6 +69,15 @@ ComputeSmnSmn (int& i, int& j, int& k,
     {
         s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
                         + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
+    }
+
+    amrex::Real s11bar(0.), s22bar(0.), s33bar(0.), s12bar(0.);
+    if (!use_pbl) {
+        s11bar = tau11(i,j,k);
+        s22bar = tau22(i,j,k);
+        s33bar = tau33(i,j,k);
+        s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
+                        + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
     }
 
     amrex::Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
