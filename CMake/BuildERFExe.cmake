@@ -118,6 +118,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_bndryreg.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_realbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillCoarsePatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillIntermediatePatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillBdyCCVels.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_N.cpp
