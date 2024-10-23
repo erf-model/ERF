@@ -10,6 +10,9 @@ CEXE_headers += ERF_ABLMost.H
 CEXE_sources += ERF_ABLMost.cpp
 
 CEXE_sources += ERF_FillPatch.cpp
+CEXE_sources += ERF_FillCoarsePatch.cpp
+CEXE_sources += ERF_FillIntermediatePatch.cpp
+CEXE_sources += ERF_FillBdyCCVels.cpp
 CEXE_sources += ERF_FillPatcher.cpp
 
 CEXE_sources += ERF_PhysBCFunct.cpp
