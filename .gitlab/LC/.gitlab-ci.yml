@@ -1,0 +1,95 @@
+variables:
+  CUSTOM_CI_BUILDS_DIR: "/usr/workspace/$$USER/erf_gitlab_runner"
+
+  GIT_STRATEGY: fetch
+  GIT_SUBMODULE_STRATEGY: recursive
+  GIT_DEPTH: 1
+  GIT_SUBMODULE_DEPTH: 1
+
+  DEFAULT_BRANCH: llnl/development
+
+  ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
+  ALLOC_QUEUE: pci
+  ALLOC_TIME: 30
+  ALLOC_BANK: accatm
+
+  TEST_SCRIPT: .gitlab/LC/gitlab_test.sh
+
+  # Uncomment to disable testing on particular system
+  #ON_LASSEN: "OFF"
+  #ON_DANE: "OFF"
+  #ON_TIOGA: "OFF"
+
+stages:
+  - style
+  - allocate
+  - build
+  - release
+
+workflow:
+  rules:
+    # skip running branch pipelines if a MR is open for the branch
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_PIPELINE_SOURCE == 'web'
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    # test the upstream branch
+    - if: $CI_COMMIT_BRANCH == 'development'
+    # branches starting with "gitlab"
+    - if: $CI_COMMIT_BRANCH =~ /^gitlab.*/
+
+include:
+  # This include is required for LC with Gitlab 17+
+  # Refer to https://hpc.llnl.gov/technical-bulletins/bulletin-568
+  - project: 'lc-templates/id_tokens'
+    file: 'id_tokens.yml'
+  - .gitlab/LC/runners/lassen.yml
+  - .gitlab/LC/runners/dane.yml
+  - .gitlab/LC/runners/tioga.yml
+
+# Define actual CI jobs here:
+check_style:
+  extends: .on_dane
+  stage: style
+  rules:
+    # always run the style check on any push event
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - when: on_success
+  script:
+    - echo "Running check_tabs.sh"
+    - .github/workflows/style/check_tabs.sh
+    - echo "Running check_trailing_whitespaces.sh"
+    - .github/workflows/style/check_trailing_whitespaces.sh
+
+dane_gcc_12_1_1:
+  variables:
+    MODULE_LIST: cmake gcc/12.1.1
+  extends: .job_on_dane
+
+lassen_gcc_12_2_1:
+  variables:
+    MODULE_LIST: cmake/3.23.1 gcc/12.2.1
+  extends: .job_on_lassen
+
+lassen_gcc_12_2_1_cuda:
+  variables:
+    MODULE_LIST: cmake/3.23.1 gcc/12.2.1 cuda/12.2.2
+    ERF_ENABLE_CUDA: "ON"
+    # NOTE: c++ and cc are used here over mpicxx/mpicc due to cmake issue finding mpi with cuda?
+    CMAKE_CXX_COMPILER: c++
+    CMAKE_C_COMPILER: cc
+    CUDA_ARCH: "70"
+    ERF_TEST_FCOMPARE_RTOL: "1.0e-8"
+    ERF_TEST_FCOMPARE_ATOL: "1.0e-9"
+  extends: .job_on_lassen
+
+tioga_hip_5.7.1:
+  variables:
+    MODULE_LIST: cmake/3.24.2 rocm/6.1.2 rocmcc/6.1.2-cce-18.0.0-magic craype-accel-amd-gfx90a
+    ERF_ENABLE_HIP: "ON"
+    AMD_ARCH: "gfx90a"
+    # NOTE: Running with Debug build type causes AMD linking errors with AMReX plotfiles=ON
+    BUILD_TYPE: "RelWithDebInfo"
+  extends: .job_on_tioga
