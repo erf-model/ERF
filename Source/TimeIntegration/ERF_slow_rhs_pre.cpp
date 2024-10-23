@@ -165,7 +165,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     // We cannot use anelastic with terrain or with moisture
     AMREX_ALWAYS_ASSERT(!l_use_terrain  || !l_anelastic);
-    AMREX_ALWAYS_ASSERT(!l_use_moisture || !l_anelastic);
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
