@@ -13,6 +13,7 @@
 [submodule "Submodules/NOAH-MP"]
 	path = Submodules/NOAH-MP
         url = https://github.com/AIEADA/noahmp.git
+        shallow=true
 [submodule "Submodules/WW3"]
 	path = Submodules/WW3
 	url = https://github.com/erf-model/WW3
