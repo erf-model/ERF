@@ -135,8 +135,14 @@ Then the acoustic substepping evolves the equations in the form
           - \frac{\partial (\beta_1 W^{\prime \prime, \tau} + \beta_2 W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho}
             \right)
 
-where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)` with :math:`\beta_s = 0.1`.
-:math:`\beta_s` is the acoustic step off-centering coefficient and 0.1 is the typical WRF value. This off-centering is intended to provide damping of both horizontally and vertically propagating sound waves by biasing the time average toward the future time step.
+where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)`.
+
+:math:`\beta_s` is the acoustic step off-centering coefficient.  When we do implicit substepping, we use
+the typical WRF value of 0.1. This off-centering is intended to provide damping of both horizontally
+and vertically propagating sound waves by biasing the time average toward the future time step.
+
+When we do fully explicit substepping, we set :math:`\beta_s = -1.0`, which sets
+:math:`\beta_1 = 1` and :math:`\beta_2 = 0`.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.
@@ -149,10 +155,10 @@ to control horizontally propagating sound waves.
 .. math::
 
    p^{\prime\prime,\tau*} = p^{\prime\prime,\tau}
-     + \beta_d \left( p^{\prime\prime,\tau} + p^{\prime\prime,\tau-\delta\tau} \right)
+     + \beta_d \left( p^{\prime\prime,\tau} - p^{\prime\prime,\tau-\delta\tau} \right)
 
 where :math:`\tau*` is the forward projected value used in RHS of the acoustic
 substepping equations for horizontal momentum. According to Skamarock et al,
-This is equivalent to including a horizontal diffusion term in the continuity
+this is equivalent to including a horizontal diffusion term in the continuity
 equation. A typical damping coefficient of :math:`\beta_d = 0.1` is used, as in
 WRF.

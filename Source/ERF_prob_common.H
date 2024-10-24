@@ -468,7 +468,7 @@ protected:
 
     /**
      * Function to update default base parameters, currently only used for
-     * init_type=='uniform'
+     * init_type == InitType::Uniform
      */
     void init_base_parms (amrex::Real rho_0, amrex::Real T_0) {
         base_parms.rho_0 = rho_0;

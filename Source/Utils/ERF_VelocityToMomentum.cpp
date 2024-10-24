@@ -54,19 +54,9 @@ void VelocityToMomentum (const MultiFab& xvel_in,
         tby = mfi.tilebox(IntVect(0,1,0),yvel_ngrow);
         tbz = mfi.tilebox(IntVect(0,0,1),zvel_ngrow);
 
-#if 0
-        if (l_use_ndiff) {
-            tbx = mfi.tilebox(IntVect(1,0,0),xvel_ngrow);
-            tby = mfi.tilebox(IntVect(0,1,0),yvel_ngrow);
-            tbz = mfi.tilebox(IntVect(0,0,1),zvel_ngrow);
-        } else {
-            tbx = mfi.tilebox(IntVect(1,0,0),IntVect(1,1,1));
-            if (tbx.smallEnd(2) < 0) tbx.setSmall(2,0);
-            tby = mfi.tilebox(IntVect(0,1,0),IntVect(1,1,1));
-            if (tby.smallEnd(2) < 0) tby.setSmall(2,0);
-            tbz = mfi.tilebox(IntVect(0,0,1),IntVect(1,1,0));
-        }
-#endif
+        // Don't actually try to fill w above or below the domain
+        if (tbz.smallEnd(2) < domain.smallEnd(2)) tbz.setSmall(2,domain.smallEnd(2));
+        if (tbz.bigEnd(2)   > domain.bigEnd(2)+1) tbz.setBig(2,domain.bigEnd(2)+1);
 
         // Conserved/state variables on cell centers -- we use this for density
         const Array4<const Real>& dens_arr = density.array(mfi);
@@ -81,6 +71,8 @@ void VelocityToMomentum (const MultiFab& xvel_in,
         const Array4<Real const>& vely = yvel_in.const_array(mfi);
         const Array4<Real const>& velz = zvel_in.const_array(mfi);
 
+        // ********************************************************************************************
+
         ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             momx(i,j,k) = velx(i,j,k) * 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
@@ -91,6 +83,8 @@ void VelocityToMomentum (const MultiFab& xvel_in,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             momz(i,j,k) = velz(i,j,k) * 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
         });
+
+        // ********************************************************************************************
 
         if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
              (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::ext_dir) ) {

@@ -18,8 +18,6 @@ zhi.type = "SlipWall"
 erf.fixed_dt           = 4e-2    # fixed time step
 erf.mri_fixed_dt_ratio = 4
 
-erf.use_native_mri     = 0
-
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp

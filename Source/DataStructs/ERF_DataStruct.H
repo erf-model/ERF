@@ -42,7 +42,7 @@ AMREX_ENUM(MoistureType,
 );
 
 AMREX_ENUM(WindFarmType,
-    Fitch, EWP, SimpleActuatorDisk, GeneralActuatorDisk, None
+    Fitch, EWP, SimpleAD, GeneralAD, None
 );
 
 AMREX_ENUM(WindFarmLocType,
@@ -50,7 +50,7 @@ AMREX_ENUM(WindFarmLocType,
 );
 
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, None
+    SLM, MM5, None, NOAH
 );
 
 AMREX_ENUM(PerturbationType,
@@ -339,7 +339,7 @@ struct SolverChoice {
 
 
         // Which type of multilevel coupling
-        coupling_type = CouplingType::TwoWay; // Default
+        coupling_type = CouplingType::OneWay; // Default
         pp.query_enum_case_insensitive("coupling_type",coupling_type);
 
         // Which type of windfarm model
@@ -353,7 +353,8 @@ struct SolverChoice {
         pp.query("windfarm_loc_table",  windfarm_loc_table);
         pp.query("windfarm_spec_table", windfarm_spec_table);
         pp.query("windfarm_blade_table", windfarm_blade_table);
-        pp.query("windfarm_airofil_tables", windfarm_airfoil_tables);
+        pp.query("windfarm_airfoil_tables", windfarm_airfoil_tables);
+        pp.query("windfarm_spec_table_extra", windfarm_spec_table_extra);
 
         // Sampling distance upstream of the turbine to find the
         // incoming free stream velocity as a factor of the diameter of the
@@ -392,14 +393,14 @@ struct SolverChoice {
         //
         // Wind farm checks
         //
-        if (windfarm_type==WindFarmType::SimpleActuatorDisk and sampling_distance_by_D < 0.0) {
+        if (windfarm_type==WindFarmType::SimpleAD and sampling_distance_by_D < 0.0) {
              amrex::Abort("To use simplified actuator disks, you need to provide a variable"
                            " erf.sampling_distance_by_D in the inputs which specifies the upstream"
                            " distance as a factor of the turbine diameter at which the incoming free stream"
                            " velocity will be computed at.");
         }
-        if ( (windfarm_type==WindFarmType::SimpleActuatorDisk ||
-              windfarm_type==WindFarmType::GeneralActuatorDisk ) && turb_disk_angle < 0.0) {
+        if ( (windfarm_type==WindFarmType::SimpleAD ||
+              windfarm_type==WindFarmType::GeneralAD ) && turb_disk_angle < 0.0) {
             amrex::Abort("To use simplified actuator disks, you need to provide a variable"
                           " erf.turb_disk_angle_from_x in the inputs which is the angle of the face of the"
                           " turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction"
@@ -430,35 +431,35 @@ struct SolverChoice {
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
-        if (coupling_type == CouplingType::TwoWay) {
-            amrex::Print() << "Using two-way coupling " << std::endl;
-        } else if (coupling_type == CouplingType::OneWay) {
-            amrex::Print() << "Using one-way coupling " << std::endl;
-        }
-
+        amrex::Print() << "Terrain Type: " << std::endl;
         if (terrain_type == TerrainType::Static) {
-            amrex::Print() << "Using static terrain " << std::endl;
+            amrex::Print() << "    Static" << std::endl;
         } else if (terrain_type == TerrainType::Moving) {
-            amrex::Print() << "Using moving terrain " << std::endl;
+            amrex::Print() << "    Moving" << std::endl;
         } else {
-            amrex::Print() << "No terrain " << std::endl;
+            amrex::Print() << "    None" << std::endl;
         }
 
+        amrex::Print() << "ABL Driver Type: " << std::endl;
         if (abl_driver_type == ABLDriverType::None) {
-            amrex::Print() << "ABL Driver Type: " << "None" << std::endl;
-            amrex::Print() << "No ABL driver selected " << std::endl;
+            amrex::Print() << "    None" << std::endl;
         } else if (abl_driver_type == ABLDriverType::PressureGradient) {
-            amrex::Print() << "ABL Driver Type: " << "PressureGradient" << std::endl;
-            amrex::Print() << "Driving abl_pressure_grad: (";
-            for (int i = 0; i < AMREX_SPACEDIM; ++i)
-                amrex::Print() << abl_pressure_grad[i] << " ";
-            amrex::Print() << ")" << std::endl;
+            amrex::Print() << "    Pressure Gradient "
+                           << amrex::RealVect(abl_pressure_grad[0],abl_pressure_grad[1],abl_pressure_grad[2])
+                           << std::endl;
         } else if (abl_driver_type == ABLDriverType::GeostrophicWind) {
-            amrex::Print() << "ABL Driver Type: " << "GeostrophicWind" << std::endl;
-            amrex::Print() << "Driving abl_geo_forcing: (";
-            for (int i = 0; i < AMREX_SPACEDIM; ++i)
-                amrex::Print() << abl_geo_forcing[i] << " ";
-            amrex::Print() << ")" << std::endl;
+            amrex::Print() << "    Geostrophic Wind "
+                           << amrex::RealVect(abl_geo_forcing[0],abl_geo_forcing[1],abl_geo_forcing[2])
+                           << std::endl;
+        }
+
+        if (max_level > 0) {
+            amrex::Print() << "Coupling Type: " << std::endl;
+            if (coupling_type == CouplingType::TwoWay) {
+                amrex::Print() << "    Two-way" << std::endl;
+            } else if (coupling_type == CouplingType::OneWay) {
+                amrex::Print() << "    One-way" << std::endl;
+            }
         }
 
         amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;
@@ -647,7 +648,7 @@ struct SolverChoice {
     // if     SAM, then it will be set to RhoQ4
     int RhoQr_comp {-1};
 
-    std::string windfarm_loc_table, windfarm_spec_table;
+    std::string windfarm_loc_table, windfarm_spec_table, windfarm_spec_table_extra;
     std::string windfarm_blade_table, windfarm_airfoil_tables;
     amrex::Real sampling_distance_by_D = -1.0;
     amrex::Real turb_disk_angle = -1.0;

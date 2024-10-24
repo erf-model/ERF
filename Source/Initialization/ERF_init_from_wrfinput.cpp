@@ -277,7 +277,7 @@ ERF::init_from_wrfinput (int lev)
     IntVect ng = p_hse.nGrowVect();
     const Real l_rdOcp = solverChoice.rdOcp;
 
-    if (init_type == "real") {
+    if (init_type == InitType::Real) {
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             FArrayBox&   cons_fab = lev_new[Vars::cons][mfi];
@@ -297,7 +297,7 @@ ERF::init_from_wrfinput (int lev)
         pi_hse.FillBoundary(geom[lev].periodicity());
     }
 
-    if (init_type == "real" && (lev == 0)) {
+    if (init_type == InitType::Real && (lev == 0)) {
         if (nc_bdy_file.empty()) {
             amrex::Error("NetCDF boundary file name must be provided via input");
         }

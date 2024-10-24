@@ -26,7 +26,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     BoxArray ba;
     DistributionMapping dm;
     Box domain(Geom(0).Domain());
-    if (lev == 0 &&
+    if (lev == 0 && restart_chkfile.empty() &&
         (max_grid_size[0][0] >= domain.length(0)) &&
         (max_grid_size[0][1] >= domain.length(1)) &&
         ba_in.size() != ParallelDescriptor::NProcs())
@@ -47,7 +47,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // Define dmap[lev] to be dm
     SetDistributionMap(lev, dm);
 
-    // amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+    amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
 
     if (lev == 0) init_bcs();
 
@@ -113,14 +113,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     // ********************************************************************************************
     // Initialize the data itself
-    // If (init_type == "real") then we are initializing terrain and the initial data in
-    //                          the same call so we must call init_only before update_terrain_arrays
-    // If (init_type != "real") then we want to initialize the terrain before the initial data
-    //                          since we may need to use the grid information before constructing
-    //                          initial idealized data
+    // If (init_type == InitType::Real) then we are initializing terrain and the initial data in
+    //                                  the same call so we must call init_only before update_terrain_arrays
+    // If (init_type != InitType::Real) then we want to initialize the terrain before the initial data
+    //                                  since we may need to use the grid information before constructing
+    //                                  initial idealized data
     // ********************************************************************************************
     if (restart_chkfile.empty()) {
-        if ((init_type == "real") || (init_type == "metgrid")) {
+        if ((init_type == InitType::Real) || (init_type == InitType::Metgrid)) {
             init_only(lev, start_time);
             init_zphys(lev, time);
             update_terrain_arrays(lev);
@@ -128,7 +128,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         } else {
             init_zphys(lev, time);
             update_terrain_arrays(lev);
-            // Note that for init_type != real or metgrid,
+            // Note that for init_type != InitType::Real or InitType::Metgrid,
             // make_physbcs is called inside init_only
             init_only(lev, start_time);
         }
@@ -283,7 +283,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
-    // amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
+    amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
 
     AMREX_ALWAYS_ASSERT(lev > 0);
     AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::Moving);
@@ -332,9 +332,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // *****************************************************************************************************
     make_physbcs(lev);
 
-    // ********************************************************************************************
+    // *************************************************************************************************
     // This will fill the temporary MultiFabs with data from vars_new
-    // ********************************************************************************************
+    // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
+    // *************************************************************************************************
     FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
                           &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
                          {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},

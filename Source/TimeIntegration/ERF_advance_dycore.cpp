@@ -90,6 +90,7 @@ void ERF::advance_dycore(int level,
     bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
                            (tc.pbl_type != PBLType::None) );
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
+    bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
     const bool use_most = (m_most != nullptr);
     const bool exp_most = (solverChoice.use_explicit_most);
@@ -252,9 +253,10 @@ void ERF::advance_dycore(int level,
     // This is an optimization since we won't need more than one ghost
     // cell of momentum in the integrator if not using NumDiff
     //
-    IntVect ngu = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
-    IntVect ngv = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
-    IntVect ngw = (solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+    IntVect ngu = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
+    IntVect ngv = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
+    IntVect ngw = (!solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+
     VelocityToMomentum(xvel_old, ngu, yvel_old, ngv, zvel_old, ngw, density,
                        state_old[IntVars::xmom],
                        state_old[IntVars::ymom],

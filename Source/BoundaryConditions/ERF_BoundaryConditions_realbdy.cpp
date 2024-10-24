@@ -67,6 +67,8 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     {
         MultiFab& mf = *mfs[var_idx];
 
+        mf.FillBoundary(geom[lev].periodicity());
+
         //
         // Note that "domain" is mapped onto the type of box the data is in
         //

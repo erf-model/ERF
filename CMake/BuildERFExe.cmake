@@ -18,15 +18,8 @@ function(build_erf_lib erf_lib_name)
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
 
   if(ERF_ENABLE_MULTIBLOCK)
-    target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/MultiBlock/ERF_MultiBlockContainer.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
-#    if(NOT ERF_MB_EXTERN)
-      target_sources(${erf_lib_name} PRIVATE
-                     ${SRC_DIR}/MultiBlock/ERF_MultiBlockContainer.cpp)
-      target_include_directories(${erf_lib_name} PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/MultiBlock>)
-#    endif()
-   endif()
+  endif()
 
   if(ERF_ENABLE_WARM_NO_PRECIP)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WARM_NO_PRECIP)
@@ -34,7 +27,6 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_POISSON_SOLVE)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_inc.cpp
                    ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp
                    ${SRC_DIR}/Utils/ERF_PoissonSolve_tb.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_POISSON_SOLVE)
@@ -83,6 +75,16 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
 
+  if(ERF_ENABLE_NOAH)
+    target_include_directories(${erf_lib_name} PUBLIC
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/NOAH>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/NOAH-MP/drivers/hrldas>)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/LandSurfaceModel/NOAH/ERF_NOAH.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAH)
+    target_link_libraries_system(${erf_lib_name} PUBLIC NoahMP::noahmp)
+  endif()
+
   if(ERF_ENABLE_RRTMGP)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Utils/ERF_Orbit.cpp
@@ -99,10 +101,10 @@ function(build_erf_lib erf_lib_name)
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
                   )
 
-    # The interface code needs to know about the RRTMGP includes 
+    # The interface code needs to know about the RRTMGP includes
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
 
-    target_include_directories(${erf_lib_name} SYSTEM PUBLIC 
+    target_include_directories(${erf_lib_name} SYSTEM PUBLIC
                                ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband
                                ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/cloud_optics
                                ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples
@@ -134,6 +136,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_bndryreg.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_realbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillCoarsePatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillIntermediatePatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillBdyCCVels.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_N.cpp
@@ -169,7 +174,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNN25.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
-       ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp	  
+       ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
        ${SRC_DIR}/SourceTerms/ERF_make_buoyancy.cpp
        ${SRC_DIR}/SourceTerms/ERF_add_thin_body_sources.cpp
        ${SRC_DIR}/SourceTerms/ERF_make_mom_sources.cpp
@@ -214,13 +219,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/LandSurfaceModel/MM5/ERF_MM5.cpp
   )
 
-  if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
-    target_sources(${erf_lib_name}
-       PRIVATE
-         ${SRC_DIR}/main.cpp
-    )
-  endif()
-
   include(AMReXBuildInfo)
   generate_buildinfo(${erf_lib_name} ${CMAKE_SOURCE_DIR})
 if (${ERF_USE_INTERNAL_AMREX})
@@ -256,11 +254,11 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/TimeIntegration>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Utils>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/MaterialProperties>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SAM>)
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>) 
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/MaterialProperties>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Fitch>)
@@ -271,7 +269,7 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/MM5>)
-    
+
   if(ERF_ENABLE_RRTMGP)
      target_link_libraries(${erf_lib_name} PUBLIC yakl)
      target_link_libraries(${erf_lib_name} PUBLIC rrtmgp)
@@ -305,6 +303,13 @@ endfunction(build_erf_lib)
 function(build_erf_exe erf_exe_name)
 
   set(SRC_DIR ${CMAKE_SOURCE_DIR}/Source)
+
+  if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
+  target_sources(${erf_exe_name}
+     PRIVATE
+       ${SRC_DIR}/main.cpp
+  )
+  endif()
 
   target_link_libraries(${erf_exe_name}  PUBLIC ${erf_lib_name})
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)

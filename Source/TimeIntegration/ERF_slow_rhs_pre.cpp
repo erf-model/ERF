@@ -165,7 +165,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     // We cannot use anelastic with terrain or with moisture
     AMREX_ALWAYS_ASSERT(!l_use_terrain  || !l_anelastic);
-    AMREX_ALWAYS_ASSERT(!l_use_moisture || !l_anelastic);
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
@@ -373,8 +372,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
             if (l_use_terrain) {
 
-                Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
-                if (gbxo_lo.smallEnd(2) <= 0) {
+                Box gbxo_lo = gbxo; gbxo_lo.setBig(2,domain.smallEnd(2));
+                int lo_z_face = domain.smallEnd(2);
+                if (gbxo_lo.smallEnd(2) <= lo_z_face) {
                     ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         omega_arr(i,j,k) = 0.;
                     });

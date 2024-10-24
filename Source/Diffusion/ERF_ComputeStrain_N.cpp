@@ -208,8 +208,8 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
     //***********************************************************************************
     // Cell centered strains
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        tau11(i,j,k) = (u(i+1, j  , k  )/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]*mf_u(i,j,0)*mf_u(i,j,0);
-        tau22(i,j,k) = (v(i  , j+1, k  )/mf_v(i,j+1,0) - v(i, j, k)/mf_v(i,j,0))*dxInv[1]*mf_v(i,j,0)*mf_v(i,j,0);
+        tau11(i,j,k) = (u(i+1, j  , k  )/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]*mf_m(i,j,0)*mf_m(i,j,0);
+        tau22(i,j,k) = (v(i  , j+1, k  )/mf_v(i,j+1,0) - v(i, j, k)/mf_v(i,j,0))*dxInv[1]*mf_m(i,j,0)*mf_m(i,j,0);
         tau33(i,j,k) = (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
     });
 

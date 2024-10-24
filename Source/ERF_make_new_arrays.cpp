@@ -147,6 +147,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
     // We do this here just so they won't be undefined in the initial FillPatch
+    rU_old[lev].setVal(1.2e21);
+    rV_old[lev].setVal(3.4e22);
+    rW_old[lev].setVal(5.6e23);
     rU_new[lev].setVal(1.2e21);
     rV_new[lev].setVal(3.4e22);
     rW_new[lev].setVal(5.6e23);
@@ -236,7 +239,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         vars_windfarm[lev].define(ba, dm, 2, ngrow_state);// dudt, dvdt
     }
     if (solverChoice.windfarm_type == WindFarmType::GeneralAD) {
-        vars_windfarm[lev].define(ba, dm, 2, ngrow_state);// dudt, dvdt
+        vars_windfarm[lev].define(ba, dm, 3, ngrow_state);// dudt, dvdt, dwdt
     }
         Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
         SMark[lev].define(ba, dm, 2, ngrow_state); // Free stream velocity/source term
@@ -442,7 +445,7 @@ ERF::init_zphys (int lev, Real time)
 {
     if (solverChoice.use_terrain)
     {
-        if (init_type != "real" && init_type != "metgrid")
+        if (init_type != InitType::Real && init_type != InitType::Metgrid)
         {
             if (lev > 0) {
                 //

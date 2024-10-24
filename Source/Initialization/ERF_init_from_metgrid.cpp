@@ -801,16 +801,6 @@ init_base_state_from_metgrid (const bool use_moisture,
     gvbx_ylo.makeSlab(1,gvbx_ylo.smallEnd(1)); gvbx_yhi.makeSlab(1,gvbx_yhi.bigEnd(1));
     gvbx_zlo.makeSlab(2,gvbx_zlo.smallEnd(2)); gvbx_zhi.makeSlab(2,gvbx_zhi.bigEnd(2));
 
-    // Device vectors for columnwise operations
-    Gpu::DeviceVector<Real>      z_vec_d(kmax+2,0); Real* z_vec      =      z_vec_d.data();
-    Gpu::DeviceVector<Real> Thetad_vec_d(kmax+1,0); Real* Thetad_vec = Thetad_vec_d.data();
-    Gpu::DeviceVector<Real> Thetam_vec_d(kmax+1,0); Real* Thetam_vec = Thetam_vec_d.data();
-    Gpu::DeviceVector<Real>   Rhod_vec_d(kmax+1,0); Real* Rhod_vec   =   Rhod_vec_d.data();
-    Gpu::DeviceVector<Real>   Rhom_vec_d(kmax+1,0); Real* Rhom_vec   =   Rhom_vec_d.data();
-    Gpu::DeviceVector<Real>     Pd_vec_d(kmax+1,0); Real* Pd_vec     =     Pd_vec_d.data();
-    Gpu::DeviceVector<Real>     Pm_vec_d(kmax+1,0); Real* Pm_vec     =     Pm_vec_d.data();
-    Gpu::DeviceVector<Real>      Q_vec_d(kmax+1,0); Real* Q_vec      =      Q_vec_d.data();
-
     // Device vectors for psfc flags
     Gpu::DeviceVector<int>flag_psfc_d(flag_psfc.size());
     Gpu::copy(Gpu::hostToDevice, flag_psfc.begin(), flag_psfc.end(), flag_psfc_d.begin());
@@ -819,8 +809,8 @@ init_base_state_from_metgrid (const bool use_moisture,
     // Define the arena to be used for data allocation
     Arena* Arena_Used = The_Arena();
 #ifdef AMREX_USE_GPU
-    // Make sure this lives on CPU and GPU
-    Arena_Used = The_Pinned_Arena();
+    // Inside MFiter use async arena
+    Arena_Used = The_Async_Arena();
 #endif
     // Expose for copy to GPU
     Real grav = CONST_GRAV;
@@ -829,6 +819,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();
         const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
+        auto psfc_flag = flag_psfc_vec[0];
 
         // ********************************************************
         // calculate dry density and dry pressure
@@ -842,20 +833,86 @@ init_base_state_from_metgrid (const bool use_moisture,
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
-            for (int k=0; k<=kmax; k++) {
-                     z_vec[k] = new_z(i,j,k);
-                Thetad_vec[k] = new_data(i,j,k,RhoTheta_comp);
-                    Q_vec[k]  = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : 0.0;
+            const int maxiter = 10;
+            const amrex::Real tol = 1.0e-10;
+
+            // Low and Hi column variables
+            Real psurf;
+            Real z_lo,   z_hi;
+            Real p_lo,   p_hi;
+            Real qv_lo, qv_hi;
+            Real rd_lo, rd_hi;
+            Real thetad_lo, thetad_hi;
+
+            // Calculate or use pressure at the surface.
+            if (psfc_flag == 1) {
+                psurf = orig_psfc(i,j,0);
+            } else {
+                z_lo     = new_z(i,j,0);
+                Real t_0 = 290.0; // WRF's model_config_rec%base_temp
+                Real a   = 50.0;  // WRF's model_config_rec%base_lapse
+                psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2.)-2.0*grav*z_lo/(a*R_d)), 0.5));
             }
-            z_vec[kmax+1] =  new_z(i,j,kmax+1);
 
-            calc_rho_p(kmax, flag_psfc_vec[0], orig_psfc(i,j,0),
-                       grav, Thetad_vec, Thetam_vec, Q_vec, z_vec,
-                       Rhod_vec, Rhom_vec, Pd_vec, Pm_vec);
+            // Iterations for the first CC point that is 1/2 dz off the surface
+            {
+                z_lo      = new_z(i,j,0);
+                qv_lo     = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : 0.0;
+                rd_lo     = 0.0; // initial guess
+                thetad_lo = new_data(i,j,0,RhoTheta_comp);
+                Real half_dz = z_lo;
+                Real qvf     = 1.0+(R_v/R_d)*qv_lo;
+                Real thetam  = thetad_lo*qvf;
+                for (int it=0; it<maxiter; it++) {
+                    p_lo = psurf-half_dz*rd_lo*(1.0+qv_lo)*grav;
+                    if (p_lo < 0.0) p_lo = 0.0;
+                    rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
+                } // it
+                p_hse_arr(i,j,0) =  p_lo;
+                r_hse_arr(i,j,0) = rd_lo;
+            }
 
-            for (int k=0; k<=kmax; k++) {
-                p_hse_arr(i,j,k) =   Pm_vec[k];
-                r_hse_arr(i,j,k) = Rhom_vec[k];
+            // Iterations for k \in [1 kmax]
+            for (int k=1; k<=kmax; k++) {
+                // Known hi data
+                z_hi  = new_z(i,j,k);
+                qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : 0.0;
+                thetad_hi = new_data(i,j,k,RhoTheta_comp);
+
+                // Initial guesses for hi data
+                 p_hi = p_lo;
+                rd_hi = getRhogivenThetaPress(thetad_hi,
+                                              p_hi,
+                                              R_d/Cp_d,
+                                              qv_hi);
+
+                // Vertical grid spacing
+                Real dz = z_hi - z_lo;
+
+                // Establish known constant
+                Real rho_tot_lo = rd_lo * (1. + qv_lo);
+                Real C = -p_lo + 0.5*rho_tot_lo*grav*dz;
+
+                // Initial residual
+                Real rho_tot_hi = rd_hi * (1. + qv_hi);
+                Real F = p_hi + 0.5*rho_tot_hi*grav*dz + C;
+
+                // Do iterations
+                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                                  grav, C, thetad_hi,
+                                                                  qv_hi, qv_hi, p_hi,
+                                                                  rd_hi, F);
+
+                // Copy solution to base state
+                p_hse_arr(i,j,k) =  p_hi;
+                r_hse_arr(i,j,k) = rd_hi;
+
+                // Copy hi to lo
+                z_lo  = z_hi;
+                p_lo  = p_hi;
+                qv_lo = qv_hi;
+                rd_lo = rd_hi;
+                thetad_lo = thetad_hi;
             }
         });
 
@@ -926,10 +983,11 @@ init_base_state_from_metgrid (const bool use_moisture,
     }
 
     int ntimes = NC_psfc_fab.size();
-    for (int it=0; it<ntimes; it++) {
+    for (int itime=0; itime<ntimes; itime++) {
         FArrayBox p_hse_bcs_fab;
         FArrayBox pi_hse_bcs_fab;
         p_hse_bcs_fab.resize(state_fab.box(), 1, Arena_Used);
+        auto psfc_flag = flag_psfc_vec[itime];
 
         // ********************************************************
         // calculate dry density and dry pressure
@@ -937,30 +995,96 @@ init_base_state_from_metgrid (const bool use_moisture,
         // calculate density and dry pressure on the new grid.
         Box valid_bx2d = valid_bx;
         valid_bx2d.setRange(2,0);
-        auto const orig_psfc = NC_psfc_fab[it].const_array();
+        auto const orig_psfc = NC_psfc_fab[itime].const_array();
         auto const     new_z = z_phys_cc_fab.const_array();
-        auto       Theta_arr = fabs_for_bcs[it][MetGridBdyVars::T].array();
-        auto           Q_arr = (use_moisture ) ? fabs_for_bcs[it][MetGridBdyVars::QV].array() : Array4<Real>{};
+        auto       Theta_arr = fabs_for_bcs[itime][MetGridBdyVars::T].array();
+        auto           Q_arr = (use_moisture ) ? fabs_for_bcs[itime][MetGridBdyVars::QV].array() : Array4<Real>{};
         auto       p_hse_arr = p_hse_bcs_fab.array();
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
-            for (int k=0; k<=kmax; k++) {
-                     z_vec[k] = new_z(i,j,k);
-                Thetad_vec[k] = Theta_arr(i,j,k);
-                Q_vec[k] = (use_moisture) ? Q_arr(i,j,k) : 0.0;
+            const int maxiter = 10;
+            const amrex::Real tol = 1.0e-10;
+
+            // Low and Hi column variables
+            Real psurf;
+            Real z_lo,   z_hi;
+            Real p_lo,   p_hi;
+            Real qv_lo, qv_hi;
+            Real rd_lo, rd_hi;
+            Real thetad_lo, thetad_hi;
+
+            // Calculate or use pressure at the surface.
+            if (psfc_flag  == 1) {
+                psurf = orig_psfc(i,j,0);
+            } else {
+                z_lo     = new_z(i,j,0);
+                Real t_0 = 290.0; // WRF's model_config_rec%base_temp
+                Real a   = 50.0;  // WRF's model_config_rec%base_lapse
+                psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2.)-2.0*grav*z_lo/(a*R_d)), 0.5));
             }
-            z_vec[kmax+1] = new_z(i,j,kmax+1);
 
-            calc_rho_p(kmax, flag_psfc_vec[it], orig_psfc(i,j,0),
-                       grav, Thetad_vec, Thetam_vec, Q_vec, z_vec,
-                       Rhod_vec, Rhom_vec, Pd_vec, Pm_vec);
+            // Iterations for the first CC point that is 1/2 dz off the surface
+            {
+                z_lo      = new_z(i,j,0);
+                qv_lo     = (use_moisture) ? Q_arr(i,j,0) : 0.0;
+                rd_lo     = 0.0; // initial guess
+                thetad_lo = Theta_arr(i,j,0);
+                Real half_dz = z_lo;
+                Real qvf     = 1.0+(R_v/R_d)*qv_lo;
+                Real thetam  = thetad_lo*qvf;
+                for (int it=0; it<maxiter; it++) {
+                    p_lo = psurf-half_dz*rd_lo*(1.0+qv_lo)*grav;
+                    if (p_lo < 0.0) p_lo = 0.0;
+                    rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
+                } // it
+                p_hse_arr(i,j,0) =  p_lo;
+            }
 
-            for (int k=0; k<=kmax; k++) {
-                p_hse_arr(i,j,k) = Pm_vec[k];
-            } // k
+            // Iterations for k \in [1 kmax]
+            for (int k=1; k<=kmax; k++) {
+                // Known hi data
+                z_hi  = new_z(i,j,k);
+                qv_hi = (use_moisture) ? Q_arr(i,j,k) : 0.0;
+                thetad_hi = Theta_arr(i,j,k);
+
+                // Initial guesses for hi data
+                 p_hi = p_lo;
+                rd_hi = getRhogivenThetaPress(thetad_hi,
+                                              p_hi,
+                                              R_d/Cp_d,
+                                              qv_hi);
+
+                // Vertical grid spacing
+                Real dz = z_hi - z_lo;
+
+                // Establish known constant
+                Real rho_tot_lo = rd_lo * (1. + qv_lo);
+                Real C = -p_lo + 0.5*rho_tot_lo*grav*dz;
+
+                // Initial residual
+                Real rho_tot_hi = rd_hi * (1. + qv_hi);
+                Real F = p_hi + 0.5*rho_tot_hi*grav*dz + C;
+
+                // Do iterations
+                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                                  grav, C, thetad_hi,
+                                                                  qv_hi, qv_hi, p_hi,
+                                                                  rd_hi, F);
+
+                // Copy solution to base state
+                p_hse_arr(i,j,k) =  p_hi;
+
+                // Copy hi to lo
+                z_lo  = z_hi;
+                p_lo  = p_hi;
+                qv_lo = qv_hi;
+                rd_lo = rd_hi;
+                thetad_lo = thetad_hi;
+            }
+
         });
-    } // it
+    } // itime
 }
 
 

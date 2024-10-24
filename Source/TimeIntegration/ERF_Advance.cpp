@@ -92,14 +92,20 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     V_new.setVal(1.e34,V_new.nGrowVect());
     W_new.setVal(1.e34,W_new.nGrowVect());
 
+    //
+    // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
+    //
     FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
                          {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]});
-
-    if (solverChoice.moisture_type != MoistureType::None) {
-        // TODO: This is only qv
-        if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0]));
-    }
-
+    //
+    // So we must convert the fillpatched to momenta, including the ghost values
+    //
+    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
+                       V_old, rV_old[lev].nGrowVect(),
+                       W_old, rW_old[lev].nGrowVect(),
+                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
+                       Geom(lev).Domain(),
+                       domain_bcs_type);
 
 #if defined(ERF_USE_WINDFARM)
     if (solverChoice.windfarm_type != WindFarmType::None) {
