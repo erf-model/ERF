@@ -38,6 +38,7 @@ using namespace amrex;
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
  * @param[in]  use_most whether we have turned on MOST BCs
+ * @param[in]  horizontal_only don't compute vertical diffusion terms
  */
 void
 DiffusionSrcForState_T (const Box& bx, const Box& domain,
@@ -76,7 +77,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const Array4<const Real>& tm_arr,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
-                        const bool use_most)
+                        const bool use_most,
+                        const bool horizontal_only)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
@@ -273,65 +275,67 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
             }
         });
-        ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-        {
-            const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - 1;
-            const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
+        if (!horizontal_only) {
+            ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                const int  qty_index = start_comp + n;
+                const int prim_index = qty_index - 1;
+                const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-            Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
+                Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+                Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
+                rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
+                                    + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
 
-            Real met_h_zeta = az(i,j,k);
+                Real met_h_zeta = az(i,j,k);
 
-            Real GradCz;
-            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
-                           BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim) )
-                                    && k == dom_hi.z+1);
-            bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
+                Real GradCz;
+                int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                    BCVars::RhoScalar_bc_comp : qty_index;
+                if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
+                bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
+                                         (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
+                                        && k == 0);
+                bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+                                         (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim) )
+                                        && k == dom_hi.z+1);
+                bool most_on_zlo    = ( use_most && exp_most &&
+                                        (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
-            if (ext_dir_on_zlo) {
-                GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                if (ext_dir_on_zlo) {
+                    GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                         + 3. * cell_prim(i, j, k  , prim_index)
-                                   - (1./3.) * cell_prim(i, j, k+1, prim_index) );
-            } else if (ext_dir_on_zhi) {
-                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
-                                        - 3. * cell_prim(i, j, k-1, prim_index)
-                                   + (1./3.) * cell_prim(i, j, k-2, prim_index) );
-            } else {
-                GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
-            }
-
-            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
-                // set the exact value from MOST, don't need finite diff
-                zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
-            } else {
-                zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
-            }
-
-            if (qty_index == RhoTheta_comp) {
-                if (!most_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                                        - (1./3.) * cell_prim(i, j, k+1, prim_index) );
+                } else if (ext_dir_on_zhi) {
+                    GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                         - 3. * cell_prim(i, j, k-1, prim_index)
+                                         + (1./3.) * cell_prim(i, j, k-2, prim_index) );
+                } else {
+                    GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
                 }
-            } else  if (qty_index == RhoQ1_comp) {
-                if (!most_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+
+                if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                    // set the exact value from MOST, don't need finite diff
+                    zflux(i,j,k,qty_index) = hfx_z(i,j,0);
+                } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                    zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
                 }
-            } else  if (qty_index == RhoQ2_comp) {
-                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
-            }
-        });
+
+                if (qty_index == RhoTheta_comp) {
+                    if (!most_on_zlo) {
+                        hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                    }
+                } else  if (qty_index == RhoQ1_comp) {
+                    if (!most_on_zlo) {
+                        qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+                    }
+                } else  if (qty_index == RhoQ2_comp) {
+                    qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            });
+        }
     // Constant rho*alpha & Turb model
     } else if (l_turb) {
         ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -394,64 +398,66 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
             }
         });
-        ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-        {
-            const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - 1;
+        if (!horizontal_only) {
+            ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                const int  qty_index = start_comp + n;
+                const int prim_index = qty_index - 1;
 
-            Real rhoAlpha = d_alpha_eff[prim_index];
+                Real rhoAlpha = d_alpha_eff[prim_index];
 
-            rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
-                              + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
+                rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
+                                    + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
-            Real met_h_zeta = az(i,j,k);
+                Real met_h_zeta = az(i,j,k);
 
-            Real GradCz;
-            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
-                           BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.z+1);
-            bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
+                Real GradCz;
+                int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                    BCVars::RhoScalar_bc_comp : qty_index;
+                if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
+                bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
+                                         (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
+                                        && k == 0);
+                bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+                                         (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
+                                        && k == dom_hi.z+1);
+                bool most_on_zlo    = ( use_most && exp_most &&
+                                        (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
-            if (ext_dir_on_zlo) {
-                GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                if (ext_dir_on_zlo) {
+                    GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                         + 3. * cell_prim(i, j, k  , prim_index)
-                                   - (1./3.) * cell_prim(i, j, k+1, prim_index) );
-            } else if (ext_dir_on_zhi) {
-                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
-                                        - 3. * cell_prim(i, j, k-1, prim_index)
-                                   + (1./3.) * cell_prim(i, j, k-2, prim_index) );
-            } else {
-                GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
-            }
-
-            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
-                // set the exact value from MOST, don't need finite diff
-                zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
-            } else {
-                zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
-            }
-
-            if (qty_index == RhoTheta_comp) {
-                if (!most_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                                        - (1./3.) * cell_prim(i, j, k+1, prim_index) );
+                } else if (ext_dir_on_zhi) {
+                    GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                         - 3. * cell_prim(i, j, k-1, prim_index)
+                                         + (1./3.) * cell_prim(i, j, k-2, prim_index) );
+                } else {
+                    GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
                 }
-            } else  if (qty_index == RhoQ1_comp) {
-                if (!most_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+
+                if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                    // set the exact value from MOST, don't need finite diff
+                    zflux(i,j,k,qty_index) = hfx_z(i,j,0);
+                } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                    zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
                 }
-            } else  if (qty_index == RhoQ2_comp) {
-                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
-            }
-        });
+
+                if (qty_index == RhoTheta_comp) {
+                    if (!most_on_zlo) {
+                        hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                    }
+                } else  if (qty_index == RhoQ1_comp) {
+                    if (!most_on_zlo) {
+                        qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+                    }
+                } else  if (qty_index == RhoQ2_comp) {
+                    qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            });
+        }
     // Constant alpha & no LES/PBL model
     } else if(l_consA) {
         ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -512,62 +518,64 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
             }
         });
-        ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-        {
-            const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - 1;
+        if (!horizontal_only) {
+            ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                const int  qty_index = start_comp + n;
+                const int prim_index = qty_index - 1;
 
-            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-            Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+                Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+                Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
-            Real met_h_zeta = az(i,j,k);
+                Real met_h_zeta = az(i,j,k);
 
-            Real GradCz;
-            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
-                           BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.z+1);
-            bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
+                Real GradCz;
+                int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                    BCVars::RhoScalar_bc_comp : qty_index;
+                if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
+                bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
+                                         (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
+                                        && k == 0);
+                bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+                                         (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
+                                        && k == dom_hi.z+1);
+                bool most_on_zlo    = ( use_most && exp_most &&
+                                        (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
-            if (ext_dir_on_zlo) {
-                GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                if (ext_dir_on_zlo) {
+                    GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                         + 3. * cell_prim(i, j, k  , prim_index)
-                                   - (1./3.) * cell_prim(i, j, k+1, prim_index) );
-            } else if (ext_dir_on_zhi) {
-                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
-                                        - 3. * cell_prim(i, j, k-1, prim_index)
-                                   + (1./3.) * cell_prim(i, j, k-2, prim_index) );
-            } else {
-                GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
-            }
-
-            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
-                // set the exact value from MOST, don't need finite diff
-                zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
-            } else {
-                zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
-            }
-
-            if (qty_index == RhoTheta_comp) {
-                if (!most_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                                        - (1./3.) * cell_prim(i, j, k+1, prim_index) );
+                } else if (ext_dir_on_zhi) {
+                    GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                         - 3. * cell_prim(i, j, k-1, prim_index)
+                                         + (1./3.) * cell_prim(i, j, k-2, prim_index) );
+                } else {
+                    GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
                 }
-            } else  if (qty_index == RhoQ1_comp) {
-                if (!most_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+
+                if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                    // set the exact value from MOST, don't need finite diff
+                    zflux(i,j,k,qty_index) = hfx_z(i,j,0);
+                } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                    zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
                 }
-            } else  if (qty_index == RhoQ2_comp) {
-                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
-            }
-        });
+
+                if (qty_index == RhoTheta_comp) {
+                    if (!most_on_zlo) {
+                        hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                    }
+                } else  if (qty_index == RhoQ1_comp) {
+                    if (!most_on_zlo) {
+                        qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+                    }
+                } else  if (qty_index == RhoQ2_comp) {
+                    qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            });
+        }
     // Constant rho*alpha & no LES/PBL model
     } else {
         ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -628,65 +636,69 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 yflux(i,j,k,qty_index) = -rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
             }
         });
-        ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-        {
-            const int  qty_index = start_comp + n;
-            const int prim_index = qty_index - 1;
+        if (!horizontal_only) {
+            ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                const int  qty_index = start_comp + n;
+                const int prim_index = qty_index - 1;
 
-            Real rhoAlpha = d_alpha_eff[prim_index];
+                Real rhoAlpha = d_alpha_eff[prim_index];
 
-            Real met_h_zeta;
-            met_h_zeta = Compute_h_zeta_AtKface(i,j,k,cellSizeInv,z_nd);
+                Real met_h_zeta;
+                met_h_zeta = Compute_h_zeta_AtKface(i,j,k,cellSizeInv,z_nd);
 
-            Real GradCz;
-            int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
-                           BCVars::RhoScalar_bc_comp : qty_index;
-            if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == 0);
-            bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.z+1);
-            bool most_on_zlo    = ( use_most && exp_most &&
-                                  (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
+                Real GradCz;
+                int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
+                    BCVars::RhoScalar_bc_comp : qty_index;
+                if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
+                bool ext_dir_on_zlo = ( ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
+                                         (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim))
+                                        && k == 0);
+                bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
+                                         (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
+                                        && k == dom_hi.z+1);
+                bool most_on_zlo    = ( use_most && exp_most &&
+                                        (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) && k == 0);
 
-            if (ext_dir_on_zlo) {
-                GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                if (ext_dir_on_zlo) {
+                    GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                         + 3. * cell_prim(i, j, k  , prim_index)
-                                   - (1./3.) * cell_prim(i, j, k+1, prim_index) );
-            } else if (ext_dir_on_zhi) {
-                GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
-                                        - 3. * cell_prim(i, j, k-1, prim_index)
-                                   + (1./3.) * cell_prim(i, j, k-2, prim_index) );
-            } else {
-                GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
-            }
-
-            if (most_on_zlo && (qty_index == RhoTheta_comp)) {
-                // set the exact value from MOST, don't need finite diff
-                zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
-            } else {
-                zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
-            }
-
-            if (qty_index == RhoTheta_comp) {
-                if (!most_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                                        - (1./3.) * cell_prim(i, j, k+1, prim_index) );
+                } else if (ext_dir_on_zhi) {
+                    GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k  , prim_index)
+                                         - 3. * cell_prim(i, j, k-1, prim_index)
+                                         + (1./3.) * cell_prim(i, j, k-2, prim_index) );
+                } else {
+                    GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
                 }
-            } else  if (qty_index == RhoQ1_comp) {
-                if (!most_on_zlo) {
-                    qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+
+                if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                    // set the exact value from MOST, don't need finite diff
+                    zflux(i,j,k,qty_index) = hfx_z(i,j,0);
+                } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+                    zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k,qty_index) = -rhoAlpha * GradCz / met_h_zeta;
                 }
-            } else  if (qty_index == RhoQ2_comp) {
-                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
-            }
-        });
+
+                if (qty_index == RhoTheta_comp) {
+                    if (!most_on_zlo) {
+                        hfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                    }
+                } else  if (qty_index == RhoQ1_comp) {
+                    if (!most_on_zlo) {
+                        qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+                    }
+                } else  if (qty_index == RhoQ2_comp) {
+                    qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
+                }
+            });
+        }
     }
 
     // Linear combinations for z-flux with terrain
+    // NOTE: with horizontal_only we don't compute verticial diffusion terms,
+    // but do include the vertical effect from x/y diffusion with terrain
     //-----------------------------------------------------------------------------------
     // Extrapolate top and bottom cells
     {

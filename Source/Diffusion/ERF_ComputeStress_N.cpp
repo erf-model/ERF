@@ -100,6 +100,7 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in,out] tau13 13 strain -> stress
  * @param[in,out] tau23 23 strain -> stress
  * @param[in] er_arr expansion rate
+ * @param[in]  horizontal_only ignore vertical viscous stresses
  */
 void
 ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -107,7 +108,7 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& cell_data,
                         Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                         Array4<Real>& tau12, Array4<Real>& tau13, Array4<Real>& tau23,
-                        const Array4<const Real>& er_arr)
+                        const Array4<const Real>& er_arr, const bool horizontal_only)
 {
     Real OneThird   = (1./3.);
 
@@ -119,7 +120,7 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real rhoAlpha = cell_data(i, j, k, Rho_comp) * mu_eff;
             Real mu_11 = rhoAlpha + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_h);
             Real mu_22 = mu_11;
-            Real mu_33 = rhoAlpha + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
+            Real mu_33 = horizontal_only ? 0.0 : rhoAlpha + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
             tau11(i,j,k) = -mu_11 * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
             tau22(i,j,k) = -mu_22 * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
             tau33(i,j,k) = -mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -140,7 +141,7 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                                 + cell_data(i-1, j, k-1, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real mu_bar = 0.25*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
-            Real mu_13  = rho_bar*mu_eff + 2.0*mu_bar;
+            Real mu_13  = horizontal_only ? 0.0 : rho_bar*mu_eff + 2.0*mu_bar;
             tau13(i,j,k) *= -mu_13;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -148,7 +149,7 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                                 + cell_data(i, j-1, k-1, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real mu_bar = 0.25*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
-            Real mu_23  = rho_bar*mu_eff + 2.0*mu_bar;
+            Real mu_23  = horizontal_only ? 0.0 : rho_bar*mu_eff + 2.0*mu_bar;
             tau23(i,j,k) *= -mu_23;
         });
     }
@@ -159,7 +160,7 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mu_11 = mu_eff + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_h);
             Real mu_22 = mu_11;
-            Real mu_33 = mu_eff + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
+            Real mu_33 = horizontal_only ? 0.0 : mu_eff + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
             tau11(i,j,k) = -mu_11 * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
             tau22(i,j,k) = -mu_22 * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
             tau33(i,j,k) = -mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -176,13 +177,13 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mu_bar = 0.25*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
-            Real mu_13  = mu_eff + 2.0*mu_bar;
+            Real mu_13  = horizontal_only ? 0.0 : mu_eff + 2.0*mu_bar;
             tau13(i,j,k) *= -mu_13;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mu_bar = 0.25*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
-            Real mu_23  = mu_eff + 2.0*mu_bar;
+            Real mu_23  = horizontal_only ? 0.0 : mu_eff + 2.0*mu_bar;
             tau23(i,j,k) *= -mu_23;
         });
     }

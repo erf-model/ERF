@@ -154,6 +154,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
+    const bool l_use_ysu_pbl    =   tc.pbl_type == PBLType::YSU;
 
     const bool l_use_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool l_use_most     = (most != nullptr);
@@ -506,13 +507,23 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most, l_use_ysu_pbl);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, l_exp_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, q1fx_z, q2fx_z, diss,
+                                       mu_turb, solverChoice, level,
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most, l_use_ysu_pbl);
+            }
+            if (l_use_ysu_pbl) {
+                DiffusionSrcForStateYSU(bx, domain, RhoTheta_comp, 1, l_exp_most, l_rot_most, u, v,
+                                       cell_data, cell_prim, cell_rhs,
+                                       diffflux_x, diffflux_y, diffflux_z,
+                                       z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
+                                       dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_most);
             }
