@@ -31,7 +31,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     tmp_base_state.define(ba,dm,BaseState::num_comps,3);
     tmp_base_state.setVal(0.);
 
-    if (solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::Static) {
+    if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Moving) {
         base_state_new[lev].define(ba,dm,BaseState::num_comps,3);
         base_state_new[lev].setVal(0.);
     }
@@ -42,7 +42,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.use_terrain) {
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
-        if (solverChoice.terrain_type != TerrainType::Static)
+        if (solverChoice.terrain_type == TerrainType::Moving)
         {
             detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
             detJ_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
@@ -65,7 +65,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 2;
         tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
 
-        if (solverChoice.terrain_type != TerrainType::Static) {
+        if (solverChoice.terrain_type == TerrainType::Moving) {
             z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
             z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
         }

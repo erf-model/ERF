@@ -72,7 +72,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
     MLPoisson mlpoisson(geom_tmp, ba_tmp, dm_tmp, info);
 
-    MultiFab r_hse(base_state[lev], make_alias, Basestate::r0_comp, 1);
+    MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
 
     auto bclo = get_projection_bc(Orientation::low);
     auto bchi = get_projection_bc(Orientation::high);
