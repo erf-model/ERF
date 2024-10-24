@@ -81,8 +81,13 @@ if (${ERF_USE_INTERNAL_AMREX})
 ########################### AMReX #####################################
 
     add_subdirectory(${AMREX_SUBMOD_LOCATION})
-    set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
-      CACHE INTERNAL "Path to fcompare executable for regression tests")
+    if(WIN32)
+      set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fcompare.exe
+        CACHE STRING "Path to fcompare executable for regression tests")
+    else()
+      set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
+        CACHE STRING "Path to fcompare executable for regression tests")
+    endif()
 else()
     set(CMAKE_PREFIX_PATH ${AMREX_DIR} ${CMAKE_PREFIX_PATH})
     list(APPEND AMREX_COMPONENTS
@@ -112,8 +117,13 @@ else()
     find_package(AMReX CONFIG REQUIRED
       COMPONENTS ${AMREX_COMPONENTS})
     message(STATUS "Found AMReX = ${AMReX_DIR}")
-    set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
-      CACHE INTERNAL "Path to fcompare executable for regression tests")
+    if(WIN32)
+      set(FCOMPARE_EXE ${AMReX_DIR}/../../../*/amrex_fcompare.exe
+        CACHE STRING "Path to fcompare executable for regression tests")
+    else()
+      set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
+        CACHE STRING "Path to fcompare executable for regression tests")
+    endif()
 endif()
 
 ########################## NETCDF ##################################

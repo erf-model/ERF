@@ -42,7 +42,7 @@ AMREX_ENUM(MoistureType,
 );
 
 AMREX_ENUM(WindFarmType,
-    Fitch, EWP, SimpleActuatorDisk, GeneralActuatorDisk, None
+    Fitch, EWP, SimpleAD, GeneralAD, None
 );
 
 AMREX_ENUM(WindFarmLocType,
@@ -393,14 +393,14 @@ struct SolverChoice {
         //
         // Wind farm checks
         //
-        if (windfarm_type==WindFarmType::SimpleActuatorDisk and sampling_distance_by_D < 0.0) {
+        if (windfarm_type==WindFarmType::SimpleAD and sampling_distance_by_D < 0.0) {
              amrex::Abort("To use simplified actuator disks, you need to provide a variable"
                            " erf.sampling_distance_by_D in the inputs which specifies the upstream"
                            " distance as a factor of the turbine diameter at which the incoming free stream"
                            " velocity will be computed at.");
         }
-        if ( (windfarm_type==WindFarmType::SimpleActuatorDisk ||
-              windfarm_type==WindFarmType::GeneralActuatorDisk ) && turb_disk_angle < 0.0) {
+        if ( (windfarm_type==WindFarmType::SimpleAD ||
+              windfarm_type==WindFarmType::GeneralAD ) && turb_disk_angle < 0.0) {
             amrex::Abort("To use simplified actuator disks, you need to provide a variable"
                           " erf.turb_disk_angle_from_x in the inputs which is the angle of the face of the"
                           " turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction"
