@@ -103,6 +103,7 @@ init_base_state_from_wrfinput (int lev,
                                FArrayBox& cons_fab,
                                FArrayBox& p_hse,
                                FArrayBox& pi_hse,
+                               FArrayBox& th_hse,
                                FArrayBox& r_hse,
                                const Vector<FArrayBox>& NC_ALB_fab,
                                const Vector<FArrayBox>& NC_PB_fab,
@@ -270,9 +271,10 @@ ERF::init_from_wrfinput (int lev)
 
     } // use_terrain
 
-    MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
-    MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
-    MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
+    MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
+    MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
+    MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
+    MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
 
     IntVect ng = p_hse.nGrowVect();
     const Real l_rdOcp = solverChoice.rdOcp;
@@ -283,11 +285,12 @@ ERF::init_from_wrfinput (int lev)
             FArrayBox&   cons_fab = lev_new[Vars::cons][mfi];
             FArrayBox&  p_hse_fab = p_hse[mfi];
             FArrayBox& pi_hse_fab = pi_hse[mfi];
+            FArrayBox& th_hse_fab = th_hse[mfi];
             FArrayBox&  r_hse_fab = r_hse[mfi];
 
             const Box gtbx = mfi.tilebox(IntVect(0), ng);
             init_base_state_from_wrfinput(lev, gtbx, domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
-                                          cons_fab, p_hse_fab, pi_hse_fab, r_hse_fab,
+                                          cons_fab, p_hse_fab, pi_hse_fab, th_hse_fab, r_hse_fab,
                                           NC_ALB_fab, NC_PB_fab, NC_P_fab);
         }
 
@@ -295,6 +298,7 @@ ERF::init_from_wrfinput (int lev)
          r_hse.FillBoundary(geom[lev].periodicity());
          p_hse.FillBoundary(geom[lev].periodicity());
         pi_hse.FillBoundary(geom[lev].periodicity());
+        th_hse.FillBoundary(geom[lev].periodicity());
     }
 
     if (init_type == InitType::Real && (lev == 0)) {
@@ -446,6 +450,7 @@ init_msfs_from_wrfinput (int /*lev*/, FArrayBox& msfu_fab,
  * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
  * @param p_hse FArrayBox specifying the hydrostatic base state pressure we initialize
  * @param pi_hse FArrayBox specifying the hydrostatic base state Exner pressure we initialize
+ * @param th_hse FArrayBox specifying the hydrostatic base state potential temperature
  * @param r_hse FArrayBox specifying the hydrostatic base state density we initialize
  * @param NC_ALB_fab Vector of FArrayBox objects containing WRF data specifying 1/density
  * @param NC_PB_fab Vector of FArrayBox objects containing WRF data specifying pressure
@@ -460,6 +465,7 @@ init_base_state_from_wrfinput (int /*lev*/,
                                FArrayBox& cons_fab,
                                FArrayBox& p_hse,
                                FArrayBox& pi_hse,
+                               FArrayBox& th_hse,
                                FArrayBox& r_hse,
                                const Vector<FArrayBox>& NC_ALB_fab,
                                const Vector<FArrayBox>& NC_PB_fab,
@@ -478,6 +484,7 @@ init_base_state_from_wrfinput (int /*lev*/,
         const Array4<Real      >&   cons_arr = cons_fab.array();
         const Array4<Real      >&  p_hse_arr = p_hse.array();
         const Array4<Real      >& pi_hse_arr = pi_hse.array();
+        const Array4<Real      >& th_hse_arr = th_hse.array();
         const Array4<Real      >&  r_hse_arr = r_hse.array();
         //const Array4<Real const>&  alpha_arr = NC_ALB_fab[idx].const_array();
         const Array4<Real const>&  nc_pb_arr = NC_PB_fab[idx].const_array();
@@ -508,9 +515,10 @@ init_base_state_from_wrfinput (int /*lev*/,
             Real Rhse_Sum = cons_arr(ii,jj,kk,Rho_comp);
             for (int q_offset(0); q_offset<n_qstate; ++q_offset) Rhse_Sum += cons_arr(ii,jj,kk,RhoQ1_comp+q_offset);
 
+            r_hse_arr(i,j,k)  = Rhse_Sum;
             p_hse_arr(i,j,k)  = Ptot;
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-            r_hse_arr(i,j,k)  = Rhse_Sum;
+            th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k)) / r_hse_arr(i,j,k);
         });
     } // idx
 }

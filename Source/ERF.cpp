@@ -552,7 +552,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         // Copy z_phs_nd and detJ_cc at end of timestep
         MultiFab::Copy(*z_phys_nd[lev], *z_phys_nd_new[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
         MultiFab::Copy(  *detJ_cc[lev],   *detJ_cc_new[lev], 0, 0, 1,   detJ_cc[lev]->nGrowVect());
-        MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,3,1);
+        MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
 
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
@@ -944,7 +944,7 @@ ERF::InitData_post ()
 
         // For moving terrain only
         if (solverChoice.terrain_type != TerrainType::Static) {
-            MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
+            MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
 
@@ -1675,7 +1675,7 @@ ERF::MakeHorizontalAverages ()
             fab_arr(i, j, k, 1) = cons_arr(i, j, k, RhoTheta_comp) / dens;
             if (!use_moisture) {
                 if (is_anelastic) {
-                    fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
+                    fab_arr(i,j,k,2) = hse_arr(i,j,k,BaseState::p0_comp);
                 } else {
                     fab_arr(i,j,k,2) = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp));
                 }
@@ -1695,7 +1695,7 @@ ERF::MakeHorizontalAverages ()
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real dens = cons_arr(i, j, k, Rho_comp);
                 if (is_anelastic) {
-                    fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
+                    fab_arr(i,j,k,2) = hse_arr(i,j,k,BaseState::p0_comp);
                 } else {
                     Real qv = cons_arr(i, j, k, RhoQ1_comp) / dens;
                     fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);

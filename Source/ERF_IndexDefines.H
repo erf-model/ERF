@@ -59,6 +59,17 @@
 #define PrimQ5_comp      (RhoQ5_comp-1)
 #define PrimQ6_comp      (RhoQ6_comp-1)
 
+// Base state variables
+namespace BaseState {
+    enum {
+        r0_comp = 0,
+        p0_comp,
+        pi0_comp,
+        th0_comp,
+        num_comps
+    };
+}
+
 // NOTE: we still use this indexing even if no moisture
 // NOTE: We assume a single boundary condition for all passive scalars
 // NOTE:    and a single boundary condition for all components of the base state
