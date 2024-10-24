@@ -943,7 +943,7 @@ ERF::InitData_post ()
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         // For moving terrain only
-        if (solverChoice.terrain_type != TerrainType::Static) {
+        if (solverChoice.terrain_type == TerrainType::Moving) {
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
