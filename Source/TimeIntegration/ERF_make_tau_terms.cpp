@@ -52,8 +52,7 @@ void erf_make_tau_terms (int level, int nrk,
                                     tc.pbl_type == PBLType::YSU );
     const bool only_pbl         = ( (tc.les_type == LESType::None) &&
                                     (tc.pbl_type != PBLType::None) );
-    const bool use_KE           = ( (tc.les_type == LESType::Deardorff) ||
-                                    (tc.pbl_type == PBLType::MYNN25) );
+    const bool use_ddorf        = (tc.les_type == LESType::Deardorff);
 
     const bool use_most     = (most != nullptr);
     const bool exp_most     = (solverChoice.use_explicit_most);
@@ -236,7 +235,7 @@ void erf_make_tau_terms (int level, int nrk,
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (use_KE)) {
+                if ((nrk==0) && (use_ddorf)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -352,7 +351,7 @@ void erf_make_tau_terms (int level, int nrk,
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (use_KE)) {
+                if ((nrk==0) && (use_ddorf)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {

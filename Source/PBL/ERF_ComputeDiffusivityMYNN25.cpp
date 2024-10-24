@@ -12,7 +12,6 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const MultiFab& yvel,
                           const MultiFab& cons_in,
                           MultiFab& eddyViscosity,
-                          MultiFab& diss,
                           const Geometry& geom,
                           const TurbChoice& turbChoice,
                           std::unique_ptr<ABLMost>& most,
@@ -51,7 +50,6 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         const Box &bx = mfi.growntilebox(1);
         const Array4<Real const>& cell_data = cons_in.array(mfi);
         const Array4<Real      >& K_turb    = eddyViscosity.array(mfi);
-        const Array4<Real      >& diss_arr  = diss.array(mfi);
         const Array4<Real const>& uvel      = xvel.array(mfi);
         const Array4<Real const>& vvel      = yvel.array(mfi);
 
@@ -253,10 +251,6 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             }
 
             K_turb(i,j,k,EddyDiff::Turb_lengthscale) = Lm;
-
-            // NOTE: qvel is sqrt(2 * TKE)
-            diss_arr(i,j,k) = rho * std::pow(qvel(i,j,k),3.0) /
-                              (mynn.B1 * K_turb(i,j,k,EddyDiff::Turb_lengthscale));
         });
     }
 }

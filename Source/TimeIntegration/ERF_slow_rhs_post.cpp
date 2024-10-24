@@ -56,6 +56,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Vector<MultiFab>& S_data,
                         const MultiFab& S_prim,
                         Vector<MultiFab>& S_scratch,
+                        const MultiFab& xvel,
+                        const MultiFab& yvel,
                         const MultiFab& /*zvel*/,
                         const MultiFab& source,
                         const MultiFab* SmnSmn,
@@ -109,12 +111,16 @@ void erf_slow_rhs_post (int level, int finest_level,
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
 
+    const MultiFab* t_mean_mf = nullptr;
+    if (most) t_mean_mf = most->get_mac_avg(0,2);
+
     const bool l_use_terrain      = solverChoice.use_terrain;
     const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
+    const bool l_use_ddorf      = (tc.les_type == LESType::Deardorff);
     const bool l_use_KE         = ( (tc.les_type == LESType::Deardorff) ||
                                     (tc.pbl_type == PBLType::MYNN25) );
     const bool l_advect_KE      = (tc.use_KE && tc.advect_KE);
@@ -262,6 +268,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> avg_ymom = S_scratch[IntVars::ymom].array(mfi);
         Array4<Real> avg_zmom = S_scratch[IntVars::zmom].array(mfi);
 
+        const Array4<const Real> & u = xvel.array(mfi);
+        const Array4<const Real> & v = yvel.array(mfi);
+
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         const Array4<const Real>& z_nd         = l_use_terrain    ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
@@ -273,7 +282,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
         // SmnSmn for KE src with Deardorff
-        const Array4<const Real>& SmnSmn_a = l_use_KE ? SmnSmn->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& SmnSmn_a = l_use_ddorf ? SmnSmn->const_array(mfi) : Array4<const Real>{};
 
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
@@ -399,23 +408,24 @@ void erf_slow_rhs_post (int level, int finest_level,
                 }
 
                 if (l_use_diff) {
+                    const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
                     if (l_use_terrain) {
-                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, rot_most,
+                      DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, rot_most, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               grav_gpu, bc_ptr_d, use_most);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
                     } else {
-                        DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most,
+                      DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               grav_gpu, bc_ptr_d, use_most);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_most);
                     }
                 } // use_diff
             } // valid slow var

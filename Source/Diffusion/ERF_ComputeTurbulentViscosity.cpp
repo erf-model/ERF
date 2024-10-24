@@ -487,7 +487,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     }
 
     if (turbChoice.pbl_type == PBLType::MYNN25) {
-        ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity, Diss,
+        ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
                                  geom, turbChoice, most, use_moisture,
                                  level, bc_ptr, vert_only, z_phys_nd,
                                  solverChoice.RhoQv_comp, solverChoice.RhoQr_comp);

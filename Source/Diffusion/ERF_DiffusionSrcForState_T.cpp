@@ -44,6 +44,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         int start_comp, int num_comp,
                         const bool& exp_most,
                         const bool& rot_most,
+                        const Array4<const Real>& u,
+                        const Array4<const Real>& v,
                         const Array4<const Real>& cell_data,
                         const Array4<const Real>& cell_prim,
                         const Array4<Real>& cell_rhs,
@@ -71,6 +73,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
                         const int level,
+                        const Array4<const Real>& tm_arr,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
                         const bool use_most)
@@ -91,8 +94,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     Real l_inv_theta0    = 1.0 / turbChoice.theta_ref;
     Real l_abs_g         = std::abs(grav_gpu[2]);
 
-    bool l_use_KE = ( (turbChoice.les_type == LESType::Deardorff) ||
-                      (turbChoice.pbl_type == PBLType::MYNN25) );
+    bool l_use_ddorf = (turbChoice.les_type == LESType::Deardorff);
+    bool l_use_mynn  = (turbChoice.pbl_type == PBLType::MYNN25);
+
     bool l_consA  = (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = ( (turbChoice.les_type == LESType::Smagorinsky) ||
                       (turbChoice.les_type == LESType::Deardorff  ) ||
@@ -786,7 +790,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     //       The surface heat flux hfx_z(i,j,-1) is updated in MOSTStress at
     //       each RK stage if using the ERF_EXPLICIT_MOST_STRESS path, but that
     //       does not change the buoyancy production term here.
-    if (l_use_KE && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
+    if (l_use_ddorf && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
         int qty_index = RhoKE_comp;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -811,6 +815,35 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             // TKE dissipation
             cell_rhs(i,j,k,qty_index) -= diss(i,j,k);
+        });
+    }
+
+    // Using PBL
+    if (l_use_mynn && start_comp <= RhoKE_comp && end_comp >=RhoKE_comp) {
+        int qty_index = RhoKE_comp;
+        auto pbl_mynn_B1_l = turbChoice.pbl_mynn.B1;
+
+        const int rhoqv_comp = solverChoice.RhoQv_comp;
+        const int rhoqr_comp = solverChoice.RhoQr_comp;
+
+        ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
+            bool c_ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc].lo(5) == ERFBCType::ext_dir) );
+            bool u_ext_dir_on_zlo = ( (bc_ptr[BCVars::xvel_bc].lo(2) == ERFBCType::ext_dir) );
+            bool u_ext_dir_on_zhi = ( (bc_ptr[BCVars::xvel_bc].lo(5) == ERFBCType::ext_dir) );
+            bool v_ext_dir_on_zlo = ( (bc_ptr[BCVars::yvel_bc].lo(2) == ERFBCType::ext_dir) );
+            bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
+
+            // This computes shear production, buoyancy production, and dissipation terms only.
+            cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
+                                                                  mu_turb,cellSizeInv,domain,
+                                                                  pbl_mynn_B1_l,tm_arr(i,j,0),
+                                                                  rhoqv_comp, rhoqr_comp,
+                                                                  c_ext_dir_on_zlo, c_ext_dir_on_zhi,
+                                                                  u_ext_dir_on_zlo, u_ext_dir_on_zhi,
+                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
+                                                                  use_most);
         });
     }
 }
