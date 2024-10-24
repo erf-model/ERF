@@ -102,9 +102,9 @@
 
             } // mfi
 
-            MultiFab r_hse_new (base_state_new[level], make_alias, 0, 1); // r_0  is first  component
-            MultiFab p_hse_new (base_state_new[level], make_alias, 1, 1); // p_0  is second component
-            MultiFab pi_hse_new(base_state_new[level], make_alias, 2, 1); // pi_0 is second component
+            MultiFab r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
+            MultiFab p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
+            MultiFab pi_hse_new(base_state_new[level], make_alias, BaseState::pi0_comp, 1);
 
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;

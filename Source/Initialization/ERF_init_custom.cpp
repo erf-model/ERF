@@ -27,8 +27,8 @@ ERF::init_custom (int lev)
 {
     auto& lev_new = vars_new[lev];
 
-    MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
-    MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
+    MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
+    MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);
 
     MultiFab cons_pert(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
                        lev_new[Vars::cons].nComp()   , lev_new[Vars::cons].nGrow());

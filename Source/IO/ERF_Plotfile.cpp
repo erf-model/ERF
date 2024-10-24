@@ -349,17 +349,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp += 1;
         }
 
-        MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
-        MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
+        MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
+        MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);
         if (containerHasElement(plot_var_names, "pres_hse"))
         {
-            // p_0 is second component of base_state
             MultiFab::Copy(mf[lev],p_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
         if (containerHasElement(plot_var_names, "dens_hse"))
         {
-            // r_0 is first component of base_state
             MultiFab::Copy(mf[lev],r_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
@@ -531,7 +529,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                 if (solverChoice.anelastic[lev] == 1) {
                     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        p_arr(i,j,k) = hse_arr(i,j,k,1);
+                        p_arr(i,j,k) = hse_arr(i,j,k,BaseState::p0_comp);
                     });
                 } else {
                     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -625,7 +623,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                 if (solverChoice.anelastic[lev] == 1) {
                     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        p_arr(i,j,k) = hse_arr(i,j,k,1);
+                        p_arr(i,j,k) = hse_arr(i,j,k,BaseState::p0_comp);
                     });
                 } else {
                     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {

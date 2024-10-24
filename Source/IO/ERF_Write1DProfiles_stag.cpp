@@ -345,7 +345,7 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
     int nvars = vars_new[lev][Vars::cons].nComp();
     MultiFab mf_cons(vars_new[lev][Vars::cons], make_alias, 0, nvars);
 
-    MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
+    MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
 
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
 
