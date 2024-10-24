@@ -129,9 +129,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
 
-    const MultiFab* t_mean_mf = nullptr;
-    if (most) t_mean_mf = most->get_mac_avg(0,2);
-
     int start_comp = 0;
     int   num_comp = 2;
     int   end_comp = start_comp + num_comp - 1;
@@ -491,8 +488,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Array4<Real> q2fx_z = (Q2fx3) ? Q2fx3->array(mfi) : Array4<Real>{};
             Array4<Real> diss  = Diss->array(mfi);
-
-            const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
             // NOTE: No diffusion for continuity, so n starts at 1.
             int n_start = amrex::max(start_comp,RhoTheta_comp);

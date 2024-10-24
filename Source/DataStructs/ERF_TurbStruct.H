@@ -76,6 +76,13 @@ struct TurbChoice {
             }
         }
 
+        // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
+        if (pbl_type == PBLType::MYNN25) {
+            use_KE = true;
+            query_one_or_per_level(pp, "advect_KE"    , advect_KE, lev, max_level);
+            query_one_or_per_level(pp, "diffuse_KE_3D", diffuse_KE_3D, lev, max_level);
+        }
+
         // LES constants...
         query_one_or_per_level(pp, "Cs"  ,Cs, lev, max_level);
         query_one_or_per_level(pp, "CI"  ,CI, lev, max_level);
@@ -194,5 +201,10 @@ struct TurbChoice {
     bool        pbl_ysu_force_over_water = false; // Force YSU to act as if it is over water regardless of other inputs (for testing)
     amrex::Real pbl_ysu_land_Ribcr = 0.25; // Critical Bulk Richardson number of Land for stable conditions
     amrex::Real pbl_ysu_unst_Ribcr = 0.0;  // Critical Bulk Richardson number for unstable conditions
+
+    // QKE stuff - default is to use it, if MYNN2.5 PBL is used default is turb transport in Z-direction only
+    bool use_KE = true;
+    bool diffuse_KE_3D = true;
+    bool advect_KE = true;
 };
 #endif

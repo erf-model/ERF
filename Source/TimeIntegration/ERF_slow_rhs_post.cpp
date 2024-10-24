@@ -56,8 +56,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Vector<MultiFab>& S_data,
                         const MultiFab& S_prim,
                         Vector<MultiFab>& S_scratch,
-                        const MultiFab& xvel,
-                        const MultiFab& yvel,
                         const MultiFab& /*zvel*/,
                         const MultiFab& source,
                         const MultiFab* SmnSmn,
@@ -111,9 +109,6 @@ void erf_slow_rhs_post (int level, int finest_level,
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
 
-    const MultiFab* t_mean_mf = nullptr;
-    if (most) t_mean_mf = most->get_mac_avg(0,2);
-
     const bool l_use_terrain      = solverChoice.use_terrain;
     const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::Moving);
@@ -122,6 +117,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_use_KE         = ( (tc.les_type == LESType::Deardorff) ||
                                     (tc.pbl_type == PBLType::MYNN25) );
+    const bool l_advect_KE      = (tc.use_KE && tc.advect_KE);
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
                                    (tc.pbl_type        !=       PBLType::None) );
@@ -266,9 +262,6 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> avg_ymom = S_scratch[IntVars::ymom].array(mfi);
         Array4<Real> avg_zmom = S_scratch[IntVars::zmom].array(mfi);
 
-        const Array4<const Real> & u = xvel.array(mfi);
-        const Array4<const Real> & v = yvel.array(mfi);
-
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         const Array4<const Real>& z_nd         = l_use_terrain    ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
@@ -393,11 +386,19 @@ void erf_slow_rhs_post (int level, int finest_level,
                     num_comp = 1;
                 }
 
+                if (( ivar != RhoKE_comp                 ) ||
+                    ((ivar == RhoKE_comp) && l_advect_KE))
+                {
+                    AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                           cur_cons, cur_prim, cell_rhs,
+                                           l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                           detJ_arr, dxInv, mf_m,
+                                           horiz_adv_type, vert_adv_type,
+                                           horiz_upw_frac, vert_upw_frac,
+                                           flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                }
+
                 if (l_use_diff) {
-
-                    const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) :
-                                                                  Array4<const Real>{};
-
                     if (l_use_terrain) {
                         DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, rot_most,
                                                new_cons, cur_prim, cell_rhs,
