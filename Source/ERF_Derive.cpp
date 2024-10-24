@@ -196,27 +196,6 @@ erf_derKE (const Box& bx,
     erf_derrhodivide(bx, derfab, datfab, RhoKE_comp);
 }
 
-/**
- * Function to define QKE by dividing (rho QKE) by rho
- *
- * @params[in] bx box on which to divide by density
- * @params[out] derfab array of derived quantity -- here it holds QKE
- * @params[in] datfab array of data used to construct derived quantity
-*/
-void
-erf_derQKE (const Box& bx,
-            FArrayBox& derfab,
-            int /*dcomp*/,
-            int /*ncomp*/,
-            const FArrayBox& datfab,
-            const Geometry& /*geomdata*/,
-            Real /*time*/,
-            const int* /*bcrec*/,
-            const int /*level*/)
-{
-    erf_derrhodivide(bx, derfab, datfab, RhoQKE_comp);
-}
-
 void
 erf_dervortx (
   const amrex::Box& bx,

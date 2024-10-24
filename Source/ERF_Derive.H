@@ -89,17 +89,6 @@ void erf_derKE (
   const int* bcrec,
   const int level);
 
-void erf_derQKE (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int ncomp,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& geomdata,
-  amrex::Real time,
-  const int* bcrec,
-  const int level);
-
 void erf_dervortx (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,

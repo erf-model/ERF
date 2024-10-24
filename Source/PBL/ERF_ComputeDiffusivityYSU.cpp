@@ -238,7 +238,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 const Real rhoKmax = rho * Kmax;
                 K_turb(i,j,k,EddyDiff::Mom_v) = std::max(std::min(K_turb(i,j,k,EddyDiff::Mom_v) ,rhoKmax), rhoKmin);
                 K_turb(i,j,k,EddyDiff::Theta_v) = std::max(std::min(K_turb(i,j,k,EddyDiff::Theta_v) ,rhoKmax), rhoKmin);
-                K_turb(i,j,k,EddyDiff::PBL_lengthscale) = pblh_arr(i,j,0);
+                K_turb(i,j,k,EddyDiff::Turb_lengthscale) = pblh_arr(i,j,0);
             });
 
             // HACK set bottom ghost cell to 1st cell

@@ -51,7 +51,7 @@ EWP::update (const Real& dt_advance,
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            cons_array(i,j,k,RhoQKE_comp) = cons_array(i,j,k,RhoQKE_comp) + ewp_array(i,j,k,2)*dt_advance;
+            cons_array(i,j,k,RhoKE_comp) = cons_array(i,j,k,RhoKE_comp) + ewp_array(i,j,k,2)*dt_advance;
         });
     }
 }

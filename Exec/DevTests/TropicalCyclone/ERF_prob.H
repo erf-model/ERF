@@ -8,7 +8,7 @@
 #include "ERF_prob_common.H"
 
 struct ProbParm : ProbParmDefaults {
-    amrex::Real QKE_0   = 0.1;
+    amrex::Real KE_0   = 0.1;
 
     amrex::Real Xc_0  = 0.0;
     amrex::Real Yc_0  = 0.0;

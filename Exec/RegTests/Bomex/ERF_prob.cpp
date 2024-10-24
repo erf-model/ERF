@@ -17,7 +17,7 @@ Problem::Problem (const Real* problo, const Real* probhi)
     pp.query("rho_0", parms.rho_0);
     pp.query("T_0", parms.T_0);
     pp.query("A_0", parms.A_0);
-    pp.query("QKE_0", parms.KE_0);
+    pp.query("KE_0", parms.KE_0);
 
     pp.query("U_0", parms.U_0);
     pp.query("V_0", parms.V_0);
@@ -129,7 +129,7 @@ Problem::init_custom_pert (
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * exp(-10.*r*r);
 
-        // Set an initial value for QKE
+        // Set an initial value for KE
         if (parms_d.custom_TKE) {
             state_pert(i, j, k, RhoKE_comp) = (1.0 - z/prob_hi[2]) * r_hse(i,j,k);
         } else {

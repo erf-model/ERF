@@ -17,7 +17,6 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("T_0", parms.T_0);
   pp.query("A_0", parms.A_0);
   pp.query("KE_0", parms.KE_0);
-  pp.query("QKE_0", parms.QKE_0);
   pp.query("KE_decay_height", parms.KE_decay_height);
   pp.query("KE_decay_order", parms.KE_decay_order);
 
@@ -131,16 +130,6 @@ Problem::init_custom_pert(
         if (parms_d.KE_decay_height > 0) {
             // scale initial SGS kinetic energy with height
             state_pert(i, j, k, RhoKE_comp) *= max(
-                std::pow(1 - min(z/parms_d.KE_decay_height,1.0), parms_d.KE_decay_order),
-                1e-12);
-        }
-    }
-    if (state_pert.nComp() > RhoQKE_comp) {
-        // PBL
-        state_pert(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * parms_d.QKE_0;
-        if (parms_d.KE_decay_height > 0) {
-            // scale initial SGS kinetic energy with height
-            state_pert(i, j, k, RhoQKE_comp) *= max(
                 std::pow(1 - min(z/parms_d.KE_decay_height,1.0), parms_d.KE_decay_order),
                 1e-12);
         }

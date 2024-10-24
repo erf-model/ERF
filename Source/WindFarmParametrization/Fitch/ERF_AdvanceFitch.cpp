@@ -91,7 +91,7 @@ Fitch::update (const Real& dt_advance,
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            cons_array(i,j,k,RhoQKE_comp) = cons_array(i,j,k,RhoQKE_comp) + fitch_array(i,j,k,4)*dt_advance;
+            cons_array(i,j,k,RhoKE_comp) = cons_array(i,j,k,RhoKE_comp) + fitch_array(i,j,k,4)*dt_advance;
         });
     }
 }

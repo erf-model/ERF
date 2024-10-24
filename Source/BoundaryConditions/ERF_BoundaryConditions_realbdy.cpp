@@ -40,7 +40,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                              0, 0, 0,
                              0, 0};
     Vector<int> cons_map = {Rho_comp,    RealBdyVars::T, RhoKE_comp,
-                            RhoQKE_comp, RhoScalar_comp, RealBdyVars::QV,
+                            RhoScalar_comp, RealBdyVars::QV,
                             RhoQ2_comp,  RhoQ3_comp,     RhoQ4_comp,
                             RhoQ5_comp,  RhoQ6_comp};
 

@@ -201,16 +201,16 @@ ComputeQKESourceTerms (int i, int j, int k,
     // DiffusionSrcForState_* is called from ERF_slow_rhs_post.
 
     // Shear Production
-    source_term += 2.0*K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
+    source_term += K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
 
     // Buoyancy Production
-    source_term -= 2.0*(CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
+    source_term -= (CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
 
     // Dissipation
-    amrex::Real qke = cell_prim(i,j,k,PrimQKE_comp);
+    amrex::Real qke = 2.0 * cell_prim(i,j,k,PrimKE_comp);
     if (std::abs(qke) > 0.0) {
-        source_term -= 2.0 * cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
-            (pbl_mynn_B1_l * K_turb(i,j,k,EddyDiff::PBL_lengthscale));
+        source_term -= cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
+                       (pbl_mynn_B1_l * K_turb(i,j,k,EddyDiff::Turb_lengthscale));
     }
 
     return source_term;
