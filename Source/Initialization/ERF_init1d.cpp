@@ -262,59 +262,66 @@ ERF::erf_enforce_hse (int lev,
             }
         });
 
+        bool is_periodic_in_x = geom[lev].isPeriodic(0);
+        bool is_periodic_in_y = geom[lev].isPeriodic(1);
+
         int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0);
         int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1);
 
-        if (pres[mfi].box().smallEnd(0) < domlo_x)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            int ng = ngvect[0];
-            bx.setSmall(0,domlo_x-1);
-            bx.setBig(0,domlo_x-ng);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
-                  pi_arr(i,j,k) =   pi_arr(domlo_x,j,k);
-                  th_arr(i,j,k) =   th_arr(domlo_x,j,k);
-            });
+        if (!is_periodic_in_x) {
+            if (pres[mfi].box().smallEnd(0) < domlo_x) {
+                Box bx = mfi.nodaltilebox(2);
+                int ng = ngvect[0];
+                bx.setSmall(0,domlo_x-1);
+                bx.setBig(0,domlo_x-ng);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
+                      pi_arr(i,j,k) =   pi_arr(domlo_x,j,k);
+                      th_arr(i,j,k) =   th_arr(domlo_x,j,k);
+                });
         }
 
-        if (pres[mfi].box().bigEnd(0) > domhi_x)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            int ng = ngvect[0];
-            bx.setSmall(0,domhi_x+1);
-            bx.setBig(0,domhi_x+ng);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(domhi_x,j,k);
-                  pi_arr(i,j,k) =   pi_arr(domhi_x,j,k);
-                  th_arr(i,j,k) =   th_arr(domhi_x,j,k);
-            });
+            if (pres[mfi].box().bigEnd(0) > domhi_x) {
+                Box bx = mfi.nodaltilebox(2);
+                int ng = ngvect[0];
+                bx.setSmall(0,domhi_x+1);
+                bx.setBig(0,domhi_x+ng);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    pres_arr(i,j,k) = pres_arr(domhi_x,j,k);
+                      pi_arr(i,j,k) =   pi_arr(domhi_x,j,k);
+                      th_arr(i,j,k) =   th_arr(domhi_x,j,k);
+                });
+            }
         }
 
-        if (pres[mfi].box().smallEnd(1) < domlo_y)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            int ng = ngvect[1];
-            bx.setSmall(1,domlo_y-ng);
-            bx.setBig(1,domlo_y-1);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(i,domlo_y,k);
-                  pi_arr(i,j,k) =   pi_arr(i,domlo_y,k);
-                  th_arr(i,j,k) =   th_arr(i,domlo_y,k);
-            });
-        }
+        if (!is_periodic_in_y) {
+            if (pres[mfi].box().smallEnd(1) < domlo_y) {
+                Box bx = mfi.nodaltilebox(2);
+                int ng = ngvect[1];
+                bx.setSmall(1,domlo_y-ng);
+                bx.setBig(1,domlo_y-1);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    pres_arr(i,j,k) = pres_arr(i,domlo_y,k);
+                      pi_arr(i,j,k) =   pi_arr(i,domlo_y,k);
+                      th_arr(i,j,k) =   th_arr(i,domlo_y,k);
+                });
+            }
 
-        if (pres[mfi].box().bigEnd(1) > domhi_y)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            int ng = ngvect[1];
-            bx.setSmall(1,domhi_y+1);
-            bx.setBig(1,domhi_y+ng);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(i,domhi_y,k);
-                  pi_arr(i,j,k) =   pi_arr(i,domhi_y,k);
-                  th_arr(i,j,k) =   th_arr(i,domhi_y,k);
-            });
+            if (pres[mfi].box().bigEnd(1) > domhi_y) {
+                Box bx = mfi.nodaltilebox(2);
+                int ng = ngvect[1];
+                bx.setSmall(1,domhi_y+1);
+                bx.setBig(1,domhi_y+ng);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    pres_arr(i,j,k) = pres_arr(i,domhi_y,k);
+                      pi_arr(i,j,k) =   pi_arr(i,domhi_y,k);
+                      th_arr(i,j,k) =   th_arr(i,domhi_y,k);
+                });
+            }
         }
     }
 
