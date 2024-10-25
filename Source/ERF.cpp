@@ -722,8 +722,10 @@ ERF::InitData_post ()
         restart();
 
         // Create the physbc objects for {cons, u, v, w, base state}
+        // We fill the additional base state ghost cells just in case we have read the old format
         for (int lev(0); lev <= max_level; ++lev) {
             make_physbcs(lev);
+            (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
         }
     }
 

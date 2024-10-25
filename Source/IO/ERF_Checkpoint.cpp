@@ -415,7 +415,6 @@ ERF::ReadCheckpointFile ()
                 });
             }
         }
-        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         if (solverChoice.use_terrain)  {
