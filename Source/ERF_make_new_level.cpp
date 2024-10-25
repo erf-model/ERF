@@ -364,7 +364,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                            BCVars::base_bc);
 
         // Impose bc's outside the domain
-        (*physbcs_base[lev])(temp_base_state,icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
+        (*physbcs_base[lev])(temp_base_state,icomp,ncomp,base_state[lev].nGrowVect());
 
         std::swap(temp_base_state, base_state[lev]);
     }
