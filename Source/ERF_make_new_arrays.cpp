@@ -28,11 +28,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0 (in that order)
     // ********************************************************************************************
-    tmp_base_state.define(ba,dm,3,1);
+    tmp_base_state.define(ba,dm,BaseState::num_comps,3);
     tmp_base_state.setVal(0.);
 
-    if (solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::Static) {
-        base_state_new[lev].define(ba,dm,3,1);
+    if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Moving) {
+        base_state_new[lev].define(ba,dm,BaseState::num_comps,3);
         base_state_new[lev].setVal(0.);
     }
 
@@ -42,7 +42,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.use_terrain) {
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
-        if (solverChoice.terrain_type != TerrainType::Static)
+        if (solverChoice.terrain_type == TerrainType::Moving)
         {
             detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
             detJ_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
@@ -65,7 +65,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 2;
         tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
 
-        if (solverChoice.terrain_type != TerrainType::Static) {
+        if (solverChoice.terrain_type == TerrainType::Moving) {
             z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
             z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
         }
@@ -147,6 +147,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
     // We do this here just so they won't be undefined in the initial FillPatch
+    rU_old[lev].setVal(1.2e21);
+    rV_old[lev].setVal(3.4e22);
+    rW_old[lev].setVal(5.6e23);
     rU_new[lev].setVal(1.2e21);
     rV_new[lev].setVal(3.4e22);
     rW_new[lev].setVal(5.6e23);
@@ -236,7 +239,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         vars_windfarm[lev].define(ba, dm, 2, ngrow_state);// dudt, dvdt
     }
     if (solverChoice.windfarm_type == WindFarmType::GeneralAD) {
-        vars_windfarm[lev].define(ba, dm, 2, ngrow_state);// dudt, dvdt
+        vars_windfarm[lev].define(ba, dm, 3, ngrow_state);// dudt, dvdt, dwdt
     }
         Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
         SMark[lev].define(ba, dm, 2, ngrow_state); // Free stream velocity/source term
@@ -442,7 +445,7 @@ ERF::init_zphys (int lev, Real time)
 {
     if (solverChoice.use_terrain)
     {
-        if (init_type != "real" && init_type != "metgrid")
+        if (init_type != InitType::Real && init_type != InitType::Metgrid)
         {
             if (lev > 0) {
                 //

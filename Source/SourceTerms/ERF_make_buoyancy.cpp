@@ -92,7 +92,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
         // ******************************************************************************************
         if (solverChoice.moisture_type == MoistureType::None)
         {
-
           if (solverChoice.buoyancy_type == 1) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -119,11 +118,14 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             } // mfi
 
           }
-#if 0
-          else
+          else // (buoyancy_type != 1)
           {
-            // We use the base state rather than planar average because we don't want to average over
-            // the limited region of the fine level
+            // We now use the base state rather than planar average because
+            //     1) we don't want to average over the limited region of the fine level if doing multilevel.
+            //     2) it's cheaper to use the base state than to compute the horizontal averages
+            //     3) when running in a smallish domain, the horizontal average may evolve over time,
+            //        which is not necessarily the intended behavior
+            //
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -147,7 +149,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     Real rt0_hi = getRhoThetagivenP(p0_arr(i,j,k));
                     Real  t0_hi = getTgivenPandTh(p0_arr(i,j,k), rt0_hi/r0_arr(i,j,k), rd_over_cp);
                     Real   t_hi = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
-                    Real qplus   = (t_hi-t0_hi)/t0_hi;
+                    Real qplus  = (t_hi-t0_hi)/t0_hi;
 
                     Real rt0_lo = getRhoThetagivenP(p0_arr(i,j,k-1));
                     Real  t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), rt0_lo/r0_arr(i,j,k-1), rd_over_cp);
@@ -158,61 +160,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     buoyancy_fab(i, j, k) = -r0_q_avg * grav_gpu[2];
                 });
             } // mfi
-          }
-#else
-          else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3)
-          {
-            PlaneAverage state_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane);
-            PlaneAverage prim_ave(&S_prim, geom, solverChoice.ave_plane);
-
-            int ncell = state_ave.ncell_line();
-
-            state_ave.compute_averages(ZDir(), state_ave.field());
-            prim_ave.compute_averages(ZDir(), prim_ave.field());
-
-            Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell);
-            state_ave.line_average(Rho_comp, rho_h);
-            prim_ave.line_average(PrimTheta_comp, theta_h);
-
-            Gpu::DeviceVector<Real>   rho_d(ncell);
-            Gpu::DeviceVector<Real> theta_d(ncell);
-
-            Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
-            Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
-
-            Real*   rho_d_ptr =   rho_d.data();
-            Real* theta_d_ptr = theta_d.data();
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                Box tbz = mfi.tilebox();
-
-                // We don't compute a source term for z-momentum on the bottom or top boundary
-                if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
-                if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
-
-                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
-                const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
-
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
-                    Real tempp3d = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
-                    Real qplus   = (tempp3d-tempp1d)/tempp1d;
-
-                    Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);
-                    Real tempm3d = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
-                    Real qminus  = (tempm3d-tempm1d)/tempm1d;
-
-                    Real r0_q_avg = Real(0.5) * (rho_d_ptr[k]*qplus + rho_d_ptr[k-1]*qminus);
-
-                    buoyancy_fab(i, j, k) = -r0_q_avg * grav_gpu[2];
-                });
-            } // mfi
-#endif
           } // buoyancy_type
         } // moisture type
         else
@@ -224,7 +171,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
           if ( (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ||
                (solverChoice.moisture_type == MoistureType::SAM)            ||
                (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) )
-           {
+          {
               AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
           }
 
@@ -269,7 +216,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
             // Compute horizontal averages of all components of each field
             state_ave.compute_averages(ZDir(), state_ave.field());
-             prim_ave.compute_averages(ZDir(), prim_ave.field());
+            prim_ave.compute_averages(ZDir(), prim_ave.field());
 
             int ncell = state_ave.ncell_line();
 
@@ -290,7 +237,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             Gpu::DeviceVector<Real> qv_d(ncell,0.0), qc_d(ncell,0.0), qp_d(ncell,0.0);
             if (n_qstate >=1) {
                 prim_ave.line_average(PrimQ1_comp, qv_h);
-                Gpu::copyAsync(Gpu::hostToDevice,  qv_h.begin(), qv_h.end(), qv_d.begin());
+               Gpu::copyAsync(Gpu::hostToDevice,  qv_h.begin(), qv_h.end(), qv_d.begin());
             }
             if (n_qstate >=2) {
                 prim_ave.line_average(PrimQ2_comp, qc_h);
@@ -305,6 +252,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             Real* qp_d_ptr = qp_d.data();
 
             if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 4 ) {
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif

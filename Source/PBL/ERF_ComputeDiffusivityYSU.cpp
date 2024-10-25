@@ -121,7 +121,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 while (!above_critical and bx.contains(i,j,kpbl+1)) {
                     kpbl += 1;
                     const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + 0.5)*gdata.CellSize(2);
-                    const Real ws2_level = 0.25*((uvel(i,j,kpbl)+uvel(i+1,j,kpbl))*(uvel(i,j,kpbl)+uvel(i+1,j,kpbl)) + (vvel(i,j,kpbl)+vvel(i,j+1,kpbl))*(uvel(i,j,kpbl)+uvel(i,j+1,kpbl)));
+                    const Real ws2_level = 0.25*( (uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))*(uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))
+                                                + (vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl))*(vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl)) );
                     const Real theta = cell_data(i,j,kpbl,RhoTheta_comp) / cell_data(i,j,kpbl,Rho_comp);
                     Rib_dn = Rib_up;
                     Rib_up = (theta-base_theta)/base_theta * CONST_GRAV * zval / ws2_level;

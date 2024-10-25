@@ -120,7 +120,7 @@ This expression for buoyancy is from `khairoutdinov2003cloud`_ and `bryan2002ben
 .. math::
 
     \begin{equation}
-    \mathbf{B} = \rho'\mathbf{g} \approx -\rho\Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg),
+    \mathbf{B} = \rho'\mathbf{g} \approx -\rho\Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg)\mathbf{g},
     \end{equation}
 
 The derivation follows. The total density is given by :math:`\rho = \rho_d(1 + q_v + q_c + q_p)`, which can be written as

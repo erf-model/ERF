@@ -23,11 +23,21 @@ Governing Equations
 |                          | equations (instead of       |               |             |
 |                          | the compressible equations) |               |             |
 +--------------------------+-----------------------------+---------------+-------------+
+| **erf.use_fft**          | use FFT rather than         | true / false  | false       |
+|                          | multigrid to solve the      |               |             |
+|                          | the Poisson equations       |               |             |
++--------------------------+-----------------------------+---------------+-------------+
+| **erf.mg_v**             | verbosity of the multigrid  | Integer >= 0  | 0           |
+|                          | solver if used              |               |             |
+|                          | the Poisson equations       |               |             |
++--------------------------+-----------------------------+---------------+-------------+
 
 .. note::
 
-   To solve the anelastic equations, you must set ERF_USE_POISSON_SOLVE = TRUE if using
-   gmake or ERF_ENABLE_POISSON_SOLVE if using cmake.
+   To solve the anelastic equations, you must set USE_POISSON_SOLVE = TRUE if using
+   gmake or ERF_ENABLE_POISSON_SOLVE if using cmake.  This will enable use of the
+   AMReX-based Poisson solver.   To optionally use the FFT solver, you must additionally
+   set USE_FFT = TRUE if using gmake.
 
 Problem Geometry
 ================
@@ -428,9 +438,8 @@ List of Parameters
 |                            | cfl or other         |                |                   |
 |                            | settings             |                |                   |
 +----------------------------+----------------------+----------------+-------------------+
-| **erf.fixed_fast_dt**      | set fast dt          | Real > 0       | only relevant     |
-|                            | as this value        |                | if use_native_mri |
-|                            |                      |                | is true           |
+| **erf.fixed_fast_dt**      | set fast dt          | Real > 0       |                   |
+|                            | as this value        |                |                   |
 +----------------------------+----------------------+----------------+-------------------+
 | **erf.fixed_mri_dt_ratio** | set fast dt          | even int > 0   | only relevant     |
 |                            | as slow dt /         |                | if no_substepping |
@@ -717,6 +726,74 @@ The requested output files have the following columns:
   #. *SGS cloud water flux*, :math:`\tau_{q_c w}` (K m/s) -- *staggered*
 
   #. SGS turbulence dissipation, :math:`\epsilon` (m2/s3)
+
+
+Data Sampling Outputs
+==================
+
+Data along query lines or planes may be output during the simulation if
+``erf.do_line_sampling = true`` or  ``erf.do_plane_sampling = true``, respectively.
+The potential temperature and wind-speed will be written to native ``plt_line/plane``
+at the step frequency dictated by ``erf.sampler_interval = <int>``. For line sampling,
+users must prescribe ``sample_line_lo`` and ``sample_line_hi`` inputs which are 3 integer
+values corresponding to the (i,j,k) indices at the beginning and end of the line.
+Additionally, users must specify ``sample_line_dir`` to prescribed the direction of
+the line. The same inputs are used for the plane sampling except that ``sample_plane_lo/hi``
+must be the physical locations of the plane corners. This output functionality has
+not been implemented for terrain.
+
+.. _list-of-parameters-10b:
+
+
+List of Parameters
+------------------
+
++-------------------------------+------------------+----------------+----------------+
+| Parameter                     | Definition       | Acceptable     | Default        |
+|                               |                  | Values         |                |
++===============================+==================+================+================+
+| **erf.sampler_interval**      | Output           | Integer        | -1             |
+|                               | frequency        |                |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.do_line_sampling**      | Flag to do line  | Boolean        | false          |
+|                               | sampling         |                |                |
+|                               |                  |                |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.do_plane_sampling**     | Flag to do plane | Boolean        | false          |
+|                               | sampling         |                |                |
+|                               |                  |                |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.sample_line_dir**       | Directionality   | Integer        | None           |
+|                               | of the line      |                |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.sample_plane_dir**      | Directionality   | Integer        | None           |
+|                               | of the plane     |                |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.sample_line_lo/hi**     | Bounding (i,j,k) | 3 Integers per | None           |
+|                               | on the line(s)   | line           |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.sample_plane_lo/hi**    | Bounding point   | 3 Reals per    | None           |
+|                               | on the plane(s)  | plane          |                |
++-------------------------------+------------------+----------------+----------------+
+
+.. _examples-of-usage-10b:
+
+Example of Usage
+-----------------
+
+::
+
+   erf.sampler_interval = 1                  # Write plt files every step
+
+   erf.do_line_sampling = true               # Do line sampling
+   erf.sample_line_lo   = 5 32  5 10   32 5  # Lo points for two lines
+   erf.sample_line_hi   = 5 32 25 1000 32 5  # Hi points for two lines
+   erf.sample_line_dir  = 2 0                # One line in z and one in x
+
+   erf.do_plane_sampling = true              # Do plane sampling
+   erf.sample_plane_lo   =  48.0  48.0  32.0 # Lo points for one plane
+   erf.sample_plane_hi   = 320.0 320.0  32.0 # Hi points for one plane
+   erf.sample_plane_dir  = 2                 # One plane with z normal
 
 
 Advection Schemes
@@ -1154,7 +1231,8 @@ integrating the hydrostatic equation from the surface.
 
 If **erf.init_type = custom** or **erf.init_type = input_sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
 
-Setting **erf.project_initial_velocity = 1** will have no effect if the code is not built with **ERF_USE_POISSON_SOLVE** defined.
+Setting **erf.project_initial_velocity = 1** will have no effect if the code is not built with **ERF_USE_POISSON_SOLVE** defined
+if using cmake or with **USE_POISSON_SOLVE = TRUE** if using gmake.
 
 Map Scale Factors
 =================

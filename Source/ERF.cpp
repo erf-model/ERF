@@ -14,14 +14,6 @@
 #include <ERF_TerrainMetrics.H>
 #include <memory>
 
-#ifdef ERF_USE_MULTIBLOCK
-#ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
-#include <ERF_MultiBlockContainer.H>
-#else
-#include <MultiBlockContainer.H>
-#endif
-#endif
-
 using namespace amrex;
 
 Real ERF::startCPUTime        = 0.0;
@@ -40,7 +32,7 @@ int  ERF::fixed_mri_dt_ratio = 0;
 // Dictate verbosity in screen output
 int ERF::verbose        = 0;
 int  ERF::mg_verbose    = 0;
-bool ERF::use_heffte    = false;
+bool ERF::use_fft       = false;
 
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
@@ -51,10 +43,9 @@ int  ERF::pert_interval = -1;
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
-// init_type:  "uniform", "ideal", "real", "input_sounding", "metgrid" or ""
-std::string ERF::init_type;
+InitType ERF::init_type;
 
-// use_real_bcs: only true if 1) ( (init_type == real) or (init_type == metgrid) )
+// use_real_bcs: only true if 1) ( (init_type == InitType::Real) or (init_type == InitGrid::Metgrid) )
 //                        AND 2) we want to use the bc's from the WRF bdy file
 bool ERF::use_real_bcs;
 
@@ -550,6 +541,12 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       }
     }
 
+    // Write plane/line sampler data
+    if (is_it_time_for_action(nstep, time, dt_lev0, sampler_interval, sampler_per) && (data_sampler) ) {
+        data_sampler->get_sample_data(geom, vars_new);
+        data_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    }
+
     // Moving terrain
     if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
     {
@@ -558,7 +555,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         // Copy z_phs_nd and detJ_cc at end of timestep
         MultiFab::Copy(*z_phys_nd[lev], *z_phys_nd_new[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
         MultiFab::Copy(  *detJ_cc[lev],   *detJ_cc_new[lev], 0, 0, 1,   detJ_cc[lev]->nGrowVect());
-        MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,3,1);
+        MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
 
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
@@ -571,17 +568,6 @@ ERF::InitData ()
 {
     BL_PROFILE_VAR("ERF::InitData()", InitData);
     InitData_pre();
-#if 0
-#ifdef ERF_USE_MULTIBLOCK
-#ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
-        // Multiblock: hook to set BL & comms once ba/dm are known
-        if(domain_p[0].bigEnd(0) < 500 ) {
-            m_mbc->SetBoxLists();
-            m_mbc->SetBlockCommMetaData();
-        }
-#endif
-#endif
-#endif
     InitData_post();
     BL_PROFILE_VAR_STOP(InitData);
 }
@@ -632,7 +618,7 @@ ERF::InitData_post ()
 {
     if (restart_chkfile.empty()) {
         if (solverChoice.use_terrain) {
-            if (init_type == "ideal") {
+            if (init_type == InitType::Ideal) {
                 Abort("We do not currently support init_type = ideal with terrain");
             }
         }
@@ -740,17 +726,6 @@ ERF::InitData_post ()
         // Create the physbc objects for {cons, u, v, w, base state}
         for (int lev(0); lev <= max_level; ++lev) {
             make_physbcs(lev);
-        }
-
-        // TODO: Check if this is needed. I don't think it is since we now
-        //       advect all the scalars...
-
-        // Need to fill ghost cells here since we will use this qmoist in advance
-        if (solverChoice.moisture_type != MoistureType::None)
-        {
-            for (int lev = 0; lev <= finest_level; lev++) {
-                if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0])); // qv component
-            }
         }
     }
 
@@ -867,7 +842,7 @@ ERF::InitData_post ()
         solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
     {
         initRayleigh();
-        if (init_type == "input_sounding")
+        if (init_type == InitType::Input_Sounding)
         {
             // Overwrite ubar, vbar, and thetabar with input profiles;
             // wbar is assumed to be 0. Note: the tau coefficient set by
@@ -987,8 +962,8 @@ ERF::InitData_post ()
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         // For moving terrain only
-        if (solverChoice.terrain_type != TerrainType::Static) {
-            MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
+        if (solverChoice.terrain_type == TerrainType::Moving) {
+            MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
 
@@ -1220,6 +1195,11 @@ ERF::InitData_post ()
 
     }
 
+    // Create object to do line and plane sampling if needed
+    bool do_line = false; bool do_plane = false;
+    pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
+    if (do_line || do_plane) { data_sampler = std::make_unique<SampleData>(do_line, do_plane); }
+
 #ifdef ERF_USE_EB
     bool write_eb_surface = false;
     pp.query("write_eb_surface", write_eb_surface);
@@ -1302,7 +1282,7 @@ ERF::init_only (int lev, Real time)
     // Map the words in the inputs file to BC types, then translate
     //     those types into what they mean for each variable
     // This must be called before initHSE (where the base state is initialized)
-    if (lev == 0 && init_type != "ideal") {
+    if (lev == 0 && init_type != InitType::Ideal) {
         init_bcs();
     }
 
@@ -1319,14 +1299,18 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::zvel].setVal(0.0); lev_old[Vars::zvel].setVal(0.0);
 
     // Initialize background flow (optional)
-    if (init_type == "input_sounding") {
+    if (init_type == InitType::Input_Sounding) {
         // The base state is initialized by integrating vertically through the
         // input sounding, if the init_sounding_ideal flag is set; otherwise
         // it is set by initHSE()
-        init_from_input_sounding(lev);
 
         // The physbc's need the terrain but are needed for initHSE
+        // We have already made the terrain in the call to init_zphys
+        //    in MakeNewLevelFromScratch
         make_physbcs(lev);
+
+        // Now init the base state and the data itself
+        init_from_input_sounding(lev);
 
         if (init_sounding_ideal) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
@@ -1336,23 +1320,23 @@ ERF::init_only (int lev, Real time)
         }
 
 #ifdef ERF_USE_NETCDF
-    } else if (init_type == "ideal" || init_type == "real") {
+    } else if (init_type == InitType::Ideal || init_type == InitType::Real) {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
         init_from_wrfinput(lev);
 
         // The physbc's need the terrain but are needed for initHSE
-        if (init_type == "ideal") {
+        if (init_type == InitType::Ideal) {
             make_physbcs(lev);
             initHSE(lev);
         }
 
-    } else if (init_type == "metgrid") {
+    } else if (init_type == InitType::Metgrid) {
         // The base state is initialized from data output by WPS metgrid;
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    } else if (init_type == "uniform") {
+    } else if (init_type == InitType::Uniform) {
         // Initialize a uniform background field and base state based on the
         // problem-specified reference density and temperature
 
@@ -1439,7 +1423,7 @@ ERF::ReadParameters ()
         // Verbosity
         pp.query("v", verbose);
         pp.query("mg_v", mg_verbose);
-        pp.query("use_heffte", use_heffte);
+        pp.query("use_fft", use_fft);
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -1467,11 +1451,12 @@ ERF::ReadParameters ()
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
         // How to initialize
-        pp.query("init_type",init_type);
+        init_type = InitType::None;
+        pp.query_enum_case_insensitive("init_type",init_type);
 
         // Should we use the bcs we've read in from wrfbdy or metgrid files?
         // We default to yes if we have them, but the user can override that option
-        use_real_bcs = ( (init_type == "real") || (init_type == "metgrid") );
+        use_real_bcs = ( (init_type == InitType::Real) || (init_type == InitType::Metgrid) );
         pp.query("use_real_bcs",use_real_bcs);
 
         // We use this to keep track of how many boxes we read in from WRF initialization
@@ -1521,6 +1506,8 @@ ERF::ReadParameters ()
         pp.query("plot_per_1",  m_plot_per_1);
         pp.query("plot_per_2",  m_plot_per_2);
 
+        pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
+
         if ( (m_plot_int_1 > 0 && m_plot_per_1 > 0) ||
              (m_plot_int_2 > 0 && m_plot_per_2 > 0.) ) {
             Abort("Must choose only one of plot_int or plot_per");
@@ -1540,6 +1527,10 @@ ERF::ReadParameters ()
         pp.query("column_loc_x", column_loc_x);
         pp.query("column_loc_y", column_loc_y);
         pp.query("column_file_name", column_file_name);
+
+        // Sampler output frequency
+        pp.query("sampler_per", sampler_per);
+        pp.query("sampler_interval", sampler_interval);
 
         // Specify information about outputting planes of data
         pp.query("output_bndry_planes", output_bndry_planes);
@@ -1576,7 +1567,7 @@ ERF::ReadParameters ()
 
     // No moving terrain with init real (we must do this after init_params
     //    because that is where we set terrain_type
-    if (init_type == "real" && solverChoice.terrain_type == TerrainType::Moving) {
+    if (init_type == InitType::Real && solverChoice.terrain_type == TerrainType::Moving) {
         Abort("Moving terrain is not supported with init real");
     }
 
@@ -1588,6 +1579,11 @@ ERF::ReadParameters ()
     } else if (solverChoice.lsm_type == LandSurfaceType::MM5) {
         lsm.SetModel<MM5>();
         Print() << "MM5 land surface model!\n";
+#ifdef ERF_USE_NOAH
+    } else if (solverChoice.lsm_type == LandSurfaceType::NOAH) {
+        lsm.SetModel<NOAH>();
+        Print() << "NOAH land surface model!\n";
+#endif
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";
@@ -1608,8 +1604,8 @@ ERF::ParameterSanityChecks ()
 {
     AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt[0] > 0.);
 
-    // We don't allow use_real_bcs to be true if init_type is not either real or metgrid
-    AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == "real") || (init_type == "metgrid")) );
+    // We don't allow use_real_bcs to be true if init_type is not either InitType::Rreal or InitType::Metgrid
+    AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == InitType::Real) || (init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
     AMREX_ALWAYS_ASSERT(real_set_width >= 0);
@@ -1634,17 +1630,6 @@ ERF::ParameterSanityChecks ()
     {
         Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
         Abort("Dont know this plotfile_type");
-    }
-
-    // Enforce the init_type is one we know
-    if (!init_type.empty() &&
-        init_type != "uniform" &&
-        init_type != "ideal" &&
-        init_type != "real" &&
-        init_type != "metgrid" &&
-        init_type != "input_sounding")
-    {
-        Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
     }
 
     // If fixed_mri_dt_ratio is set, it must be even
@@ -1717,7 +1702,7 @@ ERF::MakeHorizontalAverages ()
             fab_arr(i, j, k, 1) = cons_arr(i, j, k, RhoTheta_comp) / dens;
             if (!use_moisture) {
                 if (is_anelastic) {
-                    fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
+                    fab_arr(i,j,k,2) = hse_arr(i,j,k,BaseState::p0_comp);
                 } else {
                     fab_arr(i,j,k,2) = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp));
                 }
@@ -1732,15 +1717,15 @@ ERF::MakeHorizontalAverages ()
             auto  fab_arr = mf.array(mfi);
             auto const  hse_arr = base_state[lev].const_array(mfi);
             auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
-            auto const   qv_arr = qmoist[lev][0]->const_array(mfi);
             int ncomp = vars_new[lev][Vars::cons].nComp();
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real dens = cons_arr(i, j, k, Rho_comp);
                 if (is_anelastic) {
-                    fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
+                    fab_arr(i,j,k,2) = hse_arr(i,j,k,BaseState::p0_comp);
                 } else {
-                    fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+                    Real qv = cons_arr(i, j, k, RhoQ1_comp) / dens;
+                    fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
                 }
                 fab_arr(i, j, k, 3) = (ncomp > RhoQ1_comp ? cons_arr(i, j, k, RhoQ1_comp) / dens : 0.0);
                 fab_arr(i, j, k, 4) = (ncomp > RhoQ2_comp ? cons_arr(i, j, k, RhoQ2_comp) / dens : 0.0);
@@ -2023,86 +2008,6 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     domain_p.push_back(nbx);
 
     ERF_shared();
-}
-#endif
-
-#ifdef ERF_USE_MULTIBLOCK
-// advance solution over specified block steps
-void
-ERF::Evolve_MB (int MBstep, int max_block_step)
-{
-    Real cur_time = t_new[0];
-
-    int step;
-
-    // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
-    // for finer levels (with or without subcycling)
-    for (int Bstep(0); Bstep < max_block_step && cur_time < stop_time; ++Bstep)
-    {
-        step = Bstep + MBstep - 1;
-
-        Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
-
-        ComputeDt(step);
-
-        // Make sure we have read enough of the boundary plane data to make it through this timestep
-        if (input_bndry_planes)
-        {
-            m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
-        }
-
-        int lev = 0;
-        int iteration = 1;
-        timeStep(lev, cur_time, iteration);
-
-#ifndef ERF_MB_EXTERN
-        // DEBUG
-        // Multiblock: hook for erf2 to fill from erf1
-        if(domain_p[0].bigEnd(0) < 500) {
-            for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
-                m_mbc->FillPatchBlocks(var_idx,var_idx);
-        }
-#endif
-
-        cur_time  += dt[0];
-
-        Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
-                       << " DT = " << dt[0]  << std::endl;
-
-        post_timestep(step, cur_time, dt[0]);
-
-        if (writeNow(cur_time, dt[0], step+1, m_plot_int_1, m_plot_per_1)) {
-            last_plot_file_step_1 = step+1;
-            WritePlotFile(1,plot_var_names_1);
-        }
-
-        if (writeNow(cur_time, dt[0], step+1, m_plot_int_2, m_plot_per_2)) {
-            last_plot_file_step_2 = step+1;
-            WritePlotFile(2,plot_var_names_2);
-        }
-
-        if (writeNow(cur_time, dt[0], step+1, m_check_int, m_check_per)) {
-            last_check_file_step = step+1;
-#ifdef ERF_USE_NETCDF
-            if (check_type == "netcdf") {
-               WriteNCCheckpointFile();
-            }
-#endif
-            if (check_type == "native") {
-               WriteCheckpointFile();
-            }
-        }
-
-#ifdef AMREX_MEM_PROFILING
-        {
-            std::ostringstream ss;
-            ss << "[STEP " << step+1 << "]";
-            MemProfiler::report(ss.str());
-        }
-#endif
-
-        if (cur_time >= stop_time - 1.e-6*dt[0]) break;
-    }
 }
 #endif
 

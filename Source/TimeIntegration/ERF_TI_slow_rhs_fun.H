@@ -102,9 +102,9 @@
 
             } // mfi
 
-            MultiFab r_hse_new (base_state_new[level], make_alias, 0, 1); // r_0  is first  component
-            MultiFab p_hse_new (base_state_new[level], make_alias, 1, 1); // p_0  is second component
-            MultiFab pi_hse_new(base_state_new[level], make_alias, 2, 1); // pi_0 is second component
+            MultiFab r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
+            MultiFab p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
+            MultiFab pi_hse_new(base_state_new[level], make_alias, BaseState::pi0_comp, 1);
 
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
@@ -249,8 +249,7 @@
         // Populate RHS for relaxation zones if using real bcs
         if (use_real_bcs && (level == 0)) {
             if (real_width>0) {
-                realbdy_compute_interior_ghost_rhs(init_type,
-                                                   bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                realbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                                    real_width, real_set_width, fine_geom,
                                                    S_rhs, S_old, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
@@ -459,8 +458,7 @@
         // Populate RHS for relaxation zones if using real bcs
         if (use_real_bcs && (level == 0)) {
             if (real_width>0) {
-                    realbdy_compute_interior_ghost_rhs(init_type,
-                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                    realbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                                        real_width, real_set_width, fine_geom,
                                                        S_rhs, S_old, S_data,
                                                        bdy_data_xlo, bdy_data_xhi,
