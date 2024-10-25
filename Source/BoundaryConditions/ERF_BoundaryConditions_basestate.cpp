@@ -144,9 +144,6 @@ void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& des
 {
     BL_PROFILE_VAR("impose_vertical_base_bcs()",impose_vertical_base_bcs);
 
-    const int* bxlo = bx.loVect();
-    const int* bxhi = bx.hiVect();
-
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
