@@ -23,11 +23,21 @@ Governing Equations
 |                          | equations (instead of       |               |             |
 |                          | the compressible equations) |               |             |
 +--------------------------+-----------------------------+---------------+-------------+
+| **erf.use_fft**          | use FFT rather than         | true / false  | false       |
+|                          | multigrid to solve the      |               |             |
+|                          | the Poisson equations       |               |             |
++--------------------------+-----------------------------+---------------+-------------+
+| **erf.mg_v**             | verbosity of the multigrid  | Integer >= 0  | 0           |
+|                          | solver if used              |               |             |
+|                          | the Poisson equations       |               |             |
++--------------------------+-----------------------------+---------------+-------------+
 
 .. note::
 
-   To solve the anelastic equations, you must set ERF_USE_POISSON_SOLVE = TRUE if using
-   gmake or ERF_ENABLE_POISSON_SOLVE if using cmake.
+   To solve the anelastic equations, you must set USE_POISSON_SOLVE = TRUE if using
+   gmake or ERF_ENABLE_POISSON_SOLVE if using cmake.  This will enable use of the
+   AMReX-based Poisson solver.   To optionally use the FFT solver, you must additionally
+   set USE_FFT = TRUE if using gmake.
 
 Problem Geometry
 ================
@@ -1221,7 +1231,8 @@ integrating the hydrostatic equation from the surface.
 
 If **erf.init_type = custom** or **erf.init_type = input_sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
 
-Setting **erf.project_initial_velocity = 1** will have no effect if the code is not built with **ERF_USE_POISSON_SOLVE** defined.
+Setting **erf.project_initial_velocity = 1** will have no effect if the code is not built with **ERF_USE_POISSON_SOLVE** defined
+if using cmake or with **USE_POISSON_SOLVE = TRUE** if using gmake.
 
 Map Scale Factors
 =================
