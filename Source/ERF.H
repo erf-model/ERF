@@ -79,6 +79,14 @@ AMREX_ENUM(InitType,
 );
 
 /**
+ * Enum of possible plotfile types
+*/
+AMREX_ENUM(PlotFileType,
+    None, Amrex, Netcdf, HDF5
+);
+
+
+/**
  * Enum of possible coarse/fine interpolation options
 */
 namespace InterpType {
@@ -318,7 +326,7 @@ public:
     void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
     // write plotfile to disk
-    void WritePlotFile  (int which, amrex::Vector<std::string> plot_var_names);
+    void WritePlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -964,8 +972,9 @@ private:
     static int pert_interval;
     static amrex::Real sum_per;
 
-    // Native or NetCDF
-    static std::string plotfile_type;
+    // Write in native AMReX or NetCDF format for each plotfile
+    static PlotFileType plotfile_type_1;
+    static PlotFileType plotfile_type_2;
 
     static InitType init_type;
 

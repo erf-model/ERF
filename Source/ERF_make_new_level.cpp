@@ -346,9 +346,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //    from previous (pre-regrid) base_state array
     // ********************************************************************************************
     if (lev > 0) {
-        // Interp all three components: rho, p, pi
-        int  icomp = 0; int bccomp = 0; int  ncomp = 3;
-
         Interpolater* mapper = &cell_cons_interp;
 
         Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
@@ -364,7 +361,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                            BCVars::base_bc);
 
         // Impose bc's outside the domain
-        (*physbcs_base[lev])(temp_base_state,icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
+        (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
 
         std::swap(temp_base_state, base_state[lev]);
     }

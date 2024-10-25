@@ -88,9 +88,7 @@ ERF::init_from_input_sounding (int lev)
          // We need to do this here because the interpolation above may leave corners unfilled
          //    when the corners need to be filled by, for example, reflection of the fine ghost
          //    cell outside the fine region but inide the domain.
-         int bccomp = BCVars::base_bc;
-         Real dummy_time = 0.;
-         (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect(),dummy_time,bccomp);
+         (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
     }
 
     auto& lev_new = vars_new[lev];
@@ -279,20 +277,28 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         pi_hse_arr(i,j,k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
         th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k)) / r_hse_arr(i,j,k);
 
+        // TODO: we should be setting this to the number of ghost cells of base_state[lev]
+        //       instead of hard-wiring it here!
+        int ng = 3;
+
         // FOEXTRAP hse arrays
         if (k==kbot)
         {
-            r_hse_arr (i, j, k-1) = r_hse_arr (i,j,k);
-            p_hse_arr (i, j, k-1) = p_hse_arr (i,j,k);
-            pi_hse_arr(i, j, k-1) = pi_hse_arr(i,j,k);
-            th_hse_arr(i, j, k-1) = th_hse_arr(i,j,k);
+            for (int kk = 1; kk <= ng; kk++) {
+                 r_hse_arr(i, j, k-kk) =  r_hse_arr(i,j,k);
+                 p_hse_arr(i, j, k-kk) =  p_hse_arr(i,j,k);
+                pi_hse_arr(i, j, k-kk) = pi_hse_arr(i,j,k);
+                th_hse_arr(i, j, k-kk) = th_hse_arr(i,j,k);
+            }
         }
         else if (k==ktop)
         {
-            r_hse_arr (i, j, k+1) = r_hse_arr (i,j,k);
-            p_hse_arr (i, j, k+1) = p_hse_arr (i,j,k);
-            pi_hse_arr(i, j, k+1) = pi_hse_arr(i,j,k);
-            th_hse_arr(i, j, k+1) = th_hse_arr(i,j,k);
+            for (int kk = 1; kk <= ng; kk++) {
+                 r_hse_arr(i, j, k+kk) =  r_hse_arr(i,j,k);
+                 p_hse_arr(i, j, k+kk) =  p_hse_arr(i,j,k);
+                pi_hse_arr(i, j, k+kk) = pi_hse_arr(i,j,k);
+                th_hse_arr(i, j, k+kk) = th_hse_arr(i,j,k);
+            }
         }
 
         // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there

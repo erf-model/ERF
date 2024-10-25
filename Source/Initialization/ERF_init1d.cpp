@@ -30,9 +30,7 @@ ERF::initHSE (int lev)
     bool all_boxes_touch_bottom = true;
     Box domain(geom[lev].Domain());
 
-    int icomp = 0; int bccomp = BCVars::base_bc; int ncomp = BaseState::num_comps;
-
-    Real time = 0.;
+    int icomp = 0; int ncomp = BaseState::num_comps;
 
     if (lev == 0) {
         BoxArray ba(base_state[lev].boxArray());
@@ -64,7 +62,7 @@ ERF::initHSE (int lev)
          // We need to do this here because the interpolation above may leave corners unfilled
          //    when the corners need to be filled by, for example, reflection of the fine ghost
          //    cell outside the fine region but inide the domain.
-         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
+         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect());
     }
 
     if (all_boxes_touch_bottom || lev > 0) {
@@ -125,7 +123,7 @@ ERF::initHSE (int lev)
     // Impose physical bc's on the base state -- the values outside the fine region
     //   but inside the domain have already been filled in the call above to InterpFromCoarseLevel
     //
-    (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect(),time,bccomp);
+    (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 
     base_state[lev].FillBoundary(geom[lev].periodicity());
 }
@@ -193,6 +191,9 @@ ERF::erf_enforce_hse (int lev,
 
         const Real rdOcp = solverChoice.rdOcp;
 
+        IntVect ngvect = base_state[lev].nGrowVect();
+        int ng_z = ngvect[2];
+
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Set value at surface from Newton iteration for rho
@@ -213,6 +214,11 @@ ERF::erf_enforce_hse (int lev,
                 pres_arr(i,j,klo-1) = p_0 + hz * rho_arr(i,j,klo) * l_gravity;
                   pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
                   th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
+                for (int kk = 2; kk <= ng_z; kk++) {
+                    pres_arr(i,j,klo-kk) = pres_arr(i,j,klo-1);
+                      pi_arr(i,j,klo-kk) =   pi_arr(i,j,klo-1);
+                      th_arr(i,j,klo-kk) =   th_arr(i,j,klo-1);
+                }
 
             } else {
                 // If level > 0 and klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
@@ -228,10 +234,12 @@ ERF::erf_enforce_hse (int lev,
                 pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
 
                 pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
-                pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
-
                 th_arr(i,j,klo  ) = getRhoThetagivenP(pres_arr(i,j,klo  )) / rho_arr(i,j,klo  );
-                th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
+
+                for (int kk = 1; kk <= ng_z; kk++) {
+                    pi_arr(i,j,klo-kk) = getExnergivenP(pres_arr(i,j,klo-kk), rdOcp);
+                    th_arr(i,j,klo-kk) = getRhoThetagivenP(pres_arr(i,j,klo-kk)) / rho_arr(i,j,klo-kk);
+                }
 
             }
 
@@ -260,8 +268,9 @@ ERF::erf_enforce_hse (int lev,
         if (pres[mfi].box().smallEnd(0) < domlo_x)
         {
             Box bx = mfi.nodaltilebox(2);
+            int ng = ngvect[0];
             bx.setSmall(0,domlo_x-1);
-            bx.setBig(0,domlo_x-1);
+            bx.setBig(0,domlo_x-ng);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
                   pi_arr(i,j,k) =   pi_arr(domlo_x,j,k);
@@ -272,8 +281,9 @@ ERF::erf_enforce_hse (int lev,
         if (pres[mfi].box().bigEnd(0) > domhi_x)
         {
             Box bx = mfi.nodaltilebox(2);
+            int ng = ngvect[0];
             bx.setSmall(0,domhi_x+1);
-            bx.setBig(0,domhi_x+1);
+            bx.setBig(0,domhi_x+ng);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(domhi_x,j,k);
                   pi_arr(i,j,k) =   pi_arr(domhi_x,j,k);
@@ -284,7 +294,8 @@ ERF::erf_enforce_hse (int lev,
         if (pres[mfi].box().smallEnd(1) < domlo_y)
         {
             Box bx = mfi.nodaltilebox(2);
-            bx.setSmall(1,domlo_y-1);
+            int ng = ngvect[1];
+            bx.setSmall(1,domlo_y-ng);
             bx.setBig(1,domlo_y-1);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(i,domlo_y,k);
@@ -296,8 +307,9 @@ ERF::erf_enforce_hse (int lev,
         if (pres[mfi].box().bigEnd(1) > domhi_y)
         {
             Box bx = mfi.nodaltilebox(2);
+            int ng = ngvect[1];
             bx.setSmall(1,domhi_y+1);
-            bx.setBig(1,domhi_y+1);
+            bx.setBig(1,domhi_y+ng);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(i,domhi_y,k);
                   pi_arr(i,j,k) =   pi_arr(i,domhi_y,k);
