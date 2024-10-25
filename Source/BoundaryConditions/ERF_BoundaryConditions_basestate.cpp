@@ -147,8 +147,8 @@ void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& des
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    Box bx_zlo(bx);  bx_zlo.setSmall(2,dom_lo.z-nghost[2]); bx_zlo.setBig(2,dom_lo.z-2);
-    Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+        2); bx_zlo.setBig(2,dom_hi.z+nghost[2]);
+    Box bx_zlo(bx);  bx_zlo.setBig(2,dom_lo.z-2);
+    Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+2);
     ParallelFor(
         bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
         {

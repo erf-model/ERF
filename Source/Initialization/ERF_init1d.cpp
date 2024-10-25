@@ -266,7 +266,7 @@ ERF::erf_enforce_hse (int lev,
 
         int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0);
         int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1);
- 
+
         if (pres[mfi].box().smallEnd(0) < domlo_x)
         {
             Box bx = mfi.nodaltilebox(2);
