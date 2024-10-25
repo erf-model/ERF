@@ -140,7 +140,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
 }
 
 void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                                         int ncomp, const IntVect& nghost)
+                                                         int ncomp, const IntVect& /*nghost*/)
 {
     BL_PROFILE_VAR("impose_vertical_base_bcs()",impose_vertical_base_bcs);
 
