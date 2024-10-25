@@ -32,8 +32,6 @@ ERF::initHSE (int lev)
 
     int icomp = 0; int ncomp = BaseState::num_comps;
 
-    Real time = 0.;
-
     if (lev == 0) {
         BoxArray ba(base_state[lev].boxArray());
         for (int i = 0; i < ba.size(); i++) {
@@ -272,7 +270,7 @@ ERF::erf_enforce_hse (int lev,
             Box bx = mfi.nodaltilebox(2);
             int ng = ngvect[0];
             bx.setSmall(0,domlo_x-1);
-            bx.setBig(0,domlo_x-ng_z);
+            bx.setBig(0,domlo_x-ng);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
                   pi_arr(i,j,k) =   pi_arr(domlo_x,j,k);
