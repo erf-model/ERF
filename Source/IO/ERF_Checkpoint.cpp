@@ -147,7 +147,7 @@ ERF::WriteCheckpointFile () const
 
         if (solverChoice.use_terrain)  {
             // Note that we also write the ghost cells of z_phys_nd
-            IntVect ng = z_phys_nd[lev]->nGrowVect();
+            ng = z_phys_nd[lev]->nGrowVect();
             MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
             MultiFab::Copy(z_height,*z_phys_nd[lev],0,0,1,ng);
             VisMF::Write(z_height, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
@@ -161,7 +161,7 @@ ERF::WriteCheckpointFile () const
         int qmoist_nvar = qmoist_indices.size();
         for (int var = 0; var < qmoist_nvar; var++) {
            ng = qmoist[lev][qmoist_indices[var]]->nGrowVect();
-           const int ncomp = 1;
+           ncomp = 1;
            MultiFab moist_vars(grids[lev],dmap[lev],ncomp,ng);
            MultiFab::Copy(moist_vars,*(qmoist[lev][qmoist_indices[var]]),0,0,ncomp,ng);
            VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", qmoist_names[var]));
@@ -433,7 +433,7 @@ ERF::ReadCheckpointFile ()
         int qmoist_nvar = qmoist_indices.size();
         for (int var = 0; var < qmoist_nvar; var++) {
             ng = qmoist[lev][qmoist_indices[var]]->nGrowVect();
-            const int ncomp = 1;
+            ncomp = 1;
             MultiFab moist_vars(grids[lev],dmap[lev],ncomp,ng);
             VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", qmoist_names[var]));
             MultiFab::Copy(*(qmoist[lev][qmoist_indices[var]]),moist_vars,0,0,ncomp,ng);
