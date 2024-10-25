@@ -23,6 +23,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          Array4<Real> const &r_hse_arr,
                                          Array4<Real> const &p_hse_arr,
                                          Array4<Real> const &pi_hse_arr,
+                                         Array4<Real> const &th_hse_arr,
                                          GeometryData const &geomdata,
                                          Array4<const Real> const &z_cc_arr,
                                          const Real& l_gravity,
@@ -79,7 +80,7 @@ ERF::init_from_input_sounding (int lev)
         //
         InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
                               IntVect(0,0,0), // do not fill ghost cells outside the domain
-                              base_state[lev-1], 0, 0, 3,
+                              base_state[lev-1], 0, 0, base_state[lev].nComp(),
                               geom[lev-1], geom[lev],
                               refRatio(lev-1), &cell_cons_interp,
                               domain_bcs_type, BCVars::base_bc);
@@ -88,16 +89,17 @@ ERF::init_from_input_sounding (int lev)
          //    when the corners need to be filled by, for example, reflection of the fine ghost
          //    cell outside the fine region but inide the domain.
          int bccomp = BCVars::base_bc;
-         int icomp = 0; int ncomp = 3; Real dummy_time = 0.;
-         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),dummy_time,bccomp);
+         Real dummy_time = 0.;
+         (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect(),dummy_time,bccomp);
     }
 
     auto& lev_new = vars_new[lev];
 
     // update if init_sounding_ideal == true
-    MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
-    MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
-    MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
+    MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
+    MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
+    MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
+    MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
 
     const Real l_gravity = solverChoice.gravity;
     const Real l_rdOcp   = solverChoice.rdOcp;
@@ -112,9 +114,10 @@ ERF::init_from_input_sounding (int lev)
         const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
         const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
         const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
-        Array4<Real> r_hse_arr = r_hse.array(mfi);
-        Array4<Real> p_hse_arr = p_hse.array(mfi);
+        Array4<Real>  r_hse_arr =  r_hse.array(mfi);
+        Array4<Real>  p_hse_arr =  p_hse.array(mfi);
         Array4<Real> pi_hse_arr = pi_hse.array(mfi);
+        Array4<Real> th_hse_arr = th_hse.array(mfi);
 
         Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
@@ -125,7 +128,7 @@ ERF::init_from_input_sounding (int lev)
             // calculated by calc_rho_p()
             init_bx_scalars_from_input_sounding_hse(
                 bx, cons_arr,
-                r_hse_arr, p_hse_arr, pi_hse_arr,
+                r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr,
                 geom[lev].data(), z_cc_arr,
                 l_gravity, l_rdOcp, l_moist, input_sounding_data);
         }
@@ -211,6 +214,7 @@ init_bx_scalars_from_input_sounding (const Box &bx,
  * @param r_hse_arr Array4 specifying the density HSE base state data we are to initialize
  * @param p_hse_arr Array4 specifying the pressure HSE base state data we are to initialize
  * @param pi_hse_arr Array4 specifying the Exner pressure HSE base state data we are to initialize
+ * @param th_hse_arr Array4 specifying the base state potential temperature we are to initialize
  * @param geomdata GeometryData object specifying the domain geometry
  * @param l_gravity Real number specifying the gravitational acceleration constant
  * @param l_rdOcp Real number specifying the Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
@@ -222,6 +226,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          Array4<Real> const &r_hse_arr,
                                          Array4<Real> const &p_hse_arr,
                                          Array4<Real> const &pi_hse_arr,
+                                         Array4<Real> const &th_hse_arr,
                                          GeometryData const &geomdata,
                                          Array4<const Real> const &z_cc_arr,
                                          const Real& /*l_gravity*/,
@@ -269,9 +274,10 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
         qv_k = (l_moist) ? interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size) : 0.0;
-        r_hse_arr (i, j, k) = rho_k * (1.0 + qv_k);
-        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k, qv_k);
-        pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
+        r_hse_arr (i,j,k) = rho_k * (1.0 + qv_k);
+        p_hse_arr (i,j,k) = getPgivenRTh(rhoTh_k, qv_k);
+        pi_hse_arr(i,j,k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
+        th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k)) / r_hse_arr(i,j,k);
 
         // FOEXTRAP hse arrays
         if (k==kbot)
@@ -279,12 +285,14 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
             r_hse_arr (i, j, k-1) = r_hse_arr (i,j,k);
             p_hse_arr (i, j, k-1) = p_hse_arr (i,j,k);
             pi_hse_arr(i, j, k-1) = pi_hse_arr(i,j,k);
+            th_hse_arr(i, j, k-1) = th_hse_arr(i,j,k);
         }
         else if (k==ktop)
         {
             r_hse_arr (i, j, k+1) = r_hse_arr (i,j,k);
             p_hse_arr (i, j, k+1) = p_hse_arr (i,j,k);
             pi_hse_arr(i, j, k+1) = pi_hse_arr(i,j,k);
+            th_hse_arr(i, j, k+1) = th_hse_arr(i,j,k);
         }
 
         // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there

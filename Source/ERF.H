@@ -348,7 +348,7 @@ public:
                                                 const std::string &mfPrefix) const;
 
     void erf_enforce_hse (int lev,
-                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
+                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi, amrex::MultiFab& th,
                           std::unique_ptr<amrex::MultiFab>& z_cc);
 
 #ifdef ERF_USE_NETCDF
