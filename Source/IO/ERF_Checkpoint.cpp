@@ -363,7 +363,7 @@ ERF::ReadCheckpointFile ()
     // NOTE: Data is written over ncomp, so check that we match the header file
     int ncomp_cons = vars_new[0][Vars::cons].nComp();
 
-    // NOTE: QKE was removed so ths is for backward compatibility
+    // NOTE: QKE was removed so this is for backward compatibility
     AMREX_ASSERT((chk_ncomp_cons==ncomp_cons) || ((chk_ncomp_cons-1)==ncomp_cons));
 
     // read in the MultiFab data
@@ -379,9 +379,14 @@ ERF::ReadCheckpointFile ()
 
             // Only if we have a PBL model do we need to copy QKE is src to KE in dst
             if (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) {
-                MultiFab::Copy(vars_new[lev][Vars::cons],cons,RhoKE_comp,(RhoKE_comp+1),1,0);
+                MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+1),RhoKE_comp,1,0);
                 vars_new[lev][Vars::cons].mult(0.5,RhoKE_comp,1,0);
             }
+
+            // Copy other components
+            int ncomp_remainder = ncomp_cons - (RhoKE_comp + 1);
+            MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+2),(RhoKE_comp+1),ncomp_remainder,0);
+
             vars_new[lev][Vars::cons].setBndry(1.0e34);
         } else {
             MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
