@@ -84,8 +84,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
           ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-              bool only_pbl = false;
-              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most,only_pbl);
+              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
               Real dxInv = cellSizeInv[0];
               Real dyInv = cellSizeInv[1];
               Real dzInv = cellSizeInv[2];
