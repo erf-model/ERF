@@ -235,7 +235,7 @@ struct CollisionKernel
         return c_rate*dv;
     }
 
-    /*! \brief Long's kernel */
+    /*! \brief Brownian kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Brownian_SeinfeldPandis ( const RT a_r1, /*!< radius of particle 1 */
                                  const RT a_r2, /*!< radius of particle 2 */
