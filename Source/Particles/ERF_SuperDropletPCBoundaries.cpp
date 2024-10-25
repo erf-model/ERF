@@ -81,9 +81,11 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
             // check for ground impact
             {
-                auto iv = getParticleCell(p, plo, dxi, domain);
                 auto z_ground = plo[2];
-                if (use_terrain) { z_ground = zheight(iv[0],iv[1],k_lo); }
+                if (use_terrain) {
+                    auto iv = getParticleCell(p, plo, dxi, domain);
+                    z_ground = zheight(iv[0],iv[1],k_lo);
+                }
                 if (p.pos(2) < z_ground) {
                     p.pos(2) = z_ground + 0.01*dx[2];
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
@@ -94,11 +96,16 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
             // check for top boundary exits
             {
-                auto iv = getParticleCell(p, plo, dxi, domain);
                 auto z_roof = phi[2];
-                if (use_terrain) { z_roof = zheight(iv[0],iv[1],k_hi); }
+                if (use_terrain) {
+                    auto iv = getParticleCell(p, plo, dxi, domain);
+                    z_roof = zheight(iv[0],iv[1],k_hi);
+                }
                 if (p.pos(2) > z_roof) {
                     p.pos(2) = z_roof - dx[2];
+                    v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                    mult_ptr[i] = 0.0;
+                    supdrop_mass_ptr[i] = 0.0;
                 }
             }
 
