@@ -353,8 +353,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Impose bc's outside the domain
     (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
 
-    std::swap(temp_base_state, base_state[lev]);
-
     // *************************************************************************************************
     // This will fill the temporary MultiFabs with data from vars_new
     // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
