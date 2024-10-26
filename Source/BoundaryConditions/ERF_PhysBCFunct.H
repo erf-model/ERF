@@ -292,8 +292,8 @@ public:
 
 private:
     int                  m_lev;
-    bool                 m_moving_terrain;
     amrex::Geometry      m_geom;
+    bool                 m_moving_terrain;
     amrex::Vector<amrex::BCRec>            m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
 };
