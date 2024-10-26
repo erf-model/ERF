@@ -95,8 +95,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     //
     // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
     //
-    FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
-                         {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]});
+    if (lev == 0) {
+        FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
+                             {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]});
+    } else {
+        FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
+                             {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
+                             base_state[lev], base_state[lev]);
+    }
     //
     // So we must convert the fillpatched to momenta, including the ghost values
     //
