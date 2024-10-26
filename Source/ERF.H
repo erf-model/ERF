@@ -506,9 +506,18 @@ private:
     //
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
     //
+    // This one works only at level = 0 (base state does not change)
     void FillPatch (int lev, amrex::Real time,
                     const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                     const amrex::Vector<amrex::MultiFab*>& mfs_mom,
+                    bool cons_only=false);
+
+    // This one works only at level > 0 (base state does change)
+    void FillPatch (int lev, amrex::Real time,
+                    const amrex::Vector<amrex::MultiFab*>& mfs_vel,
+                    const amrex::Vector<amrex::MultiFab*>& mfs_mom,
+                    const amrex::MultiFab& old_base_state,
+                    const amrex::MultiFab& new_base_state,
                     bool fillset=true, bool cons_only=false);
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.

@@ -20,10 +20,14 @@ void
 ERF::FillPatch (int lev, Real time,
                 const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                 const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
+                const MultiFab& old_base_state,
+                const MultiFab& new_base_state,
                 bool fillset, bool cons_only)
 {
     BL_PROFILE_VAR("ERF::FillPatch()",ERF_FillPatch);
     Interpolater* mapper = nullptr;
+
+    AMREX_ALWAYS_ASSERT(lev > 0);
 
     PhysBCFunctNoOp null_bc;
 
@@ -38,7 +42,7 @@ ERF::FillPatch (int lev, Real time,
     // conditions are imposed on velocity, so we convert to momentum here then
     // convert back.
     // ***************************************************************************
-    if (lev>0 && fillset) {
+    if (fillset) {
         if (cf_set_width > 0) {
             FPr_c[lev-1].FillSet(*mfs_vel[Vars::cons], time, null_bc, domain_bcs_type);
         }
@@ -70,35 +74,7 @@ ERF::FillPatch (int lev, Real time,
     IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
     IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();
 
-    if (lev == 0)
     {
-        Vector<Real> ftime    = {t_old[lev], t_new[lev]};
-
-        //
-        // Below we call FillPatchSingleLevel which does NOT fill ghost cells outside the domain
-        //
-
-        Vector<MultiFab*> fmf = {&vars_old[lev][Vars::cons], &vars_new[lev][Vars::cons]};
-        const int  ncomp = mfs_vel[Vars::cons]->nComp();
-
-        FillPatchSingleLevel(*mfs_vel[Vars::cons], ngvect_cons, time, fmf, IntVect(0,0,0), ftime,
-                             0, 0, ncomp, geom[lev]);
-
-        if (!cons_only) {
-            fmf = {&vars_old[lev][Vars::xvel], &vars_new[lev][Vars::xvel]};
-            FillPatchSingleLevel(*mfs_vel[Vars::xvel], ngvect_vels, time, fmf,
-                                 IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
-
-            fmf = {&vars_old[lev][Vars::yvel], &vars_new[lev][Vars::yvel]};
-            FillPatchSingleLevel(*mfs_vel[Vars::yvel], ngvect_vels, time, fmf,
-                                 IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
-
-            fmf = {&vars_old[lev][Vars::zvel], &vars_new[lev][Vars::zvel]};
-            FillPatchSingleLevel(*mfs_vel[Vars::zvel], ngvect_vels, time, fmf,
-                                 IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
-        } // !cons_only
-
-    } else {
 
         Vector<Real> ftime    = {t_old[lev], t_new[lev]};
         Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
@@ -115,12 +91,15 @@ ERF::FillPatch (int lev, Real time,
 
         // Subtract rho_0 from rho before we interpolate -- note we only subtract
         //    on valid region of mf since the ghost cells will be filled below
-        MultiFab::Subtract(mf_c,base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{0});
+        MultiFab::Subtract(vars_old[lev  ][Vars::cons], old_base_state,
+                           BaseState::r0_comp,Rho_comp,1, vars_old[lev  ][Vars::cons].nGrowVect());
+        MultiFab::Subtract(vars_new[lev  ][Vars::cons], old_base_state,
+                           BaseState::r0_comp,Rho_comp,1, vars_new[lev  ][Vars::cons].nGrowVect());
 
         MultiFab::Subtract(vars_old[lev-1][Vars::cons], base_state[lev-1],
-                           BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+                           BaseState::r0_comp,Rho_comp,1, vars_old[lev-1][Vars::cons].nGrowVect());
         MultiFab::Subtract(vars_new[lev-1][Vars::cons], base_state[lev-1],
-                           BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+                           BaseState::r0_comp,Rho_comp,1, vars_new[lev-1][Vars::cons].nGrowVect());
 
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
         FillPatchTwoLevels(mf_c, ngvect_cons, IntVect(0,0,0),
@@ -141,7 +120,7 @@ ERF::FillPatch (int lev, Real time,
         mf_c.setDomainBndry(1.234e20,0,1,geom[lev]);
 
         // Add rho_0 back to rho after we interpolate -- on all the valid + ghost region
-        MultiFab::Add(mf_c, base_state[lev],BaseState::r0_comp,Rho_comp,1,ngvect_cons);
+        MultiFab::Add(mf_c, new_base_state,BaseState::r0_comp,Rho_comp,1,ngvect_cons);
 
         // ***************************************************************************************
 
@@ -214,6 +193,69 @@ ERF::FillPatch (int lev, Real time,
                                BCVars::zvel_bc);
         } // !cons_only
     } // lev > 0
+
+    // ***************************************************************************
+    // Physical bc's at domain boundary
+    // ***************************************************************************
+    int icomp_cons = 0;
+    int ncomp_cons = mfs_vel[Vars::cons]->nComp();
+
+    bool do_fb = true;
+
+    if (m_r2d) fill_from_bndryregs(mfs_vel,time);
+
+    // We call these even if init_type == InitType::Real because these will fill the vertical bcs
+    // Note that we call FillBoundary inside the physbcs call
+    (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
+    if (!cons_only) {
+        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc, do_fb);
+        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc, do_fb);
+        (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                          ngvect_vels,time,BCVars::zvel_bc, do_fb);
+    }
+}
+
+void
+ERF::FillPatch (int lev, Real time,
+                const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
+                const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
+                bool cons_only)
+{
+    BL_PROFILE_VAR("ERF::FillPatch()",ERF_FillPatch);
+    Interpolater* mapper = nullptr;
+
+    AMREX_ALWAYS_ASSERT(lev == 0);
+
+    PhysBCFunctNoOp null_bc;
+
+    IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
+    IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();
+
+    Vector<Real> ftime    = {t_old[lev], t_new[lev]};
+
+    //
+    // Below we call FillPatchSingleLevel which does NOT fill ghost cells outside the domain
+    //
+
+    Vector<MultiFab*> fmf = {&vars_old[lev][Vars::cons], &vars_new[lev][Vars::cons]};
+    const int  ncomp = mfs_vel[Vars::cons]->nComp();
+
+    FillPatchSingleLevel(*mfs_vel[Vars::cons], ngvect_cons, time, fmf, IntVect(0,0,0), ftime,
+                         0, 0, ncomp, geom[lev]);
+
+    if (!cons_only) {
+        fmf = {&vars_old[lev][Vars::xvel], &vars_new[lev][Vars::xvel]};
+        FillPatchSingleLevel(*mfs_vel[Vars::xvel], ngvect_vels, time, fmf,
+                             IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
+
+        fmf = {&vars_old[lev][Vars::yvel], &vars_new[lev][Vars::yvel]};
+        FillPatchSingleLevel(*mfs_vel[Vars::yvel], ngvect_vels, time, fmf,
+                             IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
+
+        fmf = {&vars_old[lev][Vars::zvel], &vars_new[lev][Vars::zvel]};
+        FillPatchSingleLevel(*mfs_vel[Vars::zvel], ngvect_vels, time, fmf,
+                             IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
+    } // !cons_only
 
     // ***************************************************************************
     // Physical bc's at domain boundary

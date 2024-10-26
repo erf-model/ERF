@@ -923,10 +923,17 @@ ERF::InitData_post ()
         // Fill boundary conditions -- not sure why we need this here
         //
         bool fillset = false;
-        FillPatch(lev, t_new[lev],
-                  {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
-                  {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                  fillset);
+        if (lev == 0) {
+            FillPatch(lev, t_new[lev],
+                      {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                      {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]});
+        } else {
+            FillPatch(lev, t_new[lev],
+                      {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                      {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                      base_state[lev], base_state[lev],
+                      fillset);
+        }
 
         //
         // We do this here to make sure level (lev-1) boundary conditions are filled
