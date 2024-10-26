@@ -131,7 +131,7 @@ ERF::writeToNCColumnFile (const int lev,
                                   &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
                                  {&vars_new[lev][Vars::cons], &rU_new[lev],
                                   &rV_new[lev], &rW_new[lev]},
-                                  base_state[lev], base_state[lev]):
+                                  base_state[lev], base_state[lev]);
   }
 
   MultiFab& S_new = vars_new[lev][Vars::cons];
