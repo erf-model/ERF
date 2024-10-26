@@ -185,12 +185,6 @@ ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 void
 ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
-    if (plotfile_type == PlotFileType::Amrex) {
-       amrex::Print() << "WRITE AMREX " << std::endl;
-    } else if (plotfile_type == PlotFileType::Netcdf) {
-       amrex::Print() << "WRITE NETCDF " << std::endl;
-    }
-
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
 

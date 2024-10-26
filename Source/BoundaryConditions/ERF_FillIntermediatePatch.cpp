@@ -65,14 +65,17 @@ ERF::FillIntermediatePatch (int lev, Real time,
     AMREX_ALWAYS_ASSERT(mfs_vel.size() == Vars::NumTypes);
 
     // Enforce no penetration for thin immersed body
-    if (xflux_imask[lev]) {
-        ApplyMask(*mfs_mom[IntVars::xmom], *xflux_imask[lev]);
-    }
-    if (yflux_imask[lev]) {
-        ApplyMask(*mfs_mom[IntVars::ymom], *yflux_imask[lev]);
-    }
-    if (zflux_imask[lev]) {
-        ApplyMask(*mfs_mom[IntVars::zmom], *zflux_imask[lev]);
+    if (!cons_only) {
+        // Enforce no penetration for thin immersed body
+        if (xflux_imask[lev]) {
+            ApplyMask(*mfs_mom[IntVars::xmom], *xflux_imask[lev]);
+        }
+        if (yflux_imask[lev]) {
+            ApplyMask(*mfs_mom[IntVars::ymom], *yflux_imask[lev]);
+        }
+        if (zflux_imask[lev]) {
+            ApplyMask(*mfs_mom[IntVars::zmom], *zflux_imask[lev]);
+        }
     }
 
     // We always come in to this call with updated momenta but we need to create updated velocity
@@ -104,8 +107,18 @@ ERF::FillIntermediatePatch (int lev, Real time,
         Vector<Real> ftime    = {time,time};
 
         // Impose physical bc's on coarse data (note time and 0 are not used)
-        (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],0,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,true);
-        (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],0,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,true);
+        (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,true);
+        (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,true);
+
+        // Subtract rho_0 from rho before we interpolate -- note we only subtract
+        //    on valid region of mf since the ghost cells will be filled below
+        if (icomp_cons == 0) {
+            MultiFab::Subtract(mf,base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{0});
+            MultiFab::Subtract(vars_old[lev-1][Vars::cons], base_state[lev-1],
+                               BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+            MultiFab::Subtract(vars_new[lev-1][Vars::cons], base_state[lev-1],
+                               BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+        }
 
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
         mapper = &cell_cons_interp;
@@ -114,6 +127,22 @@ ERF::FillIntermediatePatch (int lev, Real time,
                            icomp_cons, icomp_cons, ncomp_cons, geom[lev-1], geom[lev],
                            refRatio(lev-1), mapper, domain_bcs_type,
                            icomp_cons);
+
+        if (icomp_cons == 0) {
+            // Restore the coarse values to what they were
+            MultiFab::Add(vars_old[lev-1][Vars::cons], base_state[lev-1],
+                          BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+            MultiFab::Add(vars_new[lev-1][Vars::cons], base_state[lev-1],
+                          BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+
+            // Set values in the cells outside the domain boundary so that we can do the Add
+            //     without worrying about uninitialized values outside the domain -- these
+            //     will be filled in the physbcs call
+            mf.setDomainBndry(1.234e20,0,1,geom[lev]);
+
+            // Add rho_0 back to rho after we interpolate -- on all the valid + ghost region
+            MultiFab::Add(mf, base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{ng_cons});
+        }
 
         // *****************************************************************************************
 
@@ -201,7 +230,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
     if (use_real_bcs && (lev==0)) {
-        fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons, ngvect_vels);
+        fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
         do_fb = false;
     }
 #endif

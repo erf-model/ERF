@@ -113,12 +113,37 @@ ERF::FillPatch (int lev, Real time,
         // We should not need to call this on old data since that would have been filled before the timestep started
         (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],0,mf_c.nComp(),ngvect_cons,time,BCVars::cons_bc,true);
 
+        // Subtract rho_0 from rho before we interpolate -- note we only subtract
+        //    on valid region of mf since the ghost cells will be filled below
+        MultiFab::Subtract(mf_c,base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{0});
+
+        MultiFab::Subtract(vars_old[lev-1][Vars::cons], base_state[lev-1],
+                           BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+        MultiFab::Subtract(vars_new[lev-1][Vars::cons], base_state[lev-1],
+                           BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
         FillPatchTwoLevels(mf_c, ngvect_cons, IntVect(0,0,0),
                            time, cmf, ctime, fmf, ftime,
                            0, 0, mf_c.nComp(), geom[lev-1], geom[lev],
                            refRatio(lev-1), mapper, domain_bcs_type,
                            BCVars::cons_bc);
+
+        // Restore the coarse values to what they were
+        MultiFab::Add(vars_old[lev-1][Vars::cons], base_state[lev-1],
+                      BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+        MultiFab::Add(vars_new[lev-1][Vars::cons], base_state[lev-1],
+                      BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+
+        // Set values in the cells outside the domain boundary so that we can do the Add
+        //     without worrying about uninitialized values outside the domain -- these
+        //     will be filled in the physbcs call
+        mf_c.setDomainBndry(1.234e20,0,1,geom[lev]);
+
+        // Add rho_0 back to rho after we interpolate -- on all the valid + ghost region
+        MultiFab::Add(mf_c, base_state[lev],BaseState::r0_comp,Rho_comp,1,ngvect_cons);
+
+        // ***************************************************************************************
 
         if (!cons_only)
         {

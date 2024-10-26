@@ -32,7 +32,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     tmp_base_state.setVal(0.);
 
     if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Moving) {
-        base_state_new[lev].define(ba,dm,BaseState::num_comps,3);
+        base_state_new[lev].define(ba,dm,BaseState::num_comps,base_state[lev].nGrowVect());
         base_state_new[lev].setVal(0.);
     }
 
@@ -557,5 +557,6 @@ ERF::make_physbcs (int lev)
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, z_phys_nd[lev],
                                                             use_real_bcs, zvel_bc_data[lev].data());
-    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d);
+    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                               (solverChoice.terrain_type == TerrainType::Moving));
 }

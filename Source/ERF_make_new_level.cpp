@@ -332,15 +332,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // *****************************************************************************************************
     make_physbcs(lev);
 
-    // *************************************************************************************************
-    // This will fill the temporary MultiFabs with data from vars_new
-    // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
-    // *************************************************************************************************
-    FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
-                         {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                          false);
-
     // ********************************************************************************************
     // Update the base state at this level by interpolation from coarser level AND copy
     //    from previous (pre-regrid) base_state array
@@ -365,6 +356,17 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
         std::swap(temp_base_state, base_state[lev]);
     }
+
+    // *************************************************************************************************
+    // This will fill the temporary MultiFabs with data from vars_new
+    // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
+    // NOTE: we must create the new base state before calling FillPatch because we will
+    //       interpolate perturbational quantities
+    // *************************************************************************************************
+    FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
+                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
+                         {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                          false);
 
     // ********************************************************************************************
     // Copy from new into old just in case

@@ -102,12 +102,15 @@
 
             } // mfi
 
-            MultiFab r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
-            MultiFab p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
-            MultiFab pi_hse_new(base_state_new[level], make_alias, BaseState::pi0_comp, 1);
+            MultiFab  r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
+            MultiFab  p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
+            MultiFab pi_hse_new (base_state_new[level], make_alias, BaseState::pi0_comp, 1);
+            MultiFab th_hse_new (base_state_new[level], make_alias, BaseState::th0_comp, 1);
 
-            MultiFab* r0_new = &r_hse_new;
-            MultiFab* p0_new = &p_hse_new;
+            MultiFab* r0_new  = &r_hse_new;
+            MultiFab* p0_new  = &p_hse_new;
+            MultiFab* pi0_new = &pi_hse_new;
+            MultiFab* th0_new = &th_hse_new;
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
@@ -156,6 +159,8 @@
 
             const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
+            const Real l_rdOcp   = solverChoice.rdOcp;
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -168,8 +173,10 @@
                const Array4<Real      >  r0_new_arr = r0_new->array(mfi);
                const Array4<Real      >  r0_tmp_arr = r0_temp.array(mfi);
 
-               const Array4<Real const>  p0_arr     = p0->const_array(mfi);
-               const Array4<Real      >  p0_new_arr = p0_new->array(mfi);
+               const Array4<Real const>  p0_arr     =  p0->const_array(mfi);
+               const Array4<Real      >  p0_new_arr =  p0_new->array(mfi);
+               const Array4<Real      > pi0_new_arr = pi0_new->array(mfi);
+               const Array4<Real      > th0_new_arr = th0_new->array(mfi);
 
                const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
 
@@ -205,7 +212,9 @@
                    r0_new_arr(i,j,k) = rho0_new / dJ_new_arr(i,j,k);
                    rt0_tmp_new      /=            dJ_new_arr(i,j,k);
 
-                   p0_new_arr(i,j,k) = getPgivenRTh(rt0_tmp_new);
+                    p0_new_arr(i,j,k) = getPgivenRTh(rt0_tmp_new);
+                   pi0_new_arr(i,j,k) = getExnergivenRTh(rt0_tmp_new, l_rdOcp);
+                   th0_new_arr(i,j,k) = rt0_tmp_new / r0_new_arr(i,j,k);
                });
             } // MFIter
             r0_new->FillBoundary(fine_geom.periodicity());
