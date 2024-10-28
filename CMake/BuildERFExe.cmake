@@ -67,6 +67,16 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
 
+  if(ERF_ENABLE_NOAH)
+    target_include_directories(${erf_lib_name} PUBLIC
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/NOAH>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/NOAH-MP/drivers/hrldas>)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/LandSurfaceModel/NOAH/ERF_NOAH.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAH)
+    target_link_libraries_system(${erf_lib_name} PUBLIC NoahMP::noahmp)
+  endif()
+
   if(ERF_ENABLE_RRTMGP)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Utils/ERF_Orbit.cpp
@@ -118,6 +128,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_bndryreg.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_realbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillCoarsePatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillIntermediatePatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillBdyCCVels.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_N.cpp

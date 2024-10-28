@@ -1,0 +1,60 @@
+.retry:
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+
+.on_tioga:
+  extends:
+    - .retry
+  tags:
+    - tioga
+    - shell
+  rules:
+    - if: '$ON_TIOGA == "OFF"'
+      when: never
+    # test the upstream branch
+    - if: $CI_COMMIT_BRANCH == 'development'
+    # branches starting with "gitlab"
+    - if: $CI_COMMIT_BRANCH =~ /^gitlab.*/
+    - if: $CI_PIPELINE_SOURCE == "push"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
+    - if: '$CI_JOB_NAME =~ /release_resources_tioga/'
+      when: always
+    - when: on_success
+
+allocate_resources_tioga:
+  variables:
+    GIT_STRATEGY: none
+  extends:
+    - .on_tioga
+  stage: allocate
+  script:
+    - flux alloc -N 1 -q ${ALLOC_QUEUE} -t=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME}
+
+release_resources_tioga:
+  variables:
+    GIT_STRATEGY: none
+  extends:
+    - .on_tioga
+  stage: release
+  script:
+    - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
+    - ([[ -n "${JOBID}" ]] && flux cancel ${JOBID})
+  when: always
+
+.job_on_tioga:
+  extends: .on_tioga
+  stage: build
+  needs: ["allocate_resources_tioga"]
+  variables:
+    # Note: "flux" gets expanded to "flux run" inside build script
+    MPIEXEC_EXECUTABLE: flux
+    MPIEXEC_PREFLAGS: "-c 1 -g 1 -o mpi-spectrum -o cpu-affinity=per-task -o gpu-affinity=per-task -vv"
+  script:
+    - echo "JOB NAME ${ALLOC_NAME}"
+    - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
+    - echo "FLUX ID ${JOBID}"
+    - flux proxy $( [[ -n "${JOBID}" ]] && echo "${JOBID}" ) flux run -N 1 -n 1 -c 16 -vv ${TEST_SCRIPT}

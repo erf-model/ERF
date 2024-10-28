@@ -183,8 +183,14 @@ ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 
 // Write plotfile to disk
 void
-ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
+ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
+    if (plotfile_type == PlotFileType::Amrex) {
+       amrex::Print() << "WRITE AMREX " << std::endl;
+    } else if (plotfile_type == PlotFileType::Netcdf) {
+       amrex::Print() << "WRITE NETCDF " << std::endl;
+    }
+
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
 
@@ -331,7 +337,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         }
         calculate_derived("theta",       vars_new[lev][Vars::cons], derived::erf_dertheta);
         calculate_derived("KE",          vars_new[lev][Vars::cons], derived::erf_derKE);
-        calculate_derived("QKE",         vars_new[lev][Vars::cons], derived::erf_derQKE);
         calculate_derived("scalar",      vars_new[lev][Vars::cons], derived::erf_derscalar);
         calculate_derived("vorticity_x", mf_cc_vel[lev]           , derived::erf_dervortx);
         calculate_derived("vorticity_y", mf_cc_vel[lev]           , derived::erf_dervorty);
@@ -972,8 +977,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Theta_h,mf_comp,1,0);
             mf_comp ++;
         }
-        if (containerHasElement(plot_var_names, "Lpbl")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::PBL_lengthscale,mf_comp,1,0);
+        if (containerHasElement(plot_var_names, "Lturb")) {
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Turb_lengthscale,mf_comp,1,0);
             mf_comp ++;
         }
 
@@ -1338,10 +1343,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     }
 
     std::string plotfilename;
-    if (which == 1)
+    if (which == 1) {
        plotfilename = Concatenate(plot_file_1, istep[0], 5);
-    else if (which == 2)
+    } else if (which == 2) {
        plotfilename = Concatenate(plot_file_2, istep[0], 5);
+    }
 
     // LSM writes it's own data
     if (which==1 && plot_lsm) {
@@ -1359,7 +1365,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     // Single level
     if (finest_level == 0)
     {
-        if (plotfile_type == "amrex") {
+        if (plotfile_type == PlotFileType::Amrex)
+        {
             Print() << "Writing native plotfile " << plotfilename << "\n";
             if (solverChoice.use_terrain) {
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
@@ -1379,7 +1386,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             particleData.writePlotFile(plotfilename);
 #endif
 #ifdef ERF_USE_HDF5
-        } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
+        } else if (plotfile_type == PlotFileType::HDF5) {
             Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
             WriteMultiLevelPlotfileHDF5(plotfilename, finest_level+1,
                                         GetVecOfConstPtrs(mf),
@@ -1387,19 +1394,19 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                         Geom(), t_new[0], istep, refRatio());
 #endif
 #ifdef ERF_USE_NETCDF
-        } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
+        } else if (plotfile_type == PlotFileType::Netcdf) {
              int lev   = 0;
              int l_which = 0;
              writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
 #endif
         } else {
-            Print() << "User specified plot_filetype = " << plotfile_type << std::endl;
-            Abort("Dont know this plot_filetype");
+            // Here we assume the plotfile_type is PlotFileType::None
+            Print() << "Writing no plotfile since plotfile_type is none" << std::endl;
         }
 
     } else { // Multilevel
 
-        if (plotfile_type == "amrex") {
+        if (plotfile_type == PlotFileType::Amrex) {
 
             int lev0 = 0;
             int desired_ratio = std::max(std::max(ref_ratio[lev0][0],ref_ratio[lev0][1]),ref_ratio[lev0][2]);
@@ -1492,7 +1499,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #endif
 
 #ifdef ERF_USE_NETCDF
-        } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
+        } else if (plotfile_type == PlotFileType::Netcdf) {
              for (int lev = 0; lev <= finest_level; ++lev) {
                  for (int which_box = 0; which_box < num_boxes_at_level[lev]; which_box++) {
                      writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);

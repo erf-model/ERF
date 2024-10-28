@@ -9,7 +9,11 @@
 [submodule "Submodules/RRTMGP"]
 	path = Submodules/RRTMGP
 	url = https://github.com/E3SM-Project/rte-rrtmgp
-	shallow = true
+        shallow = true
+[submodule "Submodules/NOAH-MP"]
+	path = Submodules/NOAH-MP
+        url = https://github.com/AIEADA/noahmp.git
+        shallow=true
 [submodule "Submodules/WW3"]
 	path = Submodules/WW3
 	url = https://github.com/erf-model/WW3

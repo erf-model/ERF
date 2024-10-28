@@ -28,11 +28,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0 (in that order)
     // ********************************************************************************************
-    tmp_base_state.define(ba,dm,3,1);
+    tmp_base_state.define(ba,dm,BaseState::num_comps,3);
     tmp_base_state.setVal(0.);
 
-    if (solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::Static) {
-        base_state_new[lev].define(ba,dm,3,1);
+    if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Moving) {
+        base_state_new[lev].define(ba,dm,BaseState::num_comps,3);
         base_state_new[lev].setVal(0.);
     }
 
@@ -42,7 +42,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.use_terrain) {
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
-        if (solverChoice.terrain_type != TerrainType::Static)
+        if (solverChoice.terrain_type == TerrainType::Moving)
         {
             detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
             detJ_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
@@ -65,7 +65,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 2;
         tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
 
-        if (solverChoice.terrain_type != TerrainType::Static) {
+        if (solverChoice.terrain_type == TerrainType::Moving) {
             z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
             z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
         }
@@ -362,7 +362,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
                            (solverChoice.turbChoice[lev].pbl_type        !=       PBLType::None) );
     bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type        != LESType::None)   ||
                            (solverChoice.turbChoice[lev].pbl_type        != PBLType::None) );
-    bool l_use_ddorf   = (  solverChoice.turbChoice[lev].les_type        == LESType::Deardorff);
+    bool l_use_ddorf   = (solverChoice.turbChoice[lev].les_type       == LESType::Deardorff);
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));

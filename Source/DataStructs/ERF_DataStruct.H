@@ -50,7 +50,7 @@ AMREX_ENUM(WindFarmLocType,
 );
 
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, None
+    SLM, MM5, None, NOAH
 );
 
 AMREX_ENUM(PerturbationType,

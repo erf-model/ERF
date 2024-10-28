@@ -11,12 +11,10 @@ using namespace amrex;
  * @param[in]     domain   simulation domain
  */
 
-void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain)
+void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+                                                        int ncomp, const IntVect& nghost)
 {
     BL_PROFILE_VAR("impose_lateral_base_bcs()",impose_lateral_base_bcs);
-
-    int icomp = 0;
-    int ncomp = 3;
 
     const int* bxlo = bx.loVect();
     const int* bxhi = bx.hiVect();
@@ -63,16 +61,16 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
     if (!is_periodic_in_x)
     {
         // Populate ghost cells on lo-x and hi-x domain boundaries
-        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
-        Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
-        if (bx_xlo.smallEnd(2) != domain.smallEnd(2)) bx_xlo.growLo(2,1);
-        if (bx_xlo.bigEnd(2)   != domain.bigEnd(2))   bx_xlo.growHi(2,1);
-        if (bx_xhi.smallEnd(2) != domain.smallEnd(2)) bx_xhi.growLo(2,1);
-        if (bx_xhi.bigEnd(2)   != domain.bigEnd(2))   bx_xhi.growHi(2,1);
+        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-nghost[0]);
+        Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+nghost[0]);
+        if (bx_xlo.smallEnd(2) != domain.smallEnd(2)) bx_xlo.growLo(2,nghost[2]);
+        if (bx_xlo.bigEnd(2)   != domain.bigEnd(2))   bx_xlo.growHi(2,nghost[2]);
+        if (bx_xhi.smallEnd(2) != domain.smallEnd(2)) bx_xhi.growLo(2,nghost[2]);
+        if (bx_xhi.bigEnd(2)   != domain.bigEnd(2))   bx_xhi.growHi(2,nghost[2]);
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
-                int dest_comp = icomp+n;
+                int dest_comp = n;
                 int l_bc_type = bc_ptr[n].lo(0);
                 int iflip = dom_lo.x - 1 - i;
                 if (l_bc_type == ERFBCType::foextrap) {
@@ -85,7 +83,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
             },
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
-                int dest_comp = icomp+n;
+                int dest_comp = n;
                 int h_bc_type = bc_ptr[n].hi(0);
                 int iflip =  2*dom_hi.x + 1 - i;
                 if (h_bc_type == ERFBCType::foextrap) {
@@ -102,16 +100,16 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
     if (!is_periodic_in_y)
     {
         // Populate ghost cells on lo-y and hi-y domain boundaries
-        Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
-        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
-        if (bx_ylo.smallEnd(2) != domain.smallEnd(2)) bx_ylo.growLo(2,1);
-        if (bx_ylo.bigEnd(2)   != domain.bigEnd(2))   bx_ylo.growHi(2,1);
-        if (bx_yhi.smallEnd(2) != domain.smallEnd(2)) bx_yhi.growLo(2,1);
-        if (bx_yhi.bigEnd(2)   != domain.bigEnd(2))   bx_yhi.growHi(2,1);
+        Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-nghost[1]);
+        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+nghost[1]);
+        if (bx_ylo.smallEnd(2) != domain.smallEnd(2)) bx_ylo.growLo(2,nghost[2]);
+        if (bx_ylo.bigEnd(2)   != domain.bigEnd(2))   bx_ylo.growHi(2,nghost[2]);
+        if (bx_yhi.smallEnd(2) != domain.smallEnd(2)) bx_yhi.growLo(2,nghost[2]);
+        if (bx_yhi.bigEnd(2)   != domain.bigEnd(2))   bx_yhi.growHi(2,nghost[2]);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
-                int dest_comp = icomp+n;
+                int dest_comp = n;
                 int l_bc_type = bc_ptr[n].lo(1);
                 int jflip = dom_lo.y - 1 - j;
                 if (l_bc_type == ERFBCType::foextrap) {
@@ -125,7 +123,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
             },
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
-                int dest_comp = icomp+n;
+                int dest_comp = n;
                 int h_bc_type = bc_ptr[n].hi(1);
                 int jflip =  2*dom_hi.y + 1 - j;
                 if (h_bc_type == ERFBCType::foextrap) {
@@ -141,3 +139,24 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
     Gpu::streamSynchronize();
 }
 
+void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+                                                         int ncomp, const IntVect& /*nghost*/)
+{
+    BL_PROFILE_VAR("impose_vertical_base_bcs()",impose_vertical_base_bcs);
+
+    const auto& dom_lo = lbound(domain);
+    const auto& dom_hi = ubound(domain);
+
+    Box bx_zlo(bx);  bx_zlo.setBig(2,dom_lo.z-2);
+    Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+2);
+    ParallelFor(
+        bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+        {
+            dest_arr(i,j,k,n) = dest_arr(i,j,dom_lo.z-1,n);
+        },
+        bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+        {
+            dest_arr(i,j,k,n) = dest_arr(i,j,dom_hi.z+1,n);
+        }
+    );
+}

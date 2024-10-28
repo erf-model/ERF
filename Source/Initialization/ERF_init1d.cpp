@@ -19,19 +19,18 @@ using namespace amrex;
 void
 ERF::initHSE (int lev)
 {
-    // This integrates up through column to update p_hse, pi_hse;
+    // This integrates up through column to update p_hse, pi_hse, th_hse;
     // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
 
-    MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
-    MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
-    MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
+    MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
+    MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
+    MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
+    MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
 
     bool all_boxes_touch_bottom = true;
     Box domain(geom[lev].Domain());
 
-    int icomp = 0; int bccomp = BCVars::base_bc; int ncomp = 3;
-
-    Real time = 0.;
+    int icomp = 0; int ncomp = BaseState::num_comps;
 
     if (lev == 0) {
         BoxArray ba(base_state[lev].boxArray());
@@ -63,7 +62,7 @@ ERF::initHSE (int lev)
          // We need to do this here because the interpolation above may leave corners unfilled
          //    when the corners need to be filled by, for example, reflection of the fine ghost
          //    cell outside the fine region but inide the domain.
-         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
+         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect());
     }
 
     if (all_boxes_touch_bottom || lev > 0) {
@@ -75,7 +74,7 @@ ERF::initHSE (int lev)
             prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
         }
 
-        erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+        erf_enforce_hse(lev, r_hse, p_hse, pi_hse, th_hse, z_phys_cc[lev]);
 
     } else {
 
@@ -85,12 +84,14 @@ ERF::initHSE (int lev)
 
         DistributionMapping dm_new(ba_new);
 
-        MultiFab new_base_state(ba_new, dm_new, 3, 1);
-        new_base_state.ParallelCopy(base_state[lev],0,0,3,1,1);
+        MultiFab new_base_state(ba_new, dm_new, BaseState::num_comps, base_state[lev].nGrowVect());
+        new_base_state.ParallelCopy(base_state[lev],0,0,base_state[lev].nComp(),
+                                    base_state[lev].nGrowVect(),base_state[lev].nGrowVect());
 
-        MultiFab new_r_hse (new_base_state, make_alias, 0, 1); // r_0  is first  component
-        MultiFab new_p_hse (new_base_state, make_alias, 1, 1); // p_0  is second component
-        MultiFab new_pi_hse(new_base_state, make_alias, 2, 1); // pi_0 is third  component
+        MultiFab new_r_hse (new_base_state, make_alias, BaseState::r0_comp, 1);
+        MultiFab new_p_hse (new_base_state, make_alias, BaseState::p0_comp, 1);
+        MultiFab new_pi_hse(new_base_state, make_alias, BaseState::pi0_comp, 1);
+        MultiFab new_th_hse(new_base_state, make_alias, BaseState::th0_comp, 1);
 
         std::unique_ptr<MultiFab> new_z_phys_cc;
         std::unique_ptr<MultiFab> new_z_phys_nd;
@@ -111,17 +112,18 @@ ERF::initHSE (int lev)
             prob->erf_init_dens_hse(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev]);
         }
 
-        erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_z_phys_cc);
+        erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_th_hse, new_z_phys_cc);
 
         // Now copy back into the original arrays
-        base_state[lev].ParallelCopy(new_base_state,0,0,3,1,1);
+        base_state[lev].ParallelCopy(new_base_state,0,0,base_state[lev].nComp(),
+                                     base_state[lev].nGrowVect(),base_state[lev].nGrowVect());
     }
 
     //
     // Impose physical bc's on the base state -- the values outside the fine region
     //   but inside the domain have already been filled in the call above to InterpFromCoarseLevel
     //
-    (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
+    (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 
     base_state[lev].FillBoundary(geom[lev].periodicity());
 }
@@ -147,7 +149,7 @@ ERF::initHSE ()
  */
 void
 ERF::erf_enforce_hse (int lev,
-                      MultiFab& dens, MultiFab& pres, MultiFab& pi,
+                      MultiFab& dens, MultiFab& pres, MultiFab& pi, MultiFab& theta,
                       std::unique_ptr<MultiFab>& z_cc)
 {
     Real l_gravity = solverChoice.gravity;
@@ -181,12 +183,16 @@ ERF::erf_enforce_hse (int lev,
         Array4<Real>  rho_arr = dens.array(mfi);
         Array4<Real> pres_arr = pres.array(mfi);
         Array4<Real>   pi_arr =   pi.array(mfi);
+        Array4<Real>   th_arr = theta.array(mfi);
         Array4<Real> zcc_arr;
         if (l_use_terrain) {
            zcc_arr = z_cc->array(mfi);
         }
 
         const Real rdOcp = solverChoice.rdOcp;
+
+        IntVect ngvect = base_state[lev].nGrowVect();
+        int ng_z = ngvect[2];
 
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
@@ -200,12 +206,19 @@ ERF::erf_enforce_hse (int lev,
                     hz = 0.5*dz;
                 }
 
-                pres_arr(i,j,klo  ) = p_0 - hz * rho_arr(i,j,klo) * l_gravity;
-                pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
+                pres_arr(i,j,klo) = p_0 - hz * rho_arr(i,j,klo) * l_gravity;
+                  pi_arr(i,j,klo) = getExnergivenP(pres_arr(i,j,klo), rdOcp);
+                  th_arr(i,j,klo) =getRhoThetagivenP(pres_arr(i,j,klo)) / rho_arr(i,j,klo);
 
                 // Set ghost cell with dz and rho at boundary
                 pres_arr(i,j,klo-1) = p_0 + hz * rho_arr(i,j,klo) * l_gravity;
-                pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
+                  pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
+                  th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
+                for (int kk = 2; kk <= ng_z; kk++) {
+                    pres_arr(i,j,klo-kk) = pres_arr(i,j,klo-1);
+                      pi_arr(i,j,klo-kk) =   pi_arr(i,j,klo-1);
+                      th_arr(i,j,klo-kk) =   th_arr(i,j,klo-1);
+                }
 
             } else {
                 // If level > 0 and klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
@@ -221,7 +234,13 @@ ERF::erf_enforce_hse (int lev,
                 pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
 
                 pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
-                pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
+                th_arr(i,j,klo  ) = getRhoThetagivenP(pres_arr(i,j,klo  )) / rho_arr(i,j,klo  );
+
+                for (int kk = 1; kk <= ng_z; kk++) {
+                    pi_arr(i,j,klo-kk) = getExnergivenP(pres_arr(i,j,klo-kk), rdOcp);
+                    th_arr(i,j,klo-kk) = getRhoThetagivenP(pres_arr(i,j,klo-kk)) / rho_arr(i,j,klo-kk);
+                }
+
             }
 
             Real dens_interp;
@@ -231,64 +250,83 @@ ERF::erf_enforce_hse (int lev,
                     dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
+                    th_arr(i,j,k) = getRhoThetagivenP(pres_arr(i,j,k)) / rho_arr(i,j,k);
                 }
             } else {
                 for (int k = klo+1; k <= khi; k++) {
                     dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
+                    th_arr(i,j,k) = getRhoThetagivenP(pres_arr(i,j,k)) / rho_arr(i,j,k);
                 }
             }
         });
 
+        bool is_periodic_in_x = geom[lev].isPeriodic(0);
+        bool is_periodic_in_y = geom[lev].isPeriodic(1);
+
         int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0);
         int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1);
 
-        if (pres[mfi].box().smallEnd(0) < domlo_x)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            bx.setSmall(0,domlo_x-1);
-            bx.setBig(0,domlo_x-1);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
-                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
-            });
+        if (!is_periodic_in_x) {
+            if (pres[mfi].box().smallEnd(0) < domlo_x) {
+                Box bx = mfi.nodaltilebox(2);
+                int ng = ngvect[0];
+                bx.setSmall(0,domlo_x-1);
+                bx.setBig(0,domlo_x-ng);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
+                      pi_arr(i,j,k) =   pi_arr(domlo_x,j,k);
+                      th_arr(i,j,k) =   th_arr(domlo_x,j,k);
+                });
         }
 
-        if (pres[mfi].box().bigEnd(0) > domhi_x)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            bx.setSmall(0,domhi_x+1);
-            bx.setBig(0,domhi_x+1);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(domhi_x,j,k);
-                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
-            });
+            if (pres[mfi].box().bigEnd(0) > domhi_x) {
+                Box bx = mfi.nodaltilebox(2);
+                int ng = ngvect[0];
+                bx.setSmall(0,domhi_x+1);
+                bx.setBig(0,domhi_x+ng);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    pres_arr(i,j,k) = pres_arr(domhi_x,j,k);
+                      pi_arr(i,j,k) =   pi_arr(domhi_x,j,k);
+                      th_arr(i,j,k) =   th_arr(domhi_x,j,k);
+                });
+            }
         }
 
-        if (pres[mfi].box().smallEnd(1) < domlo_y)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            bx.setSmall(1,domlo_y-1);
-            bx.setBig(1,domlo_y-1);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(i,domlo_y,k);
-                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
-            });
-        }
+        if (!is_periodic_in_y) {
+            if (pres[mfi].box().smallEnd(1) < domlo_y) {
+                Box bx = mfi.nodaltilebox(2);
+                int ng = ngvect[1];
+                bx.setSmall(1,domlo_y-ng);
+                bx.setBig(1,domlo_y-1);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    pres_arr(i,j,k) = pres_arr(i,domlo_y,k);
+                      pi_arr(i,j,k) =   pi_arr(i,domlo_y,k);
+                      th_arr(i,j,k) =   th_arr(i,domlo_y,k);
+                });
+            }
 
-        if (pres[mfi].box().bigEnd(1) > domhi_y)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            bx.setSmall(1,domhi_y+1);
-            bx.setBig(1,domhi_y+1);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(i,domhi_y,k);
-                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
-            });
+            if (pres[mfi].box().bigEnd(1) > domhi_y) {
+                Box bx = mfi.nodaltilebox(2);
+                int ng = ngvect[1];
+                bx.setSmall(1,domhi_y+1);
+                bx.setBig(1,domhi_y+ng);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    pres_arr(i,j,k) = pres_arr(i,domhi_y,k);
+                      pi_arr(i,j,k) =   pi_arr(i,domhi_y,k);
+                      th_arr(i,j,k) =   th_arr(i,domhi_y,k);
+                });
+            }
         }
     }
 
-    dens.FillBoundary(geom[lev].periodicity());
-    pres.FillBoundary(geom[lev].periodicity());
+     dens.FillBoundary(geom[lev].periodicity());
+     pres.FillBoundary(geom[lev].periodicity());
+       pi.FillBoundary(geom[lev].periodicity());
+    theta.FillBoundary(geom[lev].periodicity());
 }

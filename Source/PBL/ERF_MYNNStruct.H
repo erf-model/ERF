@@ -10,7 +10,7 @@ struct MYNNLevel25 {
 
     /*
      * Calculate the stability functions that determine the eddy diffusivities
-     * of momentum, heat, QKE, and (optionally) moisture.
+     * of momentum, heat, KE, and (optionally) moisture.
      */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE

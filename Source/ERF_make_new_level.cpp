@@ -232,7 +232,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //
     InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
                           IntVect(0,0,0), // do not fill ghost cells outside the domain
-                          base_state[lev-1], 0, 0, 3,
+                          base_state[lev-1], 0, 0, base_state[lev].nComp(),
                           geom[lev-1], geom[lev],
                           refRatio(lev-1), &cell_cons_interp,
                           domain_bcs_type, BCVars::cons_bc);
@@ -346,9 +346,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //    from previous (pre-regrid) base_state array
     // ********************************************************************************************
     if (lev > 0) {
-        // Interp all three components: rho, p, pi
-        int  icomp = 0; int bccomp = 0; int  ncomp = 3;
-
         Interpolater* mapper = &cell_cons_interp;
 
         Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
@@ -364,7 +361,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                            BCVars::base_bc);
 
         // Impose bc's outside the domain
-        (*physbcs_base[lev])(temp_base_state,icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
+        (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
 
         std::swap(temp_base_state, base_state[lev]);
     }
