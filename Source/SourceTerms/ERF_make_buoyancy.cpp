@@ -150,9 +150,9 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,
-                                                                       grav_gpu[2],rd_over_cp,
-                                                                       p0_arr,r0_arr,cell_data);
+                        buoyancy_fab(i, j, k) = buoyancy_dry_default(i,j,k,
+                                                                     grav_gpu[2],rd_over_cp,
+                                                                     p0_arr,r0_arr,cell_data);
                     });
                 } // mfi
             } // buoyancy_type

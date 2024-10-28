@@ -67,6 +67,31 @@ buoyancy_moist_anelastic (int& i,
     return (-grav_gpu * (theta_v_wface - theta_v_0_wface) / theta_v_0_wface);
 }
 
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+amrex::Real
+buoyancy_dry_default (int& i,
+                      int& j,
+                      int& k,
+                      amrex::Real const& grav_gpu,
+                      amrex::Real const& rd_over_cp,
+                      const amrex::Array4<const amrex::Real>& p0_arr,
+                      const amrex::Array4<const amrex::Real>& r0_arr,
+                      const amrex::Array4<const amrex::Real>& cell_data)
+{
+    amrex::Real rt0_hi = getRhoThetagivenP(p0_arr(i,j,k));
+    amrex::Real  t0_hi = getTgivenPandTh(p0_arr(i,j,k), rt0_hi/r0_arr(i,j,k), rd_over_cp);
+    amrex::Real   t_hi = getTgivenPandTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
+    amrex::Real qplus  = (t_hi-t0_hi)/t0_hi;
+
+    amrex::Real rt0_lo = getRhoThetagivenP(p0_arr(i,j,k-1));
+    amrex::Real  t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), rt0_lo/r0_arr(i,j,k-1), rd_over_cp);
+    amrex::Real   t_lo = getTgivenPandTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
+    amrex::Real qminus = (t_lo-t0_lo)/t0_lo;
+
+    amrex::Real r0_q_avg = amrex::Real(0.5) * (r0_arr(i,j,k) * qplus + r0_arr(i,j,k-1) * qminus);
+    return (-r0_q_avg * grav_gpu);
+}
 
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
