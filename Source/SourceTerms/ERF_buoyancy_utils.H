@@ -1,5 +1,5 @@
 #ifndef ERF_BUOYANCY_UTILS_H_
-#define ERF_BUOYANCY_TUILS_H_
+#define ERF_BUOYANCY_UTILS_H_
 
 #include <ERF_EOS.H>
 #include <ERF_Constants.H>
