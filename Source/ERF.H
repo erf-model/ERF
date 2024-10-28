@@ -448,6 +448,15 @@ public:
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
 
+    // write checkpoint file to disk
+    void WriteCheckpointFile () const;
+
+    // read checkpoint file from disk
+    void ReadCheckpointFile ();
+
+    // read checkpoint file from disk -- called after instantiating m_most
+    void ReadCheckpointFileMOST ();
+
 private:
 
     ///////////////////////////
@@ -636,15 +645,6 @@ private:
 
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
-
-    // write checkpoint file to disk
-    void WriteCheckpointFile () const;
-
-    // read checkpoint file from disk
-    void ReadCheckpointFile ();
-
-    // read checkpoint file from disk -- called after instantiating m_most
-    void ReadCheckpointFileMOST ();
 
     // Read the file passed to amr.restart and use it as an initial condition for
     // the current simulation. Supports a different number of components and
