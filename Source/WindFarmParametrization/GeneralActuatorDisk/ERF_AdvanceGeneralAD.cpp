@@ -417,7 +417,6 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
             Real y   = ProbLoArr[1] + (jj+0.5)*dx[1];
             Real z   = ProbLoArr[2] + (kk+0.5)*dx[2];
             // ?? Density needed here
-            Real inv_dens_vol = 1.0/(1.0*dx[0]*dx[1]*dx[2]);
 
             int check_int = 0;
 
