@@ -114,7 +114,7 @@ void SimpleAD::compute_freestream_velocity(const MultiFab& cons_in,
                                  amrex::ParallelContext::CommunicatorAll());
 
     get_turb_loc(xloc, yloc);
-    if (ParallelDescriptor::IOProcessor()){
+    /*if (ParallelDescriptor::IOProcessor()){
         for(int it=0; it<xloc.size(); it++){
 
             std::cout << "turbine index, freestream velocity is " << it << " " << freestream_velocity[it] << " " <<
@@ -122,7 +122,7 @@ void SimpleAD::compute_freestream_velocity(const MultiFab& cons_in,
                                                                 freestream_velocity[it]/(disk_cell_count[it] + 1e-10) << " " <<
                                                                 freestream_phi[it]/(disk_cell_count[it] + 1e-10) << "\n";
         }
-    }
+    }*/
 }
 
 void
@@ -195,12 +195,13 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-            int check_int = 0;
 
             Real source_x = 0.0;
             Real source_y = 0.0;
 
-            for(long unsigned int it=0;it<nturbs;it++) {
+            int it = static_cast<int>(SMark_array(ii,jj,kk,1));
+
+              if(it != -1) {
                 Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
                 Real phi      = d_freestream_phi_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
 
@@ -210,8 +211,6 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                     a = 0.5 - 0.5*std::pow(1.0-C_T,0.5);
                 }
                 Real Uinfty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
-                if(SMark_array(ii,jj,kk,1) == static_cast<double>(it)) {
-                    check_int++;
                     if(C_T <= 1) {
                         source_x = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
                         source_y = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
@@ -220,12 +219,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                         source_x = -0.5*C_T*std::pow(Uinfty_dot_nhat, 2.0)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
                         source_y = -0.5*C_T*std::pow(Uinfty_dot_nhat, 2.0)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                     }
-                }
-            }
-            if(check_int > 1){
-                amrex::Error("Actuator disks are overlapping. Visualize actuator_disks.vtk "
-                             "and check the windturbine locations input file. Exiting..");
-            }
+             }
 
             simpleAD_array(i,j,k,0) = source_x;
             simpleAD_array(i,j,k,1) = source_y;

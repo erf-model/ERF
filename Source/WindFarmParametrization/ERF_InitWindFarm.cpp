@@ -125,14 +125,6 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         xloc[it] = xloc[it] - xloc_min + windfarm_x_shift;
         yloc[it] = yloc[it] - yloc_min + windfarm_y_shift;
     }
-
-    FILE* file_xy_loc;
-    file_xy_loc = fopen("file_xy_loc_KingPlains.txt","w");
-
-    for(int it = 0;it<xloc.size(); it++){
-        fprintf(file_xy_loc,"%0.15g %0.15g %0.15g\n", xloc[it], yloc[it], 89.0);
-    }
-    fclose(file_xy_loc);
 }
 
 void
@@ -456,6 +448,8 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
 
             Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
 
+            int turb_indices_overlap[2];
+            int check_int = 0;
             for(int it=0; it<num_turb; it++){
                 Real x0 = d_xloc_ptr[it] + d_sampling_distance*nx;
                 Real y0 = d_yloc_ptr[it] + d_sampling_distance*ny;
@@ -467,13 +461,21 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
                 }
                 x0 = d_xloc_ptr[it];
                 y0 = d_yloc_ptr[it];
+                //printf("Values are %d, %0.15g, %0.15g\n", it, x0, y0);
 
                 is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
                                                 nx, ny, d_hub_height, d_rotor_rad, z);
                 if(is_cell_marked) {
                     SMark_array(i,j,k,1) = it;
+                    turb_indices_overlap[check_int] = it;
+                    check_int++;
+                    if(check_int > 1){
+                        printf("Actuator disks with indices %d and %d are overlapping\n",
+                               turb_indices_overlap[0],turb_indices_overlap[1]);
+                        amrex::Error("Actuator disks are overlapping. Visualize actuator_disks.vtk "
+                        " and check the windturbine locations input file. Exiting..");
+                    }
                 }
-
             }
         });
     }
