@@ -49,7 +49,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
     Real rd_over_cp = solverChoice.rdOcp;
     Real rv_over_rd = R_v/R_d;
-    Real c_p        = solverChoice.c_p;
 
     if (anelastic == 1) {
 #ifdef _OPENMP
@@ -73,9 +72,9 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             if (solverChoice.moisture_type == MoistureType::None) {
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    buoyancy_fab(i, j, k) = buoyancy_dry_default(i,j,k,
-                                                                 grav_gpu[2],rd_over_cp,
-                                                                 p0_arr,r0_arr,cell_data);
+                    buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,
+                                                                   grav_gpu[2],rd_over_cp,
+                                                                   p0_arr,r0_arr,cell_data);
                 });
             } else {
                 // NOTE: For decomposition in the vertical direction, klo may not
@@ -83,7 +82,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 //       of bounds error since it depends upon the surface theta_l
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,klo,
+                    buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,
                                                                      grav_gpu[2],rv_over_rd,
                                                                      p0_arr,r0_arr,cell_data);
                 });
@@ -97,11 +96,11 @@ void make_buoyancy (Vector<MultiFab>& S_data,
         // ******************************************************************************************
         if (solverChoice.moisture_type == MoistureType::None)
         {
+            int n_q_dry = 0;
             if (solverChoice.buoyancy_type == 1) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                int n_q_dry = 0;
                 for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     Box tbz = mfi.tilebox();
@@ -151,9 +150,9 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        buoyancy_fab(i, j, k) = buoyancy_dry_default(i,j,k,
-                                                                     grav_gpu[2],rd_over_cp,
-                                                                     p0_arr,r0_arr,cell_data);
+                        buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,
+                                                                       grav_gpu[2],rd_over_cp,
+                                                                       p0_arr,r0_arr,cell_data);
                     });
                 } // mfi
             } // buoyancy_type

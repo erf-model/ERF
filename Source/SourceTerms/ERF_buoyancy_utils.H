@@ -7,14 +7,14 @@
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 amrex::Real
-buoyancy_dry_default (int& i,
-                      int& j,
-                      int& k,
-                      amrex::Real const& grav_gpu,
-                      amrex::Real const& rd_over_cp,
-                      const amrex::Array4<const amrex::Real>& p0_arr,
-                      const amrex::Array4<const amrex::Real>& r0_arr,
-                      const amrex::Array4<const amrex::Real>& cell_data)
+buoyancy_dry_anelastic (int& i,
+                        int& j,
+                        int& k,
+                        amrex::Real const& grav_gpu,
+                        amrex::Real const& rd_over_cp,
+                        const amrex::Array4<const amrex::Real>& p0_arr,
+                        const amrex::Array4<const amrex::Real>& r0_arr,
+                        const amrex::Array4<const amrex::Real>& cell_data)
 {
     amrex::Real rt0_hi = getRhoThetagivenP(p0_arr(i,j,k));
     amrex::Real  t0_hi = getTgivenPandTh(p0_arr(i,j,k), rt0_hi/r0_arr(i,j,k), rd_over_cp);
@@ -37,7 +37,6 @@ amrex::Real
 buoyancy_moist_anelastic (int& i,
                           int& j,
                           int& k,
-                          const int& klo,
                           amrex::Real const& grav_gpu,
                           amrex::Real const& rv_over_rd,
                           const amrex::Array4<const amrex::Real>& p0_arr,
