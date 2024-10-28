@@ -67,7 +67,7 @@ buoyancy_moist_anelastic (int& i,
     return (-grav_gpu * (theta_v_wface - theta_v_0_wface) / theta_v_0_wface);
 }
 
-AMREX_GPU_HOST
+AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_dry_default (int& i,
