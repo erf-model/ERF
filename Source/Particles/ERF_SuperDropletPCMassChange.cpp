@@ -133,7 +133,7 @@ void SuperDropletPC::MassChange ( int                                         a_
 
             TI< dRsqdt<ParticleReal>,
                 NewtonSolver<dRsqdt<ParticleReal>, ParticleReal>,
-                ParticleReal > ti { drsqdt, newton_solver, a_dt,
+                ParticleReal > ti { drsqdt, newton_solver, a_dt, 100,
                                     sat_ratio, temperature, e_sat, solute_moles,
                                     cfl, 1e-40, 1e-3, 1e-6, false, false };
 
