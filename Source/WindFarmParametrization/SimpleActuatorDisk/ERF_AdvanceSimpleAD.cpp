@@ -13,13 +13,44 @@ SimpleAD::advance (const Geometry& geom,
                   MultiFab& V_old,
                   MultiFab& W_old,
                   const MultiFab& mf_Nturb,
-                  const MultiFab& mf_SMark)
+                  const MultiFab& mf_SMark,
+                  const Real& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
     compute_freestream_velocity(cons_in, U_old, V_old, mf_SMark);
     source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_simpleAD);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);
+    compute_power_output(time);
+}
+
+void
+SimpleAD::compute_power_output(const Real& time)
+{
+     get_turb_loc(xloc, yloc);
+     get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+                  wind_speed, thrust_coeff, power);
+
+     const int n_spec_table = wind_speed.size();
+  // Compute power based on the look-up table
+
+    if (ParallelDescriptor::IOProcessor()){
+        static std::ofstream file("power_output.txt", std::ios::app);
+        // Check if the file opened successfully
+        if (!file.is_open()) {
+            std::cerr << "Error opening file!" << std::endl;
+            Abort("Could not open file to write power output in ERF_AdvanceSimpleAD.cpp");
+        }
+        Real total_power = 0.0;
+        for(int it=0; it<xloc.size(); it++){
+            Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + 1e-10);
+            Real turb_power = interpolate_1d(wind_speed.data(), power.data(), avg_vel, n_spec_table);
+            total_power = total_power + turb_power;
+            //printf("avg vel and power is %d %0.15g, %0.15g\n", it, avg_vel, turb_power);
+        }
+        file << time << " " << total_power << "\n";
+        file.flush();
+    }
 }
 
 void

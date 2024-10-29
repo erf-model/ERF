@@ -90,10 +90,11 @@ public:
                   amrex::MultiFab& V_old,
                   amrex::MultiFab& W_old,
                   const amrex::MultiFab& mf_Nturb,
-                  const amrex::MultiFab& mf_SMark) override
+                  const amrex::MultiFab& mf_SMark,
+                  const amrex::Real& time) override
     {
         m_windfarm_model[0]->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
-                                     U_old, V_old, W_old, mf_Nturb, mf_SMark);
+                                     U_old, V_old, W_old, mf_Nturb, mf_SMark, time);
     }
 
     void set_turb_spec(const amrex::Real& a_rotor_rad, const amrex::Real& a_hub_height,
