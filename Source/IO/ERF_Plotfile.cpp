@@ -197,17 +197,17 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     //     because we don't need to set interior fine points.
     // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
 
-    int lev = 0;
-    FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
-                                &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]});
+    // Level 0 FilLPatch
+    FillPatch(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
+                            &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
 
     for (int lev = 1; lev <= finest_level; ++lev) {
         bool fillset = false;
         FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
                                     &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
                                    {&vars_new[lev][Vars::cons],
-                                   &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                                   base_state[lev], base_state[lev], fillset);
+                                    &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                                    base_state[lev], base_state[lev], fillset);
     }
 
     // Get qmoist pointers if using moisture
