@@ -199,6 +199,7 @@ namespace SDMassChangeUtils
         const NewtonSolver m_newton; /*!< Newton solver */
 
         RT m_t_final;   /*!< final time */
+        RT m_max_steps; /*!< max number of timesteps */
         RT m_S;         /*!< saturation ratio */
         RT m_T;         /*!< temperature */
         RT m_e_s;       /*!< saturation pressure */
@@ -227,7 +228,8 @@ namespace SDMassChangeUtils
             RT dt_new = dt;
             RT a_u_old = a_u;
 
-            while (cur_time < m_t_final) {
+            int n_step = 0;
+            while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
                 if (!m_adapt_dt) {
                     tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
@@ -321,6 +323,8 @@ namespace SDMassChangeUtils
                     break;
 
                 }
+
+                n_step++;
             }
 
             return;
@@ -334,7 +338,8 @@ namespace SDMassChangeUtils
             RT cur_time = 0.0;
             a_success = true;
 
-            while (cur_time < m_t_final) {
+            int n_step = 0;
+            while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
                 RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
                 RT dt = m_cfl / std::sqrt(tau*tau);
@@ -414,6 +419,8 @@ namespace SDMassChangeUtils
                     break;
 
                 }
+
+                n_step++;
             }
 
             return;
@@ -427,7 +434,8 @@ namespace SDMassChangeUtils
             RT cur_time = 0.0;
             a_success = true;
 
-            while (cur_time < m_t_final) {
+            int n_step = 0;
+            while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
                 RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
                 RT dt = m_cfl / std::sqrt(tau*tau);
@@ -493,6 +501,8 @@ namespace SDMassChangeUtils
                     break;
 
                 }
+
+                n_step++;
             }
 
             return;
@@ -506,7 +516,8 @@ namespace SDMassChangeUtils
             RT cur_time = 0.0;
             a_success = true;
 
-            while (cur_time < m_t_final) {
+            int n_step = 0;
+            while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
                 RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
                 RT dt = m_cfl / std::sqrt(tau*tau);
@@ -582,6 +593,8 @@ namespace SDMassChangeUtils
                     break;
 
                 }
+
+                n_step++;
             }
 
             return;
@@ -595,7 +608,8 @@ namespace SDMassChangeUtils
             RT cur_time = 0.0;
             a_success = true;
 
-            while (cur_time < m_t_final) {
+            int n_step = 0;
+            while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
                 RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_N_s);
                 RT dt = m_cfl / std::sqrt(tau*tau);
@@ -699,6 +713,8 @@ namespace SDMassChangeUtils
                     break;
 
                 }
+
+                n_step++;
             }
 
             return;
