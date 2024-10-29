@@ -262,8 +262,10 @@ class ERFPhysBCFunct_base
 public:
     ERFPhysBCFunct_base (const int lev,
                          const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
-                         const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d)
+                         const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                         bool moving_terrain)
         : m_lev(lev), m_geom(geom),
+          m_moving_terrain(moving_terrain),
           m_domain_bcs_type(domain_bcs_type),
           m_domain_bcs_type_d(domain_bcs_type_d)
     {}
@@ -291,6 +293,7 @@ public:
 private:
     int                  m_lev;
     amrex::Geometry      m_geom;
+    bool                 m_moving_terrain;
     amrex::Vector<amrex::BCRec>            m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
 };

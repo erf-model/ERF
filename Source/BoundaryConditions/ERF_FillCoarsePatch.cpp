@@ -29,11 +29,18 @@ ERF::FillCoarsePatch (int lev, Real time)
     //****************************************************************************************************************
     //
     bool cons_only = false;
-    FillPatch(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
-                            &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
-                           {&vars_new[lev-1][Vars::cons],
-                            &rU_new[lev-1], &rV_new[lev-1], &rW_new[lev-1]},
-                            false, cons_only);
+    if (lev == 1) {
+        FillPatch(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
+                                &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
+                                cons_only);
+    } else {
+        FillPatch(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
+                                &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
+                               {&vars_new[lev-1][Vars::cons],
+                                &rU_new[lev-1], &rV_new[lev-1], &rW_new[lev-1]},
+                                base_state[lev-1], base_state[lev-1],
+                                false, cons_only);
+    }
 
     //
     // ************************************************

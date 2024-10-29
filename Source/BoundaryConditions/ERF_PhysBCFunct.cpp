@@ -372,6 +372,11 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int ncomp, In
 
     if (m_geom.isAllPeriodic()) return;
 
+    if (m_moving_terrain) {
+        mf.FillBoundary(m_geom.periodicity());
+        return;
+    }
+
     const auto& domain = m_geom.Domain();
 
     // Create a grown domain box containing valid + periodic cells
@@ -381,6 +386,12 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int ncomp, In
             gdomain.grow(i, nghost[i]);
         }
     }
+
+    //
+    // We fill all of the interior and periodic ghost cells first, so we can fill
+    //    those directly inside the lateral and vertical calls.
+    //
+    mf.FillBoundary(m_geom.periodicity());
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

@@ -185,12 +185,6 @@ ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 void
 ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
-    if (plotfile_type == PlotFileType::Amrex) {
-       amrex::Print() << "WRITE AMREX " << std::endl;
-    } else if (plotfile_type == PlotFileType::Netcdf) {
-       amrex::Print() << "WRITE NETCDF " << std::endl;
-    }
-
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
 
@@ -202,12 +196,18 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     //     which require ghost cells to be filled.  We do not need to call FillPatcher
     //     because we don't need to set interior fine points.
     // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
-    for (int lev = 0; lev <= finest_level; ++lev) {
+
+    int lev = 0;
+    FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
+                                &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]});
+
+    for (int lev = 1; lev <= finest_level; ++lev) {
         bool fillset = false;
         FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
                                     &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
-                                   {&vars_new[lev][Vars::cons], &rU_new[lev],
-                                    &rV_new[lev], &rW_new[lev]}, fillset);
+                                   {&vars_new[lev][Vars::cons],
+                                   &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                                   base_state[lev], base_state[lev], fillset);
     }
 
     // Get qmoist pointers if using moisture

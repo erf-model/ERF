@@ -45,6 +45,7 @@ PlotFileType ERF::plotfile_type_1  = PlotFileType::None;
 PlotFileType ERF::plotfile_type_2  = PlotFileType::None;
 
 InitType ERF::init_type;
+StateInterpType ERF::interpolation_type;
 
 // use_real_bcs: only true if 1) ( (init_type == InitType::Real) or (init_type == InitGrid::Metgrid) )
 //                        AND 2) we want to use the bc's from the WRF bdy file
@@ -874,6 +875,18 @@ ERF::InitData_post ()
 
         int ncomp = lev_new[Vars::cons].nComp();
 
+        // ***************************************************************************
+        // Physical bc's at domain boundary
+        // ***************************************************************************
+        IntVect ngvect_cons = vars_new[lev][Vars::cons].nGrowVect();
+        IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
+
+        (*physbcs_cons[lev])(lev_new[Vars::cons],0,ncomp,ngvect_cons,t_new[lev],BCVars::cons_bc,true);
+        (   *physbcs_u[lev])(lev_new[Vars::xvel],0,1    ,ngvect_vels,t_new[lev],BCVars::xvel_bc,true);
+        (   *physbcs_v[lev])(lev_new[Vars::yvel],0,1    ,ngvect_vels,t_new[lev],BCVars::yvel_bc,true);
+        (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
+                             ngvect_vels,t_new[lev],BCVars::zvel_bc,true);
+
         MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp,lev_new[Vars::cons].nGrowVect());
         MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,    1,lev_new[Vars::xvel].nGrowVect());
         MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,    1,lev_new[Vars::yvel].nGrowVect());
@@ -905,10 +918,16 @@ ERF::InitData_post ()
         // Fill boundary conditions -- not sure why we need this here
         //
         bool fillset = false;
-        FillPatch(lev, t_new[lev],
-                  {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
-                  {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                  fillset);
+        if (lev == 0) {
+            FillPatch(lev, t_new[lev],
+                      {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
+        } else {
+            FillPatch(lev, t_new[lev],
+                      {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                      {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                      base_state[lev], base_state[lev],
+                      fillset);
+        }
 
         //
         // We do this here to make sure level (lev-1) boundary conditions are filled
@@ -1460,6 +1479,10 @@ ERF::ReadParameters ()
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);
 
+        // Set default to FullState for now ... later we will try Perturbation
+        interpolation_type = StateInterpType::FullState;
+        pp.query_enum_case_insensitive("interpolation_type"  ,interpolation_type);
+
         PlotFileType plotfile_type_temp = PlotFileType::None;
         pp.query_enum_case_insensitive("plotfile_type"  ,plotfile_type_temp);
         pp.query_enum_case_insensitive("plotfile_type_1",plotfile_type_1);
@@ -1811,115 +1834,6 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
     // divide by the total number of cells we are averaging over
     for (int k = 0; k < size_z; ++k) {
         h_havg[k]     /= area_z;
-    }
-}
-
-// Set covered coarse cells to be the average of overlying fine cells for all levels
-void
-ERF::AverageDown ()
-{
-    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
-    int  src_comp = 0;
-    int  num_comp = vars_new[0][Vars::cons].nComp();
-    for (int lev = finest_level-1; lev >= 0; --lev)
-    {
-        AverageDownTo(lev,src_comp,num_comp);
-    }
-}
-
-// Set covered coarse cells to be the average of overlying fine cells at level crse_lev
-void
-ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
-{
-    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
-
-    // ******************************************************************************************
-    // First do cell-centered quantities
-    // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
-    // m is the map scale factor at cell centers
-    // Here we pre-divide (rho S) by m^2 before average down
-    // ******************************************************************************************
-    for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-      for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
-        const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-        if (solverChoice.use_terrain) {
-            const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
-            ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                cons_arr(i,j,k,scomp+n) *= detJ_arr(i,j,k) / (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
-            });
-        } else {
-            ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                cons_arr(i,j,k,scomp+n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
-            });
-        }
-      } // mfi
-    } // lev
-
-    average_down(vars_new[crse_lev+1][Vars::cons],
-                 vars_new[crse_lev  ][Vars::cons],
-                 scomp, ncomp, refRatio(crse_lev));
-
-    // Here we multiply (rho S) by m^2 after average down
-    for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-      for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
-        const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-        if (solverChoice.use_terrain) {
-            const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
-            ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                cons_arr(i,j,k,scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0)) / detJ_arr(i,j,k);
-            });
-        } else {
-            ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                cons_arr(i,j,k,scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
-            });
-        }
-      } // mfi
-    } // lev
-
-    // ******************************************************************************************
-    // Now average down momenta.
-    // Note that vars_new holds velocities not momenta, but we want to do conservative
-    //    averaging so we first convert to momentum, then average down, then convert
-    //    back to velocities -- only on the valid region
-    // ******************************************************************************************
-    for (int lev = crse_lev; lev <= crse_lev+1; lev++)
-    {
-        // FillBoundary for density so we can go back and forth between velocity and momentum
-        vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
-
-        VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::yvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::zvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::cons],
-                             rU_new[lev],
-                             rV_new[lev],
-                             rW_new[lev],
-                           Geom(lev).Domain(),
-                           domain_bcs_type);
-    }
-
-    average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-    average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-    average_down_faces(rW_new[crse_lev+1], rW_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-
-    for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-        MomentumToVelocity(vars_new[lev][Vars::xvel],
-                           vars_new[lev][Vars::yvel],
-                           vars_new[lev][Vars::zvel],
-                           vars_new[lev][Vars::cons],
-                             rU_new[lev],
-                             rV_new[lev],
-                             rW_new[lev],
-                           Geom(lev).Domain(),
-                           domain_bcs_type);
     }
 }
 

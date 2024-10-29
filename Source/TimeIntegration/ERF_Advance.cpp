@@ -95,8 +95,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     //
     // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
     //
-    FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
-                         {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]});
+    if (lev == 0) {
+        FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old});
+    } else {
+        FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
+                             {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
+                             base_state[lev], base_state[lev]);
+    }
+
     //
     // So we must convert the fillpatched to momenta, including the ghost values
     //
@@ -191,6 +197,20 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
    evolveTracers( lev, dt_lev, vars_new, z_phys_nd );
 #endif
+
+    // ***********************************************************************************************
+    // Impose domain boundary conditions here so that in FillPatching the fine data we won't
+    // need to re-fill these
+    // ***********************************************************************************************
+    if (lev < finest_level) {
+         IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
+         (*physbcs_cons[lev])(vars_new[lev][Vars::cons],0,vars_new[lev][Vars::cons].nComp(),
+                              vars_new[lev][Vars::cons].nGrowVect(),time,BCVars::cons_bc,true);
+            (*physbcs_u[lev])(vars_new[lev][Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc,true);
+            (*physbcs_v[lev])(vars_new[lev][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc,true);
+            (*physbcs_w[lev])(vars_new[lev][Vars::zvel], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel],
+                              ngvect_vels,time,BCVars::zvel_bc,true);
+    }
 
     // **************************************************************************************
     // Register old and new coarse data if we are at a level less than the finest level

@@ -79,6 +79,13 @@ AMREX_ENUM(InitType,
 );
 
 /**
+ * Enum of possible interpolation types between coarse/fine
+*/
+AMREX_ENUM(StateInterpType,
+    FullState, Perturbational
+);
+
+/**
  * Enum of possible plotfile types
 */
 AMREX_ENUM(PlotFileType,
@@ -86,6 +93,7 @@ AMREX_ENUM(PlotFileType,
 );
 
 
+#if 0
 /**
  * Enum of possible coarse/fine interpolation options
 */
@@ -102,6 +110,7 @@ namespace InterpType {
         FaceConserativeLinear
     };
 }
+#endif
 
 /**
  * Main class in ERF code, instantiated from main.cpp
@@ -515,9 +524,17 @@ private:
     //
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
     //
+    // This one works only at level = 0 (base state does not change)
+    void FillPatch (int lev, amrex::Real time,
+                    const amrex::Vector<amrex::MultiFab*>& mfs_vel,
+                    bool cons_only=false);
+
+    // This one works only at level > 0 (base state does change)
     void FillPatch (int lev, amrex::Real time,
                     const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                     const amrex::Vector<amrex::MultiFab*>& mfs_mom,
+                    const amrex::MultiFab& old_base_state,
+                    const amrex::MultiFab& new_base_state,
                     bool fillset=true, bool cons_only=false);
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
@@ -977,6 +994,7 @@ private:
     static PlotFileType plotfile_type_2;
 
     static InitType init_type;
+    static StateInterpType interpolation_type;
 
     // sponge_type:  "input_sponge"
     static std::string sponge_type;
