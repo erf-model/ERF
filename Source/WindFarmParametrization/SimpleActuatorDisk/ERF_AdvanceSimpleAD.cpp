@@ -225,4 +225,24 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
             simpleAD_array(i,j,k,1) = source_y;
          });
     }
+
+  // Compute power based on the look-up table
+
+    if (ParallelDescriptor::IOProcessor()){
+        static std::ofstream file("power_output.txt", std::ios::app);
+        // Check if the file opened successfully
+        if (!file.is_open()) {
+            std::cerr << "Error opening file!" << std::endl;
+            Abort("Could not open file to write power output in ERF_AdvanceSimpleAD.cpp");
+        }
+        Real total_power = 0.0;
+        for(int it=0; it<xloc.size(); it++){
+            Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + 1e-10);
+            Real turb_power = interpolate_1d(wind_speed.data(), power.data(), avg_vel, n_spec_table);
+            total_power = total_power + turb_power;
+            //printf("avg vel and power is %d %0.15g, %0.15g\n", it, avg_vel, turb_power);
+        }
+        file << total_power << "\n";
+        file.flush();
+    }
 }
