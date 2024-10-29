@@ -435,7 +435,8 @@ public:
                        amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
                        amrex::MultiFab& mf_vars_windfarm,
                        const amrex::MultiFab& mf_Nturb,
-                       const amrex::MultiFab& mf_SMark);
+                       const amrex::MultiFab& mf_SMark,
+                       const amrex::Real& time);
 #endif
 
 #ifdef ERF_USE_EB

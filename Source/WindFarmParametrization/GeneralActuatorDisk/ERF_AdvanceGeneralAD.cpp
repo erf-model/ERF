@@ -14,11 +14,13 @@ GeneralAD::advance (const Geometry& geom,
                   MultiFab& V_old,
                   MultiFab& W_old,
                   const MultiFab& mf_Nturb,
-                  const MultiFab& mf_SMark)
+                  const MultiFab& mf_SMark,
+                  const Real& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_vars_generalAD.nComp() > 0);
+    AMREX_ALWAYS_ASSERT(time > -1.0);
     compute_freestream_velocity(cons_in, U_old, V_old, mf_SMark);
     source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_generalAD);
     update(dt_advance, cons_in, U_old, V_old, W_old, mf_vars_generalAD);
