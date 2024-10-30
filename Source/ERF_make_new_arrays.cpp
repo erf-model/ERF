@@ -149,6 +149,15 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
+    if (lev > 0) {
+        xmom_crse_rhs[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, IntVect{0});
+        xmom_crse_rhs[lev].setVal(3.456e22);
+        ymom_crse_rhs[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, IntVect{0});
+        ymom_crse_rhs[lev].setVal(3.456e22);
+        zmom_crse_rhs[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect{0});
+        zmom_crse_rhs[lev].setVal(3.456e22);
+    }
+
     // We do this here just so they won't be undefined in the initial FillPatch
     rU_old[lev].setVal(1.2e21);
     rV_old[lev].setVal(3.4e22);

@@ -197,6 +197,10 @@ ERF::ERF_shared ()
     rV_old.resize(nlevs_max);
     rW_old.resize(nlevs_max);
 
+    xmom_crse_rhs.resize(nlevs_max);
+    ymom_crse_rhs.resize(nlevs_max);
+    zmom_crse_rhs.resize(nlevs_max);
+
     for (int lev = 0; lev < nlevs_max; ++lev) {
         vars_new[lev].resize(Vars::NumTypes);
         vars_old[lev].resize(Vars::NumTypes);
@@ -460,8 +464,9 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                 }
             } // mfi
 
-            // This call refluxes from the lev/lev+1 interface onto lev
-            getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], 0, 0, ncomp);
+            // This call refluxes all "slow" cell-centered variables
+            // (i.e. not density or (rho theta) or velocities) from the lev/lev+1 interface onto lev
+            getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], 2, 2, ncomp-2);
 
             // Here we multiply (rho S) by m^2 after refluxing
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {

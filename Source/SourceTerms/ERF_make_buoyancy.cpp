@@ -34,8 +34,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                           MultiFab& buoyancy,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
-                    const MultiFab* r0,
-                    const MultiFab* p0,
+                    const MultiFab& base_state,
                     const int n_qstate,
                     const int anelastic)
 {
@@ -49,6 +48,10 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
     Real rd_over_cp = solverChoice.rdOcp;
     Real rv_over_rd = R_v/R_d;
+
+    MultiFab r0 (base_state, make_alias, BaseState::r0_comp , 1);
+    MultiFab p0 (base_state, make_alias, BaseState::p0_comp , 1);
+    MultiFab th0(base_state, make_alias, BaseState::th0_comp, 1);
 
     if (anelastic == 1) {
 #ifdef _OPENMP
@@ -66,15 +69,16 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
             // Base state density and pressure
-            const Array4<const Real>& r0_arr = r0->const_array(mfi);
-            const Array4<const Real>& p0_arr = p0->const_array(mfi);
+            const Array4<const Real>&  r0_arr =  r0.const_array(mfi);
+            const Array4<const Real>&  p0_arr =  p0.const_array(mfi);
+            const Array4<const Real>& th0_arr = th0.const_array(mfi);
 
             if (solverChoice.moisture_type == MoistureType::None) {
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,
                                                                    grav_gpu[2],
-                                                                   p0_arr,r0_arr,cell_data);
+                                                                   r0_arr,p0_arr,cell_data);
                 });
             } else {
                 // NOTE: For decomposition in the vertical direction, klo may not
@@ -84,7 +88,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 {
                     buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,
                                                                      grav_gpu[2],rv_over_rd,
-                                                                     p0_arr,r0_arr,cell_data);
+                                                                     r0_arr,th0_arr,cell_data);
                 });
             }
         } // mfi
@@ -113,7 +117,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
                     // Base state density
-                    const Array4<const Real>& r0_arr = r0->const_array(mfi);
+                    const Array4<const Real>& r0_arr = r0.const_array(mfi);
 
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -142,8 +146,9 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
                     // Base state density and pressure
-                    const Array4<const Real>& r0_arr = r0->const_array(mfi);
-                    const Array4<const Real>& p0_arr = p0->const_array(mfi);
+                    const Array4<const Real>&  r0_arr = r0.const_array(mfi);
+                    const Array4<const Real>&  p0_arr = p0.const_array(mfi);
+                    const Array4<const Real>& th0_arr = th0.const_array(mfi);
 
                     const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                     const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
@@ -152,7 +157,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     {
                         buoyancy_fab(i, j, k) = buoyancy_dry_default(i,j,k,
                                                                      grav_gpu[2],rd_over_cp,
-                                                                     p0_arr,r0_arr,cell_data);
+                                                                     r0_arr,p0_arr,th0_arr,cell_data);
                     });
                 } // mfi
             } // buoyancy_type
@@ -187,7 +192,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
                 // Base state density
-                const Array4<const Real>& r0_arr = r0->const_array(mfi);
+                const Array4<const Real>& r0_arr = r0.const_array(mfi);
 
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {

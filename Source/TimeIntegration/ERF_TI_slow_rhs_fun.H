@@ -102,18 +102,21 @@
 
             } // mfi
 
-            MultiFab r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
-            MultiFab p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
-            MultiFab pi_hse_new(base_state_new[level], make_alias, BaseState::pi0_comp, 1);
+            MultiFab  r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
+            MultiFab  p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
+            MultiFab pi_hse_new (base_state_new[level], make_alias, BaseState::pi0_comp, 1);
+            MultiFab th_hse_new (base_state_new[level], make_alias, BaseState::th0_comp, 1);
 
-            MultiFab* r0_new = &r_hse_new;
-            MultiFab* p0_new = &p_hse_new;
+            MultiFab* r0_new  = &r_hse_new;
+            MultiFab* p0_new  = &p_hse_new;
+            MultiFab* pi0_new = &pi_hse_new;
+            MultiFab* th0_new = &th_hse_new;
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new,
                              xmom_src, ymom_src, zmom_src,
-                             r0_new, p0_new, fine_geom, solverChoice,
+                             base_state_new[level], fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -122,6 +125,9 @@
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
                              z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
+                             (level > 0) ? &xmom_crse_rhs[level] : nullptr,
+                             (level > 0) ? &ymom_crse_rhs[level] : nullptr,
+                             (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
@@ -156,6 +162,8 @@
 
             const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
+            const Real l_rdOcp   = solverChoice.rdOcp;
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -168,8 +176,10 @@
                const Array4<Real      >  r0_new_arr = r0_new->array(mfi);
                const Array4<Real      >  r0_tmp_arr = r0_temp.array(mfi);
 
-               const Array4<Real const>  p0_arr     = p0->const_array(mfi);
-               const Array4<Real      >  p0_new_arr = p0_new->array(mfi);
+               const Array4<Real const>  p0_arr     =  p0->const_array(mfi);
+               const Array4<Real      >  p0_new_arr =  p0_new->array(mfi);
+               const Array4<Real      > pi0_new_arr = pi0_new->array(mfi);
+               const Array4<Real      > th0_new_arr = th0_new->array(mfi);
 
                const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
 
@@ -205,7 +215,9 @@
                    r0_new_arr(i,j,k) = rho0_new / dJ_new_arr(i,j,k);
                    rt0_tmp_new      /=            dJ_new_arr(i,j,k);
 
-                   p0_new_arr(i,j,k) = getPgivenRTh(rt0_tmp_new);
+                    p0_new_arr(i,j,k) = getPgivenRTh(rt0_tmp_new);
+                   pi0_new_arr(i,j,k) = getExnergivenRTh(rt0_tmp_new, l_rdOcp);
+                   th0_new_arr(i,j,k) = rt0_tmp_new / r0_new_arr(i,j,k);
                });
             } // MFIter
             r0_new->FillBoundary(fine_geom.periodicity());
@@ -217,7 +229,7 @@
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new,
                              xmom_src, ymom_src, zmom_src,
-                             r0, p0, fine_geom, solverChoice,
+                             base_state[level], fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -226,6 +238,9 @@
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
                              z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
+                             (level > 0) ? &xmom_crse_rhs[level] : nullptr,
+                             (level > 0) ? &ymom_crse_rhs[level] : nullptr,
+                             (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3,Q2fx3, Diss,
@@ -424,7 +439,7 @@
                          z_phys_nd[level], z_phys_cc[level],
                          xvel_new, yvel_new,
                          xmom_src, ymom_src, zmom_src,
-                         r0, p0, fine_geom, solverChoice,
+                         base_state[level], fine_geom, solverChoice,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -434,6 +449,9 @@
                          S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
                          z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
+                         (level > 0) ? &xmom_crse_rhs[level] : nullptr,
+                         (level > 0) ? &ymom_crse_rhs[level] : nullptr,
+                         (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                          Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                          Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                          Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,

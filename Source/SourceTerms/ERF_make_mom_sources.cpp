@@ -48,7 +48,7 @@ void make_mom_sources (int level,
                               MultiFab & xmom_src,
                               MultiFab & ymom_src,
                               MultiFab & zmom_src,
-                       MultiFab* r0, MultiFab* p0,
+                       const MultiFab& base_state,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& mapfac_m,
@@ -190,7 +190,7 @@ void make_mom_sources (int level,
     // *****************************************************************************
     // 1. Create the BUOYANCY forcing term in the z-direction
     // *****************************************************************************
-    make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, r0, p0,
+    make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, base_state,
                   n_qstate, solverChoice.anelastic[level]);
 
     // *****************************************************************************

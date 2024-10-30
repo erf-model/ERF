@@ -731,6 +731,10 @@ private:
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
 
+    amrex::Vector<amrex::MultiFab> xmom_crse_rhs;
+    amrex::Vector<amrex::MultiFab> ymom_crse_rhs;
+    amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
+
     std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
