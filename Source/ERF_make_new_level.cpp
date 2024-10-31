@@ -332,39 +332,40 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // *****************************************************************************************************
     make_physbcs(lev);
 
-    // *************************************************************************************************
-    // This will fill the temporary MultiFabs with data from vars_new
-    // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
-    // *************************************************************************************************
-    FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
-                         {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                          base_state[lev],temp_base_state,false);
-
     // ********************************************************************************************
     // Update the base state at this level by interpolation from coarser level AND copy
     //    from previous (pre-regrid) base_state array
     // ********************************************************************************************
-    if (lev > 0) {
-        Interpolater* mapper = &cell_cons_interp;
+    Interpolater* mapper = &cell_cons_interp;
 
-        Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
-        Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
-        Vector<Real> ftime    = {time, time};
-        Vector<Real> ctime    = {time, time};
+    Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
+    Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
+    Vector<Real> ftime    = {time, time};
+    Vector<Real> ctime    = {time, time};
 
-        // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
-        FillPatchTwoLevels(temp_base_state, temp_base_state.nGrowVect(), IntVect(0,0,0),
-                           time, cmf, ctime, fmf, ftime,
-                           0, 0, temp_base_state.nComp(), geom[lev-1], geom[lev],
-                           refRatio(lev-1), mapper, domain_bcs_type,
-                           BCVars::base_bc);
+    // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
+    FillPatchTwoLevels(temp_base_state, temp_base_state.nGrowVect(), IntVect(0,0,0),
+                       time, cmf, ctime, fmf, ftime,
+                       0, 0, temp_base_state.nComp(), geom[lev-1], geom[lev],
+                       refRatio(lev-1), mapper, domain_bcs_type,
+                       BCVars::base_bc);
 
-        // Impose bc's outside the domain
-        (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
+    // Impose bc's outside the domain
+    (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
 
-        std::swap(temp_base_state, base_state[lev]);
-    }
+    // *************************************************************************************************
+    // This will fill the temporary MultiFabs with data from vars_new
+    // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
+    // NOTE: we must create the new base state before calling FillPatch because we will
+    //       interpolate perturbational quantities
+    // *************************************************************************************************
+    FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
+                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
+                         {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                         base_state[lev], temp_base_state, false);
+
+    // Now swap the pointers since we needed both old and new in the FillPatch
+    std::swap(temp_base_state, base_state[lev]);
 
     // ********************************************************************************************
     // Copy from new into old just in case
@@ -444,6 +445,10 @@ ERF::ClearLevel (int lev)
     rV_old[lev].clear();
     rW_new[lev].clear();
     rW_old[lev].clear();
+
+    if (lev > 0) {
+        zmom_crse_rhs[lev].clear();
+    }
 
     if (solverChoice.anelastic[lev] == 1) {
         pp_inc[lev].clear();

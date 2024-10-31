@@ -121,10 +121,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
         Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
         Vector<Real> ftime    = {time,time};
 
-        // Impose physical bc's on coarse data (note time and 0 are not used)
-        (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,true);
-        (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,true);
-
         // Impose physical bc's on fine data (note time and 0 are not used)
         (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,true);
 
@@ -257,10 +253,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
             fmf = {&mfu,&mfu};
             cmf = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
 
-            // Impose physical bc's on coarse data (note time and 0 are not used)
-            (*physbcs_u[lev-1])(vars_old[lev-1][Vars::xvel],0,1,IntVect{ng_vel},time,BCVars::xvel_bc,true);
-            (*physbcs_u[lev-1])(vars_new[lev-1][Vars::xvel],0,1,IntVect{ng_vel},time,BCVars::xvel_bc,true);
-
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
             FillPatchTwoLevels(mfu, IntVect{ng_vel}, IntVect(0,0,0),
                                time, cmf, ctime, fmf, ftime,
@@ -275,10 +267,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
             fmf = {&mfv,&mfv};
             cmf = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
 
-            // Impose physical bc's on coarse data (note time and 0 are not used)
-            (*physbcs_v[lev-1])(vars_old[lev-1][Vars::yvel],0,1,IntVect{ng_vel},time,BCVars::yvel_bc,true);
-            (*physbcs_v[lev-1])(vars_new[lev-1][Vars::yvel],0,1,IntVect{ng_vel},time,BCVars::yvel_bc,true);
-
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
             FillPatchTwoLevels(mfv, IntVect{ng_vel}, IntVect(0,0,0),
                                time, cmf, ctime, fmf, ftime,
@@ -292,16 +280,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
             fmf = {&mfw,&mfw};
             cmf = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
-
-            // Impose physical bc's on coarse data (note time and 0 are not used)
-            (*physbcs_w[lev-1])(vars_old[lev-1][Vars::zvel],
-                                vars_old[lev-1][Vars::xvel],
-                                vars_old[lev-1][Vars::yvel],
-                                IntVect{ng_vel},time,BCVars::zvel_bc,true);
-            (*physbcs_w[lev-1])(vars_new[lev-1][Vars::zvel],
-                                vars_new[lev-1][Vars::xvel],
-                                vars_new[lev-1][Vars::yvel],
-                                IntVect{ng_vel},time,BCVars::zvel_bc,true);
 
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
             FillPatchTwoLevels(mfw, IntVect{ng_vel}, IntVect(0,0,0),
