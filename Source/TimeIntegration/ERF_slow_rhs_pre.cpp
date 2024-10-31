@@ -745,10 +745,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         });
 
+#if 0
         auto const lo = lbound(bx);
         auto const hi = ubound(bx);
 
-#if 0
         // Note: the logic below assumes no tiling in z!
         if (level > 0) {
 
