@@ -247,9 +247,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             // Now create a MultiFab that holds (S_new - S_old) / dt from the coarse level interpolated
             //     on to the coarse/fine boundary at the fine resolution
             //
-            PhysBCFunctNoOp null_bc;
             Interpolater* mapper_f = &face_cons_linear_interp;
 
+            // PhysBCFunctNoOp null_bc;
             // MultiFab tempx(vars_new[lev+1][Vars::xvel].boxArray(),vars_new[lev+1][Vars::xvel].DistributionMap(),1,0);
             // tempx.setVal(0.0);
             // xmom_crse_rhs[lev+1].setVal(0.0);
