@@ -731,8 +731,8 @@ private:
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
 
-    amrex::Vector<amrex::MultiFab> xmom_crse_rhs;
-    amrex::Vector<amrex::MultiFab> ymom_crse_rhs;
+    // amrex::Vector<amrex::MultiFab> xmom_crse_rhs;
+    // amrex::Vector<amrex::MultiFab> ymom_crse_rhs;
     amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
 
     std::unique_ptr<Microphysics> micro;

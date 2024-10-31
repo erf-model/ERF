@@ -197,8 +197,8 @@ ERF::ERF_shared ()
     rV_old.resize(nlevs_max);
     rW_old.resize(nlevs_max);
 
-    xmom_crse_rhs.resize(nlevs_max);
-    ymom_crse_rhs.resize(nlevs_max);
+    // xmom_crse_rhs.resize(nlevs_max);
+    // ymom_crse_rhs.resize(nlevs_max);
     zmom_crse_rhs.resize(nlevs_max);
 
     for (int lev = 0; lev < nlevs_max; ++lev) {
