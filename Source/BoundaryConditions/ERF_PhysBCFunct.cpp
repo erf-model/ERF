@@ -250,8 +250,6 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     //
     if (gdomainz.smallEnd(2) == 0) gdomainz.setSmall(2,1);
 
-    Box ndomain  = convert(domain,IntVect(1,1,1));
-
     //
     // We fill all of the interior and periodic ghost cells first, so we can fill
     //    those directly inside the lateral and vertical calls.
