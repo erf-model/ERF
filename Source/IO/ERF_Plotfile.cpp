@@ -1410,10 +1410,15 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
             int lev0 = 0;
             int desired_ratio = std::max(std::max(ref_ratio[lev0][0],ref_ratio[lev0][1]),ref_ratio[lev0][2]);
-            bool any_ratio_one = ( ( (ref_ratio[lev0][0] == 0) || (ref_ratio[lev0][1] == 0) ) ||
-                                     (ref_ratio[lev0][2] == 0) );
+            bool any_ratio_one = ( ( (ref_ratio[lev0][0] == 1) || (ref_ratio[lev0][1] == 1) ) ||
+                                     (ref_ratio[lev0][2] == 1) );
+            for (int lev = 1; lev < finest_level; lev++) {
+                any_ratio_one = any_ratio_one ||
+                                     ( ( (ref_ratio[lev][0] == 1) || (ref_ratio[lev][1] == 1) ) ||
+                                         (ref_ratio[lev][2] == 1) );
+            }
 
-            if (any_ratio_one == 1 && m_expand_plotvars_to_unif_rr)
+            if (any_ratio_one && m_expand_plotvars_to_unif_rr)
             {
                 Vector<IntVect>   r2(finest_level);
                 Vector<Geometry>  g2(finest_level+1);
@@ -1435,9 +1440,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                 for (int lev = 1; lev <= finest_level; ++lev) {
                     if (lev > 1) {
-                        r2[lev-1][0] *= desired_ratio / ref_ratio[lev-1][0];
-                        r2[lev-1][1] *= desired_ratio / ref_ratio[lev-1][1];
-                        r2[lev-1][2] *= desired_ratio / ref_ratio[lev-1][2];
+                        r2[lev-1][0] = r2[lev-2][0] * desired_ratio / ref_ratio[lev-1][0];
+                        r2[lev-1][1] = r2[lev-2][1] * desired_ratio / ref_ratio[lev-1][1];
+                        r2[lev-1][2] = r2[lev-2][2] * desired_ratio / ref_ratio[lev-1][2];
                     }
 
                     mf2[lev].define(refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);

@@ -53,7 +53,7 @@ public:
     */
     void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
                      amrex::IntVect const& nghost, const amrex::Real time, int bccomp_cons,
-                     bool do_fb);
+                     bool do_fb = true, bool do_terrain_adjustment = true);
 
     void impose_lateral_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
@@ -62,7 +62,7 @@ public:
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
-                                   int icomp, int ncomp);
+                                   int icomp, int ncomp, bool do_terrain_adjustment = true);
 
 private:
     int                  m_lev;

@@ -261,7 +261,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
 void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
                                                     const Array4<Real const>& z_phys_nd,
                                                     const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                                    int icomp, int ncomp)
+                                                    int icomp, int ncomp, bool do_terrain_adjustment)
 {
     BL_PROFILE_VAR("impose_vertical_cons_bcs()",impose_vertical_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -416,7 +416,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
         );
     }
 
-    if (m_z_phys_nd) {
+    if (do_terrain_adjustment &&  m_z_phys_nd) {
         const auto&  bx_lo = lbound(bx);
         const auto&  bx_hi = ubound(bx);
         const BCRec* bc_ptr_h = bcrs.data();

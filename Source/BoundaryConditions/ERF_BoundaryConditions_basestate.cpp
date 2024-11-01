@@ -259,7 +259,7 @@ void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& des
         {
             dest_arr(i,j,k,BaseState::r0_comp) = dest_arr(i,j,dom_lo.z,BaseState::r0_comp);
             dest_arr(i,j,k,BaseState::p0_comp) = p_0 -
-               dest_arr(i,j,k,BaseState::r0_comp) * hz * 9.81;
+               dest_arr(i,j,k,BaseState::r0_comp) * hz * CONST_GRAV;
             dest_arr(i,j,k,BaseState::pi0_comp) = dest_arr(i,j,dom_lo.z,BaseState::pi0_comp);
             dest_arr(i,j,k,BaseState::th0_comp) = dest_arr(i,j,dom_lo.z,BaseState::th0_comp);
         }

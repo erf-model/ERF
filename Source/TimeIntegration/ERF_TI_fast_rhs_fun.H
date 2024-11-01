@@ -13,7 +13,9 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         const Real new_substep_time)
     {
         BL_PROFILE("fast_rhs_fun");
-        if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
+        if (verbose) amrex::Print() << "Fast time integration at level " << level
+                                    << " from " << old_substep_time << " to " << new_substep_time
+                                    << " with dt = " << dtau << std::endl;
 
         // Define beta_s here so that it is consistent between where we make the fast coefficients
         //    and where we use them

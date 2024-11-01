@@ -47,7 +47,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // Define dmap[lev] to be dm
     SetDistributionMap(lev, dm);
 
-    // amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+    if (verbose) {
+        amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+    }
 
     if (lev == 0) init_bcs();
 
@@ -179,7 +181,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 {
     AMREX_ALWAYS_ASSERT(lev > 0);
 
-    // amrex::Print() <<" NEW BA FROM COARSE AT LEVEL " << lev << " " << ba << std::endl;
+    if (verbose) {
+        amrex::Print() <<" NEW BA FROM COARSE AT LEVEL " << lev << " " << ba << std::endl;
+    }
 
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
@@ -283,7 +287,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
-    // amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
+    if (verbose) {
+        amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
+    }
 
     AMREX_ALWAYS_ASSERT(lev > 0);
     AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::Moving);
@@ -291,7 +297,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
     DistributionMapping dm_old(vars_new[lev][Vars::cons].DistributionMap());
 
-    // amrex::Print() <<"               OLD BA AT LEVEL " << lev << " " << ba_old << std::endl;
+    if (verbose) {
+        amrex::Print() <<"               OLD BA AT LEVEL " << lev << " " << ba_old << std::endl;
+    }
 
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();

@@ -61,11 +61,13 @@ ERF::FillIntermediatePatch (int lev, Real time,
         }
     }
 
-    // amrex::Print() << "CONS ONLY   " << cons_only << std::endl;
-    // amrex::Print() << "ICOMP NCOMP " << icomp_cons << " " << ncomp_cons << " NGHOST " << ng_cons << std::endl;
+    // amrex::Print() << "LEVEL " << lev << " CONS ONLY   " << cons_only <<
+    //                   " ICOMP NCOMP " << icomp_cons << " " << ncomp_cons << " NGHOST " << ng_cons << std::endl;
 
-    AMREX_ALWAYS_ASSERT(mfs_mom.size() == IntVars::NumTypes);
-    AMREX_ALWAYS_ASSERT(mfs_vel.size() == Vars::NumTypes);
+    if (!cons_only) {
+        AMREX_ALWAYS_ASSERT(mfs_mom.size() == IntVars::NumTypes);
+        AMREX_ALWAYS_ASSERT(mfs_vel.size() == Vars::NumTypes);
+    }
 
     // Enforce no penetration for thin immersed body
     if (!cons_only) {
@@ -122,7 +124,9 @@ ERF::FillIntermediatePatch (int lev, Real time,
         Vector<Real> ftime    = {time,time};
 
         // Impose physical bc's on fine data (note time and 0 are not used)
-        (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,true);
+        bool do_fb = true; bool do_terrain_adjustment = false;
+        (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,
+                             do_fb, do_terrain_adjustment);
 
         if ( (icomp_cons+ncomp_cons > 1) && (interpolation_type == StateInterpType::Perturbational) )
         {

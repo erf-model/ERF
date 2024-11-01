@@ -56,11 +56,8 @@ private:
     int force_stage1_single_substep;
 
    /**
-    * \brief The  pre_update function is called by the integrator on stage data before using it to evaluate a right-hand side.
-    * \brief The post_update function is called by the integrator on stage data at the end of the stage
+    * \brief The no_substep function is called when we have no acoustic substepping
     */
-    std::function<void (T&, int)> pre_update;
-    std::function<void (T&, amrex::Real, int, int)> post_update;
     std::function<void (T&, T&, T&, amrex::Real, amrex::Real, int)> no_substep;
 
 
@@ -164,16 +161,6 @@ public:
         return slow_fast_timestep_ratio;
     }
 
-    void set_pre_update (std::function<void (T&, int)> F)
-    {
-        pre_update = F;
-    }
-
-    void set_post_update (std::function<void (T&, amrex::Real, int, int)> F)
-    {
-        post_update = F;
-    }
-
     void set_no_substep (std::function<void (T&, T&, T&, amrex::Real, amrex::Real, int)> F)
     {
         no_substep = F;
@@ -247,8 +234,6 @@ public:
           // RK3 for compressible integrator
           for (int nrk = 0; nrk < 3; nrk++)
           {
-            // amrex::Print() << "Starting RK3: Step " << nrk+1 << std::endl;
-
             // Capture the time we got to in the previous RK step
             old_time_stage = time_stage;
 
@@ -284,12 +269,6 @@ public:
             // step 1 starts with S_stage = S^n  and we always start substepping at the old time
             // step 2 starts with S_stage = S^*  and we always start substepping at the old time
             // step 3 starts with S_stage = S^** and we always start substepping at the old time
-
-            // All pre_update does is call cons_to_prim, and we have done this with the old
-            //     data already before starting the RK steps
-            if (nrk > 0) {
-                pre_update(S_new, S_new[IntVars::cons].nGrow());
-            }
 
             // S_scratch also holds the average momenta over the fast iterations --
             //    to be used to update the slow variables -- we will initialize with
@@ -327,10 +306,6 @@ public:
             //      (because we did    update the fast variables in the substepping)
             // ****************************************************
             slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
-
-            // Call the post-update hook for S_new after all the fast steps completed
-            // This will update S_prim that is used in the slow RHS
-            post_update(S_new, time + nsubsteps*dtau, S_new[IntVars::cons].nGrow(), S_new[IntVars::xmom].nGrow());
           } // nrk
 
         } else {
@@ -343,12 +318,6 @@ public:
             if (nrk == 0) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
             if (nrk == 1) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
 
-            // All pre_update does is call cons_to_prim, and we have done this with the old
-            //     data already before starting the RK steps
-            if (nrk > 0) {
-                pre_update(S_new, S_new[IntVars::cons].nGrow());
-            }
-
             // S_scratch also holds the average momenta over the fast iterations --
             //    to be used to update the slow variables -- we will initialize with
             //    the momenta used in the first call to the slow_rhs, then update
@@ -358,9 +327,14 @@ public:
 
             no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau, nrk);
 
+            // ****************************************************
+            // Evaluate F_slow(S_stage) only for the slow variables
+            // Note that we are using the current stage versions (in S_new) of the slow variables
+            //      (because we didn't update the slow variables in the substepping)
+            //       but we are using the "new" versions (in S_sum) of the velocities
+            //      (because we did    update the fast variables in the substepping)
+            // ****************************************************
             slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
-
-            post_update(S_new, time + nsubsteps*dtau, S_new[IntVars::cons].nGrow(), S_new[IntVars::xmom].nGrow());
           } // nrk
         }
 
