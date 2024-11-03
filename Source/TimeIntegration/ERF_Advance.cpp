@@ -35,6 +35,35 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
+    // We need to set these because otherwise in the first call to erf_advance we may
+    //    read uninitialized data on ghost values in setting the bc's on the velocities
+    U_new.setVal(1.e34,U_new.nGrowVect());
+    V_new.setVal(1.e34,V_new.nGrowVect());
+    W_new.setVal(1.e34,W_new.nGrowVect());
+
+    //
+    // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
+    // If lev == 0 we have already FillPatched this in ERF::TimeStep
+    //
+//  if (lev == 0) {
+//      FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old});
+//  } else {
+    if (lev > 0) {
+        FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
+                             {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
+                             base_state[lev], base_state[lev]);
+    }
+
+    //
+    // So we must convert the fillpatched to momenta, including the ghost values
+    //
+    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
+                       V_old, rV_old[lev].nGrowVect(),
+                       W_old, rW_old[lev].nGrowVect(),
+                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
+                       Geom(lev).Domain(),
+                       domain_bcs_type);
+
     // TODO: Can test on multiple levels later
     // Update the inflow perturbation update time and amplitude
     if (lev == 0) {
@@ -85,33 +114,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             m_most->update_fluxes(lev, time);
         }
     }
-
-    // We need to set these because otherwise in the first call to erf_advance we may
-    //    read uninitialized data on ghost values in setting the bc's on the velocities
-    U_new.setVal(1.e34,U_new.nGrowVect());
-    V_new.setVal(1.e34,V_new.nGrowVect());
-    W_new.setVal(1.e34,W_new.nGrowVect());
-
-    //
-    // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
-    //
-    if (lev == 0) {
-        FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old});
-    } else {
-        FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
-                             {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
-                             base_state[lev], base_state[lev]);
-    }
-
-    //
-    // So we must convert the fillpatched to momenta, including the ghost values
-    //
-    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
-                       V_old, rV_old[lev].nGrowVect(),
-                       W_old, rW_old[lev].nGrowVect(),
-                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
-                       Geom(lev).Domain(),
-                       domain_bcs_type);
 
 #if defined(ERF_USE_WINDFARM)
     if (solverChoice.windfarm_type != WindFarmType::None) {
