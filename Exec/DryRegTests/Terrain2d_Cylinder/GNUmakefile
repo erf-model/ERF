@@ -28,5 +28,5 @@ USE_ASSERTION = TRUE
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/Terrain2d_Cylinder
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DryRegTests/Terrain2d_Cylinder
 include $(ERF_HOME)/Exec/Make.ERF
