@@ -7,15 +7,15 @@ using namespace amrex;
 
 void
 GeneralAD::advance (const Geometry& geom,
-                  const Real& dt_advance,
-                  MultiFab& cons_in,
-                  MultiFab& mf_vars_generalAD,
-                  MultiFab& U_old,
-                  MultiFab& V_old,
-                  MultiFab& W_old,
-                  const MultiFab& mf_Nturb,
-                  const MultiFab& mf_SMark,
-                  const Real& time)
+                    const Real& dt_advance,
+                    MultiFab& cons_in,
+                    MultiFab& mf_vars_generalAD,
+                    MultiFab& U_old,
+                    MultiFab& V_old,
+                    MultiFab& W_old,
+                    const MultiFab& mf_Nturb,
+                    const MultiFab& mf_SMark,
+                    const Real& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
@@ -28,11 +28,11 @@ GeneralAD::advance (const Geometry& geom,
 
 void
 GeneralAD::update (const Real& dt_advance,
-                  MultiFab& cons_in,
-                  MultiFab& U_old,
-                  MultiFab& V_old,
-                  MultiFab& W_old,
-                  const MultiFab& mf_vars_generalAD)
+                   MultiFab& cons_in,
+                   MultiFab& U_old,
+                   MultiFab& V_old,
+                   MultiFab& W_old,
+                   const MultiFab& mf_vars_generalAD)
 {
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -63,10 +63,10 @@ GeneralAD::update (const Real& dt_advance,
     }
 }
 
-void GeneralAD::compute_freestream_velocity(const MultiFab& cons_in,
-                                           const MultiFab& U_old,
-                                           const MultiFab& V_old,
-                                           const MultiFab& mf_SMark)
+void GeneralAD::compute_freestream_velocity (const MultiFab& cons_in,
+                                             const MultiFab& U_old,
+                                             const MultiFab& V_old,
+                                             const MultiFab& mf_SMark)
 {
      get_turb_loc(xloc, yloc);
      freestream_velocity.clear();
@@ -141,9 +141,9 @@ void GeneralAD::compute_freestream_velocity(const MultiFab& cons_in,
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-int find_rad_loc_index(const Real rad,
-                       const Real* bld_rad_loc,
-                       const int n_bld_sections)
+int find_rad_loc_index (const Real rad,
+                        const Real* bld_rad_loc,
+                        const int n_bld_sections)
 {
       // Find the index of the radial location
     int index=-1;
@@ -285,9 +285,9 @@ compute_source_terms_Fn_Ft (const Real rad,
 
 void
 GeneralAD::source_terms_cellcentered (const Geometry& geom,
-                                     const MultiFab& cons_in,
-                                     const MultiFab& mf_SMark,
-                                     MultiFab& mf_vars_generalAD)
+                                      const MultiFab& cons_in,
+                                      const MultiFab& mf_SMark,
+                                      MultiFab& mf_vars_generalAD)
 {
 
     get_turb_loc(xloc, yloc);

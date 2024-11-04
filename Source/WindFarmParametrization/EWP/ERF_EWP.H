@@ -10,9 +10,9 @@ class EWP : public NullWindFarm {
 
 public:
 
-    EWP(){}
+    EWP (){}
 
-    virtual ~EWP() = default;
+    virtual ~EWP () = default;
 
     void advance (const amrex::Geometry& geom,
                   const amrex::Real& dt_advance,

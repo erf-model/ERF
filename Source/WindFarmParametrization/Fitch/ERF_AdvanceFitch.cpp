@@ -7,9 +7,9 @@ using namespace amrex;
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-Real compute_A(const Real z,
-               const Real hub_height,
-               const Real rotor_rad)
+Real compute_A (const Real z,
+                const Real hub_height,
+                const Real rotor_rad)
 {
 
     Real d  = std::min(std::fabs(z - hub_height), rotor_rad);
@@ -22,10 +22,10 @@ Real compute_A(const Real z,
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-Real compute_Aijk(const Real z_k,
-                  const Real z_kp1,
-                  const Real hub_height,
-                  const Real rotor_rad)
+Real compute_Aijk (const Real z_k,
+                   const Real z_kp1,
+                   const Real hub_height,
+                   const Real rotor_rad)
 {
 
     Real A_k   = compute_A(z_k, hub_height, rotor_rad);

@@ -9,9 +9,9 @@ class GeneralAD : public NullWindFarm {
 
 public:
 
-    GeneralAD() {}
+    GeneralAD () {}
 
-    virtual ~GeneralAD() = default;
+    virtual ~GeneralAD () = default;
 
     void advance (const amrex::Geometry& geom,
                   const amrex::Real& dt_advance,
