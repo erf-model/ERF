@@ -11,8 +11,8 @@ MEM_PROFILE   = FALSE
 USE_GPROF     = FALSE
 
 # Performance
-USE_MPI = TRUE
-USE_OMP = FALSE
+USE_MPI  = TRUE
+USE_OMP  = FALSE
 
 USE_CUDA = FALSE
 USE_HIP  = FALSE
@@ -24,10 +24,11 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
+#USE_POISSON_SOLVE = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/DynamicRefinement
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/MoistRegTests/Bomex
 include $(ERF_HOME)/Exec/Make.ERF
