@@ -40,8 +40,9 @@ void make_sources (int level,
 #endif
                    const Geometry geom,
                    const SolverChoice& solverChoice,
-                   std::unique_ptr<MultiFab>& mapfac_u,
-                   std::unique_ptr<MultiFab>& mapfac_v,
+                   std::unique_ptr<MultiFab>& /*mapfac_u*/,
+                   std::unique_ptr<MultiFab>& /*mapfac_v*/,
+                   std::unique_ptr<MultiFab>& mapfac_m,
                    const Real* dptr_rhotheta_src,
                    const Real* dptr_rhoqt_src,
                    const Real* dptr_wbar_sub,
@@ -330,27 +331,27 @@ void make_sources (int level,
         // 6. Add numerical diffuion for rho and (rho theta)
         // *************************************************************************************
         if (l_use_ndiff) {
-            int start_comp = 0;
-            int   num_comp = 2;
+            int sc;
+            int nc;
 
-            const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
-            const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
+            const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
 
-            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
-                               cell_data, cell_src, mf_u, mf_v, false, false);
+            // Rho is a special case
+            NumericalDiffusion_Scal(bx, sc=0, nc=1, dt, solverChoice.NumDiffCoeff,
+                                    cell_data, cell_data, cell_src, mf_m);
+
+            // Other scalars proceed as normal
+            NumericalDiffusion_Scal(bx, sc=1, nc=1, dt, solverChoice.NumDiffCoeff,
+                                    cell_prim, cell_data, cell_src, mf_m);
+
 
             if (l_use_KE && l_diff_KE) {
-                int sc = RhoKE_comp;
-                int nc = 1;
-                NumericalDiffusion(bx, sc, nc, dt, solverChoice.NumDiffCoeff,
-                                   cell_data, cell_src, mf_u, mf_v, false, false);
+                NumericalDiffusion_Scal(bx, sc=RhoKE_comp, nc=1, dt, solverChoice.NumDiffCoeff,
+                                        cell_prim, cell_data, cell_src, mf_m);
             }
-            {
-                int sc = RhoScalar_comp;
-                int nc = NSCALARS;
-                NumericalDiffusion(bx, sc, nc, dt, solverChoice.NumDiffCoeff,
-                                   cell_data, cell_src, mf_u, mf_v, false, false);
-            }
+
+            NumericalDiffusion_Scal(bx, sc=RhoScalar_comp, nc=NSCALARS, dt, solverChoice.NumDiffCoeff,
+                                    cell_prim, cell_data, cell_src, mf_m);
         }
 
         // *************************************************************************************
