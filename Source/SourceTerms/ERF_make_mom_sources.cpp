@@ -38,13 +38,15 @@ using namespace amrex;
  */
 
 void make_mom_sources (int level,
-                       int /*nrk*/, Real dt, Real time,
+                       int /*nrk*/,
+                       Real /*dt*/,
+                       Real time,
                        Vector<MultiFab>& S_data,
                        const  MultiFab & S_prim,
                        std::unique_ptr<MultiFab>& z_phys_nd,
                        std::unique_ptr<MultiFab>& z_phys_cc,
-                       const  MultiFab & xvel,
-                       const  MultiFab & yvel,
+                       const  MultiFab & /*xvel*/,
+                       const  MultiFab & /*yvel*/,
                               MultiFab & xmom_src,
                               MultiFab & ymom_src,
                               MultiFab & zmom_src,
@@ -52,8 +54,8 @@ void make_mom_sources (int level,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& /*mapfac_m*/,
-                       std::unique_ptr<MultiFab>& mapfac_u,
-                       std::unique_ptr<MultiFab>& mapfac_v,
+                       std::unique_ptr<MultiFab>& /*mapfac_u*/,
+                       std::unique_ptr<MultiFab>& /*mapfac_v*/,
                        const Real* dptr_u_geos,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
@@ -208,8 +210,8 @@ void make_mom_sources (int level,
         const Array4<const Real>&     rho_v = S_data[IntVars::ymom].array(mfi);
         const Array4<const Real>&     rho_w = S_data[IntVars::zmom].array(mfi);
 
-        const Array4<const Real>& u = xvel.array(mfi);
-        const Array4<const Real>& v = yvel.array(mfi);
+        //const Array4<const Real>& u = xvel.array(mfi);
+        //const Array4<const Real>& v = yvel.array(mfi);
 
         const Array4<      Real>& xmom_src_arr = xmom_src.array(mfi);
         const Array4<      Real>& ymom_src_arr = ymom_src.array(mfi);
@@ -217,8 +219,8 @@ void make_mom_sources (int level,
 
         // Map factors
         //const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
-        const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
-        const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
+        //const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
+        //const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
         const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
         const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
