@@ -276,8 +276,8 @@ void ERF::advance_dycore(int level,
     cons_to_prim(state_old[IntVars::cons], state_old[IntVars::cons].nGrow());
 
 #include "ERF_TI_no_substep_fun.H"
+#include "ERF_TI_substep_fun.H"
 #include "ERF_TI_slow_rhs_fun.H"
-#include "ERF_TI_fast_rhs_fun.H"
 
     // ***************************************************************************************
     // Setup the integrator and integrate for a single timestep

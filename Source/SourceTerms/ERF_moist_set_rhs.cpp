@@ -160,11 +160,11 @@ moist_set_rhs (const Box& tbx,
                                       tbx_xlo, tbx_xhi,
                                       tbx_ylo, tbx_yhi,
                                       ng_vect, true);
-        wrfbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
-                                      width, set_width, dom_lo, dom_hi,
-                                      tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                      arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                      old_cons, cell_rhs);
+        realbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
+                                       width, set_width, dom_lo, dom_hi,
+                                       tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                       arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                       old_cons, cell_rhs);
     }
 
 
@@ -178,11 +178,11 @@ moist_set_rhs (const Box& tbx,
         compute_interior_ghost_bxs_xy(tbx, domain, width, set_width,
                                       tbx_xlo, tbx_xhi,
                                       tbx_ylo, tbx_yhi);
-        wrfbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
-                                            width, set_width, dom_lo, dom_hi, F1, F2,
-                                            tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                            arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                            new_cons, cell_rhs);
+        realbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
+                                             width, set_width, dom_lo, dom_hi, F1, F2,
+                                             tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                             arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                             new_cons, cell_rhs);
     }
 
     /*

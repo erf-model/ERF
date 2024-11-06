@@ -6,15 +6,15 @@ using namespace amrex;
 
 void
 SimpleAD::advance (const Geometry& geom,
-                  const Real& dt_advance,
-                  MultiFab& cons_in,
-                  MultiFab& mf_vars_simpleAD,
-                  MultiFab& U_old,
-                  MultiFab& V_old,
-                  MultiFab& W_old,
-                  const MultiFab& mf_Nturb,
-                  const MultiFab& mf_SMark,
-                  const Real& time)
+                   const Real& dt_advance,
+                   MultiFab& cons_in,
+                   MultiFab& mf_vars_simpleAD,
+                   MultiFab& U_old,
+                   MultiFab& V_old,
+                   MultiFab& W_old,
+                   const MultiFab& mf_Nturb,
+                   const MultiFab& mf_SMark,
+                   const Real& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
@@ -25,7 +25,7 @@ SimpleAD::advance (const Geometry& geom,
 }
 
 void
-SimpleAD::compute_power_output(const Real& time)
+SimpleAD::compute_power_output (const Real& time)
 {
      get_turb_loc(xloc, yloc);
      get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
@@ -81,10 +81,10 @@ SimpleAD::update (const Real& dt_advance,
     }
 }
 
-void SimpleAD::compute_freestream_velocity(const MultiFab& cons_in,
-                                           const MultiFab& U_old,
-                                           const MultiFab& V_old,
-                                           const MultiFab& mf_SMark)
+void SimpleAD::compute_freestream_velocity (const MultiFab& cons_in,
+                                            const MultiFab& U_old,
+                                            const MultiFab& V_old,
+                                            const MultiFab& mf_SMark)
 {
      get_turb_loc(xloc, yloc);
      freestream_velocity.clear();

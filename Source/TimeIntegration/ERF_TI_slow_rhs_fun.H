@@ -53,7 +53,7 @@
                      qheating_rates[level].get(),
 #endif
                      fine_geom, solverChoice,
-                     mapfac_u[level], mapfac_v[level],
+                     mapfac_u[level], mapfac_v[level], mapfac_m[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert);
@@ -433,7 +433,7 @@
                      qheating_rates[level],
 #endif
                      fine_geom, solverChoice,
-                     mapfac_u[level], mapfac_v[level],
+                     mapfac_u[level], mapfac_v[level], mapfac_m[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert);

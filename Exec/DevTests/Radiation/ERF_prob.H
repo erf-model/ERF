@@ -54,7 +54,7 @@ public:
         amrex::Real zdamp) override;
 
 protected:
-    std::string name() override { return "Supercell"; }
+    std::string name() override { return "Radiation"; }
 
 private:
     ProbParm parms;

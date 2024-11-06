@@ -9,9 +9,9 @@ class SimpleAD : public NullWindFarm {
 
 public:
 
-    SimpleAD() {}
+    SimpleAD () {}
 
-    virtual ~SimpleAD() = default;
+    virtual ~SimpleAD () = default;
 
     void advance (const amrex::Geometry& geom,
                   const amrex::Real& dt_advance,
@@ -24,10 +24,10 @@ public:
                   const amrex::MultiFab& mf_SMark,
                   const amrex::Real& time) override;
 
-    void compute_freestream_velocity(const amrex::MultiFab& cons_in,
-                                     const amrex::MultiFab& U_old,
-                                     const amrex::MultiFab& V_old,
-                                     const amrex::MultiFab& mf_SMark);
+    void compute_freestream_velocity (const amrex::MultiFab& cons_in,
+                                      const amrex::MultiFab& U_old,
+                                      const amrex::MultiFab& V_old,
+                                      const amrex::MultiFab& mf_SMark);
 
     void source_terms_cellcentered (const amrex::Geometry& geom,
                                     const amrex::MultiFab& cons_in,
@@ -40,7 +40,7 @@ public:
                  amrex::MultiFab& V_old,
                  const amrex::MultiFab& mf_vars);
 
-    void compute_power_output(const amrex::Real& time);
+    void compute_power_output (const amrex::Real& time);
 
 protected:
     amrex::Vector<amrex::Real> xloc, yloc;

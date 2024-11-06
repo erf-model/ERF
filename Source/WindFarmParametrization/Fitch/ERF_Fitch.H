@@ -10,9 +10,9 @@ class Fitch : public NullWindFarm {
 
 public:
 
-    Fitch() {}
+    Fitch () {}
 
-    virtual ~Fitch() = default;
+    virtual ~Fitch () = default;
 
     void advance (const amrex::Geometry& geom,
                   const amrex::Real& dt_advance,

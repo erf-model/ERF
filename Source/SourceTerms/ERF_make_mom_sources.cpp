@@ -38,7 +38,9 @@ using namespace amrex;
  */
 
 void make_mom_sources (int level,
-                       int /*nrk*/, Real dt, Real time,
+                       int /*nrk*/,
+                       Real /*dt*/,
+                       Real time,
                        Vector<MultiFab>& S_data,
                        const  MultiFab & S_prim,
                        std::unique_ptr<MultiFab>& z_phys_nd,
@@ -51,9 +53,9 @@ void make_mom_sources (int level,
                        const MultiFab& base_state,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
-                       std::unique_ptr<MultiFab>& mapfac_m,
-                       std::unique_ptr<MultiFab>& mapfac_u,
-                       std::unique_ptr<MultiFab>& mapfac_v,
+                       std::unique_ptr<MultiFab>& /*mapfac_m*/,
+                       std::unique_ptr<MultiFab>& /*mapfac_u*/,
+                       std::unique_ptr<MultiFab>& /*mapfac_v*/,
                        const Real* dptr_u_geos,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
@@ -208,14 +210,17 @@ void make_mom_sources (int level,
         const Array4<const Real>&     rho_v = S_data[IntVars::ymom].array(mfi);
         const Array4<const Real>&     rho_w = S_data[IntVars::zmom].array(mfi);
 
+        //const Array4<const Real>& u = xvel.array(mfi);
+        //const Array4<const Real>& v = yvel.array(mfi);
+
         const Array4<      Real>& xmom_src_arr = xmom_src.array(mfi);
         const Array4<      Real>& ymom_src_arr = ymom_src.array(mfi);
         const Array4<      Real>& zmom_src_arr = zmom_src.array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
-        const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
-        const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
+        //const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
+        //const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
+        //const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
         const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
         const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
@@ -424,12 +429,12 @@ void make_mom_sources (int level,
         // 7. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
         if (l_use_ndiff) {
-            NumericalDiffusion(tbx, 0, 1, dt, solverChoice.NumDiffCoeff,
-                               rho_u, xmom_src_arr, mf_m, mf_v, false, true);
-            NumericalDiffusion(tby, 0, 1, dt, solverChoice.NumDiffCoeff,
-                               rho_v, ymom_src_arr, mf_u, mf_m, true, false);
-            NumericalDiffusion(tbz, 0, 1, dt, solverChoice.NumDiffCoeff,
-                               rho_w, zmom_src_arr, mf_u, mf_v, false, false);
+            /*
+            NumericalDiffusion_Xmom(tbx, dt, solverChoice.NumDiffCoeff,
+                                    u, cell_data, xmom_src_arr, mf_u);
+            NumericalDiffusion_Ymom(tby, dt, solverChoice.NumDiffCoeff,
+                                    v, cell_data, ymom_src_arr, mf_v);
+            */
         }
 
         // *****************************************************************************
