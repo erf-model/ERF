@@ -124,7 +124,7 @@ SAM::PrecipFall (const SolverChoice& sc)
                          {
                              return { ma_fz_arr[box_no](i,j,k) };
                          });
-    wt_max = get<0>(max) + 1.0e-16;
+    wt_max = get<0>(max) + std::numeric_limits<Real>::epsilon();
     n_substep = int( std::ceil(wt_max * coef / CFL_MAX) );
     AMREX_ALWAYS_ASSERT(n_substep >= 1);
     coef /= Real(n_substep);
