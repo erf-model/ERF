@@ -16,6 +16,10 @@
         const amrex::GpuArray<int, IntVars::NumTypes> scomp_fast = {0,0,0,0};
         const amrex::GpuArray<int, IntVars::NumTypes> ncomp_fast = {2,1,1,1};
 
+        if (verbose) amrex::Print() << " No-substepping time integration at level " << level
+                                    << " to " << time_for_fp
+                                    << " with dt = " << slow_dt << std::endl;
+
         // Update S_sum = S_stage only for the fast variables
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -127,9 +131,8 @@
 
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
-        int ng_cons = S_sum[IntVars::cons].nGrow();
-        int ng_vel  = S_sum[IntVars::xmom].nGrow();
-        apply_bcs(S_sum, time_for_fp, ng_cons, ng_vel, fast_only=true, vel_and_mom_synced=false);
+        apply_bcs(S_sum, time_for_fp, S_sum[IntVars::cons].nGrow(), S_sum[IntVars::xmom].nGrow(),
+                  fast_only=true, vel_and_mom_synced=false);
 
 #ifdef ERF_USE_POISSON_SOLVE
         if (solverChoice.anelastic[level]) {

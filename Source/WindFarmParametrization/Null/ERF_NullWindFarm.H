@@ -10,24 +10,25 @@ class NullWindFarm {
 
 public:
 
-    NullWindFarm() {}
+    NullWindFarm () {}
 
-    virtual ~NullWindFarm() = default;
+    virtual ~NullWindFarm () = default;
 
     virtual void advance (const amrex::Geometry& a_geom,
-                  const amrex::Real& dt_advance,
-                  amrex::MultiFab& cons_in,
-                  amrex::MultiFab& mf_vars_windfarm,
-                  amrex::MultiFab& U_old,
-                  amrex::MultiFab& V_old,
-                  amrex::MultiFab& W_old,
-                  const amrex::MultiFab& mf_Nturb,
-                  const amrex::MultiFab& mf_SMark) = 0;
+                          const amrex::Real& dt_advance,
+                          amrex::MultiFab& cons_in,
+                          amrex::MultiFab& mf_vars_windfarm,
+                          amrex::MultiFab& U_old,
+                          amrex::MultiFab& V_old,
+                          amrex::MultiFab& W_old,
+                          const amrex::MultiFab& mf_Nturb,
+                          const amrex::MultiFab& mf_SMark,
+                          const amrex::Real& time) = 0;
 
-    virtual void set_turb_spec(const amrex::Real&  rotor_rad, const amrex::Real& hub_height,
-                               const amrex::Real& thrust_coeff_standing, const amrex::Vector<amrex::Real>& wind_speed,
-                               const amrex::Vector<amrex::Real>& thrust_coeff,
-                               const amrex::Vector<amrex::Real>& power)
+    virtual void set_turb_spec (const amrex::Real&  rotor_rad, const amrex::Real& hub_height,
+                                const amrex::Real& thrust_coeff_standing, const amrex::Vector<amrex::Real>& wind_speed,
+                                const amrex::Vector<amrex::Real>& thrust_coeff,
+                                const amrex::Vector<amrex::Real>& power)
     {
         m_rotor_rad = rotor_rad;
         m_hub_height = hub_height;
@@ -49,29 +50,29 @@ public:
         m_turb_disk_angle = turb_disk_angle;
     }
 
-    virtual void set_blade_spec(const amrex::Vector<amrex::Real>& bld_rad_loc,
-                                const amrex::Vector<amrex::Real>& bld_twist,
-                                const amrex::Vector<amrex::Real>& bld_chord)
+    virtual void set_blade_spec (const amrex::Vector<amrex::Real>& bld_rad_loc,
+                                 const amrex::Vector<amrex::Real>& bld_twist,
+                                 const amrex::Vector<amrex::Real>& bld_chord)
     {
         m_bld_rad_loc = bld_rad_loc;
         m_bld_twist = bld_twist;
         m_bld_chord = bld_chord;
     }
 
-    virtual void set_blade_airfoil_spec(const amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_aoa,
-                                        const amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cl,
-                                        const amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cd)
+    virtual void set_blade_airfoil_spec (const amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_aoa,
+                                         const amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cl,
+                                         const amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cd)
     {
         m_bld_airfoil_aoa = bld_airfoil_aoa;
         m_bld_airfoil_Cl = bld_airfoil_Cl;
         m_bld_airfoil_Cd = bld_airfoil_Cd;
     }
 
-    virtual void set_turb_spec_extra(const amrex::Vector<amrex::Real>& velocity,
-                              const amrex::Vector<amrex::Real>& C_P,
-                              const amrex::Vector<amrex::Real>& C_T,
-                              const amrex::Vector<amrex::Real>& rotor_RPM,
-                              const amrex::Vector<amrex::Real>& blade_pitch)
+    virtual void set_turb_spec_extra (const amrex::Vector<amrex::Real>& velocity,
+                                      const amrex::Vector<amrex::Real>& C_P,
+                                      const amrex::Vector<amrex::Real>& C_T,
+                                      const amrex::Vector<amrex::Real>& rotor_RPM,
+                                      const amrex::Vector<amrex::Real>& blade_pitch)
     {
         m_velocity = velocity;
         m_C_P = C_P;
@@ -104,29 +105,29 @@ public:
         turb_disk_angle = m_turb_disk_angle;
     }
 
-    void get_blade_spec(amrex::Vector<amrex::Real>& bld_rad_loc,
-                        amrex::Vector<amrex::Real>& bld_twist,
-                        amrex::Vector<amrex::Real>& bld_chord)
+    void get_blade_spec (amrex::Vector<amrex::Real>& bld_rad_loc,
+                         amrex::Vector<amrex::Real>& bld_twist,
+                         amrex::Vector<amrex::Real>& bld_chord)
     {
         bld_rad_loc = m_bld_rad_loc;
         bld_twist = m_bld_twist;
         bld_chord = m_bld_chord;
     }
 
-    void get_blade_airfoil_spec(amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_aoa,
-                                amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cl,
-                                amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cd)
+    void get_blade_airfoil_spec (amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_aoa,
+                                 amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cl,
+                                 amrex::Vector<amrex::Vector<amrex::Real>>& bld_airfoil_Cd)
     {
         bld_airfoil_aoa = m_bld_airfoil_aoa;
         bld_airfoil_Cl = m_bld_airfoil_Cl;
         bld_airfoil_Cd = m_bld_airfoil_Cd;
     }
 
-    void get_turb_spec_extra(amrex::Vector<amrex::Real>& velocity,
-                             amrex::Vector<amrex::Real>& C_P,
-                                amrex::Vector<amrex::Real>& C_T,
-                             amrex::Vector<amrex::Real>& rotor_RPM,
-                             amrex::Vector<amrex::Real>& blade_pitch)
+    void get_turb_spec_extra (amrex::Vector<amrex::Real>& velocity,
+                              amrex::Vector<amrex::Real>& C_P,
+                              amrex::Vector<amrex::Real>& C_T,
+                              amrex::Vector<amrex::Real>& rotor_RPM,
+                              amrex::Vector<amrex::Real>& blade_pitch)
     {
         velocity = m_velocity;
         C_P = m_C_P;
@@ -136,10 +137,10 @@ public:
     }
 
 static AMREX_GPU_DEVICE
-bool find_if_marked(amrex::Real x1, amrex::Real x2, amrex::Real y1, amrex::Real y2,
-                    amrex::Real x0, amrex::Real y0, amrex::Real nx, amrex::Real ny,
-                    amrex::Real d_hub_height, amrex::Real d_rotor_rad,
-                    amrex::Real z)
+bool find_if_marked (amrex::Real x1, amrex::Real x2, amrex::Real y1, amrex::Real y2,
+                     amrex::Real x0, amrex::Real y0, amrex::Real nx, amrex::Real ny,
+                     amrex::Real d_hub_height, amrex::Real d_rotor_rad,
+                     amrex::Real z)
 {
 
     // Plane is (x-x0)*nx + (y-y0)*ny = 0. And the planes to intersect are

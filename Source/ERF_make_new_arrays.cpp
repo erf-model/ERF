@@ -26,13 +26,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
                  std::unique_ptr<MultiFab>& tmp_zphys_nd)
 {
     // ********************************************************************************************
-    // Base state holds r_0, pres_0, pi_0 (in that order)
+    // Base state holds r_0, pres_0, pi_0, th_0 (in that order)
+    //
+    // Here is where we set 3 ghost cells for the base state!
+    //
     // ********************************************************************************************
     tmp_base_state.define(ba,dm,BaseState::num_comps,3);
     tmp_base_state.setVal(0.);
 
     if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Moving) {
-        base_state_new[lev].define(ba,dm,BaseState::num_comps,3);
+        base_state_new[lev].define(ba,dm,BaseState::num_comps,base_state[lev].nGrowVect());
         base_state_new[lev].setVal(0.);
     }
 
@@ -145,6 +148,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+
+    if (lev > 0) {
+        //xmom_crse_rhs[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, IntVect{0});
+        //ymom_crse_rhs[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, IntVect{0});
+        zmom_crse_rhs[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect{0});
+    }
 
     // We do this here just so they won't be undefined in the initial FillPatch
     rU_old[lev].setVal(1.2e21);
@@ -362,7 +371,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
                            (solverChoice.turbChoice[lev].pbl_type        !=       PBLType::None) );
     bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type        != LESType::None)   ||
                            (solverChoice.turbChoice[lev].pbl_type        != PBLType::None) );
-    bool l_use_ddorf   = (  solverChoice.turbChoice[lev].les_type        == LESType::Deardorff);
+    bool l_use_ddorf   = (solverChoice.turbChoice[lev].les_type       == LESType::Deardorff);
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
@@ -557,5 +566,6 @@ ERF::make_physbcs (int lev)
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, z_phys_nd[lev],
                                                             use_real_bcs, zvel_bc_data[lev].data());
-    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d);
+    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                               (solverChoice.terrain_type == TerrainType::Moving));
 }

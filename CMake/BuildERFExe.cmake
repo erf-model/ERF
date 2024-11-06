@@ -195,6 +195,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_T.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_MT.cpp
+       ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
@@ -211,10 +212,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Kessler/ERF_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/ERF_Update_Kessler.cpp
        ${SRC_DIR}/MaterialProperties/ERF_MaterialProperties.cpp
-	   ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
-	   ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
-	   ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
-	   ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
+       ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
+       ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
+       ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
+       ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/ERF_MM5.cpp
   )

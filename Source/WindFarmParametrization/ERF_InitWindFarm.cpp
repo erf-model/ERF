@@ -31,10 +31,10 @@ WindFarm::read_tables (std::string windfarm_loc_table,
 }
 
 void
-WindFarm::read_windfarm_locations_table(const std::string windfarm_loc_table,
-                                        bool x_y, bool lat_lon,
-                                        const Real windfarm_x_shift,
-                                        const Real windfarm_y_shift)
+WindFarm::read_windfarm_locations_table (const std::string windfarm_loc_table,
+                                         bool x_y, bool lat_lon,
+                                         const Real windfarm_x_shift,
+                                         const Real windfarm_y_shift)
 {
     if(x_y) {
         init_windfarm_x_y(windfarm_loc_table);
@@ -125,14 +125,6 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         xloc[it] = xloc[it] - xloc_min + windfarm_x_shift;
         yloc[it] = yloc[it] - yloc_min + windfarm_y_shift;
     }
-
-    FILE* file_xy_loc;
-    file_xy_loc = fopen("file_xy_loc_KingPlains.txt","w");
-
-    for(int it = 0;it<xloc.size(); it++){
-        fprintf(file_xy_loc,"%0.15g %0.15g %0.15g\n", xloc[it], yloc[it], 89.0);
-    }
-    fclose(file_xy_loc);
 }
 
 void
@@ -158,7 +150,7 @@ WindFarm::init_windfarm_x_y (const std::string windfarm_loc_table)
 
 
 void
-WindFarm::read_windfarm_spec_table(const std::string windfarm_spec_table)
+WindFarm::read_windfarm_spec_table (const std::string windfarm_spec_table)
 {
     //The first line is the number of pairs entries for the power curve and thrust coefficient.
     //The second line gives first the height in meters of the turbine hub, second, the diameter in
@@ -206,7 +198,7 @@ WindFarm::read_windfarm_spec_table(const std::string windfarm_spec_table)
 }
 
 void
-WindFarm::read_windfarm_blade_table(const std::string windfarm_blade_table)
+WindFarm::read_windfarm_blade_table (const std::string windfarm_blade_table)
 {
     std::ifstream filename(windfarm_blade_table);
     std::string line;
@@ -239,7 +231,7 @@ WindFarm::read_windfarm_blade_table(const std::string windfarm_blade_table)
 }
 
 void
-WindFarm::read_windfarm_spec_table_extra(const std::string windfarm_spec_table_extra)
+WindFarm::read_windfarm_spec_table_extra (const std::string windfarm_spec_table_extra)
 {
     // Open the file
     std::ifstream file(windfarm_spec_table_extra);
@@ -278,8 +270,8 @@ WindFarm::read_windfarm_spec_table_extra(const std::string windfarm_spec_table_e
 
 
 void
-WindFarm::read_windfarm_airfoil_tables(const std::string windfarm_airfoil_tables,
-                                       const std::string windfarm_blade_table)
+WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_tables,
+                                        const std::string windfarm_blade_table)
 {
     DIR* dir;
     struct dirent* entry;
@@ -358,8 +350,8 @@ WindFarm::read_windfarm_airfoil_tables(const std::string windfarm_airfoil_tables
 }
 
 void
-WindFarm::fill_Nturb_multifab(const Geometry& geom,
-                              MultiFab& mf_Nturb)
+WindFarm::fill_Nturb_multifab (const Geometry& geom,
+                               MultiFab& mf_Nturb)
 {
 
     amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
@@ -406,10 +398,10 @@ WindFarm::fill_Nturb_multifab(const Geometry& geom,
 }
 
 void
-WindFarm::fill_SMark_multifab(const Geometry& geom,
-                              MultiFab& mf_SMark,
-                              const Real& sampling_distance_by_D,
-                              const Real& turb_disk_angle)
+WindFarm::fill_SMark_multifab (const Geometry& geom,
+                               MultiFab& mf_SMark,
+                               const Real& sampling_distance_by_D,
+                               const Real& turb_disk_angle)
 {
     amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
     amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
@@ -456,6 +448,8 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
 
             Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
 
+            int turb_indices_overlap[2];
+            int check_int = 0;
             for(int it=0; it<num_turb; it++){
                 Real x0 = d_xloc_ptr[it] + d_sampling_distance*nx;
                 Real y0 = d_yloc_ptr[it] + d_sampling_distance*ny;
@@ -467,20 +461,28 @@ WindFarm::fill_SMark_multifab(const Geometry& geom,
                 }
                 x0 = d_xloc_ptr[it];
                 y0 = d_yloc_ptr[it];
+                //printf("Values are %d, %0.15g, %0.15g\n", it, x0, y0);
 
                 is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
                                                 nx, ny, d_hub_height, d_rotor_rad, z);
                 if(is_cell_marked) {
                     SMark_array(i,j,k,1) = it;
+                    turb_indices_overlap[check_int] = it;
+                    check_int++;
+                    if(check_int > 1){
+                        printf("Actuator disks with indices %d and %d are overlapping\n",
+                               turb_indices_overlap[0],turb_indices_overlap[1]);
+                        amrex::Error("Actuator disks are overlapping. Visualize actuator_disks.vtk "
+                        " and check the windturbine locations input file. Exiting..");
+                    }
                 }
-
             }
         });
     }
 }
 
 void
-WindFarm::write_turbine_locations_vtk()
+WindFarm::write_turbine_locations_vtk ()
 {
     if (ParallelDescriptor::IOProcessor()){
         FILE* file_turbloc_vtk;
@@ -499,7 +501,7 @@ WindFarm::write_turbine_locations_vtk()
 
 
 void
-WindFarm::write_actuator_disks_vtk(const Geometry& geom)
+WindFarm::write_actuator_disks_vtk (const Geometry& geom)
 {
 
     if (ParallelDescriptor::IOProcessor()){

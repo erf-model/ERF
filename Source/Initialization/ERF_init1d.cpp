@@ -30,9 +30,7 @@ ERF::initHSE (int lev)
     bool all_boxes_touch_bottom = true;
     Box domain(geom[lev].Domain());
 
-    int icomp = 0; int bccomp = BCVars::base_bc; int ncomp = BaseState::num_comps;
-
-    Real time = 0.;
+    int icomp = 0; int ncomp = BaseState::num_comps;
 
     if (lev == 0) {
         BoxArray ba(base_state[lev].boxArray());
@@ -64,7 +62,7 @@ ERF::initHSE (int lev)
          // We need to do this here because the interpolation above may leave corners unfilled
          //    when the corners need to be filled by, for example, reflection of the fine ghost
          //    cell outside the fine region but inide the domain.
-         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
+         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect());
     }
 
     if (all_boxes_touch_bottom || lev > 0) {
@@ -125,9 +123,7 @@ ERF::initHSE (int lev)
     // Impose physical bc's on the base state -- the values outside the fine region
     //   but inside the domain have already been filled in the call above to InterpFromCoarseLevel
     //
-    (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect(),time,bccomp);
-
-    base_state[lev].FillBoundary(geom[lev].periodicity());
+    (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 }
 
 void
@@ -160,8 +156,6 @@ ERF::erf_enforce_hse (int lev,
     const auto geomdata = geom[lev].data();
     const Real dz = geomdata.CellSize(2);
 
-    const Box& domain = geom[lev].Domain();
-
     for ( MFIter mfi(dens, TileNoZ()); mfi.isValid(); ++mfi )
     {
         // Create a flat box with same horizontal extent but only one cell in vertical
@@ -169,8 +163,10 @@ ERF::erf_enforce_hse (int lev,
         int klo = tbz.smallEnd(2);
         int khi = tbz.bigEnd(2);
 
+        // Note we only grow by 1 because that is how big z_cc is.
         Box b2d = tbz; // Copy constructor
-        b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
+        b2d.grow(0,1);
+        b2d.grow(1,1);
         b2d.setRange(2,0);
 
         // We integrate to the first cell (and below) by using rho in this cell
@@ -196,7 +192,8 @@ ERF::erf_enforce_hse (int lev,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Set value at surface from Newton iteration for rho
-            if (klo == 0) {
+            if (klo == 0)
+            {
                 // Physical height of the terrain at cell center
                 Real hz;
                 if (l_use_terrain) {
@@ -209,12 +206,16 @@ ERF::erf_enforce_hse (int lev,
                   pi_arr(i,j,klo) = getExnergivenP(pres_arr(i,j,klo), rdOcp);
                   th_arr(i,j,klo) =getRhoThetagivenP(pres_arr(i,j,klo)) / rho_arr(i,j,klo);
 
+                //
                 // Set ghost cell with dz and rho at boundary
+                // (We will set the rest of the ghost cells in the boundary condition routine)
+                //
                 pres_arr(i,j,klo-1) = p_0 + hz * rho_arr(i,j,klo) * l_gravity;
                   pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
                   th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
 
             } else {
+
                 // If level > 0 and klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
                 //    filled from FillPatch-ing it.
                 Real dz_loc;
@@ -228,11 +229,10 @@ ERF::erf_enforce_hse (int lev,
                 pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
 
                 pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
-                pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
-
                 th_arr(i,j,klo  ) = getRhoThetagivenP(pres_arr(i,j,klo  )) / rho_arr(i,j,klo  );
-                th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
 
+                pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
+                th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
             }
 
             Real dens_interp;
@@ -254,57 +254,7 @@ ERF::erf_enforce_hse (int lev,
             }
         });
 
-        int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0);
-        int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1);
-
-        if (pres[mfi].box().smallEnd(0) < domlo_x)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            bx.setSmall(0,domlo_x-1);
-            bx.setBig(0,domlo_x-1);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
-                  pi_arr(i,j,k) =   pi_arr(domlo_x,j,k);
-                  th_arr(i,j,k) =   th_arr(domlo_x,j,k);
-            });
-        }
-
-        if (pres[mfi].box().bigEnd(0) > domhi_x)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            bx.setSmall(0,domhi_x+1);
-            bx.setBig(0,domhi_x+1);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(domhi_x,j,k);
-                  pi_arr(i,j,k) =   pi_arr(domhi_x,j,k);
-                  th_arr(i,j,k) =   th_arr(domhi_x,j,k);
-            });
-        }
-
-        if (pres[mfi].box().smallEnd(1) < domlo_y)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            bx.setSmall(1,domlo_y-1);
-            bx.setBig(1,domlo_y-1);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(i,domlo_y,k);
-                  pi_arr(i,j,k) =   pi_arr(i,domlo_y,k);
-                  th_arr(i,j,k) =   th_arr(i,domlo_y,k);
-            });
-        }
-
-        if (pres[mfi].box().bigEnd(1) > domhi_y)
-        {
-            Box bx = mfi.nodaltilebox(2);
-            bx.setSmall(1,domhi_y+1);
-            bx.setBig(1,domhi_y+1);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                pres_arr(i,j,k) = pres_arr(i,domhi_y,k);
-                  pi_arr(i,j,k) =   pi_arr(i,domhi_y,k);
-                  th_arr(i,j,k) =   th_arr(i,domhi_y,k);
-            });
-        }
-    }
+    } // mfi
 
      dens.FillBoundary(geom[lev].periodicity());
      pres.FillBoundary(geom[lev].periodicity());

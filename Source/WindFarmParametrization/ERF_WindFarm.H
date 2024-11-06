@@ -15,9 +15,9 @@ class WindFarm : public NullWindFarm {
 
 public:
 
-    WindFarm(){}
+    WindFarm (){}
 
-    virtual ~WindFarm() = default;
+    virtual ~WindFarm () = default;
 
     WindFarm (int nlev,
               const WindFarmType& a_windfarm_type)
@@ -50,37 +50,37 @@ public:
                       const amrex::Real windfarm_x_shift = 0.0,
                       const amrex::Real windfarm_y_shift = 0.0);
 
-    void init_windfarm_lat_lon(const std::string windfarm_loc_table,
-                               const amrex::Real windfarm_x_shift,
-                               const amrex::Real windfarm_y_shift);
+    void init_windfarm_lat_lon (const std::string windfarm_loc_table,
+                                const amrex::Real windfarm_x_shift,
+                                const amrex::Real windfarm_y_shift);
 
-    void init_windfarm_x_y(const std::string windfarm_loc_table);
+    void init_windfarm_x_y (const std::string windfarm_loc_table);
 
-    void read_windfarm_locations_table(const std::string windfarm_loc_table,
-                                       bool x_y, bool lat_lon,
-                                       const amrex::Real windfarm_x_shift = 0.0,
-                                         const amrex::Real windfarm_y_shift = 0.0);
+    void read_windfarm_locations_table (const std::string windfarm_loc_table,
+                                        bool x_y, bool lat_lon,
+                                        const amrex::Real windfarm_x_shift = 0.0,
+                                        const amrex::Real windfarm_y_shift = 0.0);
 
-    void read_windfarm_spec_table(const std::string windfarm_spec_table);
+    void read_windfarm_spec_table (const std::string windfarm_spec_table);
 
-    void read_windfarm_blade_table(const std::string windfarm_blade_table);
+    void read_windfarm_blade_table (const std::string windfarm_blade_table);
 
-    void read_windfarm_airfoil_tables(const std::string windfarm_airfoil_tables,
-                                      const std::string windfarm_blade_table);
+    void read_windfarm_airfoil_tables (const std::string windfarm_airfoil_tables,
+                                       const std::string windfarm_blade_table);
 
-    void read_windfarm_spec_table_extra(const std::string windfarm_spec_table_extra);
+    void read_windfarm_spec_table_extra (const std::string windfarm_spec_table_extra);
 
-    void fill_Nturb_multifab(const amrex::Geometry& geom,
-                             amrex::MultiFab& mf_Nturb);
+    void fill_Nturb_multifab (const amrex::Geometry& geom,
+                              amrex::MultiFab& mf_Nturb);
 
-    void fill_SMark_multifab(const amrex::Geometry& geom,
-                             amrex::MultiFab& mf_SMark,
-                             const amrex::Real& sampling_distance_by_D,
-                             const amrex::Real& turb_disk_angle);
+    void fill_SMark_multifab (const amrex::Geometry& geom,
+                              amrex::MultiFab& mf_SMark,
+                              const amrex::Real& sampling_distance_by_D,
+                              const amrex::Real& turb_disk_angle);
 
-    void write_turbine_locations_vtk();
+    void write_turbine_locations_vtk ();
 
-    void write_actuator_disks_vtk(const amrex::Geometry& geom);
+    void write_actuator_disks_vtk (const amrex::Geometry& geom);
 
     void advance (const amrex::Geometry& a_geom,
                   const amrex::Real& dt_advance,
@@ -90,16 +90,17 @@ public:
                   amrex::MultiFab& V_old,
                   amrex::MultiFab& W_old,
                   const amrex::MultiFab& mf_Nturb,
-                  const amrex::MultiFab& mf_SMark) override
+                  const amrex::MultiFab& mf_SMark,
+                  const amrex::Real& time) override
     {
         m_windfarm_model[0]->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
-                                     U_old, V_old, W_old, mf_Nturb, mf_SMark);
+                                     U_old, V_old, W_old, mf_Nturb, mf_SMark, time);
     }
 
-    void set_turb_spec(const amrex::Real& a_rotor_rad, const amrex::Real& a_hub_height,
-                       const amrex::Real& a_thrust_coeff_standing, const amrex::Vector<amrex::Real>& a_wind_speed,
-                       const amrex::Vector<amrex::Real>& a_thrust_coeff,
-                       const amrex::Vector<amrex::Real>& a_power) override
+    void set_turb_spec (const amrex::Real& a_rotor_rad, const amrex::Real& a_hub_height,
+                        const amrex::Real& a_thrust_coeff_standing, const amrex::Vector<amrex::Real>& a_wind_speed,
+                        const amrex::Vector<amrex::Real>& a_thrust_coeff,
+                        const amrex::Vector<amrex::Real>& a_power) override
     {
         m_windfarm_model[0]->set_turb_spec(a_rotor_rad, a_hub_height, a_thrust_coeff_standing,
                   a_wind_speed, a_thrust_coeff, a_power);

@@ -53,7 +53,7 @@ public:
     */
     void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
                      amrex::IntVect const& nghost, const amrex::Real time, int bccomp_cons,
-                     bool do_fb);
+                     bool do_fb = true, bool do_terrain_adjustment = true);
 
     void impose_lateral_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
@@ -62,7 +62,7 @@ public:
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
-                                   int icomp, int ncomp);
+                                   int icomp, int ncomp, bool do_terrain_adjustment = true);
 
 private:
     int                  m_lev;
@@ -262,8 +262,10 @@ class ERFPhysBCFunct_base
 public:
     ERFPhysBCFunct_base (const int lev,
                          const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
-                         const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d)
+                         const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                         bool moving_terrain)
         : m_lev(lev), m_geom(geom),
+          m_moving_terrain(moving_terrain),
           m_domain_bcs_type(domain_bcs_type),
           m_domain_bcs_type_d(domain_bcs_type_d)
     {}
@@ -279,15 +281,19 @@ public:
     * @param[in] nghost       number of ghost cells to be filled for conserved variables
     * @param[in] time         time at which the data should be filled
     */
-    void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp_cons);
+    void operator() (amrex::MultiFab& mf, int icomp, int ncomp, amrex::IntVect const& nghost);
 
     void impose_lateral_basestate_bcs (const amrex::Array4<amrex::Real>& dest_arr,
-                                       const amrex::Box& bx, const amrex::Box& domain);
+                                       const amrex::Box& bx, const amrex::Box& domain,
+                                       int ncomp, const amrex::IntVect& nghost);
+    void impose_vertical_basestate_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                        const amrex::Box& bx, const amrex::Box& domain,
+                                        int ncomp, const amrex::IntVect& nghost);
 
 private:
     int                  m_lev;
     amrex::Geometry      m_geom;
+    bool                 m_moving_terrain;
     amrex::Vector<amrex::BCRec>            m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
 };

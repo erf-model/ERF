@@ -7,9 +7,9 @@ using namespace amrex;
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-Real compute_A(const Real z,
-               const Real hub_height,
-               const Real rotor_rad)
+Real compute_A (const Real z,
+                const Real hub_height,
+                const Real rotor_rad)
 {
 
     Real d  = std::min(std::fabs(z - hub_height), rotor_rad);
@@ -22,10 +22,10 @@ Real compute_A(const Real z,
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-Real compute_Aijk(const Real z_k,
-                  const Real z_kp1,
-                  const Real hub_height,
-                  const Real rotor_rad)
+Real compute_Aijk (const Real z_k,
+                   const Real z_kp1,
+                   const Real hub_height,
+                   const Real rotor_rad)
 {
 
     Real A_k   = compute_A(z_k, hub_height, rotor_rad);
@@ -53,10 +53,12 @@ Fitch::advance (const Geometry& geom,
                 MultiFab& V_old,
                 MultiFab& W_old,
                 const MultiFab& mf_Nturb,
-                const MultiFab& mf_SMark)
+                const MultiFab& mf_SMark,
+                const Real& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_SMark.nComp() > 0);
+    AMREX_ALWAYS_ASSERT(time > -1.0);
     source_terms_cellcentered(geom, cons_in, mf_vars_fitch, U_old, V_old, W_old, mf_Nturb);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
 }
@@ -91,7 +93,7 @@ Fitch::update (const Real& dt_advance,
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            cons_array(i,j,k,RhoQKE_comp) = cons_array(i,j,k,RhoQKE_comp) + fitch_array(i,j,k,4)*dt_advance;
+            cons_array(i,j,k,RhoKE_comp) = cons_array(i,j,k,RhoKE_comp) + fitch_array(i,j,k,4)*dt_advance;
         });
     }
 }
