@@ -29,7 +29,7 @@ amrex::Real getThgivenPandT(const amrex::Real T, const amrex::Real P, const amre
  * @params[  out]       temperature
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getTgivenPandTh(const amrex::Real th, const amrex::Real P, const amrex::Real rdOcp)
+amrex::Real getTgivenPandTh(const amrex::Real P, const amrex::Real th, const amrex::Real rdOcp)
 {
     return th / std::pow(p_0/P, rdOcp);
 }

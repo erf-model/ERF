@@ -114,7 +114,7 @@ void Problem::compute_rho (const Real& z, const Real& pressure, Real& theta, Rea
 {
 
     theta   = compute_theta(z);
-    T_b     = getTgivenPandTh(theta, pressure, (R_d/Cp_d));
+    T_b     = getTgivenPandTh(pressure, theta, (R_d/Cp_d));
     Real RH = compute_relative_humidity(z, parms.height, parms.z_tr, pressure, T_b);
     q_v     = vapor_mixing_ratio(z, parms.height, pressure, T_b, RH);
 
@@ -335,15 +335,15 @@ Problem::init_custom_pert (
     }
 
     theta_total     = t[k] + delta_theta;
-    temperature     = getTgivenPandTh(theta_total, p[k], (R_d/Cp_d));
-    Real T_b        = getTgivenPandTh(t[k]       , p[k], (R_d/Cp_d));
+    temperature     = getTgivenPandTh(p[k], theta_total, (R_d/Cp_d));
+    Real T_b        = getTgivenPandTh(p[k], t[k]       , (R_d/Cp_d));
     RH              = compute_relative_humidity(z, height, z_tr, p[k], T_b);
     Real q_v_hot    = vapor_mixing_ratio(z, height, p[k], T_b, RH);
     rho             = p[k]/(R_d*temperature*(1.0 + (R_v/R_d)*q_v_hot));
 
     // Compute background quantities
-    Real temperature_back = getTgivenPandTh(t[k], p[k], (R_d/Cp_d));
-    Real T_back           = getTgivenPandTh(t[k], p[k], (R_d/Cp_d));
+    Real temperature_back = getTgivenPandTh(p[k], t[k], (R_d/Cp_d));
+    Real T_back           = getTgivenPandTh(p[k], t[k], (R_d/Cp_d));
     Real RH_back          = compute_relative_humidity(z, height, z_tr, p[k], T_back);
     Real q_v_back         = vapor_mixing_ratio(z, height, p[k], T_back, RH_back);
     Real rho_back         = getRhogivenTandPress(temperature_back, p[k], q_v_back);
