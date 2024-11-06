@@ -125,7 +125,7 @@ public:
             // use_terrain=1
             amrex::Error("Temperature forcing not defined for "+name()+" problem with terrain");
         } else {
-            const int khi              = geom.Domain().bigEnd()[2];
+            // const int khi              = geom.Domain().bigEnd()[2];
             // const amrex::Real* prob_lo = geom.ProbLo();
             // const auto dx              = geom.CellSize();
             for ( amrex::MFIter mfi(*src, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -164,7 +164,7 @@ public:
             // use_terrain=1
             amrex::Error("Moisture forcing not defined for "+name()+" problem with terrain");
         } else {
-            const int khi              = geom.Domain().bigEnd()[2];
+            // const int khi              = geom.Domain().bigEnd()[2];
             // const amrex::Real* prob_lo = geom.ProbLo();
             // const auto dx              = geom.CellSize();
             for ( amrex::MFIter mfi(*qsrc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
