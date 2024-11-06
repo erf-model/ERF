@@ -63,11 +63,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     m_factory[lev] = std::make_unique<FArrayBoxFactory>();
 #endif
 
-    // The number of ghost cells for density must be 1 greater than that for velocity
-    //     so that we can go back in forth between velocity and momentum on all faces
-    // int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
-    // int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
-
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
 
@@ -304,7 +299,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
 
-    // int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
     int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
 
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);

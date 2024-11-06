@@ -71,13 +71,6 @@ Real compute_relative_humidity (const Real z, const Real height, const Real z_tr
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_vapor_pressure (const Real p_s, const Real RH)
-{
-    return p_s*RH;
-}
-
-AMREX_FORCE_INLINE
-AMREX_GPU_HOST_DEVICE
 Real vapor_mixing_ratio (const Real z, const Real height, const Real p_b, const Real T_b, const Real RH)
 {
     Real p_s = compute_saturation_pressure(T_b);
@@ -90,13 +83,6 @@ Real vapor_mixing_ratio (const Real z, const Real height, const Real p_b, const 
     }else{
         return q_v;
     }
-}
-
-AMREX_FORCE_INLINE
-AMREX_GPU_HOST_DEVICE
-Real compute_temperature (const Real p_b, const Real theta_b)
-{
-    return theta_b*std::pow(p_b/p_0,R_d/Cp_d);
 }
 
 AMREX_FORCE_INLINE
@@ -119,10 +105,10 @@ void Problem::compute_rho (const Real& z, const Real& pressure, Real& theta, Rea
 {
 
     theta   = compute_theta(z);
-    T_b     = compute_temperature(pressure, theta);
+    T_b     = getTgivenPandTh(theta, pressure, (R_d/Cp_d));
     Real RH = compute_relative_humidity(z, parms.height, parms.z_tr, pressure, T_b);
     q_v     = vapor_mixing_ratio(z, parms.height, pressure, T_b, RH);
-    rho     = pressure/(R_d*T_b*(1.0 + (R_v/R_d)*q_v));
+    rho     = getRhogivenTandPress(T_b, pressure, q_v);
     rho     = rho*(1.0 + q_v);
     T_dp    = compute_dewpoint_temperature(T_b, RH);
 }
@@ -168,26 +154,19 @@ Problem::init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v
                                const Real& dz, const Real&  prob_lo_z,
                                const int& khi)
 {
-
-    //FILE *file_IC;
-    //file_IC = fopen("input_sounding_probcpp.txt","w");
     Real z, T_b, T_dp;
 
     // Compute the quantities at z = 0.5*dz (first cell center)
     z = prob_lo_z + 0.5*dz;
     p[0] = p_0;
     compute_p_k(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, z, 0.0);
-    //fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
 
 
     for (int k=1;k<=khi;k++){
         z = prob_lo_z + (k+0.5)*dz;
         p[k] = p[k-1];
         compute_p_k(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz, z, r[k-1]);
-        //fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
     }
-    //fclose(file_IC);
-
 
     r[khi+1] = r[khi];
 }
@@ -239,17 +218,11 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
         Vector<Real> h_t(khi+2);
         Vector<Real> h_q_v(khi+2);
 
-        amrex::Gpu::DeviceVector<Real> d_r(khi+2);
-        amrex::Gpu::DeviceVector<Real> d_p(khi+2);
-        amrex::Gpu::DeviceVector<Real> d_t(khi+2);
-        amrex::Gpu::DeviceVector<Real> d_q_v(khi+2);
-
         init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(), h_q_v.data(), dz,prob_lo_z,khi);
 
+        amrex::Gpu::DeviceVector<Real> d_r(khi+2);
+
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_t.begin(), h_t.end(), d_t.begin());
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
 
         Real* r     = d_r.data();
 
@@ -352,15 +325,18 @@ Problem::init_custom_pert (
     }
 
     theta_total     = t[k] + delta_theta;
-    temperature     = compute_temperature(p[k], theta_total);
-    Real T_b        = compute_temperature(p[k], t[k]);
+
+    temperature     = getTgivenPandTh(theta_total, p[k], (R_d/Cp_d));
+    Real T_b        = getTgivenPandTh(t[k]       , p[k], (R_d/Cp_d));
+
     RH              = compute_relative_humidity(z, height, z_tr, p[k], T_b);
     Real q_v_hot    = vapor_mixing_ratio(z, height, p[k], T_b, RH);
     rho             = p[k]/(R_d*temperature*(1.0 + (R_v/R_d)*q_v_hot));
 
     // Compute background quantities
-    Real temperature_back = compute_temperature(p[k], t[k]);
-    Real T_back           = compute_temperature(p[k], t[k]);
+    Real temperature_back = getTgivenPandTh(t[k], p[k], (R_d/Cp_d));
+    Real T_back           = getTgivenPandTh(t[k], p[k], (R_d/Cp_d));
+
     Real RH_back          = compute_relative_humidity(z, height, z_tr, p[k], T_back);
     Real q_v_back         = vapor_mixing_ratio(z, height, p[k], T_back, RH_back);
     Real rho_back         = p[k]/(R_d*temperature_back*(1.0 + (R_v/R_d)*q_v_back));

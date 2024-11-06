@@ -1,6 +1,7 @@
 #include "ERF_prob.H"
 #include "ERF_Microphysics_Utils.H"
 #include "ERF_Constants.H"
+#include "ERF_EOS.H"
 
 using namespace amrex;
 
@@ -50,13 +51,6 @@ AMREX_GPU_HOST_DEVICE
 Real compute_relative_humidity ()
 {
     return 1.0;
-}
-
-AMREX_FORCE_INLINE
-AMREX_GPU_HOST_DEVICE
-Real compute_vapor_pressure (const Real p_s, const Real RH)
-{
-    return p_s*RH;
 }
 
 AMREX_FORCE_INLINE
@@ -120,28 +114,18 @@ Real compute_dewpoint_temperature (const Real T_b, const Real RH)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real Problem::compute_theta(const Real T_b, const Real p_b)
-{
-    return T_b*std::pow(p_0/p_b, R_d/Cp_d);
-}
-
-AMREX_FORCE_INLINE
-AMREX_GPU_HOST_DEVICE
-Real compute_temperature_from_theta(const Real theta, const Real p)
-{
-    return theta*std::pow(p/p_0, R_d/Cp_d);
-}
-
-AMREX_FORCE_INLINE
-AMREX_GPU_HOST_DEVICE
 void Problem::compute_rho (const Real& pressure, Real& theta, Real& rho, Real& q_v, Real& T_dp, Real& T_b)
 {
     T_b     = compute_temperature(pressure);
-    theta   = compute_theta(T_b, pressure);
+
+    theta   = getThgivenPandT(T_b, pressure, (R_d/Cp_d));
+
     Real RH = compute_relative_humidity();
     q_v     = vapor_mixing_ratio(pressure, T_b, RH);
-    rho     = pressure/(R_d*T_b*(1.0 + (R_v/R_d)*q_v));
+
+    rho     = getRhogivenTandPress(T_b, pressure, q_v);
     rho     = rho*(1.0 + parms.qt_init); // q_t = 0.02 a given constant for this test case
+
     T_dp    = compute_dewpoint_temperature(T_b, RH);
 }
 
@@ -228,16 +212,10 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
         Vector<Real> h_q_v(khi+2);
 
         Gpu::DeviceVector<Real> d_r(khi+2);
-        Gpu::DeviceVector<Real> d_p(khi+2);
-        Gpu::DeviceVector<Real> d_t(khi+2);
-        Gpu::DeviceVector<Real> d_q_v(khi+2);
 
         init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(), h_q_v.data(), dz, khi);
 
         Gpu::copyAsync(Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-        Gpu::copyAsync(Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
-        Gpu::copyAsync(Gpu::hostToDevice, h_t.begin(), h_t.end(), d_t.begin());
-        Gpu::copyAsync(Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
 
         Real* r = d_r.data();
 
@@ -392,13 +370,13 @@ Problem::init_custom_pert(
                 }
 
                 theta_total  = theta_back[k]*(delta_theta/300.0 + 1);
-                Real T = compute_temperature_from_theta(theta_total, p_back[k]);
+                Real T = getTgivenPandTh(theta_total, p_back[k], (R_d/Cp_d));
                 rho    = p_back[k]/(R_d*T*(1.0 + (R_v/R_d)*q_v_back[k]));
                 RH     = compute_relative_humidity();
                 Real q_v_hot = vapor_mixing_ratio(p_back[k], T, RH);
 
                 // Compute background quantities
-                Real T_back   = compute_temperature_from_theta(theta_back[k], p_back[k]);
+                Real T_back   = getTgivenPandTh(theta_back[k], p_back[k], (R_d/Cp_d));
                 Real rho_back = p_back[k]/(R_d*T_back*(1.0 + (R_v/R_d)*q_v_back[k]));
 
                 // This version perturbs rho but not p
