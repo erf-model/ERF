@@ -24,6 +24,8 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
+USE_POISSON_SOLVE = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

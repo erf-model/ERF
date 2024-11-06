@@ -12,4 +12,4 @@ endif
 
 CEXE_headers += ERF_NumericalDiffusion.H
 CEXE_headers += ERF_Src_headers.H
-
+CEXE_headers += ERF_buoyancy_utils.H

@@ -79,6 +79,13 @@ AMREX_ENUM(InitType,
 );
 
 /**
+ * Enum of possible interpolation types between coarse/fine
+*/
+AMREX_ENUM(StateInterpType,
+    FullState, Perturbational
+);
+
+/**
  * Enum of possible plotfile types
 */
 AMREX_ENUM(PlotFileType,
@@ -86,6 +93,7 @@ AMREX_ENUM(PlotFileType,
 );
 
 
+#if 0
 /**
  * Enum of possible coarse/fine interpolation options
 */
@@ -102,6 +110,7 @@ namespace InterpType {
         FaceConserativeLinear
     };
 }
+#endif
 
 /**
  * Main class in ERF code, instantiated from main.cpp
@@ -435,7 +444,8 @@ public:
                        amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
                        amrex::MultiFab& mf_vars_windfarm,
                        const amrex::MultiFab& mf_Nturb,
-                       const amrex::MultiFab& mf_SMark);
+                       const amrex::MultiFab& mf_SMark,
+                       const amrex::Real& time);
 #endif
 
 #ifdef ERF_USE_EB
@@ -515,9 +525,17 @@ private:
     //
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
     //
+    // This one works only at level = 0 (base state does not change)
+    void FillPatch (int lev, amrex::Real time,
+                    const amrex::Vector<amrex::MultiFab*>& mfs_vel,
+                    bool cons_only=false);
+
+    // This one works only at level > 0 (base state does change)
     void FillPatch (int lev, amrex::Real time,
                     const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                     const amrex::Vector<amrex::MultiFab*>& mfs_mom,
+                    const amrex::MultiFab& old_base_state,
+                    const amrex::MultiFab& new_base_state,
                     bool fillset=true, bool cons_only=false);
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
@@ -712,6 +730,10 @@ private:
     amrex::Vector<amrex::MultiFab> rV_new;
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
+
+    // amrex::Vector<amrex::MultiFab> xmom_crse_rhs;
+    // amrex::Vector<amrex::MultiFab> ymom_crse_rhs;
+    amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
 
     std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
@@ -978,6 +1000,7 @@ private:
     static PlotFileType plotfile_type_2;
 
     static InitType init_type;
+    static StateInterpType interpolation_type;
 
     // sponge_type:  "input_sponge"
     static std::string sponge_type;

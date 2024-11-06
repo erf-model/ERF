@@ -288,8 +288,6 @@ void ERF::advance_dycore(int level,
     // any state data (e.g. at RK stages or at the end of a timestep)
     mri_integrator.set_slow_rhs_pre(slow_rhs_fun_pre);
     mri_integrator.set_slow_rhs_post(slow_rhs_fun_post);
-    mri_integrator.set_pre_update (pre_update_fun);
-    mri_integrator.set_post_update(post_update_fun);
 
     if (solverChoice.anelastic[level]) {
         mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);

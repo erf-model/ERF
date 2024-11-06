@@ -15,6 +15,26 @@ using namespace amrex;
 void
 ERF::timeStep (int lev, Real time, int /*iteration*/)
 {
+    //
+    // We need to FillPatch the coarse level before assessing whether to regrid
+    // We have not done the swap yet so we fill the "new" which will become the "old"
+    //
+    MultiFab& S_new = vars_new[lev][Vars::cons];
+    MultiFab& U_new = vars_new[lev][Vars::xvel];
+    MultiFab& V_new = vars_new[lev][Vars::yvel];
+    MultiFab& W_new = vars_new[lev][Vars::zvel];
+
+    //
+    // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
+    //
+    if (lev == 0) {
+        FillPatch(lev, time, {&S_new, &U_new, &V_new, &W_new});
+    } else if (lev < finest_level) {
+        FillPatch(lev, time, {&S_new, &U_new, &V_new, &W_new},
+                             {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                             base_state[lev], base_state[lev]);
+    }
+
     if (regrid_int > 0)  // We may need to regrid
     {
         // help keep track of whether a level was already regridded

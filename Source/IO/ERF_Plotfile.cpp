@@ -195,12 +195,6 @@ ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 void
 ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
-    if (plotfile_type == PlotFileType::Amrex) {
-       amrex::Print() << "WRITE AMREX " << std::endl;
-    } else if (plotfile_type == PlotFileType::Netcdf) {
-       amrex::Print() << "WRITE NETCDF " << std::endl;
-    }
-
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
 
@@ -212,12 +206,18 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     //     which require ghost cells to be filled.  We do not need to call FillPatcher
     //     because we don't need to set interior fine points.
     // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
-    for (int lev = 0; lev <= finest_level; ++lev) {
+
+    // Level 0 FilLPatch
+    FillPatch(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
+                            &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
+
+    for (int lev = 1; lev <= finest_level; ++lev) {
         bool fillset = false;
         FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
                                     &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
-                                   {&vars_new[lev][Vars::cons], &rU_new[lev],
-                                    &rV_new[lev], &rW_new[lev]}, fillset);
+                                   {&vars_new[lev][Vars::cons],
+                                    &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                                    base_state[lev], base_state[lev], fillset);
     }
 
     // Get qmoist pointers if using moisture
@@ -1443,10 +1443,15 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
             int lev0 = 0;
             int desired_ratio = std::max(std::max(ref_ratio[lev0][0],ref_ratio[lev0][1]),ref_ratio[lev0][2]);
-            bool any_ratio_one = ( ( (ref_ratio[lev0][0] == 0) || (ref_ratio[lev0][1] == 0) ) ||
-                                     (ref_ratio[lev0][2] == 0) );
+            bool any_ratio_one = ( ( (ref_ratio[lev0][0] == 1) || (ref_ratio[lev0][1] == 1) ) ||
+                                     (ref_ratio[lev0][2] == 1) );
+            for (int lev = 1; lev < finest_level; lev++) {
+                any_ratio_one = any_ratio_one ||
+                                     ( ( (ref_ratio[lev][0] == 1) || (ref_ratio[lev][1] == 1) ) ||
+                                         (ref_ratio[lev][2] == 1) );
+            }
 
-            if (any_ratio_one == 1 && m_expand_plotvars_to_unif_rr)
+            if (any_ratio_one && m_expand_plotvars_to_unif_rr)
             {
                 Vector<IntVect>   r2(finest_level);
                 Vector<Geometry>  g2(finest_level+1);
@@ -1468,9 +1473,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                 for (int lev = 1; lev <= finest_level; ++lev) {
                     if (lev > 1) {
-                        r2[lev-1][0] *= desired_ratio / ref_ratio[lev-1][0];
-                        r2[lev-1][1] *= desired_ratio / ref_ratio[lev-1][1];
-                        r2[lev-1][2] *= desired_ratio / ref_ratio[lev-1][2];
+                        r2[lev-1][0] = r2[lev-2][0] * desired_ratio / ref_ratio[lev-1][0];
+                        r2[lev-1][1] = r2[lev-2][1] * desired_ratio / ref_ratio[lev-1][1];
+                        r2[lev-1][2] = r2[lev-2][2] * desired_ratio / ref_ratio[lev-1][2];
                     }
 
                     mf2[lev].define(refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);

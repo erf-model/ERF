@@ -35,6 +35,35 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
+    // We need to set these because otherwise in the first call to erf_advance we may
+    //    read uninitialized data on ghost values in setting the bc's on the velocities
+    U_new.setVal(1.e34,U_new.nGrowVect());
+    V_new.setVal(1.e34,V_new.nGrowVect());
+    W_new.setVal(1.e34,W_new.nGrowVect());
+
+    //
+    // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
+    // If lev == 0 we have already FillPatched this in ERF::TimeStep
+    //
+//  if (lev == 0) {
+//      FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old});
+//  } else {
+    if (lev > 0) {
+        FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
+                             {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
+                             base_state[lev], base_state[lev]);
+    }
+
+    //
+    // So we must convert the fillpatched to momenta, including the ghost values
+    //
+    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
+                       V_old, rV_old[lev].nGrowVect(),
+                       W_old, rW_old[lev].nGrowVect(),
+                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
+                       Geom(lev).Domain(),
+                       domain_bcs_type);
+
     // TODO: Can test on multiple levels later
     // Update the inflow perturbation update time and amplitude
     if (lev == 0) {
@@ -86,31 +115,10 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
         }
     }
 
-    // We need to set these because otherwise in the first call to erf_advance we may
-    //    read uninitialized data on ghost values in setting the bc's on the velocities
-    U_new.setVal(1.e34,U_new.nGrowVect());
-    V_new.setVal(1.e34,V_new.nGrowVect());
-    W_new.setVal(1.e34,W_new.nGrowVect());
-
-    //
-    // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
-    //
-    FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
-                         {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]});
-    //
-    // So we must convert the fillpatched to momenta, including the ghost values
-    //
-    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
-                       V_old, rV_old[lev].nGrowVect(),
-                       W_old, rW_old[lev].nGrowVect(),
-                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
-                       Geom(lev).Domain(),
-                       domain_bcs_type);
-
 #if defined(ERF_USE_WINDFARM)
     if (solverChoice.windfarm_type != WindFarmType::None) {
         advance_windfarm(Geom(lev), dt_lev, S_old,
-                         U_old, V_old, W_old, vars_windfarm[lev], Nturb[lev], SMark[lev]);
+                         U_old, V_old, W_old, vars_windfarm[lev], Nturb[lev], SMark[lev], time);
     }
 
 #endif
@@ -192,6 +200,20 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
    evolveTracers( lev, dt_lev, vars_new, z_phys_nd );
 #endif
 
+    // ***********************************************************************************************
+    // Impose domain boundary conditions here so that in FillPatching the fine data we won't
+    // need to re-fill these
+    // ***********************************************************************************************
+    if (lev < finest_level) {
+         IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
+         (*physbcs_cons[lev])(vars_new[lev][Vars::cons],0,vars_new[lev][Vars::cons].nComp(),
+                              vars_new[lev][Vars::cons].nGrowVect(),time,BCVars::cons_bc,true);
+            (*physbcs_u[lev])(vars_new[lev][Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc,true);
+            (*physbcs_v[lev])(vars_new[lev][Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc,true);
+            (*physbcs_w[lev])(vars_new[lev][Vars::zvel], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel],
+                              ngvect_vels,time,BCVars::zvel_bc,true);
+    }
+
     // **************************************************************************************
     // Register old and new coarse data if we are at a level less than the finest level
     // **************************************************************************************
@@ -222,6 +244,37 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             FPr_w[lev].RegisterCoarseData({&state_old[IntVars::zmom], &state_new[IntVars::zmom]},
                                           {time, time + dt_lev});
         }
+
+            //
+            // Now create a MultiFab that holds (S_new - S_old) / dt from the coarse level interpolated
+            //     on to the coarse/fine boundary at the fine resolution
+            //
+            Interpolater* mapper_f = &face_cons_linear_interp;
+
+            // PhysBCFunctNoOp null_bc;
+            // MultiFab tempx(vars_new[lev+1][Vars::xvel].boxArray(),vars_new[lev+1][Vars::xvel].DistributionMap(),1,0);
+            // tempx.setVal(0.0);
+            // xmom_crse_rhs[lev+1].setVal(0.0);
+            // FPr_u[lev].FillSet(tempx               , time       , null_bc, domain_bcs_type);
+            // FPr_u[lev].FillSet(xmom_crse_rhs[lev+1], time+dt_lev, null_bc, domain_bcs_type);
+            // MultiFab::Subtract(xmom_crse_rhs[lev+1],tempx,0,0,1,IntVect{0});
+            // xmom_crse_rhs[lev+1].mult(1.0/dt_lev,0,1,0);
+
+            // MultiFab tempy(vars_new[lev+1][Vars::yvel].boxArray(),vars_new[lev+1][Vars::yvel].DistributionMap(),1,0);
+            // tempy.setVal(0.0);
+            // ymom_crse_rhs[lev+1].setVal(0.0);
+            // FPr_v[lev].FillSet(tempy               , time       , null_bc, domain_bcs_type);
+            // FPr_v[lev].FillSet(ymom_crse_rhs[lev+1], time+dt_lev, null_bc, domain_bcs_type);
+            // MultiFab::Subtract(ymom_crse_rhs[lev+1],tempy,0,0,1,IntVect{0});
+            // ymom_crse_rhs[lev+1].mult(1.0/dt_lev,0,1,0);
+
+            MultiFab temp_state(zmom_crse_rhs[lev+1].boxArray(),zmom_crse_rhs[lev+1].DistributionMap(),1,0);
+            InterpFromCoarseLevel(temp_state,            IntVect{0}, IntVect{0}, state_old[IntVars::zmom], 0, 0, 1,
+                                  geom[lev], geom[lev+1], refRatio(lev), mapper_f, domain_bcs_type, BCVars::zvel_bc);
+            InterpFromCoarseLevel(zmom_crse_rhs[lev+1],  IntVect{0}, IntVect{0}, state_new[IntVars::zmom], 0, 0, 1,
+                                  geom[lev], geom[lev+1], refRatio(lev), mapper_f, domain_bcs_type, BCVars::zvel_bc);
+            MultiFab::Subtract(zmom_crse_rhs[lev+1],temp_state,0,0,1,IntVect{0});
+            zmom_crse_rhs[lev+1].mult(1.0/dt_lev,0,1,0);
     }
 
     // ***********************************************************************************************

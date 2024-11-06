@@ -12,6 +12,15 @@
                                 const Real new_stage_time,
                                 const int nrk)
     {
+        //
+        // Define primitive variables for all later RK stages
+        // (We have already done this for the first RK step)
+        //
+        if (nrk > 0) {
+            int ng_cons = S_data[IntVars::cons].nGrow();
+            cons_to_prim(S_data[IntVars::cons], ng_cons);
+        }
+
         BL_PROFILE("slow_rhs_fun_pre");
         if (verbose) Print() << "Making slow rhs at time " << old_stage_time << " for fast variables advancing from " <<
                                 old_step_time << " to " << new_stage_time << std::endl;
@@ -102,18 +111,21 @@
 
             } // mfi
 
-            MultiFab r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
-            MultiFab p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
-            MultiFab pi_hse_new(base_state_new[level], make_alias, BaseState::pi0_comp, 1);
+            MultiFab  r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
+            MultiFab  p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
+            MultiFab pi_hse_new (base_state_new[level], make_alias, BaseState::pi0_comp, 1);
+            MultiFab th_hse_new (base_state_new[level], make_alias, BaseState::th0_comp, 1);
 
-            MultiFab* r0_new = &r_hse_new;
-            MultiFab* p0_new = &p_hse_new;
+            MultiFab* r0_new  = &r_hse_new;
+            MultiFab* p0_new  = &p_hse_new;
+            MultiFab* pi0_new = &pi_hse_new;
+            MultiFab* th0_new = &th_hse_new;
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new,
                              xmom_src, ymom_src, zmom_src,
-                             r0_new, p0_new, fine_geom, solverChoice,
+                             base_state_new[level], fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -122,6 +134,7 @@
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
                              z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
+                             (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
@@ -156,6 +169,8 @@
 
             const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
+            const Real l_rdOcp   = solverChoice.rdOcp;
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -168,8 +183,10 @@
                const Array4<Real      >  r0_new_arr = r0_new->array(mfi);
                const Array4<Real      >  r0_tmp_arr = r0_temp.array(mfi);
 
-               const Array4<Real const>  p0_arr     = p0->const_array(mfi);
-               const Array4<Real      >  p0_new_arr = p0_new->array(mfi);
+               const Array4<Real const>  p0_arr     =  p0->const_array(mfi);
+               const Array4<Real      >  p0_new_arr =  p0_new->array(mfi);
+               const Array4<Real      > pi0_new_arr = pi0_new->array(mfi);
+               const Array4<Real      > th0_new_arr = th0_new->array(mfi);
 
                const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
 
@@ -205,7 +222,9 @@
                    r0_new_arr(i,j,k) = rho0_new / dJ_new_arr(i,j,k);
                    rt0_tmp_new      /=            dJ_new_arr(i,j,k);
 
-                   p0_new_arr(i,j,k) = getPgivenRTh(rt0_tmp_new);
+                    p0_new_arr(i,j,k) = getPgivenRTh(rt0_tmp_new);
+                   pi0_new_arr(i,j,k) = getExnergivenRTh(rt0_tmp_new, l_rdOcp);
+                   th0_new_arr(i,j,k) = rt0_tmp_new / r0_new_arr(i,j,k);
                });
             } // MFIter
             r0_new->FillBoundary(fine_geom.periodicity());
@@ -217,7 +236,7 @@
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new,
                              xmom_src, ymom_src, zmom_src,
-                             r0, p0, fine_geom, solverChoice,
+                             base_state[level], fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -226,6 +245,7 @@
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
                              z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
+                             (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3,Q2fx3, Diss,
@@ -271,23 +291,6 @@
     }; // end slow_rhs_fun_pre
 
     // *************************************************************
-    // This called before RK stage
-    // *************************************************************
-    auto pre_update_fun = [&](Vector<MultiFab>& S_data, int ng_cons)
-    {
-        cons_to_prim(S_data[IntVars::cons], ng_cons);
-    };
-
-    // *************************************************************
-    // This called after every RK stage -- from MRI or SRI
-    // *************************************************************
-    auto post_update_fun = [&](Vector<MultiFab>& S_data,
-                               const Real time_for_fp, int ng_cons, int ng_vel)
-    {
-        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only=false, vel_and_mom_synced=false);
-    };
-
-    // *************************************************************
     // The "slow" integrator for MRI and the only integrator for SRI
     // *************************************************************
     auto slow_rhs_fun_post = [&](Vector<MultiFab>& S_rhs,
@@ -301,14 +304,16 @@
                                  const int nrk)
     {
         amrex::ignore_unused(nrk);
-        if (verbose) Print() << "Making slow rhs at time " << old_stage_time <<
-                                " for slow variables advancing from " <<
-                                old_step_time << " to " << new_stage_time << std::endl;
 
         // Note that the "old" and "new" metric terms correspond to
         // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
         // will be used to advance to
         Real slow_dt = new_stage_time - old_step_time;
+
+        if (verbose) amrex::Print() << "Time integration of scalars at level " << level
+                                    << " from " << old_step_time << " to " << new_stage_time
+                                    << " with dt = " << slow_dt
+                                    << " using RHS created at " << old_stage_time << std::endl;
 
         int n_qstate = micro->Get_Qstate_Size();
 
@@ -374,6 +379,12 @@
 #endif
                               fr_as_crse, fr_as_fine);
         }
+
+        // Apply boundary conditions on all the state variables that have been updated
+        // in both the fast and slow integrators
+        apply_bcs(S_new, new_stage_time, S_new[IntVars::cons].nGrow(), S_new[IntVars::xmom].nGrow(),
+                  fast_only=false, vel_and_mom_synced=false);
+
     }; // end slow_rhs_fun_post
 
     auto slow_rhs_fun_inc = [&](Vector<MultiFab>& S_rhs,
@@ -388,6 +399,14 @@
         BL_PROFILE("slow_rhs_fun_inc");
         if (verbose) Print() << "Making slow rhs at time " << old_stage_time << " for fast variables advancing from " <<
                                 old_step_time << " to " << new_stage_time << std::endl;
+        //
+        // Define primitive variables for all later RK stages
+        // (We have already done this for the first RK step)
+        //
+        if (nrk > 0) {
+            int ng_cons = S_data[IntVars::cons].nGrow();
+            cons_to_prim(S_data[IntVars::cons], ng_cons);
+        }
 
         Real slow_dt = new_stage_time - old_step_time;
 
@@ -424,7 +443,7 @@
                          z_phys_nd[level], z_phys_cc[level],
                          xvel_new, yvel_new,
                          xmom_src, ymom_src, zmom_src,
-                         r0, p0, fine_geom, solverChoice,
+                         base_state[level], fine_geom, solverChoice,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -434,6 +453,7 @@
                          S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
                          z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
+                         (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                          Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                          Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                          Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,

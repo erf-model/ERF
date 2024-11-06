@@ -22,7 +22,8 @@ public:
                   amrex::MultiFab& V_old,
                   amrex::MultiFab& W_old,
                   const amrex::MultiFab& mf_Nturb,
-                  const amrex::MultiFab& mf_SMark) = 0;
+                  const amrex::MultiFab& mf_SMark,
+                  const amrex::Real& time) = 0;
 
     virtual void set_turb_spec(const amrex::Real&  rotor_rad, const amrex::Real& hub_height,
                                const amrex::Real& thrust_coeff_standing, const amrex::Vector<amrex::Real>& wind_speed,

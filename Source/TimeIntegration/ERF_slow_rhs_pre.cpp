@@ -32,6 +32,7 @@ using namespace amrex;
  * @param[in] xmom_src source terms for x-momentum
  * @param[in] ymom_src source terms for y-momentum
  * @param[in] zmom_src source terms for z-momentum
+ * @param[in] zmom_crse_rhs update term from coarser level for z-momentum; non-zero on c/f boundary only
  * @param[in] Tau11 tau_11 component of stress tensor
  * @param[in] Tau22 tau_22 component of stress tensor
  * @param[in] Tau33 tau_33 component of stress tensor
@@ -81,6 +82,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& xmom_src,
                        const MultiFab& ymom_src,
                        const MultiFab& zmom_src,
+                       const MultiFab* zmom_crse_rhs,
                        MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
@@ -167,6 +169,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     AMREX_ALWAYS_ASSERT(!l_use_terrain  || !l_anelastic);
 
     const Box& domain = geom.Domain();
+    const int domlo_z = domain.smallEnd(2);
     const int domhi_z = domain.bigEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
@@ -742,6 +745,31 @@ void erf_slow_rhs_pre (int level, int finest_level,
                  rho_w_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
             }
         });
+
+        auto const lo = lbound(bx);
+        auto const hi = ubound(bx);
+
+        // Note: the logic below assumes no tiling in z!
+        if (level > 0) {
+
+            const Array4<const Real>& rho_w_rhs_crse = zmom_crse_rhs->const_array(mfi);
+
+            Box b2d = bx; b2d.setRange(2,0);
+
+            if (lo.z > domlo_z) {
+                ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int ) // bottom of box but not of domain
+                {
+                    rho_w_rhs(i,j,lo.z) = rho_w_rhs_crse(i,j,lo.z);
+                });
+            }
+
+            if (hi.z < domhi_z+1) {
+                ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int ) // top of box but not of domain
+                {
+                    rho_w_rhs(i,j,hi.z+1) = rho_w_rhs_crse(i,j,hi.z+1);
+                });
+            }
+        }
 
         {
         BL_PROFILE("slow_rhs_pre_fluxreg");
