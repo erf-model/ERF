@@ -286,6 +286,9 @@ private:
     // Number of qmoist variables
     int m_qstate_size = 6;
 
+    // CFL MAX for vertical advection
+    static constexpr amrex::Real CFL_MAX = 0.5;
+
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
 
