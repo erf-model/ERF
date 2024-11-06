@@ -239,7 +239,7 @@ compute_source_terms_Fn_Ft (const Real rad,
         AMREX_ALWAYS_ASSERT(std::fabs(std::exp(-fhub))<=1.0);
         AMREX_ALWAYS_ASSERT(std::fabs(std::exp(-ftip))<=1.0);
 
-        F = 1.0;//2.0/PI*(std::acos(std::exp(-ftip)) + std::acos(std::exp(-fhub)) );
+        F = 2.0/PI*(std::acos(std::exp(-ftip)) + std::acos(std::exp(-fhub)) );
 
         at_new = 1.0/ ( 4.0*F*std::sin(psi)*std::cos(psi)/(s*Ct+1e-10) - 1.0 );
         an_new = 1.0/ ( 1.0 + 4.0*F*std::pow(std::sin(psi),2)/(s*Cn + 1e-10) );
@@ -417,7 +417,6 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
             Real y   = ProbLoArr[1] + (jj+0.5)*dx[1];
             Real z   = ProbLoArr[2] + (kk+0.5)*dx[2];
             // ?? Density needed here
-            Real inv_dens_vol = 1.0/(1.0*dx[0]*dx[1]*dx[2]);
 
             int check_int = 0;
 
@@ -468,17 +467,19 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                                                                d_blade_pitch_ptr,
                                                                n_spec_extra);
 
-                        Real Fn = Fn_and_Ft[0];
-                        Real Ft = Fn_and_Ft[1];
+                        Real Fn = 3.0*Fn_and_Ft[0];
+                        Real Ft = 3.0*Fn_and_Ft[1];
                         // Compute the source terms - pass in radial distance, free stream velocity
 
                         Real Fx = Fn*std::cos(phi) + Ft*std::sin(zeta)*std::sin(phi);
                         Real Fy = Fn*std::sin(phi) - Ft*std::sin(zeta)*std::cos(phi);
                         Real Fz = -Ft*std::cos(zeta);
 
-                        source_x = -Fx*inv_dens_vol;
-                        source_y = -Fy*inv_dens_vol;
-                        source_z = -Fz*inv_dens_vol;
+                        //Real dn = (
+
+                        source_x = -Fx/(2.0*PI*rad*dx[0])*1.0/std::pow(2.0*PI,0.5);
+                        source_y = -Fy/(2.0*PI*rad*dx[0])*1.0/std::pow(2.0*PI,0.5);
+                        source_z = -Fz/(2.0*PI*rad*dx[0])*1.0/std::pow(2.0*PI,0.5);
 
 
                         //printf("Val source_x, is %0.15g, %0.15g, %0.15g %0.15g %0.15g %0.15g\n", rad, Fn, Ft, source_x, source_y, source_z);

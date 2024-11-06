@@ -57,12 +57,12 @@ erf.check_int       = 1000       # number of timesteps between checkpoints
 #erf.plotfile_type   = netcdf
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 200        # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta QKE Kmv Khv
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta KE Kmv Khv
 
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.pbl_type = "MYNN2.5"
-erf.advect_QKE = false
+erf.advect_KE = false
 erf.les_type = "None"
 erf.molec_diff_type = "None"
 #erf.molec_diff_type  = "Constant"
@@ -92,7 +92,7 @@ prob.RZERO = 100e3
 prob.ZZERO = 5e3
 prob.RMAX  = 20e3
 prob.VMAX  = 15.
-prob.QKE_0 = 0.5
+prob.KE_0  = 0.5
 
 # INITIALIZATION WITH ATM DATA
 erf.init_type = "input_sounding"

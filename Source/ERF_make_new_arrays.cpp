@@ -362,7 +362,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
                            (solverChoice.turbChoice[lev].pbl_type        !=       PBLType::None) );
     bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type        != LESType::None)   ||
                            (solverChoice.turbChoice[lev].pbl_type        != PBLType::None) );
-    bool l_use_ddorf   = (  solverChoice.turbChoice[lev].les_type        == LESType::Deardorff);
+    bool l_use_ddorf   = (solverChoice.turbChoice[lev].les_type       == LESType::Deardorff);
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));

@@ -159,7 +159,6 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
     is_q1_read           = 0;
     is_q2_read           = 0;
     is_KE_read           = 0;
-    is_QKE_read          = 0;
 
     if (pp.contains("bndry_input_var_names"))
     {
@@ -175,7 +174,6 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
             if (m_var_names[i] == "qv")           is_q1_read = 1;
             if (m_var_names[i] == "qc")           is_q2_read = 1;
             if (m_var_names[i] == "ke")           is_KE_read = 1;
-            if (m_var_names[i] == "qke")          is_QKE_read = 1;
         }
     }
 
@@ -415,7 +413,6 @@ void ReadBndryPlanes::read_file (const int idx,
         if (var_name == "theta")       n_offset = BCVars::RhoTheta_bc_comp;
         if (var_name == "temperature") n_offset = BCVars::RhoTheta_bc_comp;
         if (var_name == "ke")          n_offset = BCVars::RhoKE_bc_comp;
-        if (var_name == "qke")         n_offset = BCVars::RhoQKE_bc_comp;
         if (var_name == "scalar")      n_offset = BCVars::RhoScalar_bc_comp;
         if (var_name == "qv")          n_offset = BCVars::RhoQ1_bc_comp;
         if (var_name == "qc")          n_offset = BCVars::RhoQ2_bc_comp;
@@ -480,7 +477,7 @@ void ReadBndryPlanes::read_file (const int idx,
                              bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc" ||
-                             var_name == "ke"     || var_name == "qke") {
+                             var_name == "ke") {
                     ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              Real R1 =  bndry_read_r_arr(i, j, k, 0);
@@ -510,7 +507,7 @@ void ReadBndryPlanes::read_file (const int idx,
                              bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc" ||
-                             var_name == "ke"     || var_name == "qke") {
+                             var_name == "ke") {
                       ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];

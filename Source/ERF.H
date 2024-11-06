@@ -79,6 +79,14 @@ AMREX_ENUM(InitType,
 );
 
 /**
+ * Enum of possible plotfile types
+*/
+AMREX_ENUM(PlotFileType,
+    None, Amrex, Netcdf, HDF5
+);
+
+
+/**
  * Enum of possible coarse/fine interpolation options
 */
 namespace InterpType {
@@ -318,7 +326,7 @@ public:
     void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
     // write plotfile to disk
-    void WritePlotFile  (int which, amrex::Vector<std::string> plot_var_names);
+    void WritePlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -439,6 +447,15 @@ public:
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
+
+    // write checkpoint file to disk
+    void WriteCheckpointFile () const;
+
+    // read checkpoint file from disk
+    void ReadCheckpointFile ();
+
+    // read checkpoint file from disk -- called after instantiating m_most
+    void ReadCheckpointFileMOST ();
 
 private:
 
@@ -628,15 +645,6 @@ private:
 
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
-
-    // write checkpoint file to disk
-    void WriteCheckpointFile () const;
-
-    // read checkpoint file from disk
-    void ReadCheckpointFile ();
-
-    // read checkpoint file from disk -- called after instantiating m_most
-    void ReadCheckpointFileMOST ();
 
     // Read the file passed to amr.restart and use it as an initial condition for
     // the current simulation. Supports a different number of components and
@@ -887,12 +895,12 @@ private:
 
     amrex::Vector<std::string> plot_var_names_1;
     amrex::Vector<std::string> plot_var_names_2;
-    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0",
+    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoadv_0",
                                                      "rhoQ1", "rhoQ2", "rhoQ3",
                                                      "rhoQ4", "rhoQ5", "rhoQ6"};
 
     // Note that the order of variable names here must match the order in ERF_Derive.cpp
-    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
+    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
@@ -906,7 +914,7 @@ private:
                                                     // eddy diffusivity of heat
                                                     "Khv","Khh",
                                                     // mynn pbl lengthscale
-                                                    "Lpbl",
+                                                    "Lturb",
                                                     // moisture vars
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
@@ -965,8 +973,9 @@ private:
     static int pert_interval;
     static amrex::Real sum_per;
 
-    // Native or NetCDF
-    static std::string plotfile_type;
+    // Write in native AMReX or NetCDF format for each plotfile
+    static PlotFileType plotfile_type_1;
+    static PlotFileType plotfile_type_2;
 
     static InitType init_type;
 

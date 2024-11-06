@@ -41,7 +41,8 @@ Real ERF::sum_per       = -1.0;
 int  ERF::pert_interval = -1;
 
 // Native AMReX vs NetCDF
-std::string ERF::plotfile_type    = "amrex";
+PlotFileType ERF::plotfile_type_1  = PlotFileType::None;
+PlotFileType ERF::plotfile_type_2  = PlotFileType::None;
 
 InitType ERF::init_type;
 
@@ -372,11 +373,11 @@ ERF::Evolve ()
 
         if (writeNow(cur_time, dt[0], step+1, m_plot_int_1, m_plot_per_1)) {
             last_plot_file_step_1 = step+1;
-            WritePlotFile(1,plot_var_names_1);
+            WritePlotFile(1,plotfile_type_1,plot_var_names_1);
         }
         if (writeNow(cur_time, dt[0], step+1, m_plot_int_2, m_plot_per_2)) {
             last_plot_file_step_2 = step+1;
-            WritePlotFile(2,plot_var_names_2);
+            WritePlotFile(2,plotfile_type_2,plot_var_names_2);
         }
 
         if (writeNow(cur_time, dt[0], step+1, m_check_int, m_check_per)) {
@@ -404,10 +405,10 @@ ERF::Evolve ()
 
     // Write plotfiles at final time
     if ( (m_plot_int_1 > 0 || m_plot_per_1 > 0.) && istep[0] > last_plot_file_step_1 ) {
-        WritePlotFile(1,plot_var_names_1);
+        WritePlotFile(1,plotfile_type_1,plot_var_names_1);
     }
     if ( (m_plot_int_2 > 0 || m_plot_per_2 > 0.) && istep[0] > last_plot_file_step_2) {
-        WritePlotFile(2,plot_var_names_2);
+        WritePlotFile(2,plotfile_type_1,plot_var_names_2);
     }
 
     if ( (m_check_int > 0 || m_check_per > 0.) && istep[0] > last_check_file_step) {
@@ -678,24 +679,6 @@ ERF::InitData_post ()
             } // lev
         }
 
-        Real QKE_0;
-        if (pp.query("QKE_0", QKE_0)) {
-            Print() << "Initializing uniform QKE=" << QKE_0 << std::endl;
-            for (int lev = 0; lev <= finest_level; lev++) {
-                auto& lev_new = vars_new[lev];
-                for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box &bx = mfi.tilebox();
-                    const auto &cons_arr = lev_new[Vars::cons].array(mfi);
-                    // We want to set the lateral BC values, too
-                    Box gbx = bx; // Copy constructor
-                    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
-                    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        cons_arr(i,j,k,RhoQKE_comp) = cons_arr(i,j,k,Rho_comp) * QKE_0;
-                    });
-                } // mfi
-            }
-        }
-
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
             AverageDown();
         }
@@ -724,8 +707,10 @@ ERF::InitData_post ()
         restart();
 
         // Create the physbc objects for {cons, u, v, w, base state}
+        // We fill the additional base state ghost cells just in case we have read the old format
         for (int lev(0); lev <= max_level; ++lev) {
             make_physbcs(lev);
+            (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
         }
     }
 
@@ -1104,12 +1089,12 @@ ERF::InitData_post ()
     {
         if (m_plot_int_1 > 0 || m_plot_per_1 > 0.)
         {
-            WritePlotFile(1,plot_var_names_1);
+            WritePlotFile(1,plotfile_type_1,plot_var_names_1);
             last_plot_file_step_1 = istep[0];
         }
         if (m_plot_int_2 > 0 || m_plot_per_2 > 0.)
         {
-            WritePlotFile(2,plot_var_names_2);
+            WritePlotFile(2,plotfile_type_2,plot_var_names_2);
             last_plot_file_step_2 = istep[0];
         }
     }
@@ -1497,8 +1482,42 @@ ERF::ReadParameters ()
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);
 
-        // Output format
-        pp.query("plotfile_type", plotfile_type);
+        PlotFileType plotfile_type_temp = PlotFileType::None;
+        pp.query_enum_case_insensitive("plotfile_type"  ,plotfile_type_temp);
+        pp.query_enum_case_insensitive("plotfile_type_1",plotfile_type_1);
+        pp.query_enum_case_insensitive("plotfile_type_2",plotfile_type_2);
+        //
+        // This option is for backward consistency -- if only plotfile_type is set,
+        //     then it will be used for both 1 and 2 if and only if they are not set
+        //
+        // Default is native amrex if no type is specified
+        //
+        if (plotfile_type_temp == PlotFileType::None) {
+            if (plotfile_type_1 == PlotFileType::None) {
+                plotfile_type_1  = PlotFileType::Amrex;
+            }
+            if (plotfile_type_2 == PlotFileType::None) {
+                plotfile_type_2  = PlotFileType::Amrex;
+            }
+        } else {
+            if (plotfile_type_1 == PlotFileType::None) {
+                plotfile_type_1  = plotfile_type_temp;
+            } else {
+                amrex::Abort("You must set either plotfile_type or plotfile_type_1, not both");
+            }
+            if (plotfile_type_2 == PlotFileType::None) {
+                plotfile_type_2  = plotfile_type_temp;
+            } else {
+                amrex::Abort("You must set either plotfile_type or plotfile_type_2, not both");
+            }
+        }
+#ifndef ERF_USE_NETCDF
+        if (plotfile_type_1 == PlotFileType::Netcdf ||
+            plotfile_type_2 == PlotFileType::Netcdf) {
+            amrex::Abort("Plotfile type = Netcdf is not allowed without USE_NETCDF = TRUE");
+        }
+#endif
+
         pp.query("plot_file_1",   plot_file_1);
         pp.query("plot_file_2",   plot_file_2);
         pp.query("plot_int_1" , m_plot_int_1);
@@ -1604,7 +1623,7 @@ ERF::ParameterSanityChecks ()
 {
     AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt[0] > 0.);
 
-    // We don't allow use_real_bcs to be true if init_type is not either InitType::Rreal or InitType::Metgrid
+    // We don't allow use_real_bcs to be true if init_type is not either InitType::Real or InitType::Metgrid
     AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == InitType::Real) || (init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
@@ -1622,14 +1641,6 @@ ERF::ParameterSanityChecks ()
                 Abort("You must set cf_width to be a multiple of ref_ratio");
             }
         }
-    }
-
-    if (plotfile_type != "amrex" &&
-        plotfile_type != "netcdf" && plotfile_type != "NetCDF" &&
-        plotfile_type != "hdf5"   && plotfile_type != "HDF5" )
-    {
-        Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
-        Abort("Dont know this plotfile_type");
     }
 
     // If fixed_mri_dt_ratio is set, it must be even

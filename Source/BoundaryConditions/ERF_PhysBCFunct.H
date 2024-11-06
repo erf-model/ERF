@@ -279,11 +279,14 @@ public:
     * @param[in] nghost       number of ghost cells to be filled for conserved variables
     * @param[in] time         time at which the data should be filled
     */
-    void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp_cons);
+    void operator() (amrex::MultiFab& mf, int icomp, int ncomp, amrex::IntVect const& nghost);
 
     void impose_lateral_basestate_bcs (const amrex::Array4<amrex::Real>& dest_arr,
-                                       const amrex::Box& bx, const amrex::Box& domain);
+                                       const amrex::Box& bx, const amrex::Box& domain,
+                                       int ncomp, const amrex::IntVect& nghost);
+    void impose_vertical_basestate_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                        const amrex::Box& bx, const amrex::Box& domain,
+                                        int ncomp, const amrex::IntVect& nghost);
 
 private:
     int                  m_lev;

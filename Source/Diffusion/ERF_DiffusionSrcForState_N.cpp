@@ -79,10 +79,11 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    bool l_use_QKE       = turbChoice.use_QKE;
-    bool l_use_deardorff = (turbChoice.les_type == LESType::Deardorff);
     Real l_inv_theta0    = 1.0 / turbChoice.theta_ref;
     Real l_abs_g         = std::abs(grav_gpu[2]);
+
+    bool l_use_ddorf = (turbChoice.les_type == LESType::Deardorff);
+    bool l_use_mynn  = (turbChoice.pbl_type == PBLType::MYNN25);
 
     bool l_consA  = (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = ( (turbChoice.les_type == LESType::Smagorinsky) ||
@@ -96,7 +97,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
     const int end_comp   = start_comp + num_comp - 1;
 
-    // Theta, KE, QKE, Scalar
+    // Theta, KE, Scalar
     Vector<Real> alpha_eff(NPRIMVAR_max, 0.0);
     if (l_consA) {
         for (int i = 0; i < NPRIMVAR_max; ++i) {
@@ -164,15 +165,15 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
        }
     }
 
-    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h,
-                              EddyDiff::Q_h    , EddyDiff::Q_h, EddyDiff::Q_h ,
-                              EddyDiff::Q_h    , EddyDiff::Q_h, EddyDiff::Q_h };
-    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h,
-                              EddyDiff::Q_h    , EddyDiff::Q_h, EddyDiff::Q_h ,
-                              EddyDiff::Q_h    , EddyDiff::Q_h, EddyDiff::Q_h };
-    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v,
-                              EddyDiff::Q_v    , EddyDiff::Q_v, EddyDiff::Q_v ,
-                              EddyDiff::Q_v    , EddyDiff::Q_v, EddyDiff::Q_v };
+    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::Scalar_h,
+                              EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h ,
+                              EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h };
+    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::Scalar_h,
+                              EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h ,
+                              EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h };
+    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::Scalar_v,
+                              EddyDiff::Q_v    , EddyDiff::Q_v,  EddyDiff::Q_v ,
+                              EddyDiff::Q_v    , EddyDiff::Q_v,  EddyDiff::Q_v };
 
     // Device vectors
     Gpu::AsyncVector<Real> alpha_eff_d;
@@ -678,7 +679,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     //       The surface heat flux hfx_z(i,j,-1) is updated in MOSTStress at
     //       each RK stage if using the ERF_EXPLICIT_MOST_STRESS path, but that
     //       does not change the buoyancy production term here.
-    if (l_use_deardorff && start_comp <= RhoKE_comp && end_comp >=RhoKE_comp) {
+    if (l_use_ddorf && (start_comp <= RhoKE_comp) && (end_comp >=RhoKE_comp)) {
         int qty_index = RhoKE_comp;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -707,8 +708,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     }
 
     // Using PBL
-    if (l_use_QKE && start_comp <= RhoQKE_comp && end_comp >=RhoQKE_comp) {
-        int qty_index = RhoQKE_comp;
+    if (l_use_mynn && start_comp <= RhoKE_comp && end_comp >=RhoKE_comp) {
+        int qty_index = RhoKE_comp;
         auto pbl_mynn_B1_l = turbChoice.pbl_mynn.B1;
 
         const int rhoqv_comp = solverChoice.RhoQv_comp;
@@ -734,5 +735,4 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                                   use_most);
         });
     }
-
 }

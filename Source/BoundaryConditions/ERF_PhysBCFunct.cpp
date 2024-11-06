@@ -366,8 +366,7 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     } // OpenMP
 } // operator()
 
-void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
-                                      IntVect const& nghost, const Real /*time*/, int /*bccomp*/)
+void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int ncomp, IntVect const& nghost)
 {
     BL_PROFILE("ERFPhysBCFunct_base::()");
 
@@ -403,9 +402,10 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/
 
             if (!gdomain.contains(cbx2))
             {
-                const Array4<Real> cons_arr = mf.array(mfi);
+                const Array4<Real> base_arr = mf.array(mfi);
 
-                impose_lateral_basestate_bcs(cons_arr,cbx1,domain);
+                impose_lateral_basestate_bcs(base_arr,cbx1,domain,ncomp,nghost);
+                impose_vertical_basestate_bcs(base_arr,cbx2,domain,ncomp,nghost);
             }
 
         } // MFIter

@@ -134,16 +134,6 @@ Problem::init_custom_pert(
                 1e-12);
         }
     }
-    if (state_pert.nComp() > RhoQKE_comp) {
-        // PBL
-        state_pert(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * 2.0 * parms_d.KE_0;
-        if (parms_d.KE_decay_height > 0) {
-            // scale initial SGS kinetic energy with height
-            state_pert(i, j, k, RhoQKE_comp) *= max(
-                std::pow(1 - min(z/parms_d.KE_decay_height,1.0), parms_d.KE_decay_order),
-                1e-12);
-        }
-    }
 
     if (use_moisture) {
         state_pert(i, j, k, RhoQ1_comp) = 0.0;
