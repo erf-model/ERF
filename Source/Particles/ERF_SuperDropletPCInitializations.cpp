@@ -448,7 +448,8 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         aerosol_mass_d.resize(n_aerosols*np);
         for (int i = 0; i < n_aerosols; i++) {
             Vector<Real> aerosol_mass_h;
-            a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->density() );
+            Vector<Real> aerosol_mult;
+            a_init.getAerosolDistribution( aerosol_mass_h, aerosol_mult, i, np,  m_aerosol_mat[i]->density() );
             Gpu::copy( Gpu::hostToDevice,
                        aerosol_mass_h.begin(),
                        aerosol_mass_h.end(),
@@ -480,18 +481,11 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
             Real n_par_per_supdrop = std::ceil(num_par_per_cell/num_sd_per_cell);
 
             int start = offset_arr(i,j,k);
+            auto mult_scale = num_par_per_cell / std::sum(a_aerosol_mult)
             for (int n = start; n < start+num_sd_this_cell; n++) {
                 Real x = plo[0] + (i + Random(rnd_engine))*dx[0];
                 Real y = plo[1] + (j + Random(rnd_engine))*dx[1];
                 Real z = plo[2] + (k + Random(rnd_engine))*dx[2];
-
-                Real multiplicity = 0;
-                if (num_to_add > n_par_per_supdrop) {
-                    multiplicity = n_par_per_supdrop;
-                } else {
-                    multiplicity = num_to_add;
-                }
-                num_to_add -= multiplicity;
 
                 auto& p = aos[n+size_old];
                 p.id()  = pid + n;
@@ -503,7 +497,14 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 p.idata(SuperDropletsIntIdxAoS::k) = k;
 
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = 0.0;
-                mult_ptr[n] = multiplicity;
+                int mult_this_sd = (int) a_aerosol_mult[n] * mult_scale
+                if (mult_this_sd < num_to_add) {
+                    mult_ptr[n] = mult_this_sd;
+                    num_to_add -= mult_this_sd;
+                } else {
+                    mult_ptr[n] = num_to_add;
+                    num_to_add = 0;
+                }
 
                 ParticleReal aerosol_mass_total = 0.0;
                 for (int ctr = 0; ctr < n_aerosols; ctr++) {

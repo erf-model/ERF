@@ -6,6 +6,7 @@ void SDInitialization::setDefaults ( const std::vector<std::unique_ptr<MaterialP
 
     m_num_aerosols = a_aerosol_mat.size();
     m_mass_aerosol_min.resize(m_num_aerosols);
+    m_mass_aerosol_max.resize(m_num_aerosols);
     m_mass_aerosol_mean.resize(m_num_aerosols);
     m_radius_aerosol_min.resize(m_num_aerosols);
     m_radius_aerosol_max.resize(m_num_aerosols);
@@ -15,6 +16,7 @@ void SDInitialization::setDefaults ( const std::vector<std::unique_ptr<MaterialP
         // default values
         m_aerosol_init_type[i] = SupDropInit::attrib_init_const;
         m_mass_aerosol_min[i]   = 0.0;
+        m_mass_aerosol_max[i]   = 1e-10;
         m_mass_aerosol_mean[i]  = 0.0;
         m_radius_aerosol_min[i] = 1.0e-40;
         m_radius_aerosol_max[i] = 1.0e-40;
@@ -147,35 +149,44 @@ void SDInitialization::printParameters ( const std::vector<std::unique_ptr<Mater
 }
 
 void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_aerosol_mass,
+                                                amrex::Vector<amrex::Real>& a_aerosol_mult,
                                                 const int a_idx,
                                                 const int a_np,
                                                 const amrex::Real a_density ) const
 {
     a_aerosol_mass.resize(a_np);
+    a_aerosol_mult.resize(a_np);
     if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_const) {
+        std::random_device rd;
+        std::mt19937 rng(rd());
+        std::uniform_real_distribution<> urd(0.0, 1.0);
         for (int n = 0; n < a_np; n++) {
             a_aerosol_mass[n] = m_mass_aerosol_mean[a_idx];
+            a_aerosol_mult[n] = urd(rng); // initially this will be a non-integer; later we will rescale to an integer.
         }
     } else if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_exp) {
         std::random_device rd;
         std::mt19937 rng(rd());
+        std::uniform_real_distribution<> urd(0.0, 1.0);
         auto delta = m_mass_aerosol_mean[a_idx] - m_mass_aerosol_min[a_idx];
         std::exponential_distribution<amrex::Real> ed(1.0/delta);
         for (int n = 0; n < a_np; n++) {
-            a_aerosol_mass[n] = ed(rng) + m_mass_aerosol_min[a_idx];
+              a_aerosol_mass[n] = m_mass_aerosol_min[a_idx] + urd(rng) * (m_mass_aerosol_max[a_idx] - m_mass_aerosol_min[a_idx]);
+              a_aerosol_mult[n] = exp(-a_aerosol_mass[n] / delta);
         }
     } else if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_lnr) {
         std::random_device rd;
         std::mt19937 rng(rd());
         std::uniform_real_distribution<> urd(0.0, 1.0);
+        std::lognormal_distribution<> lnr(mu, sigma) // mu and sigma are the mean and standard deviation of the profile
         auto delta =   std::log(m_radius_aerosol_max[a_idx])
                      - std::log(m_radius_aerosol_min[a_idx]);
         for (int n = 0; n < a_np; n++) {
-            auto term = std::log(m_radius_aerosol_min[a_idx]) + urd(rng)*delta;
-            auto dry_r = std::exp(term);
+            auto dry_r = m_radius_aerosol_min[a_idx] + urd(rng) * (m_radius_aerosol_max[a_idx] - m_radius_aerosol_min[a_idx]) // std::exp(term);
             a_aerosol_mass[n] = (4.0/3.0) * PI
                                 * dry_r * dry_r * dry_r
                                 * a_density;
+            a_aerosol_mult[n] = lnr(a_aerosol_mass[n])
         }
     } else {
         amrex::Abort("Unknown m_aerosol_init_type!");
