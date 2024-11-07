@@ -107,9 +107,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<MultiFab>& az,
                        std::unique_ptr<MultiFab>& detJ,
                        const MultiFab* p0,
-#ifdef ERF_USE_POISSON_SOLVE
                        const MultiFab& pp_inc,
-#endif
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
@@ -360,11 +358,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             });
         }
 
-#ifdef ERF_USE_POISSON_SOLVE
         const Array4<const Real>& pp_arr = (l_anelastic) ? pp_inc.const_array(mfi) : pprime.const_array();
-#else
-        const Array4<const Real>& pp_arr = pprime.const_array();
-#endif
 
         // *****************************************************************************
         // Contravariant flux field

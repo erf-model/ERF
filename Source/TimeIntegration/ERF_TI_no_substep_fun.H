@@ -134,7 +134,6 @@
         apply_bcs(S_sum, time_for_fp, S_sum[IntVars::cons].nGrow(), S_sum[IntVars::xmom].nGrow(),
                   fast_only=true, vel_and_mom_synced=false);
 
-#ifdef ERF_USE_POISSON_SOLVE
         if (solverChoice.anelastic[level]) {
             bool have_tb = (thin_xforce[0] || thin_yforce[0] || thin_zforce[0]);
             if (solverChoice.project_every_stage || (nrk==1)) {
@@ -145,5 +144,4 @@
                 }
             }
         }
-#endif
     };

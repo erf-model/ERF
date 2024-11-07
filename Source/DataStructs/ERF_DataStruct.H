@@ -198,7 +198,6 @@ struct SolverChoice {
 
         // *******************************************************************************
 
-#ifdef ERF_USE_POISSON_SOLVE
         bool any_anelastic = false;
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) any_anelastic = true;
@@ -225,14 +224,6 @@ struct SolverChoice {
                 substepping_type[lev] = SubsteppingType::None;
             }
         }
-#else
-        for (int i = 0; i <= max_level; ++i) {
-            if (anelastic[i] != 0) amrex::Abort("To run with anelastic you must compile with USE_POISSON_SOLVE = TRUE");
-        }
-        if (project_initial_velocity) {
-            amrex::Abort("To project the initial velocity you must compile with USE_POISSON_SOLVE = TRUE");
-        }
-#endif
 
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
 

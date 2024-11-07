@@ -1,10 +1,7 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
-
-#ifdef ERF_USE_POISSON_SOLVE
 #include <AMReX_MLMG.H>
 #include <AMReX_MLPoisson.H>
-#endif
 
 using namespace amrex;
 
@@ -14,7 +11,6 @@ using namespace amrex;
  */
 void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFab& pmf)
 {
-#ifdef ERF_USE_POISSON_SOLVE
     BL_PROFILE("ERF::project_velocities_tb()");
     AMREX_ALWAYS_ASSERT(!solverChoice.use_terrain);
 
@@ -22,7 +18,6 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(vmf[Vars::cons].boxArray());
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(vmf[Vars::cons].DistributionMap());
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
-    // amrex::Print() << "AT LEVEL " << lev << " BA FOR POISSON SOLVE " << vmf[Vars::cons].boxArray() << std::endl;
 
     // Use the default settings
     LPInfo info;
@@ -226,34 +221,5 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
     computeDivergence(rhs[0], u, geom_tmp[0]);
     Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
 
-#if 0
-    for (MFIter mfi(rhs[0], TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        const Box& bx = mfi.tilebox();
-        const Array4<Real const>& divU = rhs[0].const_array(mfi);
-        const Array4<Real const>& uarr = u[0]->const_array(mfi);
-        const Array4<Real const>& varr = u[1]->const_array(mfi);
-        const Array4<Real const>& warr = u[2]->const_array(mfi);
-        const Array4<Real const>& fzarr = thin_zforce[0]->const_array(mfi);
-        const Array4<Real const>& dfzarr = deltaf[0][2].const_array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            if ((i>=120) && (i<=139) && (j==0) && ((k>=127)&&(k<=128))) {
-                amrex::AllPrint() << "after project div"<<IntVect(i,j,k)<<" = "<< divU(i,j,k)
-                    << " u: " << uarr(i,j,k) << " " << uarr(i+1,j,k)
-                    << " v: " << varr(i,j,k) << " " << varr(i,j+1,k)
-                    << " w: " << warr(i,j,k) << " " << warr(i,j,k+1)
-                    << " fz = " << fzarr(i,j,k) << " + " << dfzarr(i,j,k)
-                    << std::endl;
-            }
-        });
-    } // mfi
-#endif
-#endif
-#else
-    amrex::ignore_unused(lev);
-    amrex::ignore_unused(l_dt);
-    amrex::ignore_unused(vmf);
-    amrex::ignore_unused(pmf);
 #endif
 }

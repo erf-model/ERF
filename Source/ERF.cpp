@@ -856,7 +856,6 @@ ERF::InitData_post ()
         }
     }
 
-#ifdef ERF_USE_POISSON_SOLVE
     if (restart_chkfile == "")
     {
         // Note -- this projection is only defined for no terrain
@@ -870,7 +869,6 @@ ERF::InitData_post ()
             }
         }
     }
-#endif
 
     // Copy from new into old just in case
     for (int lev = 0; lev <= finest_level; ++lev)

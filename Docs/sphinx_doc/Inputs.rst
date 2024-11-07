@@ -34,10 +34,8 @@ Governing Equations
 
 .. note::
 
-   To solve the anelastic equations, you must set USE_POISSON_SOLVE = TRUE if using
-   gmake or ERF_ENABLE_POISSON_SOLVE if using cmake.  This will enable use of the
-   AMReX-based Poisson solver.   To optionally use the FFT solver, you must additionally
-   set USE_FFT = TRUE if using gmake.
+   To use the FFT solver if running with anelastic, you must set USE_FFT = TRUE if using gmake
+   or ERF_ENABLE_FFT if using cmake.
 
 Problem Geometry
 ================
@@ -1162,9 +1160,7 @@ This file has the same format as used by ``ideal.exe`` executable in WRF.
 Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed.
 This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state and does not include terrain or map scale factors.
 
-In addition, there is a run-time option to project the initial velocity field to make it divergence-free.  To take
-advantage of this option, the code must be built with ``USE_POISSON_SOLVE = TRUE`` in the GNUmakefile if using gmake, or with
-``-DERF_ENABLE_POISSON_SOLVE:BOOL=ON`` in the cmake.sh file if using cmake.
+In addition, there is a run-time option to project the initial velocity field to make it divergence-free.
 
 List of Parameters
 ------------------
@@ -1230,9 +1226,6 @@ then moist and dry conditions throughout the air column are determined by
 integrating the hydrostatic equation from the surface.
 
 If **erf.init_type = custom** or **erf.init_type = input_sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
-
-Setting **erf.project_initial_velocity = 1** will have no effect if the code is not built with **ERF_USE_POISSON_SOLVE** defined
-if using cmake or with **USE_POISSON_SOLVE = TRUE** if using gmake.
 
 Map Scale Factors
 =================

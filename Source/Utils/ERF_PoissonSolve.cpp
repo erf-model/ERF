@@ -1,10 +1,8 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
 
-#ifdef ERF_USE_POISSON_SOLVE
 #include <AMReX_MLMG.H>
 #include <AMReX_MLPoisson.H>
-#endif
 
 using namespace amrex;
 
@@ -49,7 +47,6 @@ bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
  */
 void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, MultiFab& pmf)
 {
-#ifdef ERF_USE_POISSON_SOLVE
     BL_PROFILE("ERF::project_velocities()");
 
     AMREX_ALWAYS_ASSERT(!solverChoice.use_terrain);
@@ -288,10 +285,4 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
         Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
     }
-#else
-    amrex::ignore_unused(lev);
-    amrex::ignore_unused(l_dt);
-    amrex::ignore_unused(mom_mf);
-    amrex::ignore_unused(pmf);
-#endif
 }
