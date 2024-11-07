@@ -139,6 +139,8 @@ add_test_r(ABL_MOST                          "ABL/*/erf_abl.exe" "plt00010")
 add_test_r(ABL_MYNN_PBL                      "ABL/*/erf_abl.exe" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1")
 add_test_r(ABL_InflowFile                    "ABL/*/erf_abl.exe" "plt00010")
 add_test_r(MoistBubble                       "MoistRegTests/Bubble/*/erf_bubble.exe" "plt00010")
+add_test_r(SquallLine_2D                     "MoistRegTests/SquallLine_2D/*/erf_squallline.exe" "plt00010")
+add_test_r(SuperCell_3D                      "MoistRegTests/SuperCell_3D/*/erf_supercell.exe"   "plt00010")
 
 add_test_0(Deardorff_stationary              "ABL/*/erf_abl.exe" "plt00010")
 
@@ -180,6 +182,8 @@ add_test_r(ABL_MOST                          "ABL/erf_abl" "plt00010")
 add_test_r(ABL_MYNN_PBL                      "ABL/erf_abl" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1")
 add_test_r(ABL_InflowFile                    "ABL/erf_abl" "plt00010")
 add_test_r(MoistBubble                       "MoistRegTests/Bubble/erf_bubble" "plt00010")
+add_test_r(SquallLine_2D                     "MoistRegTests/SquallLine_2D/erf_squallline" "plt00010")
+add_test_r(SuperCell_3D                      "MoistRegTests/SuperCell_3D/erf_supercell"   "plt00010")
 
 add_test_0(InitSoundingIdeal_stationary      "ABL/erf_abl" "plt00010")
 add_test_0(Deardorff_stationary              "ABL/erf_abl" "plt00010")
