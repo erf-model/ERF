@@ -63,6 +63,8 @@ struct SDInitialization
 
     /*! Minimum aerosol mass */
     std::vector<amrex::Real> m_mass_aerosol_min;
+    /*! Maximum aerosol mass */
+    std::vector<amrex::Real> m_mass_aerosol_max;
     /*! Mean aerosol mass */
     std::vector<amrex::Real> m_mass_aerosol_mean;
     /*! Minimum aerosol dry radius */
@@ -90,7 +92,7 @@ struct SDInitialization
     void printParameters ( const std::vector<std::unique_ptr<MaterialProperties>>& ) const;
 
     /*! Compute the aerosol mass distribution */
-    void getAerosolDistribution ( amrex::Vector<amrex::Real>&, int, int, amrex::Real ) const;
+    void getAerosolDistribution ( amrex::Vector<amrex::Real>&, amrex::Vector<amrex::Real>&, int, int, amrex::Real ) const;
 
     /*! Compute the condensate mass distribution */
     void getCondensateDistribution ( amrex::Vector<amrex::Real>&, int, amrex::Real ) const;
