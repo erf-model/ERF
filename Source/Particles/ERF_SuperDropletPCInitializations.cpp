@@ -461,8 +461,6 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                    multiplicity_h.begin(),
                    multiplicity_h.end(),
                    multiplicity_d.begin() );
-        Real mult_sum = 0.0;
-        for (int i = 0; i < multiplicity_h.size(); i++) { mult_sum += multiplicity_h[i]; }
 
         Gpu::DeviceVector<Real> condensate_mass_d;
         {
@@ -488,6 +486,12 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
             int num_sd_this_cell = num_superdroplets_arr(i,j,k);
             Real num_to_add = num_par_per_cell;
             Real n_par_per_supdrop = std::ceil(num_par_per_cell/num_sd_per_cell);
+
+            Real mult_sum = 0.0;
+            {
+                int start = offset_arr(i,j,k);
+                for (int n = start; n < start+num_sd_this_cell; n++) { mult_sum += mult_arr[n]; }
+            }
             auto mult_scale = num_par_per_cell / mult_sum;
 
             int start = offset_arr(i,j,k);
