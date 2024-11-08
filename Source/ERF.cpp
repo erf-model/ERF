@@ -197,6 +197,8 @@ ERF::ERF_shared ()
     rV_old.resize(nlevs_max);
     rW_old.resize(nlevs_max);
 
+    Omega.resize(nlevs_max);
+
     // xmom_crse_rhs.resize(nlevs_max);
     // ymom_crse_rhs.resize(nlevs_max);
     zmom_crse_rhs.resize(nlevs_max);
@@ -856,6 +858,11 @@ ERF::InitData_post ()
         }
     }
 
+    //
+    // If we are starting from scratch, we have the option to project the initial velocity field
+    //    regardless of how we initialized.
+    // pp_inc is used as scratch space here; we zero it out after the projection
+    //
     if (restart_chkfile == "")
     {
         // Note -- this projection is only defined for no terrain
@@ -864,7 +871,7 @@ ERF::InitData_post ()
             Real dummy_dt = 1.0;
             for (int lev = 0; lev <= finest_level; ++lev)
             {
-                project_velocities(lev, dummy_dt, vars_new[lev], pp_inc[lev]);
+                project_velocities(lev, dummy_dt, vars_new[lev], Omega[lev], pp_inc[lev]);
                 pp_inc[lev].setVal(0.);
             }
         }

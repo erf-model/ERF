@@ -297,10 +297,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
         Array4<const Real> z_t;
-        if (z_t_mf)
+        if (z_t_mf) {
             z_t = z_t_mf->array(mfi);
-        else
+        } else {
             z_t = Array4<const Real>{};
+        }
 
         const Array4<Real>& rho_u_rhs = S_rhs[IntVars::xmom].array(mfi);
         const Array4<Real>& rho_v_rhs = S_rhs[IntVars::ymom].array(mfi);
@@ -366,8 +367,16 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
         BL_PROFILE("slow_rhs_making_omega");
             Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,1));
+            //
             // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
-            if (l_use_terrain) {
+            // ONLY if not doing anelastic + terrain -- in that case Omega will be defined coming
+            // out of the projection
+            //
+            if (!l_use_terrain) {
+                ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = rho_w(i,j,k);
+                });
+            } else if (!l_anelastic) {
 
                 Box gbxo_lo = gbxo; gbxo_lo.setBig(2,domain.smallEnd(2));
                 int lo_z_face = domain.smallEnd(2);
@@ -384,7 +393,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     });
                 }
 
-                if (z_t) {
+                if (z_t) { // Note we never do anelastic with moving terrain
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                     ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
@@ -404,10 +413,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
                     });
                 }
-            } else {
-                ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    omega_arr(i,j,k) = rho_w(i,j,k);
-                });
             }
         } // end profile
 

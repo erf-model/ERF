@@ -1165,41 +1165,41 @@ In addition, there is a run-time option to project the initial velocity field to
 List of Parameters
 ------------------
 
-+----------------------------------+-------------------+--------------------+------------------+
-| Parameter                        | Definition        | Acceptable         | Default          |
-|                                  |                   | Values             |                  |
-+==================================+===================+====================+==================+
-| **erf.init_type**                | Initialization    | “custom”,          | “*custom*”       |
-|                                  | type              | “ideal”,           |                  |
-|                                  |                   | "real",            |                  |
-|                                  |                   |"input_sounding"    |                  |
-+----------------------------------+-------------------+--------------------+------------------+
-| **erf.input_sounding_file**      | Path to WRF-style |  String            | "input_sounding" |
-|                                  | input sounding    |                    |                  |
-|                                  | file              |                    |                  |
-+----------------------------------+-------------------+--------------------+------------------+
-| **erf.init_sounding_ideal**      | Perform           |  true or false     | false            |
-|                                  | initialization    |                    |                  |
-|                                  | like WRF's        |                    |                  |
-|                                  | ideal.exe         |                    |                  |
-+----------------------------------+-------------------+--------------------+------------------+
-| **erf.use_real_bcs**             | If init_type is   | true or false      | true if          |
-|                                  | real or metgrid,  |                    | if init_type     |
-|                                  | do we want to use |                    | is real or       |
-|                                  | these bcs?        |                    | metgrid;         |
-|                                  |                   |                    | else false       |
-+----------------------------------+-------------------+--------------------+------------------+
-| **erf.nc_init_file**             | NetCDF file with  |  String            | NONE             |
-|                                  | initial mesoscale |                    |                  |
-|                                  | data              |                    |                  |
-+----------------------------------+-------------------+--------------------+------------------+
-| **erf.nc_bdy_file**              | NetCDF file with  |  String            | NONE             |
-|                                  | mesoscale data at |                    |                  |
-|                                  | lateral boundaries|                    |                  |
-+----------------------------------+-------------------+--------------------+------------------+
-| **erf.project_initial_velocity** | project initial   |  Integer           | 1                |
-|                                  | velocity?         |                    |                  |
-+----------------------------------+-------------------+--------------------+------------------+
++----------------------------------+-------------------+--------------------+-----------------------+
+| Parameter                        | Definition        | Acceptable         | Default               |
+|                                  |                   | Values             |                       |
++==================================+===================+====================+=======================+
+| **erf.init_type**                | Initialization    | “custom”,          | “*custom*”            |
+|                                  | type              | “ideal”,           |                       |
+|                                  |                   | "real",            |                       |
+|                                  |                   |"input_sounding"    |                       |
++----------------------------------+-------------------+--------------------+-----------------------+
+| **erf.input_sounding_file**      | Path to WRF-style |  String            | "input_sounding"      |
+|                                  | input sounding    |                    |                       |
+|                                  | file              |                    |                       |
++----------------------------------+-------------------+--------------------+-----------------------+
+| **erf.init_sounding_ideal**      | Perform           |  true or false     | false                 |
+|                                  | initialization    |                    |                       |
+|                                  | like WRF's        |                    |                       |
+|                                  | ideal.exe         |                    |                       |
++----------------------------------+-------------------+--------------------+-----------------------+
+| **erf.use_real_bcs**             | If init_type is   | true or false      | true if               |
+|                                  | real or metgrid,  |                    | if init_type          |
+|                                  | do we want to use |                    | is real or            |
+|                                  | these bcs?        |                    | metgrid;              |
+|                                  |                   |                    | else false            |
++----------------------------------+-------------------+--------------------+-----------------------+
+| **erf.nc_init_file**             | NetCDF file with  |  String            | NONE                  |
+|                                  | initial mesoscale |                    |                       |
+|                                  | data              |                    |                       |
++----------------------------------+-------------------+--------------------+-----------------------+
+| **erf.nc_bdy_file**              | NetCDF file with  |  String            | NONE                  |
+|                                  | mesoscale data at |                    |                       |
+|                                  | lateral boundaries|                    |                       |
++----------------------------------+-------------------+--------------------+-----------------------+
+| **erf.project_initial_velocity** | project initial   |  true or false     | true if anelastic;    |
+|                                  | velocity?         |                    | false if compressible |
++----------------------------------+-------------------+--------------------+-----------------------+
 
 Notes
 -----------------
@@ -1226,6 +1226,10 @@ then moist and dry conditions throughout the air column are determined by
 integrating the hydrostatic equation from the surface.
 
 If **erf.init_type = custom** or **erf.init_type = input_sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
+
+Note that the **erf.project_initial_velocity** option is available for all **init_type** options.  If using the anelastic
+formulation this will be true regardless of the input; if using the compressible formulation the default is false but
+that can be over-written.
 
 Map Scale Factors
 =================

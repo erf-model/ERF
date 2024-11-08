@@ -9,7 +9,7 @@ using namespace amrex;
  * Project the single-level velocity field to enforce incompressibility with a
  * thin body
  */
-void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFab& pmf)
+void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFab& /*Omega*/, MultiFab& pmf)
 {
     BL_PROFILE("ERF::project_velocities_tb()");
     AMREX_ALWAYS_ASSERT(!solverChoice.use_terrain);

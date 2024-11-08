@@ -45,7 +45,7 @@ bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
  * Project the single-level velocity field to enforce incompressibility
  * Note that the level may or may not be level 0.
  */
-void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, MultiFab& pmf)
+void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, MultiFab& /*Omega*/, MultiFab& pmf)
 {
     BL_PROFILE("ERF::project_velocities()");
 

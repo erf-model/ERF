@@ -193,11 +193,6 @@ struct SolverChoice {
         }
         // *******************************************************************************
 
-        // Should we project the initial velocity field to make it divergence-free?
-        pp.query("project_initial_velocity", project_initial_velocity);
-
-        // *******************************************************************************
-
         bool any_anelastic = false;
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) any_anelastic = true;
@@ -209,9 +204,13 @@ struct SolverChoice {
             project_initial_velocity = true;
             buoyancy_type = 2; // uses Tprime
         } else {
+            pp.query("project_initial_velocity", project_initial_velocity);
+
             constant_density = false;  // We default to false but allow the user to set it
             pp.query("constant_density", constant_density);
         }
+
+        // *******************************************************************************
 
         pp.query("project_every_stage", project_every_stage);
         pp.query("ncorr", ncorr);

@@ -13,9 +13,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         const Real new_substep_time)
     {
         BL_PROFILE("fast_rhs_fun");
-        if (verbose) amrex::Print() << "Fast time integration at level " << level
-                                    << " from " << old_substep_time << " to " << new_substep_time
-                                    << " with dt = " << dtau << std::endl;
+        if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
 
         // Define beta_s here so that it is consistent between where we make the fast coefficients
         //    and where we use them
@@ -102,7 +100,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                 S_data, S_scratch, fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
-                                Omega[level], z_t_rk[level], z_t_pert.get(),
+                                Omega, z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
@@ -114,7 +112,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                 S_data, S_scratch, fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
-                                Omega[level], z_t_rk[level], z_t_pert.get(),
+                                Omega, z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
@@ -133,7 +131,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                 //    and S_data is the new-time solution to be defined here
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity, Omega[level],
+                               S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
@@ -142,7 +140,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                 //    and as the new-time solution to be defined here
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity, Omega[level],
+                               S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
@@ -162,6 +160,9 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                               (level > 0) ? &FPr_u[level-1] : nullptr,
+                               (level > 0) ? &FPr_v[level-1] : nullptr,
+                               (level > 0) ? &FPr_w[level-1] : nullptr,
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             } else {
                 // If this is not the first substep we pass in S_data as both the previous step's solution
@@ -171,6 +172,9 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                               (level > 0) ? &FPr_u[level-1] : nullptr,
+                               (level > 0) ? &FPr_v[level-1] : nullptr,
+                               (level > 0) ? &FPr_w[level-1] : nullptr,
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
         }
