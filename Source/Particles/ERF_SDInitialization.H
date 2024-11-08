@@ -69,8 +69,12 @@ struct SDInitialization
     std::vector<amrex::Real> m_mass_aerosol_mean;
     /*! Minimum aerosol dry radius */
     std::vector<amrex::Real> m_radius_aerosol_min;
+    /*! Mean aerosol dry radius */
+    std::vector<amrex::Real> m_radius_aerosol_mean;
     /*! Maximum aerosol dry radius */
     std::vector<amrex::Real> m_radius_aerosol_max;
+    /*! Standard deviation of aerosol dry radius */
+    std::vector<amrex::Real> m_radius_aerosol_std;
     /*! Initial distribution type for aerosol */
     std::vector<std::string> m_aerosol_init_type;
 
