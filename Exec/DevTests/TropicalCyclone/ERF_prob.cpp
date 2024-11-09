@@ -19,7 +19,7 @@ Problem::Problem()
     pp.query("U_0", parms.U_0); // for Rayleigh damping
     pp.query("V_0", parms.V_0); // for Rayleigh damping
     pp.query("W_0", parms.W_0); // for Rayleigh damping
-    pp.query("QKE_0", parms.QKE_0);
+    pp.query("KE_0", parms.KE_0);
 
     pp.query("Xc_0", parms.Xc_0);
     pp.query("Yc_0", parms.Yc_0);
@@ -60,11 +60,11 @@ Problem::init_custom_pert(
     // and/or set initial values for other scalars
     //
 
-    // QKE for PBL
-    Real QKE_0 = parms.QKE_0;
+    // KE for MYNN or Deardorff
+    Real KE_0 = parms.KE_0;
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        state_pert(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * QKE_0;
+        state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * KE_0;
     });
 
     //

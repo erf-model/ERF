@@ -22,6 +22,10 @@
 #include <AMReX_YAFluxRegister.H>
 #include <AMReX_ErrorList.H>
 
+#ifdef ERF_USE_FFT
+#include <AMReX_FFT_Poisson.H>
+#endif
+
 #ifdef AMREX_MEM_PROFILING
 #include <AMReX_MemProfiler.H>
 #endif
@@ -40,6 +44,7 @@
 #include <ERF_MRI.H>
 #include <ERF_PhysBCFunct.H>
 #include <ERF_FillPatcher.H>
+#include <ERF_SampleData.H>
 
 #ifdef ERF_USE_PARTICLES
 #include "ERF_ParticleData.H"
@@ -67,6 +72,29 @@ class MultiBlockContainer;
 #endif
 
 /**
+ * Enum of possible initialization types
+*/
+AMREX_ENUM(InitType,
+    None, Input_Sounding, Ideal, Real, Metgrid, Uniform
+);
+
+/**
+ * Enum of possible interpolation types between coarse/fine
+*/
+AMREX_ENUM(StateInterpType,
+    FullState, Perturbational
+);
+
+/**
+ * Enum of possible plotfile types
+*/
+AMREX_ENUM(PlotFileType,
+    None, Amrex, Netcdf, HDF5
+);
+
+
+#if 0
+/**
  * Enum of possible coarse/fine interpolation options
 */
 namespace InterpType {
@@ -82,6 +110,7 @@ namespace InterpType {
         FaceConserativeLinear
     };
 }
+#endif
 
 /**
  * Main class in ERF code, instantiated from main.cpp
@@ -136,8 +165,6 @@ public:
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
-    void solve_with_heffte  (int lev, amrex::MultiFab& rhs, amrex::MultiFab& soln,
-                             amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 
     // Project the velocities to be divergence-free with a thin body
     void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
@@ -308,15 +335,17 @@ public:
     void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
     // write plotfile to disk
-    void WritePlotFile  (int which, amrex::Vector<std::string> plot_var_names);
+    void WritePlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
                                              const amrex::Vector<const amrex::MultiFab*> &mf,
                                              const amrex::Vector<const amrex::MultiFab*> &mf_nd,
                                              const amrex::Vector<std::string> &varnames,
+                                             const amrex::Vector<amrex::Geometry>& my_geom,
                                              amrex::Real time,
                                              const amrex::Vector<int> &level_steps,
+                                             const amrex::Vector<amrex::IntVect>& my_ref_ratio,
                                              const std::string &versionName = "HyperCLaw-V1.1",
                                              const std::string &levelPrefix = "Level_",
                                              const std::string &mfPrefix = "Cell",
@@ -327,14 +356,16 @@ public:
                                                 int nlevels,
                                                 const amrex::Vector<amrex::BoxArray> &bArray,
                                                 const amrex::Vector<std::string> &varnames,
+                                                const amrex::Vector<amrex::Geometry>& my_geom,
                                                 amrex::Real time,
                                                 const amrex::Vector<int> &level_steps,
+                                                const amrex::Vector<amrex::IntVect>& my_ref_ratio,
                                                 const std::string &versionName,
                                                 const std::string &levelPrefix,
                                                 const std::string &mfPrefix) const;
 
     void erf_enforce_hse (int lev,
-                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
+                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi, amrex::MultiFab& th,
                           std::unique_ptr<amrex::MultiFab>& z_cc);
 
 #ifdef ERF_USE_NETCDF
@@ -364,12 +395,10 @@ public:
     // Advance a block specified number of time steps
     void Evolve_MB (int MBstep, int max_block_step);
 
-    // Advance a block specified number of time steps
-    void Evolve_MB (MultiBlockContainer* mbc, int MBstep, int max_block_step);
-
-    // get the current time values
-    amrex::Real get_t_old() {return t_old[0];}
-    amrex::Real get_t_new() {return t_new[0];}
+    // get the current time values and dt
+    amrex::Real get_t_old (int lev) { return t_old[lev]; }
+    amrex::Real get_t_new (int lev) { return t_new[lev]; }
+    amrex::Real get_dt    (int lev) { return dt[lev];    }
 
     // Set parmparse prefix for MultiBlock
     void SetParmParsePrefix (std::string name) { pp_prefix = name; }
@@ -379,15 +408,14 @@ public:
 
     // Public data copy for MB
     std::vector<amrex::Box> domain_p;
-    MultiBlockContainer *m_mbc = nullptr;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<amrex::Real> t_avg_cnt;
-
 #endif
+
     std::string pp_prefix {"erf"};
 
     void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
@@ -416,7 +444,8 @@ public:
                        amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
                        amrex::MultiFab& mf_vars_windfarm,
                        const amrex::MultiFab& mf_Nturb,
-                       const amrex::MultiFab& mf_SMark);
+                       const amrex::MultiFab& mf_SMark,
+                       const amrex::Real& time);
 #endif
 
 #ifdef ERF_USE_EB
@@ -428,6 +457,15 @@ public:
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
+
+    // write checkpoint file to disk
+    void WriteCheckpointFile () const;
+
+    // read checkpoint file from disk
+    void ReadCheckpointFile ();
+
+    // read checkpoint file from disk -- called after instantiating m_most
+    void ReadCheckpointFileMOST ();
 
 private:
 
@@ -487,13 +525,18 @@ private:
     //
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
     //
+    // This one works only at level = 0 (base state does not change)
+    void FillPatch (int lev, amrex::Real time,
+                    const amrex::Vector<amrex::MultiFab*>& mfs_vel,
+                    bool cons_only=false);
+
+    // This one works only at level > 0 (base state does change)
     void FillPatch (int lev, amrex::Real time,
                     const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                     const amrex::Vector<amrex::MultiFab*>& mfs_mom,
+                    const amrex::MultiFab& old_base_state,
+                    const amrex::MultiFab& new_base_state,
                     bool fillset=true, bool cons_only=false);
-
-    // Compute a new MultiFab by copying from valid region and filling ghost cells -
-    void FillPatchMoistVars (int lev, amrex::MultiFab& mf);
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
     // Unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.
@@ -621,15 +664,6 @@ private:
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
 
-    // write checkpoint file to disk
-    void WriteCheckpointFile () const;
-
-    // read checkpoint file from disk
-    void ReadCheckpointFile ();
-
-    // read checkpoint file from disk -- called after instantiating m_most
-    void ReadCheckpointFileMOST ();
-
     // Read the file passed to amr.restart and use it as an initial condition for
     // the current simulation. Supports a different number of components and
     // ghost cells.
@@ -696,6 +730,10 @@ private:
     amrex::Vector<amrex::MultiFab> rV_new;
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
+
+    // amrex::Vector<amrex::MultiFab> xmom_crse_rhs;
+    // amrex::Vector<amrex::MultiFab> ymom_crse_rhs;
+    amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
 
     std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
@@ -858,6 +896,7 @@ private:
     // plotfile prefix and frequency
     std::string plot_file_1 {"plt_1_"};
     std::string plot_file_2 {"plt_2_"};
+    bool m_expand_plotvars_to_unif_rr = false;
     int m_plot_int_1 = -1;
     int m_plot_int_2 = -1;
     amrex::Real m_plot_per_1 = -1.0;
@@ -878,12 +917,12 @@ private:
 
     amrex::Vector<std::string> plot_var_names_1;
     amrex::Vector<std::string> plot_var_names_2;
-    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0",
+    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoadv_0",
                                                      "rhoQ1", "rhoQ2", "rhoQ3",
                                                      "rhoQ4", "rhoQ5", "rhoQ6"};
 
     // Note that the order of variable names here must match the order in ERF_Derive.cpp
-    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
+    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
@@ -897,7 +936,7 @@ private:
                                                     // eddy diffusivity of heat
                                                     "Khv","Khh",
                                                     // mynn pbl lengthscale
-                                                    "Lpbl",
+                                                    "Lturb",
                                                     // moisture vars
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
@@ -943,25 +982,30 @@ private:
 
 #endif
 
+#ifdef ERF_USE_MULTIBLOCK
+    MultiBlockContainer *m_mbc = nullptr;
+#endif
+
     static int verbose;
     static int mg_verbose;
-    static bool use_heffte;
+    static bool use_fft;
 
     // Diagnostic output interval
     static int sum_interval;
     static int pert_interval;
     static amrex::Real sum_per;
 
-    // Native or NetCDF
-    static std::string plotfile_type;
+    // Write in native AMReX or NetCDF format for each plotfile
+    static PlotFileType plotfile_type_1;
+    static PlotFileType plotfile_type_2;
 
-    // init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
-    static std::string init_type;
+    static InitType init_type;
+    static StateInterpType interpolation_type;
 
     // sponge_type:  "input_sponge"
     static std::string sponge_type;
 
-    // use_real_bcs: only true if 1) ( (init_type == real) or (init_type == metgrid) )
+    // use_real_bcs: only true if 1) ( (init_type == InitType::Real) or (init_type == InitType::Metgrid) )
     //                        AND 2) we want to use the bc's from the WRF bdy file
     static bool use_real_bcs;
 
@@ -974,7 +1018,7 @@ private:
     int real_set_width{0};
 
     // Flag to trigger initialization from input_sounding like WRF's ideal.exe
-    // used with init_type == "input_sounding"
+    // used with init_type == InitType::Input_Sounding
     static bool init_sounding_ideal;
 
     // 1D CDF output (for ingestion in AMR-Wind)
@@ -1250,6 +1294,11 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleLineInfo");
     }
 
+    // Data sampler for line and plane output
+    int sampler_interval = -1;
+    amrex::Real sampler_per = -1.0;
+    std::unique_ptr<SampleData> data_sampler = nullptr;
+
     amrex::Vector<std::unique_ptr<std::fstream> > datalog;
     amrex::Vector<std::string> datalogname;
 
@@ -1289,6 +1338,10 @@ private:
 
     [[nodiscard]] static int nghost_eb_full ()
     { return 4; }
+#endif
+
+#ifdef ERF_USE_FFT
+    std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_poisson;
 #endif
 
 public:

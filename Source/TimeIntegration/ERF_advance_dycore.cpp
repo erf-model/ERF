@@ -52,9 +52,9 @@ void ERF::advance_dycore(int level,
     TurbChoice tc    = solverChoice.turbChoice[level];
     SpongeChoice sc  = solverChoice.spongeChoice;
 
-    MultiFab r_hse (base_state[level], make_alias, 0, 1); // r_0 is first  component
-    MultiFab p_hse (base_state[level], make_alias, 1, 1); // p_0 is second component
-    MultiFab pi_hse(base_state[level], make_alias, 2, 1); // pi_0 is second component
+    MultiFab r_hse (base_state[level], make_alias, BaseState::r0_comp , 1);
+    MultiFab p_hse (base_state[level], make_alias, BaseState::p0_comp , 1);
+    MultiFab pi_hse(base_state[level], make_alias, BaseState::pi0_comp, 1);
 
     // These pointers are used in the MRI utility functions
     MultiFab* r0  = &r_hse;
@@ -90,6 +90,7 @@ void ERF::advance_dycore(int level,
     bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
                            (tc.pbl_type != PBLType::None) );
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
+    bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
     const bool use_most = (m_most != nullptr);
     const bool exp_most = (solverChoice.use_explicit_most);
@@ -258,9 +259,10 @@ void ERF::advance_dycore(int level,
     // This is an optimization since we won't need more than one ghost
     // cell of momentum in the integrator if not using NumDiff
     //
-    IntVect ngu = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
-    IntVect ngv = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
-    IntVect ngw = (solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+    IntVect ngu = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
+    IntVect ngv = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
+    IntVect ngw = (!solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+
     VelocityToMomentum(xvel_old, ngu, yvel_old, ngv, zvel_old, ngw, density,
                        state_old[IntVars::xmom],
                        state_old[IntVars::ymom],
@@ -280,8 +282,8 @@ void ERF::advance_dycore(int level,
     cons_to_prim(state_old[IntVars::cons], state_old[IntVars::cons].nGrow());
 
 #include "ERF_TI_no_substep_fun.H"
+#include "ERF_TI_substep_fun.H"
 #include "ERF_TI_slow_rhs_fun.H"
-#include "ERF_TI_fast_rhs_fun.H"
 
     // ***************************************************************************************
     // Setup the integrator and integrate for a single timestep
@@ -292,8 +294,6 @@ void ERF::advance_dycore(int level,
     // any state data (e.g. at RK stages or at the end of a timestep)
     mri_integrator.set_slow_rhs_pre(slow_rhs_fun_pre);
     mri_integrator.set_slow_rhs_post(slow_rhs_fun_post);
-    mri_integrator.set_pre_update (pre_update_fun);
-    mri_integrator.set_post_update(post_update_fun);
 
     if (solverChoice.anelastic[level]) {
         mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);

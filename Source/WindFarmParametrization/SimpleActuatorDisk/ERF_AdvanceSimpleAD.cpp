@@ -6,20 +6,51 @@ using namespace amrex;
 
 void
 SimpleAD::advance (const Geometry& geom,
-                  const Real& dt_advance,
-                  MultiFab& cons_in,
-                  MultiFab& mf_vars_simpleAD,
-                  MultiFab& U_old,
-                  MultiFab& V_old,
-                  MultiFab& W_old,
-                  const MultiFab& mf_Nturb,
-                  const MultiFab& mf_SMark)
+                   const Real& dt_advance,
+                   MultiFab& cons_in,
+                   MultiFab& mf_vars_simpleAD,
+                   MultiFab& U_old,
+                   MultiFab& V_old,
+                   MultiFab& W_old,
+                   const MultiFab& mf_Nturb,
+                   const MultiFab& mf_SMark,
+                   const Real& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
     compute_freestream_velocity(cons_in, U_old, V_old, mf_SMark);
     source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_simpleAD);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);
+    compute_power_output(time);
+}
+
+void
+SimpleAD::compute_power_output (const Real& time)
+{
+     get_turb_loc(xloc, yloc);
+     get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+                  wind_speed, thrust_coeff, power);
+
+     const int n_spec_table = wind_speed.size();
+  // Compute power based on the look-up table
+
+    if (ParallelDescriptor::IOProcessor()){
+        static std::ofstream file("power_output.txt", std::ios::app);
+        // Check if the file opened successfully
+        if (!file.is_open()) {
+            std::cerr << "Error opening file!" << std::endl;
+            Abort("Could not open file to write power output in ERF_AdvanceSimpleAD.cpp");
+        }
+        Real total_power = 0.0;
+        for(int it=0; it<xloc.size(); it++){
+            Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + 1e-10);
+            Real turb_power = interpolate_1d(wind_speed.data(), power.data(), avg_vel, n_spec_table);
+            total_power = total_power + turb_power;
+            //printf("avg vel and power is %d %0.15g, %0.15g\n", it, avg_vel, turb_power);
+        }
+        file << time << " " << total_power << "\n";
+        file.flush();
+    }
 }
 
 void
@@ -50,10 +81,10 @@ SimpleAD::update (const Real& dt_advance,
     }
 }
 
-void SimpleAD::compute_freestream_velocity(const MultiFab& cons_in,
-                                           const MultiFab& U_old,
-                                           const MultiFab& V_old,
-                                           const MultiFab& mf_SMark)
+void SimpleAD::compute_freestream_velocity (const MultiFab& cons_in,
+                                            const MultiFab& U_old,
+                                            const MultiFab& V_old,
+                                            const MultiFab& mf_SMark)
 {
      get_turb_loc(xloc, yloc);
      freestream_velocity.clear();
@@ -114,7 +145,7 @@ void SimpleAD::compute_freestream_velocity(const MultiFab& cons_in,
                                  amrex::ParallelContext::CommunicatorAll());
 
     get_turb_loc(xloc, yloc);
-    if (ParallelDescriptor::IOProcessor()){
+    /*if (ParallelDescriptor::IOProcessor()){
         for(int it=0; it<xloc.size(); it++){
 
             std::cout << "turbine index, freestream velocity is " << it << " " << freestream_velocity[it] << " " <<
@@ -122,7 +153,7 @@ void SimpleAD::compute_freestream_velocity(const MultiFab& cons_in,
                                                                 freestream_velocity[it]/(disk_cell_count[it] + 1e-10) << " " <<
                                                                 freestream_phi[it]/(disk_cell_count[it] + 1e-10) << "\n";
         }
-    }
+    }*/
 }
 
 void
@@ -195,12 +226,13 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-            int check_int = 0;
 
             Real source_x = 0.0;
             Real source_y = 0.0;
 
-            for(long unsigned int it=0;it<nturbs;it++) {
+            int it = static_cast<int>(SMark_array(ii,jj,kk,1));
+
+              if(it != -1) {
                 Real avg_vel  = d_freestream_velocity_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
                 Real phi      = d_freestream_phi_ptr[it]/(d_disk_cell_count_ptr[it] + 1e-10);
 
@@ -210,8 +242,6 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                     a = 0.5 - 0.5*std::pow(1.0-C_T,0.5);
                 }
                 Real Uinfty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
-                if(SMark_array(ii,jj,kk,1) == static_cast<double>(it)) {
-                    check_int++;
                     if(C_T <= 1) {
                         source_x = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
                         source_y = -2.0*std::pow(Uinfty_dot_nhat, 2.0)*a*(1.0-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
@@ -220,12 +250,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                         source_x = -0.5*C_T*std::pow(Uinfty_dot_nhat, 2.0)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
                         source_y = -0.5*C_T*std::pow(Uinfty_dot_nhat, 2.0)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                     }
-                }
-            }
-            if(check_int > 1){
-                amrex::Error("Actuator disks are overlapping. Visualize actuator_disks.vtk "
-                             "and check the windturbine locations input file. Exiting..");
-            }
+             }
 
             simpleAD_array(i,j,k,0) = source_x;
             simpleAD_array(i,j,k,1) = source_y;

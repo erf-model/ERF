@@ -316,8 +316,8 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
 
     bool l_use_kturb = ((solverChoice.turbChoice[lev].les_type != LESType::None) ||
                         (solverChoice.turbChoice[lev].pbl_type != PBLType::None));
-    bool l_use_KE   = (solverChoice.turbChoice[lev].les_type == LESType::Deardorff);
-    bool l_use_QKE  = solverChoice.turbChoice[lev].use_QKE;
+    bool l_use_KE   = ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) ||
+                        (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) );
 
     // Note: "uiui" == u_i*u_i = u*u + v*v + w*w
     // This will hold rho, theta, ksgs, Kmh, Kmv, uu, uv, vv, uth, vth,
@@ -345,7 +345,7 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
     int nvars = vars_new[lev][Vars::cons].nComp();
     MultiFab mf_cons(vars_new[lev][Vars::cons], make_alias, 0, nvars);
 
-    MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
+    MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
 
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
 
@@ -375,8 +375,6 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
             Real ksgs = 0.0;
             if (l_use_KE) {
                 ksgs = cons_arr(i,j,k,RhoKE_comp) / cons_arr(i,j,k,Rho_comp);
-            } else if (l_use_QKE) {
-                ksgs = cons_arr(i,j,k,RhoQKE_comp) / cons_arr(i,j,k,Rho_comp);
             }
             fab_arr(i, j, k, 2) = ksgs;
             if (l_use_kturb) {

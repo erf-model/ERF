@@ -15,7 +15,7 @@ using namespace amrex;
  */
 
 void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                                   int icomp, int ncomp, int ngz)
+                                                   int icomp, int ncomp, IntVect ng)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -70,6 +70,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     {
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
+
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
@@ -108,6 +109,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     {
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
         Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
+
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
@@ -147,10 +149,10 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
         // Populate ghost cells on lo-x and hi-x domain boundaries
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
-        if (bx_xlo.smallEnd(2) != domain.smallEnd(2)) bx_xlo.growLo(2,ngz);
-        if (bx_xlo.bigEnd(2)   != domain.bigEnd(2))   bx_xlo.growHi(2,ngz);
-        if (bx_xhi.smallEnd(2) != domain.smallEnd(2)) bx_xhi.growLo(2,ngz);
-        if (bx_xhi.bigEnd(2)   != domain.bigEnd(2))   bx_xhi.growHi(2,ngz);
+        if (bx_xlo.smallEnd(2) != domain.smallEnd(2)) bx_xlo.growLo(2,ng[2]);
+        if (bx_xlo.bigEnd(2)   != domain.bigEnd(2))   bx_xlo.growHi(2,ng[2]);
+        if (bx_xhi.smallEnd(2) != domain.smallEnd(2)) bx_xhi.growLo(2,ng[2]);
+        if (bx_xhi.bigEnd(2)   != domain.bigEnd(2))   bx_xhi.growHi(2,ng[2]);
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
@@ -196,10 +198,10 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
         // Populate ghost cells on lo-y and hi-y domain boundaries
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
         Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
-        if (bx_ylo.smallEnd(2) != domain.smallEnd(2)) bx_ylo.growLo(2,ngz);
-        if (bx_ylo.bigEnd(2)   != domain.bigEnd(2))   bx_ylo.growHi(2,ngz);
-        if (bx_yhi.smallEnd(2) != domain.smallEnd(2)) bx_yhi.growLo(2,ngz);
-        if (bx_yhi.bigEnd(2)   != domain.bigEnd(2))   bx_yhi.growHi(2,ngz);
+        if (bx_ylo.smallEnd(2) != domain.smallEnd(2)) bx_ylo.growLo(2,ng[2]);
+        if (bx_ylo.bigEnd(2)   != domain.bigEnd(2))   bx_ylo.growHi(2,ng[2]);
+        if (bx_yhi.smallEnd(2) != domain.smallEnd(2)) bx_yhi.growLo(2,ng[2]);
+        if (bx_yhi.bigEnd(2)   != domain.bigEnd(2))   bx_yhi.growHi(2,ng[2]);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
@@ -259,9 +261,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
 void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
                                                     const Array4<Real const>& z_phys_nd,
                                                     const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                                    int icomp, int ncomp)
+                                                    int icomp, int ncomp, bool do_terrain_adjustment)
 {
-    BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
+    BL_PROFILE_VAR("impose_vertical_cons_bcs()",impose_vertical_cons_bcs);
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
@@ -414,7 +416,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
         );
     }
 
-    if (m_z_phys_nd) {
+    if (do_terrain_adjustment &&  m_z_phys_nd) {
         const auto&  bx_lo = lbound(bx);
         const auto&  bx_hi = ubound(bx);
         const BCRec* bc_ptr_h = bcrs.data();

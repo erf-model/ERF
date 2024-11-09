@@ -33,6 +33,9 @@ option(ERF_ENABLE_CUDA "Enable CUDA" OFF)
 option(ERF_ENABLE_HIP  "Enable HIP" OFF)
 option(ERF_ENABLE_SYCL "Enable SYCL" OFF)
 
+#Options for NOAH-MP
+option(ERF_ENABLE_NOAH "Enable Noah-MP" OFF)
+
 #Options for C++
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -78,8 +81,13 @@ if (${ERF_USE_INTERNAL_AMREX})
 ########################### AMReX #####################################
 
     add_subdirectory(${AMREX_SUBMOD_LOCATION})
-    set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
-      CACHE INTERNAL "Path to fcompare executable for regression tests")
+    if(WIN32)
+      set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fcompare.exe
+        CACHE STRING "Path to fcompare executable for regression tests")
+    else()
+      set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
+        CACHE STRING "Path to fcompare executable for regression tests")
+    endif()
 else()
     set(CMAKE_PREFIX_PATH ${AMREX_DIR} ${CMAKE_PREFIX_PATH})
     list(APPEND AMREX_COMPONENTS
@@ -109,8 +117,13 @@ else()
     find_package(AMReX CONFIG REQUIRED
       COMPONENTS ${AMREX_COMPONENTS})
     message(STATUS "Found AMReX = ${AMReX_DIR}")
-    set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
-      CACHE INTERNAL "Path to fcompare executable for regression tests")
+    if(WIN32)
+      set(FCOMPARE_EXE ${AMReX_DIR}/../../../*/amrex_fcompare.exe
+        CACHE STRING "Path to fcompare executable for regression tests")
+    else()
+      set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
+        CACHE STRING "Path to fcompare executable for regression tests")
+    endif()
 endif()
 
 ########################## NETCDF ##################################
@@ -121,6 +134,18 @@ if(ERF_ENABLE_NETCDF)
   find_package (NetCDF REQUIRED)
   if(NETCDF_FOUND)
      message(STATUS "Found NetCDF, NETCDF_DIR = ${NETCDF_DIR}")
+  endif()
+endif()
+
+########################## NOAH-MP ##################################
+
+if(ERF_ENABLE_NOAH)
+  if(ERF_ENABLE_NETCDF)
+     set(NOAHMP_HOME ${CMAKE_SOURCE_DIR}/Submodules/NOAH-MP)
+     set(NOAHMP_BIN  ${CMAKE_BINARY_DIR}/Submodules/NOAH-MP)
+     add_subdirectory(${NOAHMP_HOME} ${NOAHMP_BIN})
+  else()
+     message(FATAL_ERROR "Noah-MP requires NetCDF be enabled")
   endif()
 endif()
 
@@ -222,7 +247,7 @@ target_link_libraries(erf_api PUBLIC erf_srclib)
 add_library(${PROJECT_NAME}::erf_api ALIAS erf_srclib)
 
 # Collect all headers and make them installable with the target
-set(ERF_INCLUDES "Source/ERF.H;Source/ERF_Constants.H;Source/WindFarmParametrization/SimpleActuatorDisk/ERF_SimpleAD.H;Source/WindFarmParametrization/EWP/ERF_EWP.H;Source/WindFarmParametrization/Null/ERF_NullWindFarm.H;Source/WindFarmParametrization/ERF_WindFarm.H;Source/WindFarmParametrization/Fitch/ERF_Fitch.H;Source/BoundaryConditions/ERF_PhysBCFunct.H;Source/BoundaryConditions/ERF_MOSTAverage.H;Source/BoundaryConditions/ERF_MOSTRoughness.H;Source/BoundaryConditions/ERF_ABLMost.H;Source/BoundaryConditions/ERF_FillPatcher.H;Source/BoundaryConditions/ERF_MOSTStress.H;Source/BoundaryConditions/ERF_TimeInterpolatedData.H;Source/Utils/ERF_Interpolation.H;Source/Utils/ERF_TileNoZ.H;Source/Utils/ERF_PlaneAverage.H;Source/Utils/ERF_Interpolation_WENO.H;Source/Utils/ERF_DirectionSelector.H;Source/Utils/ERF_ParFunctions.H;Source/Utils/ERF_Wstar.H;Source/Utils/ERF_Microphysics_Utils.H;Source/Utils/ERF_Sat_methods.H;Source/Utils/ERF_Interpolation_1D.H;Source/Utils/ERF_Interpolation_UPW.H;Source/Utils/ERF_TerrainMetrics.H;Source/Utils/ERF_Interpolation_WENO_Z.H;Source/Utils/ERF_Thetav.H;Source/Utils/ERF_Water_vapor_saturation.H;Source/Utils/ERF_Utils.H;Source/Utils/ERF_Orbit.H;Source/Utils/ERF_EOS.H;Source/Utils/ERF_HSE_utils.H;Source/EB/ERF_TerrainIF.H;Source/EB/ERF_FlowerIF.H;Source/EB/ERF_eb_if.H;Source/Particles/ERFPC.H;Source/Particles/ERF_ParticleData.H;Source/Prob/ERF_init_density_hse_dry.H;Source/Prob/ERF_init_rayleigh_damping.H;Source/Prob/ERF_init_constant_density_hse.H;Source/ERF_prob_common.H;Source/ERF_Derive.H;Source/Radiation/ERF_Mam4_constituents.H;Source/Radiation/ERF_Mam4_aero.H;Source/Radiation/ERF_Optics.H;Source/Radiation/ERF_Modal_aero_wateruptake.H;Source/Radiation/ERF_Cloud_rad_props.H;Source/Radiation/ERF_Phys_prop.H;Source/Radiation/ERF_Radiation.H;Source/Radiation/ERF_Albedo.H;Source/Radiation/ERF_Parameterizations.H;Source/Radiation/ERF_Rad_constants.H;Source/Radiation/ERF_Aero_rad_props.H;Source/Radiation/ERF_m2005_effradius.H;Source/Radiation/ERF_Linear_interpolate.H;Source/Radiation/ERF_Slingo.H;Source/Radiation/ERF_Rrtmgp.H;Source/Radiation/ERF_Ebert_curry.H;Source/SourceTerms/ERF_NumericalDiffusion.H;Source/SourceTerms/ERF_Src_headers.H;Source/IO/ERF_NCInterface.H;Source/IO/ERF_NCWpsFile.H;Source/IO/ERF_NCPlotFile.H;Source/IO/ERF_ReadBndryPlanes.H;Source/IO/ERF_WriteBndryPlanes.H;Source/PBL/ERF_MYNNStruct.H;Source/PBL/ERF_PBLModels.H;Source/PBL/ERF_PBLHeight.H;Source/TimeIntegration/ERF_TI_fast_rhs_fun.H;Source/TimeIntegration/ERF_TI_slow_headers.H;Source/TimeIntegration/ERF_TI_slow_rhs_fun.H;Source/TimeIntegration/ERF_TI_fast_headers.H;Source/TimeIntegration/ERF_TI_utils.H;Source/TimeIntegration/ERF_MRI.H;Source/TimeIntegration/ERF_TI_no_substep_fun.H;Source/LandSurfaceModel/Null/ERF_NullSurf.H;Source/LandSurfaceModel/ERF_LandSurface.H;Source/LandSurfaceModel/MM5/ERF_MM5.H;Source/LandSurfaceModel/SLM/ERF_SLM.H;Source/ERF_IndexDefines.H;Source/Advection/ERF_AdvectionSrcForMom_N.H;Source/Advection/ERF_AdvectionSrcForScalars.H;Source/Advection/ERF_AdvectionSrcForMom_T.H;Source/Advection/ERF_Advection.H;Source/MultiBlock/ERF_MultiBlockContainer.H;Source/Initialization/ERF_Metgrid_utils.H;Source/Diffusion/ERF_EddyViscosity.H;Source/Diffusion/ERF_Diffusion.H;Source/Microphysics/Null/ERF_NullMoistLagrangian.H;Source/Microphysics/Null/ERF_NullMoist.H;Source/Microphysics/ERF_Microphysics.H;Source/Microphysics/ERF_LagrangianMicrophysics.H;Source/Microphysics/ERF_EulerianMicrophysics.H;Source/Microphysics/Kessler/ERF_Kessler.H;Source/Microphysics/SAM/ERF_SAM.H;Source/DataStructs/ERF_InputSpongeData.H;Source/DataStructs/ERF_TurbPertStruct.H;Source/DataStructs/ERF_SpongeStruct.H;Source/DataStructs/ERF_AdvStruct.H;Source/DataStructs/ERF_DataStruct.H;Source/DataStructs/ERF_InputSoundingData.H;Source/DataStructs/ERF_DiffStruct.H;Source/DataStructs/ERF_TurbStruct.H")
+set(ERF_INCLUDES "Source/ERF.H;Source/ERF_Constants.H;Source/WindFarmParametrization/SimpleActuatorDisk/ERF_SimpleAD.H;Source/WindFarmParametrization/EWP/ERF_EWP.H;Source/WindFarmParametrization/Null/ERF_NullWindFarm.H;Source/WindFarmParametrization/ERF_WindFarm.H;Source/WindFarmParametrization/Fitch/ERF_Fitch.H;Source/BoundaryConditions/ERF_PhysBCFunct.H;Source/BoundaryConditions/ERF_MOSTAverage.H;Source/BoundaryConditions/ERF_MOSTRoughness.H;Source/BoundaryConditions/ERF_ABLMost.H;Source/BoundaryConditions/ERF_FillPatcher.H;Source/BoundaryConditions/ERF_MOSTStress.H;Source/BoundaryConditions/ERF_TimeInterpolatedData.H;Source/Utils/ERF_Interpolation.H;Source/Utils/ERF_TileNoZ.H;Source/Utils/ERF_PlaneAverage.H;Source/Utils/ERF_Interpolation_WENO.H;Source/Utils/ERF_DirectionSelector.H;Source/Utils/ERF_ParFunctions.H;Source/Utils/ERF_Wstar.H;Source/Utils/ERF_Microphysics_Utils.H;Source/Utils/ERF_Sat_methods.H;Source/Utils/ERF_Interpolation_1D.H;Source/Utils/ERF_Interpolation_UPW.H;Source/Utils/ERF_TerrainMetrics.H;Source/Utils/ERF_Interpolation_WENO_Z.H;Source/Utils/ERF_Thetav.H;Source/Utils/ERF_Water_vapor_saturation.H;Source/Utils/ERF_Utils.H;Source/Utils/ERF_Orbit.H;Source/Utils/ERF_EOS.H;Source/Utils/ERF_HSE_utils.H;Source/EB/ERF_TerrainIF.H;Source/EB/ERF_FlowerIF.H;Source/EB/ERF_eb_if.H;Source/Particles/ERFPC.H;Source/Particles/ERF_ParticleData.H;Source/Prob/ERF_init_density_hse_dry.H;Source/Prob/ERF_init_rayleigh_damping.H;Source/Prob/ERF_init_constant_density_hse.H;Source/ERF_prob_common.H;Source/ERF_Derive.H;Source/Radiation/ERF_Mam4_constituents.H;Source/Radiation/ERF_Mam4_aero.H;Source/Radiation/ERF_Optics.H;Source/Radiation/ERF_Modal_aero_wateruptake.H;Source/Radiation/ERF_Cloud_rad_props.H;Source/Radiation/ERF_Phys_prop.H;Source/Radiation/ERF_Radiation.H;Source/Radiation/ERF_Albedo.H;Source/Radiation/ERF_Parameterizations.H;Source/Radiation/ERF_Rad_constants.H;Source/Radiation/ERF_Aero_rad_props.H;Source/Radiation/ERF_m2005_effradius.H;Source/Radiation/ERF_Linear_interpolate.H;Source/Radiation/ERF_Slingo.H;Source/Radiation/ERF_Rrtmgp.H;Source/Radiation/ERF_Ebert_curry.H;Source/SourceTerms/ERF_NumericalDiffusion.H;Source/SourceTerms/ERF_Src_headers.H;Source/IO/ERF_NCInterface.H;Source/IO/ERF_NCWpsFile.H;Source/IO/ERF_NCPlotFile.H;Source/IO/ERF_ReadBndryPlanes.H;Source/IO/ERF_WriteBndryPlanes.H;Source/PBL/ERF_MYNNStruct.H;Source/PBL/ERF_PBLModels.H;Source/PBL/ERF_PBLHeight.H;Source/TimeIntegration/ERF_TI_substep_fun.H;Source/TimeIntegration/ERF_TI_slow_headers.H;Source/TimeIntegration/ERF_TI_slow_rhs_fun.H;Source/TimeIntegration/ERF_TI_fast_headers.H;Source/TimeIntegration/ERF_TI_utils.H;Source/TimeIntegration/ERF_MRI.H;Source/TimeIntegration/ERF_TI_no_substep_fun.H;Source/LandSurfaceModel/Null/ERF_NullSurf.H;Source/LandSurfaceModel/ERF_LandSurface.H;Source/LandSurfaceModel/MM5/ERF_MM5.H;Source/LandSurfaceModel/SLM/ERF_SLM.H;Source/ERF_IndexDefines.H;Source/Advection/ERF_AdvectionSrcForMom_N.H;Source/Advection/ERF_AdvectionSrcForScalars.H;Source/Advection/ERF_AdvectionSrcForMom_T.H;Source/Advection/ERF_Advection.H;Source/MultiBlock/ERF_MultiBlockContainer.H;Source/Initialization/ERF_Metgrid_utils.H;Source/Diffusion/ERF_EddyViscosity.H;Source/Diffusion/ERF_Diffusion.H;Source/Microphysics/Null/ERF_NullMoistLagrangian.H;Source/Microphysics/Null/ERF_NullMoist.H;Source/Microphysics/ERF_Microphysics.H;Source/Microphysics/ERF_LagrangianMicrophysics.H;Source/Microphysics/ERF_EulerianMicrophysics.H;Source/Microphysics/Kessler/ERF_Kessler.H;Source/Microphysics/SAM/ERF_SAM.H;Source/DataStructs/ERF_InputSpongeData.H;Source/DataStructs/ERF_TurbPertStruct.H;Source/DataStructs/ERF_SpongeStruct.H;Source/DataStructs/ERF_AdvStruct.H;Source/DataStructs/ERF_DataStruct.H;Source/DataStructs/ERF_InputSoundingData.H;Source/DataStructs/ERF_DiffStruct.H;Source/DataStructs/ERF_TurbStruct.H")
 set_target_properties(
   erf_srclib PROPERTIES PUBLIC_HEADER "${ERF_INCLUDES}")
 

@@ -39,7 +39,7 @@ ERF::sum_integrated_quantities (Real time)
         MultiFab pert_dens(vars_new[lev][Vars::cons].boxArray(),
                            vars_new[lev][Vars::cons].DistributionMap(),
                            1,0);
-        MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0 is first  component
+        MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
         for ( MFIter mfi(pert_dens,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();

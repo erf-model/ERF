@@ -16,6 +16,7 @@ CEXE_headers += ERF_Sat_methods.H
 CEXE_headers += ERF_Water_vapor_saturation.H
 CEXE_headers += ERF_DirectionSelector.H
 
+CEXE_sources += ERF_AverageDown.cpp
 CEXE_sources += ERF_ChopGrids.cpp
 CEXE_sources += ERF_MomentumToVelocity.cpp
 CEXE_sources += ERF_VelocityToMomentum.cpp
@@ -25,6 +26,3 @@ CEXE_sources += ERF_Time_Avg_Vel.cpp
 
 CEXE_sources += ERF_PoissonSolve.cpp
 CEXE_sources += ERF_PoissonSolve_tb.cpp
-ifeq ($(USE_HEFFTE),TRUE)
-CEXE_sources += ERF_solve_with_heffte.cpp
-endif

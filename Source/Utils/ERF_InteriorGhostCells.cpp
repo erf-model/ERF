@@ -89,7 +89,6 @@ compute_interior_ghost_bxs_xy (const Box& bx,
 /**
  * Compute the RHS in the relaxation zone
  *
- * @param[in] init_type initialization method for this simulation
  * @param[in] bdy_time_interval time interval between boundary condition time stamps
  * @param[in] time    current time
  * @param[in] delta_t timestep
@@ -105,8 +104,7 @@ compute_interior_ghost_bxs_xy (const Box& bx,
  * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
-realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
-                                    const Real& bdy_time_interval,
+realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     const Real& start_bdy_time,
                                     const Real& time,
                                     const Real& delta_t,
@@ -121,7 +119,7 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
                                     Vector<Vector<FArrayBox>>& bdy_data_ylo,
                                     Vector<Vector<FArrayBox>>& bdy_data_yhi)
 {
-    BL_PROFILE_REGION("wrfbdy_compute_interior_ghost_RHS()");
+    BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
 
     // NOTE: We pass the full width into this routine.
     //       For relaxation, the last cell is a halo
@@ -397,11 +395,11 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
                     continue;
                 }
 
-                wrfbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
-                                              width, set_width, dom_lo, dom_hi,
-                                              tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                              arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                              data_arr, rhs_arr);
+                realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
+                                               width, set_width, dom_lo, dom_hi,
+                                               tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                               arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                               data_arr, rhs_arr);
             } // mfi
         } // ivar
     } // set_width
@@ -457,11 +455,11 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
                     continue;
                 }
 
-                wrfbdy_compute_laplacian_relaxation(icomp, 1,
-                                                    width2, set_width, dom_lo, dom_hi, F1, F2,
-                                                    tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                                    arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                                    data_arr, rhs_arr);
+                realbdy_compute_laplacian_relaxation(icomp, 1,
+                                                     width2, set_width, dom_lo, dom_hi, F1, F2,
+                                                     tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                                     arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                                     data_arr, rhs_arr);
 
                 /*
                 // UNIT TEST DEBUG

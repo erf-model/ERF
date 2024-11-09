@@ -88,8 +88,7 @@ void compute_interior_ghost_bxs_xy (const amrex::Box& bx,
 /*
  * Compute relaxation region RHS with wrfbdy
  */
-void realbdy_compute_interior_ghost_rhs (const std::string& init_type,
-                                         const amrex::Real& bdy_time_interval,
+void realbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
                                          const amrex::Real& start_bdy_time,
                                          const amrex::Real& time,
                                          const amrex::Real& delta_t,
@@ -146,23 +145,23 @@ Time_Avg_Vel_atCC (const amrex::Real& dt,
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
-wrfbdy_set_rhs_in_spec_region (const amrex::Real& dt,
-                               const int& icomp,
-                               const int& num_var,
-                               const int& width,
-                               const int& set_width,
-                               const amrex::Dim3& dom_lo,
-                               const amrex::Dim3& dom_hi,
-                               const amrex::Box& bx_xlo,
-                               const amrex::Box& bx_xhi,
-                               const amrex::Box& bx_ylo,
-                               const amrex::Box& bx_yhi,
-                               const amrex::Array4<const amrex::Real>& arr_xlo,
-                               const amrex::Array4<const amrex::Real>& arr_xhi,
-                               const amrex::Array4<const amrex::Real>& arr_ylo,
-                               const amrex::Array4<const amrex::Real>& arr_yhi,
-                               const amrex::Array4<const amrex::Real>& data_arr,
-                               const amrex::Array4<amrex::Real>& rhs_arr)
+realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
+                                const int& icomp,
+                                const int& num_var,
+                                const int& width,
+                                const int& set_width,
+                                const amrex::Dim3& dom_lo,
+                                const amrex::Dim3& dom_hi,
+                                const amrex::Box& bx_xlo,
+                                const amrex::Box& bx_xhi,
+                                const amrex::Box& bx_ylo,
+                                const amrex::Box& bx_yhi,
+                                const amrex::Array4<const amrex::Real>& arr_xlo,
+                                const amrex::Array4<const amrex::Real>& arr_xhi,
+                                const amrex::Array4<const amrex::Real>& arr_ylo,
+                                const amrex::Array4<const amrex::Real>& arr_yhi,
+                                const amrex::Array4<const amrex::Real>& data_arr,
+                                const amrex::Array4<amrex::Real>& rhs_arr)
 {
     int Spec_z  = set_width;
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -236,24 +235,24 @@ wrfbdy_set_rhs_in_spec_region (const amrex::Real& dt,
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
-wrfbdy_compute_laplacian_relaxation (const int& icomp,
-                                     const int& num_var,
-                                     const int& width,
-                                     const int& set_width,
-                                     const amrex::Dim3& dom_lo,
-                                     const amrex::Dim3& dom_hi,
-                                     const amrex::Real& F1,
-                                     const amrex::Real& F2,
-                                     const amrex::Box& bx_xlo,
-                                     const amrex::Box& bx_xhi,
-                                     const amrex::Box& bx_ylo,
-                                     const amrex::Box& bx_yhi,
-                                     const amrex::Array4<const amrex::Real>& arr_xlo,
-                                     const amrex::Array4<const amrex::Real>& arr_xhi,
-                                     const amrex::Array4<const amrex::Real>& arr_ylo,
-                                     const amrex::Array4<const amrex::Real>& arr_yhi,
-                                     const amrex::Array4<const amrex::Real>& data_arr,
-                                     const amrex::Array4<amrex::Real>& rhs_arr)
+realbdy_compute_laplacian_relaxation (const int& icomp,
+                                      const int& num_var,
+                                      const int& width,
+                                      const int& set_width,
+                                      const amrex::Dim3& dom_lo,
+                                      const amrex::Dim3& dom_hi,
+                                      const amrex::Real& F1,
+                                      const amrex::Real& F2,
+                                      const amrex::Box& bx_xlo,
+                                      const amrex::Box& bx_xhi,
+                                      const amrex::Box& bx_ylo,
+                                      const amrex::Box& bx_yhi,
+                                      const amrex::Array4<const amrex::Real>& arr_xlo,
+                                      const amrex::Array4<const amrex::Real>& arr_xhi,
+                                      const amrex::Array4<const amrex::Real>& arr_ylo,
+                                      const amrex::Array4<const amrex::Real>& arr_yhi,
+                                      const amrex::Array4<const amrex::Real>& data_arr,
+                                      const amrex::Array4<amrex::Real>& rhs_arr)
 {
     // RHS computation
     int Spec_z  = set_width;

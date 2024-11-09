@@ -31,14 +31,11 @@ public:
             a_model_type == MoistureType::SAM_NoIce ||
             a_model_type == MoistureType::SAM_NoPrecip_NoIce) {
             SetModel<SAM>();
-            amrex::Print() << "SAM moisture model!\n";
         } else if (a_model_type == MoistureType::Kessler ||
                    a_model_type == MoistureType::Kessler_NoRain) {
             SetModel<Kessler>();
-            amrex::Print() << "Kessler moisture model!\n";
         } else if (a_model_type == MoistureType::None) {
             SetModel<NullMoist>();
-            amrex::Print() << "No moisture model!\n";
         } else {
             amrex::Abort("EulerianMicrophysics: Dont know this moisture_type!") ;
         }

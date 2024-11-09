@@ -10,9 +10,9 @@ class EWP : public NullWindFarm {
 
 public:
 
-    EWP(){}
+    EWP (){}
 
-    virtual ~EWP() = default;
+    virtual ~EWP () = default;
 
     void advance (const amrex::Geometry& geom,
                   const amrex::Real& dt_advance,
@@ -22,7 +22,8 @@ public:
                   amrex::MultiFab& V_old,
                   amrex::MultiFab& W_old,
                   const amrex::MultiFab& mf_Nturb,
-                  const amrex::MultiFab& mf_SMark) override;
+                  const amrex::MultiFab& mf_SMark,
+                  const amrex::Real& time) override;
 
     void source_terms_cellcentered (const amrex::Geometry& geom,
                                     const amrex::MultiFab& cons_in,

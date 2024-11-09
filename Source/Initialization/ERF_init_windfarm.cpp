@@ -43,8 +43,10 @@ ERF::init_windfarm (int lev)
     }
 
     if(solverChoice.windfarm_type == WindFarmType::GeneralAD) {
-        //windfarm->read_windfarm_blade_table(solverChoice.windfarm_blade_table);
-        //windfarm->read_airfoil_tables
+        windfarm->read_windfarm_blade_table(solverChoice.windfarm_blade_table);
+        windfarm->read_windfarm_airfoil_tables(solverChoice.windfarm_airfoil_tables,
+                                               solverChoice.windfarm_blade_table);
+        windfarm->read_windfarm_spec_table_extra(solverChoice.windfarm_spec_table_extra);
     }
 }
 
@@ -57,8 +59,9 @@ ERF::advance_windfarm (const Geometry& a_geom,
                        MultiFab& W_old,
                        MultiFab& mf_vars_windfarm,
                        const MultiFab& mf_Nturb,
-                       const MultiFab& mf_SMark)
+                       const MultiFab& mf_SMark,
+                       const Real& time)
 {
         windfarm->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
-                          U_old, V_old, W_old, mf_Nturb, mf_SMark);
+                          U_old, V_old, W_old, mf_Nturb, mf_SMark, time);
 }

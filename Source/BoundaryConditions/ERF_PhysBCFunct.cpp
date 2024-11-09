@@ -14,7 +14,8 @@ using namespace amrex;
  */
 
 void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
-                                      IntVect const& nghost, const Real /*time*/, int /*bccomp*/)
+                                      IntVect const& nghost, const Real /*time*/, int /*bccomp*/,
+                                      bool do_fb, bool do_terrain_adjustment)
 {
     BL_PROFILE("ERFPhysBCFunct_cons::()");
 
@@ -31,19 +32,12 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
         }
     }
 
-    MultiFab z_nd_mf_loc;
-    if (m_z_phys_nd) {
-        m_z_phys_nd->FillBoundary(m_geom.periodicity());
-        BoxList bl_z_phys = convert(mf.boxArray(),IntVect(1,1,1)).boxList();
-        for (auto& b : bl_z_phys) {
-            b.setSmall(2,0);
-            b.setBig(2,1);
-        }
-        BoxArray ba_z(std::move(bl_z_phys));
-
-        z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0],nghost[1],0));
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,m_z_phys_nd->nGrowVect(),
-                                                    z_nd_mf_loc.nGrowVect());
+    //
+    // We fill all of the interior and periodic ghost cells first, so we can fill
+    //    those directly inside the lateral and vertical calls.
+    //
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
     }
 
 #ifdef AMREX_USE_OMP
@@ -68,7 +62,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
 
             if (m_z_phys_nd)
             {
-                z_nd_arr = z_nd_mf_loc.const_array(mfi);
+                z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
             if (!gdomain.contains(cbx2))
@@ -77,10 +71,12 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
 
                 if (!m_use_real_bcs)
                 {
-                    impose_lateral_cons_bcs(cons_arr,cbx1,domain,icomp,ncomp,nghost[2]);
+                    // We send a box with ghost cells in the lateral directions only
+                    impose_lateral_cons_bcs(cons_arr,cbx1,domain,icomp,ncomp,nghost);
                 }
 
-                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp);
+                // We send the full FAB box with ghost cells
+                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,do_terrain_adjustment);
             }
 
         } // MFIter
@@ -88,7 +84,8 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
 } // operator()
 
 void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
-                                   IntVect const& nghost, const Real time, int bccomp)
+                                   IntVect const& nghost, const Real time, int bccomp,
+                                   bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_u::()");
 
@@ -104,18 +101,12 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
         }
     }
 
-    MultiFab z_nd_mf_loc;
-    if (m_z_phys_nd) {
-        m_z_phys_nd->FillBoundary(m_geom.periodicity());
-        BoxList bl_z_phys = convert(mf.boxArray(),IntVect(1,1,1)).boxList();
-        for (auto& b : bl_z_phys) {
-            b.setSmall(2,0);
-            b.setBig(2,1);
-        }
-        BoxArray ba_z(std::move(bl_z_phys));
-        z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0]+1,nghost[1],0));
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,m_z_phys_nd->nGrowVect(),
-                                                    z_nd_mf_loc.nGrowVect());
+    //
+    // We fill all of the interior and periodic ghost cells first, so we can fill
+    //    those directly inside the lateral and vertical calls.
+    //
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
     }
 
 #ifdef AMREX_USE_OMP
@@ -133,14 +124,17 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
             //
             // These are the boxes we use to test on relative to the domain
             //
-            Box xbx1 = surroundingNodes(bx,0); xbx1.grow(IntVect(nghost[0],nghost[1],0));
+            Box xbx1 = surroundingNodes(bx,0); xbx1.grow(nghost);
+            if(xbx1.smallEnd(2) < domain.smallEnd(2)) xbx1.setSmall(2,domain.smallEnd(2));
+            if(xbx1.bigEnd(2)   > domain.bigEnd(2))   xbx1.setBig(2,domain.bigEnd(2));
+
             Box xbx2 = surroundingNodes(bx,0); xbx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
 
             if (m_z_phys_nd)
             {
-                z_nd_arr = z_nd_mf_loc.const_array(mfi);
+                z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
             if (!gdomainx.contains(xbx2))
@@ -157,13 +151,13 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
                 impose_vertical_xvel_bcs(velx_arr,xbx2,domain,z_nd_arr,dxInv,bccomp,time);
             }
-
         } // MFIter
     } // OpenMP
 } // operator()
 
 void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
-                                   IntVect const& nghost, const Real /*time*/, int bccomp)
+                                   IntVect const& nghost, const Real /*time*/, int bccomp,
+                                   bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_v::()");
 
@@ -179,18 +173,12 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
         }
     }
 
-    MultiFab z_nd_mf_loc;
-    if (m_z_phys_nd) {
-        m_z_phys_nd->FillBoundary(m_geom.periodicity());
-        BoxList bl_z_phys = convert(mf.boxArray(),IntVect(1,1,1)).boxList();
-        for (auto& b : bl_z_phys) {
-            b.setSmall(2,0);
-            b.setBig(2,1);
-        }
-        BoxArray ba_z(std::move(bl_z_phys));
-        z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0],nghost[1]+1,0));
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,m_z_phys_nd->nGrowVect(),
-                                                    z_nd_mf_loc.nGrowVect());
+    //
+    // We fill all of the interior and periodic ghost cells first, so we can fill
+    //    those directly inside the lateral and vertical calls.
+    //
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
     }
 
 #ifdef AMREX_USE_OMP
@@ -208,14 +196,17 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
             //
             // These are the boxes we use to test on relative to the domain
             //
-            Box ybx1 = surroundingNodes(bx,1); ybx1.grow(IntVect(nghost[0],nghost[1],0));
+            Box ybx1 = surroundingNodes(bx,1); ybx1.grow(nghost);
+            if (ybx1.smallEnd(2) < domain.smallEnd(2)) ybx1.setSmall(2,domain.smallEnd(2));
+            if (ybx1.bigEnd(2)   > domain.bigEnd(2))   ybx1.setBig(2,domain.bigEnd(2));
+
             Box ybx2 = surroundingNodes(bx,1); ybx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
 
             if (m_z_phys_nd)
             {
-                z_nd_arr = z_nd_mf_loc.const_array(mfi);
+                z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
             if (!gdomainy.contains(ybx2))
@@ -236,7 +227,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
 void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                                    IntVect const& nghost, const Real /*time*/,
-                                   const int bccomp_w)
+                                   const int bccomp_w, bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_w::()");
 
@@ -254,23 +245,18 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             gdomainz.grow(i, nghost[i]);
         }
     }
+    //
     // We want to make sure we impose the z-vels at k=0  if the box includes k=0
+    //
     if (gdomainz.smallEnd(2) == 0) gdomainz.setSmall(2,1);
 
-    Box ndomain  = convert(domain,IntVect(1,1,1));
-
-    MultiFab z_nd_mf_loc;
-    if (m_z_phys_nd) {
-        BoxList bl_z_phys = convert(mf.boxArray(),IntVect(1,1,1)).boxList();
-        for (auto& b : bl_z_phys) {
-            b &= ndomain;
-        }
-        BoxArray ba_z(std::move(bl_z_phys));
-        z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0],nghost[1],0));
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,m_z_phys_nd->nGrowVect(),
-                                                    z_nd_mf_loc.nGrowVect());
+    //
+    // We fill all of the interior and periodic ghost cells first, so we can fill
+    //    those directly inside the lateral and vertical calls.
+    //
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
     }
-    z_nd_mf_loc.FillBoundary(m_geom.periodicity());
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -287,28 +273,34 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             //
             // These are the boxes we use to test on relative to the domain
             //
-            Box zbx = surroundingNodes(bx,2); zbx.grow(0,nghost[0]);
-                                              zbx.grow(1,nghost[1]);
+            Box zbx = surroundingNodes(bx,2); zbx.grow(nghost);
+            if (zbx.smallEnd(2) < domain.smallEnd(2)) zbx.setSmall(2,domain.smallEnd(2));
+            if (zbx.bigEnd(2)   > domain.bigEnd(2))   zbx.setBig(2,domain.bigEnd(2)+1);
+
             Array4<const Real> z_nd_arr;
 
             if (m_z_phys_nd)
             {
-                z_nd_arr = z_nd_mf_loc.const_array(mfi);
+                z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            Array4<const Real> const& velx_arr = xvel.const_array(mfi);
-            Array4<const Real> const& vely_arr = yvel.const_array(mfi);
-            Array4<      Real> const& velz_arr = mf.array(mfi);
-
-            if (!m_use_real_bcs)
+            //
+            // Recall that gdomainz.smallEnd(2) = 1 not 0!
+            //
+            if (!gdomainz.contains(zbx))
             {
-                if (!gdomainz.contains(zbx))
-                {
-                    impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,bccomp_w);
-                }
-            } // m_use_real_bcs
+                Array4<const Real> const& velx_arr = xvel.const_array(mfi);
+                Array4<const Real> const& vely_arr = yvel.const_array(mfi);
+                Array4<      Real> const& velz_arr = mf.array(mfi);
 
-            if (!gdomainz.contains(zbx)) {
+                if (!m_use_real_bcs)
+                {
+                    if (!gdomainz.contains(zbx))
+                    {
+                        impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,bccomp_w);
+                    }
+                }
+
                 impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,
                                          bccomp_u, bccomp_v, bccomp_w, m_terrain_type);
             }
@@ -316,12 +308,16 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     } // OpenMP
 } // operator()
 
-void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
-                                      IntVect const& nghost, const Real /*time*/, int /*bccomp*/)
+void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int ncomp, IntVect const& nghost)
 {
     BL_PROFILE("ERFPhysBCFunct_base::()");
 
     if (m_geom.isAllPeriodic()) return;
+
+    if (m_moving_terrain) {
+        mf.FillBoundary(m_geom.periodicity());
+        return;
+    }
 
     const auto& domain = m_geom.Domain();
 
@@ -332,6 +328,12 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/
             gdomain.grow(i, nghost[i]);
         }
     }
+
+    //
+    // We fill all of the interior and periodic ghost cells first, so we can fill
+    //    those directly inside the lateral and vertical calls.
+    //
+    mf.FillBoundary(m_geom.periodicity());
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -353,9 +355,10 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/
 
             if (!gdomain.contains(cbx2))
             {
-                const Array4<Real> cons_arr = mf.array(mfi);
+                const Array4<Real> base_arr = mf.array(mfi);
 
-                impose_lateral_basestate_bcs(cons_arr,cbx1,domain);
+                impose_lateral_basestate_bcs(base_arr,cbx1,domain,ncomp,nghost);
+                impose_vertical_basestate_bcs(base_arr,cbx2,domain,ncomp,nghost);
             }
 
         } // MFIter
