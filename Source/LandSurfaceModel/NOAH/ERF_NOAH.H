@@ -8,6 +8,7 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_TableData.H>
 
 #include <ERF_NullSurf.H>
 #include <ERF_Constants.H>
@@ -31,6 +32,8 @@ public:
           const amrex::Geometry& geom,
           const amrex::Real& dt) override;
 
+    amrex::Table2D<double> XLAT;
+    amrex::Table2D<double> WSLAKEXY;
 
 private:
 

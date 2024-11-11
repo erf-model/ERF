@@ -14,17 +14,17 @@ NOAH::Init (const MultiFab& cons_in,
 {
     // Initialize Noahmp IO
     amrex::Print() << "Initializing Noahmp IO" << std::endl;
-
-    /*
-     * noahmpio.xstart = 1;
-     * noahmpio.xend = 4;
-     * noahmpio.ystart = 1;
-     * noahmpio.yend = 2;
-     *
-     */
+    
+    noahmpio.xstart = 1;
+    noahmpio.xend = 4;
+    noahmpio.ystart = 1;
+    noahmpio.yend = 2;
 
     NoahmpIOVarInitDefault(&noahmpio);
     NoahmpInitMain(&noahmpio);
+
+    XLAT = amrex::Table2D<double>(noahmpio.XLAT, {noahmpio.xstart, noahmpio.ystart}, {noahmpio.xend+1, noahmpio.yend+1});
+    WSLAKEXY = amrex::Table2D<double>(noahmpio.WSLAKEXY, {noahmpio.xstart, noahmpio.ystart}, {noahmpio.xend+1, noahmpio.yend+1});
 
     amrex::Print() << "Noahmp IO Initialized" << std::endl;
 };
