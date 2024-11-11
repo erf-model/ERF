@@ -111,11 +111,9 @@ ifeq ($(USE_EB),TRUE)
 AMReXdirs             += EB
 endif
 
-ifeq ($(USE_POISSON_SOLVE),TRUE)
 USE_LINEAR_SOLVERS_INCFLO = FALSE
 USE_LINEAR_SOLVERS_EM     = FALSE
 AMReXdirs                += LinearSolvers
-endif
 
 ifeq ($(USE_HDF5),TRUE)
 AMReXdirs             += Extern/HDF5
@@ -232,11 +230,6 @@ INCLUDE_LOCATIONS += $(ERF_LSM_MM5_DIR)
         
 ifeq ($(COMPUTE_ERROR), TRUE)
   DEFINES += -DERF_COMPUTE_ERROR
-endif
-
-ifeq ($(USE_POISSON_SOLVE), TRUE)
-  DEFINES += -DERF_USE_POISSON_SOLVE
-  USERSuffix += .INC
 endif
 
 ifeq ($(USE_PARTICLES), TRUE)
