@@ -6,8 +6,6 @@
 #include <ERF_TileNoZ.H>
 #include <ERF_EOS.H>
 
-#include "AMReX_Print.H"
-
 using namespace amrex;
 
 /**
@@ -23,8 +21,8 @@ using namespace amrex;
  *     - save r_hse
  *   - call ERF::enforce_hse(...), calculates p_hse from saved r_hse (redundant,
  *     but needed because p_hse is not necessarily calculated by the Problem
- *     implementation) and pi_hse -- note: this pressure does not exactly match
- *     the p_hse from before because what is calculated by init_isentropic_hse
+ *     implementation) and pi_hse and th_hse -- note: this pressure does not exactly
+ *     match the p_hse from before because what is calculated by init_isentropic_hse
  *     comes from the EOS whereas what is calculated here comes from the hydro-
  *     static equation
  *
@@ -35,8 +33,8 @@ ERF::init_from_hse (int lev)
 {
     auto& lev_new = vars_new[lev];
 
-    MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
-    MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
+    MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
+    MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())

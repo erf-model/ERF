@@ -7,7 +7,7 @@
 #include <ERF_IndexDefines.H>
 #include <ERF_PlaneAverage.H>
 #include <ERF_Src_headers.H>
-//#include <ERF_TerrainMetrics.H>
+#include <ERF_buoyancy_utils.H>
 
 using namespace amrex;
 
@@ -34,8 +34,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                           MultiFab& buoyancy,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
-                    const MultiFab* r0,
-                    const MultiFab* p0,
+                    const MultiFab& base_state,
                     const int n_qstate,
                     const int anelastic)
 {
@@ -48,6 +47,11 @@ void make_buoyancy (Vector<MultiFab>& S_data,
     const int khi = geom.Domain().bigEnd()[2] + 1;
 
     Real rd_over_cp = solverChoice.rdOcp;
+    Real rv_over_rd = R_v/R_d;
+
+    MultiFab r0 (base_state, make_alias, BaseState::r0_comp , 1);
+    MultiFab p0 (base_state, make_alias, BaseState::p0_comp , 1);
+    MultiFab th0(base_state, make_alias, BaseState::th0_comp, 1);
 
     if (anelastic == 1) {
 #ifdef _OPENMP
@@ -65,24 +69,28 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
             // Base state density and pressure
-            const Array4<const Real>& r0_arr = r0->const_array(mfi);
-            const Array4<const Real>& p0_arr = p0->const_array(mfi);
+            const Array4<const Real>&  r0_arr =  r0.const_array(mfi);
+            const Array4<const Real>&  p0_arr =  p0.const_array(mfi);
+            const Array4<const Real>& th0_arr = th0.const_array(mfi);
 
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real rt0_hi = getRhoThetagivenP(p0_arr(i,j,k));
-                Real  t0_hi = getTgivenPandTh(p0_arr(i,j,k), rt0_hi/r0_arr(i,j,k), rd_over_cp);
-                Real   t_hi = getTgivenPandTh(p0_arr(i,j,k), cell_data(i,j,k,RhoTheta_comp)/r0_arr(i,j,k), rd_over_cp);
-                Real qplus   = (t_hi-t0_hi)/t0_hi;
-
-                Real rt0_lo = getRhoThetagivenP(p0_arr(i,j,k-1));
-                Real  t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), rt0_lo/r0_arr(i,j,k-1), rd_over_cp);
-                Real   t_lo = getTgivenPandTh(p0_arr(i,j,k-1), cell_data(i,j,k-1,RhoTheta_comp)/r0_arr(i,j,k-1), rd_over_cp);
-                Real qminus  = (t_lo-t0_lo)/t0_lo;
-
-                Real r0_q_avg = Real(0.5) * (r0_arr(i,j,k) * qplus + r0_arr(i,j,k-1) * qminus);
-                buoyancy_fab(i, j, k) = -r0_q_avg * grav_gpu[2];
-            });
+            if (solverChoice.moisture_type == MoistureType::None) {
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,
+                                                                   grav_gpu[2],
+                                                                   r0_arr,p0_arr,cell_data);
+                });
+            } else {
+                // NOTE: For decomposition in the vertical direction, klo may not
+                //       reside in the valid box and this call will yield an out
+                //       of bounds error since it depends upon the surface theta_l
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,
+                                                                     grav_gpu[2],rv_over_rd,
+                                                                     r0_arr,th0_arr,cell_data);
+                });
+            }
         } // mfi
     }
     else
@@ -92,75 +100,67 @@ void make_buoyancy (Vector<MultiFab>& S_data,
         // ******************************************************************************************
         if (solverChoice.moisture_type == MoistureType::None)
         {
-          if (solverChoice.buoyancy_type == 1) {
+            int n_q_dry = 0;
+            if (solverChoice.buoyancy_type == 1) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                Box tbz = mfi.tilebox();
-
-                // We don't compute a source term for z-momentum on the bottom or top domain boundary
-                if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
-                if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
-
-                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
-                const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
-
-                // Base state density
-                const Array4<const Real>& r0_arr = r0->const_array(mfi);
-
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
-                    buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( (cell_data(i,j,k  ) - r0_arr(i,j,k  ))
-                                                                 +(cell_data(i,j,k-1) - r0_arr(i,j,k-1)) );
-                });
-            } // mfi
+                    Box tbz = mfi.tilebox();
 
-          }
-          else // (buoyancy_type != 1)
-          {
-            // We now use the base state rather than planar average because
-            //     1) we don't want to average over the limited region of the fine level if doing multilevel.
-            //     2) it's cheaper to use the base state than to compute the horizontal averages
-            //     3) when running in a smallish domain, the horizontal average may evolve over time,
-            //        which is not necessarily the intended behavior
-            //
+                    // We don't compute a source term for z-momentum on the bottom or top domain boundary
+                    if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+                    if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
+
+                    const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
+                    const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
+
+                    // Base state density
+                    const Array4<const Real>& r0_arr = r0.const_array(mfi);
+
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        buoyancy_fab(i, j, k) = buoyancy_type1(i,j,k,n_q_dry,grav_gpu[2],r0_arr,cell_data);
+                    });
+                } // mfi
+
+            }
+            else // (buoyancy_type != 1)
+            {
+                // We now use the base state rather than planar average because
+                //     1) we don't want to average over the limited region of the fine level if doing multilevel.
+                //     2) it's cheaper to use the base state than to compute the horizontal averages
+                //     3) when running in a smallish domain, the horizontal average may evolve over time,
+                //        which is not necessarily the intended behavior
+                //
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                Box tbz = mfi.tilebox();
-
-                // We don't compute a source term for z-momentum on the bottom or top boundary
-                if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
-                if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
-
-                // Base state density and pressure
-                const Array4<const Real>& r0_arr = r0->const_array(mfi);
-                const Array4<const Real>& p0_arr = p0->const_array(mfi);
-
-                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
-                const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
-
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
-                    Real rt0_hi = getRhoThetagivenP(p0_arr(i,j,k));
-                    Real  t0_hi = getTgivenPandTh(p0_arr(i,j,k), rt0_hi/r0_arr(i,j,k), rd_over_cp);
-                    Real   t_hi = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
-                    Real qplus  = (t_hi-t0_hi)/t0_hi;
+                    Box tbz = mfi.tilebox();
 
-                    Real rt0_lo = getRhoThetagivenP(p0_arr(i,j,k-1));
-                    Real  t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), rt0_lo/r0_arr(i,j,k-1), rd_over_cp);
-                    Real   t_lo = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
-                    Real qminus = (t_lo-t0_lo)/t0_lo;
+                    // We don't compute a source term for z-momentum on the bottom or top boundary
+                    if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+                    if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
-                    Real r0_q_avg = Real(0.5) * (r0_arr(i,j,k) * qplus + r0_arr(i,j,k-1) * qminus);
-                    buoyancy_fab(i, j, k) = -r0_q_avg * grav_gpu[2];
-                });
-            } // mfi
-          } // buoyancy_type
+                    // Base state density and pressure
+                    const Array4<const Real>&  r0_arr = r0.const_array(mfi);
+                    const Array4<const Real>&  p0_arr = p0.const_array(mfi);
+                    const Array4<const Real>& th0_arr = th0.const_array(mfi);
+
+                    const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
+                    const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
+
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        buoyancy_fab(i, j, k) = buoyancy_dry_default(i,j,k,
+                                                                     grav_gpu[2],rd_over_cp,
+                                                                     r0_arr,p0_arr,th0_arr,cell_data);
+                    });
+                } // mfi
+            } // buoyancy_type
         } // moisture type
         else
         {
@@ -192,27 +192,19 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
                 // Base state density
-                const Array4<const Real>& r0_arr = r0->const_array(mfi);
+                const Array4<const Real>& r0_arr = r0.const_array(mfi);
 
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp)
-                                 + cell_data(i,j,k  ,RhoQ2_comp) - r0_arr(i,j,k  );
-                    Real rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp)
-                                 + cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
-
-                    for (int q_offset(2); q_offset<n_qstate; ++q_offset) {
-                        rhop_hi += cell_data(i,j,k  ,RhoQ1_comp+q_offset);
-                        rhop_lo += cell_data(i,j,k-1,RhoQ1_comp+q_offset);
-                    }
-                    buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( rhop_hi + rhop_lo );
+                    buoyancy_fab(i, j, k) = buoyancy_type1(i,j,k,n_qstate,
+                                                           grav_gpu[2],r0_arr,cell_data);
                 });
             } // mfi
 
           } else {
 
             PlaneAverage state_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane);
-            PlaneAverage  prim_ave(&S_prim                , geom, solverChoice.ave_plane);
+            PlaneAverage  prim_ave(&S_prim                 , geom, solverChoice.ave_plane);
 
             // Compute horizontal averages of all components of each field
             state_ave.compute_averages(ZDir(), state_ave.field());
@@ -270,57 +262,23 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
                     // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)
-                    ParallelFor(tbz, [=, buoyancy_type=solverChoice.buoyancy_type] AMREX_GPU_DEVICE (int i, int j, int k)
-                    {
-                        Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ], qv_d_ptr[k  ]);
-                        Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1], qv_d_ptr[k-1]);
-
-                        Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp),
-                                                         cell_data(i,j,k  ,RhoTheta_comp),
-                                                         cell_data(i,j,k  ,RhoQ1_comp)/cell_data(i,j,k  ,Rho_comp));
-                        Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp),
-                                                         cell_data(i,j,k-1,RhoTheta_comp),
-                                                         cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp));
-
-                        Real qplus, qminus;
-
-                        Real qv_plus  = (n_qstate >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
-                        Real qv_minus = (n_qstate >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
-
-                        Real qc_plus  = (n_qstate >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
-                        Real qc_minus = (n_qstate >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
-
-                        Real qp_plus  = (n_qstate >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
-                        Real qp_minus = (n_qstate >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
-
-                        if (buoyancy_type == 2) {
-                            qplus  = 0.61 * ( qv_plus - qv_d_ptr[k] ) -
-                                            ( qc_plus - qc_d_ptr[k]   +
-                                              qp_plus - qp_d_ptr[k] )
-                                   + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k]-qc_d_ptr[k]-qp_d_ptr[k]);
-
-                            qminus = 0.61 * ( qv_minus - qv_d_ptr[k-1] ) -
-                                            ( qc_minus - qc_d_ptr[k-1]   +
-                                              qp_minus - qp_d_ptr[k-1] )
-                                   + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
-
-                        } else { // (buoyancy_type == 4)
-                            qplus  = 0.61 * ( qv_plus - qv_d_ptr[k] ) -
-                                            ( qc_plus - qc_d_ptr[k]   +
-                                              qp_plus - qp_d_ptr[k] )
-                                   + (cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) - theta_d_ptr[k  ])/theta_d_ptr[k  ];
-
-                            qminus = 0.61 * ( qv_minus - qv_d_ptr[k-1] ) -
-                                            ( qc_minus - qc_d_ptr[k-1]   +
-                                              qp_minus - qp_d_ptr[k-1] )
-                                   + (cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) - theta_d_ptr[k-1])/theta_d_ptr[k-1];
-                        }
-
-                        Real qavg  = Real(0.5) * (qplus + qminus);
-                        Real r0avg = Real(0.5) * (rho_d_ptr[k] + rho_d_ptr[k-1]);
-
-                        buoyancy_fab(i, j, k) = -qavg * r0avg * grav_gpu[2];
-                    });
+                    if (solverChoice.buoyancy_type == 2) {
+                        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                        {
+                            buoyancy_fab(i, j, k) = buoyancy_type2(i,j,k,n_qstate,grav_gpu[2],
+                                                                   rho_d_ptr,theta_d_ptr,
+                                                                   qv_d_ptr,qc_d_ptr,qp_d_ptr,
+                                                                   cell_prim,cell_data);
+                        });
+                    } else {
+                        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                        {
+                            buoyancy_fab(i, j, k) = buoyancy_type4(i,j,k,n_qstate,grav_gpu[2],
+                                                                   rho_d_ptr,theta_d_ptr,
+                                                                   qv_d_ptr,qc_d_ptr,qp_d_ptr,
+                                                                   cell_prim,cell_data);
+                        });
+                    }
                 } // mfi
 
             } else if (solverChoice.buoyancy_type == 3) {
@@ -344,33 +302,9 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ], qv_d_ptr[k  ]);
-                        Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1], qv_d_ptr[k-1]);
-
-                        Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp),
-                                                         cell_data(i,j,k  ,RhoTheta_comp),
-                                                         cell_data(i,j,k  ,RhoQ1_comp)/cell_data(i,j,k  ,Rho_comp));
-                        Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp),
-                                                         cell_data(i,j,k-1,RhoTheta_comp),
-                                                         cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp));
-
-                        Real qv_plus  = (n_qstate >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
-                        Real qv_minus = (n_qstate >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
-
-                        Real qc_plus  = (n_qstate >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
-                        Real qc_minus = (n_qstate >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
-
-                        Real qp_plus  = (n_qstate >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
-                        Real qp_minus = (n_qstate >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
-
-                        Real qplus  = 0.61 * qv_plus  - (qc_plus  + qp_plus)  + (tempp3d-tempp1d)/tempp1d;
-
-                        Real qminus = 0.61 * qv_minus - (qc_minus + qp_minus) + (tempm3d-tempm1d)/tempm1d;
-
-                        Real qavg  = Real(0.5) * (qplus + qminus);
-                        Real r0avg = Real(0.5) * (rho_d_ptr[k] + rho_d_ptr[k-1]);
-
-                        buoyancy_fab(i, j, k) = -qavg * r0avg * grav_gpu[2];
+                        buoyancy_fab(i, j, k) = buoyancy_type3(i,j,k,n_qstate,grav_gpu[2],
+                                                               rho_d_ptr,theta_d_ptr,qv_d_ptr,
+                                                               cell_prim,cell_data);
                     });
                 } // mfi
             }  // buoyancy_type

@@ -25,13 +25,6 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WARM_NO_PRECIP)
   endif()
 
-  if(ERF_ENABLE_POISSON_SOLVE)
-    target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp
-                   ${SRC_DIR}/Utils/ERF_PoissonSolve_tb.cpp)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_POISSON_SOLVE)
-  endif()
-
   if(ERF_ENABLE_PARTICLES)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Particles/ERFPCEvolve.cpp
@@ -187,8 +180,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_T.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_MT.cpp
+       ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
+       ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp
+       ${SRC_DIR}/Utils/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
@@ -202,10 +198,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Kessler/ERF_Init_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/ERF_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/ERF_Update_Kessler.cpp
-	   ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
-	   ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
-	   ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
-	   ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
+       ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
+       ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
+       ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
+       ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/ERF_MM5.cpp
   )

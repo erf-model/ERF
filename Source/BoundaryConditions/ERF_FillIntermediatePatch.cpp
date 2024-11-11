@@ -61,28 +61,26 @@ ERF::FillIntermediatePatch (int lev, Real time,
         }
     }
 
-    AMREX_ALWAYS_ASSERT(mfs_mom.size() == IntVars::NumTypes);
-    AMREX_ALWAYS_ASSERT(mfs_vel.size() == Vars::NumTypes);
+    // amrex::Print() << "LEVEL " << lev << " CONS ONLY   " << cons_only <<
+    //                   " ICOMP NCOMP " << icomp_cons << " " << ncomp_cons << " NGHOST " << ng_cons << std::endl;
+
+    if (!cons_only) {
+        AMREX_ALWAYS_ASSERT(mfs_mom.size() == IntVars::NumTypes);
+        AMREX_ALWAYS_ASSERT(mfs_vel.size() == Vars::NumTypes);
+    }
 
     // Enforce no penetration for thin immersed body
-    if (xflux_imask[lev]) {
-        ApplyMask(*mfs_mom[IntVars::xmom], *xflux_imask[lev]);
-    }
-    if (yflux_imask[lev]) {
-        ApplyMask(*mfs_mom[IntVars::ymom], *yflux_imask[lev]);
-    }
-    if (zflux_imask[lev]) {
-        ApplyMask(*mfs_mom[IntVars::zmom], *zflux_imask[lev]);
-    }
-
-    // We always come in to this call with updated momenta but we need to create updated velocity
-    //    in order to impose the rest of the bc's
     if (!cons_only) {
-        // This only fills VALID region of velocity
-        MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
-                           *mfs_vel[Vars::cons],
-                           *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom], *mfs_mom[IntVars::zmom],
-                            Geom(lev).Domain(), domain_bcs_type);
+        // Enforce no penetration for thin immersed body
+        if (xflux_imask[lev]) {
+            ApplyMask(*mfs_mom[IntVars::xmom], *xflux_imask[lev]);
+        }
+        if (yflux_imask[lev]) {
+            ApplyMask(*mfs_mom[IntVars::ymom], *yflux_imask[lev]);
+        }
+        if (zflux_imask[lev]) {
+            ApplyMask(*mfs_mom[IntVars::zmom], *zflux_imask[lev]);
+        }
     }
 
     //
@@ -93,19 +91,80 @@ ERF::FillIntermediatePatch (int lev, Real time,
         // We don't do anything here because we will call the physbcs routines below,
         // which calls FillBoundary and fills other domain boundary conditions
         // Physical boundaries will be filled below
+
+        if (!cons_only)
+        {
+            // ***************************************************************************
+            // We always come in to this call with updated momenta but we need to create updated velocity
+            //    in order to impose the rest of the bc's
+            // ***************************************************************************
+            // This only fills VALID region of velocity
+            MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
+                               *mfs_vel[Vars::cons],
+                               *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom], *mfs_mom[IntVars::zmom],
+                                Geom(lev).Domain(), domain_bcs_type);
+        }
     }
     else
     {
-        MultiFab& mf = *mfs_vel[Vars::cons];
+        //
+        // We must fill a temporary then copy it back so we don't double add/subtract
+        //
+        MultiFab mf(mfs_vel[Vars::cons]->boxArray(),mfs_vel[Vars::cons]->DistributionMap(),
+                    mfs_vel[Vars::cons]->nComp()   ,mfs_vel[Vars::cons]->nGrowVect());
+        //
+        // Set all components to 1.789e19, then copy just the density from *mfs_vel[Vars::cons]
+        //
+        mf.setVal(1.789e19);
+        MultiFab::Copy(mf,*mfs_vel[Vars::cons],Rho_comp,Rho_comp,1,mf.nGrowVect());
 
-        Vector<MultiFab*> fmf = {&mf,&mf};
+        Vector<MultiFab*> fmf = {mfs_vel[Vars::cons],mfs_vel[Vars::cons]};
         Vector<MultiFab*> cmf = {&vars_old[lev-1][Vars::cons], &vars_new[lev-1][Vars::cons]};
         Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
         Vector<Real> ftime    = {time,time};
 
-        // Impose physical bc's on coarse data (note time and 0 are not used)
-        (*physbcs_cons[lev-1])(vars_old[lev-1][Vars::cons],0,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,true);
-        (*physbcs_cons[lev-1])(vars_new[lev-1][Vars::cons],0,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,true);
+        // Impose physical bc's on fine data (note time and 0 are not used)
+        bool do_fb = true; bool do_terrain_adjustment = false;
+        (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,
+                             do_fb, do_terrain_adjustment);
+
+        if ( (icomp_cons+ncomp_cons > 1) && (interpolation_type == StateInterpType::Perturbational) )
+        {
+            // Divide (rho theta) by rho to get theta
+            MultiFab::Divide(*mfs_vel[Vars::cons],*mfs_vel[Vars::cons],Rho_comp,RhoTheta_comp,1,IntVect{0});
+
+            // Subtract theta_0 from theta
+            MultiFab::Subtract(*mfs_vel[Vars::cons],base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
+
+            if (!amrex::almostEqual(time,ctime[1])) {
+                MultiFab::Divide(vars_old[lev-1][Vars::cons], vars_old[lev-1][Vars::cons],
+                                 Rho_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+                MultiFab::Subtract(vars_old[lev-1][Vars::cons], base_state[lev-1],
+                                   BaseState::th0_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+            }
+            if (!amrex::almostEqual(time,ctime[0])) {
+                MultiFab::Divide(vars_new[lev-1][Vars::cons], vars_new[lev-1][Vars::cons],
+                                 Rho_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+                MultiFab::Subtract(vars_new[lev-1][Vars::cons], base_state[lev-1],
+                                   BaseState::th0_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+            }
+        }
+
+        // Subtract rho_0 from rho before we interpolate -- note we only subtract
+        //    on valid region of mf since the ghost cells will be filled below
+        if (icomp_cons == 0 && (interpolation_type == StateInterpType::Perturbational))
+        {
+            MultiFab::Subtract(*mfs_vel[Vars::cons],base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{0});
+
+            if (!amrex::almostEqual(time,ctime[1])) {
+                MultiFab::Subtract(vars_old[lev-1][Vars::cons], base_state[lev-1],
+                                   BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+            }
+            if (!amrex::almostEqual(time,ctime[0])) {
+                MultiFab::Subtract(vars_new[lev-1][Vars::cons], base_state[lev-1],
+                                   BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+            }
+        }
 
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
         mapper = &cell_cons_interp;
@@ -115,10 +174,73 @@ ERF::FillIntermediatePatch (int lev, Real time,
                            refRatio(lev-1), mapper, domain_bcs_type,
                            icomp_cons);
 
+        if (icomp_cons == 0 && (interpolation_type == StateInterpType::Perturbational))
+        {
+            // Restore the coarse values to what they were
+            if (!amrex::almostEqual(time,ctime[1])) {
+                MultiFab::Add(vars_old[lev-1][Vars::cons], base_state[lev-1],
+                              BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+            }
+            if (!amrex::almostEqual(time,ctime[0])) {
+                MultiFab::Add(vars_new[lev-1][Vars::cons], base_state[lev-1],
+                              BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+            }
+
+            // Set values in the cells outside the domain boundary so that we can do the Add
+            //     without worrying about uninitialized values outside the domain -- these
+            //     will be filled in the physbcs call
+            mf.setDomainBndry(1.234e20,Rho_comp,1,geom[lev]);
+
+            // Add rho_0 back to rho after we interpolate -- on all the valid + ghost region
+            MultiFab::Add(mf, base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{ng_cons});
+        }
+
+        if ( (icomp_cons+ncomp_cons > 1) && (interpolation_type == StateInterpType::Perturbational) )
+        {
+            // Add theta_0 to theta
+            if (!amrex::almostEqual(time,ctime[1])) {
+                MultiFab::Add(vars_old[lev-1][Vars::cons], base_state[lev-1],
+                              BaseState::th0_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+                MultiFab::Multiply(vars_old[lev-1][Vars::cons], vars_old[lev-1][Vars::cons],
+                                   Rho_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
+            }
+            if (!amrex::almostEqual(time,ctime[0])) {
+                MultiFab::Add(vars_new[lev-1][Vars::cons], base_state[lev-1],
+                              BaseState::th0_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+                MultiFab::Multiply(vars_new[lev-1][Vars::cons], vars_new[lev-1][Vars::cons],
+                                   Rho_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+            }
+
+            // Multiply theta by rho to get (rho theta)
+            MultiFab::Multiply(*mfs_vel[Vars::cons],*mfs_vel[Vars::cons],Rho_comp,RhoTheta_comp,1,IntVect{0});
+
+            // Add theta_0 to theta
+            MultiFab::Add(*mfs_vel[Vars::cons],base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
+
+            // Add theta_0 back to theta
+            MultiFab::Add(mf,base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,IntVect{ng_cons});
+
+            // Multiply (theta) by rho to get (rho theta)
+            MultiFab::Multiply(mf,mf,Rho_comp,RhoTheta_comp,1,IntVect{ng_cons});
+        }
+
+        // Make sure to only copy back the components we worked on
+        MultiFab::Copy(*mfs_vel[Vars::cons],mf,icomp_cons,icomp_cons,ncomp_cons,IntVect{ng_cons});
+
         // *****************************************************************************************
 
         if (!cons_only)
         {
+            // ***************************************************************************
+            // We always come in to this call with updated momenta but we need to create updated velocity
+            //    in order to impose the rest of the bc's
+            // ***************************************************************************
+            // This only fills VALID region of velocity
+            MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
+                               *mfs_vel[Vars::cons],
+                               *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom], *mfs_mom[IntVars::zmom],
+                                Geom(lev).Domain(), domain_bcs_type);
+
             mapper = &face_cons_linear_interp;
 
             //
@@ -135,10 +257,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
             fmf = {&mfu,&mfu};
             cmf = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
 
-            // Impose physical bc's on coarse data (note time and 0 are not used)
-            (*physbcs_u[lev-1])(vars_old[lev-1][Vars::xvel],0,1,IntVect{ng_vel},time,BCVars::xvel_bc,true);
-            (*physbcs_u[lev-1])(vars_new[lev-1][Vars::xvel],0,1,IntVect{ng_vel},time,BCVars::xvel_bc,true);
-
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
             FillPatchTwoLevels(mfu, IntVect{ng_vel}, IntVect(0,0,0),
                                time, cmf, ctime, fmf, ftime,
@@ -153,10 +271,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
             fmf = {&mfv,&mfv};
             cmf = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
 
-            // Impose physical bc's on coarse data (note time and 0 are not used)
-            (*physbcs_v[lev-1])(vars_old[lev-1][Vars::yvel],0,1,IntVect{ng_vel},time,BCVars::yvel_bc,true);
-            (*physbcs_v[lev-1])(vars_new[lev-1][Vars::yvel],0,1,IntVect{ng_vel},time,BCVars::yvel_bc,true);
-
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
             FillPatchTwoLevels(mfv, IntVect{ng_vel}, IntVect(0,0,0),
                                time, cmf, ctime, fmf, ftime,
@@ -170,16 +284,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
             fmf = {&mfw,&mfw};
             cmf = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
-
-            // Impose physical bc's on coarse data (note time and 0 are not used)
-            (*physbcs_w[lev-1])(vars_old[lev-1][Vars::zvel],
-                                vars_old[lev-1][Vars::xvel],
-                                vars_old[lev-1][Vars::yvel],
-                                IntVect{ng_vel},time,BCVars::zvel_bc,true);
-            (*physbcs_w[lev-1])(vars_new[lev-1][Vars::zvel],
-                                vars_new[lev-1][Vars::xvel],
-                                vars_new[lev-1][Vars::yvel],
-                                IntVect{ng_vel},time,BCVars::zvel_bc,true);
 
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
             FillPatchTwoLevels(mfw, IntVect{ng_vel}, IntVect(0,0,0),
@@ -201,7 +305,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
     if (use_real_bcs && (lev==0)) {
-        fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons, ngvect_vels);
+        fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
         do_fb = false;
     }
 #endif

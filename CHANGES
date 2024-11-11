@@ -1,3 +1,18 @@
+# 24.11
+    -- AMReX submodule set to 24.11 release hash (4a6e7c8)
+
+    -- AMR functionality (#1916-1920)
+
+    -- GAD functionality (#1912, #1875)
+
+    -- Remove QKE (#1905)
+
+    -- NOAH-MP interface (#1835)
+
+    -- Line and plane sampling (#1897)
+
+    -- AMReX & KOKKOS docs (#1889)
+ 
 # 24.10
     -- Add WENO7 advection operators (#1858)
 

@@ -193,12 +193,6 @@ struct SolverChoice {
         }
         // *******************************************************************************
 
-        // Should we project the initial velocity field to make it divergence-free?
-        pp.query("project_initial_velocity", project_initial_velocity);
-
-        // *******************************************************************************
-
-#ifdef ERF_USE_POISSON_SOLVE
         bool any_anelastic = false;
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) any_anelastic = true;
@@ -210,9 +204,13 @@ struct SolverChoice {
             project_initial_velocity = true;
             buoyancy_type = 2; // uses Tprime
         } else {
+            pp.query("project_initial_velocity", project_initial_velocity);
+
             constant_density = false;  // We default to false but allow the user to set it
             pp.query("constant_density", constant_density);
         }
+
+        // *******************************************************************************
 
         pp.query("project_every_stage", project_every_stage);
         pp.query("ncorr", ncorr);
@@ -225,14 +223,6 @@ struct SolverChoice {
                 substepping_type[lev] = SubsteppingType::None;
             }
         }
-#else
-        for (int i = 0; i <= max_level; ++i) {
-            if (anelastic[i] != 0) amrex::Abort("To run with anelastic you must compile with USE_POISSON_SOLVE = TRUE");
-        }
-        if (project_initial_velocity) {
-            amrex::Abort("To project the initial velocity you must compile with USE_POISSON_SOLVE = TRUE");
-        }
-#endif
 
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
 
@@ -339,7 +329,7 @@ struct SolverChoice {
 
 
         // Which type of multilevel coupling
-        coupling_type = CouplingType::OneWay; // Default
+        coupling_type = CouplingType::TwoWay; // Default
         pp.query_enum_case_insensitive("coupling_type",coupling_type);
 
         // Which type of windfarm model

@@ -49,8 +49,7 @@ InterpolateInX (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
         amrex::Real scaled_upw = 0.;
         //
         // The value that comes in has not been normalized so we do that here
-        if (upw != 0.)
-          scaled_upw = (upw > 0) ? 1. : -1.;
+        if (upw != 0.) { scaled_upw = (upw > 0) ? 1. : -1.; }
 
         avg1  = (qty(i, j, k, qty_index) + qty(i-1, j, k, qty_index));
         diff1 = (qty(i, j, k, qty_index) - qty(i-1, j, k, qty_index));
@@ -80,8 +79,7 @@ InterpolateInY (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
         amrex::Real scaled_upw = 0.;
 
         // The value that comes in has not been normalized so we do that here
-        if (upw != 0.)
-          scaled_upw = (upw > 0) ? 1. : -1.;
+        if (upw != 0.) { scaled_upw = (upw > 0) ? 1. : -1.; }
 
         avg1  = (qty(i, j  , k, qty_index) + qty(i, j-1, k, qty_index));
         diff1 = (qty(i, j  , k, qty_index) - qty(i, j-1, k, qty_index));
@@ -110,8 +108,7 @@ InterpolateInZ (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
         amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
         amrex::Real scaled_upw = 0.;
         // The value that comes in has not been normalized so we do that here
-        if (upw != 0.)
-          scaled_upw = (upw > 0) ? 1. : -1.;
+        if (upw != 0.) { scaled_upw = (upw > 0) ? 1. : -1.; }
 
         avg1  = (qty(i, j, k  , qty_index) + qty(i, j, k-1, qty_index));
         diff1 = (qty(i, j, k  , qty_index) - qty(i, j, k-1, qty_index));
@@ -139,8 +136,7 @@ InterpolatePertFromCell (int i, int j, int k,
     amrex::Real scaled_upw = 0.;
 
     // The value that comes in has not been normalized so we do that here
-    if (upw != 0.)
-        scaled_upw = upw / std::abs(upw);
+    if (upw != 0.) { scaled_upw = (upw > 0) ? 1. : -1.; }
 
     if (coordDir == Coord::x) {
         avg1  = (qty(i  , j, k, qty_index) + qty(i-1, j, k, qty_index));

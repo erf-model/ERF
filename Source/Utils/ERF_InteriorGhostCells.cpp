@@ -119,7 +119,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     Vector<Vector<FArrayBox>>& bdy_data_ylo,
                                     Vector<Vector<FArrayBox>>& bdy_data_yhi)
 {
-    BL_PROFILE_REGION("wrfbdy_compute_interior_ghost_RHS()");
+    BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
 
     // NOTE: We pass the full width into this routine.
     //       For relaxation, the last cell is a halo
@@ -395,11 +395,11 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                     continue;
                 }
 
-                wrfbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
-                                              width, set_width, dom_lo, dom_hi,
-                                              tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                              arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                              data_arr, rhs_arr);
+                realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
+                                               width, set_width, dom_lo, dom_hi,
+                                               tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                               arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                               data_arr, rhs_arr);
             } // mfi
         } // ivar
     } // set_width
@@ -455,11 +455,11 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                     continue;
                 }
 
-                wrfbdy_compute_laplacian_relaxation(icomp, 1,
-                                                    width2, set_width, dom_lo, dom_hi, F1, F2,
-                                                    tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                                    arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                                    data_arr, rhs_arr);
+                realbdy_compute_laplacian_relaxation(icomp, 1,
+                                                     width2, set_width, dom_lo, dom_hi, F1, F2,
+                                                     tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                                     arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                                     data_arr, rhs_arr);
 
                 /*
                 // UNIT TEST DEBUG

@@ -41,9 +41,11 @@ Real ERF::sum_per       = -1.0;
 int  ERF::pert_interval = -1;
 
 // Native AMReX vs NetCDF
-std::string ERF::plotfile_type    = "amrex";
+PlotFileType ERF::plotfile_type_1  = PlotFileType::None;
+PlotFileType ERF::plotfile_type_2  = PlotFileType::None;
 
 InitType ERF::init_type;
+StateInterpType ERF::interpolation_type;
 
 // use_real_bcs: only true if 1) ( (init_type == InitType::Real) or (init_type == InitGrid::Metgrid) )
 //                        AND 2) we want to use the bc's from the WRF bdy file
@@ -194,6 +196,12 @@ ERF::ERF_shared ()
     rU_old.resize(nlevs_max);
     rV_old.resize(nlevs_max);
     rW_old.resize(nlevs_max);
+
+    Omega.resize(nlevs_max);
+
+    // xmom_crse_rhs.resize(nlevs_max);
+    // ymom_crse_rhs.resize(nlevs_max);
+    zmom_crse_rhs.resize(nlevs_max);
 
     for (int lev = 0; lev < nlevs_max; ++lev) {
         vars_new[lev].resize(Vars::NumTypes);
@@ -369,11 +377,11 @@ ERF::Evolve ()
 
         if (writeNow(cur_time, dt[0], step+1, m_plot_int_1, m_plot_per_1)) {
             last_plot_file_step_1 = step+1;
-            WritePlotFile(1,plot_var_names_1);
+            WritePlotFile(1,plotfile_type_1,plot_var_names_1);
         }
         if (writeNow(cur_time, dt[0], step+1, m_plot_int_2, m_plot_per_2)) {
             last_plot_file_step_2 = step+1;
-            WritePlotFile(2,plot_var_names_2);
+            WritePlotFile(2,plotfile_type_2,plot_var_names_2);
         }
 
         if (writeNow(cur_time, dt[0], step+1, m_check_int, m_check_per)) {
@@ -401,10 +409,10 @@ ERF::Evolve ()
 
     // Write plotfiles at final time
     if ( (m_plot_int_1 > 0 || m_plot_per_1 > 0.) && istep[0] > last_plot_file_step_1 ) {
-        WritePlotFile(1,plot_var_names_1);
+        WritePlotFile(1,plotfile_type_1,plot_var_names_1);
     }
     if ( (m_plot_int_2 > 0 || m_plot_per_2 > 0.) && istep[0] > last_plot_file_step_2) {
-        WritePlotFile(2,plot_var_names_2);
+        WritePlotFile(2,plotfile_type_1,plot_var_names_2);
     }
 
     if ( (m_check_int > 0 || m_check_per > 0.) && istep[0] > last_check_file_step) {
@@ -458,8 +466,9 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                 }
             } // mfi
 
-            // This call refluxes from the lev/lev+1 interface onto lev
-            getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], 0, 0, ncomp);
+            // This call refluxes all "slow" cell-centered variables
+            // (i.e. not density or (rho theta) or velocities) from the lev/lev+1 interface onto lev
+            getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], 2, 2, ncomp-2);
 
             // Here we multiply (rho S) by m^2 after refluxing
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -552,7 +561,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         // Copy z_phs_nd and detJ_cc at end of timestep
         MultiFab::Copy(*z_phys_nd[lev], *z_phys_nd_new[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
         MultiFab::Copy(  *detJ_cc[lev],   *detJ_cc_new[lev], 0, 0, 1,   detJ_cc[lev]->nGrowVect());
-        MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,3,1);
+        MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
 
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
@@ -675,24 +684,6 @@ ERF::InitData_post ()
             } // lev
         }
 
-        Real QKE_0;
-        if (pp.query("QKE_0", QKE_0)) {
-            Print() << "Initializing uniform QKE=" << QKE_0 << std::endl;
-            for (int lev = 0; lev <= finest_level; lev++) {
-                auto& lev_new = vars_new[lev];
-                for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box &bx = mfi.tilebox();
-                    const auto &cons_arr = lev_new[Vars::cons].array(mfi);
-                    // We want to set the lateral BC values, too
-                    Box gbx = bx; // Copy constructor
-                    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
-                    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        cons_arr(i,j,k,RhoQKE_comp) = cons_arr(i,j,k,Rho_comp) * QKE_0;
-                    });
-                } // mfi
-            }
-        }
-
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
             AverageDown();
         }
@@ -721,8 +712,10 @@ ERF::InitData_post ()
         restart();
 
         // Create the physbc objects for {cons, u, v, w, base state}
+        // We fill the additional base state ghost cells just in case we have read the old format
         for (int lev(0); lev <= max_level; ++lev) {
             make_physbcs(lev);
+            (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
         }
     }
 
@@ -865,7 +858,11 @@ ERF::InitData_post ()
         }
     }
 
-#ifdef ERF_USE_POISSON_SOLVE
+    //
+    // If we are starting from scratch, we have the option to project the initial velocity field
+    //    regardless of how we initialized.
+    // pp_inc is used as scratch space here; we zero it out after the projection
+    //
     if (restart_chkfile == "")
     {
         // Note -- this projection is only defined for no terrain
@@ -874,12 +871,11 @@ ERF::InitData_post ()
             Real dummy_dt = 1.0;
             for (int lev = 0; lev <= finest_level; ++lev)
             {
-                project_velocities(lev, dummy_dt, vars_new[lev], pp_inc[lev]);
+                project_velocities(lev, dummy_dt, vars_new[lev], Omega[lev], pp_inc[lev]);
                 pp_inc[lev].setVal(0.);
             }
         }
     }
-#endif
 
     // Copy from new into old just in case
     for (int lev = 0; lev <= finest_level; ++lev)
@@ -888,6 +884,18 @@ ERF::InitData_post ()
         auto& lev_old = vars_old[lev];
 
         int ncomp = lev_new[Vars::cons].nComp();
+
+        // ***************************************************************************
+        // Physical bc's at domain boundary
+        // ***************************************************************************
+        IntVect ngvect_cons = vars_new[lev][Vars::cons].nGrowVect();
+        IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
+
+        (*physbcs_cons[lev])(lev_new[Vars::cons],0,ncomp,ngvect_cons,t_new[lev],BCVars::cons_bc,true);
+        (   *physbcs_u[lev])(lev_new[Vars::xvel],0,1    ,ngvect_vels,t_new[lev],BCVars::xvel_bc,true);
+        (   *physbcs_v[lev])(lev_new[Vars::yvel],0,1    ,ngvect_vels,t_new[lev],BCVars::yvel_bc,true);
+        (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
+                             ngvect_vels,t_new[lev],BCVars::zvel_bc,true);
 
         MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp,lev_new[Vars::cons].nGrowVect());
         MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,    1,lev_new[Vars::xvel].nGrowVect());
@@ -920,10 +928,16 @@ ERF::InitData_post ()
         // Fill boundary conditions -- not sure why we need this here
         //
         bool fillset = false;
-        FillPatch(lev, t_new[lev],
-                  {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
-                  {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                  fillset);
+        if (lev == 0) {
+            FillPatch(lev, t_new[lev],
+                      {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
+        } else {
+            FillPatch(lev, t_new[lev],
+                      {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                      {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                      base_state[lev], base_state[lev],
+                      fillset);
+        }
 
         //
         // We do this here to make sure level (lev-1) boundary conditions are filled
@@ -943,8 +957,8 @@ ERF::InitData_post ()
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         // For moving terrain only
-        if (solverChoice.terrain_type != TerrainType::Static) {
-            MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
+        if (solverChoice.terrain_type == TerrainType::Moving) {
+            MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
 
@@ -1082,12 +1096,12 @@ ERF::InitData_post ()
     {
         if (m_plot_int_1 > 0 || m_plot_per_1 > 0.)
         {
-            WritePlotFile(1,plot_var_names_1);
+            WritePlotFile(1,plotfile_type_1,plot_var_names_1);
             last_plot_file_step_1 = istep[0];
         }
         if (m_plot_int_2 > 0 || m_plot_per_2 > 0.)
         {
-            WritePlotFile(2,plot_var_names_2);
+            WritePlotFile(2,plotfile_type_2,plot_var_names_2);
             last_plot_file_step_2 = istep[0];
         }
     }
@@ -1475,8 +1489,46 @@ ERF::ReadParameters ()
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);
 
-        // Output format
-        pp.query("plotfile_type", plotfile_type);
+        // Set default to FullState for now ... later we will try Perturbation
+        interpolation_type = StateInterpType::FullState;
+        pp.query_enum_case_insensitive("interpolation_type"  ,interpolation_type);
+
+        PlotFileType plotfile_type_temp = PlotFileType::None;
+        pp.query_enum_case_insensitive("plotfile_type"  ,plotfile_type_temp);
+        pp.query_enum_case_insensitive("plotfile_type_1",plotfile_type_1);
+        pp.query_enum_case_insensitive("plotfile_type_2",plotfile_type_2);
+        //
+        // This option is for backward consistency -- if only plotfile_type is set,
+        //     then it will be used for both 1 and 2 if and only if they are not set
+        //
+        // Default is native amrex if no type is specified
+        //
+        if (plotfile_type_temp == PlotFileType::None) {
+            if (plotfile_type_1 == PlotFileType::None) {
+                plotfile_type_1  = PlotFileType::Amrex;
+            }
+            if (plotfile_type_2 == PlotFileType::None) {
+                plotfile_type_2  = PlotFileType::Amrex;
+            }
+        } else {
+            if (plotfile_type_1 == PlotFileType::None) {
+                plotfile_type_1  = plotfile_type_temp;
+            } else {
+                amrex::Abort("You must set either plotfile_type or plotfile_type_1, not both");
+            }
+            if (plotfile_type_2 == PlotFileType::None) {
+                plotfile_type_2  = plotfile_type_temp;
+            } else {
+                amrex::Abort("You must set either plotfile_type or plotfile_type_2, not both");
+            }
+        }
+#ifndef ERF_USE_NETCDF
+        if (plotfile_type_1 == PlotFileType::Netcdf ||
+            plotfile_type_2 == PlotFileType::Netcdf) {
+            amrex::Abort("Plotfile type = Netcdf is not allowed without USE_NETCDF = TRUE");
+        }
+#endif
+
         pp.query("plot_file_1",   plot_file_1);
         pp.query("plot_file_2",   plot_file_2);
         pp.query("plot_int_1" , m_plot_int_1);
@@ -1582,7 +1634,7 @@ ERF::ParameterSanityChecks ()
 {
     AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt[0] > 0.);
 
-    // We don't allow use_real_bcs to be true if init_type is not either InitType::Rreal or InitType::Metgrid
+    // We don't allow use_real_bcs to be true if init_type is not either InitType::Real or InitType::Metgrid
     AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == InitType::Real) || (init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
@@ -1600,14 +1652,6 @@ ERF::ParameterSanityChecks ()
                 Abort("You must set cf_width to be a multiple of ref_ratio");
             }
         }
-    }
-
-    if (plotfile_type != "amrex" &&
-        plotfile_type != "netcdf" && plotfile_type != "NetCDF" &&
-        plotfile_type != "hdf5"   && plotfile_type != "HDF5" )
-    {
-        Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
-        Abort("Dont know this plotfile_type");
     }
 
     // If fixed_mri_dt_ratio is set, it must be even
@@ -1680,7 +1724,7 @@ ERF::MakeHorizontalAverages ()
             fab_arr(i, j, k, 1) = cons_arr(i, j, k, RhoTheta_comp) / dens;
             if (!use_moisture) {
                 if (is_anelastic) {
-                    fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
+                    fab_arr(i,j,k,2) = hse_arr(i,j,k,BaseState::p0_comp);
                 } else {
                     fab_arr(i,j,k,2) = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp));
                 }
@@ -1700,7 +1744,7 @@ ERF::MakeHorizontalAverages ()
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real dens = cons_arr(i, j, k, Rho_comp);
                 if (is_anelastic) {
-                    fab_arr(i,j,k,2) = hse_arr(i,j,k,1);
+                    fab_arr(i,j,k,2) = hse_arr(i,j,k,BaseState::p0_comp);
                 } else {
                     Real qv = cons_arr(i, j, k, RhoQ1_comp) / dens;
                     fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
@@ -1800,115 +1844,6 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
     // divide by the total number of cells we are averaging over
     for (int k = 0; k < size_z; ++k) {
         h_havg[k]     /= area_z;
-    }
-}
-
-// Set covered coarse cells to be the average of overlying fine cells for all levels
-void
-ERF::AverageDown ()
-{
-    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
-    int  src_comp = 0;
-    int  num_comp = vars_new[0][Vars::cons].nComp();
-    for (int lev = finest_level-1; lev >= 0; --lev)
-    {
-        AverageDownTo(lev,src_comp,num_comp);
-    }
-}
-
-// Set covered coarse cells to be the average of overlying fine cells at level crse_lev
-void
-ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
-{
-    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
-
-    // ******************************************************************************************
-    // First do cell-centered quantities
-    // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
-    // m is the map scale factor at cell centers
-    // Here we pre-divide (rho S) by m^2 before average down
-    // ******************************************************************************************
-    for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-      for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
-        const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-        if (solverChoice.use_terrain) {
-            const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
-            ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                cons_arr(i,j,k,scomp+n) *= detJ_arr(i,j,k) / (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
-            });
-        } else {
-            ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                cons_arr(i,j,k,scomp+n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
-            });
-        }
-      } // mfi
-    } // lev
-
-    average_down(vars_new[crse_lev+1][Vars::cons],
-                 vars_new[crse_lev  ][Vars::cons],
-                 scomp, ncomp, refRatio(crse_lev));
-
-    // Here we multiply (rho S) by m^2 after average down
-    for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-      for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
-        const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-        if (solverChoice.use_terrain) {
-            const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
-            ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                cons_arr(i,j,k,scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0)) / detJ_arr(i,j,k);
-            });
-        } else {
-            ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                cons_arr(i,j,k,scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
-            });
-        }
-      } // mfi
-    } // lev
-
-    // ******************************************************************************************
-    // Now average down momenta.
-    // Note that vars_new holds velocities not momenta, but we want to do conservative
-    //    averaging so we first convert to momentum, then average down, then convert
-    //    back to velocities -- only on the valid region
-    // ******************************************************************************************
-    for (int lev = crse_lev; lev <= crse_lev+1; lev++)
-    {
-        // FillBoundary for density so we can go back and forth between velocity and momentum
-        vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
-
-        VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::yvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::zvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::cons],
-                             rU_new[lev],
-                             rV_new[lev],
-                             rW_new[lev],
-                           Geom(lev).Domain(),
-                           domain_bcs_type);
-    }
-
-    average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-    average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-    average_down_faces(rW_new[crse_lev+1], rW_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-
-    for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-        MomentumToVelocity(vars_new[lev][Vars::xvel],
-                           vars_new[lev][Vars::yvel],
-                           vars_new[lev][Vars::zvel],
-                           vars_new[lev][Vars::cons],
-                             rU_new[lev],
-                             rV_new[lev],
-                             rW_new[lev],
-                           Geom(lev).Domain(),
-                           domain_bcs_type);
     }
 }
 

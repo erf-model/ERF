@@ -45,10 +45,7 @@
     };
 
 /**
- *  This routine is called before the first step of the time integration, *and* in the case
- *  of a multi-stage method like RK3, this is called from "pre_update_fun" which is called
- *  before every subsequent stage.  Since we advance the variables in conservative form,
- *  we must convert momentum to velocity before imposing the bcs.
+ *  This routine is called after the scalars are updated for each RK stage
  */
     auto apply_bcs = [&](Vector<MultiFab>& S_data,
                          const Real time_for_fp, int ng_cons, int ng_vel,

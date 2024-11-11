@@ -32,6 +32,7 @@ using namespace amrex;
  * @param[in] xmom_src source terms for x-momentum
  * @param[in] ymom_src source terms for y-momentum
  * @param[in] zmom_src source terms for z-momentum
+ * @param[in] zmom_crse_rhs update term from coarser level for z-momentum; non-zero on c/f boundary only
  * @param[in] Tau11 tau_11 component of stress tensor
  * @param[in] Tau22 tau_22 component of stress tensor
  * @param[in] Tau33 tau_33 component of stress tensor
@@ -81,6 +82,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& xmom_src,
                        const MultiFab& ymom_src,
                        const MultiFab& zmom_src,
+                       const MultiFab* zmom_crse_rhs,
                        MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
@@ -105,9 +107,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<MultiFab>& az,
                        std::unique_ptr<MultiFab>& detJ,
                        const MultiFab* p0,
-#ifdef ERF_USE_POISSON_SOLVE
                        const MultiFab& pp_inc,
-#endif
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
@@ -167,6 +167,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     AMREX_ALWAYS_ASSERT(!l_use_terrain  || !l_anelastic);
 
     const Box& domain = geom.Domain();
+    const int domlo_z = domain.smallEnd(2);
     const int domhi_z = domain.bigEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
@@ -296,10 +297,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
         Array4<const Real> z_t;
-        if (z_t_mf)
+        if (z_t_mf) {
             z_t = z_t_mf->array(mfi);
-        else
+        } else {
             z_t = Array4<const Real>{};
+        }
 
         const Array4<Real>& rho_u_rhs = S_rhs[IntVars::xmom].array(mfi);
         const Array4<Real>& rho_v_rhs = S_rhs[IntVars::ymom].array(mfi);
@@ -357,11 +359,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             });
         }
 
-#ifdef ERF_USE_POISSON_SOLVE
         const Array4<const Real>& pp_arr = (l_anelastic) ? pp_inc.const_array(mfi) : pprime.const_array();
-#else
-        const Array4<const Real>& pp_arr = pprime.const_array();
-#endif
 
         // *****************************************************************************
         // Contravariant flux field
@@ -369,8 +367,16 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
         BL_PROFILE("slow_rhs_making_omega");
             Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,1));
+            //
             // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
-            if (l_use_terrain) {
+            // ONLY if not doing anelastic + terrain -- in that case Omega will be defined coming
+            // out of the projection
+            //
+            if (!l_use_terrain) {
+                ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = rho_w(i,j,k);
+                });
+            } else if (!l_anelastic) {
 
                 Box gbxo_lo = gbxo; gbxo_lo.setBig(2,domain.smallEnd(2));
                 int lo_z_face = domain.smallEnd(2);
@@ -387,7 +393,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     });
                 }
 
-                if (z_t) {
+                if (z_t) { // Note we never do anelastic with moving terrain
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                     ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
@@ -407,10 +413,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
                     });
                 }
-            } else {
-                ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    omega_arr(i,j,k) = rho_w(i,j,k);
-                });
             }
         } // end profile
 
@@ -742,6 +744,31 @@ void erf_slow_rhs_pre (int level, int finest_level,
                  rho_w_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
             }
         });
+
+        auto const lo = lbound(bx);
+        auto const hi = ubound(bx);
+
+        // Note: the logic below assumes no tiling in z!
+        if (level > 0) {
+
+            const Array4<const Real>& rho_w_rhs_crse = zmom_crse_rhs->const_array(mfi);
+
+            Box b2d = bx; b2d.setRange(2,0);
+
+            if (lo.z > domlo_z) {
+                ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int ) // bottom of box but not of domain
+                {
+                    rho_w_rhs(i,j,lo.z) = rho_w_rhs_crse(i,j,lo.z);
+                });
+            }
+
+            if (hi.z < domhi_z+1) {
+                ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int ) // top of box but not of domain
+                {
+                    rho_w_rhs(i,j,hi.z+1) = rho_w_rhs_crse(i,j,hi.z+1);
+                });
+            }
+        }
 
         {
         BL_PROFILE("slow_rhs_pre_fluxreg");

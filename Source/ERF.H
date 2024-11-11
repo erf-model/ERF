@@ -79,6 +79,22 @@ AMREX_ENUM(InitType,
 );
 
 /**
+ * Enum of possible interpolation types between coarse/fine
+*/
+AMREX_ENUM(StateInterpType,
+    FullState, Perturbational
+);
+
+/**
+ * Enum of possible plotfile types
+*/
+AMREX_ENUM(PlotFileType,
+    None, Amrex, Netcdf, HDF5
+);
+
+
+#if 0
+/**
  * Enum of possible coarse/fine interpolation options
 */
 namespace InterpType {
@@ -94,6 +110,7 @@ namespace InterpType {
         FaceConserativeLinear
     };
 }
+#endif
 
 /**
  * Main class in ERF code, instantiated from main.cpp
@@ -147,10 +164,12 @@ public:
 #endif
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
-    void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
+    void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
+                             amrex::MultiFab& Omega, amrex::MultiFab& p);
 
     // Project the velocities to be divergence-free with a thin body
-    void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
+    void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
+                                amrex::MultiFab& Omega, amrex::MultiFab& p);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
@@ -318,7 +337,7 @@ public:
     void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
     // write plotfile to disk
-    void WritePlotFile  (int which, amrex::Vector<std::string> plot_var_names);
+    void WritePlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -348,7 +367,7 @@ public:
                                                 const std::string &mfPrefix) const;
 
     void erf_enforce_hse (int lev,
-                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
+                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi, amrex::MultiFab& th,
                           std::unique_ptr<amrex::MultiFab>& z_cc);
 
 #ifdef ERF_USE_NETCDF
@@ -427,7 +446,8 @@ public:
                        amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
                        amrex::MultiFab& mf_vars_windfarm,
                        const amrex::MultiFab& mf_Nturb,
-                       const amrex::MultiFab& mf_SMark);
+                       const amrex::MultiFab& mf_SMark,
+                       const amrex::Real& time);
 #endif
 
 #ifdef ERF_USE_EB
@@ -439,6 +459,15 @@ public:
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
+
+    // write checkpoint file to disk
+    void WriteCheckpointFile () const;
+
+    // read checkpoint file from disk
+    void ReadCheckpointFile ();
+
+    // read checkpoint file from disk -- called after instantiating m_most
+    void ReadCheckpointFileMOST ();
 
 private:
 
@@ -498,9 +527,17 @@ private:
     //
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
     //
+    // This one works only at level = 0 (base state does not change)
+    void FillPatch (int lev, amrex::Real time,
+                    const amrex::Vector<amrex::MultiFab*>& mfs_vel,
+                    bool cons_only=false);
+
+    // This one works only at level > 0 (base state does change)
     void FillPatch (int lev, amrex::Real time,
                     const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                     const amrex::Vector<amrex::MultiFab*>& mfs_mom,
+                    const amrex::MultiFab& old_base_state,
+                    const amrex::MultiFab& new_base_state,
                     bool fillset=true, bool cons_only=false);
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
@@ -629,15 +666,6 @@ private:
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
 
-    // write checkpoint file to disk
-    void WriteCheckpointFile () const;
-
-    // read checkpoint file from disk
-    void ReadCheckpointFile ();
-
-    // read checkpoint file from disk -- called after instantiating m_most
-    void ReadCheckpointFileMOST ();
-
     // Read the file passed to amr.restart and use it as an initial condition for
     // the current simulation. Supports a different number of components and
     // ghost cells.
@@ -704,6 +732,13 @@ private:
     amrex::Vector<amrex::MultiFab> rV_new;
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
+
+    // Normal momentum on z-face
+    amrex::Vector<amrex::MultiFab> Omega;
+
+    // amrex::Vector<amrex::MultiFab> xmom_crse_rhs;
+    // amrex::Vector<amrex::MultiFab> ymom_crse_rhs;
+    amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
 
     std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
@@ -887,12 +922,12 @@ private:
 
     amrex::Vector<std::string> plot_var_names_1;
     amrex::Vector<std::string> plot_var_names_2;
-    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0",
+    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoadv_0",
                                                      "rhoQ1", "rhoQ2", "rhoQ3",
                                                      "rhoQ4", "rhoQ5", "rhoQ6"};
 
     // Note that the order of variable names here must match the order in ERF_Derive.cpp
-    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
+    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
@@ -906,7 +941,7 @@ private:
                                                     // eddy diffusivity of heat
                                                     "Khv","Khh",
                                                     // mynn pbl lengthscale
-                                                    "Lpbl",
+                                                    "Lturb",
                                                     // moisture vars
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum"
@@ -964,10 +999,12 @@ private:
     static int pert_interval;
     static amrex::Real sum_per;
 
-    // Native or NetCDF
-    static std::string plotfile_type;
+    // Write in native AMReX or NetCDF format for each plotfile
+    static PlotFileType plotfile_type_1;
+    static PlotFileType plotfile_type_2;
 
     static InitType init_type;
+    static StateInterpType interpolation_type;
 
     // sponge_type:  "input_sponge"
     static std::string sponge_type;

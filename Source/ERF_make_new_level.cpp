@@ -47,7 +47,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // Define dmap[lev] to be dm
     SetDistributionMap(lev, dm);
 
-    amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+    if (verbose) {
+        amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+    }
 
     if (lev == 0) init_bcs();
 
@@ -60,11 +62,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 #else
     m_factory[lev] = std::make_unique<FArrayBoxFactory>();
 #endif
-
-    // The number of ghost cells for density must be 1 greater than that for velocity
-    //     so that we can go back in forth between velocity and momentum on all faces
-    // int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
-    // int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
@@ -179,7 +176,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 {
     AMREX_ALWAYS_ASSERT(lev > 0);
 
-    // amrex::Print() <<" NEW BA FROM COARSE AT LEVEL " << lev << " " << ba << std::endl;
+    if (verbose) {
+        amrex::Print() <<" NEW BA FROM COARSE AT LEVEL " << lev << " " << ba << std::endl;
+    }
 
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
@@ -232,7 +231,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //
     InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
                           IntVect(0,0,0), // do not fill ghost cells outside the domain
-                          base_state[lev-1], 0, 0, 3,
+                          base_state[lev-1], 0, 0, base_state[lev].nComp(),
                           geom[lev-1], geom[lev],
                           refRatio(lev-1), &cell_cons_interp,
                           domain_bcs_type, BCVars::cons_bc);
@@ -283,7 +282,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
-    amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
+    if (verbose) {
+        amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
+    }
 
     AMREX_ALWAYS_ASSERT(lev > 0);
     AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::Moving);
@@ -291,12 +292,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
     DistributionMapping dm_old(vars_new[lev][Vars::cons].DistributionMap());
 
-    // amrex::Print() <<"               OLD BA AT LEVEL " << lev << " " << ba_old << std::endl;
+    if (verbose) {
+        amrex::Print() <<"               OLD BA AT LEVEL " << lev << " " << ba_old << std::endl;
+    }
 
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
 
-    // int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
     int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
 
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
@@ -332,42 +334,40 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // *****************************************************************************************************
     make_physbcs(lev);
 
-    // *************************************************************************************************
-    // This will fill the temporary MultiFabs with data from vars_new
-    // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
-    // *************************************************************************************************
-    FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
-                         {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                          false);
-
     // ********************************************************************************************
     // Update the base state at this level by interpolation from coarser level AND copy
     //    from previous (pre-regrid) base_state array
     // ********************************************************************************************
-    if (lev > 0) {
-        // Interp all three components: rho, p, pi
-        int  icomp = 0; int bccomp = 0; int  ncomp = 3;
+    Interpolater* mapper = &cell_cons_interp;
 
-        Interpolater* mapper = &cell_cons_interp;
+    Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
+    Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
+    Vector<Real> ftime    = {time, time};
+    Vector<Real> ctime    = {time, time};
 
-        Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
-        Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
-        Vector<Real> ftime    = {time, time};
-        Vector<Real> ctime    = {time, time};
+    // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
+    FillPatchTwoLevels(temp_base_state, temp_base_state.nGrowVect(), IntVect(0,0,0),
+                       time, cmf, ctime, fmf, ftime,
+                       0, 0, temp_base_state.nComp(), geom[lev-1], geom[lev],
+                       refRatio(lev-1), mapper, domain_bcs_type,
+                       BCVars::base_bc);
 
-        // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
-        FillPatchTwoLevels(temp_base_state, temp_base_state.nGrowVect(), IntVect(0,0,0),
-                           time, cmf, ctime, fmf, ftime,
-                           0, 0, temp_base_state.nComp(), geom[lev-1], geom[lev],
-                           refRatio(lev-1), mapper, domain_bcs_type,
-                           BCVars::base_bc);
+    // Impose bc's outside the domain
+    (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
 
-        // Impose bc's outside the domain
-        (*physbcs_base[lev])(temp_base_state,icomp,ncomp,base_state[lev].nGrowVect(),time,bccomp);
+    // *************************************************************************************************
+    // This will fill the temporary MultiFabs with data from vars_new
+    // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
+    // NOTE: we must create the new base state before calling FillPatch because we will
+    //       interpolate perturbational quantities
+    // *************************************************************************************************
+    FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
+                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
+                         {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                         base_state[lev], temp_base_state, false);
 
-        std::swap(temp_base_state, base_state[lev]);
-    }
+    // Now swap the pointers since we needed both old and new in the FillPatch
+    std::swap(temp_base_state, base_state[lev]);
 
     // ********************************************************************************************
     // Copy from new into old just in case
@@ -447,6 +447,12 @@ ERF::ClearLevel (int lev)
     rV_old[lev].clear();
     rW_new[lev].clear();
     rW_old[lev].clear();
+
+    Omega[lev].clear();
+
+    if (lev > 0) {
+        zmom_crse_rhs[lev].clear();
+    }
 
     if (solverChoice.anelastic[lev] == 1) {
         pp_inc[lev].clear();

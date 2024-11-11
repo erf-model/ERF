@@ -50,6 +50,7 @@ void erf_make_tau_terms (int level, int nrk,
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
+    const bool use_ddorf        = (tc.les_type == LESType::Deardorff);
 
     const bool use_most     = (most != nullptr);
     const bool exp_most     = (solverChoice.use_explicit_most);
@@ -232,11 +233,14 @@ void erf_make_tau_terms (int level, int nrk,
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (tc.les_type == LESType::Deardorff)) {
+                if ((nrk==0) && (use_ddorf)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most,exp_most);
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
+                                                        s11,s22,s33,
+                                                        s12,s13,s23,
+                                                        domlo_z,use_most,exp_most);
                     });
                 }
 
@@ -344,11 +348,14 @@ void erf_make_tau_terms (int level, int nrk,
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (tc.les_type == LESType::Deardorff)) {
+                if ((nrk==0) && (use_ddorf)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most,exp_most);
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
+                                                        s11,s22,s33,
+                                                        s12,s13,s23,
+                                                        domlo_z,use_most,exp_most);
                     });
                 }
 
