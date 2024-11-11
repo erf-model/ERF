@@ -20,8 +20,8 @@ void SDInitialization::setDefaults ( const std::vector<std::unique_ptr<MaterialP
         m_mass_aerosol_min[i]   = 0.0;
         m_mass_aerosol_max[i]   = 0.0;
         m_mass_aerosol_mean[i]  = 0.0;
-        m_radius_aerosol_min[i] = 1.0e-40;
-        m_radius_aerosol_max[i] = 1.0e-40;
+        m_radius_aerosol_min[i] = 1.0e-9;
+        m_radius_aerosol_max[i] = 1.0e-6;
         m_radius_aerosol_mean[i] = 1.0e-40;
         m_radius_aerosol_std[i] = 1.0;
     }
