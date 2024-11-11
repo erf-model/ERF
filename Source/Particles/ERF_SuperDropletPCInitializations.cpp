@@ -511,7 +511,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 p.idata(SuperDropletsIntIdxAoS::k) = k;
 
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = 0.0;
-                auto mult_this_sd = mult_arr[n] * mult_scale;
+                auto mult_this_sd = std::ceil(mult_arr[n] * mult_scale);
                 if (mult_this_sd < num_to_add) {
                     mult_ptr[n] = mult_this_sd;
                     num_to_add -= mult_this_sd;

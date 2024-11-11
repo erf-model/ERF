@@ -191,9 +191,12 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
         std::mt19937 rng(rd());
         std::uniform_real_distribution<> urd(0.0, 1.0);
         auto delta = m_mass_aerosol_mean[a_idx] - m_mass_aerosol_min[a_idx];
+        auto lnrng = std::log(m_mass_aerosol_max[a_idx] - m_mass_aerosol_min[a_idx]);
+        auto lnmin = std::log(m_mass_aerosol_min[a_idx]);
+        auto tmp = 0.0;
         for (int n = 0; n < a_np; n++) {
-            a_aerosol_mass[n] = m_mass_aerosol_min[a_idx]
-                                + urd(rng) * (m_mass_aerosol_max[a_idx] - m_mass_aerosol_min[a_idx]);
+            tmp = lnmin + urd(rng) * lnrng;
+            a_aerosol_mass[n] = std::exp(tmp);
             a_multiplicity[n] += std::exp(-a_aerosol_mass[n] / delta);
         }
     } else if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_lnr) {
@@ -202,11 +205,16 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
         std::uniform_real_distribution<> urd(0.0, 1.0);
         auto sigma = m_radius_aerosol_std[a_idx];
         auto mu = m_radius_aerosol_mean[a_idx];
+        auto lnrng = std::log(m_mass_aerosol_max[a_idx] - m_mass_aerosol_min[a_idx]);
+        auto lnmin = std::log(m_mass_aerosol_min[a_idx]);
+        auto tmp = 0.0;
+        auto dry_r = 0.0;
         for (int n = 0; n < a_np; n++) {
-            auto dry_r = m_radius_aerosol_min[a_idx] + urd(rng)*(m_radius_aerosol_max[a_idx]-m_radius_aerosol_min[a_idx]);
+            tmp = lnmin + urd(rng) * lnrng;
+            dry_r = std::exp(tmp);
             a_aerosol_mass[n] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
-            auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
-            a_multiplicity[n] += 1.0 / (sigma*std::sqrt(2*PI)*dry_r) * term;
+            tmp = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
+            a_multiplicity[n] += 1.0 / (sigma*std::sqrt(2*PI)*dry_r) * tmp;
         }
     } else {
         amrex::Abort("Unknown m_aerosol_init_type!");
