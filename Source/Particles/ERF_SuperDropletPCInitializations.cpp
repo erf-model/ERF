@@ -436,6 +436,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data() + size_old;
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data() + size_old;
         auto* tcoal_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::t_coalescence).data() + size_old;
+        auto* uid_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::uid).data() + size_old;
 
         GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
         for (int i = 0; i < n_aerosols; i++) {
@@ -525,6 +526,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 supdrop_mass_ptr[n] = mass_ptr[n]*multiplicity;
                 vterm_ptr[n] = 0.0;
                 tcoal_ptr[n] = 0.0;
+                uid_ptr[n] = ParticleReal(pid+n);
             }
 
             /* Seed particles */
