@@ -54,6 +54,7 @@ namespace HSEutils
             Real lo = getRhogivenThetaPress(T, P - eps, RdOCp, qv);
             Real dFdp = 1.0 + 0.25*ieps*(hi - lo)*g*dz;
             P -= F/dFdp;
+            if (P < 1.0e3) amrex::Warning("P < 1000 [Pa]; Domain height may be too large...");
             AMREX_ALWAYS_ASSERT(P > 0.0);
 
             // Diagnose density and residual

@@ -96,8 +96,6 @@ or if using tcsh,
    +--------------------+------------------------------+------------------+-------------+
    | USE_PARTICLES      | Whether to enable particles  | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
-   | USE_POISSON_SOLVE  | Whether to enable anelastic  | TRUE / FALSE     | FALSE       |
-   +--------------------+------------------------------+------------------+-------------+
    | USE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
    | USE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
@@ -112,9 +110,6 @@ or if using tcsh,
    +--------------------+------------------------------+------------------+-------------+
    | TRACE_PROFILE      | Include trace profiling info | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
-
-   .. note::
-      **To run with the anelastic option, USE_POISSON_SOLVE must be set to TRUE.**
 
    .. note::
       **At most one of USE_OMP, USE_CUDA, USE_HIP, USE_SYCL should be set to true.**
@@ -192,8 +187,6 @@ Analogous to GNU Make, the list of cmake directives is as follows:
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_PARTICLES      | Whether to enable particles  | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_POISSON_SOVLE  | Whether to enable anelastic  | TRUE / FALSE     | FALSE       |
-   +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
@@ -204,9 +197,6 @@ Analogous to GNU Make, the list of cmake directives is as follows:
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_FCOMPARE       | Whether to enable fcompare   | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
-
-   .. note::
-      **To run with the anelastic option, ERF_ENABLE_POISSON_SOLVE must be set to TRUE.**
 
    .. note::
       **At most one of ERF_ENABLE_OMP, ERF_ENABLE_CUDA, ERF_ENABLE_HIP and ERF_ENABLE_SYCL should be set to true.**
