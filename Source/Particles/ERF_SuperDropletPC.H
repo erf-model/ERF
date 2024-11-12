@@ -26,6 +26,7 @@ struct SuperDropletsRealIdxSoA_RT
         sd_mass,        /*!< Superdroplet mass */
         term_vel,       /*!< Terminal velocity */
         t_coalescence,  /*!< Coalescence time scale */
+        uid,            /*!< unique ID */
         ncomps
     };
 };
