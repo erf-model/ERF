@@ -164,10 +164,12 @@ public:
 #endif
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
-    void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
+    void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
+                             amrex::MultiFab& Omega, amrex::MultiFab& p);
 
     // Project the velocities to be divergence-free with a thin body
-    void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
+    void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
+                                amrex::MultiFab& Omega, amrex::MultiFab& p);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
@@ -730,6 +732,9 @@ private:
     amrex::Vector<amrex::MultiFab> rV_new;
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
+
+    // Normal momentum on z-face
+    amrex::Vector<amrex::MultiFab> Omega;
 
     // amrex::Vector<amrex::MultiFab> xmom_crse_rhs;
     // amrex::Vector<amrex::MultiFab> ymom_crse_rhs;

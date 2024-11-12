@@ -183,8 +183,6 @@ void ERF::advance_dycore(int level,
     } // l_use_diff
     } // profile
 
-    MultiFab Omega (state_old[IntVars::zmom].boxArray(),dm,1,1);
-
 #include "ERF_TI_utils.H"
 
     // Additional SFS quantities, calculated once per timestep

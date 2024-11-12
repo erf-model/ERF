@@ -448,6 +448,8 @@ ERF::ClearLevel (int lev)
     rW_new[lev].clear();
     rW_old[lev].clear();
 
+    Omega[lev].clear();
+
     if (lev > 0) {
         zmom_crse_rhs[lev].clear();
     }

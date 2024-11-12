@@ -1,0 +1,44 @@
+HyperCLaw-V1.1
+16
+density
+rhotheta
+rhoQ1
+rhoQ2
+rhoQ3
+x_velocity
+y_velocity
+z_velocity
+temp
+theta
+pressure
+pert_dens
+qv
+qc
+qrain
+rain_accum
+3
+2.5
+0
+-15000 0 0 
+15000 100 24000 
+
+((0,0,0) (299,0,239) (0,0,0)) 
+10 
+100 100 100 
+0
+0
+0 4 2.5
+10
+-15000 -7500
+0 100
+0 24000
+-7500 0
+0 100
+0 24000
+0 7500
+0 100
+0 24000
+7500 15000
+0 100
+0 24000
+Level_0/Cell
