@@ -191,7 +191,7 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
         std::mt19937 rng(rd());
         std::uniform_real_distribution<> urd(0.0, 1.0);
         auto delta = m_mass_aerosol_mean[a_idx] - m_mass_aerosol_min[a_idx];
-        auto lnrng = std::log(m_mass_aerosol_max[a_idx] - m_mass_aerosol_min[a_idx]);
+        auto lnrng = std::log(m_mass_aerosol_max[a_idx]) - std::log(m_mass_aerosol_min[a_idx]);
         auto lnmin = std::log(m_mass_aerosol_min[a_idx]);
         for (int n = 0; n < a_np; n++) {
             auto tmp = lnmin + urd(rng) * lnrng;
@@ -204,7 +204,7 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
         std::uniform_real_distribution<> urd(0.0, 1.0);
         auto sigma = m_radius_aerosol_std[a_idx];
         auto mu = m_radius_aerosol_mean[a_idx];
-        auto lnrng = std::log(m_radius_aerosol_max[a_idx] - m_radius_aerosol_min[a_idx]);
+        auto lnrng = std::log(m_radius_aerosol_max[a_idx]) - std::log(m_radius_aerosol_min[a_idx]);
         auto lnmin = std::log(m_radius_aerosol_min[a_idx]);
         for (int n = 0; n < a_np; n++) {
             auto tmp = lnmin + urd(rng) * lnrng;
