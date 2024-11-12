@@ -1,0 +1,38 @@
+HyperCLaw-V1.1
+10
+density
+x_velocity
+y_velocity
+z_velocity
+theta
+pres_hse
+dens_hse
+pressure
+pert_pres
+pert_dens
+3
+10
+0
+0 0 0 
+25600 100 6400 
+
+((0,0,0) (255,0,63) (0,0,0)) 
+10 
+100 100 100 
+0
+0
+0 4 10
+10
+0 6400
+0 100
+0 6400
+6400 12800
+0 100
+0 6400
+12800 19200
+0 100
+0 6400
+19200 25600
+0 100
+0 6400
+Level_0/Cell

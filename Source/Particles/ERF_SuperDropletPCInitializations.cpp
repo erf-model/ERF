@@ -409,6 +409,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         auto& particle_tile = DefineAndReturnParticleTile(m_lev, mfi);
 
         auto my_proc = ParallelDescriptor::MyProc();
+        auto nprocs = ParallelDescriptor::NProcs();
         Long pid;
         {
             pid = ParticleType::NextID();
@@ -540,7 +541,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 supdrop_mass_ptr[n] = mass_ptr[n]*mult_ptr[n];
                 vterm_ptr[n] = 0.0;
                 tcoal_ptr[n] = 0.0;
-                uid_ptr[n] = ParticleReal(pid+n);
+                uid_ptr[n] = ParticleReal((pid+n-1)*nprocs + my_proc + 1);
             }
 
             /* Seed particles */

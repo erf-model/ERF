@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 40000
-stop_time = 10000.0
+max_step = 28800
+stop_time = 14400.0
 
 amrex.fpe_trap_invalid = 1
 
@@ -22,8 +22,8 @@ zlo.type = "SlipWall"
 zhi.type = "HO_Outflow"
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 0.25      # fixed time step [s] -- Straka et al 1993
-erf.fixed_fast_dt  = 0.125     # fixed time step [s] -- Straka et al 1993
+erf.fixed_dt       = 0.5      # fixed time step [s] -- Straka et al 1993
+erf.fixed_fast_dt  = 0.25     # fixed time step [s] -- Straka et al 1993
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -40,7 +40,7 @@ amr.check_int       = 1000       # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1         = plt        # root name of plotfile
-erf.plot_int_1          = 240         # number of timesteps between plotfiles
+erf.plot_int_1          = 120         # number of timesteps between plotfiles
 erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_velocity z_velocity pressure theta temp qv qc qrain rain_accum pert_dens
 
 # SOLVER CHOICE
@@ -59,26 +59,12 @@ erf.les_type = "None"
 erf.molec_diff_type = "ConstantAlpha"
 #erf.molec_diff_type = "Constant"
 erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 66.67 # [kg/(m-s)] ==> nu = 75.0 m^2/s
-erf.alpha_T = 66.67 # [m^2/s]
-erf.alpha_C = 66.67
+erf.dynamicViscosity = 33.33 # [kg/(m-s)] ==> nu = 75.0 m^2/s
+erf.alpha_T = 33.33 # [m^2/s]
+erf.alpha_C = 33.33
 
 erf.moisture_model = "Kessler"
 erf.use_moist_background = true
-
-#erf.dycore_horiz_adv_type    = Upwind_3rd
-#erf.dycore_vert_adv_type     = Upwind_3rd
-#erf.dryscal_horiz_adv_type   = WENOZ5
-#erf.dryscal_vert_adv_type    = WENOZ5
-#erf.moistscal_horiz_adv_type = WENOZ5
-#erf.moistscal_vert_adv_type  = WENOZ5
-
-erf.dycore_horiz_adv_type    = Centered_4th
-erf.dycore_vert_adv_type     = Centered_4th
-erf.dryscal_horiz_adv_type   = Centered_4th
-erf.dryscal_vert_adv_type    = Centered_4th
-erf.moistscal_horiz_adv_type = Centered_4th
-erf.moistscal_vert_adv_type  = Centered_4th
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0
