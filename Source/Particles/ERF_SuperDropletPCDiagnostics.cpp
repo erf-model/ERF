@@ -18,7 +18,8 @@ Vector<std::string> SuperDropletPC::varNames () const
                                             "multiplicity",
                                             "superdroplet_mass",
                                             "terminal_velocity",
-                                            "t_coalescence" };
+                                            "t_coalescence",
+                                            "uid" };
     for (int i = 0; i < m_num_aerosols; i++) {
         retval.push_back(std::string("aerosol_mass_"+m_aerosol_mat[i]->name()));
     }
