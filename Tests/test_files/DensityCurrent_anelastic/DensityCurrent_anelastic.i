@@ -1,0 +1,64 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 10
+
+erf.anelastic   = 1
+
+erf.check_file  = chk
+erf.plot_file_1 = plt
+
+erf.buoyancy_type = 2
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     =      0.   0.    0.
+geometry.prob_hi     =  25600. 100.  6400.
+
+xlo.type = "Symmetry"
+xhi.type = "Outflow"
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+geometry.is_periodic = 0 1 0
+
+amr.max_level       = 0       # maximum level number allowed
+
+amr.n_cell         = 256 1 64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+erf.fixed_dt       = 1.0        # fixed time step [s] -- Straka et al 1993
+erf.fixed_fast_dt  = 0.25       # fixed time step [s] -- Straka et al 1993
+erf.plot_int_1     = 300        # number of timesteps between plotfiles
+erf.check_int      =-1000       # number of timesteps between checkpoints
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   =-1       # timesteps between computing mass
+erf.v              = 0       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# CHECKPOINT FILES
+
+# PLOTFILES
+erf.plotfile_type   = amrex       # prefix of plotfile name
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens
+
+# SOLVER CHOICE
+erf.use_gravity  = true
+erf.use_coriolis = false
+erf.use_terrain  = false
+
+erf.les_type         = "None"
+#
+# Diffusion coefficient from Straka, K = 75 m^2/s
+#
+erf.molec_diff_type  = "ConstantAlpha" # where alpha == "K" in Straka et al 1993
+erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities
+erf.dynamicViscosity = 75.0 # [kg/(m-s)] ==> alpha = 75.0 m^2/s
+erf.alpha_T          = 75.0 # [m^2/s]
+
+erf.c_p = 1004.0
+
+# PROBLEM PARAMETERS (optional)
+prob.T_0 = 300.0
+prob.U_0 = 0.0

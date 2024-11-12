@@ -1,0 +1,76 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 3000000
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     = -72000. 0.     0. 
+geometry.prob_hi     =  72000. 1. 20000. # zhi not used with grid stretching
+amr.n_cell           =   288  1   200
+
+geometry.is_periodic = 0 1 0
+
+#erf.initial_dz = 10
+#erf.grid_stretching_ratio = 1.03
+
+erf.terrain_z_levels = 0.000000 0.100000 0.160723 0.224482 0.291429 0.361724 0.435533 0.513033 0.594408 0.679851 0.769567 0.863768 0.962680 1.066537 1.175587 1.290089 1.410317 1.536555 1.669106 1.808285 1.954422 2.107866 2.268982 2.438155 2.615785 2.802298 2.998136 3.203766 3.419677 3.646384 3.884426 4.134370 4.396812 4.672376 4.961718 5.265527 5.584526 5.919475 6.271172 6.640454 7.028200 7.435333 7.862822 8.311686 8.782994 9.277867 9.797483 10.343080 10.915957 11.517478 12.149075 12.812252 13.508588 14.239740 15.007450 15.813546 16.659946 17.548666 18.481823 19.461637 20.490442 21.570687 22.704945 23.895915 25.146434 26.459478 27.838175 29.285807 30.805821 32.401835 34.077649 35.837255 37.684841 39.624806 41.661769 43.800581 46.046333 48.404373 50.880314 53.480053 56.209779 59.075991 62.085513 65.245512 68.563511 72.047410 75.705503 79.546501 83.579549 87.814250 92.260685 96.929443 101.831638 106.978943 112.383613 118.058517 124.017166 130.273747 136.843158 143.741039 150.983814 158.588727 166.573887 174.958304 183.761942 193.005763 202.711774 212.903086 223.603963 234.839884 246.637601 259.025205 272.032188 285.689520 300.029719 315.086928 330.896998 347.497571 364.928172 383.230304 402.447542 422.625643 443.812648 466.059003 489.417676 513.944283 539.697221 566.737805 595.130418 624.942662 656.245518 689.113517 723.624916 759.861885 797.910702 837.861960 879.810781 923.857043 970.105619 1018.666623 1069.655677 1123.194184 1179.409616 1238.435820 1300.413334 1365.489724 1433.819933 1505.566653 1580.900708 1660.001467 1743.057263 1830.265850 1921.834865 2017.982331 2118.937171 2224.939753 2336.242463 2453.110310 2575.821548 2704.668349 2839.957489 2982.011087 3131.167364 3287.781455 3452.226251 3624.893287 3806.193674 3996.559081 4196.442758 4406.320619 4626.692373 4858.082715 5101.042574 5356.150425 5624.013670 5905.270076 6200.589303 6510.674491 6836.263939 7178.132859 7537.095225 7914.005709 8309.761718 8725.305527 9161.626526 9619.763575 10100.807477 10605.903574 11136.254476 11693.122923 12277.834792 12891.782255 13536.427091 14213.304168 14924.025100 15670.282078 16453.851905 17276.600223 18140.485957 19047.565978 20000.000000
+
+xlo.type = "Inflow"
+xhi.type = "Outflow"
+xlo.velocity = 10. 0. 0.
+#xlo.density  = 1.0
+#xlo.theta    = 300.
+#xlo.scalar   = 0.
+    
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+#zhi.theta_grad = 0.003
+
+# TIME STEP CONTROL
+#erf.substepping_type  = None
+erf.fixed_mri_dt_ratio = 4
+erf.fixed_dt           = 0.03
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1        # timesteps between computing mass
+erf.v              = 1        # verbosity in ERF.cpp
+amr.v              = 1        # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 1000    # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 5000     # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pert_pres pert_dens
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.use_coriolis = false
+erf.les_type = "None"
+
+erf.molec_diff_type = "None"
+#erf.dynamicViscosity = 1e-5 # [kg/(m-s)]
+
+erf.rayleigh_damp_W = true
+erf.rayleigh_zdamp = 5000.0
+erf.rayleigh_dampcoef = 0.2
+
+erf.init_type = "input_sounding"
+erf.init_sounding_ideal = true
+
+# TERRRAIN GRID TYPE
+erf.use_terrain = 1
+#erf.terrain_smoothing = 1 # Smoothed Terrain Following coords (Klemp 2011)
+#erf.terrain_gamma_m = 0.5
+erf.terrain_smoothing = 2 # Sullivan TF
+
+# PROBLEM PARAMETERS
+prob.hmax  = 1.0  # full hill height
+prob.L     = 1000.0 # hill length at half-height

@@ -137,6 +137,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         pp_inc[lev].setVal(0.0);
     }
 
+    // We keep Omega as a persistent variable now in order to use the projected Omega
+    // directly rather than calculating it again from (u,v,w)
+    Omega[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
+    Omega[lev].setVal(5.6e23);
+
     // ********************************************************************************************
     // These are just used for scratch in the time integrator but we might as well define them here
     // ********************************************************************************************
