@@ -274,20 +274,20 @@ void make_sources (int level,
                 const int nr = Rho_comp;
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
+                    Real dzInv = (z_cc_arr) ? 1.0/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : 0.5*dxInv[2];
                     Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
                     Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
                     Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * wbar_cc *
-                                            0.5 * (T_hi - T_lo) * dxInv[2];
+                    cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * wbar_cc * (T_hi - T_lo) * dzInv;
                 });
             } else {
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
+                    Real dzInv = (z_cc_arr) ? 1.0/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : 0.5*dxInv[2];
                     Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
                     Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
                     Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, n) -= wbar_cc *
-                                            0.5 * (T_hi - T_lo) * dxInv[2];
+                    cell_src(i, j, k, n) -= wbar_cc * (T_hi - T_lo) * dzInv;
                 });
             }
         }
@@ -301,28 +301,26 @@ void make_sources (int level,
                 const int nr = Rho_comp;
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
+                    Real dzInv = (z_cc_arr) ? 1.0/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : 0.5*dxInv[2];
                     Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
                     Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
                     Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
                     Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
                     Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, nv  ) -= cell_data(i,j,k,nr) * wbar_cc *
-                                               0.5 * (Qv_hi - Qv_lo) * dxInv[2];
-                    cell_src(i, j, k, nv+1) -= cell_data(i,j,k,nr) * wbar_cc *
-                                               0.5 * (Qc_hi - Qc_lo) * dxInv[2];
+                    cell_src(i, j, k, nv  ) -= cell_data(i,j,k,nr) * wbar_cc * (Qv_hi - Qv_lo) * dzInv;
+                    cell_src(i, j, k, nv+1) -= cell_data(i,j,k,nr) * wbar_cc * (Qc_hi - Qc_lo) * dzInv;
                 });
             } else {
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
+                    Real dzInv = (z_cc_arr) ? 1.0/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : 0.5*dxInv[2];
                     Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
                     Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
                     Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
                     Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
                     Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, nv  ) -= wbar_cc *
-                                               0.5 * (Qv_hi - Qv_lo) * dxInv[2];
-                    cell_src(i, j, k, nv+1) -= wbar_cc *
-                                               0.5 * (Qc_hi - Qc_lo) * dxInv[2];
+                    cell_src(i, j, k, nv  ) -= wbar_cc * (Qv_hi - Qv_lo) * dzInv;
+                    cell_src(i, j, k, nv+1) -= wbar_cc * (Qc_hi - Qc_lo) * dzInv;
                 });
             }
         }
