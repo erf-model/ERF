@@ -342,42 +342,66 @@ void make_mom_sources (int level,
                 const int nr = Rho_comp;
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real met_h_zeta = (z_nd_arr) ? Compute_h_zeta_AtIface(i,j,k,dxInv,z_nd_arr) : 1.0;
+                    Real dzInv = 0.5*dxInv[2];
+                    if (z_nd_arr) {
+                        Real z_xf_lo = 0.25 * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
+                                              + z_nd_arr(i,j,k-1) + z_nd_arr(i,j+1,k-1) );
+                        Real z_xf_hi = 0.25 * ( z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1)
+                                              + z_nd_arr(i,j,k+2) + z_nd_arr(i,j+1,k+2) );
+                        dzInv = 1.0 / (z_xf_hi - z_xf_lo);
+                    }
                     Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,nr) + cell_data(i-1,j,k,nr) );
                     Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
                     Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
                     Real wbar_xf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    xmom_src_arr(i, j, k) -= rho_on_u_face * wbar_xf * met_h_zeta *
-                                             0.5 * (U_hi - U_lo) * dxInv[2];
+                    xmom_src_arr(i, j, k) -= rho_on_u_face * wbar_xf * (U_hi - U_lo) * dzInv;
                 });
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real met_h_zeta = (z_nd_arr) ? Compute_h_zeta_AtJface(i,j,k,dxInv,z_nd_arr) : 1.0;
+                    Real dzInv = 0.5*dxInv[2];
+                    if (z_nd_arr) {
+                        Real z_yf_lo = 0.25 * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
+                                              + z_nd_arr(i,j,k-1) + z_nd_arr(i+1,j,k-1) );
+                        Real z_yf_hi = 0.25 * ( z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1)
+                                              + z_nd_arr(i,j,k+2) + z_nd_arr(i+1,j,k+2) );
+                        dzInv = 1.0 / (z_yf_hi - z_yf_lo);
+                    }
                     Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,nr) + cell_data(i,j-1,k,nr) );
                     Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
                     Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
                     Real wbar_yf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    ymom_src_arr(i, j, k) -= rho_on_v_face * wbar_yf * met_h_zeta *
-                                             0.5 * (V_hi - V_lo) * dxInv[2];
+                    ymom_src_arr(i, j, k) -= rho_on_v_face * wbar_yf * (V_hi - V_lo) * dzInv;
                 });
             } else {
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real met_h_zeta = (z_nd_arr) ? Compute_h_zeta_AtIface(i,j,k,dxInv,z_nd_arr) : 1.0;
+                    Real dzInv = 0.5*dxInv[2];
+                    if (z_nd_arr) {
+                        Real z_xf_lo = 0.25 * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
+                                              + z_nd_arr(i,j,k-1) + z_nd_arr(i,j+1,k-1) );
+                        Real z_xf_hi = 0.25 * ( z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1)
+                                              + z_nd_arr(i,j,k+2) + z_nd_arr(i,j+1,k+2) );
+                        dzInv = 1.0 / (z_xf_hi - z_xf_lo);
+                    }
                     Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
                     Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
                     Real wbar_xf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    xmom_src_arr(i, j, k) -= wbar_xf * met_h_zeta *
-                                             0.5 * (U_hi - U_lo) * dxInv[2];
+                    xmom_src_arr(i, j, k) -= wbar_xf * (U_hi - U_lo) * dzInv;
                 });
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real met_h_zeta = (z_nd_arr) ? Compute_h_zeta_AtJface(i,j,k,dxInv,z_nd_arr) : 1.0;
+                    Real dzInv = 0.5*dxInv[2];
+                    if (z_nd_arr) {
+                        Real z_yf_lo = 0.25 * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
+                                              + z_nd_arr(i,j,k-1) + z_nd_arr(i+1,j,k-1) );
+                        Real z_yf_hi = 0.25 * ( z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1)
+                                              + z_nd_arr(i,j,k+2) + z_nd_arr(i+1,j,k+2) );
+                        dzInv = 1.0 / (z_yf_hi - z_yf_lo);
+                    }
                     Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
                     Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
                     Real wbar_yf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    ymom_src_arr(i, j, k) -= wbar_yf * met_h_zeta *
-                                             0.5 * (V_hi - V_lo) * dxInv[2];
+                    ymom_src_arr(i, j, k) -= wbar_yf * (V_hi - V_lo) * dzInv;
                 });
             }
         }
