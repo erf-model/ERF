@@ -1071,6 +1071,15 @@ List of Parameters
 | **erf.use_coriolis**                | Include Coriolis       | true / false      | false               |
 |                                     | forcing                |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rotational_time_period**      | Used to calculate the  | Real              | 86400.0             |
+|                                     | Coriolis frequency     |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.latitude**                    | Used to calculate the  | Real              | 90.0                |
+|                                     | Coriolis frequency     |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.coriolis_3d**                 | Include z component in | true / false      | true                |
+|                                     | the Coriolis forcing   |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.use_rayleigh_damping**        | Include explicit       | true / false      | false               |
 |                                     | Rayleigh damping       |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
