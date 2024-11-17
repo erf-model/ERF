@@ -3,7 +3,7 @@
 
 #include <AMReX_MLMG.H>
 #include <AMReX_MLPoisson.H>
-#include <AMReX_MLTerrainPoisson.H>
+//#include <AMReX_MLTerrainPoisson.H>
 #include <AMReX_GMRES.H>
 #include <AMReX_GMRES_MLMG.H>
 
@@ -80,8 +80,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     BL_PROFILE("ERF::project_velocities()");
 
     bool l_use_terrain = SolverChoice::terrain_type != TerrainType::None;
-
-    bool use_gmres = (l_use_terrain && !SolverChoice::terrain_is_flat);
+    bool use_gmres     = (l_use_terrain && !SolverChoice::terrain_is_flat);
 
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
@@ -267,6 +266,8 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         // ****************************************************************************
         if (use_gmres)
         {
+            amrex::Abort("GMRES isn't ready yet");
+#if 0
             MLTerrainPoisson terrpoisson(geom_tmp, ba_tmp, dm_tmp, info);
             terrpoisson.setDomainBC(bclo, bchi);
             terrpoisson.setMaxOrder(2);
@@ -327,6 +328,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
                     }
                 });
             } // mfi
+#endif
 #endif
 
         // ****************************************************************************
