@@ -165,15 +165,19 @@ public:
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
-                             amrex::MultiFab& Omega, amrex::MultiFab& p);
+                             amrex::MultiFab& p);
 
     // Project the velocities to be divergence-free with a thin body
     void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
-                                amrex::MultiFab& Omega, amrex::MultiFab& p);
+                                amrex::MultiFab& p);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
+#ifdef ERF_USE_FFT
+    amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM>
+      get_fft_bc () const noexcept;
+#endif
     bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
 
     // Init (NOT restart or regrid)
@@ -733,9 +737,6 @@ private:
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
 
-    // Normal momentum on z-face
-    amrex::Vector<amrex::MultiFab> Omega;
-
     // amrex::Vector<amrex::MultiFab> xmom_crse_rhs;
     // amrex::Vector<amrex::MultiFab> ymom_crse_rhs;
     amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
@@ -824,6 +825,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
+
+    amrex::Vector<amrex::Vector<amrex::Real>> stretched_dz_h;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> stretched_dz_d;
 
     amrex::Vector<amrex::MultiFab> base_state;
     amrex::Vector<amrex::MultiFab> base_state_new;
@@ -1348,7 +1352,8 @@ private:
 #endif
 
 #ifdef ERF_USE_FFT
-    std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_poisson;
+    std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>> m_3D_poisson;
+    std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_poisson;
 #endif
 
 public:

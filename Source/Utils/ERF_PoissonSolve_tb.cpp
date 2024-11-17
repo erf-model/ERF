@@ -5,14 +5,22 @@
 
 using namespace amrex;
 
+bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
+{
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (bcs[dir] == LinOpBCType::Dirichlet) return true;
+    }
+    return false;
+}
+
 /**
  * Project the single-level velocity field to enforce incompressibility with a
  * thin body
  */
-void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFab& /*Omega*/, MultiFab& pmf)
+void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFab& pmf)
 {
     BL_PROFILE("ERF::project_velocities_tb()");
-    AMREX_ALWAYS_ASSERT(!solverChoice.use_terrain);
+    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::None);
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(vmf[Vars::cons].boxArray());

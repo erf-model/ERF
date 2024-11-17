@@ -83,7 +83,7 @@ erf.box3.in_box_lo =  -5062.5 0     0
 erf.box3.in_box_hi =   5062.5 1  1000
 
 # TERRRAIN GRID TYPE
-erf.use_terrain = 1
+erf.terrain_type = Static
 #erf.terrain_smoothing = 1 # Smoothed Terrain Following coords (Klemp 2011)
 #erf.terrain_gamma_m = 0.5
 erf.terrain_smoothing = 2 # Sullivan TF

@@ -86,7 +86,7 @@ void make_mom_sources (int level,
     //    8. sponge
     // *****************************************************************************
     const bool l_use_ndiff    = solverChoice.use_NumDiff;
-    const bool use_terrain    = solverChoice.use_terrain;
+    const bool use_terrain    = solverChoice.terrain_type != TerrainType::None;
 
     // *****************************************************************************
     // Data for Coriolis forcing

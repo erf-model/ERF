@@ -9,6 +9,8 @@ using namespace amrex;
 
 void
 init_zlevels (Vector<Vector<Real>>& zlevels_stag,
+              Vector<Vector<Real>>& stretched_dz_h,
+              Vector<Gpu::DeviceVector<Real>>& stretched_dz_d,
               Vector<Geometry> const& geom,
               Vector<IntVect> const& ref_ratio,
               const Real grid_stretching_ratio,
@@ -25,20 +27,30 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
 
         zlevels_stag[lev].resize(nz);
 
+        stretched_dz_h[lev].resize(domain.length(2));
+
         if (grid_stretching_ratio == 0) {
             // This is the default for z_levels
             for (int k = 0; k < nz; k++)
             {
                 zlevels_stag[lev][k] = k * dx[2];
             }
+            for (int k = 0; k < nz-1; k++)
+            {
+                stretched_dz_h[lev][k] = dx[2];
+            }
         } else if (lev == 0) {
             // Create stretched grid based on initial dz and stretching ratio
             zlevels_stag[lev][0] = zsurf;
             Real dz = dz0;
+            stretched_dz_h[lev][0] = dz0;
             Print() << "Stretched grid levels at level : " << lev << " is " <<  zsurf;
             for (int k = 1; k < nz; k++)
             {
                 zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + dz;
+                if (k < nz-1) {
+                    stretched_dz_h[lev][k] = dz;
+                }
                 Print() << " " << zlevels_stag[lev][k];
                 dz *= grid_stretching_ratio;
             }
@@ -46,7 +58,14 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
         } else if (lev > 0) {
             int rr = ref_ratio[lev-1][2];
             expand_and_interpolate_1d(zlevels_stag[lev], zlevels_stag[lev-1], rr, false);
+            for (int k = 0; k < nz-1; k++)
+            {
+                stretched_dz_h[lev][k] = (zlevels_stag[lev][k+1] - zlevels_stag[lev][k]);
+            }
         }
+
+        stretched_dz_d[lev].resize(domain.length(2));
+        Gpu::copy(Gpu::hostToDevice, stretched_dz_h[lev].begin(), stretched_dz_h[lev].end(), stretched_dz_d[lev].begin());
     }
 
     // Try reading in terrain_z_levels, which allows arbitrarily spaced grid

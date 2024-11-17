@@ -65,7 +65,7 @@ erf.box1.in_box_lo =  2. 0.25
 erf.box1.in_box_hi =  8. 0.75
 
 # TERRRAIN GRID TYPE
-erf.use_terrain = true
+erf.terrain_type = Static
 erf.terrain_smoothing = 0
 
 erf.dycore_horiz_adv_type  = Centered_2nd

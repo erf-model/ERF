@@ -34,7 +34,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     tmp_base_state.define(ba,dm,BaseState::num_comps,3);
     tmp_base_state.setVal(0.);
 
-    if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Moving) {
+    if (solverChoice.terrain_type == TerrainType::Moving) {
         base_state_new[lev].define(ba,dm,BaseState::num_comps,base_state[lev].nGrowVect());
         base_state_new[lev].setVal(0.);
     }
@@ -42,7 +42,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Allocate terrain arrays
     // ********************************************************************************************
-    if (solverChoice.use_terrain) {
+    if (SolverChoice::terrain_type != TerrainType::None) {
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
         if (solverChoice.terrain_type == TerrainType::Moving)
@@ -136,11 +136,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         pp_inc[lev].define(ba, dm, 1, 1);
         pp_inc[lev].setVal(0.0);
     }
-
-    // We keep Omega as a persistent variable now in order to use the projected Omega
-    // directly rather than calculating it again from (u,v,w)
-    Omega[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
-    Omega[lev].setVal(5.6e23);
 
     // ********************************************************************************************
     // These are just used for scratch in the time integrator but we might as well define them here
@@ -370,7 +365,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     // ********************************************************************************************
     // Diffusive terms
     // ********************************************************************************************
-    bool l_use_terrain = solverChoice.use_terrain;
+    bool l_use_terrain = (SolverChoice::terrain_type != TerrainType::None);
     bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
                            (solverChoice.turbChoice[lev].les_type        !=       LESType::None) ||
                            (solverChoice.turbChoice[lev].pbl_type        !=       PBLType::None) );
@@ -457,7 +452,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 void
 ERF::init_zphys (int lev, Real time)
 {
-    if (solverChoice.use_terrain)
+    if (SolverChoice::terrain_type != TerrainType::None)
     {
         if (init_type != InitType::Real && init_type != InitType::Metgrid)
         {
@@ -495,7 +490,7 @@ ERF::init_zphys (int lev, Real time)
 void
 ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
-    if (solverChoice.use_terrain && lev > 0)
+    if (lev > 0 && SolverChoice::terrain_type != TerrainType::None)
     {
         //
         // First interpolate from coarser level
@@ -522,7 +517,7 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 void
 ERF::update_terrain_arrays (int lev)
 {
-    if (solverChoice.use_terrain) {
+    if (SolverChoice::terrain_type != TerrainType::None) {
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
@@ -554,7 +549,7 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 void
 ERF::make_physbcs (int lev)
 {
-    if (solverChoice.use_terrain) {
+    if (SolverChoice::terrain_type != TerrainType::None) {
         AMREX_ALWAYS_ASSERT(z_phys_nd[lev] != nullptr);
     }
 

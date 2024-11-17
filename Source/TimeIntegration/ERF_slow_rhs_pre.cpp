@@ -27,7 +27,6 @@ using namespace amrex;
  * @param[in]  zvel z-component of velocity
  * @param[in]  qv   water vapor
  * @param[in]  z_t_ mf rate of change of grid height -- only relevant for moving terrain
- * @param[in] Omega component of the momentum normal to the z-coordinate surface
  * @param[in] cc_src source terms for conserved variables
  * @param[in] xmom_src source terms for x-momentum
  * @param[in] ymom_src source terms for y-momentum
@@ -77,7 +76,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
                        std::unique_ptr<MultiFab>& z_t_mf,
-                       MultiFab& Omega,
                        const MultiFab& cc_src,
                        const MultiFab& xmom_src,
                        const MultiFab& ymom_src,
@@ -140,7 +138,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
     const Real    l_horiz_upw_frac = solverChoice.advChoice.dycore_horiz_upw_frac;
     const Real    l_vert_upw_frac  = solverChoice.advChoice.dycore_vert_upw_frac;
-    const bool    l_use_terrain    = solverChoice.use_terrain;
+    const bool    l_use_terrain    = (solverChoice.terrain_type != TerrainType::None);
     const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
@@ -163,9 +161,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_anelastic = solverChoice.anelastic[level];
     const bool l_const_rho = solverChoice.constant_density;
 
-    // We cannot use anelastic with terrain or with moisture
-    AMREX_ALWAYS_ASSERT(!l_use_terrain  || !l_anelastic);
-
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
     const int domhi_z = domain.bigEnd(2);
@@ -186,6 +181,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
 
+    MultiFab Omega(convert(ba,IntVect(0,0,1)), dm, 1, 1);
+
     std::unique_ptr<MultiFab> expr;
     std::unique_ptr<MultiFab> dflux_x;
     std::unique_ptr<MultiFab> dflux_y;
@@ -193,7 +190,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     if (l_use_diff) {
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
-                           S_data,xvel,yvel,zvel,Omega,
+                           S_data,xvel,yvel,zvel,
                            Tau11,Tau22,Tau33,Tau12,Tau13,Tau21,Tau23,Tau31,Tau32,
                            SmnSmn,eddyDiffs,geom,solverChoice,most,
                            detJ,mapfac_m,mapfac_u,mapfac_v);
@@ -376,7 +373,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     omega_arr(i,j,k) = rho_w(i,j,k);
                 });
-            } else if (!l_anelastic) {
+
+            } else {
 
                 Box gbxo_lo = gbxo; gbxo_lo.setBig(2,domain.smallEnd(2));
                 int lo_z_face = domain.smallEnd(2);

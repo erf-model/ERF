@@ -3,6 +3,9 @@
 
 #include <AMReX_MLMG.H>
 #include <AMReX_MLPoisson.H>
+#include <AMReX_MLTerrainPoisson.H>
+#include <AMReX_GMRES.H>
+#include <AMReX_GMRES_MLMG.H>
 
 using namespace amrex;
 
@@ -32,24 +35,53 @@ ERF::get_projection_bc (Orientation::Side side) const noexcept
     }
     return r;
 }
-bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
-{
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        if (bcs[dir] == LinOpBCType::Dirichlet) return true;
-    }
-    return false;
-}
 
+#ifdef ERF_USE_FFT
+Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM>
+ERF::get_fft_bc () const noexcept
+{
+    AMREX_ALWAYS_ASSERT(geom[0].isPeriodic(0) && geom[0].isPeriodic(1));
+
+    Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM> r;
+
+    for (int dir = 0; dir <= 1; dir++) {
+        if (geom[0].isPeriodic(dir)) {
+            r[dir] = std::make_pair(FFT::Boundary::periodic,FFT::Boundary::periodic);
+        }
+    } // dir
+
+    for (OrientationIter ori; ori != nullptr; ++ori) {
+        const int dir  = ori().coordDir();
+        if (!geom[0].isPeriodic(dir) && ori().faceDir() == Orientation::low) {
+            auto bc_type_lo = domain_bc_type[Orientation(dir,Orientation::low)];
+            auto bc_type_hi = domain_bc_type[Orientation(dir,Orientation::high)];
+            if (bc_type_lo == "Outflow" && bc_type_hi == "Outflow") {
+                r[dir] = std::make_pair(FFT::Boundary::odd,FFT::Boundary::odd);
+            } else if (bc_type_lo != "Outflow" && bc_type_hi == "Outflow") {
+                r[dir] = std::make_pair(FFT::Boundary::even,FFT::Boundary::odd);
+            } else if (bc_type_lo == "Outflow" && bc_type_hi != "Outflow") {
+                r[dir] = std::make_pair(FFT::Boundary::odd,FFT::Boundary::even);
+            } else {
+                r[dir] = std::make_pair(FFT::Boundary::even,FFT::Boundary::even);
+            }
+        } // not periodic
+    } // ori
+
+    return r;
+}
+#endif
 
 /**
  * Project the single-level velocity field to enforce incompressibility
  * Note that the level may or may not be level 0.
  */
-void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, MultiFab& /*Omega*/, MultiFab& pmf)
+void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, MultiFab& pmf)
 {
     BL_PROFILE("ERF::project_velocities()");
 
-    AMREX_ALWAYS_ASSERT(!solverChoice.use_terrain);
+    bool l_use_terrain = SolverChoice::terrain_type != TerrainType::None;
+
+    bool use_gmres = (l_use_terrain && !SolverChoice::terrain_is_flat);
 
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
@@ -67,19 +99,13 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(mom_mf[Vars::cons].DistributionMap());
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
 
-    MLPoisson mlpoisson(geom_tmp, ba_tmp, dm_tmp, info);
-
     MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
 
     auto bclo = get_projection_bc(Orientation::low);
     auto bchi = get_projection_bc(Orientation::high);
-    bool need_adjust_rhs = (projection_has_dirichlet(bclo) || projection_has_dirichlet(bchi)) ? false : true;
-    mlpoisson.setDomainBC(bclo, bchi);
 
-    if (lev > 0) {
-        mlpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
-    }
-    mlpoisson.setLevelBC(0, nullptr);
+    // amrex::Print() << "BCLO " << bclo[0] << " " << bclo[1] << " " << bclo[2] << std::endl;
+    // amrex::Print() << "BCHI " << bchi[0] << " " << bchi[1] << " " << bchi[2] << std::endl;
 
     Vector<MultiFab> rhs;
     Vector<MultiFab> phi;
@@ -93,113 +119,307 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
     }
 
+    auto dxInv = geom[lev].InvCellSizeArray();
+
     Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
     rho0_u_const[0] = &mom_mf[IntVars::xmom];
     rho0_u_const[1] = &mom_mf[IntVars::ymom];
     rho0_u_const[2] = &mom_mf[IntVars::zmom];
 
+    Real reltol = solverChoice.poisson_reltol;
+    Real abstol = solverChoice.poisson_abstol;
+
+    // ****************************************************************************
+    // Compute divergence which will form RHS
+    // Note that we replace "rho0w" with the contravariant momentum, Omega
+    // ****************************************************************************
+    if (l_use_terrain)
+    {
+        for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);
+            const Array4<Real const>& rho0v_arr = mom_mf[IntVars::ymom].const_array(mfi);
+            const Array4<Real      >& rho0w_arr = mom_mf[IntVars::zmom].array(mfi);
+
+            const Array4<Real const>&     z_nd = z_phys_nd[lev]->const_array(mfi);
+            //
+            // Define Omega from (rho0 W) but store it in the same array
+            //
+            Box tbz = mfi.nodaltilebox(2);
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (k > dom_lo.z && k <= dom_hi.z) {
+                    Real rho0w = rho0w_arr(i,j,k);
+                    rho0w_arr(i,j,k) = OmegaFromW(i,j,k,rho0w,rho0u_arr,rho0v_arr,z_nd,dxInv);
+                } else {
+                    rho0w_arr(i,j,k) = Real(0.0);
+                }
+            });
+        } // mfi
+    } // use_terrain
+
     computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
 
-    if (mg_verbose > 0) {
-        Print() << "Max norm of divergence before at level " << lev << " : " << rhs[0].norm0() << std::endl;
+    if (l_use_terrain)
+    {
+        MultiFab::Divide(rhs[0],*detJ_cc[0],0,0,1,0);
     }
 
-    // If all Neumann BCs, adjust RHS to make sure we can converge
-    if (need_adjust_rhs)
-    {
-        Real offset = volWgtSumMF(lev, rhs[0], 0, *mapfac_m[lev], false, false);
-        if (mg_verbose > 1) {
-            Print() << "Poisson solvability offset = " << offset << std::endl;
-        }
-        rhs[0].plus(-offset, 0, 1);
+    Real rhsnorm = rhs[0].norm0();
+
+    if (mg_verbose > 0) {
+        Print() << "Max norm of divergence before at level " << lev << " : " << rhsnorm << std::endl;
     }
+
+    if (rhsnorm <= abstol) return;
 
     Real start_step = static_cast<Real>(ParallelDescriptor::second());
 
 #ifdef ERF_USE_FFT
-    if (use_fft) {
+    // ****************************************************************************
+    // FFT solve
+    // ****************************************************************************
+    if (use_fft)
+    {
         AMREX_ALWAYS_ASSERT(lev == 0);
-        if (!m_poisson) {
-            m_poisson = std::make_unique<FFT::PoissonHybrid<MultiFab>>(Geom(0));
+        //
+        // No terrain or stretched grids
+        // This calls the full 3D FFT solver with bc's set through bc_fft
+        //
+        if (!l_use_terrain)
+        {
+            if (mg_verbose > 0) {
+                amrex::Print() << "Using the 3D FFT solver..." << std::endl;
+            }
+            if (!m_3D_poisson) {
+                auto bc_fft = get_fft_bc();
+                m_3D_poisson = std::make_unique<FFT::Poisson<MultiFab>>(Geom(0),bc_fft);
+            }
+            m_3D_poisson->solve(phi[lev], rhs[lev]);
+
+        //
+        // Stretched grids
+        // This calls the hybrid 2D FFT solver + tridiagonal in z
+        //
+        // For right now we can only do this solve for periodic in the x- and y-directions
+        // We assume Neumann at top and bottom z-boundaries
+        // This will be generalized in future
+        //
+        //
+        } else if (l_use_terrain && SolverChoice::terrain_is_flat)
+        {
+            if (mg_verbose > 0) { amrex::Print() << "Using the hybrid FFT solver..." << std::endl;
+            }
+            if (!m_2D_poisson) {
+                m_2D_poisson = std::make_unique<FFT::PoissonHybrid<MultiFab>>(Geom(0));
+            }
+            Gpu::DeviceVector<Real> stretched_dz(dom_hi.z+1, geom[lev].CellSize(2));
+            m_2D_poisson->solve(phi[lev], rhs[lev], stretched_dz);
+
+        } else {
+            amrex::Abort("FFT isn't appropriate for spatially varying terrain");
         }
-        m_poisson->solve(phi[lev], rhs[lev]);
 
         phi[lev].FillBoundary(geom[lev].periodicity());
-
-        auto dxInv = geom[lev].InvCellSizeArray();
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(phi[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        Array4<Real const> const&  p_arr  = phi[lev].array(mfi);
-
-        Box const& xbx = mfi.nodaltilebox(0);
-        const Real dx_inv = dxInv[0];
-        Array4<Real> const& fx_arr  = fluxes[lev][0].array(mfi);
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        for (MFIter mfi(phi[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            fx_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i-1,j,k)) * dx_inv;
-        });
+            Array4<Real const> const&  p_arr  = phi[lev].array(mfi);
 
-        Box const& ybx = mfi.nodaltilebox(1);
-        const Real dy_inv = dxInv[1];
-        Array4<Real> const& fy_arr  = fluxes[lev][1].array(mfi);
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            fy_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j-1,k)) * dy_inv;
-        });
+            Box const& xbx = mfi.nodaltilebox(0);
+            const Real dx_inv = dxInv[0];
+            Array4<Real> const& fx_arr  = fluxes[lev][0].array(mfi);
+            ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                fx_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i-1,j,k)) * dx_inv;
+            });
 
-        auto const dom_lo = lbound(geom[lev].Domain());
-        auto const dom_hi = ubound(geom[lev].Domain());
+            Box const& ybx = mfi.nodaltilebox(1);
+            const Real dy_inv = dxInv[1];
+            Array4<Real> const& fy_arr  = fluxes[lev][1].array(mfi);
+            ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                fy_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j-1,k)) * dy_inv;
+            });
 
-        Box const& zbx = mfi.nodaltilebox(2);
-        const Real dz_inv = dxInv[2];
-        Array4<Real> const& fz_arr  = fluxes[lev][2].array(mfi);
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (k == dom_lo.z || k == dom_hi.z+1) {
-                fz_arr(i,j,k) = 0.0;
-            } else {
-                fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;
-            }
-        });
-    } // mfi
+            Box const& zbx = mfi.nodaltilebox(2);
+            const Real dz_inv = dxInv[2];
+            Array4<Real> const& fz_arr  = fluxes[lev][2].array(mfi);
+            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k == dom_lo.z || k == dom_hi.z+1) {
+                    fz_arr(i,j,k) = 0.0;
+                } else {
+                    fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;
+                }
+            });
+        } // mfi
      } else
 #endif
     {
         // Initialize phi to 0
         phi[0].setVal(0.0);
 
-        MLMG mlmg(mlpoisson);
-        int max_iter = 100;
-        mlmg.setMaxIter(max_iter);
+        // ****************************************************************************
+        // GMRES solve
+        // ****************************************************************************
+        if (use_gmres)
+        {
+            MLTerrainPoisson terrpoisson(geom_tmp, ba_tmp, dm_tmp, info);
+            terrpoisson.setDomainBC(bclo, bchi);
+            terrpoisson.setMaxOrder(2);
 
-        mlmg.setVerbose(mg_verbose);
-        mlmg.setBottomVerbose(0);
+            terrpoisson.setZPhysNd(lev, *z_phys_nd[lev]);
 
-        mlmg.solve(GetVecOfPtrs(phi),
-                   GetVecOfConstPtrs(rhs),
-                   solverChoice.poisson_reltol,
-                   solverChoice.poisson_abstol);
-        mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
-    }
+            if (lev > 0) {
+                terrpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
+            }
+            terrpoisson.setLevelBC(lev, &phi[lev]);
 
-    // Subtract dt grad(phi) from the momenta
+            MLMG mlmg(terrpoisson);
+            GMRESMLMG gmsolver(mlmg);
+            gmsolver.usePrecond(false);
+            gmsolver.setVerbose(mg_verbose);
+            gmsolver.solve(phi[0], rhs[0], reltol, abstol);
+
+            Vector<MultiFab*> phi_vec; phi_vec.resize(1);
+            phi_vec[0] = &phi[0];
+            terrpoisson.getFluxes(GetVecOfArrOfPtrs(fluxes), phi_vec);
+
+#if 0
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+            for (MFIter mfi(phi[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                Array4<Real const> const&  p_arr  = phi[lev].array(mfi);
+
+                Box const& xbx = mfi.nodaltilebox(0);
+                const Real dx_inv = dxInv[0];
+                Array4<Real> const& fx_arr  = fluxes[lev][0].array(mfi);
+                ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    fx_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i-1,j,k)) * dx_inv;
+                });
+
+                Box const& ybx = mfi.nodaltilebox(1);
+                const Real dy_inv = dxInv[1];
+                Array4<Real> const& fy_arr  = fluxes[lev][1].array(mfi);
+                ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    fy_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j-1,k)) * dy_inv;
+                });
+
+                auto const dom_lo = lbound(geom[lev].Domain());
+                auto const dom_hi = ubound(geom[lev].Domain());
+
+                Box const& zbx = mfi.nodaltilebox(2);
+                const Real dz_inv = dxInv[2];
+                Array4<Real> const& fz_arr  = fluxes[lev][2].array(mfi);
+                ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (k == dom_lo.z || k == dom_hi.z+1) {
+                        fz_arr(i,j,k) = 0.0;
+                    } else {
+                        fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;
+                    }
+                });
+            } // mfi
+#endif
+
+        // ****************************************************************************
+        // Multigrid solve
+        // ****************************************************************************
+        } else { // use MLMG
+
+            MLPoisson mlpoisson(geom_tmp, ba_tmp, dm_tmp, info);
+            mlpoisson.setDomainBC(bclo, bchi);
+            if (lev > 0) {
+                mlpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
+            }
+            mlpoisson.setLevelBC(0, nullptr);
+
+            MLMG mlmg(mlpoisson);
+            int max_iter = 100;
+            mlmg.setMaxIter(max_iter);
+
+            mlmg.setVerbose(mg_verbose);
+            mlmg.setBottomVerbose(0);
+
+            mlmg.solve(GetVecOfPtrs(phi),
+                       GetVecOfConstPtrs(rhs),
+                       reltol, abstol);
+            mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
+        }
+    } // not using fft
+
+    // ****************************************************************************
+    // Subtract dt grad(phi) from the momenta (rho0u, rho0v, Omega)
+    // ****************************************************************************
     MultiFab::Add(mom_mf[IntVars::xmom],fluxes[0][0],0,0,1,0);
     MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
     MultiFab::Add(mom_mf[IntVars::zmom],fluxes[0][2],0,0,1,0);
 
-    // Update pressure variable with phi -- note that phi is dt * change in pressure
-    MultiFab::Saxpy(pmf, 1.0/l_dt, phi[0],0,0,1,0);
-    pmf.FillBoundary(geom[lev].periodicity());
-
+    // ****************************************************************************
+    // Print time in solve
+    // ****************************************************************************
     Real end_step = static_cast<Real>(ParallelDescriptor::second());
     if (mg_verbose > 0) {
         amrex::Print() << "Time in solve " << end_step - start_step << std::endl;
     }
 
+    //
+    // This call is only to verify the divergence after the solve
+    // It is important we do this before computing the rho0w_arr from Omega back to rho0w
+    //
+    //
+    // ****************************************************************************
+    // THIS IS SIMPLY VERIFYING THE DIVERGENCE AFTER THE SOLVE
+    // ****************************************************************************
+    //
+    if (mg_verbose > 0)
+    {
+        computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
+        if (l_use_terrain)
+        {
+            MultiFab::Divide(rhs[0],*detJ_cc[0],0,0,1,0);
+        } // use_terrain
+
+        amrex::Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
+    }
+
+    //
+    // ****************************************************************************
+    // Now convert the rho0w MultiFab back to holding (rho0w) rather than Omega
+    // ****************************************************************************
+    //
+    if (l_use_terrain)
+    {
+        for (MFIter mfi(mom_mf[Vars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+             Box tbz = mfi.nodaltilebox(2);
+             const Array4<Real      >& rho0u_arr = mom_mf[IntVars::xmom].array(mfi);
+             const Array4<Real      >& rho0v_arr = mom_mf[IntVars::ymom].array(mfi);
+             const Array4<Real      >& rho0w_arr = mom_mf[IntVars::zmom].array(mfi);
+             const Array4<Real const>&      z_nd = z_phys_nd[lev]->const_array(mfi);
+             ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                 Real omega = rho0w_arr(i,j,k);
+                 rho0w_arr(i,j,k) = WFromOmega(i,j,k,omega,rho0u_arr,rho0v_arr,z_nd,dxInv);
+             });
+        } // mfi
+    }
+
+    // ****************************************************************************
+    // Update pressure variable with phi -- note that phi is dt * change in pressure
+    // ****************************************************************************
+    MultiFab::Saxpy(pmf, 1.0/l_dt, phi[0],0,0,1,0);
+    pmf.FillBoundary(geom[lev].periodicity());
+
+    // ****************************************************************************
+    // Impose bc's on pprime
+    // ****************************************************************************
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -277,12 +497,4 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
     // Now overwrite with periodic fill outside domain and fine-fine fill inside
     pmf.FillBoundary(geom[lev].periodicity());
-
-    //
-    // BELOW IS SIMPLY VERIFYING THE DIVERGENCE AFTER THE SOLVE
-    //
-    if (mg_verbose > 0) {
-        computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
-        Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
-    }
 }

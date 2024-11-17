@@ -59,7 +59,7 @@
                      input_sounding_data, turbPert);
 
         // Moving terrain
-        if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
+        if ( solverChoice.terrain_type == TerrainType::Moving )
         {
             // Note that the "old" and "new" metric terms correspond to
             // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
@@ -133,7 +133,7 @@
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], Omega[level], cc_src, xmom_src, ymom_src, zmom_src,
+                             z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src,
                              (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
@@ -242,7 +242,7 @@
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], Omega[level], cc_src, xmom_src, ymom_src, zmom_src,
+                             z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src,
                              (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
@@ -340,7 +340,7 @@
         }
 
         // Moving terrain
-        if ( solverChoice.use_terrain && (solverChoice.terrain_type == TerrainType::Moving) ) {
+        if ( solverChoice.terrain_type == TerrainType::Moving ) {
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
@@ -448,7 +448,7 @@
         erf_slow_rhs_pre(level, finest_level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
-                         z_t_rk[level], Omega[level], cc_src, xmom_src, ymom_src, zmom_src,
+                         z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                          Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                          Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),

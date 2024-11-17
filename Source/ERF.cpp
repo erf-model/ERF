@@ -139,17 +139,23 @@ ERF::ERF_shared ()
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
+    // This is only used when we have flat terrain and stretched z levels.
+    stretched_dz_h.resize(nlevs_max);
+    stretched_dz_d.resize(nlevs_max);
+
     // Initialize staggered vertical levels for grid stretching or terrain, and
     // to simplify Rayleigh damping layer calculations.
     zlevels_stag.resize(max_level+1);
     init_zlevels(zlevels_stag,
+                 stretched_dz_h,
+                 stretched_dz_d,
                  geom,
                  refRatio(),
                  solverChoice.grid_stretching_ratio,
                  solverChoice.zsurf,
                  solverChoice.dz0);
 
-    if (solverChoice.use_terrain) {
+    if (SolverChoice::terrain_type != TerrainType::None) {
         int nz = geom[0].Domain().length(2) + 1; // staggered
         if (std::fabs(zlevels_stag[0][nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
             Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)
@@ -196,8 +202,6 @@ ERF::ERF_shared ()
     rU_old.resize(nlevs_max);
     rV_old.resize(nlevs_max);
     rW_old.resize(nlevs_max);
-
-    Omega.resize(nlevs_max);
 
     // xmom_crse_rhs.resize(nlevs_max);
     // ymom_crse_rhs.resize(nlevs_max);
@@ -441,7 +445,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (solverChoice.coupling_type == CouplingType::TwoWay)
     {
-        bool use_terrain = solverChoice.use_terrain;
+        bool use_terrain = (SolverChoice::terrain_type != TerrainType::None);
         int ncomp = vars_new[0][Vars::cons].nComp();
         for (int lev = finest_level-1; lev >= 0; lev--)
         {
@@ -554,7 +558,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     // Moving terrain
-    if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
+    if ( solverChoice.terrain_type == TerrainType::Moving )
     {
       for (int lev = finest_level; lev >= 0; lev--)
       {
@@ -591,10 +595,6 @@ ERF::InitData_pre ()
         m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
     }
 
-    if (!solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::None) {
-        Abort("We do not allow terrain_type to be moving or static with use_terrain = false");
-    }
-
     last_plot_file_step_1 = -1;
     last_plot_file_step_2 = -1;
     last_check_file_step  = -1;
@@ -623,7 +623,7 @@ void
 ERF::InitData_post ()
 {
     if (restart_chkfile.empty()) {
-        if (solverChoice.use_terrain) {
+        if (SolverChoice::terrain_type != TerrainType::None) {
             if (init_type == InitType::Ideal) {
                 Abort("We do not currently support init_type = ideal with terrain");
             }
@@ -632,7 +632,7 @@ ERF::InitData_post ()
         //
         // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
         //
-        if (solverChoice.use_terrain != 0) {
+        if (SolverChoice::terrain_type != TerrainType::None) {
             for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
                 average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
                 average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
@@ -694,7 +694,7 @@ ERF::InitData_post ()
         {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
                 "Thin immersed body with refinement not currently supported.");
-            if (solverChoice.use_terrain == 1) {
+            if (SolverChoice::terrain_type != TerrainType::None) {
                 amrex::Print() << "NOTE: Thin immersed body with terrain has not been tested." << std::endl;
             }
         }
@@ -772,7 +772,7 @@ ERF::InitData_post ()
                                                  h_v_geos[lev], d_v_geos[lev],
                                                  geom[lev], z_phys_cc[lev]);
             } else {
-                if (solverChoice.use_terrain > 0) {
+                if (SolverChoice::terrain_type != TerrainType::None && !SolverChoice::terrain_is_flat) {
                     amrex::Print() << "Note: 1-D geostrophic wind profile input is only defined for grid stretching, not real terrain" << std::endl;
                 }
                 init_geo_wind_profile(solverChoice.abl_geo_wind_table,
@@ -867,11 +867,10 @@ ERF::InitData_post ()
     {
         // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
-            AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
             Real dummy_dt = 1.0;
             for (int lev = 0; lev <= finest_level; ++lev)
             {
-                project_velocities(lev, dummy_dt, vars_new[lev], Omega[lev], pp_inc[lev]);
+                project_velocities(lev, dummy_dt, vars_new[lev], pp_inc[lev]);
                 pp_inc[lev].setVal(0.);
             }
         }
@@ -908,7 +907,7 @@ ERF::InitData_post ()
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         dz_min[lev] = geom[lev].CellSize(2);
-        if ( solverChoice.use_terrain ) {
+        if ( SolverChoice::terrain_type != TerrainType::None ) {
             dz_min[lev] *= (*detJ_cc[lev]).min(0);
         }
     }

@@ -58,7 +58,7 @@ void make_sources (int level,
     source.setVal(0.0);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
-    const bool use_terrain      = solverChoice.use_terrain;
+    const bool use_terrain      = solverChoice.terrain_type != TerrainType::None;
 
     TurbChoice tc = solverChoice.turbChoice[level];
     const bool l_use_KE  =  ( (tc.les_type == LESType::Deardorff) ||

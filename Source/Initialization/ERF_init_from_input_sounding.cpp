@@ -117,8 +117,8 @@ ERF::init_from_input_sounding (int lev)
         Array4<Real> pi_hse_arr = pi_hse.array(mfi);
         Array4<Real> th_hse_arr = th_hse.array(mfi);
 
-        Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
-        Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
+        Array4<Real const> z_cc_arr = (solverChoice.terrain_type != TerrainType::None) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
+        Array4<Real const> z_nd_arr = (solverChoice.terrain_type != TerrainType::None) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
 
         if (init_sounding_ideal)
         {

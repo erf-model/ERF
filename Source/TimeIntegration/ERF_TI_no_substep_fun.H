@@ -12,6 +12,7 @@
         int n_data = IntVars::NumTypes;
 
         const auto& dxInv = fine_geom.InvCellSizeArray();
+        Box domain = fine_geom.Domain();
 
         const amrex::GpuArray<int, IntVars::NumTypes> scomp_fast = {0,0,0,0};
         const amrex::GpuArray<int, IntVars::NumTypes> ncomp_fast = {2,1,1,1};
@@ -55,7 +56,7 @@
                 Array4<Real>* fslow = fslow_d.dataPtr();
 
                 // Moving terrain
-                if ( solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Moving )
+                if ( solverChoice.terrain_type == TerrainType::Moving )
                 {
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
                     const Array4<const Real>& dJ_new = detJ_cc_new[level]->const_array(mfi);
@@ -136,12 +137,10 @@
 
         if (solverChoice.anelastic[level]) {
             bool have_tb = (thin_xforce[0] || thin_yforce[0] || thin_zforce[0]);
-            if (solverChoice.project_every_stage || (nrk==1)) {
-                if (have_tb) {
-                    project_velocities_tb(level, slow_dt, S_sum, Omega[level], pp_inc[level]);
-                } else {
-                    project_velocities(level, slow_dt, S_sum, Omega[level], pp_inc[level]);
-                }
+            if (have_tb) {
+                project_velocities_tb(level, slow_dt, S_sum, pp_inc[level]);
+            } else {
+                project_velocities(level, slow_dt, S_sum, pp_inc[level]);
             }
         }
     };
