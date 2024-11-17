@@ -124,7 +124,7 @@ ERF::init_from_metgrid (int lev)
 
     std::unique_ptr<MultiFab>& z_phys = z_phys_nd[lev];
 
-    AMREX_ALWAYS_ASSERT(solverChoice.use_terrain);
+    AMREX_ALWAYS_ASSERT(SolverChoice::terrain_type != TerrainType::None);
 
     // Verify that the terrain height (HGT_M) was in each met_em file.
     for (int it = 0; it < ntimes; it++) AMREX_ALWAYS_ASSERT(flag_hgt[it] == 1);
