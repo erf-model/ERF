@@ -868,6 +868,7 @@ ERF::InitData_post ()
         // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
             Real dummy_dt = 1.0;
+            if (verbose) amrex::Print() << "Projecting the initial velocities..." << std::endl;
             for (int lev = 0; lev <= finest_level; ++lev)
             {
                 project_velocities(lev, dummy_dt, vars_new[lev], pp_inc[lev]);

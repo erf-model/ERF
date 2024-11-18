@@ -8,6 +8,8 @@
 
 using namespace amrex;
 
+template class amrex::MLTerrainPoissonT<MultiFab>;
+
 /**
  * Solve the Poisson equation using GMRES
  */

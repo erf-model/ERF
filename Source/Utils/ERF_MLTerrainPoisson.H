@@ -16,6 +16,8 @@ class MLTerrainPoissonT
 {
 public:
 
+    using MLCellABecLapT<MF>::getFluxes;
+
     using FAB = typename MF::fab_type;
     using RT  = typename MF::value_type;
 
@@ -278,15 +280,15 @@ MLTerrainPoissonT<MF>::FFlux (int amrlev, const MFIter& mfi,
     const auto& solarr = sol.array();
     const auto& zpa    = m_a_zphys_nd[amrlev].array(mfi);
 
-    RT odx = RT(dxinv[0]);
-    RT ody = RT(dxinv[1]);
-    RT odz = RT(dxinv[2]);
+    RT dxinv = RT(dxinv[0]);
+    RT dyinv = RT(dxinv[1]);
+    RT dzinv = RT(dxinv[2]);
 
     if (this->hiddenDirection() != 0) {
         Box bflux = amrex::surroundingNodes(box, 0);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bflux, tbox,
         {
-            terrpoisson_flux_x(tbox, fxarr, solarr, zpa, odx, odz);
+            terrpoisson_flux_x(tbox, fxarr, solarr, zpa, invdx, invdz);
         });
     } else {
         flux[0]->template setVal<RunOn::Device>(RT(0.0));
@@ -295,7 +297,7 @@ MLTerrainPoissonT<MF>::FFlux (int amrlev, const MFIter& mfi,
         Box bflux = amrex::surroundingNodes(box, 1);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bflux, tbox,
         {
-            terrpoisson_flux_y(tbox, fyarr, solarr, zpa, ody, odz);
+            terrpoisson_flux_y(tbox, fyarr, solarr, zpa, invdy, invdz);
         });
     } else {
         flux[1]->template setVal<RunOn::Device>(RT(0.0));
@@ -304,7 +306,7 @@ MLTerrainPoissonT<MF>::FFlux (int amrlev, const MFIter& mfi,
         Box bflux = amrex::surroundingNodes(box, 2);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bflux, tbox,
         {
-            terrpoisson_flux_z(tbox, fzarr, solarr, zpa, odx, ody, odz);
+            terrpoisson_flux_z(tbox, fzarr, solarr, zpa, invdx, invdy, invdz);
         });
     } else {
         flux[2]->template setVal<RunOn::Device>(RT(0.0));

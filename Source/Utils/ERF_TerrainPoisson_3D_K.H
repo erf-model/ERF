@@ -9,7 +9,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void terrpoisson_adotx (int i, int j, int k, Array4<T> const& y,
                         Array4<T const> const& x,
                         Array4<T const> const& zp,
-                        T odx, T ody, T odz) noexcept
+                        T dxinv, T invdy, T dzinv) noexcept
 {
 #if 1
     Real h_xi, h_eta, h_zeta;
@@ -40,7 +40,7 @@ void terrpoisson_adotx (int i, int j, int k, Array4<T> const& y,
 
     // On x-face
     px_hi -= Real(0.5) * ( pz_hi_md_hi + pz_hi_md_lo );
-    px_hi *= Real(0.5) * ( zp(i+1,j,k+1) + zp(i+1,j+1,k+1) - zp(i+1,j,k) - zp(i+1,j+1,k) ) * odz;
+    px_hi *= Real(0.5) * ( zp(i+1,j,k+1) + zp(i+1,j+1,k+1) - zp(i+1,j,k) - zp(i+1,j+1,k) ) * dzinv;
 
     // *********************************************************
     // Lo x-face
@@ -69,7 +69,7 @@ void terrpoisson_adotx (int i, int j, int k, Array4<T> const& y,
 
     // On x-face
     px_lo -= Real(0.5) * ( pz_lo_md_hi + pz_lo_md_lo );
-    px_lo *= Real(0.5) * ( zp(i,j,k+1) + zp(i,j+1,k+1) - zp(i,j,k) - zp(i,j+1,k) ) * odz;
+    px_lo *= Real(0.5) * ( zp(i,j,k+1) + zp(i,j+1,k+1) - zp(i,j,k) - zp(i,j+1,k) ) * dzinv;
 
     // *********************************************************
     // Hi y-face
@@ -97,7 +97,7 @@ void terrpoisson_adotx (int i, int j, int k, Array4<T> const& y,
 
     // On y-face
     py_hi -= Real(0.5) * ( pz_md_hi_hi + pz_md_hi_lo );
-    py_hi *= Real(0.5) * ( zp(i+1,j,k+1) + zp(i+1,j+1,k+1) - zp(i+1,j,k) - zp(i+1,j+1,k) ) * odz;
+    py_hi *= Real(0.5) * ( zp(i+1,j,k+1) + zp(i+1,j+1,k+1) - zp(i+1,j,k) - zp(i+1,j+1,k) ) * dzinv;
 
     // *********************************************************
     // Lo y-face
@@ -126,7 +126,7 @@ void terrpoisson_adotx (int i, int j, int k, Array4<T> const& y,
 
     // On y-face
     py_lo -= Real(0.5) * ( pz_md_lo_hi + pz_md_lo_lo );
-    py_lo *= Real(0.5) * ( zp(i,j,k+1) + zp(i+1,j,k+1) - zp(i,j,k) - zp(i+1,j,k) ) * odz;
+    py_lo *= Real(0.5) * ( zp(i,j,k+1) + zp(i+1,j,k+1) - zp(i,j,k) - zp(i+1,j,k) ) * dzinv;
 
     // *********************************************************
     // Hi z-face
@@ -183,9 +183,9 @@ void terrpoisson_adotx (int i, int j, int k, Array4<T> const& y,
     pz_hi    = x(i,j,k+1) - x(i,j,k  );
     pz_lo    = x(i,j,k  ) - x(i,j,k-1);
 
-    y(i,j,k) = odx * odx * (px_hi - px_lo)
-        +      ody * ody * (py_hi - py_lo)
-        +      odz * odz * (pz_hi - pz_lo);
+    y(i,j,k) = dxinv * dxinv * (px_hi - px_lo)
+        +      invdy * invdy * (py_hi - py_lo)
+        +      dzinv * dzinv * (pz_hi - pz_lo);
 }
 
 template <typename T>
