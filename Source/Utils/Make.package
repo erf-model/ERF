@@ -10,6 +10,9 @@ CEXE_headers += ERF_TerrainMetrics.H
 CEXE_headers += ERF_TileNoZ.H
 CEXE_headers += ERF_Utils.H
 
+CEXE_headers += ERF_TerrainPoisson_3D_K.H
+CEXE_headers += ERF_MLTerrainPoisson.H
+
 CEXE_headers += ERF_ParFunctions.H
 
 CEXE_headers += ERF_Sat_methods.H

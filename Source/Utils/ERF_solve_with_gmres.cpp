@@ -1,8 +1,8 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
+#include "ERF_MLTerrainPoisson.H"
 
 #include <AMReX_MLMG.H>
-//#include <AMReX_MLTerrainPoisson.H>
 #include <AMReX_GMRES.H>
 #include <AMReX_GMRES_MLMG.H>
 
@@ -11,12 +11,10 @@ using namespace amrex;
 /**
  * Solve the Poisson equation using GMRES
  */
-void ERF::solve_with_gmres (int lev, Vector<MultiFab>& /*rhs*/, Vector<MultiFab>& /*phi*/, Vector<Array<MultiFab,AMREX_SPACEDIM>>& /*fluxes*/)
-//void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi, Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes)
+void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi, Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes)
 {
     BL_PROFILE("ERF::solve_with_gmres()");
 
-#if 0
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
 
@@ -36,8 +34,8 @@ void ERF::solve_with_gmres (int lev, Vector<MultiFab>& /*rhs*/, Vector<MultiFab>
     auto bclo = get_projection_bc(Orientation::low);
     auto bchi = get_projection_bc(Orientation::high);
 
-    // amrex::Print() << "BCLO " << bclo[0] << " " << bclo[1] << " " << bclo[2] << std::endl;
-    // amrex::Print() << "BCHI " << bchi[0] << " " << bchi[1] << " " << bchi[2] << std::endl;
+    amrex::Print() << "BCLO " << bclo[0] << " " << bclo[1] << " " << bclo[2] << std::endl;
+    amrex::Print() << "BCHI " << bchi[0] << " " << bchi[1] << " " << bchi[2] << std::endl;
 
     Real reltol = solverChoice.poisson_reltol;
     Real abstol = solverChoice.poisson_abstol;
@@ -62,5 +60,4 @@ void ERF::solve_with_gmres (int lev, Vector<MultiFab>& /*rhs*/, Vector<MultiFab>
     Vector<MultiFab*> phi_vec; phi_vec.resize(1);
     phi_vec[0] = &phi[0];
     terrpoisson.getFluxes(GetVecOfArrOfPtrs(fluxes), phi_vec);
-#endif
 }
