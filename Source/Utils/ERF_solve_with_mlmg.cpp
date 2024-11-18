@@ -88,4 +88,91 @@ void ERF::solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi
                GetVecOfConstPtrs(rhs),
                reltol, abstol);
     mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
+
+    phi[0].FillBoundary(geom[lev].periodicity());
+
+    // ****************************************************************************
+    // Impose bc's on pprime
+    // ****************************************************************************
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(phi[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Array4<Real> const& pp_arr  = phi[0].array(mfi);
+        Box const& bx    = mfi.tilebox();
+        auto const bx_lo = lbound(bx);
+        auto const bx_hi = ubound(bx);
+        if (bx_lo.x == dom_lo.x) {
+            auto bc_type = domain_bc_type[Orientation(0,Orientation::low)];
+            if (bc_type == "Outflow" || bc_type == "Open") {
+                ParallelFor(makeSlab(bx,0,dom_lo.x), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    pp_arr(i-1,j,k) = -pp_arr(i,j,k);
+                });
+            } else {
+                ParallelFor(makeSlab(bx,0,dom_lo.x), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    pp_arr(i-1,j,k) = pp_arr(i,j,k);
+                });
+            }
+        }
+        if (bx_lo.y == dom_lo.y) {
+            auto bc_type = domain_bc_type[Orientation(1,Orientation::low)];
+            if (bc_type == "Outflow" || bc_type == "Open") {
+                ParallelFor(makeSlab(bx,1,dom_lo.y), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    pp_arr(i,j-1,k) = -pp_arr(i,j,k);
+                });
+            } else {
+                ParallelFor(makeSlab(bx,1,dom_lo.y), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    pp_arr(i,j-1,k) = pp_arr(i,j,k);
+                });
+            }
+        }
+        if (bx_lo.z == dom_lo.z) {
+            ParallelFor(makeSlab(bx,2,dom_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                pp_arr(i,j,k-1) = pp_arr(i,j,k);
+            });
+        }
+        if (bx_hi.x == dom_hi.x) {
+            auto bc_type = domain_bc_type[Orientation(0,Orientation::high)];
+            if (bc_type == "Outflow" || bc_type == "Open") {
+                ParallelFor(makeSlab(bx,0,dom_hi.x), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    pp_arr(i+1,j,k) = -pp_arr(i,j,k);
+                });
+            } else {
+                ParallelFor(makeSlab(bx,0,dom_hi.x), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    pp_arr(i+1,j,k) = pp_arr(i,j,k);
+                });
+            }
+        }
+        if (bx_hi.y == dom_hi.y) {
+            auto bc_type = domain_bc_type[Orientation(1,Orientation::high)];
+            if (bc_type == "Outflow" || bc_type == "Open") {
+                ParallelFor(makeSlab(bx,1,dom_hi.y), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    pp_arr(i,j+1,k) = -pp_arr(i,j,k);
+                });
+            } else {
+                ParallelFor(makeSlab(bx,1,dom_hi.y), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    pp_arr(i,j+1,k) = pp_arr(i,j,k);
+                });
+            }
+        }
+        if (bx_hi.z == dom_hi.z) {
+            ParallelFor(makeSlab(bx,2,dom_hi.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                pp_arr(i,j,k+1) = pp_arr(i,j,k);
+            });
+        }
+    } // mfi
+
+    // Now overwrite with periodic fill outside domain and fine-fine fill inside
+    phi[0].FillBoundary(geom[lev].periodicity());
 }
