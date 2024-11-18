@@ -2,7 +2,7 @@
 #include "ERF_Utils.H"
 
 #include <AMReX_MLMG.H>
-//#include <AMReX_MLTerrainPoisson.H>
+#include <AMReX_MLTerrainPoisson.H>
 #include <AMReX_GMRES.H>
 #include <AMReX_GMRES_MLMG.H>
 
@@ -12,7 +12,7 @@ using namespace amrex;
  * Solve the Poisson equation using MLMG
  * Note that the level may or may not be level 0.
  */
-void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi, Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes)
+void ERF::solve_with_gmres (int lev, Vector<MultiFab>& /*rhs*/, Vector<MultiFab>& /*phi*/, Vector<Array<MultiFab,AMREX_SPACEDIM>>& /*fluxes*/)
 {
     BL_PROFILE("ERF::solve_with_mlmg()");
 
@@ -38,10 +38,10 @@ void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& ph
     // amrex::Print() << "BCLO " << bclo[0] << " " << bclo[1] << " " << bclo[2] << std::endl;
     // amrex::Print() << "BCHI " << bchi[0] << " " << bchi[1] << " " << bchi[2] << std::endl;
 
+#if 0
     Real reltol = solverChoice.poisson_reltol;
     Real abstol = solverChoice.poisson_abstol;
 
-#if 0
     MLTerrainPoisson terrpoisson(geom_tmp, ba_tmp, dm_tmp, info);
     terrpoisson.setDomainBC(bclo, bchi);
     terrpoisson.setMaxOrder(2);
