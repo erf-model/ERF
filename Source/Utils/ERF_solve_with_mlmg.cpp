@@ -3,9 +3,6 @@
 
 #include <AMReX_MLMG.H>
 #include <AMReX_MLPoisson.H>
-//#include <AMReX_MLTerrainPoisson.H>
-#include <AMReX_GMRES.H>
-#include <AMReX_GMRES_MLMG.H>
 
 using namespace amrex;
 
@@ -68,9 +65,6 @@ void ERF::solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi
 
     Real reltol = solverChoice.poisson_reltol;
     Real abstol = solverChoice.poisson_abstol;
-
-    // Initialize phi to 0
-    phi[0].setVal(0.0);
 
     // ****************************************************************************
     // Multigrid solve
