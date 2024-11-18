@@ -1415,6 +1415,11 @@ ERF::ReadParameters ()
         pp.query("v", verbose);
         pp.query("mg_v", mg_verbose);
         pp.query("use_fft", use_fft);
+#ifndef ERF_USE_FFT
+        if (use_fft) {
+            amrex::Abort("You must build with USE_FFT in order to set use_fft = true in your inputs file");
+        }
+#endif
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);

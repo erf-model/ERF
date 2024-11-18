@@ -10,68 +10,6 @@
 using namespace amrex;
 
 /**
- * Define the domain boundary conditions for the (optional) Poisson solve
- * if we want to enforce incompressibility of the initial conditions
- */
-
-using BCType = LinOpBCType;
-
-Array<LinOpBCType,AMREX_SPACEDIM>
-ERF::get_projection_bc (Orientation::Side side) const noexcept
-{
-    amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> r;
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        if (geom[0].isPeriodic(dir)) {
-            r[dir] = LinOpBCType::Periodic;
-        } else {
-            auto bc_type = domain_bc_type[Orientation(dir,side)];
-            if (bc_type == "Outflow") {
-                r[dir] = LinOpBCType::Dirichlet;
-            } else
-            {
-                r[dir] = LinOpBCType::Neumann;
-            }
-        }
-    }
-    return r;
-}
-
-#ifdef ERF_USE_FFT
-Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM>
-ERF::get_fft_bc () const noexcept
-{
-    AMREX_ALWAYS_ASSERT(geom[0].isPeriodic(0) && geom[0].isPeriodic(1));
-
-    Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM> r;
-
-    for (int dir = 0; dir <= 1; dir++) {
-        if (geom[0].isPeriodic(dir)) {
-            r[dir] = std::make_pair(FFT::Boundary::periodic,FFT::Boundary::periodic);
-        }
-    } // dir
-
-    for (OrientationIter ori; ori != nullptr; ++ori) {
-        const int dir  = ori().coordDir();
-        if (!geom[0].isPeriodic(dir) && ori().faceDir() == Orientation::low) {
-            auto bc_type_lo = domain_bc_type[Orientation(dir,Orientation::low)];
-            auto bc_type_hi = domain_bc_type[Orientation(dir,Orientation::high)];
-            if (bc_type_lo == "Outflow" && bc_type_hi == "Outflow") {
-                r[dir] = std::make_pair(FFT::Boundary::odd,FFT::Boundary::odd);
-            } else if (bc_type_lo != "Outflow" && bc_type_hi == "Outflow") {
-                r[dir] = std::make_pair(FFT::Boundary::even,FFT::Boundary::odd);
-            } else if (bc_type_lo == "Outflow" && bc_type_hi != "Outflow") {
-                r[dir] = std::make_pair(FFT::Boundary::odd,FFT::Boundary::even);
-            } else {
-                r[dir] = std::make_pair(FFT::Boundary::even,FFT::Boundary::even);
-            }
-        } // not periodic
-    } // ori
-
-    return r;
-}
-#endif
-
-/**
  * Project the single-level velocity field to enforce incompressibility
  * Note that the level may or may not be level 0.
  */
@@ -174,120 +112,44 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     Real start_step = static_cast<Real>(ParallelDescriptor::second());
 
 #ifdef ERF_USE_FFT
-    // ****************************************************************************
-    // FFT solve
-    // ****************************************************************************
-    if (use_fft)
-    {
-        AMREX_ALWAYS_ASSERT(lev == 0);
-        //
-        // No terrain or stretched grids
-        // This calls the full 3D FFT solver with bc's set through bc_fft
-        //
-        if (!l_use_terrain)
-        {
-            if (mg_verbose > 0) {
-                amrex::Print() << "Using the 3D FFT solver..." << std::endl;
-            }
-            if (!m_3D_poisson) {
-                auto bc_fft = get_fft_bc();
-                m_3D_poisson = std::make_unique<FFT::Poisson<MultiFab>>(Geom(0),bc_fft);
-            }
-            m_3D_poisson->solve(phi[lev], rhs[lev]);
-
-        //
-        // Stretched grids
-        // This calls the hybrid 2D FFT solver + tridiagonal in z
-        //
-        // For right now we can only do this solve for periodic in the x- and y-directions
-        // We assume Neumann at top and bottom z-boundaries
-        // This will be generalized in future
-        //
-        //
-        } else if (l_use_terrain && SolverChoice::terrain_is_flat)
-        {
-            if (mg_verbose > 0) { amrex::Print() << "Using the hybrid FFT solver..." << std::endl;
-            }
-            if (!m_2D_poisson) {
-                m_2D_poisson = std::make_unique<FFT::PoissonHybrid<MultiFab>>(Geom(0));
-            }
-            Gpu::DeviceVector<Real> stretched_dz(dom_hi.z+1, geom[lev].CellSize(2));
-            m_2D_poisson->solve(phi[lev], rhs[lev], stretched_dz);
-
-        } else {
-            amrex::Abort("FFT isn't appropriate for spatially varying terrain");
-        }
-
-        phi[lev].FillBoundary(geom[lev].periodicity());
-
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
+    if (use_fft) {
+        // ****************************************************************************
+        // FFT solve
+        // ****************************************************************************
+        solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
+    } else
 #endif
-        for (MFIter mfi(phi[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            Array4<Real const> const&  p_arr  = phi[lev].array(mfi);
 
-            Box const& xbx = mfi.nodaltilebox(0);
-            const Real dx_inv = dxInv[0];
-            Array4<Real> const& fx_arr  = fluxes[lev][0].array(mfi);
-            ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                fx_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i-1,j,k)) * dx_inv;
-            });
-
-            Box const& ybx = mfi.nodaltilebox(1);
-            const Real dy_inv = dxInv[1];
-            Array4<Real> const& fy_arr  = fluxes[lev][1].array(mfi);
-            ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                fy_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j-1,k)) * dy_inv;
-            });
-
-            Box const& zbx = mfi.nodaltilebox(2);
-            const Real dz_inv = dxInv[2];
-            Array4<Real> const& fz_arr  = fluxes[lev][2].array(mfi);
-            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (k == dom_lo.z || k == dom_hi.z+1) {
-                    fz_arr(i,j,k) = 0.0;
-                } else {
-                    fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;
-                }
-            });
-        } // mfi
-     } else
-#endif
+    // ****************************************************************************
+    // GMRES solve
+    // ****************************************************************************
+    if (use_gmres)
     {
+        amrex::Abort("GMRES isn't ready yet");
+
         // Initialize phi to 0
         phi[0].setVal(0.0);
-
-        // ****************************************************************************
-        // GMRES solve
-        // ****************************************************************************
-        if (use_gmres)
-        {
-            amrex::Abort("GMRES isn't ready yet");
 #if 0
-            MLTerrainPoisson terrpoisson(geom_tmp, ba_tmp, dm_tmp, info);
-            terrpoisson.setDomainBC(bclo, bchi);
-            terrpoisson.setMaxOrder(2);
+        MLTerrainPoisson terrpoisson(geom_tmp, ba_tmp, dm_tmp, info);
+        terrpoisson.setDomainBC(bclo, bchi);
+        terrpoisson.setMaxOrder(2);
 
-            terrpoisson.setZPhysNd(lev, *z_phys_nd[lev]);
+        terrpoisson.setZPhysNd(lev, *z_phys_nd[lev]);
 
-            if (lev > 0) {
-                terrpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
-            }
-            terrpoisson.setLevelBC(lev, &phi[lev]);
+        if (lev > 0) {
+            terrpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
+        }
+        terrpoisson.setLevelBC(lev, &phi[lev]);
 
-            MLMG mlmg(terrpoisson);
-            GMRESMLMG gmsolver(mlmg);
-            gmsolver.usePrecond(false);
-            gmsolver.setVerbose(mg_verbose);
-            gmsolver.solve(phi[0], rhs[0], reltol, abstol);
+        MLMG mlmg(terrpoisson);
+        GMRESMLMG gmsolver(mlmg);
+        gmsolver.usePrecond(false);
+        gmsolver.setVerbose(mg_verbose);
+        gmsolver.solve(phi[0], rhs[0], reltol, abstol);
 
-            Vector<MultiFab*> phi_vec; phi_vec.resize(1);
-            phi_vec[0] = &phi[0];
-            terrpoisson.getFluxes(GetVecOfArrOfPtrs(fluxes), phi_vec);
+        Vector<MultiFab*> phi_vec; phi_vec.resize(1);
+        phi_vec[0] = &phi[0];
+        terrpoisson.getFluxes(GetVecOfArrOfPtrs(fluxes), phi_vec);
 
 #if 0
 #ifdef _OPENMP
@@ -331,31 +193,12 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 #endif
 #endif
 
+    } else {
         // ****************************************************************************
         // Multigrid solve
         // ****************************************************************************
-        } else { // use MLMG
-
-            MLPoisson mlpoisson(geom_tmp, ba_tmp, dm_tmp, info);
-            mlpoisson.setDomainBC(bclo, bchi);
-            if (lev > 0) {
-                mlpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
-            }
-            mlpoisson.setLevelBC(0, nullptr);
-
-            MLMG mlmg(mlpoisson);
-            int max_iter = 100;
-            mlmg.setMaxIter(max_iter);
-
-            mlmg.setVerbose(mg_verbose);
-            mlmg.setBottomVerbose(0);
-
-            mlmg.solve(GetVecOfPtrs(phi),
-                       GetVecOfConstPtrs(rhs),
-                       reltol, abstol);
-            mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
-        }
-    } // not using fft
+        solve_with_mlmg(lev, rhs, phi, fluxes);
+    }
 
     // ****************************************************************************
     // Subtract dt grad(phi) from the momenta (rho0u, rho0v, Omega)

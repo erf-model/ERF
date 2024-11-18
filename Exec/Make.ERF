@@ -115,6 +115,10 @@ USE_LINEAR_SOLVERS_INCFLO = FALSE
 USE_LINEAR_SOLVERS_EM     = FALSE
 AMReXdirs                += LinearSolvers
 
+ifeq ($(USE_FFT),TRUE)
+AMReXdirs                += FFT
+endif
+
 ifeq ($(USE_HDF5),TRUE)
 AMReXdirs             += Extern/HDF5
 endif

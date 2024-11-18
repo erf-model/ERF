@@ -171,13 +171,18 @@ public:
     void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
                                 amrex::MultiFab& p);
 
+#ifdef ERF_USE_FFT
+    amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM> get_fft_bc () const noexcept;
+    void solve_with_fft (int lev, amrex::MultiFab& rhs, amrex::MultiFab& p,
+                         amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
+#endif
+
+    void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
+                          amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
+
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
-#ifdef ERF_USE_FFT
-    amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM>
-      get_fft_bc () const noexcept;
-#endif
     bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
 
     // Init (NOT restart or regrid)
@@ -187,7 +192,8 @@ public:
     void restart ();
 
     // Is it time to write a plotfile or checkpoint?
-    bool writeNow (const amrex::Real cur_time, const amrex::Real dt, const int nstep, const int plot_int, const amrex::Real plot_per);
+    bool writeNow (const amrex::Real cur_time, const amrex::Real dt, const int nstep,
+                   const int plot_int, const amrex::Real plot_per);
 
     // Called after every level 0 timestep
     void post_timestep (int nstep, amrex::Real time, amrex::Real dt_lev);
