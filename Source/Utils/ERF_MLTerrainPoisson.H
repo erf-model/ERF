@@ -176,8 +176,8 @@ MLTerrainPoissonT<MF>::Fapply (int amrlev, int mglev, MF& out, const MF& in) con
                  const RT dhz = RT(dxinv[2]*dxinv[2]););
 
 #if (AMREX_SPACEDIM == 3)
-    RT dh0 = this->get_d0(dhx, dhy, dhz);
-    RT dh1 = this->get_d1(dhx, dhy, dhz);
+    //RT dh0 = this->get_d0(dhx, dhy, dhz);
+    //RT dh1 = this->get_d1(dhx, dhy, dhz);
 #endif
 
 #if (AMREX_SPACEDIM < 3)
@@ -215,8 +215,8 @@ MLTerrainPoissonT<MF>::Fapply (int amrlev, int mglev, MF& out, const MF& in) con
             {
                 if (this->hasHiddenDimension()) {
                     Box const& bx2d = this->compactify(bx);
-                    const auto& xfab2d = this->compactify(xfab);
-                    const auto& yfab2d = this->compactify(yfab);
+                    // const auto& xfab2d = this->compactify(xfab);
+                    // const auto& yfab2d = this->compactify(yfab);
                     AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx2d, i, j, k,
                     {
                         amrex::ignore_unused(k);
@@ -243,7 +243,7 @@ MLTerrainPoissonT<MF>::normalize (int /*amrlev*/, int /*mglev*/, MF& /*mf*/) con
 
 template <typename MF>
 void
-MLTerrainPoissonT<MF>::Fsmooth (int amrlev, int /*mglev*/, MF& /*sol*/, const MF& /*rhs*/, int /*redblack*/) const
+MLTerrainPoissonT<MF>::Fsmooth (int /*amrlev*/, int /*mglev*/, MF& /*sol*/, const MF& /*rhs*/, int /*redblack*/) const
 {
     BL_PROFILE("MLTerrainPoisson::Fsmooth()");
     amrex::Abort("What am I doing in MLTerrainPoisson::Fsmooth??");
@@ -256,7 +256,6 @@ MLTerrainPoissonT<MF>::getFluxes (const Vector<Array<MF*,AMREX_SPACEDIM> >& a_fl
 {
     BL_PROFILE("MLTerrainPoissonT::getFluxes()");
 
-    const int ncomp = this->getNComp();
     const int nlevs = this->NAMRLevels();
     Location a_loc = Location::CellCenter;
     for (int alev = 0; alev < nlevs; ++alev) {
