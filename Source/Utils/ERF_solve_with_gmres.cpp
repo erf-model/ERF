@@ -9,14 +9,14 @@
 using namespace amrex;
 
 /**
- * Solve the Poisson equation using MLMG
- * Note that the level may or may not be level 0.
+ * Solve the Poisson equation using GMRES
  */
 void ERF::solve_with_gmres (int lev, Vector<MultiFab>& /*rhs*/, Vector<MultiFab>& /*phi*/, Vector<Array<MultiFab,AMREX_SPACEDIM>>& /*fluxes*/)
 //void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi, Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes)
 {
-    BL_PROFILE("ERF::solve_with_mlmg()");
+    BL_PROFILE("ERF::solve_with_gmres()");
 
+#if 0
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
 
@@ -39,7 +39,6 @@ void ERF::solve_with_gmres (int lev, Vector<MultiFab>& /*rhs*/, Vector<MultiFab>
     // amrex::Print() << "BCLO " << bclo[0] << " " << bclo[1] << " " << bclo[2] << std::endl;
     // amrex::Print() << "BCHI " << bchi[0] << " " << bchi[1] << " " << bchi[2] << std::endl;
 
-#if 0
     Real reltol = solverChoice.poisson_reltol;
     Real abstol = solverChoice.poisson_abstol;
 
