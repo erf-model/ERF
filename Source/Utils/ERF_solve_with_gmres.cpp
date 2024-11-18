@@ -2,7 +2,7 @@
 #include "ERF_Utils.H"
 
 #include <AMReX_MLMG.H>
-#include <AMReX_MLTerrainPoisson.H>
+//#include <AMReX_MLTerrainPoisson.H>
 #include <AMReX_GMRES.H>
 #include <AMReX_GMRES_MLMG.H>
 
@@ -13,6 +13,7 @@ using namespace amrex;
  * Note that the level may or may not be level 0.
  */
 void ERF::solve_with_gmres (int lev, Vector<MultiFab>& /*rhs*/, Vector<MultiFab>& /*phi*/, Vector<Array<MultiFab,AMREX_SPACEDIM>>& /*fluxes*/)
+//void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi, Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes)
 {
     BL_PROFILE("ERF::solve_with_mlmg()");
 
