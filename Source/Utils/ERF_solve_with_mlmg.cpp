@@ -53,8 +53,8 @@ void ERF::solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi
     }
 
     // Make sure the solver only sees the levels over which we are solving
-    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(rhs[lev].boxArray());
-    Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(rhs[lev].DistributionMap());
+    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(rhs[0].boxArray());
+    Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(rhs[0].DistributionMap());
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
 
     auto bclo = get_projection_bc(Orientation::low);
