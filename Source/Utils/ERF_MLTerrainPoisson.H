@@ -280,9 +280,9 @@ MLTerrainPoissonT<MF>::FFlux (int amrlev, const MFIter& mfi,
     const auto& solarr = sol.array();
     const auto& zpa    = m_a_zphys_nd[amrlev].array(mfi);
 
-    RT dxinv = RT(dxinv[0]);
-    RT dyinv = RT(dxinv[1]);
-    RT dzinv = RT(dxinv[2]);
+    RT invdx = RT(dxinv[0]);
+    RT invdy = RT(dxinv[1]);
+    RT invdz = RT(dxinv[2]);
 
     if (this->hiddenDirection() != 0) {
         Box bflux = amrex::surroundingNodes(box, 0);
