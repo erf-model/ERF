@@ -63,9 +63,6 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
                 stretched_dz_h[lev][k] = (zlevels_stag[lev][k+1] - zlevels_stag[lev][k]);
             }
         }
-
-        stretched_dz_d[lev].resize(domain.length(2));
-        Gpu::copy(Gpu::hostToDevice, stretched_dz_h[lev].begin(), stretched_dz_h[lev].end(), stretched_dz_d[lev].begin());
     }
 
     // Try reading in terrain_z_levels, which allows arbitrarily spaced grid
@@ -97,6 +94,19 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
             int rr = ref_ratio[lev-1][2];
             expand_and_interpolate_1d(zlevels_stag[lev], zlevels_stag[lev-1], rr, false);
         }
+
+        for (int lev = 0; lev <= max_level; lev++) {
+            int nz = zlevels_stag[lev].size();
+            for (int k = 0; k < nz-1; k++)
+            {
+                stretched_dz_h[lev][k] = (zlevels_stag[lev][k+1] - zlevels_stag[lev][k]);
+            }
+        }
+    }
+
+    for (int lev = 0; lev <= max_level; lev++) {
+        stretched_dz_d[lev].resize(stretched_dz_h[lev].size());
+        Gpu::copy(Gpu::hostToDevice, stretched_dz_h[lev].begin(), stretched_dz_h[lev].end(), stretched_dz_d[lev].begin());
     }
 }
 

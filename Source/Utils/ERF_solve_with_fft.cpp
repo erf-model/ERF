@@ -53,12 +53,9 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
     AMREX_ALWAYS_ASSERT(use_fft);
 
     bool l_use_terrain = SolverChoice::terrain_type != TerrainType::None;
-    bool use_gmres     = (l_use_terrain && !SolverChoice::terrain_is_flat);
 
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
-
-    MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
 
     auto bclo = get_projection_bc(Orientation::low);
     auto bchi = get_projection_bc(Orientation::high);
@@ -107,10 +104,7 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
         if (!m_2D_poisson) {
             m_2D_poisson = std::make_unique<FFT::PoissonHybrid<MultiFab>>(Geom(0));
         }
-        // m_2D_poisson->solve(phi, rhs[lev], stretched_dz_d[lev]);
-
-        Gpu::DeviceVector<Real> stretched_dz(dom_hi.z+1, geom[lev].CellSize(2));
-        m_2D_poisson->solve(phi, rhs, stretched_dz);
+        m_2D_poisson->solve(phi, rhs, stretched_dz_d[lev]);
 
     } else {
         amrex::Abort("FFT isn't appropriate for spatially varying terrain");
@@ -227,16 +221,28 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
         });
 
         Box const& zbx = mfi.nodaltilebox(2);
-        const Real dz_inv = dxInv[2];
         Array4<Real> const& fz_arr  = fluxes[2].array(mfi);
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (k == dom_lo.z || k == dom_hi.z+1) {
-                fz_arr(i,j,k) = 0.0;
-            } else {
-                fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;
-            }
-        });
+        if (l_use_terrain && SolverChoice::terrain_is_flat) {
+            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k == dom_lo.z || k == dom_hi.z+1) {
+                    fz_arr(i,j,k) = 0.0;
+                } else {
+                    Real dz = 0.5 * (stretched_dz_d[lev][k] + stretched_dz_d[lev][k-1]);
+                    fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) / dz;
+                }
+            });
+        } else {
+            const Real dz_inv = dxInv[2];
+            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k == dom_lo.z || k == dom_hi.z+1) {
+                    fz_arr(i,j,k) = 0.0;
+                } else {
+                    fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;
+                }
+            });
+        }
     } // mfi
 }
 #endif
