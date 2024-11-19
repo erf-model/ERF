@@ -223,12 +223,13 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
         Box const& zbx = mfi.nodaltilebox(2);
         Array4<Real> const& fz_arr  = fluxes[2].array(mfi);
         if (l_use_terrain && SolverChoice::terrain_is_flat) {
+            Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (k == dom_lo.z || k == dom_hi.z+1) {
                     fz_arr(i,j,k) = 0.0;
                 } else {
-                    Real dz = 0.5 * (stretched_dz_d[lev][k] + stretched_dz_d[lev][k-1]);
+                    Real dz = 0.5 * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) / dz;
                 }
             });
