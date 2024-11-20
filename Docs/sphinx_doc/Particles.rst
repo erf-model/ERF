@@ -24,8 +24,6 @@ different roles in future.
 
    Two-dimensional squall line simulation with particles. The particles and contours of cloud water mixing ratio are shown.
 
-
-
 To enable the use of particles, one must set
 
 ::
