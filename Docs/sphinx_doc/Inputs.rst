@@ -1268,7 +1268,7 @@ methods for defining how the terrain-fitted coordinates given the topography:
 
 - Basic Terrain Following (BTF):
     The influence of the terrain decreases linearly with height.
-- Smoothed Terrain Following (STF):
+-  Smoothed Terrain Following (STF):
     Small-scale terrain structures are progressively smoothed out of the coordinate system as height increases.
 - Sullivan Terrain Following (name TBD):
     The influence of the terrain decreases with the cube of height.

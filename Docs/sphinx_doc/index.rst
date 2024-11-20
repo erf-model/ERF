@@ -63,7 +63,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    :maxdepth: 1
 
    AMReX.rst
-   ArakawaCGrid.rst
+   Meshing.rst
    MapFactors.rst
    TimeAdvance.rst
    Discretizations.rst
