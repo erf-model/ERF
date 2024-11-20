@@ -77,13 +77,30 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
                 }
             });
         } // mfi
-    } // use_terrain
+        //
+        // Note we compute the divergence after we convert rho0W --> Omega
+        //
+        for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.tilebox();
+            const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);
+            const Array4<Real const>& rho0v_arr = mom_mf[IntVars::ymom].const_array(mfi);
+            const Array4<Real const>& rho0w_arr = mom_mf[IntVars::zmom].const_array(mfi);
+            const Array4<Real      >&  rhs_arr = rhs[0].array(mfi);
 
-    computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
+            Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real dz = stretched_dz_d_ptr[k];
+                rhs_arr(i,j,k) =  (rho0u_arr(i+1,j,k) - rho0u_arr(i,j,k)) * dxInv[0]
+                                 +(rho0v_arr(i,j+1,k) - rho0v_arr(i,j,k)) * dxInv[1]
+                                 +(rho0w_arr(i,j,k+1) - rho0w_arr(i,j,k)) / dz;
+            });
+        } // mfi
 
-    if (l_use_terrain)
-    {
-        MultiFab::Divide(rhs[0],*detJ_cc[0],0,0,1,0);
+    } else {
+
+        computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
+
     }
 
     Real rhsnorm = rhs[0].norm0();
@@ -146,14 +163,34 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     //
     if (mg_verbose > 0)
     {
-        computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
         if (l_use_terrain)
         {
-            MultiFab::Divide(rhs[0],*detJ_cc[0],0,0,1,0);
-        } // use_terrain
+            //
+            // Note we compute the divergence before we convert Omega back to rho0W
+            //
+            for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                Box bx = mfi.tilebox();
+                const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);
+                const Array4<Real const>& rho0v_arr = mom_mf[IntVars::ymom].const_array(mfi);
+                const Array4<Real const>& rho0w_arr = mom_mf[IntVars::zmom].const_array(mfi);
+                const Array4<Real      >&  rhs_arr = rhs[0].array(mfi);
+
+                Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    Real dz = stretched_dz_d_ptr[k];
+                    rhs_arr(i,j,k) =  (rho0u_arr(i+1,j,k) - rho0u_arr(i,j,k)) * dxInv[0]
+                                     +(rho0v_arr(i,j+1,k) - rho0v_arr(i,j,k)) * dxInv[1]
+                                     +(rho0w_arr(i,j,k+1) - rho0w_arr(i,j,k)) / dz;
+                });
+            } // mfi
+
+        } else {
+            computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
+        }
 
         amrex::Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
-    }
+    } // mg_verbose
 
     //
     // ****************************************************************************
