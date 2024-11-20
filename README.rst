@@ -72,3 +72,23 @@ distribute copies to the public, prepare derivative works, and perform
 publicly and display publicly, and to permit other to do so.
 
 The license for ERF can be found in the LICENSE.md file.
+
+Citation
+~~~~~~~~~
+
+To cite ERF, please use [![Citing](http://joss.theoj.org/papers/10.21105/joss.05202/status.svg)](https://doi.org/10.21105/joss.05202)
+
+```
+@article{ERF_JOSS,
+    title   = {ERF: Energy Research and Forecasting},
+    journal = {Journal of Open Source Software}
+    author  = {Ann Almgren and Aaron Lattanzi and Riyaz Haque and Pankaj Jha and Branko Kosovic and Jeffrey Mirocha and Bruce Perry and Eliot Quon and Michael Sanders and David Wiersema and Donald Willcox and Xingqiu Yuan and Weiqun Zhang},
+    doi     = {10.21105/joss.05202},
+    url     = {https://doi.org/10.21105/joss.05202},
+    year    = {2023},
+    publisher = {The Open Journal of Open Source Software},
+    volume  = {8},
+    number  = {87},
+    pages   = {5202},
+}
+```

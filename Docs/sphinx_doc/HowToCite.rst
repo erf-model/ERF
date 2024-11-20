@@ -12,7 +12,7 @@ Almgren et al., (2023). ERF: Energy Research and Forecasting. Journal of Open So
 
 The bibtex version would be
 
-@article{Almgren2023,
+@article{ERF_JOSS,
     title   = {ERF: Energy Research and Forecasting},
     journal = {Journal of Open Source Software}
     author  = {Ann Almgren and Aaron Lattanzi and Riyaz Haque and Pankaj Jha and Branko Kosovic and Jeffrey Mirocha and Bruce Perry and Eliot Quon and Michael Sanders and David Wiersema and Donald Willcox and Xingqiu Yuan and Weiqun Zhang},
