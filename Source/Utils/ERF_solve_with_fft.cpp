@@ -233,7 +233,7 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) / dz;
                 }
             });
-        } else {
+        } else { // no grid stretching
             const Real dz_inv = dxInv[2];
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {

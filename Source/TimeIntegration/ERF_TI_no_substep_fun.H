@@ -12,7 +12,6 @@
         int n_data = IntVars::NumTypes;
 
         const auto& dxInv = fine_geom.InvCellSizeArray();
-        Box domain = fine_geom.Domain();
 
         const amrex::GpuArray<int, IntVars::NumTypes> scomp_fast = {0,0,0,0};
         const amrex::GpuArray<int, IntVars::NumTypes> ncomp_fast = {2,1,1,1};
