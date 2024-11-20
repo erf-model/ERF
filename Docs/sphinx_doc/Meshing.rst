@@ -13,6 +13,10 @@ Simulations over complex topography use a terrain-following, height-based vertic
 When terrain-following coordinates are used, the surface topography at nodes (cell corners)
 is specified either analytically or through parsing a text file; all metric terms derive from this quantity.
 
+See `WoA`_ for an example of a terrain-fitted grid; this one follows the Witch of Agnesi profile.
+
+.. _`WoA`: https://github.com/erf-model/validation/blob/main/JAMES_Paper/Flow_Over_Terrain/WoA_mesh.png
+
 As in many atmospheric modeling codes, variable mesh spacing in the vertical direction is allowed with or without terrain.
 The heights of each level can be parsed from a text file as ``z levels'' (as in WRF), or calculated at run-time given an
 initial mesh spacing at the bottom surface and a specified growth rate.  In the presence of non-flat terrain, the mesh is
