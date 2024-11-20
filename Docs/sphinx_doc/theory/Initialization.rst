@@ -10,11 +10,14 @@
 Initialization
 ==================
 
-To initialize a background (base) state for a simulation with a hydrostatic atmosphere, the hydrostatic equation balancing the pressure gradient
-and gravity must be satisfied. This section details the procedure for the initialization of the background state. The procedure is similar for the
-cases with and without moisture, the only difference being that the density for the cases with moisture has to be the total density
-:math:`\rho = \rho_d(1 + q_t)`, where :math:`\rho_d` is the dry density, and :math:`q_t` is the total mass mixing ratio -- water vapor and liquid water, instead
-of the dry density :math:`\rho_d` for cases without moisture.
+The initialization in ERF has two steps: creation of the background state and creation of initial perturbations from the background state.
+
+The background initial data can be read from WPS-generated or metgrid files, reconstructed from 1-d input sounding data,
+specified by the user, or determined by the procedure below.  Here we describe how ERF initializes base state values of density
+and potential temperature such that the density, pressure and potential temperature satisfy both the hydrostatic balance and the equation of state.
+Users have the option to define a dry or moist background state.
+
+This option is used when ``init_type == Ideal`` but ``init_sounding_ideal`` is false.
 
 Computation of the dry density
 -------------------------------

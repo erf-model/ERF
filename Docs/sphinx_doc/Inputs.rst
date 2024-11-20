@@ -1153,21 +1153,19 @@ with an ``erf.abl_geo_wind_table``.
 Initialization
 ==============
 
-ERF can be initialized in different ways. These are listed below:
+The initialization in ERF has two steps: creation of the background state and creation of initial perturbations from the background state.
 
-- Custom initialization:
-    Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are meant for demonstration and do not include any terrain or map scale factors.
-- Initialization using a NetCDF file:
-    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data.
-The state and velocity components of the ERF domain are ingested from the mesoscale data.
-This is a more realistic problem with real atmospheric data used for initialization.
-The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.
-These problems are run with both terrain and map scale factors.
-- Initialization using an ``input_sounding`` file:
-    Problems in ERF can be initialized using an ``input_sounding`` file containing the vertical profile.
-This file has the same format as used by ``ideal.exe`` executable in WRF.
-Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed.
-This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state and does not include terrain or map scale factors.
+The background initial data can be read from WPS-generated or metgrid files, reconstructed from 1-d input sounding data,
+or specified by the user. Problem-specific perturbational quantities, specified separately by the user, are added to the background state.
+When a hydrostatic background state must be defined at initialization,
+we use a Newton-Raphson approach to solving the non-linear root finding problem that stems from requiring that the density,
+pressure and potential temperature satisfy both the hydrostatic balance and the equation of state.
+This is needed when ``init_type == Ideal`` but ``init_sounding_ideal`` is false.
+Users have the option to define a dry or moist background state.
+
+The initialization strategy is determined at runtime by ``init_type``, which has six possible values.
+
+For more details on the hydrostatic initialization, see the ref:`Initialization section<theory/Initialization>`.
 
 In addition, there is a run-time option to project the initial velocity field to make it divergence-free.
 
@@ -1178,10 +1176,12 @@ List of Parameters
 | Parameter                        | Definition        | Acceptable         | Default               |
 |                                  |                   | Values             |                       |
 +==================================+===================+====================+=======================+
-| **erf.init_type**                | Initialization    | “custom”,          | “*custom*”            |
-|                                  | type              | “ideal”,           |                       |
-|                                  |                   | "real",            |                       |
-|                                  |                   |"input_sounding"    |                       |
+| **erf.init_type**                | Initialization    | "None",            | "None"                |
+|                                  | type              | "Ideal",           |                       |
+|                                  |                   | "Real",            |                       |
+|                                  |                   | "Input_Sounding"   |                       |
+|                                  |                   | "Metgrid"          |                       |
+|                                  |                   | "Uniform"          |                       |
 +----------------------------------+-------------------+--------------------+-----------------------+
 | **erf.input_sounding_file**      | Path to WRF-style |  String            | "input_sounding"      |
 |                                  | input sounding    |                    |                       |
