@@ -46,7 +46,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
     const int klo = geom.Domain().smallEnd()[2];
     const int khi = geom.Domain().bigEnd()[2] + 1;
 
-    Real rd_over_cp = solverChoice.rdOcp;
     Real rv_over_rd = R_v/R_d;
 
     MultiFab r0 (base_state, make_alias, BaseState::r0_comp , 1);
