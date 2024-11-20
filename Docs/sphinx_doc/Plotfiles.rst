@@ -16,7 +16,7 @@ Plotfiles can be written very efficiently in parallel in a native AMReX format.
 They can also be written in NetCDF. It is possible to output plotfiles in the
 same or separate formats at two distinct frequencies.
 
-The computational cost associated with reading and writing checkpoint files
+The computational cost associated with writing plotfiles
 in the AMReX native format is typically negligible relative to the overall cost of the simulation;
 in a recent performance study the cost of writing a plotfile was roughly a percent or two
 of the cost of a single timestep.

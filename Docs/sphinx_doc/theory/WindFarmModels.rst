@@ -1,3 +1,6 @@
+
+.. _sec:WindFarmModels:
+
 Wind farm models
 ==================
 

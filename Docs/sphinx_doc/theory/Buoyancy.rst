@@ -5,7 +5,7 @@
  .. role:: f(code)
     :language: fortran
 
-.. _Buoyancy:
+.. _sec:Buoyancy:
 
 Buoyancy
 =========
