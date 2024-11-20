@@ -413,6 +413,13 @@ the number of level-0 steps taken equals 1000, whichever comes first.
 Time Step
 =========
 
+The solver timestep can be fixed by the user or computed dynamically at each timestep based on the user-specified CFL
+number --- i.e., adaptive time stepping. For the compressible equations, the timestep calculation uses the acoustic CFL constraint.
+We note that when using implicit substepping, the vertical mesh spacing does not appear in the time step calcluation.
+The number of acoustic sub-steps per timestep can also be specified by the user as a fixed value or by specifying the
+number of substeps per RK stage.  For the anelastic equations, the timestep calculation uses the advective CFL constraint,
+which means it is determined by the fluid speed rather than the sound speed and thus allows much larger timesteps.
+
 .. _list-of-parameters-6:
 
 List of Parameters

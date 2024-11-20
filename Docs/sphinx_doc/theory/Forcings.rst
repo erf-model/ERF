@@ -12,12 +12,12 @@ Physical Forcings
 
 Physical forcings available in ERF comprise the standard source terms for atmospheric modeling.
 These include Coriolis and geostrophic forcing; Rayleigh damping and sponge layer(s); subsidence;
-simplified radiative thermal sources; and solution nudging towards a prescribed input sounding.  
+simplified radiative thermal sources; and solution nudging towards a prescribed input sounding.
 
 ERF also supports models for wind farm parametrization in which the effects of wind turbines are represented
 by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE).
 Currently the Fitch model, Explicit Wake Parametrization (EWP) model, Simplified Actuator Disk model (SAD),
-and Generalized Actuator Disk model (GAD) are supported. See:ref:`sec:WindFarmModels` for more information. 
+and Generalized Actuator Disk model (GAD) are supported. See :ref:`sec:WindFarmModels` for more information.
 
 Below is more detail on how to set the forcing terms.
 
@@ -92,7 +92,7 @@ Sponge regions
 ----------------------
 
 ERF provides the capability to apply sponge source terms near domain boundaries to prevent spurious reflections that otherwise occur
-at the domain boundaries if standard extrapolation boundary condition is used. The sponge zone is implemented as a source term 
+at the domain boundaries if standard extrapolation boundary condition is used. The sponge zone is implemented as a source term
 in the governing equations, which are active in a volumteric region at the boundaries that is specified by the user in the inputs file.
 Currently the target condition to which the sponge zones should be forced towards is to be specified by the user in the inputs file.
 

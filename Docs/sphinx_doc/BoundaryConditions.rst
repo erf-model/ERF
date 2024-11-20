@@ -13,7 +13,7 @@ ERF also has the option to run precursor simulations, save planes of data at spe
 The bottom surface boundary condition can be specified as a simple wall or by using Monin-Obukhov similarity theory (MOST).
 When utilizing MOST, the surface roughness, :math:`z_0`, may be specified as a constant, read from a file,
 or dynamically computed from the Charnock or shallow water formulation.
-Time-varying sea surface temperatures may also be employed in conjunction with MOST. 
+Time-varying sea surface temperatures may also be employed in conjunction with MOST.
 
 Ideal Domain BCs
 ----------------------
