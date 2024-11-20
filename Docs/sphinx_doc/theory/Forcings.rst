@@ -52,7 +52,7 @@ where :math:`C_f = 4 \pi / P_{rot}` is the Coriolis factor with :math:`P_{rot}` 
 period (measured in seconds), and :math:`\phi` the latitude.
 
 Values for ``erf.rotational_time_period``, ``erf.latitude``, and ``erf.coriolis_3d``; the first two are used
-to compute the Coriolis frequencey and the last of these determines whether to include the z-component in the Coriolis forcing.
+to compute the Coriolis frequency and the last of these determines whether to include the z-component in the Coriolis forcing.
 
 There is no dependence on the radial distance from the center of the earth, thus the curvature of the earth is neglected.
 
