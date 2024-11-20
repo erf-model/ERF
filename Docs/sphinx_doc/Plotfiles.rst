@@ -12,8 +12,14 @@ Plotfiles
 Controlling PlotFile Generation
 ===============================
 
-"Plotfiles" can be written very efficiently in parallel in a native AMReX format
-or in HDF5.  They can also be written in NetCDF.
+Plotfiles can be written very efficiently in parallel in a native AMReX format.
+They can also be written in NetCDF. It is possible to output plotfiles in the
+same or separate formats at two distinct frequencies.
+
+The computational cost associated with reading and writing checkpoint files
+in the AMReX native format is typically negligible relative to the overall cost of the simulation;
+in a recent performance study the cost of writing a plotfile was roughly a percent or two
+of the cost of a single timestep.
 
 The following options in the inputs file control the generation of plotfiles.
 Note that plotfiles can be written at two different frequencies; the names,

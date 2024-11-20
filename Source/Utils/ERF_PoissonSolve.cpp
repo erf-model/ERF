@@ -24,12 +24,6 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
     MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
 
-    auto bclo = get_projection_bc(Orientation::low);
-    auto bchi = get_projection_bc(Orientation::high);
-
-    // amrex::Print() << "BCLO " << bclo[0] << " " << bclo[1] << " " << bclo[2] << std::endl;
-    // amrex::Print() << "BCHI " << bchi[0] << " " << bchi[1] << " " << bchi[2] << std::endl;
-
     Vector<MultiFab> rhs;
     Vector<MultiFab> phi;
     Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes;
