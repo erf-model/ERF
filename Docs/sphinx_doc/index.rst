@@ -62,10 +62,12 @@ In addition to this documentation, there is API documentation for ERF generated 
    :caption: IMPLEMENTATION
    :maxdepth: 1
 
+   AMReX.rst
    ArakawaCGrid.rst
    MapFactors.rst
    TimeAdvance.rst
    Discretizations.rst
+   LinearSolvers.rst
    MeshRefinement.rst
    BoundaryConditions.rst
    MOST.rst

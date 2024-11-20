@@ -5,7 +5,7 @@
  .. role:: f(code)
     :language: fortran
 
-.. _Initialization:
+.. _sec:Initialization:
 
 Initialization
 ==================

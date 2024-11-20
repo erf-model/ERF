@@ -1165,7 +1165,7 @@ Users have the option to define a dry or moist background state.
 
 The initialization strategy is determined at runtime by ``init_type``, which has six possible values.
 
-For more details on the hydrostatic initialization, see the ref:`Initialization section<theory/Initialization>`.
+For more details on the hydrostatic initialization, see :ref:`sec:Initialization`.
 
 In addition, there is a run-time option to project the initial velocity field to make it divergence-free.
 
