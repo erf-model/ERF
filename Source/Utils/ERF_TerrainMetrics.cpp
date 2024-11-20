@@ -96,8 +96,8 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
         }
 
         for (int lev = 0; lev <= max_level; lev++) {
-            int nz = zlevels_stag[lev].size();
-            for (int k = 0; k < nz-1; k++)
+            int nz_zlevs = zlevels_stag[lev].size();
+            for (int k = 0; k < nz_zlevs-1; k++)
             {
                 stretched_dz_h[lev][k] = (zlevels_stag[lev][k+1] - zlevels_stag[lev][k]);
             }

@@ -11,7 +11,7 @@ using namespace amrex;
 /**
  * Solve the Poisson equation using GMRES
  */
-void ERF::solve_with_gmres (int lev, Vector<MultiFab>& /*rhs*/, Vector<MultiFab>& /*phi*/, Vector<Array<MultiFab,AMREX_SPACEDIM>>& /*fluxes*/)
+void ERF::solve_with_gmres (int /*lev*/, Vector<MultiFab>& /*rhs*/, Vector<MultiFab>& /*phi*/, Vector<Array<MultiFab,AMREX_SPACEDIM>>& /*fluxes*/)
 //void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi, Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes)
 {
     BL_PROFILE("ERF::solve_with_gmres()");
