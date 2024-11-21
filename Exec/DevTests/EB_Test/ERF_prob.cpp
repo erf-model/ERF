@@ -67,8 +67,8 @@ Problem::init_custom_pert(
     Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& /*r_hse*/,
     Array4<Real      > const& /*p_hse*/,
-    Array4<Real const> const& z_nd,
-    Array4<Real const> const& z_cc,
+    Array4<Real const> const& /*z_nd*/,
+    Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
@@ -148,7 +148,7 @@ Problem::init_custom_pert(
 
         // User function parameters
         Real a    = 0.5;
-        Real num  = 8 * a * a * a;
+        Real num  = 8.11 * a * a * a;
         Real xcen = 0.5 * (prob_lo[0] + prob_hi[0]);
 
         // Grown box with no z range
@@ -156,6 +156,9 @@ Problem::init_custom_pert(
         bx.setRange(2,0);
 
         amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array();
+
+        Real x_in = (-xcen);
+        Real height_at_inflow = num / (x_in * x_in + 4.0 * a * a);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
@@ -166,9 +169,9 @@ Problem::init_custom_pert(
             Real x = (ii  * dx[0] - xcen);
 
             // WoA Hill in x-direction
-            Real height = num / (x*x + 4 * a * a);
+            Real height = num / (x*x + 4.0 * a * a);
 
             // Populate terrain height
-            z_arr(i,j,k0) = height;
+            z_arr(i,j,k0) = height - height_at_inflow;
         });
     }

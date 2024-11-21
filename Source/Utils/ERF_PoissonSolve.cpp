@@ -14,8 +14,10 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     bool l_use_terrain = SolverChoice::terrain_type != TerrainType::None;
     bool use_gmres     = (l_use_terrain && !SolverChoice::terrain_is_flat);
 
+#ifndef ERF_USE_EB
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
+#endif
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
@@ -28,12 +30,21 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     Vector<MultiFab> phi;
     Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes;
 
+#ifdef ERF_USE_EB
+    rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
+    phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1, MFInfo(), Factory(lev));
+#else
     rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
     phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
+#endif
 
     fluxes.resize(1);
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+#ifdef ERF_USE_EB
+        fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
+#else
         fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
+#endif
     }
 
     auto dxInv = geom[lev].InvCellSizeArray();
@@ -49,6 +60,10 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // Compute divergence which will form RHS
     // Note that we replace "rho0w" with the contravariant momentum, Omega
     // ****************************************************************************
+#ifdef ERF_USE_EB
+    bool already_on_centroids = true;
+    EB_computeDivergence(rhs[0], rho0_u_const, geom_tmp[0], already_on_centroids);
+#else
     if (l_use_terrain)
     {
         for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -96,6 +111,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
 
     }
+#endif
 
     Real rhsnorm = rhs[0].norm0();
 
@@ -115,6 +131,9 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // ****************************************************************************
     // Choose the solver and solve
     // ****************************************************************************
+#ifdef ERF_USE_EB
+    solve_with_EB_mlmg(lev, rhs, phi, fluxes);
+#else
 #ifdef ERF_USE_FFT
     if (use_fft) {
 
@@ -130,6 +149,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
         solve_with_mlmg(lev, rhs, phi, fluxes);
     }
+#endif
 
     // ****************************************************************************
     // Subtract dt grad(phi) from the momenta (rho0u, rho0v, Omega)

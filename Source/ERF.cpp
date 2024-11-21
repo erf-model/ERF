@@ -333,12 +333,10 @@ ERF::ERF_shared ()
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
     }
 
-    // We define m_factory even with no EB
+    // We will create each of these in MakeNewLevel.../RemakeLevel
     m_factory.resize(max_level+1);
 
 #ifdef ERF_USE_EB
-    // We will create each of these in MakeNewLevel.../RemakeLevel
-
     // This is needed before initializing level MultiFabs
     MakeEBGeometry();
 #endif

@@ -5,6 +5,10 @@ max_step = 0
 amr.max_grid_size = 256 256 256
 
 eb2.geometry = terrain
+erf.anelastic = 1
+erf.mg_v = 2
+
+#erf.project_initial_velocity=true;
 
 amrex.fpe_trap_invalid = 1
 
@@ -12,22 +16,22 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = 0.   0.  0.
-geometry.prob_hi     = 10.  1.  4.
+geometry.prob_hi     = 16.  4.  16.
 
-amr.n_cell           = 128  8   64
+amr.n_cell           = 64  16   64
 
 geometry.is_periodic = 0 1 0
 
-xlo.type = "Inflow"
-xhi.type = "Outflow"
+xlo.type = Inflow
+xhi.type = Outflow
 
 xlo.velocity = 1. 0. 0.
 xlo.density  = 1.16
 xlo.theta    = 300.
 xlo.scalar   = 0.
 
-zlo.type = "SlipWall"
-zhi.type = "SlipWall"
+zlo.type = SlipWall
+zhi.type = SlipWall
 
 # TIME STEP CONTROL
 erf.substepping_type = None
