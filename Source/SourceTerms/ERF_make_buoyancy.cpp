@@ -76,6 +76,9 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             if (solverChoice.moisture_type == MoistureType::None) {
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
+                    //
+                    // Return -rho0 g (thetaprime / theta0)
+                    //
                     buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,
                                                                    grav_gpu[2],
                                                                    r0_arr,p0_arr,cell_data);
@@ -86,6 +89,9 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 //       of bounds error since it depends upon the surface theta_l
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
+                    //
+                    // Return -rho0 g (thetaprime / theta0)
+                    //
                     buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,
                                                                      grav_gpu[2],rv_over_rd,
                                                                      r0_arr,th0_arr,cell_data);
