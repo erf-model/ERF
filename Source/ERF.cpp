@@ -336,7 +336,7 @@ ERF::ERF_shared ()
     // We define m_factory even with no EB
     m_factory.resize(max_level+1);
 
-#ifdef AMREX_USE_EB
+#ifdef ERF_USE_EB
     // We will create each of these in MakeNewLevel.../RemakeLevel
 
     // This is needed before initializing level MultiFabs

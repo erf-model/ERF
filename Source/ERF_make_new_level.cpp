@@ -53,7 +53,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     if (lev == 0) init_bcs();
 
-#ifdef AMREX_USE_EB
+#ifdef ERF_USE_EB
     m_factory[lev] = makeEBFabFactory(geom[lev], grids[lev], dmap[lev],
                                       {nghost_eb_basic(),
                                        nghost_eb_volume(),

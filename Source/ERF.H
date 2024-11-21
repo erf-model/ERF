@@ -942,7 +942,7 @@ private:
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
-                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
+                                                    "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
                                                     "eq_pot_temp", "num_turb", "SMark0", "SMark1",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
@@ -957,6 +957,10 @@ private:
                                                     // moisture vars
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum"
+#ifdef ERF_USE_EB
+                                                    // EB variables
+                                                    ,"volfrac",
+#endif
 #ifdef ERF_COMPUTE_ERROR
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"

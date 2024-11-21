@@ -14,7 +14,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     = 0.   0.  0.
 geometry.prob_hi     = 10.  1.  4.
 
-amr.n_cell           = 256  8   64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+amr.n_cell           = 128  8   64
 
 geometry.is_periodic = 0 1 0
 
@@ -51,7 +51,7 @@ erf.plot_int_1      = 20         # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure scalar volfrac
 
 # SOLVER CHOICE
-erf.use_gravity = true
+erf.use_gravity = false
 erf.use_coriolis = false
 erf.les_type = "None"
 
@@ -65,4 +65,6 @@ erf.alpha_C = 0.0
 erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS
+prob.rho_0 = 1.0
+prob.T_0   = 1.0
 prob.u_0   = 1.0
