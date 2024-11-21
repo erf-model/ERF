@@ -354,18 +354,22 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp += 1;
         }
 
-        MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
-        MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
+        MultiFab  r_hse(base_state[lev], make_alias, 0, BaseState::r0_comp);
+        MultiFab  p_hse(base_state[lev], make_alias, 1, BaseState::p0_comp);
+        MultiFab th_hse(base_state[lev], make_alias, 1, BaseState::th0_comp);
         if (containerHasElement(plot_var_names, "pres_hse"))
         {
-            // p_0 is second component of base_state
             MultiFab::Copy(mf[lev],p_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
         if (containerHasElement(plot_var_names, "dens_hse"))
         {
-            // r_0 is first component of base_state
             MultiFab::Copy(mf[lev],r_hse,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+        if (containerHasElement(plot_var_names, "theta_hse"))
+        {
+            MultiFab::Copy(mf[lev],th_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
@@ -1321,7 +1325,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 #endif
     }
 
-#ifdef EB_USE_EB
+#ifdef ERF_USE_EB
     for (int lev = 0; lev <= finest_level; ++lev) {
         EB_set_covered(mf[lev], 0.0);
     }

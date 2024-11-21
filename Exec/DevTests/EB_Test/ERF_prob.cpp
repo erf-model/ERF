@@ -170,7 +170,5 @@ Problem::init_custom_pert(
 
             // Populate terrain height
             z_arr(i,j,k0) = height;
-
-            // z_arr(i,j,k0) = 2.5;
         });
     }

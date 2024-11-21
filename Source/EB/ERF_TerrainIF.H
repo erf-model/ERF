@@ -33,8 +33,6 @@ public:
 
         amrex::Array4<amrex::Real const> const& terr_arr = m_terr.const_array();
 
-        if (i == 128 and j == 3) amrex::Print() <<" TERRARR " << amrex::IntVect(i,j,0) << " " << z << " " << terr_arr(i,j,0) << std::endl;
-
         return -(z - terr_arr(i,j,0));
     }
 

@@ -87,8 +87,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     Real estdt_comp_inv = ReduceMax(S_new, ccvel, detJ, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
-                                  Array4<Real const> const& vf,
-                                  Array4<Real const> const& u) -> Real
+                                  Array4<Real const> const& u,
+                                  Array4<Real const> const& vf) -> Real
 #else
     Real estdt_comp_inv = ReduceMax(S_new, ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
