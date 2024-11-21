@@ -354,9 +354,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp += 1;
         }
 
-        MultiFab  r_hse(base_state[lev], make_alias, 0, BaseState::r0_comp);
-        MultiFab  p_hse(base_state[lev], make_alias, 1, BaseState::p0_comp);
-        MultiFab th_hse(base_state[lev], make_alias, 1, BaseState::th0_comp);
+        MultiFab  r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
+        MultiFab  p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
+        MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
         if (containerHasElement(plot_var_names, "pres_hse"))
         {
             MultiFab::Copy(mf[lev],p_hse,0,mf_comp,1,0);
