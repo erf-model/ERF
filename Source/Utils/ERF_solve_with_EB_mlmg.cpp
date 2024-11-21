@@ -56,7 +56,7 @@ void ERF::solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& 
     mleb.setLevelBC(0, nullptr);
 
     //
-    // This sets A = 0, B = 1 so that 
+    // This sets A = 0, B = 1 so that
     // the operator A alpha - b del dot beta grad to b
     // becomes  - del dot beta grad
     //
