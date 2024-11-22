@@ -251,8 +251,14 @@ endif
 #turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
-  includes += $(shell pkg-config --cflags netcdf)
-  LIBRARIES += $(shell pkg-config --libs netcdf)
+  has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
+  ifeq ($(has_netcdf_mpi),0)
+    includes += $(shell pkg-config --cflags netcdf-mpi)
+    LIBRARIES += $(shell pkg-config --libs netcdf-mpi)
+  else
+    includes += $(shell pkg-config --cflags netcdf)
+    LIBRARIES += $(shell pkg-config --libs netcdf)
+  endif
 endif
 
 ifeq ($(USE_HDF5), TRUE)
