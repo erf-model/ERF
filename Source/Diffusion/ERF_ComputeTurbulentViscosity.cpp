@@ -189,7 +189,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 }
                 Real E              = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp),Real(0.0));
-                Real stratification = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
+                volatile Real stratification = l_abs_g * dtheta_dz * l_inv_theta0;
                 Real length;
                 if (stratification <= eps) {
                     length = DeltaMsf;
