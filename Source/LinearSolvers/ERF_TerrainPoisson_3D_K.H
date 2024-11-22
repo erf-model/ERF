@@ -8,10 +8,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
                         amrex::Array4<T const> const& x,
                         amrex::Array4<T const> const& zp,
-                        T dxinv, T invdy, T dzinv) noexcept
+                        T dxinv, T dyinv, T dzinv) noexcept
 {
     using amrex::Real;
-#if 1
     Real h_xi, h_eta, h_zeta;
 
     // *********************************************************
@@ -171,22 +170,14 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     Real h_eta_on_zlo = 0.5 * (zp(i+1,j+1,k) + zp(i,j+1,k) - zp(i+1,j,k) - zp(i,j,k));
     pz_lo -= 0.5 * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
     pz_lo -= 0.5 * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
-#endif
 
     // *********************************************************
     // Adotx
     // *********************************************************
-    px_hi    = x(i+1,j,k) - x(i  ,j,k);
-    px_lo    = x(i  ,j,k) - x(i-1,j,k);
-    py_hi    = x(i,j+1,k) - x(i,j  ,k);
-    py_lo    = x(i,j  ,k) - x(i,j-1,k);
-    pz_hi    = x(i,j,k+1) - x(i,j,k  );
-    pz_lo    = x(i,j,k  ) - x(i,j,k-1);
 
     y(i,j,k) = dxinv * dxinv * (px_hi - px_lo)
-        +      invdy * invdy * (py_hi - py_lo)
+        +      dyinv * dyinv * (py_hi - py_lo)
         +      dzinv * dzinv * (pz_hi - pz_lo);
-    amrex::Print() << "Y IS " << amrex::IntVect(i,j,k) << "  " << y(i,j,k) << std::endl;
 }
 
 template <typename T>
@@ -226,8 +217,7 @@ void terrpoisson_flux_x (int i, int j, int k, amrex::Array4<T> const& fx,
     px_lo -= Real(0.5) * ( pz_lo_md_hi + pz_lo_md_lo );
     px_lo *= Real(0.5) * ( zp(i,j,k+1) + zp(i,j+1,k+1) - zp(i,j,k) - zp(i,j+1,k) ) * dzinv;
 
-    // On y-edges
-    fx(i,j,k) = -px_lo;
+    fx(i,j,k) = -px_lo * dxinv;
 }
 
 template <typename T>
@@ -266,7 +256,7 @@ void terrpoisson_flux_y (int i, int j, int k, amrex::Array4<T> const& fy,
     py_lo -= Real(0.5) * ( pz_md_lo_hi + pz_md_lo_lo );
     py_lo *= Real(0.5) * ( zp(i,j,k+1) + zp(i+1,j,k+1) - zp(i,j,k) - zp(i+1,j,k) ) * dzinv;
 
-    fy(i,j,k) = -py_lo;
+    fy(i,j,k) = -py_lo * dyinv;
 }
 
 template <typename T>
@@ -336,7 +326,7 @@ void terrpoisson_flux_z (int i, int j, int k, amrex::Array4<T> const& fz,
     pz_lo -= 0.5 * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
     pz_lo -= 0.5 * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
 
-    fz(i,j,k) = -pz_lo;
+    fz(i,j,k) = -pz_lo * dzinv;
 }
 
 #endif

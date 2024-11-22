@@ -52,6 +52,10 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
 
     AMREX_ALWAYS_ASSERT(use_fft);
 
+    // For now the logic only works correctly for lev == 0
+    // TODO: enable FFT for nested domains at lev > 0
+    AMREX_ALWAYS_ASSERT(lev == 0);
+
     bool l_use_terrain = SolverChoice::terrain_type != TerrainType::None;
 
     auto const dom_lo = lbound(geom[lev].Domain());
