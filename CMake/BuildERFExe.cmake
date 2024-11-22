@@ -42,14 +42,15 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/EB/ERF_eb_cylinder.cpp
                    ${SRC_DIR}/EB/ERF_eb_regular.cpp
                    ${SRC_DIR}/EB/ERF_initEB.cpp
-                   ${SRC_DIR}/EB/ERF_writeEBsurface.cpp)
+                   ${SRC_DIR}/EB/ERF_writeEBsurface.cpp 
+                   ${SRC_DIR}/LinearSolvers/ERF_solve_with_EB_mlmg.cpp)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/EB>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EB)
   endif()
 
   if(ERF_ENABLE_FFT)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/Utils/ERF_solve_with_fft.cpp)
+                   ${SRC_DIR}/LinearSolvers/ERF_solve_with_fft.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_FFT)
   endif()
 
@@ -189,10 +190,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
-       ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp
-       ${SRC_DIR}/Utils/ERF_PoissonSolve_tb.cpp
-       ${SRC_DIR}/Utils/ERF_solve_with_gmres.cpp
-       ${SRC_DIR}/Utils/ERF_solve_with_mlmg.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_solve_with_gmres.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_solve_with_mlmg.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
@@ -244,6 +246,7 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Diffusion>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Initialization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/IO>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LinearSolvers>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PBL>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/SourceTerms>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/TimeIntegration>)
