@@ -80,7 +80,7 @@ void TerrainPoisson::apply(MultiFab& lhs, MultiFab const& rhs)
     auto const& xc = xx.const_arrays();
     ParallelFor(rhs, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        terrpoisson_adotx(i,j,k,y[b], xc[b], zpa[b], dxinv[0], dxinv[1], dxinv[2]);
+        terrpoisson_adotx(i,j,k,y[b], xc[b], zpa[b], dxinv[0], dxinv[1]);
     });
 }
 
