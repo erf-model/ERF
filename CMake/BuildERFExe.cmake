@@ -188,6 +188,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_compute_divergence.cpp
        ${SRC_DIR}/LinearSolvers/ERF_solve_with_gmres.cpp
        ${SRC_DIR}/LinearSolvers/ERF_solve_with_mlmg.cpp
        ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp

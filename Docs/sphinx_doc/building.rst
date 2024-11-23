@@ -201,7 +201,7 @@ Analogous to GNU Make, the list of cmake directives is as follows:
 Mac with CMake
 ~~~~~~~~~~~~~~
 Tested with macOS 12.7 (Monterey) using cmake (3.27.8), open-mpi (5.0.0), and
-pkg-config (0.29.2) installed with the homebrew package manager. 
+pkg-config (0.29.2) installed with the homebrew package manager.
 NetCDF will be compiled from source. The instructions below should be version
 agnostic.
 
