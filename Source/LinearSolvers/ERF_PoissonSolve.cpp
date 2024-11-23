@@ -11,13 +11,13 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 {
     BL_PROFILE("ERF::project_velocities()");
 
-    bool l_use_terrain = SolverChoice::terrain_type != TerrainType::None;
-    bool use_gmres     = (l_use_terrain && !SolverChoice::terrain_is_flat);
-
 #ifndef ERF_USE_EB
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
 #endif
+
+    bool l_use_terrain = SolverChoice::terrain_type != TerrainType::None;
+    bool use_gmres     = (l_use_terrain && !SolverChoice::terrain_is_flat);
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
@@ -28,7 +28,6 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
     Vector<MultiFab> rhs;
     Vector<MultiFab> phi;
-    Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes;
 
 #ifdef ERF_USE_EB
     rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
@@ -38,34 +37,14 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
 #endif
 
-    fluxes.resize(1);
-    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-#ifdef ERF_USE_EB
-        fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
-#else
-        fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
-#endif
-    }
-
     auto dxInv = geom[lev].InvCellSizeArray();
 
-    Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
-    rho0_u_const[0] = &mom_mf[IntVars::xmom];
-    rho0_u_const[1] = &mom_mf[IntVars::ymom];
-    rho0_u_const[2] = &mom_mf[IntVars::zmom];
-
-    Real abstol = solverChoice.poisson_abstol;
-
+    //
     // ****************************************************************************
-    // Compute divergence which will form RHS
-    // Note that we replace "rho0w" with the contravariant momentum, Omega
+    // Now convert the rho0w MultiFab to hold Omega rather than rhow
     // ****************************************************************************
-#ifdef ERF_USE_EB
-    bool already_on_centroids = true;
-    EB_computeDivergence(rhs[0], rho0_u_const, geom_tmp[0], already_on_centroids);
-#else
-    if (l_use_terrain)
-    {
+    //
+    if (l_use_terrain && !SolverChoice::terrain_is_flat) {
         for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);
@@ -86,47 +65,48 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
                 }
             });
         } // mfi
-        //
-        // Note we compute the divergence after we convert rho0W --> Omega
-        //
-        for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            Box bx = mfi.tilebox();
-            const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);
-            const Array4<Real const>& rho0v_arr = mom_mf[IntVars::ymom].const_array(mfi);
-            const Array4<Real const>& rho0w_arr = mom_mf[IntVars::zmom].const_array(mfi);
-            const Array4<Real      >&  rhs_arr = rhs[0].array(mfi);
-
-            Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                Real dz = stretched_dz_d_ptr[k];
-                rhs_arr(i,j,k) =  (rho0u_arr(i+1,j,k) - rho0u_arr(i,j,k)) * dxInv[0]
-                                 +(rho0v_arr(i,j+1,k) - rho0v_arr(i,j,k)) * dxInv[1]
-                                 +(rho0w_arr(i,j,k+1) - rho0w_arr(i,j,k)) / dz;
-            });
-        } // mfi
-
-    } else {
-
-        computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
-
     }
-#endif
+
+    // ****************************************************************************
+    // Compute divergence which will form RHS
+    // Note that we replace "rho0w" with the contravariant momentum, Omega
+    // ****************************************************************************
+    compute_divergence(lev, rhs[0], mom_mf, geom_tmp[0]);
 
     Real rhsnorm = rhs[0].norm0();
 
     if (mg_verbose > 0) {
-        Print() << "Max norm of divergence before at level " << lev << " : " << rhsnorm << std::endl;
+        Print() << "Max norm of divergence before solve at level " << lev << " : " << rhsnorm << std::endl;
     }
 
+    // ****************************************************************************
+    //
+    // No need to build the solver if RHS == 0
+    //
+    if (rhsnorm <= solverChoice.poisson_abstol) return;
+    // ****************************************************************************
+
+    // ****************************************************************************
     // Initialize phi to 0
     // (It is essential that we do this in order to fill the corners; these are never
     //  used but the Saxpy requires the values to be initialized.)
+    // ****************************************************************************
     phi[0].setVal(0.0);
 
-    if (rhsnorm <= abstol) return;
-
     Real start_step = static_cast<Real>(ParallelDescriptor::second());
+
+    // ****************************************************************************
+    // Allocate fluxes
+    // ****************************************************************************
+    Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes;
+    fluxes.resize(1);
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+#ifdef ERF_USE_EB
+        fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
+#else
+        fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
+#endif
+    }
 
     // ****************************************************************************
     // Choose the solver and solve
@@ -134,6 +114,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 #ifdef ERF_USE_EB
     solve_with_EB_mlmg(lev, rhs, phi, fluxes);
 #else
+
 #ifdef ERF_USE_FFT
     bool boxes_make_rectangle = (geom_tmp[0].Domain().numPts() == ba_tmp[0].numPts());
     if (use_fft && boxes_make_rectangle) {
@@ -144,20 +125,13 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 #endif
     if (use_gmres)
     {
-        solve_with_gmres(lev, rhs, phi, fluxes);
-
-    } else {
-
+        solve_with_gmres(lev, rhs, phi, fluxes[0]);
+    }
+    else
+    {
         solve_with_mlmg(lev, rhs, phi, fluxes);
     }
 #endif
-
-    // ****************************************************************************
-    // Subtract dt grad(phi) from the momenta (rho0u, rho0v, Omega)
-    // ****************************************************************************
-    MultiFab::Add(mom_mf[IntVars::xmom],fluxes[0][0],0,0,1,0);
-    MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
-    MultiFab::Add(mom_mf[IntVars::zmom],fluxes[0][2],0,0,1,0);
 
     // ****************************************************************************
     // Print time in solve
@@ -167,10 +141,16 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         amrex::Print() << "Time in solve " << end_step - start_step << std::endl;
     }
 
+    // ****************************************************************************
+    // Subtract dt grad(phi) from the momenta (rho0u, rho0v, Omega)
+    // ****************************************************************************
+    MultiFab::Add(mom_mf[IntVars::xmom],fluxes[0][0],0,0,1,0);
+    MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
+    MultiFab::Add(mom_mf[IntVars::zmom],fluxes[0][2],0,0,1,0);
+
     //
     // This call is only to verify the divergence after the solve
     // It is important we do this before computing the rho0w_arr from Omega back to rho0w
-    //
     //
     // ****************************************************************************
     // THIS IS SIMPLY VERIFYING THE DIVERGENCE AFTER THE SOLVE
@@ -178,41 +158,19 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     //
     if (mg_verbose > 0)
     {
-        if (l_use_terrain)
-        {
-            //
-            // Note we compute the divergence before we convert Omega back to rho0W
-            //
-            for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                Box bx = mfi.tilebox();
-                const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);
-                const Array4<Real const>& rho0v_arr = mom_mf[IntVars::ymom].const_array(mfi);
-                const Array4<Real const>& rho0w_arr = mom_mf[IntVars::zmom].const_array(mfi);
-                const Array4<Real      >&  rhs_arr = rhs[0].array(mfi);
+        compute_divergence(lev, rhs[0], mom_mf, geom_tmp[0]);
 
-                Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    Real dz = stretched_dz_d_ptr[k];
-                    rhs_arr(i,j,k) =  (rho0u_arr(i+1,j,k) - rho0u_arr(i,j,k)) * dxInv[0]
-                                     +(rho0v_arr(i,j+1,k) - rho0v_arr(i,j,k)) * dxInv[1]
-                                     +(rho0w_arr(i,j,k+1) - rho0w_arr(i,j,k)) / dz;
-                });
-            } // mfi
+        amrex::Print() << "Max norm of divergence after  solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
 
-        } else {
-            computeDivergence(rhs[0], rho0_u_const, geom_tmp[0]);
-        }
-
-        amrex::Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
     } // mg_verbose
+
 
     //
     // ****************************************************************************
     // Now convert the rho0w MultiFab back to holding (rho0w) rather than Omega
     // ****************************************************************************
     //
-    if (l_use_terrain)
+    if (l_use_terrain && !solverChoice.terrain_is_flat)
     {
         for (MFIter mfi(mom_mf[Vars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {

@@ -1389,14 +1389,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 #ifdef ERF_USE_PARTICLES
             particleData.writePlotFile(plotfilename);
 #endif
-#ifdef ERF_USE_HDF5
-        } else if (plotfile_type == PlotFileType::HDF5) {
-            Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
-            WriteMultiLevelPlotfileHDF5(plotfilename, finest_level+1,
-                                        GetVecOfConstPtrs(mf),
-                                        varnames,
-                                        Geom(), t_new[0], istep, refRatio());
-#endif
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == PlotFileType::Netcdf) {
              int lev   = 0;

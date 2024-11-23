@@ -18,7 +18,7 @@ public:
 
     void apply(amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
 
-    void getFluxes(amrex::MultiFab const& phi, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
+    void getFluxes(amrex::MultiFab& phi, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 
     void assign(amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
 

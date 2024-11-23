@@ -125,10 +125,6 @@ ifeq ($(USE_FFT),TRUE)
 AMReXdirs                += FFT
 endif
 
-ifeq ($(USE_HDF5),TRUE)
-AMReXdirs             += Extern/HDF5
-endif
-
 AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/Make.package)
 
 include $(AMReXpack)
@@ -259,11 +255,6 @@ ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
   includes += $(shell pkg-config --cflags netcdf)
   LIBRARIES += $(shell pkg-config --libs netcdf)
-endif
-
-ifeq ($(USE_HDF5), TRUE)
-  DEFINES += -DERF_USE_HDF5
-  DEFINES += -DAMREX_USE_HDF5
 endif
 
 ifeq ($(USE_TERRAIN_VELOCITY), TRUE)

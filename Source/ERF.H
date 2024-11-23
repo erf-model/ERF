@@ -89,7 +89,7 @@ AMREX_ENUM(StateInterpType,
  * Enum of possible plotfile types
 */
 AMREX_ENUM(PlotFileType,
-    None, Amrex, Netcdf, HDF5
+    None, Amrex, Netcdf
 );
 
 
@@ -163,6 +163,10 @@ public:
     void WriteMyEBSurface ();
 #endif
 
+    // Compute the divergence of the momenta
+    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Vector<amrex::MultiFab>& mom_mf,
+                             amrex::Geometry const& geom_at_lev);
+
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
                              amrex::MultiFab& p);
@@ -182,7 +186,7 @@ public:
 #endif
 
     void solve_with_gmres (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
-                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
+                           amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
