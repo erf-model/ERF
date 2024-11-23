@@ -70,7 +70,12 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     {
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
-
+        //
+        // If we are setting Dirichlet values, set them in all ghost cells on an inflow face
+        // "bx" is already grown in the x- and y-directions so here we just grow it in z
+        //
+        bx_xlo.grow(2,ng[2]);
+        bx_xhi.grow(2,ng[2]);
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
@@ -109,6 +114,12 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     {
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
         Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
+        //
+        // If we are setting Dirichlet values, set them in all ghost cells on an inflow face
+        // "bx" is already grown in the x- and y-directions so here we just grow it in z
+        //
+        bx_ylo.grow(2,ng[2]);
+        bx_yhi.grow(2,ng[2]);
 
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
