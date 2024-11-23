@@ -30,7 +30,7 @@ void TerrainPoisson::apply(MultiFab& lhs, MultiFab const& rhs)
     xx.FillBoundary(m_geom.periodicity());
 
     if (!m_geom.isPeriodic(0)) {
-        for (MFIter mfi(xx,true); mfi.isValid(); ++mfi) 
+        for (MFIter mfi(xx,true); mfi.isValid(); ++mfi)
         {
             Box bx = mfi.tilebox();
             const Array4<Real>& x_arr = xx.array(mfi);
@@ -38,14 +38,14 @@ void TerrainPoisson::apply(MultiFab& lhs, MultiFab const& rhs)
             {
                 if (i == domlo.x) {
                     x_arr(i-1,j,k) = x_arr(i,j,k);
-                } else if (i == domhi.x) {
-                    x_arr(i+1,j,k) = x_arr(i,j,k);
+                } else if (i == domhi.x) { // OUTFLOW
+                    x_arr(i+1,j,k) = -x_arr(i,j,k);
                 }
             });
         }
     }
     if (!m_geom.isPeriodic(1)) {
-        for (MFIter mfi(xx,true); mfi.isValid(); ++mfi) 
+        for (MFIter mfi(xx,true); mfi.isValid(); ++mfi)
         {
             Box bx = mfi.tilebox();
             Box bx2(bx); bx2.grow(0,1);
@@ -61,7 +61,7 @@ void TerrainPoisson::apply(MultiFab& lhs, MultiFab const& rhs)
         } // mfi
     }
 
-    for (MFIter mfi(xx,true); mfi.isValid(); ++mfi) 
+    for (MFIter mfi(xx,true); mfi.isValid(); ++mfi)
     {
         Box bx = mfi.tilebox();
         Box bx2(bx); bx2.grow(0,1);

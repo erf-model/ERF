@@ -40,7 +40,7 @@ T terrpoisson_flux_x (int i, int j, int k,
     px_lo -= Real(0.5) * ( pz_lo_md_hi + pz_lo_md_lo );
 
     return -px_lo;
-} 
+}
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 T terrpoisson_flux_y (int i, int j, int k,

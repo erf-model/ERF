@@ -74,7 +74,7 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Vector<MultiFab>& mom_mf, 
             });
         } // mfi
 
-    } else { // no terrain 
+    } else { // no terrain
         computeDivergence(rhs, rho0_u_const, geom_at_lev);
 
     }
