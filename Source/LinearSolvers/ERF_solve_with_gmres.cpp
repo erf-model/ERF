@@ -1,7 +1,6 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainPoisson.H"
-#include "ERF_FFT_TerrainPrecond.H"
 
 #include <AMReX_GMRES.H>
 

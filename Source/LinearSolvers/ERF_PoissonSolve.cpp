@@ -118,7 +118,9 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     solve_with_EB_mlmg(lev, rhs, phi, fluxes);
 #else
 
-    bool boxes_make_rectangle = (geom_tmp[0].Domain().numPts() == ba_tmp[0].numPts());
+#ifdef ERF_USE_FFT
+        bool boxes_make_rectangle = (geom_tmp[0].Domain().numPts() == ba_tmp[0].numPts());
+#endif
 
     // ****************************************************************************
     // No terrain or grid stretching
