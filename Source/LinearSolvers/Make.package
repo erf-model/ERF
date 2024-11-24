@@ -1,5 +1,6 @@
 CEXE_headers += ERF_TerrainPoisson_3D_K.H
 CEXE_headers += ERF_TerrainPoisson.H
+CEXE_headers += ERF_FFT_TerrainPrecond.H
 CEXE_sources += ERF_TerrainPoisson.cpp
 
 CEXE_sources += ERF_compute_divergence.cpp

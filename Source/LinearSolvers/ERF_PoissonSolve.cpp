@@ -17,7 +17,6 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 #endif
 
     bool l_use_terrain = SolverChoice::terrain_type != TerrainType::None;
-    bool use_gmres     = (l_use_terrain && !SolverChoice::terrain_is_flat);
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
@@ -111,27 +110,77 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // ****************************************************************************
     // Choose the solver and solve
     // ****************************************************************************
+
+    // ****************************************************************************
+    // EB
+    // ****************************************************************************
 #ifdef ERF_USE_EB
     solve_with_EB_mlmg(lev, rhs, phi, fluxes);
 #else
 
-#ifdef ERF_USE_FFT
     bool boxes_make_rectangle = (geom_tmp[0].Domain().numPts() == ba_tmp[0].numPts());
-    if (use_fft && boxes_make_rectangle) {
 
-        solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
-
-    } else
-#endif
-    if (use_gmres)
-    {
-        solve_with_gmres(lev, rhs, phi, fluxes[0]);
-    }
-    else
-    {
+    // ****************************************************************************
+    // No terrain or grid stretching
+    // ****************************************************************************
+    if (!l_use_terrain) {
+#ifdef ERF_USE_FFT
+        if (use_fft) {
+            if (boxes_make_rectangle) {
+                solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
+            } else {
+                amrex::Warning("FFT won't work unless the boxArray covers the domain: defaulting to MLMG");
+                solve_with_mlmg(lev, rhs, phi, fluxes);
+            }
+        } else {
+            solve_with_mlmg(lev, rhs, phi, fluxes);
+        }
+#else
+        if (use_fft) {
+            amrex::Warning("use_fft can't be used unless you build with USE_FFT = TRUE; defaulting to MLMG");
+        }
         solve_with_mlmg(lev, rhs, phi, fluxes);
-    }
 #endif
+    } // No terrain or grid stretching
+
+    // ****************************************************************************
+    // Grid stretching (flat terrain)
+    // ****************************************************************************
+    else if (l_use_terrain && SolverChoice::terrain_is_flat) {
+#ifndef ERF_USE_FFT
+        amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
+#else
+        if (!boxes_make_rectangle) {
+            amrex::Abort("FFT won't work unless the boxArray covers the domain");
+        } else {
+            if (!use_fft) {
+                amrex::Warning("Using FFT even though you didnt set use_fft = 0; it's the best choice");
+            }
+            solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
+        }
+#endif
+    } // grid stretching
+
+    // ****************************************************************************
+    // General terrain
+    // ****************************************************************************
+    else if (l_use_terrain && !SolverChoice::terrain_is_flat) {
+#ifdef ERF_USE_FFT
+        if (use_fft)
+        {
+            amrex::Warning("FFT solver does not work for general terrain: switching to GMRES");
+        }
+        if (!boxes_make_rectangle) {
+            amrex::Abort("FFT preconditioner for GMRES won't work unless the boxArray covers the domain");
+        } else {
+            solve_with_gmres(lev, rhs, phi, fluxes[0]);
+        }
+#else
+        amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT preconditioner for GMRES");
+#endif
+    } // general terrain
+
+#endif // not EB
 
     // ****************************************************************************
     // Print time in solve

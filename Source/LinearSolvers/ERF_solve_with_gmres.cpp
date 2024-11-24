@@ -1,6 +1,7 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainPoisson.H"
+#include "ERF_FFT_TerrainPrecond.H"
 
 #include <AMReX_GMRES.H>
 
@@ -24,7 +25,7 @@ void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& ph
 
     gmsolver.setVerbose(mg_verbose);
 
-//  tp.usePrecond(false);
+    tp.usePrecond(true);
 
     gmsolver.solve(phi[0], rhs[0], reltol, abstol);
 

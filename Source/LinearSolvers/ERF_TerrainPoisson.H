@@ -2,6 +2,7 @@
 #define ERF_TERRAIN_POISSON_H_
 
 #include "ERF_TerrainPoisson_3D_K.H"
+#include "ERF_FFT_TerrainPrecond.H"
 
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
@@ -17,6 +18,8 @@ public:
                     amrex::MultiFab const* z_phys_nd);
 
     void apply(amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
+
+    void usePrecond(bool precond_flag);
 
     void getFluxes(amrex::MultiFab& phi, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 
@@ -42,10 +45,12 @@ public:
     void setToZero(amrex::MultiFab& v);
 
 private:
+    bool m_use_precond = false;
     amrex::Geometry m_geom;
     amrex::BoxArray m_grids;
     amrex::DistributionMapping m_dmap;
     const amrex::MultiFab* m_zphys;
+    std::unique_ptr<amrex::FFT::PoissonTerrainPrecond<amrex::MultiFab>> m_2D_fft_precond;
 };
 
 #endif

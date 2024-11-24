@@ -28,9 +28,8 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Vector<MultiFab>& mom_mf, 
     bool already_on_centroids = true;
     EB_computeDivergence(rhs, rho0_u_const, geom_at_lev, already_on_centroids);
 #else
-    // if (l_use_terrain && SolverChoice::terrain_is_flat) {
-    if (0) {
-
+    if (l_use_terrain && SolverChoice::terrain_is_flat)
+    {
         for ( MFIter mfi(rhs,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box bx = mfi.tilebox();
@@ -47,9 +46,9 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Vector<MultiFab>& mom_mf, 
                                  +(rho0w_arr(i,j,k+1) - rho0w_arr(i,j,k)) / dz;
             });
         } // mfi
-
-    } else if (l_use_terrain) { // terrain is not flat
-
+    }
+    else if (l_use_terrain) // terrain is not flat
+    {
         //
         // Note we compute the divergence using "rho0w" == Omega
         //
@@ -74,9 +73,10 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Vector<MultiFab>& mom_mf, 
             });
         } // mfi
 
-    } else { // no terrain
+    }
+    else // no terrain
+    {
         computeDivergence(rhs, rho0_u_const, geom_at_lev);
-
     }
 #endif
 }

@@ -10,6 +10,14 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
       m_dmap(dm),
       m_zphys(z_phys_nd)
 {
+    if (!m_2D_fft_precond) {
+        m_2D_fft_precond = std::make_unique<FFT::PoissonTerrainPrecond<MultiFab>>(geom);
+    }
+}
+
+void TerrainPoisson::usePrecond(bool use_precond_in)
+{
+    m_use_precond = use_precond_in;
 }
 
 void TerrainPoisson::apply(MultiFab& lhs, MultiFab const& rhs)
@@ -178,7 +186,11 @@ Real TerrainPoisson::norm2(MultiFab const& v)
 
 void TerrainPoisson::precond(MultiFab& lhs, MultiFab const& rhs)
 {
-    MultiFab::Copy(lhs, rhs, 0, 0, 1, 0);
+    if (m_use_precond) {
+        m_2D_fft_precond->solve(lhs, rhs, *m_zphys);
+    } else {
+        MultiFab::Copy(lhs, rhs, 0, 0, 1, 0);
+    }
 }
 
 void TerrainPoisson::setToZero(MultiFab& v)
