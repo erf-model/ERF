@@ -16,10 +16,17 @@ void
 ERF::AverageDown ()
 {
     AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
-    int  src_comp = 0;
-    int  num_comp = vars_new[0][Vars::cons].nComp();
+
+    int src_comp, num_comp;
     for (int lev = finest_level-1; lev >= 0; --lev)
     {
+        // If anelastic we don't average down rho because rho == rho0.
+        if (solverChoice.anelastic[lev]) {
+            src_comp = 1;
+        } else {
+            src_comp = 0;
+        }
+        num_comp = vars_new[0][Vars::cons].nComp() - src_comp;
         AverageDownTo(lev,src_comp,num_comp);
     }
 }
@@ -28,8 +35,13 @@ ERF::AverageDown ()
 void
 ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 {
-    AMREX_ALWAYS_ASSERT(scomp == 0);
-    AMREX_ALWAYS_ASSERT(ncomp == vars_new[crse_lev][Vars::cons].nComp());
+    if (solverChoice.anelastic[crse_lev]) {
+        AMREX_ALWAYS_ASSERT(scomp == 1);
+    } else {
+        AMREX_ALWAYS_ASSERT(scomp == 0);
+    }
+
+    AMREX_ALWAYS_ASSERT(ncomp == vars_new[crse_lev][Vars::cons].nComp() - scomp);
     AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
 
     // ******************************************************************************************

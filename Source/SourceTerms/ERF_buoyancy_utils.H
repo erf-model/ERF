@@ -24,7 +24,9 @@ buoyancy_dry_anelastic (int& i, int& j, int& k,
 
     amrex::Real theta_d_0_wface = amrex::Real(0.5) * (theta_d_0_lo + theta_d_0_hi);
 
-    return (-grav_gpu * (theta_d_wface - theta_d_0_wface) / theta_d_0_wface * 0.5 * (r0_arr(i,j,k) + r0_arr(i,j,k-1)));
+    amrex::Real rho0_wface = amrex::Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
+
+    return (-rho0_wface * grav_gpu * (theta_d_wface - theta_d_0_wface) / theta_d_0_wface);
 }
 
 AMREX_GPU_DEVICE
@@ -56,7 +58,9 @@ buoyancy_moist_anelastic (int& i, int& j, int& k,
 
     amrex::Real theta_v_0_wface = amrex::Real(0.5) * (theta_v_0_lo + theta_v_0_hi);
 
-    return (-grav_gpu * (theta_v_wface - theta_v_0_wface) / theta_v_0_wface * 0.5 * (r0_arr(i,j,k) + r0_arr(i,j,k-1)));
+    amrex::Real rho0_wface = amrex::Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
+
+    return (-rho0_wface * grav_gpu * (theta_v_wface - theta_v_0_wface) / theta_v_0_wface);
 }
 
 AMREX_GPU_DEVICE

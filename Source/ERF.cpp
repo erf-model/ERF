@@ -494,7 +494,14 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             // We need to do this before anything else because refluxing changes the
             // values of coarse cells underneath fine grids with the assumption they'll
             // be over-written by averaging down
-            AverageDownTo(lev,0,ncomp);
+            int src_comp;
+            if (solverChoice.anelastic[lev]) {
+                src_comp = 1;
+            } else {
+                src_comp = 0;
+            }
+            int num_comp = ncomp - src_comp;
+            AverageDownTo(lev,src_comp,num_comp);
         }
     }
 
