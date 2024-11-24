@@ -10,9 +10,11 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
       m_dmap(dm),
       m_zphys(z_phys_nd)
 {
+#ifdef ERF_USE_FFT
     if (!m_2D_fft_precond) {
         m_2D_fft_precond = std::make_unique<FFT::PoissonTerrainPrecond<MultiFab>>(geom);
     }
+#endif
 }
 
 void TerrainPoisson::usePrecond(bool use_precond_in)

@@ -2,7 +2,9 @@
 #define ERF_TERRAIN_POISSON_H_
 
 #include "ERF_TerrainPoisson_3D_K.H"
+#ifdef ERF_USE_FFT
 #include "ERF_FFT_TerrainPrecond.H"
+#endif
 
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
