@@ -188,9 +188,12 @@ Real TerrainPoisson::norm2(MultiFab const& v)
 
 void TerrainPoisson::precond(MultiFab& lhs, MultiFab const& rhs)
 {
+#ifdef ERF_USE_FFT
     if (m_use_precond) {
         m_2D_fft_precond->solve(lhs, rhs, *m_zphys);
-    } else {
+    } else
+#endif
+    {
         MultiFab::Copy(lhs, rhs, 0, 0, 1, 0);
     }
 }

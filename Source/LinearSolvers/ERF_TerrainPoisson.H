@@ -52,7 +52,9 @@ private:
     amrex::BoxArray m_grids;
     amrex::DistributionMapping m_dmap;
     const amrex::MultiFab* m_zphys;
+#ifdef ERF_USE_FFT
     std::unique_ptr<amrex::FFT::PoissonTerrainPrecond<amrex::MultiFab>> m_2D_fft_precond;
+#endif
 };
 
 #endif
