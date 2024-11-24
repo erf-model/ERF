@@ -154,7 +154,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             amrex::Abort("FFT won't work unless the boxArray covers the domain");
         } else {
             if (!use_fft) {
-                amrex::Warning("Using FFT even though you didnt set use_fft = 0; it's the best choice");
+                amrex::Warning("Using FFT even though you didn't set use_fft = 0; it's the best choice");
             }
             solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
         }
