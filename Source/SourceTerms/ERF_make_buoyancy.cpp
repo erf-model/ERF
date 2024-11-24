@@ -70,7 +70,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
             // Base state density and pressure
             const Array4<const Real>&  r0_arr =  r0.const_array(mfi);
-            const Array4<const Real>&  p0_arr =  p0.const_array(mfi);
             const Array4<const Real>& th0_arr = th0.const_array(mfi);
 
             if (solverChoice.moisture_type == MoistureType::None) {
