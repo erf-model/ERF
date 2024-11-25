@@ -926,6 +926,7 @@ private:
     int m_plot_int_2 = -1;
     amrex::Real m_plot_per_1 = -1.0;
     amrex::Real m_plot_per_2 = -1.0;
+    bool m_plot_face_vels = false;
 
     bool plot_lsm = false;
 

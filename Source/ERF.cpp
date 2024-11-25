@@ -1547,6 +1547,8 @@ ERF::ReadParameters ()
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
+        pp.query("plot_face_vels",m_plot_face_vels);
+
         if ( (m_plot_int_1 > 0 && m_plot_per_1 > 0) ||
              (m_plot_int_2 > 0 && m_plot_per_2 > 0.) ) {
             Abort("Must choose only one of plot_int or plot_per");
