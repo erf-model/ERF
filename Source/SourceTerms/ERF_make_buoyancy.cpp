@@ -120,9 +120,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             }
             else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3)
             {
-                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
-                const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
-
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     //
@@ -134,9 +131,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             }
             else if (solverChoice.buoyancy_type == 4)
             {
-                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
-                const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
-
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     //
