@@ -169,6 +169,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_make_sources.cpp
        ${SRC_DIR}/SourceTerms/ERF_moist_set_rhs.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
+       ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp

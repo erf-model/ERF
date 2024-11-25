@@ -45,12 +45,14 @@ void make_mom_sources (int level,
                        const  MultiFab & S_prim,
                        std::unique_ptr<MultiFab>& z_phys_nd,
                        std::unique_ptr<MultiFab>& z_phys_cc,
-                       const  MultiFab & /*xvel*/,
-                       const  MultiFab & /*yvel*/,
+                       const  MultiFab & xvel,
+                       const  MultiFab & yvel,
+                       const  MultiFab & wvel,
                               MultiFab & xmom_src,
                               MultiFab & ymom_src,
                               MultiFab & zmom_src,
                        const MultiFab& base_state,
+                             MultiFab* forest_drag,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& /*mapfac_m*/,
@@ -87,6 +89,7 @@ void make_mom_sources (int level,
     // *****************************************************************************
     const bool l_use_ndiff    = solverChoice.use_NumDiff;
     const bool use_terrain    = solverChoice.terrain_type != TerrainType::None;
+    const bool l_do_forest    = solverChoice.do_forest;
 
     // *****************************************************************************
     // Data for Coriolis forcing
@@ -210,8 +213,9 @@ void make_mom_sources (int level,
         const Array4<const Real>&     rho_v = S_data[IntVars::ymom].array(mfi);
         const Array4<const Real>&     rho_w = S_data[IntVars::zmom].array(mfi);
 
-        //const Array4<const Real>& u = xvel.array(mfi);
-        //const Array4<const Real>& v = yvel.array(mfi);
+        const Array4<const Real>& u = xvel.array(mfi);
+        const Array4<const Real>& v = yvel.array(mfi);
+        const Array4<const Real>& w = wvel.array(mfi);
 
         const Array4<      Real>& xmom_src_arr = xmom_src.array(mfi);
         const Array4<      Real>& ymom_src_arr = ymom_src.array(mfi);
@@ -222,8 +226,13 @@ void make_mom_sources (int level,
         //const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
         //const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
-        const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
-        const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& f_drag_arr = (forest_drag) ? forest_drag->const_array(mfi) :
+                                                               Array4<const Real>{};
+
+        const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) :
+                                                             Array4<const Real>{};
+        const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) :
+                                                             Array4<const Real>{};
 
         // *****************************************************************************
         // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
@@ -479,5 +488,43 @@ void make_mom_sources (int level,
                                  xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w);
         }
 
+        // *****************************************************************************
+        // 9. Add CANOPY source terms
+        // *****************************************************************************
+        if (l_do_forest) {
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real ux = u(i, j, k);
+                const Real uy = 0.25 * ( v(i, j  , k  ) + v(i-1, j  , k  )
+                                       + v(i, j+1, k  ) + v(i-1, j+1, k  ) );
+                const Real uz = 0.25 * ( w(i, j  , k  ) + w(i-1, j  , k  )
+                                       + w(i, j  , k+1) + w(i-1, j  , k+1) );
+                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real f_drag = 0.5 * (f_drag_arr(i, j, k) + f_drag_arr(i-1, j, k));
+                xmom_src_arr(i, j, k) -= f_drag * ux * windspeed;
+            });
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real ux = 0.25 * ( u(i  , j  , k  ) + u(i  , j-1, k  )
+                                       + u(i+1, j  , k  ) + u(i+1, j-1, k  ) );
+                const Real uy = v(i, j, k);
+                const Real uz = 0.25 * ( w(i  , j  , k  ) + w(i  , j-1, k  )
+                                       + w(i  , j  , k+1) + w(i  , j-1, k+1) );
+                const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real f_drag = 0.5 * (f_drag_arr(i, j, k) + f_drag_arr(i, j-1, k));
+                ymom_src_arr(i, j, k) -= f_drag * uy * windspeed;
+            });
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const amrex::Real ux = 0.25 * ( u(i  , j  , k  ) + u(i+1, j  , k  )
+                                              + u(i  , j  , k-1) + u(i+1, j  , k-1) );
+                const amrex::Real uy = 0.25 * ( v(i  , j  , k  ) + v(i  , j+1, k  )
+                                              + v(i  , j  , k-1) + v(i  , j+1, k-1) );
+                const amrex::Real uz = w(i, j, k);
+                const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real f_drag = 0.5 * (f_drag_arr(i, j, k) + f_drag_arr(i, j, k-1));
+                zmom_src_arr(i, j, k) -= f_drag * uz * windspeed;
+            });
+        }
     } // mfi
 }

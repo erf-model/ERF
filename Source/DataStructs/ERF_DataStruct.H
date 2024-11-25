@@ -645,5 +645,8 @@ struct SolverChoice {
     amrex::Real turb_disk_angle = -1.0;
     amrex::Real windfarm_x_shift = -1.0;
     amrex::Real windfarm_y_shift = -1.0;
+
+    // Flag for valid canopy model
+    bool do_forest {false};
 };
 #endif

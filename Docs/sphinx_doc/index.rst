@@ -57,6 +57,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/Forcings.rst
    Particles.rst
    theory/WindFarmModels.rst
+   theory/Forest.rst
    theory/UnitsAndConstants.rst
 
 .. toctree::
