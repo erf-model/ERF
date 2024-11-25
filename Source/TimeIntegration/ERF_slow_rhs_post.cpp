@@ -271,10 +271,12 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
 
-        const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
-
-        const Array4<const Real>& z_nd         = l_use_terrain    ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ_new_arr = l_moving_terrain ? detJ_new->const_array(mfi)    : Array4<const Real>{};
+        const Array4<Real const>& mu_turb      = l_use_turb       ? eddyDiffs->const_array(mfi) :
+                                                                    Array4<const Real>{};
+        const Array4<const Real>& z_nd         = l_use_terrain    ? z_phys_nd->const_array(mfi) :
+                                                                    Array4<const Real>{};
+        const Array4<const Real>& detJ_new_arr = l_moving_terrain ? detJ_new->const_array(mfi) :
+                                                                    Array4<const Real>{};
 
         // Map factors
         const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
@@ -282,7 +284,8 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
         // SmnSmn for KE src with Deardorff
-        const Array4<const Real>& SmnSmn_a = l_use_ddorf ? SmnSmn->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& SmnSmn_a = l_use_ddorf ? SmnSmn->const_array(mfi) :
+                                                           Array4<const Real>{};
 
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
@@ -408,7 +411,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                 }
 
                 if (l_use_diff) {
-                    const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
+                    const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) :
+                                                                  Array4<const Real>{};
                     if (l_use_terrain) {
                         DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, rot_most, u, v,
                                                new_cons, cur_prim, cell_rhs,

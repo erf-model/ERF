@@ -40,9 +40,9 @@ buoyancy_moist_anelastic (int& i, int& j, int& k,
                           const amrex::Array4<const amrex::Real>& cell_data)
 {
     amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/r0_arr(i,j,k-1);
-    amrex::Real qv_lo      = cell_data(i,j,k-1,RhoQ1_comp)   /r0_arr(i,j,k-1);
-    amrex::Real qc_lo      = cell_data(i,j,k-1,RhoQ2_comp)   /r0_arr(i,j,k-1);
-    amrex::Real qt_lo      = qv_lo + qc_lo;
+    amrex::Real qv_lo      = cell_data(i,j,k-1,RhoQ1_comp)   /r0_arr(i,j,k-1); // PS?
+    amrex::Real qc_lo      = cell_data(i,j,k-1,RhoQ2_comp)   /r0_arr(i,j,k-1); // PS
+    amrex::Real qt_lo      = qv_lo + qc_lo;                                    // PS (could include ice etc.)
     amrex::Real theta_v_lo = theta_d_lo * (1.0 - (1.0 - rv_over_rd)*qt_lo - rv_over_rd*qc_lo);
 
     amrex::Real theta_d_hi = cell_data(i,j,k,RhoTheta_comp)/r0_arr(i,j,k);
@@ -97,7 +97,7 @@ buoyancy_rhopert (int& i, int& j, int& k,
 {
     amrex::Real rhop_hi = cell_data(i,j,k  ,Rho_comp) - r0_arr(i,j,k  );
     amrex::Real rhop_lo = cell_data(i,j,k-1,Rho_comp) - r0_arr(i,j,k-1);
-    for (int q_offset(0); q_offset<n_qstate; ++q_offset) {
+    for (int q_offset(0); q_offset<n_qstate; ++q_offset) { // PS (we would replace this)
         rhop_hi += cell_data(i,j,k  ,RhoQ1_comp+q_offset);
         rhop_lo += cell_data(i,j,k-1,RhoQ1_comp+q_offset);
     }
@@ -124,19 +124,19 @@ buoyancy_type2 (int& i, int& j, int& k,
 
     amrex::Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp),
                                             cell_data(i,j,k  ,RhoTheta_comp),
-                                            cell_data(i,j,k  ,RhoQ1_comp)/cell_data(i,j,k  ,Rho_comp));
+                                            cell_data(i,j,k  ,RhoQ1_comp)/cell_data(i,j,k  ,Rho_comp)); // PS?
     amrex::Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp),
                                             cell_data(i,j,k-1,RhoTheta_comp),
-                                            cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp));
+                                            cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp)); // PS?
 
-    amrex::Real qv_plus  = (n_qstate >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
-    amrex::Real qv_minus = (n_qstate >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
+    amrex::Real qv_plus  = (n_qstate >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0; // PS?
+    amrex::Real qv_minus = (n_qstate >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0; // PS?
 
-    amrex::Real qc_plus  = (n_qstate >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
-    amrex::Real qc_minus = (n_qstate >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
+    amrex::Real qc_plus  = (n_qstate >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0; // PS
+    amrex::Real qc_minus = (n_qstate >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0; // PS
 
-    amrex::Real qp_plus  = (n_qstate >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
-    amrex::Real qp_minus = (n_qstate >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
+    amrex::Real qp_plus  = (n_qstate >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0; // PS
+    amrex::Real qp_minus = (n_qstate >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0; // PS
 
     amrex::Real qplus  = 0.61 * ( qv_plus - qv_d_ptr[k] ) -
                                 ( qc_plus - qc_d_ptr[k]   +

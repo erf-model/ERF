@@ -23,4 +23,23 @@ void reduce_to_max_per_height (amrex::Vector<amrex::Real>& v,
     amrex::ParallelDescriptor::ReduceRealMax(v.data(), v.size());
 }
 
+// Partial Sum over specific components.
+// This is an interface for the micro models.
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+amrex::Real
+comp_partial_sum (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& nsize,
+                  const int* ind_map,
+                  const amrex::Array4<const amrex::Real>& data)
+{
+    amrex::Real partial_sum = 0.0;
+    for (int n(0); n<nsize; ++n) {
+        int ind = RhoQ1_comp + ind_map[n];
+        partial_sum += data(i,j,k,ind);
+    }
+    return partial_sum;
+}
 #endif /* ERF_ParFunctions.H */

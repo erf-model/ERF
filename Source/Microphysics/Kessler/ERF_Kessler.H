@@ -125,15 +125,22 @@ public:
     Qstate_Size () override { return Kessler::m_qstate_size; }
 
     void
-    Qmoist_Restart_Vars ( const SolverChoice& a_sc,
-                          std::vector<int>& a_idx,
-                          std::vector<std::string>& a_names) const override
+    Qmoist_Restart_Vars (const SolverChoice& a_sc,
+                         std::vector<int>& a_idx,
+                         std::vector<std::string>& a_names) const override
     {
         a_idx.clear();
         a_names.clear();
         if (a_sc.moisture_type == MoistureType::Kessler) {
             a_idx.push_back(4); a_names.push_back("RainAccum");
         }
+    }
+
+    int*
+    NonPrecip_Index_Map (int& size) override
+    {
+        size = NP_map_size;
+        return NP_map_d.data();
     }
 
 private:
@@ -145,6 +152,10 @@ private:
 
     // CFL MAX for vertical advection
     static constexpr amrex::Real CFL_MAX = 0.5;
+
+    // Nonprecip ind map
+    int NP_map_size;
+    amrex::Gpu::DeviceVector<int> NP_map_d;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;

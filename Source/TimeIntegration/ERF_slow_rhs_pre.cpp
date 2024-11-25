@@ -351,7 +351,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     amrex::Abort("Bad theta in ERF_slow_rhs_pre");
                 }
 #endif
-                Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
+                Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0; // PS?
                 pptemp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
             });
         }
@@ -624,7 +624,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Real q = 0.0;
             if (l_use_moisture) {
                 q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
-                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
+                          + cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) ); // PS
             }
 
             rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
@@ -673,7 +673,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Real q = 0.0;
             if (l_use_moisture) {
                 q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
-                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
+                          + cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) ); // PS
             }
 
             rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q) + ymom_src_arr(i,j,k);
@@ -734,7 +734,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Real q = 0.0;
             if (l_use_moisture) {
                 q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
-                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
+                          + cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) ); // PS
             }
             rho_w_rhs(i, j, k) += (zmom_src_arr(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q);
 

@@ -264,9 +264,9 @@ public:
     }
 
     void
-    Qmoist_Restart_Vars ( const SolverChoice& a_sc,
-                          std::vector<int>& a_idx,
-                          std::vector<std::string>& a_names) const override
+    Qmoist_Restart_Vars (const SolverChoice& a_sc,
+                         std::vector<int>& a_idx,
+                         std::vector<std::string>& a_names) const override
     {
         a_idx.clear();
         a_names.clear();
@@ -279,6 +279,13 @@ public:
         }
     }
 
+    int*
+    NonPrecip_Index_Map (int& size) override
+    {
+        size = NP_map_size;
+        return NP_map_d.data();
+    }
+
 private:
     // Number of qmoist variables (qt, qv, qcl, qci, qp, qpr, qps, qpg)
     int m_qmoist_size = 11;
@@ -288,6 +295,10 @@ private:
 
     // CFL MAX for vertical advection
     static constexpr amrex::Real CFL_MAX = 0.5;
+
+    // Nonprecip ind map
+    int NP_map_size;
+    amrex::Gpu::DeviceVector<int> NP_map_d;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;

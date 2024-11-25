@@ -59,10 +59,20 @@ public:
 
     virtual
     void
-    Qmoist_Restart_Vars ( const SolverChoice&, std::vector<int>& a_idx, std::vector<std::string>& a_names) const
+    Qmoist_Restart_Vars (const SolverChoice&,
+                         std::vector<int>& a_idx,
+                         std::vector<std::string>& a_names) const
     {
         a_idx.clear();
         a_names.clear();
+    }
+
+    virtual
+    int*
+    NonPrecip_Index_Map (int& size)
+    {
+        size = 0;
+        return nullptr;
     }
 
 private:

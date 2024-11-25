@@ -986,6 +986,10 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp ++;
         }
 
+        // PS may alleviate these issues if we simply launch a kernel
+        // and call the general wrapper function with the associated
+        // index map for the variable we need to plot
+
         // TODO: The size of the q variables can vary with different
         //       moisture models. Therefore, certain components may
         //       reside at different indices. For example, Kessler is

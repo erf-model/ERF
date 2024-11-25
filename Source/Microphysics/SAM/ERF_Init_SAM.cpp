@@ -37,6 +37,13 @@ SAM::Init (const MultiFab& cons_in,
     MicVarMap = {MicVar::qt, MicVar::qv , MicVar::qcl, MicVar::qci,
                  MicVar::qp, MicVar::qpr, MicVar::qps, MicVar::qpg, MicVar::rain_accum, MicVar::snow_accum, MicVar::graup_accum};
 
+    // Test micro partial sum
+    NP_map_size = 3;
+    Vector<int> NP_map;
+    NP_map.resize(NP_map_size); NP_map_d.resize(NP_map_size);
+    NP_map = {0, 1, 2}; // THESE ARE OFFSETS!!!! (qv, qc, qi)
+    Gpu::copy(Gpu::hostToDevice, NP_map.begin(), NP_map.end(), NP_map_d.begin());
+
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar) {
         mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(),
