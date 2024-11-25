@@ -15,6 +15,8 @@
         //
         // Define primitive variables for all later RK stages
         // (We have already done this for the first RK step)
+        // Note that it is essential this happen before the call to make_mom_sources
+        //    because some of the buoyancy routines use the primitive variables
         //
         if (nrk > 0) {
             int ng_cons = S_data[IntVars::cons].nGrow();

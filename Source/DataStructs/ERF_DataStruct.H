@@ -126,8 +126,9 @@ struct SolverChoice {
             if (moisture_type == MoistureType::Kessler_NoRain ||
                 moisture_type == MoistureType::SAM ||
                 moisture_type == MoistureType::SAM_NoIce ||
-                moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
-                buoyancy_type = 1; // asserted in make buoyancy
+                moisture_type == MoistureType::SAM_NoPrecip_NoIce)
+            {
+                buoyancy_type = 1; // uses Rhoprime
             } else {
                 buoyancy_type = 2; // uses Tprime
             }
