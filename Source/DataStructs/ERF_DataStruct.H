@@ -134,7 +134,7 @@ struct SolverChoice {
             }
         }
 
-        // Which expression (1,2 or 3) to use for buoyancy
+        // Which expression (1,2 or 4) to use for buoyancy
         pp.query("buoyancy_type", buoyancy_type);
 
         // What type of land surface model to use
@@ -197,7 +197,7 @@ struct SolverChoice {
         if (any_anelastic == 1) {
             constant_density = true;
             project_initial_velocity = true;
-            buoyancy_type = 2; // uses Tprime
+            buoyancy_type = 3; // (This isn't actually used when anelastic is set)
         } else {
             pp.query("project_initial_velocity", project_initial_velocity);
 
@@ -366,8 +366,8 @@ struct SolverChoice {
         //
         // Buoyancy type check
         //
-        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
-            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
+        if (buoyancy_type != 1 && buoyancy_type != 3 && buoyancy_type != 4) {
+            amrex::Abort("buoyancy_type must be 1, 3 or 4");
         }
 
         if (!use_lagged_delta_rt && !(terrain_type == TerrainType::Moving)) {
