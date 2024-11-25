@@ -169,8 +169,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     buoyancy_fab(i, j, k) = buoyancy_type4(i,j,k,n_qstate,grav_gpu[2],
-                                                           r0_arr,th0_arr,
-                                                           cell_prim,cell_data);
+                                                           r0_arr,th0_arr,cell_prim);
                     });
             }
         } // moist compressible

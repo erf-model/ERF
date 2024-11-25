@@ -142,8 +142,7 @@ buoyancy_type4 (int& i, int& j, int& k,
                 amrex::Real const& grav_gpu,
                 const amrex::Array4<const amrex::Real>& r0_arr,
                 const amrex::Array4<const amrex::Real>& th0_arr,
-                const amrex::Array4<const amrex::Real>& cell_prim,
-                const amrex::Array4<const amrex::Real>& cell_data)
+                const amrex::Array4<const amrex::Real>& cell_prim)
 {
     //
     // Note: this currently assumes the base state qv0 is identically zero
