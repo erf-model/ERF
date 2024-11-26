@@ -401,7 +401,8 @@ void
 WindFarm::fill_SMark_multifab (const Geometry& geom,
                                MultiFab& mf_SMark,
                                const Real& sampling_distance_by_D,
-                               const Real& turb_disk_angle)
+                               const Real& turb_disk_angle,
+                               const MultiFab* z_phys)
 {
     amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
     amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
@@ -436,6 +437,15 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
     for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx     = mfi.tilebox();
         auto  SMark_array = mf_SMark.array(mfi);
+
+        const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
+        if(z_phys){
+            std::cout << "There is z_phys" << "\n";
+            exit(0);
+        } else {
+            std::cout << "Null pointer " << "\n";
+        }
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, i_lo), i_hi);
             int jj = amrex::min(amrex::max(j, j_lo), j_hi);

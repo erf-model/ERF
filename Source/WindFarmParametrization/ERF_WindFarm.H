@@ -6,10 +6,10 @@
 #include <AMReX_MultiFab.H>
 
 #include "ERF_NullWindFarm.H"
-#include "ERF_Fitch.H"
-#include "ERF_EWP.H"
+//#include "ERF_Fitch.H"
+//#include "ERF_EWP.H"
 #include "ERF_SimpleAD.H"
-#include "ERF_GeneralAD.H"
+//#include "ERF_GeneralAD.H"
 
 class WindFarm : public NullWindFarm {
 
@@ -24,11 +24,11 @@ public:
     {
         m_windfarm_model.resize(nlev);
         if (a_windfarm_type == WindFarmType::Fitch) {
-            SetModel<Fitch>();
+            //SetModel<Fitch>();
             amrex::Print() << "Fitch windfarm model!\n";
         }
         else if (a_windfarm_type == WindFarmType::EWP) {
-            SetModel<EWP>();
+            //SetModel<EWP>();
             amrex::Print() << "EWP windfarm model!\n";
         }
         else if (a_windfarm_type == WindFarmType::SimpleAD) {
@@ -36,7 +36,7 @@ public:
             amrex::Print() << "Simplified actuator disk windfarm model!\n";
         }
         else if (a_windfarm_type == WindFarmType::GeneralAD) {
-            SetModel<GeneralAD>();
+            //SetModel<GeneralAD>();
             amrex::Print() << "Generalized actuator disk windfarm model!\n";
         }
          else {
@@ -76,7 +76,8 @@ public:
     void fill_SMark_multifab (const amrex::Geometry& geom,
                               amrex::MultiFab& mf_SMark,
                               const amrex::Real& sampling_distance_by_D,
-                              const amrex::Real& turb_disk_angle);
+                              const amrex::Real& turb_disk_angle,
+                              const amrex::MultiFab* z_phys);
 
     void write_turbine_locations_vtk ();
 
