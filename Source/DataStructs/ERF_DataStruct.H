@@ -143,6 +143,11 @@ struct SolverChoice {
 
         // Is the terrain none, static or moving?
         pp.query_enum_case_insensitive("terrain_type",terrain_type);
+        int n_zlevels = pp.countval("terrain_z_levels");
+        if (n_zlevels > 0 and terrain_type == TerrainType::None)
+        {
+            terrain_type = TerrainType::Static;
+        }
 
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
