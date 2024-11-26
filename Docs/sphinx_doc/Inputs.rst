@@ -1096,6 +1096,9 @@ List of Parameters
 | **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding_file |
 |                                     | input sounding file(s) |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.forest_file**                 | Name(s) of the         | String            | None                |
+|                                     | canopy forest file     |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.input_sounding_time**         | Time(s) of the         | Real(s)           | false               |
 |                                     | input sounding file(s) |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+

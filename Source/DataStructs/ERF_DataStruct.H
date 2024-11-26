@@ -126,14 +126,15 @@ struct SolverChoice {
             if (moisture_type == MoistureType::Kessler_NoRain ||
                 moisture_type == MoistureType::SAM ||
                 moisture_type == MoistureType::SAM_NoIce ||
-                moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
-                buoyancy_type = 1; // asserted in make buoyancy
+                moisture_type == MoistureType::SAM_NoPrecip_NoIce)
+            {
+                buoyancy_type = 1; // uses Rhoprime
             } else {
                 buoyancy_type = 2; // uses Tprime
             }
         }
 
-        // Which expression (1,2 or 3) to use for buoyancy
+        // Which expression (1,2/3 or 4) to use for buoyancy
         pp.query("buoyancy_type", buoyancy_type);
 
         // What type of land surface model to use
@@ -196,7 +197,7 @@ struct SolverChoice {
         if (any_anelastic == 1) {
             constant_density = true;
             project_initial_velocity = true;
-            buoyancy_type = 2; // uses Tprime
+            buoyancy_type = 3; // (This isn't actually used when anelastic is set)
         } else {
             pp.query("project_initial_velocity", project_initial_velocity);
 
@@ -644,5 +645,8 @@ struct SolverChoice {
     amrex::Real turb_disk_angle = -1.0;
     amrex::Real windfarm_x_shift = -1.0;
     amrex::Real windfarm_y_shift = -1.0;
+
+    // Flag for valid canopy model
+    bool do_forest {false};
 };
 #endif

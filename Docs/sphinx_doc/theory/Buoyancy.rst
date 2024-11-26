@@ -7,11 +7,24 @@
 
 .. _sec:Buoyancy:
 
+ERF has several options for how to define the buoyancy force.
+
 Buoyancy
 =========
 
-ERF has three options for how to define the buoyancy force.  Even in the absence of moisture these
-expressions are not equivalent.
+When using the anelastic formulation, the expression for buoyancy used by ERF is
+
+.. math::
+     \mathbf{B} = -\rho^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{\theta_v^\prime}{\overline{\theta_0}}
+
+where we define
+
+.. math::
+     \theta_v = \theta_d (1 - (1 - \frac{R_v}{R_d}) (q_v + q_c) - \frac{R_v}{R_d} q_c)
+
+
+When using the compressible formulation, the following choices are available.
+
 
 Density of the mixture
 -----------------------
@@ -52,56 +65,10 @@ for the background state. For eg., a usual scenario is that of a background stat
 the total background density :math:`\rho_0 = \rho_{d_0}(1 + q_{v_0})`, where :math:`\rho_{d_0}` and :math:`q_{v_0}` are the background dry density and vapor mixing ratio respectively.
 As a check, we observe that :math:`\rho^\prime_0 = 0`, which means that the background state is not buoyant.
 
-Type 2
-------
-
-The second option for the buoyancy force is
-
-.. math::
-   \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime
-                  + \frac{T^\prime}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) )
-
-To derive this expression, we define :math:`T_v = T (1 + 0.61 q_v − q_c − q_i - q_p)`, then we can write
-
-.. math::
-    p = \rho (R_d q_d + R_v q_v) T = \rho R_d T (1 + 0.61 q_v − q_c − q_i - q_p ) = \rho R_d T_v
-
-
-Starting from :math:`p = \rho R_d T_v` and neglecting :math:`\frac{p^\prime}{\bar{p}}`, we now write
-
-.. math::
-   \frac{\rho^\prime}{\overline{\rho}} = -\frac{T_v^\prime}{\overline{T_v}}
-
-and define
-
-.. math::
-
-   T_v^\prime = T_v - \overline{T_v} \approx \overline{T} [ 0.61 q_v^\prime - (q_c^\prime + q_i^\prime + q_p^\prime)] +
-               (T - \overline{T}) [1+ 0.61 \bar{q_v} - \bar{q_c} - \bar{q_i} - \bar{q_p} ] .
-
-where we have retained only first order terms in perturbational quantities.
-
-Then
-
-.. math::
-
-   \mathbf{B} = \rho^\prime \mathbf{g} = -\overline{\rho} \frac{\overline{T}}{\overline{T_v}} \mathbf{g} [ 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime ) + \frac{T^\prime}{\overline{T_v}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) ]
-
-where the overbar represents a horizontal average of the current state and the perturbation is defined relative to that average.
-
-Again keeping only the first order terms in the mass mixing ratios, we can simplify this to
-
-.. math::
-   \mathbf{B} = \rho^\prime \mathbf{g} = -\rho_0 \mathbf{g} [ 0.61 q_v^\prime - q_c^\prime + q_i^\prime + q_p^\prime
-                  + \frac{T^\prime}{\overline{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) ]
-
-We note that this reduces to Type 3 if the horizontal averages of the moisture terms are all zero.
-
 Type 3
 ------
 
-The third formulation of the buoyancy term assumes that the horizontal averages of the moisture quantities are negligible,
-which removes the need to compute horizontal averages of these quantities.   This reduces the Type 2 expression to the following:
+This formulation of the buoyancy term assumes that the horizontal averages of the moisture quantities are negligible.
 
 .. math::
      \mathbf{B} = \rho^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{T^\prime}{\overline{T}}
@@ -120,7 +87,7 @@ This expression for buoyancy is from `khairoutdinov2003cloud`_ and `bryan2002ben
 .. math::
 
     \begin{equation}
-    \mathbf{B} = \rho'\mathbf{g} \approx -\rho\Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg)\mathbf{g},
+    \mathbf{B} = \rho'\mathbf{g} \approx -\rho \mathbf{g} \Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg)
     \end{equation}
 
 The derivation follows. The total density is given by :math:`\rho = \rho_d(1 + q_v + q_c + q_p)`, which can be written as

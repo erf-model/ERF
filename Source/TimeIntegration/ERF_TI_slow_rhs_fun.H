@@ -15,6 +15,8 @@
         //
         // Define primitive variables for all later RK stages
         // (We have already done this for the first RK step)
+        // Note that it is essential this happen before the call to make_mom_sources
+        //    because some of the buoyancy routines use the primitive variables
         //
         if (nrk > 0) {
             int ng_cons = S_data[IntVars::cons].nGrow();
@@ -57,6 +59,10 @@
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert);
+
+        // Canopy data for mom sources
+        MultiFab* forest_drag = nullptr;
+        if (solverChoice.do_forest) { forest_drag = m_forest[level]->get_drag_field(); }
 
         // Moving terrain
         if ( solverChoice.terrain_type == TerrainType::Moving )
@@ -123,9 +129,9 @@
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
-                             xvel_new, yvel_new,
+                             xvel_new, yvel_new, zvel_new,
                              xmom_src, ymom_src, zmom_src,
-                             base_state_new[level], fine_geom, solverChoice,
+                             base_state_new[level], forest_drag, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -232,9 +238,9 @@
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
-                             xvel_new, yvel_new,
+                             xvel_new, yvel_new, zvel_new,
                              xmom_src, ymom_src, zmom_src,
-                             base_state[level], fine_geom, solverChoice,
+                             base_state[level], forest_drag, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -424,6 +430,10 @@
         Real* dptr_u_geos = solverChoice.have_geo_wind_profile ? d_u_geos[level].data(): nullptr;
         Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
 
+        // Canopy data for mom sources
+        MultiFab* forest_drag = nullptr;
+        if (solverChoice.do_forest) { forest_drag = m_forest[level]->get_drag_field(); }
+
         make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level],
@@ -437,9 +447,9 @@
         int n_qstate = micro->Get_Qstate_Size();
         make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                          z_phys_nd[level], z_phys_cc[level],
-                         xvel_new, yvel_new,
+                         xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
-                         base_state[level], fine_geom, solverChoice,
+                         base_state[level], forest_drag, fine_geom, solverChoice,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
