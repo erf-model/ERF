@@ -402,7 +402,7 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
                                MultiFab& mf_SMark,
                                const Real& sampling_distance_by_D,
                                const Real& turb_disk_angle,
-                               const MultiFab* z_phys)
+                               std::unique_ptr<MultiFab>& z_phys_cc)
 {
     amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
     amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
@@ -433,18 +433,22 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
     Real nx = -std::cos(theta);
     Real ny = -std::sin(theta);
 
+
+    for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+	Box tbx = mfi.nodaltilebox(0);
+	const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
+	 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+     {
+                std::cout << z_cc_arr(i,j,k) << "\n";
+	});
+	}
+
      // Initialize wind farm
     for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx     = mfi.tilebox();
         auto  SMark_array = mf_SMark.array(mfi);
 
-        const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
-        if(z_phys){
-            std::cout << "There is z_phys" << "\n";
-            exit(0);
-        } else {
-            std::cout << "Null pointer " << "\n";
-        }
+		const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, i_lo), i_hi);
@@ -457,6 +461,18 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
             Real y2 = ProbLoArr[1] + (jj+1)*dx[1];
 
             Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
+
+			if(z_cc_arr) { 
+				std::cout << "Has values " << z_cc_arr(i,j,k) << "\n";
+			}
+			else {
+				std::cout << "Has no values "<< "\n";
+				exit(0);
+			}
+
+			if(ii==0 and jj==0) {
+				//std::cout << "k, val = " << k << " " << z_cc_arr(ii,jj,kk) << "\n";
+			}
 
             int turb_indices_overlap[2];
             int check_int = 0;

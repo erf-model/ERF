@@ -355,7 +355,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // write out the vtk files for wind turbine location and/or
     // actuator disks
     #ifdef ERF_USE_WINDFARM
-        init_windfarm(lev);
+        //init_windfarm(lev);
     #endif
 }
 

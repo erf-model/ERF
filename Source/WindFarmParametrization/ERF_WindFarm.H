@@ -77,7 +77,7 @@ public:
                               amrex::MultiFab& mf_SMark,
                               const amrex::Real& sampling_distance_by_D,
                               const amrex::Real& turb_disk_angle,
-                              const amrex::MultiFab* z_phys);
+                              std::unique_ptr<amrex::MultiFab>& z_phys_cc);
 
     void write_turbine_locations_vtk ();
 
