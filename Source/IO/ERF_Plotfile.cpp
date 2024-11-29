@@ -234,6 +234,24 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
     }
 
+    // Vector of MultiFabs for face-centered velocity
+    Vector<MultiFab> mf_u(finest_level+1);
+    Vector<MultiFab> mf_v(finest_level+1);
+    Vector<MultiFab> mf_w(finest_level+1);
+    if (m_plot_face_vels) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            BoxArray grid_stag_u(grids[lev]); grid_stag_u.surroundingNodes(0);
+            BoxArray grid_stag_v(grids[lev]); grid_stag_v.surroundingNodes(1);
+            BoxArray grid_stag_w(grids[lev]); grid_stag_w.surroundingNodes(2);
+            mf_u[lev].define(grid_stag_u, dmap[lev], 1, 0);
+            mf_v[lev].define(grid_stag_v, dmap[lev], 1, 0);
+            mf_w[lev].define(grid_stag_w, dmap[lev], 1, 0);
+            MultiFab::Copy(mf_u[lev],vars_new[lev][Vars::xvel],0,0,1,0);
+            MultiFab::Copy(mf_v[lev],vars_new[lev][Vars::yvel],0,0,1,0);
+            MultiFab::Copy(mf_w[lev],vars_new[lev][Vars::zvel],0,0,1,0);
+        }
+    }
+
     // Array of MultiFabs for cell-centered velocity
     Vector<MultiFab> mf_cc_vel(finest_level+1);
 
@@ -1347,10 +1365,19 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     }
 
     std::string plotfilename;
+    std::string plotfilenameU;
+    std::string plotfilenameV;
+    std::string plotfilenameW;
     if (which == 1) {
        plotfilename = Concatenate(plot_file_1, istep[0], 5);
+       plotfilenameU = Concatenate(plot_file_1+"U", istep[0], 5);
+       plotfilenameV = Concatenate(plot_file_1+"V", istep[0], 5);
+       plotfilenameW = Concatenate(plot_file_1+"W", istep[0], 5);
     } else if (which == 2) {
        plotfilename = Concatenate(plot_file_2, istep[0], 5);
+       plotfilenameU = Concatenate(plot_file_2+"U", istep[0], 5);
+       plotfilenameV = Concatenate(plot_file_2+"V", istep[0], 5);
+       plotfilenameW = Concatenate(plot_file_2+"W", istep[0], 5);
     }
 
     // LSM writes it's own data
@@ -1385,6 +1412,22 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                                         Geom(), t_new[0], istep, refRatio());
             }
             writeJobInfo(plotfilename);
+
+            if (m_plot_face_vels) {
+                Print() << "Writing face velocities" << std::endl;
+                WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
+                                        GetVecOfConstPtrs(mf_u),
+                                        {"x_velocity_stag"},
+                                        Geom(), t_new[0], istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameV, finest_level+1,
+                                        GetVecOfConstPtrs(mf_v),
+                                        {"y_velocity_stag"},
+                                        Geom(), t_new[0], istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
+                                        GetVecOfConstPtrs(mf_w),
+                                        {"z_velocity_stag"},
+                                        Geom(), t_new[0], istep, refRatio());
+            }
 
 #ifdef ERF_USE_PARTICLES
             particleData.writePlotFile(plotfilename);
@@ -1489,6 +1532,21 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 } else {
                     WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                             GetVecOfConstPtrs(mf), varnames,
+                                            geom, t_new[0], istep, ref_ratio);
+                }
+                if (m_plot_face_vels) {
+                    Print() << "Writing face velocities" << std::endl;
+                    WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
+                                            GetVecOfConstPtrs(mf_u),
+                                            {"x_velocity_stag"},
+                                            geom, t_new[0], istep, ref_ratio);
+                    WriteMultiLevelPlotfile(plotfilenameV, finest_level+1,
+                                            GetVecOfConstPtrs(mf_v),
+                                            {"y_velocity_stag"},
+                                            geom, t_new[0], istep, ref_ratio);
+                    WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
+                                            GetVecOfConstPtrs(mf_w),
+                                            {"z_velocity_stag"},
                                             geom, t_new[0], istep, ref_ratio);
                 }
             } // ref_ratio test

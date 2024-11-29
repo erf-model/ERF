@@ -17,8 +17,9 @@ Multigrid can also be used when the union of grids at a level is not in itself r
 For simulations using grid stretching in the vertical but flat terrain, we must use the hybrid FFT solver in which
 we perform 2D transforms only in the lateral directions and couple the solution in the vertical direction with a tridiagonal solve.
 In both these cases we use a 7-point stencil.
+
 To solve the Poisson equation on terrain-fitted coordinates with general terrain,
 we rely on the FFT-preconditioned GMRES solver since the stencil effectively has variable coefficients and requires 19 points.
 
-   .. note::
-      **Currently only doubly periodic lateral boundary conditions are supported by the hybrid FFT, and therefore by the GMRES solver.  More general boundary conditions are a work in progress.**
+-   .. note::
+-      **The FFT solver / preconditioner can only be used when the union of grids at a level is itself rectangular.

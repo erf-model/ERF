@@ -448,6 +448,8 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
         const Box& bx     = mfi.tilebox();
         auto  SMark_array = mf_SMark.array(mfi);
 
+		const Array4<const Real>& z_cc_arr = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+
 		const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -460,10 +462,11 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
             Real y1 = ProbLoArr[1] + jj*dx[1];
             Real y2 = ProbLoArr[1] + (jj+1)*dx[1];
 
-            Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
+            //Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
+			Real z = (z_cc_arr) ? z_cc_arr(i,j,k) : ProbLoArr[2] + (kk+0.5) * dx[2];
 
 			if(z_cc_arr) { 
-				std::cout << "Has values " << z_cc_arr(i,j,k) << "\n";
+				std::cout << "Has values " << z(i,j,k) << "\n";
 			}
 			else {
 				std::cout << "Has no values "<< "\n";
