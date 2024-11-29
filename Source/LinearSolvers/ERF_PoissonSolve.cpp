@@ -139,7 +139,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         }
 #else
         if (use_fft) {
-            amrex::Warning("use_fft can't be used unless you build with USE_FFT = TRUE; defaulting to MLMG");
+            amrex::Warning("You set use_fft=true but didn't build with USE_FFT = TRUE; defaulting to MLMG");
         }
         solve_with_mlmg(lev, rhs, phi, fluxes);
 #endif
@@ -156,7 +156,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             amrex::Abort("FFT won't work unless the boxArray covers the domain");
         } else {
             if (!use_fft) {
-                amrex::Warning("Using FFT even though you didn't set use_fft = 0; it's the best choice");
+                amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
             }
             solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
         }
@@ -170,7 +170,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 #ifdef ERF_USE_FFT
         if (use_fft)
         {
-            amrex::Warning("FFT solver does not work for general terrain: switching to GMRES");
+            amrex::Warning("FFT solver does not work for general terrain: switching to FFT-preconditioned GMRES");
         }
         if (!boxes_make_rectangle) {
             amrex::Abort("FFT preconditioner for GMRES won't work unless the boxArray covers the domain");
