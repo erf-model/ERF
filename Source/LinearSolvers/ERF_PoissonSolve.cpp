@@ -119,7 +119,8 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 #else
 
 #ifdef ERF_USE_FFT
-        bool boxes_make_rectangle = (geom_tmp[0].Domain().numPts() == ba_tmp[0].numPts());
+        Box my_region(ba_tmp[0].minimalBox());
+        bool boxes_make_rectangle = (my_region.numPts() == ba_tmp[0].numPts());
 #endif
 
     // ****************************************************************************

@@ -1,9 +1,11 @@
 #include "ERF_TerrainPoisson.H"
+#include "ERF_FFT_Utils.H"
 
 using namespace amrex;
 
 TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
                                 DistributionMapping const& dm,
+                                Array<std::string,2*AMREX_SPACEDIM>& domain_bc_type,
                                 MultiFab const* z_phys_nd)
     : m_geom(geom),
       m_grids(ba),
@@ -12,7 +14,11 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
 {
 #ifdef ERF_USE_FFT
     if (!m_2D_fft_precond) {
-        m_2D_fft_precond = std::make_unique<FFT::PoissonTerrainPrecond<MultiFab>>(geom);
+        Box bounding_box = ba.minimalBox();
+        auto bc_fft = get_fft_bc(geom,domain_bc_type,bounding_box);
+        m_2D_fft_precond = std::make_unique<FFT::PoissonHybrid<MultiFab>>(geom,bc_fft);
+        auto const& [ba, dm] = m_2D_fft_precond->getSpectralDataLayout();
+        m_zphys_fft.define(amrex::convert(ba,m_zphys->ixType()), dm, 1, 0);
     }
 #endif
 }
@@ -190,7 +196,39 @@ void TerrainPoisson::precond(MultiFab& lhs, MultiFab const& rhs)
 {
 #ifdef ERF_USE_FFT
     if (m_use_precond) {
-        m_2D_fft_precond->solve(lhs, rhs, *m_zphys);
+        AMREX_ASSERT(m_zphys_fft.local_size() <= 1);
+        FArrayBox const* zfab = nullptr;
+        if (m_zphys_fft.local_size() == 1) {
+            zfab = m_zphys_fft.fabPtr(m_zphys_fft.IndexArray()[0]);
+        }
+        auto za = zfab ? zfab->const_array() : Array4<Real const>{};
+        auto dxinv = m_geom.InvCellSize(0);
+        auto dyinv = m_geom.InvCellSize(1);
+        m_2D_fft_precond->solve(lhs, rhs,
+            [=] AMREX_GPU_DEVICE (int ii, int jj, int k) -> Real
+            {
+                int i = 0; int j = 0;
+                Real hzeta_inv_on_cc = Real(4.0) / ( (za(i,j,k+1) + za(i+1,j,k+1) + za(i,j+1,k+1) + za(i+1,j+1,k+1))
+                                                    -(za(i,j,k  ) + za(i+1,j,k  ) + za(i,j+1,k  ) + za(i+1,j+1,k  )) );
+                Real hzeta_inv_on_zlo = Real(8.0) / ( (za(i,j,k+1) + za(i+1,j,k+1) + za(i,j+1,k+1) + za(i+1,j+1,k+1))
+                                                     -(za(i,j,k-1) + za(i+1,j,k-1) + za(i,j+1,k-1) + za(i+1,j+1,k-1)) );
+                // Real h_xi_on_zlo  = Real(0.5) * (za(i+1,j+1,k  ) + za(i+1,j,k  ) - za(i,j+1,k  ) - za(i,j,k  )) * dxinv;
+                // Real h_eta_on_zlo = Real(0.5) * (za(i+1,j+1,k  ) + za(i,j+1,k  ) - za(i+1,j,k  ) - za(i,j,k  )) * dyinv;
+                // return hzeta_inv_on_cc * (Real(1.0) + h_xi_on_zlo*h_xi_on_zlo + h_eta_on_zlo*h_eta_on_zlo) * hzeta_inv_on_zlo;
+                return hzeta_inv_on_cc * hzeta_inv_on_zlo;
+            },
+            [=] AMREX_GPU_DEVICE (int ii, int jj, int k) -> Real
+            {
+                int i = 0; int j = 0;
+                Real hzeta_inv_on_cc = Real(4.0) / ( (za(i,j,k+1) + za(i+1,j,k+1) + za(i,j+1,k+1) + za(i+1,j+1,k+1))
+                                                    -(za(i,j,k  ) + za(i+1,j,k  ) + za(i,j+1,k  ) + za(i+1,j+1,k  )) );
+                Real hzeta_inv_on_zhi = Real(8.0) / ( (za(i,j,k+2) + za(i+1,j,k+2) + za(i,j+1,k+2) + za(i+1,j+1,k+2))
+                                                     -(za(i,j,k  ) + za(i+1,j,k  ) + za(i,j+1,k  ) + za(i+1,j+1,k  )) );
+                // Real h_xi_on_zhi  = Real(0.5) * (za(i+1,j+1,k+1) + za(i+1,j,k+1) - za(i,j+1,k+1) - za(i,j,k+1)) * dxinv;
+                // Real h_eta_on_zhi = Real(0.5) * (za(i+1,j+1,k+1) + za(i,j+1,k+1) - za(i+1,j,k+1) - za(i,j,k+1)) * dyinv;
+                // return hzeta_inv_on_cc * (Real(1.0) + h_xi_on_zhi*h_xi_on_zhi + h_eta_on_zhi*h_eta_on_zhi) * hzeta_inv_on_zhi;
+                return hzeta_inv_on_cc * hzeta_inv_on_zhi;
+            });
     } else
 #endif
     {

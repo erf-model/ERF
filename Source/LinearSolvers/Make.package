@@ -5,12 +5,12 @@ CEXE_sources += ERF_TerrainPoisson.cpp
 CEXE_sources += ERF_compute_divergence.cpp
 CEXE_sources += ERF_PoissonSolve.cpp
 CEXE_sources += ERF_PoissonSolve_tb.cpp
-CEXE_sources += ERF_solve_with_fft.cpp
 CEXE_sources += ERF_solve_with_gmres.cpp
 CEXE_sources += ERF_solve_with_mlmg.cpp
 
 ifeq ($(USE_FFT), TRUE)
-CEXE_headers += ERF_FFT_TerrainPrecond.H
+CEXE_headers += ERF_FFT_Utils.H
+CEXE_sources += ERF_solve_with_fft.cpp
 endif
 
 ifeq ($(USE_EB), TRUE)
