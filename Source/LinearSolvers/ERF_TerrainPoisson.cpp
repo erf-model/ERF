@@ -20,6 +20,8 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
         auto const& [ba, dm] = m_2D_fft_precond->getSpectralDataLayout();
         m_zphys_fft.define(amrex::convert(ba,m_zphys->ixType()), dm, 1, 0);
     }
+#else
+    amrex::ignore_unused(domain_bc_type);
 #endif
 }
 
