@@ -5,7 +5,7 @@
 
 using namespace amrex;
 
-Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM>
+inline Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM>
 get_fft_bc (Geometry const& lev_geom,
             Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
             Box const& bounding_box) noexcept
