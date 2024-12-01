@@ -29,7 +29,7 @@ ERF::init_windfarm (int lev)
                              true, false);
     }
 
-    windfarm->fill_Nturb_multifab(geom[lev], Nturb[lev]);
+    windfarm->fill_Nturb_multifab(geom[lev], Nturb[lev], z_phys_cc[lev]);
 
     windfarm->write_turbine_locations_vtk();
 
@@ -39,7 +39,8 @@ ERF::init_windfarm (int lev)
                                       solverChoice.sampling_distance_by_D,
                                       solverChoice.turb_disk_angle,
                                       z_phys_cc[lev]);
-        windfarm->write_actuator_disks_vtk(geom[lev]);
+        windfarm->write_actuator_disks_vtk(geom[lev],
+                                           solverChoice.sampling_distance_by_D);
     }
 
     if(solverChoice.windfarm_type == WindFarmType::GeneralAD) {

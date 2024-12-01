@@ -6,10 +6,10 @@
 #include <AMReX_MultiFab.H>
 
 #include "ERF_NullWindFarm.H"
-//#include "ERF_Fitch.H"
-//#include "ERF_EWP.H"
+#include "ERF_Fitch.H"
+#include "ERF_EWP.H"
 #include "ERF_SimpleAD.H"
-//#include "ERF_GeneralAD.H"
+#include "ERF_GeneralAD.H"
 
 class WindFarm : public NullWindFarm {
 
@@ -24,11 +24,11 @@ public:
     {
         m_windfarm_model.resize(nlev);
         if (a_windfarm_type == WindFarmType::Fitch) {
-            //SetModel<Fitch>();
+            SetModel<Fitch>();
             amrex::Print() << "Fitch windfarm model!\n";
         }
         else if (a_windfarm_type == WindFarmType::EWP) {
-            //SetModel<EWP>();
+            SetModel<EWP>();
             amrex::Print() << "EWP windfarm model!\n";
         }
         else if (a_windfarm_type == WindFarmType::SimpleAD) {
@@ -36,7 +36,7 @@ public:
             amrex::Print() << "Simplified actuator disk windfarm model!\n";
         }
         else if (a_windfarm_type == WindFarmType::GeneralAD) {
-            //SetModel<GeneralAD>();
+            SetModel<GeneralAD>();
             amrex::Print() << "Generalized actuator disk windfarm model!\n";
         }
          else {
@@ -71,7 +71,8 @@ public:
     void read_windfarm_spec_table_extra (const std::string windfarm_spec_table_extra);
 
     void fill_Nturb_multifab (const amrex::Geometry& geom,
-                              amrex::MultiFab& mf_Nturb);
+                              amrex::MultiFab& mf_Nturb,
+                              std::unique_ptr<amrex::MultiFab>& z_phys_cc);
 
     void fill_SMark_multifab (const amrex::Geometry& geom,
                               amrex::MultiFab& mf_SMark,
@@ -81,7 +82,11 @@ public:
 
     void write_turbine_locations_vtk ();
 
-    void write_actuator_disks_vtk (const amrex::Geometry& geom);
+    void write_actuator_disks_vtk (const amrex::Geometry& geom,
+                                   const amrex::Real& sampling_distance_by_D);
+
+    void gatherKeyValuePairs(const std::vector<std::pair<int, double>>& localData,
+                             std::vector<std::pair<int, double>>& globalData);
 
     void advance (const amrex::Geometry& a_geom,
                   const amrex::Real& dt_advance,
@@ -143,7 +148,8 @@ public:
 
 protected:
 
-    amrex::Vector<amrex::Real> xloc, yloc;
+    amrex::Vector<amrex::Real> xloc, yloc, zloc;
+    amrex::Vector<int> turb_index;
     amrex::Real my_turb_disk_angle;
     amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
