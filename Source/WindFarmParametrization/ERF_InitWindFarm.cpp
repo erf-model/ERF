@@ -350,7 +350,6 @@ WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_table
     set_blade_airfoil_spec(bld_airfoil_aoa, bld_airfoil_Cl, bld_airfoil_Cd);
 }
 
-
 void
 WindFarm::gatherKeyValuePairs(const std::vector<std::pair<int, double>>& localData,
                                std::vector<std::pair<int, double>>& globalData)
@@ -405,11 +404,6 @@ WindFarm::gatherKeyValuePairs(const std::vector<std::pair<int, double>>& localDa
 
         // Sort global data by keys
         std::sort(globalData.begin(), globalData.end());
-
-        // Optionally, you can print for debugging
-        for (const auto& kv : globalData) {
-            //std::cout << "Key: " << kv.first << ", Value: " << kv.second << std::endl;
-        }
     }
 
     // Broadcast the global data to all processes
@@ -489,7 +483,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
                     d_yloc_ptr[it]+1e-3 > y1 and d_yloc_ptr[it]+1e-3 < y2){
                        Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
                        if(is_terrain) {
-                               d_zloc_ptr[it] = z_cc_arr(i,j,k0);
+                            d_zloc_ptr[it] = z_cc_arr(i,j,k0);
                             d_turb_index_ptr[it] = it;
                        }
                        else {
@@ -583,7 +577,6 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
             Real y2 = ProbLoArr[1] + (jj+1)*dx[1];
 
             //Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
-            int k0 = gbx.smallEnd()[2];
             Real z = (z_cc_arr) ? z_cc_arr(ii,jj,kk) : ProbLoArr[2] + (kk+0.5) * dx[2];
 
             int turb_indices_overlap[2];
