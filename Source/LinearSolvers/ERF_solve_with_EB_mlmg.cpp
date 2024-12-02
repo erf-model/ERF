@@ -66,7 +66,7 @@ void ERF::solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& 
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
         bcoef[idim].define(convert(ba_tmp[0],IntVect::TheDimensionVector(idim)),
                             dm_tmp[0], 1, 0, MFInfo(), *m_factory[lev]);
-        bcoef[idim].setVal(1.0);
+        bcoef[idim].setVal(-1.0);
     }
     mleb.setBCoeffs(0, amrex::GetArrOfConstPtrs(bcoef));
 
@@ -82,6 +82,13 @@ void ERF::solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& 
     mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
 
     phi[0].FillBoundary(geom[lev].periodicity());
+
+    //
+    // This arises because we solve MINUS del dot beta grad phi = div (rho u)
+    //
+    fluxes[0][0].mult(-1.);
+    fluxes[0][1].mult(-1.);
+    fluxes[0][2].mult(-1.);
 
     // ****************************************************************************
     // Impose bc's on pprime
