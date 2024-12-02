@@ -97,7 +97,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
             if(solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP) {
-                if(derived_names[i] == "num_turb") {
+                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0") {
                     tmp_plot_names.push_back(derived_names[i]);
                 }
             }
@@ -510,7 +510,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
 
         if( containerHasElement(plot_var_names, "SMark0") and
-           (solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) ) {
+           (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
+            solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) ) {
              for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
