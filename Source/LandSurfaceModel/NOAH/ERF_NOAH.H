@@ -32,13 +32,11 @@ public:
           const amrex::Geometry& geom,
           const amrex::Real& dt) override;
 
-    amrex::Table2D<double> XLAT;
-    amrex::Table2D<double> WSLAKEXY;
-
 private:
 
    // C++ variable for NoahmpIO struct
-   NoahmpIO_struct noahmpio;
+   NoahmpIO_struct noahmp_io;
+   NoahmpIO_arrays noahmp_arr;
 
 };
 #endif

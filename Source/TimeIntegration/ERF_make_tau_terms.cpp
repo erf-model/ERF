@@ -16,7 +16,6 @@ void erf_make_tau_terms (int level, int nrk,
                          const MultiFab& xvel,
                          const MultiFab& yvel,
                          const MultiFab& zvel,
-                         MultiFab& Omega,
                          MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
                          MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                          MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
@@ -37,7 +36,7 @@ void erf_make_tau_terms (int level, int nrk,
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
 
-    const bool    l_use_terrain    = solverChoice.use_terrain;
+    const bool    l_use_terrain    = (solverChoice.terrain_type != TerrainType::None);
     const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
@@ -98,9 +97,6 @@ void erf_make_tau_terms (int level, int nrk,
             const Array4<const Real> & u = xvel.array(mfi);
             const Array4<const Real> & v = yvel.array(mfi);
             const Array4<const Real> & w = zvel.array(mfi);
-
-            // Contravariant velocity
-            const Array4<Real>& omega_arr = Omega.array(mfi);
 
             // Map factors
             const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
@@ -182,13 +178,21 @@ void erf_make_tau_terms (int level, int nrk,
                 Array4<Real> s21   = S21.array();       Array4<Real> s31   = S31.array();       Array4<Real> s32   = S32.array();
                 Array4<Real> tau21 = Tau21->array(mfi); Array4<Real> tau31 = Tau31->array(mfi); Array4<Real> tau32 = Tau32->array(mfi);
 
+
                 // *****************************************************************************
                 // Expansion rate compute terrain
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_er_T");
-                // First create Omega using velocity (not momentum)
                 Box gbxo = surroundingNodes(bxcc,2);
+
+                // We make a temporary container for contravariant velocity Omega here
+                //     -- it is only used to compute er_arr below
+                FArrayBox Omega;
+                Omega.resize(gbxo,1,The_Async_Arena());
+
+                // First create Omega using velocity (not momentum)
+                Array4<Real> omega_arr = Omega.array();
                 ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,z_nd,dxInv);

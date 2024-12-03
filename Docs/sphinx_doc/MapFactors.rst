@@ -2,7 +2,7 @@
  .. role:: cpp(code)
     :language: c++
 
-.. _MapFactors:
+.. _sec:MapFactors:
 
 Map Factors (Dry)
 =============================

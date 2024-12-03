@@ -55,7 +55,7 @@
                 Array4<Real>* fslow = fslow_d.dataPtr();
 
                 // Moving terrain
-                if ( solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Moving )
+                if ( solverChoice.terrain_type == TerrainType::Moving )
                 {
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
                     const Array4<const Real>& dJ_new = detJ_cc_new[level]->const_array(mfi);
@@ -106,24 +106,47 @@
                     });
 
                 } else { // Fixed or no terrain
+#ifdef ERF_USE_EB
+                    const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
+#endif
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
-                        ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
-                           ( fslow[IntVars::cons](i,j,k,n) );
+#ifdef ERF_USE_EB
+                        if (dJ_old(i,j,k) > 0.0) {
+#endif
+                            ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
+                               ( fslow[IntVars::cons](i,j,k,n) );
+#ifdef ERF_USE_EB
+                        }
+#endif
                     });
+
+                    // Commenting out the update is a total HACK while developing the EB capability
                     ParallelFor(tbx, tby, tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+#ifdef ERF_USE_EB
+                        ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
+#else
                         ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
                                                   + slow_dt * fslow[IntVars::xmom](i,j,k);
+#endif
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+#ifdef ERF_USE_EB
+                        ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
+#else
                         ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
                                                   + slow_dt * fslow[IntVars::ymom](i,j,k);
+#endif
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+#ifdef ERF_USE_EB
+                        ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
+#else
                         ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
                                                   + slow_dt * fslow[IntVars::zmom](i,j,k);
+#endif
                     });
                 }
             } // mfi
@@ -136,12 +159,10 @@
 
         if (solverChoice.anelastic[level]) {
             bool have_tb = (thin_xforce[0] || thin_yforce[0] || thin_zforce[0]);
-            if (solverChoice.project_every_stage || (nrk==1)) {
-                if (have_tb) {
-                    project_velocities_tb(level, slow_dt, S_sum, Omega[level], pp_inc[level]);
-                } else {
-                    project_velocities(level, slow_dt, S_sum, Omega[level], pp_inc[level]);
-                }
+            if (have_tb) {
+                project_velocities_tb(level, slow_dt, S_sum, pp_inc[level]);
+            } else {
+                project_velocities(level, slow_dt, S_sum, pp_inc[level]);
             }
         }
     };

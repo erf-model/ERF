@@ -78,7 +78,7 @@ erf.use_coriolis = false
 erf.les_type = "None"
 
 # TERRRAIN GRID TYPE
-erf.use_terrain = true
+erf.terrain_type = Static
 erf.terrain_smoothing = 0
 
 # Diffusion coefficient from Straka, K = 75 m^2/s

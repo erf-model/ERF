@@ -15,7 +15,6 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TERRRAIN GRID TYPE
-erf.use_terrain = true      # enable terrain stencils
 erf.terrain_type = Moving   # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 

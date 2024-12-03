@@ -20,7 +20,6 @@ using namespace amrex;
  * @param[in   ] S_scratch scratch space
  * @param[in   ] geom container for geometric information
  * @param[in   ] gravity magnitude of gravity
- * @param[in   ] Omega component of the momentum normal to the z-coordinate surface
  * @param[in   ] z_phys_nd height coordinate at nodes
  * @param[in   ] detJ_cc Jacobian of the metric transformation
  * @param[in   ] dtau fast time step
@@ -48,7 +47,6 @@ void erf_fast_rhs_T (int step, int nrk,
                      Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
                      const Geometry geom,
                      const Real gravity,
-                           MultiFab& Omega,
                      std::unique_ptr<MultiFab>& z_phys_nd,
                      std::unique_ptr<MultiFab>& detJ_cc,
                      const Real dtau, const Real beta_s,
@@ -331,6 +329,8 @@ void erf_fast_rhs_T (int step, int nrk,
         });
         } // end profile
     }
+
+    MultiFab Omega(S_data[IntVars::zmom].boxArray(), dm, 1, 1);
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

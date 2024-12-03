@@ -5,6 +5,7 @@ CEXE_sources += ERF_make_sources.cpp
 CEXE_sources += ERF_ApplySpongeZoneBCs.cpp
 CEXE_sources += ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
 CEXE_sources += ERF_NumericalDiffusion.cpp
+CEXE_sources += ERF_ForestDrag.cpp
 
 ifeq ($(USE_NETCDF),TRUE)
 CEXE_sources += ERF_moist_set_rhs.cpp
@@ -13,3 +14,4 @@ endif
 CEXE_headers += ERF_NumericalDiffusion.H
 CEXE_headers += ERF_Src_headers.H
 CEXE_headers += ERF_buoyancy_utils.H
+CEXE_headers += ERF_ForestDrag.H

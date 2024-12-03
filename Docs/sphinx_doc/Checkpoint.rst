@@ -14,6 +14,10 @@ uses the native AMReX format for reading and writing checkpoints.
 In the inputs file, the following options control the generation of
 checkpoint files (which are really directories):
 
+The computational cost associated with reading and writing checkpoint files is
+typically negligible relative to the overall cost of the simulation;  in a recent performance
+study the cost of writing a checkpoint file was roughly a percent of the cost of a single timestep.
+
 Writing the Checkpoint "Files"
 ==============================
 

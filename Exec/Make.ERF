@@ -33,6 +33,9 @@ include $(ERF_INIT_DIR)/Make.package
 ERF_DATA_DIR = $(ERF_SOURCE_DIR)/DataStructs
 include $(ERF_DATA_DIR)/Make.package
 
+ERF_SOLVERS_DIR = $(ERF_SOURCE_DIR)/LinearSolvers
+include $(ERF_SOLVERS_DIR)/Make.package
+
 ERF_UTIL_DIR = $(ERF_SOURCE_DIR)/Utils
 include $(ERF_UTIL_DIR)/Make.package
 
@@ -56,6 +59,9 @@ INCLUDE_LOCATIONS += $(ERF_DATA_DIR)
 
 VPATH_LOCATIONS   += $(ERF_UTIL_DIR)
 INCLUDE_LOCATIONS += $(ERF_UTIL_DIR)
+
+VPATH_LOCATIONS   += $(ERF_SOLVERS_DIR)
+INCLUDE_LOCATIONS += $(ERF_SOLVERS_DIR)
 
 ifeq ($(USE_MULTIBLOCK),TRUE)
 VPATH_LOCATIONS   += $(ERF_MULTIBLOCK_DIR)
@@ -115,8 +121,8 @@ USE_LINEAR_SOLVERS_INCFLO = FALSE
 USE_LINEAR_SOLVERS_EM     = FALSE
 AMReXdirs                += LinearSolvers
 
-ifeq ($(USE_HDF5),TRUE)
-AMReXdirs             += Extern/HDF5
+ifeq ($(USE_FFT),TRUE)
+AMReXdirs                += FFT
 endif
 
 AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/Make.package)
@@ -247,13 +253,14 @@ endif
 #turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
-  includes += $(shell pkg-config --cflags netcdf)
-  LIBRARIES += $(shell pkg-config --libs netcdf)
-endif
-
-ifeq ($(USE_HDF5), TRUE)
-  DEFINES += -DERF_USE_HDF5
-  DEFINES += -DAMREX_USE_HDF5
+  has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
+  ifeq ($(has_netcdf_mpi),0)
+    includes += $(shell pkg-config --cflags netcdf-mpi)
+    LIBRARIES += $(shell pkg-config --libs netcdf-mpi)
+  else
+    includes += $(shell pkg-config --cflags netcdf)
+    LIBRARIES += $(shell pkg-config --libs netcdf)
+  endif
 endif
 
 ifeq ($(USE_TERRAIN_VELOCITY), TRUE)

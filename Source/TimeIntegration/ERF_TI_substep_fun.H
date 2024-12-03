@@ -48,7 +48,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;
-        if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
+        if ( solverChoice.terrain_type == TerrainType::Moving )
         {
             // Make "old" fast geom -- store in z_phys_nd for convenience
             if (verbose) Print() << "Making geometry at start of substep time: " << old_substep_time << std::endl;
@@ -93,7 +93,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             // We have to call this each step since it depends on the substep time now
             // Note we pass in the *old* detJ here
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                             l_use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
+                             l_use_moisture, SolverChoice::terrain_type, solverChoice.gravity, solverChoice.c_p,
                              detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
 
             if (fast_step == 0) {
@@ -102,7 +102,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                 S_data, S_scratch, fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
-                                Omega[level], z_t_rk[level], z_t_pert.get(),
+                                z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
@@ -114,26 +114,26 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                 S_data, S_scratch, fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
-                                Omega[level], z_t_rk[level], z_t_pert.get(),
+                                z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
-        } else if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Static) {
+        } else if (solverChoice.terrain_type == TerrainType::Static) {
             if (fast_step == 0) {
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                                 l_use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
+                                 l_use_moisture, SolverChoice::terrain_type, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
                 //    and S_data is the new-time solution to be defined here
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity, Omega[level],
+                               S_data, S_scratch, fine_geom, solverChoice.gravity,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
@@ -142,7 +142,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                 //    and as the new-time solution to be defined here
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity, Omega[level],
+                               S_data, S_scratch, fine_geom, solverChoice.gravity,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
@@ -152,7 +152,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                                 l_use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
+                                 l_use_moisture, SolverChoice::terrain_type, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
 
                 // If this is the first substep we pass in S_old as the previous step's solution

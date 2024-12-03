@@ -204,8 +204,12 @@ void SAM::Compute_Coefficients ()
         Real RhoTheta = rho_dptr[k]*theta_dptr[k];
         Real pressure = getPgivenRTh(RhoTheta, qv_dptr[k]);
         rho1d_t(k)    = rho_dptr[k];
-        pres1d_t(k)   = pressure/100.;
-        tabs1d_t(k)   = getTgivenRandRTh(rho_dptr[k], RhoTheta, qv_dptr[k]);
+        pres1d_t(k)   = pressure*0.01;
+        // NOTE: Limit the temperature to the melting point of ice to avoid a divide by
+        //       0 condition when computing the cold evaporation coefficients. This should
+        //       not affect results since evporation requires snow/graupel to be present
+        //       and thus T<273.16
+        tabs1d_t(k)   = std::min(getTgivenRandRTh(rho_dptr[k], RhoTheta, qv_dptr[k]),273.16);
         zmid_t(k)     = lowz + (k+0.5)*dz;
         gamaz_t(k)    = gOcp*zmid_t(k);
     });

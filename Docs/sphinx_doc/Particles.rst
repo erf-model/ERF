@@ -17,6 +17,13 @@ The tracer particles are advected by the velocity field; the hydro particles fal
 However, the AMReX particle data structure is very general and particles may take on a number of
 different roles in future.
 
+.. figure:: figures/ERFParticles.gif
+   :alt: Particles in a squall line
+   :align: center
+   :width: 100%
+
+   Two-dimensional squall line simulation with particles. The particles and contours of cloud water mixing ratio are shown.
+
 To enable the use of particles, one must set
 
 ::
@@ -58,4 +65,6 @@ to the line in the inputs file that begins
 ::
 
    erf.plot_vars_1 =
+
+
 

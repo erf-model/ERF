@@ -42,9 +42,16 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/EB/ERF_eb_cylinder.cpp
                    ${SRC_DIR}/EB/ERF_eb_regular.cpp
                    ${SRC_DIR}/EB/ERF_initEB.cpp
-                   ${SRC_DIR}/EB/ERF_writeEBsurface.cpp)
+                   ${SRC_DIR}/EB/ERF_writeEBsurface.cpp 
+                   ${SRC_DIR}/LinearSolvers/ERF_solve_with_EB_mlmg.cpp)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/EB>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EB)
+  endif()
+
+  if(ERF_ENABLE_FFT)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/LinearSolvers/ERF_solve_with_fft.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_FFT)
   endif()
 
   if(ERF_ENABLE_NETCDF)
@@ -94,10 +101,6 @@ function(build_erf_lib erf_lib_name)
                                ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/cloud_optics
                                ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples
                               )
-  endif()
-
-  if(ERF_ENABLE_HDF5)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_HDF5)
   endif()
 
   target_sources(${erf_lib_name}
@@ -166,6 +169,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_make_sources.cpp
        ${SRC_DIR}/SourceTerms/ERF_moist_set_rhs.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
+       ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp
@@ -183,8 +187,12 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
-       ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp
-       ${SRC_DIR}/Utils/ERF_PoissonSolve_tb.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_compute_divergence.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_solve_with_gmres.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_solve_with_mlmg.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
@@ -236,6 +244,7 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Diffusion>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Initialization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/IO>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LinearSolvers>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PBL>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/SourceTerms>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/TimeIntegration>)
