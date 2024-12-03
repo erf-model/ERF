@@ -180,7 +180,6 @@ Problem::init_custom_terrain (
         // Domain cell size and real bounds
         auto dx = geom.CellSizeArray();
         auto ProbLoArr = geom.ProbLoArray();
-        auto ProbHiArr = geom.ProbHiArray();
 
         // Domain valid box (z_nd is nodal)
         const amrex::Box& domain = geom.Domain();
@@ -189,8 +188,6 @@ Problem::init_custom_terrain (
         int domlo_z = domain.smallEnd(2);
 
         // User function parameters
-        Real a    = 0.5;
-        Real num  = 8 * a * a * a;
         Real xcen = 500.0;
         Real ycen = 500.0;
 
