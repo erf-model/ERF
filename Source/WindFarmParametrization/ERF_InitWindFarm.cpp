@@ -357,9 +357,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
 {
 
     zloc.resize(xloc.size(),0.0);
-
     Vector<int> is_counted;
-
     is_counted.resize(xloc.size(),0);
 
     amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
