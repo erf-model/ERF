@@ -45,6 +45,7 @@
 #include <ERF_PhysBCFunct.H>
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
+#include <ERF_ForestDrag.H>
 
 #ifdef ERF_USE_PARTICLES
 #include "ERF_ParticleData.H"
@@ -89,7 +90,7 @@ AMREX_ENUM(StateInterpType,
  * Enum of possible plotfile types
 */
 AMREX_ENUM(PlotFileType,
-    None, Amrex, Netcdf, HDF5
+    None, Amrex, Netcdf
 );
 
 
@@ -163,6 +164,10 @@ public:
     void WriteMyEBSurface ();
 #endif
 
+    // Compute the divergence of the momenta
+    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Vector<amrex::MultiFab>& mom_mf,
+                             amrex::Geometry const& geom_at_lev);
+
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
                              amrex::MultiFab& p);
@@ -182,7 +187,7 @@ public:
 #endif
 
     void solve_with_gmres (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
-                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
+                           amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
@@ -922,6 +927,7 @@ private:
     int m_plot_int_2 = -1;
     amrex::Real m_plot_per_1 = -1.0;
     amrex::Real m_plot_per_2 = -1.0;
+    bool m_plot_face_vels = false;
 
     bool plot_lsm = false;
 
@@ -1119,6 +1125,7 @@ private:
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     std::unique_ptr<ABLMost>          m_most = nullptr;
+    amrex::Vector<std::unique_ptr<ForestDrag>> m_forest;
 
     //
     // Holds info for dynamically generated tagging criteria

@@ -29,6 +29,6 @@ USE_WINDFARM = TRUE
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/WindFarmTests/SingleTurbine/SimpleActuatorDisk
+ERF_HOME := ../../../../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/WindFarmTests/SingleTurbine/SimpleActuatorDisk/WithTerrain
 include $(ERF_HOME)/Exec/Make.ERF

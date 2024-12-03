@@ -30,7 +30,7 @@ Real ERF::change_max    =  1.1;
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
-int ERF::verbose        = 0;
+int  ERF::verbose       = 0;
 int  ERF::mg_verbose    = 0;
 bool ERF::use_fft       = false;
 
@@ -128,6 +128,10 @@ ERF::ERF_shared ()
     lsm.ReSize(nlevs_max);
     lsm_data.resize(nlevs_max);
     lsm_flux.resize(nlevs_max);
+
+    // NOTE: size canopy model before readparams (if file exists, we construct)
+    m_forest.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev) { m_forest[lev] = nullptr; }
 
     ReadParameters();
     initializeMicrophysics(nlevs_max);
@@ -300,6 +304,7 @@ ERF::ERF_shared ()
         Hwave_onegrid[lev] = nullptr;
         Lwave_onegrid[lev] = nullptr;
     }
+
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
 
@@ -494,7 +499,14 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             // We need to do this before anything else because refluxing changes the
             // values of coarse cells underneath fine grids with the assumption they'll
             // be over-written by averaging down
-            AverageDownTo(lev,0,ncomp);
+            int src_comp;
+            if (solverChoice.anelastic[lev]) {
+                src_comp = 1;
+            } else {
+                src_comp = 0;
+            }
+            int num_comp = ncomp - src_comp;
+            AverageDownTo(lev,src_comp,num_comp);
         }
     }
 
@@ -1540,6 +1552,8 @@ ERF::ReadParameters ()
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
+        pp.query("plot_face_vels",m_plot_face_vels);
+
         if ( (m_plot_int_1 > 0 && m_plot_per_1 > 0) ||
              (m_plot_int_2 > 0 && m_plot_per_2 > 0.) ) {
             Abort("Must choose only one of plot_int or plot_per");
@@ -1580,6 +1594,15 @@ ERF::ReadParameters ()
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
+
+        // Query the canopy model file name
+        std::string forestfile;
+        solverChoice.do_forest = pp.query("forest_file", forestfile);
+        if (solverChoice.do_forest) {
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest[lev] = std::make_unique<ForestDrag>(forestfile);
+            }
+        }
 
         // AmrMesh iterate on grids?
         bool iterate(true);

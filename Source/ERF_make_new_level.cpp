@@ -131,6 +131,18 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         }
     }
 
+     // Read in tables needed for windfarm simulations
+    // fill in Nturb multifab - number of turbines in each mesh cell
+    // write out the vtk files for wind turbine location and/or
+    // actuator disks
+    #ifdef ERF_USE_WINDFARM
+        init_windfarm(lev);
+    #endif
+    // ********************************************************************************************
+    // Build the data structures for canopy model (depends upon z_phys)
+    // ********************************************************************************************
+    if (solverChoice.do_forest) { m_forest[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -204,6 +216,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
     }
+
+    // ********************************************************************************************
+    // Build the data structures for canopy model (depends upon z_phys)
+    // ********************************************************************************************
+    if (solverChoice.do_forest) { m_forest[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
 
     //********************************************************************************************
     // Microphysics
@@ -328,6 +345,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
     }
+
+    // ********************************************************************************************
+    // Build the data structures for canopy model (depends upon z_phys)
+    // ********************************************************************************************
+    if (solverChoice.do_forest) { m_forest[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
 
     // *****************************************************************************************************
     // Create the physbcs objects (after initializing the terrain but before calling FillCoarsePatch

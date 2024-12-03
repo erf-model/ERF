@@ -34,9 +34,8 @@ List of Parameters
 | Parameter                   | Definition       | Acceptable            | Default    |
 |                             |                  | Values                |            |
 +=============================+==================+=======================+============+
-| **erf.plotfile_type**       | AMReX, NETCDF    | "amrex" or            | "amrex"    |
-|                             | or HDF5          | "netcdf / "NetCDF" or |            |
-|                             |                  | "hdf5" / "HDF5"       |            |
+| **erf.plotfile_type**       | AMReX or NETCDF  | "amrex" or            | "amrex"    |
+|                             |                  | "netcdf / "NetCDF" or |            |
 +-----------------------------+------------------+-----------------------+------------+
 | **erf.plot_file_1**         | prefix for       | String                | “*plt_1_*” |
 |                             | plotfiles        |                       |            |
@@ -104,8 +103,7 @@ Examples of Usage
    means that native plot files (actually directories) starting with the prefix
    “*plt_run*” will be generated every 10 level-0 time steps. If using
    amrex format, that directory names will be *plt_run00000*, *plt_run00010*,
-   *plt_run00020*, etc.  If using HDF5 format, the names will have ".h5"
-   appended;  if using NetCDF format, the names will have ".nc" appended.
+   *plt_run00020*, etc.  If using NetCDF format, the names will have ".nc" appended.
 
    In addition, while the amrex plotfiles will contain data at all of the refinement
    levels,  NetCDF files are separated by level.

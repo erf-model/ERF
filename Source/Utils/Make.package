@@ -11,7 +11,8 @@ CEXE_headers += ERF_TileNoZ.H
 CEXE_headers += ERF_Utils.H
 
 CEXE_headers += ERF_TerrainPoisson_3D_K.H
-CEXE_headers += ERF_MLTerrainPoisson.H
+CEXE_headers += ERF_TerrainPoisson.H
+CEXE_sources += ERF_TerrainPoisson.cpp
 
 CEXE_headers += ERF_ParFunctions.H
 
@@ -26,13 +27,3 @@ CEXE_sources += ERF_VelocityToMomentum.cpp
 CEXE_sources += ERF_InteriorGhostCells.cpp
 CEXE_sources += ERF_TerrainMetrics.cpp
 CEXE_sources += ERF_Time_Avg_Vel.cpp  
-
-CEXE_sources += ERF_PoissonSolve.cpp
-CEXE_sources += ERF_PoissonSolve_tb.cpp
-CEXE_sources += ERF_solve_with_fft.cpp
-CEXE_sources += ERF_solve_with_gmres.cpp
-CEXE_sources += ERF_solve_with_mlmg.cpp
-
-ifeq ($(USE_EB), TRUE)
-CEXE_sources += ERF_solve_with_EB_mlmg.cpp
-endif

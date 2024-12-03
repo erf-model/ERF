@@ -425,13 +425,16 @@ ERF::ReadCheckpointFile ()
         }
         MultiFab base(grids[lev],dmap[lev],ncomp_base,ng_base);
         VisMF::Read(base, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
+
         MultiFab::Copy(base_state[lev],base,0,0,ncomp_base,ng_base);
+
         if (read_old_base_state) {
             for (MFIter mfi(base_state[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bx = mfi.growntilebox(1);
+                // We only compute theta_0 on valid cells since we will impose domain BC's after restart
+                const Box& bx = mfi.tilebox();
                 Array4<Real> const& fab = base_state[lev].array(mfi);
-                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     fab(i,j,k,BaseState::th0_comp) = getRhoThetagivenP(fab(i,j,k,BaseState::p0_comp))
                                                      / fab(i,j,k,BaseState::r0_comp);
