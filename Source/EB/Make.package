@@ -4,6 +4,7 @@ CEXE_sources += ERF_initEB.cpp
 CEXE_sources += ERF_eb_box.cpp
 CEXE_sources += ERF_eb_cylinder.cpp
 CEXE_sources += ERF_eb_regular.cpp
+CEXE_sources += ERF_redistribute.cpp
 CEXE_sources += ERF_writeEBsurface.cpp
 
 CEXE_headers += ERF_eb_if.H

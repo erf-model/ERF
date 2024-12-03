@@ -358,15 +358,19 @@ AdvectionSrcForScalars (const Real& dt,
 
     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
-        Real invdetJ = (detJ(i,j,k) > 0.) ?  1. / detJ(i,j,k) : 1.;
-
-        Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
-
         const int cons_index = icomp + n;
-        advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
-          ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
-          ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
-          ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
+        if (detJ(i,j,k) > 0.)
+        {
+            Real invdetJ = 1.0 / detJ(i,j,k);
+            Real mfsq    = mf_m(i,j,0) * mf_m(i,j,0);
+
+            advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
+              ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
+              ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
+              ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
+        } else {
+            advectionSrc(i,j,k,cons_index) = 0.;
+        }
     });
 
     // Special advection operator for open BC (bndry tangent operations)
