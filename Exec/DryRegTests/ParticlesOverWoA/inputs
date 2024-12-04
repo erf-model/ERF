@@ -32,6 +32,7 @@ tracer_particles.place_randomly_in_cells = true
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 1E-3
+erf.fixed_mri_dt_ratio = 12
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
