@@ -23,6 +23,9 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real yc_frac = 0.5; // Location of "center" of scalar (multiplies domain length)
   amrex::Real zc_frac = 0.5; // Location of "center" of scalar (multiplies domain length)
 
+  amrex::Real xradius = 10.0; // x-radius of scalar bubble
+  amrex::Real zradius = 10.0; // z-radius of scalar bubble
+
   int prob_type = -1;
 }; // namespace ProbParm
 
