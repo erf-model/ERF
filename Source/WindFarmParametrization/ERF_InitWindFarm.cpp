@@ -407,9 +407,15 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
                 if( d_xloc_ptr[it]+1e-3 > x1 and d_xloc_ptr[it]+1e-3 < x2 and
                     d_yloc_ptr[it]+1e-3 > y1 and d_yloc_ptr[it]+1e-3 < y2){
                     Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
-                    if(is_terrain and d_is_counted_ptr[it]==0) {
-                        Gpu::Atomic::Add(&d_zloc_ptr[it],z_nd_arr(i,j,k0));
-                        d_is_counted_ptr[it] = d_is_counted_ptr[it] + 1;
+                    // Perform atomic operations to ensure "increment only once"
+                    if (is_terrain) {
+                        int expected = 0;
+                        int desired = 1;
+                        // Atomic Compare-And-Swap: Increment only if d_is_counted_ptr[it] was 0
+                        if (Gpu::Atomic::CAS(&d_is_counted_ptr[it], expected, desired) == expected) {
+                            // The current thread successfully set d_is_counted_ptr[it] from 0 to 1
+                            Gpu::Atomic::Add(&d_zloc_ptr[it], z_nd_arr(i, j, k0));
+                        }
                     }
                 }
             }
@@ -428,7 +434,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
                                   amrex::ParallelContext::CommunicatorAll());
 
     for(int it=0;it<num_turb;it++) {
-        if(is_counted[it] != 1) {
+        if(is_terrain and is_counted[it] != 1) {
             Abort("Wind turbine " + std::to_string(it) + "has been counted " + std::to_string(is_counted[it]) + " times" +
                   " It should have been counted only once. Aborting....");
         }
