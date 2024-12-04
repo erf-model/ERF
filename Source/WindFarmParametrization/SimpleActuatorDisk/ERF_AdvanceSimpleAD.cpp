@@ -35,7 +35,7 @@ SimpleAD::compute_power_output (const Real& time)
   // Compute power based on the look-up table
 
     if (ParallelDescriptor::IOProcessor()){
-        static std::ofstream file("power_output.txt", std::ios::app);
+        static std::ofstream file("power_output_SimpleAD.txt", std::ios::app);
         // Check if the file opened successfully
         if (!file.is_open()) {
             std::cerr << "Error opening file!" << std::endl;

@@ -72,13 +72,18 @@ public:
 
     void fill_Nturb_multifab (const amrex::Geometry& geom,
                               amrex::MultiFab& mf_Nturb,
-                              std::unique_ptr<amrex::MultiFab>& z_phys_cc);
+                              std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
     void fill_SMark_multifab (const amrex::Geometry& geom,
                               amrex::MultiFab& mf_SMark,
                               const amrex::Real& sampling_distance_by_D,
                               const amrex::Real& turb_disk_angle,
                               std::unique_ptr<amrex::MultiFab>& z_phys_cc);
+
+    void fill_SMark_multifab_mesoscale_models (const amrex::Geometry& geom,
+                                          amrex::MultiFab& mf_SMark,
+                                          const amrex::MultiFab& mf_Nturb,
+                                          std::unique_ptr<amrex::MultiFab>& z_phys_cc);
 
     void write_turbine_locations_vtk ();
 

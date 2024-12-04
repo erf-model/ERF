@@ -41,6 +41,8 @@ public:
                  amrex::MultiFab& W_old,
                  const amrex::MultiFab& mf_vars);
 
+    void compute_power_output (const amrex::Real& time);
+
 protected:
     amrex::Vector<amrex::Real> xloc, yloc;
     amrex::Real turb_disk_angle;

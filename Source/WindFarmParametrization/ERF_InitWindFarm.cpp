@@ -352,7 +352,7 @@ WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_table
 
 void
 WindFarm::gatherKeyValuePairs(const std::vector<std::pair<int, double>>& localData,
-                               std::vector<std::pair<int, double>>& globalData)
+                              std::vector<std::pair<int, double>>& globalData)
 {
     int myRank = amrex::ParallelDescriptor::MyProc();
     int nProcs = amrex::ParallelDescriptor::NProcs();
@@ -419,17 +419,13 @@ WindFarm::gatherKeyValuePairs(const std::vector<std::pair<int, double>>& localDa
         amrex::ParallelDescriptor::Bcast(&globalData[i].first, 1, 0);
         amrex::ParallelDescriptor::Bcast(&globalData[i].second, 1, 0);
     }
-
-     for (const auto& kv : globalData) {
-            std::cout << "Rank " << myRank << "Key: " << kv.first << ", Value: " << kv.second << std::endl;
-     }
 }
 
 
 void
 WindFarm::fill_Nturb_multifab (const Geometry& geom,
                                MultiFab& mf_Nturb,
-                               std::unique_ptr<MultiFab>& z_phys_cc)
+                               std::unique_ptr<MultiFab>& z_phys_nd)
 {
 
     zloc.resize(xloc.size(),-1.0);
@@ -461,13 +457,13 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
     auto ProbLoArr = geom.ProbLoArray();
     int num_turb = xloc.size();
 
-    bool is_terrain = z_phys_cc ? true: false;
+    bool is_terrain = z_phys_nd ? true: false;
 
      // Initialize wind farm
     for ( MFIter mfi(mf_Nturb,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx     = mfi.tilebox();
         auto  Nturb_array = mf_Nturb.array(mfi);
-        const Array4<const Real>& z_cc_arr = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& z_nd_arr = (z_phys_nd) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
         int k0 = bx.smallEnd()[2];
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
@@ -483,7 +479,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
                     d_yloc_ptr[it]+1e-3 > y1 and d_yloc_ptr[it]+1e-3 < y2){
                        Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
                        if(is_terrain) {
-                            d_zloc_ptr[it] = z_cc_arr(i,j,k0);
+                            d_zloc_ptr[it] = z_nd_arr(i,j,k0);
                             d_turb_index_ptr[it] = it;
                        }
                        else {
@@ -498,8 +494,6 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
     Gpu::copy(Gpu::deviceToHost, d_zloc.begin(), d_zloc.end(), zloc.begin());
     Gpu::copy(Gpu::deviceToHost, d_turb_index.begin(), d_turb_index.end(), turb_index.begin());
 
-    if(is_terrain) {
-
         std::vector<std::pair<int, double>> turb_index_zloc;
         for(int it=0;it<xloc.size();it++){
             if(turb_index[it] != -1) {
@@ -513,9 +507,64 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
 
         // Each process now has the global array
         for (const auto& kv : turb_index_zloc_glob) {
-            std::cout << "Rank " << amrex::ParallelDescriptor::MyProc() <<   "Global data" << kv.first << " " << kv.second << "\n";
+            //std::cout << "Rank " << amrex::ParallelDescriptor::MyProc() <<   "Global data" << kv.first << " " << kv.second << "\n";
             zloc[kv.first] = kv.second;
         }
+}
+
+void
+WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
+                                                MultiFab& mf_SMark,
+                                                const MultiFab& mf_Nturb,
+                                                std::unique_ptr<MultiFab>& z_phys_nd)
+{
+    mf_SMark.setVal(-1.0);
+
+    Real d_hub_height = hub_height;
+
+    amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
+    amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
+    amrex::Gpu::DeviceVector<Real> d_zloc(xloc.size());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zloc.begin(), zloc.end(), d_zloc.begin());
+
+    int i_lo = geom.Domain().smallEnd(0); int i_hi = geom.Domain().bigEnd(0);
+    int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
+    int k_lo = geom.Domain().smallEnd(2); int k_hi = geom.Domain().bigEnd(2);
+
+    auto dx = geom.CellSizeArray();
+    auto ProbLoArr = geom.ProbLoArray();
+
+     // Initialize wind farm
+    for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        const Box& bx     = mfi.tilebox();
+        auto  SMark_array = mf_SMark.array(mfi);
+        auto  Nturb_array = mf_Nturb.array(mfi);
+        const Array4<const Real>& z_nd_arr = (z_phys_nd) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+        int k0 = bx.smallEnd()[2];
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if(Nturb_array(i,j,k,0) > 0) {
+                int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                int lk = amrex::min(amrex::max(k, k_lo), k_hi);
+
+                Real z1 = (z_nd_arr) ? z_nd_arr(li,lj,lk) : ProbLoArr[2] + lk * dx[2];
+                Real z2 = (z_nd_arr) ? z_nd_arr(li,lj,lk+1) : ProbLoArr[2] + (lk+1) * dx[2];
+
+                Real zturb;
+                if(z_nd_arr) {
+                    zturb = z_nd_arr(li,lj,k0) + d_hub_height;
+                } else {
+                    zturb = d_hub_height;
+                }
+                if(zturb+1e-3 > z1 and zturb+1e-3 < z2) {
+                    SMark_array(i,j,k,0) = 1.0;
+                }
+            }
+        });
     }
 }
 
@@ -571,12 +620,15 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
             int jj = amrex::min(amrex::max(j, j_lo), j_hi);
             int kk = amrex::min(amrex::max(k, k_lo), k_hi);
 
+            // The x and y extents of the current mesh cell
+
             Real x1 = ProbLoArr[0] + ii*dx[0];
             Real x2 = ProbLoArr[0] + (ii+1)*dx[0];
             Real y1 = ProbLoArr[1] + jj*dx[1];
             Real y2 = ProbLoArr[1] + (jj+1)*dx[1];
 
-            //Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
+            // The mesh cell centered z value
+
             Real z = (z_cc_arr) ? z_cc_arr(ii,jj,kk) : ProbLoArr[2] + (kk+0.5) * dx[2];
 
             int turb_indices_overlap[2];
