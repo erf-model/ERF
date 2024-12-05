@@ -251,7 +251,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         vars_windfarm[lev].define(ba, dm, 3, ngrow_state);// dudt, dvdt, dwdt
     }
         Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
-        SMark[lev].define(ba, dm, 2, ngrow_state); // Free stream velocity/source term
+        SMark[lev].define(ba, dm, 2, 1); // Free stream velocity/source term
                                                    // sampling marker in a cell - 2 components
 #endif
 
@@ -355,7 +355,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // write out the vtk files for wind turbine location and/or
     // actuator disks
     #ifdef ERF_USE_WINDFARM
-        init_windfarm(lev);
+        //init_windfarm(lev);
     #endif
 }
 

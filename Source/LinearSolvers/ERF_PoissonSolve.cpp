@@ -43,6 +43,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // Now convert the rho0w MultiFab to hold Omega rather than rhow
     // ****************************************************************************
     //
+#ifndef ERF_USE_EB
     if (l_use_terrain && !SolverChoice::terrain_is_flat) {
         for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
@@ -65,6 +66,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             });
         } // mfi
     }
+#endif
 
     // ****************************************************************************
     // Compute divergence which will form RHS

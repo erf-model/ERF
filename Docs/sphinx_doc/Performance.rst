@@ -15,6 +15,10 @@ For the strong scaling study, a fixed mesh size of :math:`(N_x, N_y, N_z) = (512
 
 is shown in the figure below. In the above, N is the number of cores and T is the time taken per time step. At 2048 cores, and ~32^3 cells per rank, the parallel efficiency is 69%. On GPU nodes, the number of CPU ranks is held constant at 4 --- i.e., each rank offloads its work to a single GPU. Therefore, the speed-up presented here between GPU and CPU is per node, rather than per rank. On node, speed-ups of 5--15x are achieved up to 16 GPU nodes, as shown in the figure below.
 
+A weak scaling test was performed on CPUs with a mesh size of :math:`(512,512,256) = 67.1` million, on 1 node (128 MPI ranks), and the number of cells was progressively scaled to :math:`(4096,2048,256) = 2.1` billion, on 32 nodes (4096 MPI ranks). Excellent weak scaling is shown by the nearly constant timings, for 10 iterations, as in figure below.
+
+A weak scaling test was also performed on GPUs with a mesh size of :math:`(256,256,512)` on 1 GPU node, and the number of cells was progressively scaled to :math:`(2048,1024,512)` on 32 nodes. The total elapsed time for 100 iterations with and without GPU-aware-MPI is shown in figure below. The nearly constant timings show excellent weak scaling and the benefits of GPU-aware-MPI are clearly observed with the 25-35% speed-up.
+
 .. figure:: figures/StrongScaling_CPU.png
    :alt: Strong scaling on CPUs
    :name: strong_CPU
@@ -46,3 +50,11 @@ is shown in the figure below. In the above, N is the number of cores and T is th
    :align: left
 
    **Comparison of timings on CPU and GPU showing the speed-up factor. We compare a CPU node with 128 ranks to a GPU node with 4 ranks, so there are 32x more points per GPU than per CPU core. Points on the same vertical line represent the same number of nodes.**
+
+.. figure:: figures/WeakScaling_GPU.png
+   :alt: Weak scaling on GPUs
+   :name: weak_GPU
+   :figwidth: 45%
+   :align: left
+
+   **Weak scaling on GPUs with and without GPU-aware MPI.**

@@ -1,20 +1,26 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 3000
+max_step = 1000
 
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  100000.0 100000.0  1000
-amr.n_cell           =   50     50       80
+geometry.prob_extent =  1000.0 1000.0  500.0
+amr.n_cell           =   100     100    50
 
 # WINDFARM PARAMETRIZATION PARAMETERS
-erf.windfarm_type = "SimpleActuatorDisk"
-erf.windfarm_loc_type = "lat_lon"
-erf.latitude_lo      =   35.0
-erf.longitude_lo     = -100.0
-erf.windfarm_loc_table = "windturbines_loc_lat_lon_1WT.txt"
+erf.use_terrain = 1
+erf.terrain_type = Static
+erf.terrain_z_levels = 0.000000 5.000000 11.040962 17.202744 23.487761 29.898478 36.437410 43.107120 49.910224 56.849391 63.927341 71.146850 78.510749 86.021926 93.683327 101.497956 109.468877 117.599217 125.892163 134.350968 142.978950 151.779491 160.756043 169.912126 179.251331 188.777319 198.493828 208.404667 218.513722 228.824959 239.342420 250.070231 261.012597 272.173811 283.558250 295.170377 307.014747 319.096004 331.418886 343.988226 356.808952 369.886094 383.224778 396.830235 410.707802 424.862920 439.301141 454.028126 469.049651 484.371606 500.000000
+
+erf.windfarm_type = "SimpleAD"
+erf.windfarm_loc_type = "x_y"
+erf.sampling_distance_by_D = 0.5
+erf.turb_disk_angle_from_x = 90.0
+erf.windfarm_x_shift = 200.0
+erf.windfarm_y_shift = 200.0
+erf.windfarm_loc_table = "windturbines_loc_x_y_1WT.txt"
 erf.windfarm_spec_table = "windturbines_spec_1WT.tbl"
 
 #erf.grid_stretching_ratio = 1.025
@@ -51,7 +57,8 @@ xlo.theta    = 300.
 
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 3.0  # fixed time step depending on grid resolution
+erf.use_native_mri = 1
+erf.fixed_dt       = 0.1 # fixed time step depending on grid resolution
 #erf.fixed_fast_dt  = 0.0025
 
 # DIAGNOSTICS & VERBOSITY
@@ -65,20 +72,20 @@ amr.max_level       = 0       # maximum level number allowed
 # CHECKPOINT FILES
 erf.check_file      = chk       # root name of checkpoint file
 erf.check_int       = 1000        # number of timesteps between checkpoints
-#erf.restart         = chk02000
+#erf.restart         = chk01000
 
 # PLOTFILES
 erf.plot_file_1     = plt       # prefix of plotfile name
 erf.plot_int_1      = 100       # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta KE num_turb vorticity
+erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta QKE num_turb SMark0 SMark1 vorticity_x vorticity_y vorticity_z
 
 # ADVECTION SCHEMES
-erf.dycore_horiz_adv_type    = "Centered_2nd"
-erf.dycore_vert_adv_type     = "Centered_2nd"
-erf.dryscal_horiz_adv_type   = "Centered_2nd"
-erf.dryscal_vert_adv_type    = "Centered_2nd"
-erf.moistscal_horiz_adv_type = "Centered_2nd"
-erf.moistscal_vert_adv_type  = "Centered_2nd"
+#erf.dycore_horiz_adv_type    = "Centered_2nd"
+#erf.dycore_vert_adv_type     = "Centered_2nd"
+#erf.dryscal_horiz_adv_type   = "Centered_2nd"
+#erf.dryscal_vert_adv_type    = "Centered_2nd"
+#erf.moistscal_horiz_adv_type = "Centered_2nd"
+#erf.moistscal_vert_adv_type  = "Centered_2nd"
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0

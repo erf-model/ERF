@@ -131,6 +131,13 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         }
     }
 
+     // Read in tables needed for windfarm simulations
+    // fill in Nturb multifab - number of turbines in each mesh cell
+    // write out the vtk files for wind turbine location and/or
+    // actuator disks
+    #ifdef ERF_USE_WINDFARM
+        init_windfarm(lev);
+    #endif
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************

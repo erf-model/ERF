@@ -5,6 +5,7 @@
 #include <ERF_WindFarm.H>
 #include <filesystem>
 #include <dirent.h>   // For POSIX directory handling
+#include <algorithm> // For std::sort
 
 using namespace amrex;
 
@@ -351,16 +352,27 @@ WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_table
 
 void
 WindFarm::fill_Nturb_multifab (const Geometry& geom,
-                               MultiFab& mf_Nturb)
+                               MultiFab& mf_Nturb,
+                               std::unique_ptr<MultiFab>& z_phys_nd)
 {
+
+    zloc.resize(xloc.size(),0.0);
+    Vector<int> is_counted;
+    is_counted.resize(xloc.size(),0);
 
     amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
     amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
+    amrex::Gpu::DeviceVector<Real> d_zloc(xloc.size());
+    amrex::Gpu::DeviceVector<int> d_is_counted(xloc.size());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zloc.begin(), zloc.end(), d_zloc.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, is_counted.begin(), is_counted.end(), d_is_counted.begin());
 
-    Real* d_xloc_ptr     = d_xloc.data();
-    Real* d_yloc_ptr     = d_yloc.data();
+    Real* d_xloc_ptr       = d_xloc.data();
+    Real* d_yloc_ptr       = d_yloc.data();
+    Real* d_zloc_ptr       = d_zloc.data();
+    int* d_is_counted_ptr = d_is_counted.data();
 
     mf_Nturb.setVal(0);
 
@@ -374,10 +386,14 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
     auto ProbLoArr = geom.ProbLoArray();
     int num_turb = xloc.size();
 
+    bool is_terrain = z_phys_nd ? true: false;
+
      // Initialize wind farm
     for ( MFIter mfi(mf_Nturb,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx     = mfi.tilebox();
         auto  Nturb_array = mf_Nturb.array(mfi);
+        const Array4<const Real>& z_nd_arr = (z_phys_nd) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+        int k0 = bx.smallEnd()[2];
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
             int lj = amrex::min(amrex::max(j, j_lo), j_hi);
@@ -390,7 +406,98 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
             for(int it=0; it<num_turb; it++){
                 if( d_xloc_ptr[it]+1e-3 > x1 and d_xloc_ptr[it]+1e-3 < x2 and
                     d_yloc_ptr[it]+1e-3 > y1 and d_yloc_ptr[it]+1e-3 < y2){
-                       Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
+                    Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
+                    // Perform atomic operations to ensure "increment only once"
+                    if (is_terrain) {
+                        int expected = 0;
+                        int desired = 1;
+                        // Atomic Compare-And-Swap: Increment only if d_is_counted_ptr[it] was 0
+                        if (Gpu::Atomic::CAS(&d_is_counted_ptr[it], expected, desired) == expected) {
+                            // The current thread successfully set d_is_counted_ptr[it] from 0 to 1
+                            Gpu::Atomic::Add(&d_zloc_ptr[it], z_nd_arr(i, j, k0));
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    Gpu::copy(Gpu::deviceToHost, d_zloc.begin(), d_zloc.end(), zloc.begin());
+    Gpu::copy(Gpu::deviceToHost, d_is_counted.begin(), d_is_counted.end(), is_counted.begin());
+
+    amrex::ParallelAllReduce::Sum(zloc.data(),
+                                  zloc.size(),
+                                  amrex::ParallelContext::CommunicatorAll());
+
+    amrex::ParallelAllReduce::Sum(is_counted.data(),
+                                  is_counted.size(),
+                                  amrex::ParallelContext::CommunicatorAll());
+
+    for(int it=0;it<num_turb;it++) {
+        if(is_terrain and is_counted[it] != 1) {
+            Abort("Wind turbine " + std::to_string(it) + "has been counted " + std::to_string(is_counted[it]) + " times" +
+                  " It should have been counted only once. Aborting....");
+        }
+    }
+
+    // Debugging
+    /*int my_rank = amrex::ParallelDescriptor::MyProc();
+
+    for(int it=0;it<num_turb;it++) {
+        std::cout << "The value of zloc is " << my_rank << " " << zloc[it] << " " << is_counted[it] << "\n";
+    }*/
+}
+
+void
+WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
+                                                MultiFab& mf_SMark,
+                                                const MultiFab& mf_Nturb,
+                                                std::unique_ptr<MultiFab>& z_phys_nd)
+{
+    mf_SMark.setVal(-1.0);
+
+    Real d_hub_height = hub_height;
+
+    amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
+    amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
+    amrex::Gpu::DeviceVector<Real> d_zloc(xloc.size());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zloc.begin(), zloc.end(), d_zloc.begin());
+
+    int i_lo = geom.Domain().smallEnd(0); int i_hi = geom.Domain().bigEnd(0);
+    int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
+    int k_lo = geom.Domain().smallEnd(2); int k_hi = geom.Domain().bigEnd(2);
+
+    auto dx = geom.CellSizeArray();
+    auto ProbLoArr = geom.ProbLoArray();
+
+     // Initialize wind farm
+    for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        const Box& bx     = mfi.tilebox();
+        auto  SMark_array = mf_SMark.array(mfi);
+        auto  Nturb_array = mf_Nturb.array(mfi);
+        const Array4<const Real>& z_nd_arr = (z_phys_nd) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+        int k0 = bx.smallEnd()[2];
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if(Nturb_array(i,j,k,0) > 0) {
+                int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                int lk = amrex::min(amrex::max(k, k_lo), k_hi);
+
+                Real z1 = (z_nd_arr) ? z_nd_arr(li,lj,lk) : ProbLoArr[2] + lk * dx[2];
+                Real z2 = (z_nd_arr) ? z_nd_arr(li,lj,lk+1) : ProbLoArr[2] + (lk+1) * dx[2];
+
+                Real zturb;
+                if(z_nd_arr) {
+                    zturb = z_nd_arr(li,lj,k0) + d_hub_height;
+                } else {
+                    zturb = d_hub_height;
+                }
+                if(zturb+1e-3 > z1 and zturb+1e-3 < z2) {
+                    SMark_array(i,j,k,0) = 1.0;
                 }
             }
         });
@@ -401,12 +508,15 @@ void
 WindFarm::fill_SMark_multifab (const Geometry& geom,
                                MultiFab& mf_SMark,
                                const Real& sampling_distance_by_D,
-                               const Real& turb_disk_angle)
+                               const Real& turb_disk_angle,
+                               std::unique_ptr<MultiFab>& z_phys_cc)
 {
     amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
     amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
+    amrex::Gpu::DeviceVector<Real> d_zloc(yloc.size());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zloc.begin(), zloc.end(), d_zloc.begin());
 
     Real d_rotor_rad = rotor_rad;
     Real d_hub_height = hub_height;
@@ -414,6 +524,7 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
 
     Real* d_xloc_ptr     = d_xloc.data();
     Real* d_yloc_ptr     = d_yloc.data();
+    Real* d_zloc_ptr     = d_zloc.data();
 
     mf_SMark.setVal(-1.0);
 
@@ -434,19 +545,27 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
 
      // Initialize wind farm
     for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx     = mfi.tilebox();
+        //const Box& bx     = mfi.tilebox();
+        const Box& gbx      = mfi.growntilebox(1);
         auto  SMark_array = mf_SMark.array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+
+        const Array4<const Real>& z_cc_arr = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, i_lo), i_hi);
             int jj = amrex::min(amrex::max(j, j_lo), j_hi);
             int kk = amrex::min(amrex::max(k, k_lo), k_hi);
+
+            // The x and y extents of the current mesh cell
 
             Real x1 = ProbLoArr[0] + ii*dx[0];
             Real x2 = ProbLoArr[0] + (ii+1)*dx[0];
             Real y1 = ProbLoArr[1] + jj*dx[1];
             Real y2 = ProbLoArr[1] + (jj+1)*dx[1];
 
-            Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
+            // The mesh cell centered z value
+
+            Real z = (z_cc_arr) ? z_cc_arr(ii,jj,kk) : ProbLoArr[2] + (kk+0.5) * dx[2];
 
             int turb_indices_overlap[2];
             int check_int = 0;
@@ -454,17 +573,21 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
                 Real x0 = d_xloc_ptr[it] + d_sampling_distance*nx;
                 Real y0 = d_yloc_ptr[it] + d_sampling_distance*ny;
 
+                Real z0 = 0.0;
+                if(z_cc_arr) {
+                    z0 = d_zloc_ptr[it];
+                }
+
                 bool is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
-                                                     nx, ny, d_hub_height, d_rotor_rad, z);
+                                                     nx, ny, d_hub_height+z0, d_rotor_rad, z);
                 if(is_cell_marked) {
                     SMark_array(i,j,k,0) = it;
                 }
                 x0 = d_xloc_ptr[it];
                 y0 = d_yloc_ptr[it];
-                //printf("Values are %d, %0.15g, %0.15g\n", it, x0, y0);
 
                 is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
-                                                nx, ny, d_hub_height, d_rotor_rad, z);
+                                                nx, ny, d_hub_height+z0, d_rotor_rad, z);
                 if(is_cell_marked) {
                     SMark_array(i,j,k,1) = it;
                     turb_indices_overlap[check_int] = it;
@@ -501,11 +624,14 @@ WindFarm::write_turbine_locations_vtk ()
 
 
 void
-WindFarm::write_actuator_disks_vtk (const Geometry& geom)
+WindFarm::write_actuator_disks_vtk (const Geometry& geom,
+                                    const Real& sampling_distance_by_D)
 {
 
+    Real sampling_distance = sampling_distance_by_D*2.0*rotor_rad;
+
     if (ParallelDescriptor::IOProcessor()){
-        FILE *file_actuator_disks_all, *file_actuator_disks_in_dom;
+        FILE *file_actuator_disks_all, *file_actuator_disks_in_dom, *file_averaging_disks_in_dom;
         file_actuator_disks_all = fopen("actuator_disks_all.vtk","w");
         fprintf(file_actuator_disks_all, "%s\n","# vtk DataFile Version 3.0");
         fprintf(file_actuator_disks_all, "%s\n","Actuator Disks");
@@ -517,6 +643,13 @@ WindFarm::write_actuator_disks_vtk (const Geometry& geom)
         fprintf(file_actuator_disks_in_dom, "%s\n","Actuator Disks");
         fprintf(file_actuator_disks_in_dom, "%s\n","ASCII");
         fprintf(file_actuator_disks_in_dom, "%s\n","DATASET POLYDATA");
+
+        file_averaging_disks_in_dom = fopen("averaging_disks_in_dom.vtk","w");
+        fprintf(file_averaging_disks_in_dom, "%s\n","# vtk DataFile Version 3.0");
+        fprintf(file_averaging_disks_in_dom, "%s\n","Actuator Disks");
+        fprintf(file_averaging_disks_in_dom, "%s\n","ASCII");
+        fprintf(file_averaging_disks_in_dom, "%s\n","DATASET POLYDATA");
+
 
         int npts = 100;
         fprintf(file_actuator_disks_all, "%s %ld %s\n", "POINTS", xloc.size()*npts, "float");
@@ -534,25 +667,35 @@ WindFarm::write_actuator_disks_vtk (const Geometry& geom)
             }
         }
         fprintf(file_actuator_disks_in_dom, "%s %ld %s\n", "POINTS", static_cast<long int>(num_turb_in_dom*npts), "float");
+        fprintf(file_averaging_disks_in_dom, "%s %ld %s\n", "POINTS", static_cast<long int>(num_turb_in_dom*npts), "float");
 
         Real nx = std::cos(my_turb_disk_angle+0.5*M_PI);
         Real ny = std::sin(my_turb_disk_angle+0.5*M_PI);
 
+        Real nx1 = -std::cos(my_turb_disk_angle);
+        Real ny1 = -std::sin(my_turb_disk_angle);
+
         for(int it=0; it<xloc.size(); it++){
             for(int pt=0;pt<100;pt++){
-                Real x, y, z;
+                Real x, y, z, xavg, yavg;
                 Real theta = 2.0*M_PI/npts*pt;
                 x = xloc[it] + rotor_rad*cos(theta)*nx;
                 y = yloc[it] + rotor_rad*cos(theta)*ny;
-                z = hub_height + rotor_rad*sin(theta);
+                z = hub_height + zloc[it] + rotor_rad*sin(theta);
+
+                xavg = xloc[it] + sampling_distance*nx1 + rotor_rad*cos(theta)*nx;
+                yavg = yloc[it] + sampling_distance*ny1 + rotor_rad*cos(theta)*ny;
+
                 fprintf(file_actuator_disks_all, "%0.15g %0.15g %0.15g\n", x, y, z);
                 if(xloc[it] > ProbLoArr[0] and xloc[it] < ProbHiArr[0] and yloc[it] > ProbLoArr[1] and yloc[it] < ProbHiArr[1]) {
                     fprintf(file_actuator_disks_in_dom, "%0.15g %0.15g %0.15g\n", x, y, z);
+                    fprintf(file_averaging_disks_in_dom, "%0.15g %0.15g %0.15g\n", xavg, yavg, z);
                 }
             }
         }
         fprintf(file_actuator_disks_all, "%s %ld %ld\n", "LINES", xloc.size()*(npts-1), static_cast<long int>(xloc.size()*(npts-1)*3));
         fprintf(file_actuator_disks_in_dom, "%s %ld %ld\n", "LINES", static_cast<long int>(num_turb_in_dom*(npts-1)), static_cast<long int>(num_turb_in_dom*(npts-1)*3));
+        fprintf(file_averaging_disks_in_dom, "%s %ld %ld\n", "LINES", static_cast<long int>(num_turb_in_dom*(npts-1)), static_cast<long int>(num_turb_in_dom*(npts-1)*3));
         for(int it=0; it<xloc.size(); it++){
             for(int pt=0;pt<99;pt++){
                 fprintf(file_actuator_disks_all, "%ld %ld %ld\n",
@@ -570,8 +713,18 @@ WindFarm::write_actuator_disks_vtk (const Geometry& geom)
             }
         }
 
+         for(int it=0; it<num_turb_in_dom; it++){
+            for(int pt=0;pt<99;pt++){
+                fprintf(file_averaging_disks_in_dom, "%ld %ld %ld\n",
+                                             static_cast<long int>(2),
+                                             static_cast<long int>(it*npts+pt),
+                                             static_cast<long int>(it*npts+pt+1));
+            }
+        }
+
         fclose(file_actuator_disks_all);
         fclose(file_actuator_disks_in_dom);
+        fclose(file_averaging_disks_in_dom);
     }
 }
 

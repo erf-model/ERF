@@ -35,8 +35,17 @@ public:
 
     void update (const amrex::Real& dt_advance,
                  amrex::MultiFab& cons_in,
-                 amrex::MultiFab& U_old, amrex::MultiFab& V_old,
+                 amrex::MultiFab& U_old,
+                 amrex::MultiFab& V_old,
                  const amrex::MultiFab& mf_vars_ewp);
+
+    void compute_power_output (const amrex::MultiFab& cons_in,
+                               const amrex::MultiFab& U_old,
+                               const amrex::MultiFab& V_old,
+                                const amrex::MultiFab& W_old,
+                               const amrex::MultiFab& mf_SMark,
+                               const amrex::MultiFab& mf_Nturb,
+                               const amrex::Real& time);
 
 protected:
     amrex::Vector<amrex::Real> xloc, yloc;

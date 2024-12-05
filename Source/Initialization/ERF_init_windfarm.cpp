@@ -29,17 +29,27 @@ ERF::init_windfarm (int lev)
                              true, false);
     }
 
-
-    windfarm->fill_Nturb_multifab(geom[lev], Nturb[lev]);
+    windfarm->fill_Nturb_multifab(geom[lev], Nturb[lev], z_phys_nd[lev]);
 
     windfarm->write_turbine_locations_vtk();
+
+
+    if(solverChoice.windfarm_type == WindFarmType::Fitch or
+       solverChoice.windfarm_type == WindFarmType::EWP) {
+        windfarm->fill_SMark_multifab_mesoscale_models(geom[lev],
+                                                       SMark[lev],
+                                                       Nturb[lev],
+                                                       z_phys_nd[lev]);
+    }
 
     if(solverChoice.windfarm_type == WindFarmType::SimpleAD or
        solverChoice.windfarm_type == WindFarmType::GeneralAD) {
         windfarm->fill_SMark_multifab(geom[lev], SMark[lev],
                                       solverChoice.sampling_distance_by_D,
-                                      solverChoice.turb_disk_angle);
-        windfarm->write_actuator_disks_vtk(geom[lev]);
+                                      solverChoice.turb_disk_angle,
+                                      z_phys_cc[lev]);
+        windfarm->write_actuator_disks_vtk(geom[lev],
+                                           solverChoice.sampling_distance_by_D);
     }
 
     if(solverChoice.windfarm_type == WindFarmType::GeneralAD) {

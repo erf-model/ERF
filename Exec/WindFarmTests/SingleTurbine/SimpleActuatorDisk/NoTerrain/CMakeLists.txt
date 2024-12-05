@@ -1,4 +1,4 @@
-set(erf_exe_name erf_fitch)
+set(erf_exe_name erf_sad_no_terrain)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
