@@ -88,7 +88,6 @@ erf.terrain_z_levels = 0 0.0236057 0.0486738 0.0752909 0.103548 0.133541 0.16537
 
 # Constant diffusion coefficient
 erf.molec_diff_type   = "ConstantAlpha"
-erf.rho0_trans        = 1.0 # [kg/m^3], used to convert input diffusivities
 erf.dynamic_viscosity = 0.01 # [kg/(m-s)]
 erf.alpha_T           = 0.0 # [m^2/s]
 

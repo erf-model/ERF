@@ -43,7 +43,6 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 
 erf.les_type          = "None"
-erf.rho0_trans        = 1.0
 erf.molec_diff_type   = "Constant"
 erf.dynamic_viscosity = 0.1
 

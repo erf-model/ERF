@@ -64,7 +64,6 @@ erf.terrain_z_levels = 0. 200. 300. 400. 450. 500. 600. 700. 800. 900. 1000. 110
 erf.terrain_smoothing = 1
 
 erf.molec_diff_type   = "ConstantAlpha"
-erf.rho0_trans        = 1.0 # [kg/m^3], used to convert input diffusivities
 erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
 erf.alpha_T           = 0.0 # [m^2/s]
 
