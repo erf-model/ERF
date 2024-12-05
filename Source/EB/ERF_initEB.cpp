@@ -26,7 +26,12 @@ void ERF::MakeEBGeometry()
     *                                                                            *
     ******************************************************************************/
 
-    int max_coarsening_level = 0;
+    int max_coarsening_level;
+    if (solverChoice.anelastic[0] == 1) {
+        max_coarsening_level = 100;
+    } else {
+        max_coarsening_level = 0;
+    }
 
     if(geom_type == "cylinder") {
         amrex::Print() << "\n Building cylinder geometry." << std::endl;

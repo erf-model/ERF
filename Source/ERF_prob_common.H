@@ -304,6 +304,7 @@ public:
                     });
                 }
             }
+            SolverChoice::set_flat_terrain_flag();
         }
     }
 
@@ -331,6 +332,8 @@ public:
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             z_arr(i,j,k0) = 0.0;
         });
+
+        SolverChoice::set_flat_terrain_flag();
     }
 
     /**

@@ -94,6 +94,19 @@ AdvectionSrcForMom (const Box& bx,
 
 #ifdef ERF_USE_EB
     amrex::ignore_unused(use_terrain);
+    ParallelFor(bxx, bxy, bxz,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        rho_u_rhs(i, j, k) = 0.0;
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        rho_v_rhs(i, j, k) = 0.0;
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        rho_w_rhs(i, j, k) = 0.0;
+    });
 #else
     if (!use_terrain) {
         // Inline with 2nd order for efficiency
@@ -204,8 +217,7 @@ AdvectionSrcForMom (const Box& bx,
         }
     } // end of use_terrain == false
     else
-#endif
-    { // now do use_terrain = true (or ERF_USE_EB)
+    { // now do use_terrain = true
         // Inline with 2nd order for efficiency
         if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
         {
@@ -428,5 +440,6 @@ AdvectionSrcForMom (const Box& bx,
                                            ax, ay, az, detJ, cellSizeInv,
                                            domhi_z);
     }
+#endif
 }
 

@@ -36,6 +36,11 @@ if(ERF_ENABLE_PARTICLES)
   set(AMReX_PARTICLES ON)
 endif()
 
+set(AMReX_FFT OFF)
+if(ERF_ENABLE_FFT)
+  set(AMReX_FFT ON)
+endif()
+
 set(AMReX_EB OFF)
 if(ERF_ENABLE_EB)
   set(AMReX_EB ON)

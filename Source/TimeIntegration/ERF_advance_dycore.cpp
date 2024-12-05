@@ -83,7 +83,7 @@ void ERF::advance_dycore(int level,
         d_sponge_ptrs_at_lev[Sponge::vbar_sponge]  =  d_sponge_ptrs[level][Sponge::vbar_sponge].data();
     }
 
-    bool l_use_terrain = solverChoice.use_terrain;
+    bool l_use_terrain = (SolverChoice::terrain_type != TerrainType::None);
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
                            (tc.les_type        !=       LESType::None) ||
                            (tc.pbl_type        !=       PBLType::None) );

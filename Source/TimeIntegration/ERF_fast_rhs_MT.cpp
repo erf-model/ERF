@@ -21,7 +21,6 @@ using namespace amrex;
  * @param[in   ] geom container for geometric information
  * @param[in   ] gravity Magnitude of gravity
  * @param[in   ] use_lagged_delta_rt define lagged_delta_rt for our next step
- * @param[in   ] Omega component of the momentum normal to the z-coordinate surface
  * @param[in   ] z_t_rk rate of change of grid height -- only relevant for moving terrain
  * @param[in   ] z_t_pert rate of change of grid height -- interpolated between RK stages
  * @param[in   ] z_phys_nd_old height coordinate at nodes at old time
@@ -56,7 +55,6 @@ void erf_fast_rhs_MT (int step, int nrk,
                       const Geometry geom,
                       const Real gravity,
                       const bool use_lagged_delta_rt,
-                            MultiFab& Omega,
                       std::unique_ptr<MultiFab>& z_t_rk,             // evaluated from previous RK stg to next RK stg
                       const MultiFab* z_t_pert,                      // evaluated from tau to (tau + delta tau) - z_t_rk
                       std::unique_ptr<MultiFab>& z_phys_nd_old,      // at previous substep time (tau)
@@ -103,6 +101,8 @@ void erf_fast_rhs_MT (int step, int nrk,
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     MultiFab extrap(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(),1,1);
+
+    MultiFab Omega(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
 
     // *************************************************************************
     // Define updates in the current RK stg

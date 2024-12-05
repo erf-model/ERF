@@ -46,8 +46,7 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
 
-erf.use_terrain = true
-erf.use_terrain = false
+erf.terrain_type = Static
 
 erf.moisture_model = "Kessler"
 

@@ -145,7 +145,7 @@ ERF::WriteCheckpointFile () const
         MultiFab::Copy(base,base_state[lev],0,0,ncomp_base,ng_base);
         VisMF::Write(base, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
 
-        if (solverChoice.use_terrain)  {
+        if (SolverChoice::terrain_type != TerrainType::None)  {
             // Note that we also write the ghost cells of z_phys_nd
             IntVect ng = z_phys_nd[lev]->nGrowVect();
             MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
@@ -425,13 +425,16 @@ ERF::ReadCheckpointFile ()
         }
         MultiFab base(grids[lev],dmap[lev],ncomp_base,ng_base);
         VisMF::Read(base, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
+
         MultiFab::Copy(base_state[lev],base,0,0,ncomp_base,ng_base);
+
         if (read_old_base_state) {
             for (MFIter mfi(base_state[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bx = mfi.growntilebox(1);
+                // We only compute theta_0 on valid cells since we will impose domain BC's after restart
+                const Box& bx = mfi.tilebox();
                 Array4<Real> const& fab = base_state[lev].array(mfi);
-                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     fab(i,j,k,BaseState::th0_comp) = getRhoThetagivenP(fab(i,j,k,BaseState::p0_comp))
                                                      / fab(i,j,k,BaseState::r0_comp);
@@ -440,7 +443,7 @@ ERF::ReadCheckpointFile ()
         }
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
-        if (solverChoice.use_terrain)  {
+        if (SolverChoice::terrain_type != TerrainType::None)  {
            // Note that we also read the ghost cells of z_phys_nd
            IntVect ng = z_phys_nd[lev]->nGrowVect();
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
@@ -466,7 +469,7 @@ ERF::ReadCheckpointFile ()
         if(solverChoice.windfarm_type == WindFarmType::Fitch or
            solverChoice.windfarm_type == WindFarmType::EWP or
            solverChoice.windfarm_type == WindFarmType::SimpleAD){
-            ng = Nturb[lev].nGrowVect();
+            IntVect ng = Nturb[lev].nGrowVect();
             MultiFab mf_Nturb(grids[lev],dmap[lev],1,ng);
             VisMF::Read(mf_Nturb, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "NumTurb"));
             MultiFab::Copy(Nturb[lev],mf_Nturb,0,0,1,ng);
