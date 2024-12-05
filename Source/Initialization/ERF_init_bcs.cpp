@@ -598,7 +598,7 @@ void ERF::init_bcs ()
 
 void ERF::init_Dirichlet_bc_data (const std::string input_file)
 {
-    const bool use_terrain = solverChoice.use_terrain;
+    const bool use_terrain = (solverChoice.terrain_type != TerrainType::None);
 
     // Read the dirichlet_input file
     Print() << "dirichlet_input file location : " << input_file << std::endl;

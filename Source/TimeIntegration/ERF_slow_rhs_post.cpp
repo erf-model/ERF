@@ -114,9 +114,9 @@ void erf_slow_rhs_post (int level, int finest_level,
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
 
-    const bool l_use_terrain      = solverChoice.use_terrain;
-    const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
+    const bool l_use_terrain      = (solverChoice.terrain_type != TerrainType::None);
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::Moving);
+    const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;

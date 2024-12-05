@@ -81,18 +81,15 @@ struct SolverChoice {
     {
         amrex::ParmParse pp(pp_prefix);
 
-        // Do we have terrain (or grid stretching)?
-        pp.query("use_terrain", use_terrain);
-
         pp.query("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
             AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
                                       "The grid stretching ratio must be greater than 1");
         }
         if (grid_stretching_ratio >= 1) {
-            if (!use_terrain) {
+            if (terrain_type != TerrainType::Static) {
                 amrex::Print() << "Turning terrain on to enable grid stretching" << std::endl;
-                use_terrain = true;
+                terrain_type = TerrainType::Static;
             }
             pp.query("zsurface", zsurf);
             if (zsurf != 0.0) {
@@ -132,24 +129,27 @@ struct SolverChoice {
             if (moisture_type == MoistureType::Kessler_NoRain ||
                 moisture_type == MoistureType::SAM ||
                 moisture_type == MoistureType::SAM_NoIce ||
-                moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
-                buoyancy_type = 1; // asserted in make buoyancy
+                moisture_type == MoistureType::SAM_NoPrecip_NoIce)
+            {
+                buoyancy_type = 1; // uses Rhoprime
             } else {
                 buoyancy_type = 2; // uses Tprime
             }
         }
 
-        // Which expression (1,2 or 3) to use for buoyancy
+        // Which expression (1,2/3 or 4) to use for buoyancy
         pp.query("buoyancy_type", buoyancy_type);
 
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
 
-        // Is the terrain static or moving?
-        terrain_type = (use_terrain) ? TerrainType::Static : TerrainType::None; // Default
-        if (use_terrain) {
-            pp.query_enum_case_insensitive("terrain_type",terrain_type);
+        // Is the terrain none, static or moving?
+        pp.query_enum_case_insensitive("terrain_type",terrain_type);
+        int n_zlevels = pp.countval("terrain_z_levels");
+        if (n_zlevels > 0 and terrain_type == TerrainType::None)
+        {
+            terrain_type = TerrainType::Static;
         }
 
         // Use lagged_delta_rt in the fast integrator?
@@ -205,7 +205,7 @@ struct SolverChoice {
         if (any_anelastic == 1) {
             constant_density = true;
             project_initial_velocity = true;
-            buoyancy_type = 2; // uses Tprime
+            buoyancy_type = 3; // (This isn't actually used when anelastic is set)
         } else {
             pp.query("project_initial_velocity", project_initial_velocity);
 
@@ -215,7 +215,6 @@ struct SolverChoice {
 
         // *******************************************************************************
 
-        pp.query("project_every_stage", project_every_stage);
         pp.query("ncorr", ncorr);
         pp.query("poisson_abstol", poisson_abstol);
         pp.query("poisson_reltol", poisson_reltol);
@@ -246,7 +245,7 @@ struct SolverChoice {
         // Flag to do MOST rotations with terrain
         pp.query("use_rotate_most",use_rotate_most);
         if (use_rotate_most) {
-            AMREX_ASSERT_WITH_MESSAGE(use_terrain,"MOST stress rotations are only valid with terrain!");
+            AMREX_ASSERT_WITH_MESSAGE(terrain_type != TerrainType::None,"MOST stress rotations are only valid with terrain!");
             AMREX_ASSERT_WITH_MESSAGE(use_explicit_most, "MOST Stress rotations are only valid with explicit MOST!");
         }
 
@@ -528,6 +527,17 @@ struct SolverChoice {
         }
     }
 
+    inline static
+    bool terrain_is_flat = false;
+
+    inline static
+    TerrainType terrain_type = TerrainType::None;
+
+    static
+    void set_flat_terrain_flag ()
+    {
+        terrain_is_flat = true;
+    }
 
     AdvChoice    advChoice;
     DiffChoice   diffChoice;
@@ -543,14 +553,11 @@ struct SolverChoice {
     amrex::Vector<int> anelastic;
 
     int         constant_density    = 0;
-    int         project_every_stage = 1;
     int         ncorr               = 1;
     amrex::Real poisson_abstol      = 1e-10;
     amrex::Real poisson_reltol      = 1e-10;
 
     bool        test_mapfactor         = false;
-
-    bool        use_terrain            = false;
 
     int         buoyancy_type          = 1; // uses rhoprime directly
 
@@ -620,7 +627,6 @@ struct SolverChoice {
     bool use_mono_adv{false};
 
     CouplingType coupling_type;
-    TerrainType  terrain_type;
     MoistureType moisture_type;
     WindFarmType windfarm_type;
     WindFarmLocType windfarm_loc_type;
@@ -651,5 +657,8 @@ struct SolverChoice {
     amrex::Real turb_disk_angle = -1.0;
     amrex::Real windfarm_x_shift = -1.0;
     amrex::Real windfarm_y_shift = -1.0;
+
+    // Flag for valid canopy model
+    bool do_forest {false};
 };
 #endif

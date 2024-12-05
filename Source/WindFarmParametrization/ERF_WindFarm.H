@@ -71,16 +71,27 @@ public:
     void read_windfarm_spec_table_extra (const std::string windfarm_spec_table_extra);
 
     void fill_Nturb_multifab (const amrex::Geometry& geom,
-                              amrex::MultiFab& mf_Nturb);
+                              amrex::MultiFab& mf_Nturb,
+                              std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
     void fill_SMark_multifab (const amrex::Geometry& geom,
                               amrex::MultiFab& mf_SMark,
                               const amrex::Real& sampling_distance_by_D,
-                              const amrex::Real& turb_disk_angle);
+                              const amrex::Real& turb_disk_angle,
+                              std::unique_ptr<amrex::MultiFab>& z_phys_cc);
+
+    void fill_SMark_multifab_mesoscale_models (const amrex::Geometry& geom,
+                                          amrex::MultiFab& mf_SMark,
+                                          const amrex::MultiFab& mf_Nturb,
+                                          std::unique_ptr<amrex::MultiFab>& z_phys_cc);
 
     void write_turbine_locations_vtk ();
 
-    void write_actuator_disks_vtk (const amrex::Geometry& geom);
+    void write_actuator_disks_vtk (const amrex::Geometry& geom,
+                                   const amrex::Real& sampling_distance_by_D);
+
+    void gatherKeyValuePairs(const std::vector<std::pair<int, double>>& localData,
+                             std::vector<std::pair<int, double>>& globalData);
 
     void advance (const amrex::Geometry& a_geom,
                   const amrex::Real& dt_advance,
@@ -142,7 +153,8 @@ public:
 
 protected:
 
-    amrex::Vector<amrex::Real> xloc, yloc;
+    amrex::Vector<amrex::Real> xloc, yloc, zloc;
+    amrex::Vector<int> turb_index;
     amrex::Real my_turb_disk_angle;
     amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;

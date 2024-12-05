@@ -48,7 +48,7 @@ The governing equations for this model are
   \frac{\partial (\rho_d q_c)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_c) + \nabla \cdot (\rho_d \alpha \nabla q_c) + f_{cond}
 
 Here :math:`L_v` is the latent heat of vaporization, :math:`\theta_d` is the (dry) potential temperature
-:math:`\mathbf{B}` is the buoyancy force, which is defined in :ref:`Buoyancy <Buoyancy>`.
+:math:`\mathbf{B}` is the buoyancy force, which is defined in :ref:`sec:Buoyancy <Buoyancy>`.
 
 The pressure perturbation is computed as
 
@@ -137,4 +137,4 @@ In this set of equations, the subgrid turbulent parameterization effects are inc
 :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}`.
 :math:`\mathbf{F}` stands for the external force, and :math:`Q` and :math:`F_Q` represent the mass and energy transformation
 of water vapor to/from water through condensation/evaporation, which is determined by the microphysics parameterization processes.
-:math:`\mathbf{B}` is the buoyancy force, which is defined in :ref:`Buoyancy <Buoyancy>`.
+:math:`\mathbf{B}` is the buoyancy force, which is defined in :ref:`sec:Buoyancy <Buoyancy>`.

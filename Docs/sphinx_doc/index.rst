@@ -40,6 +40,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    GettingStarted.rst
    Inputs.rst
    BestPractices.rst
+   HowToCite.rst
 
 .. toctree::
    :caption: THEORY
@@ -56,16 +57,19 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/Forcings.rst
    Particles.rst
    theory/WindFarmModels.rst
+   theory/Forest.rst
    theory/UnitsAndConstants.rst
 
 .. toctree::
    :caption: IMPLEMENTATION
    :maxdepth: 1
 
-   ArakawaCGrid.rst
+   AMReX.rst
+   Meshing.rst
    MapFactors.rst
    TimeAdvance.rst
    Discretizations.rst
+   LinearSolvers.rst
    MeshRefinement.rst
    BoundaryConditions.rst
    MOST.rst

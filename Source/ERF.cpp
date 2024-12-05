@@ -30,7 +30,7 @@ Real ERF::change_max    =  1.1;
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
-int ERF::verbose        = 0;
+int  ERF::verbose       = 0;
 int  ERF::mg_verbose    = 0;
 bool ERF::use_fft       = false;
 
@@ -132,6 +132,10 @@ ERF::ERF_shared ()
     rhotheta_src.resize(nlevs_max);
     rhoqt_src.resize(nlevs_max);
 
+    // NOTE: size canopy model before readparams (if file exists, we construct)
+    m_forest.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev) { m_forest[lev] = nullptr; }
+
     ReadParameters();
     initializeMicrophysics(nlevs_max);
 
@@ -142,17 +146,23 @@ ERF::ERF_shared ()
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
+    // This is only used when we have flat terrain and stretched z levels.
+    stretched_dz_h.resize(nlevs_max);
+    stretched_dz_d.resize(nlevs_max);
+
     // Initialize staggered vertical levels for grid stretching or terrain, and
     // to simplify Rayleigh damping layer calculations.
     zlevels_stag.resize(max_level+1);
     init_zlevels(zlevels_stag,
+                 stretched_dz_h,
+                 stretched_dz_d,
                  geom,
                  refRatio(),
                  solverChoice.grid_stretching_ratio,
                  solverChoice.zsurf,
                  solverChoice.dz0);
 
-    if (solverChoice.use_terrain) {
+    if (SolverChoice::terrain_type != TerrainType::None) {
         int nz = geom[0].Domain().length(2) + 1; // staggered
         if (std::fabs(zlevels_stag[0][nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
             Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)
@@ -199,8 +209,6 @@ ERF::ERF_shared ()
     rU_old.resize(nlevs_max);
     rV_old.resize(nlevs_max);
     rW_old.resize(nlevs_max);
-
-    Omega.resize(nlevs_max);
 
     // xmom_crse_rhs.resize(nlevs_max);
     // ymom_crse_rhs.resize(nlevs_max);
@@ -299,6 +307,7 @@ ERF::ERF_shared ()
         Hwave_onegrid[lev] = nullptr;
         Lwave_onegrid[lev] = nullptr;
     }
+
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
 
@@ -332,12 +341,10 @@ ERF::ERF_shared ()
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
     }
 
-    // We define m_factory even with no EB
+    // We will create each of these in MakeNewLevel.../RemakeLevel
     m_factory.resize(max_level+1);
 
-#ifdef AMREX_USE_EB
-    // We will create each of these in MakeNewLevel.../RemakeLevel
-
+#ifdef ERF_USE_EB
     // This is needed before initializing level MultiFabs
     MakeEBGeometry();
 #endif
@@ -444,7 +451,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (solverChoice.coupling_type == CouplingType::TwoWay)
     {
-        bool use_terrain = solverChoice.use_terrain;
+        bool use_terrain = (SolverChoice::terrain_type != TerrainType::None);
         int ncomp = vars_new[0][Vars::cons].nComp();
         for (int lev = finest_level-1; lev >= 0; lev--)
         {
@@ -495,7 +502,14 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             // We need to do this before anything else because refluxing changes the
             // values of coarse cells underneath fine grids with the assumption they'll
             // be over-written by averaging down
-            AverageDownTo(lev,0,ncomp);
+            int src_comp;
+            if (solverChoice.anelastic[lev]) {
+                src_comp = 1;
+            } else {
+                src_comp = 0;
+            }
+            int num_comp = ncomp - src_comp;
+            AverageDownTo(lev,src_comp,num_comp);
         }
     }
 
@@ -557,7 +571,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     // Moving terrain
-    if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
+    if ( solverChoice.terrain_type == TerrainType::Moving )
     {
       for (int lev = finest_level; lev >= 0; lev--)
       {
@@ -594,10 +608,6 @@ ERF::InitData_pre ()
         m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
     }
 
-    if (!solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::None) {
-        Abort("We do not allow terrain_type to be moving or static with use_terrain = false");
-    }
-
     last_plot_file_step_1 = -1;
     last_plot_file_step_2 = -1;
     last_check_file_step  = -1;
@@ -626,7 +636,7 @@ void
 ERF::InitData_post ()
 {
     if (restart_chkfile.empty()) {
-        if (solverChoice.use_terrain) {
+        if (SolverChoice::terrain_type != TerrainType::None) {
             if (init_type == InitType::Ideal) {
                 Abort("We do not currently support init_type = ideal with terrain");
             }
@@ -635,7 +645,7 @@ ERF::InitData_post ()
         //
         // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
         //
-        if (solverChoice.use_terrain != 0) {
+        if (SolverChoice::terrain_type != TerrainType::None) {
             for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
                 average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
                 average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
@@ -697,7 +707,7 @@ ERF::InitData_post ()
         {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
                 "Thin immersed body with refinement not currently supported.");
-            if (solverChoice.use_terrain == 1) {
+            if (SolverChoice::terrain_type != TerrainType::None) {
                 amrex::Print() << "NOTE: Thin immersed body with terrain has not been tested." << std::endl;
             }
         }
@@ -783,7 +793,7 @@ ERF::InitData_post ()
                                                  h_v_geos[lev], d_v_geos[lev],
                                                  geom[lev], z_phys_cc[lev]);
             } else {
-                if (solverChoice.use_terrain > 0) {
+                if (SolverChoice::terrain_type != TerrainType::None && !SolverChoice::terrain_is_flat) {
                     amrex::Print() << "Note: 1-D geostrophic wind profile input is only defined for grid stretching, not real terrain" << std::endl;
                 }
                 init_geo_wind_profile(solverChoice.abl_geo_wind_table,
@@ -886,11 +896,10 @@ ERF::InitData_post ()
     {
         // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
-            AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
             Real dummy_dt = 1.0;
             for (int lev = 0; lev <= finest_level; ++lev)
             {
-                project_velocities(lev, dummy_dt, vars_new[lev], Omega[lev], pp_inc[lev]);
+                project_velocities(lev, dummy_dt, vars_new[lev], pp_inc[lev]);
                 pp_inc[lev].setVal(0.);
             }
         }
@@ -927,7 +936,7 @@ ERF::InitData_post ()
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         dz_min[lev] = geom[lev].CellSize(2);
-        if ( solverChoice.use_terrain ) {
+        if ( SolverChoice::terrain_type != TerrainType::None ) {
             dz_min[lev] *= (*detJ_cc[lev]).min(0);
         }
     }
@@ -1438,6 +1447,11 @@ ERF::ReadParameters ()
         pp.query("v", verbose);
         pp.query("mg_v", mg_verbose);
         pp.query("use_fft", use_fft);
+#ifndef ERF_USE_FFT
+        if (use_fft) {
+            amrex::Abort("You must build with USE_FFT in order to set use_fft = true in your inputs file");
+        }
+#endif
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -1560,6 +1574,8 @@ ERF::ReadParameters ()
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
+        pp.query("plot_face_vels",m_plot_face_vels);
+
         if ( (m_plot_int_1 > 0 && m_plot_per_1 > 0) ||
              (m_plot_int_2 > 0 && m_plot_per_2 > 0.) ) {
             Abort("Must choose only one of plot_int or plot_per");
@@ -1600,6 +1616,15 @@ ERF::ReadParameters ()
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
+
+        // Query the canopy model file name
+        std::string forestfile;
+        solverChoice.do_forest = pp.query("forest_file", forestfile);
+        if (solverChoice.do_forest) {
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest[lev] = std::make_unique<ForestDrag>(forestfile);
+            }
+        }
 
         // AmrMesh iterate on grids?
         bool iterate(true);

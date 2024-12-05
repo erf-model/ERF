@@ -431,15 +431,15 @@ public:
     get_t_surf (const int& lev) { return t_surf[lev].get(); }
 
     amrex::Real
-    get_zref () {return m_ma.get_zref();}
+    get_zref () { return m_ma.get_zref(); }
 
     const amrex::FArrayBox*
-    get_z0 (const int& lev) {return &z_0[lev];}
+    get_z0 (const int& lev) { return &z_0[lev]; }
 
     bool have_variable_sea_roughness() { return m_var_z0; }
 
     const amrex::iMultiFab*
-    get_lmask(const int& lev) {return m_lmask_lev[lev][0];}
+    get_lmask(const int& lev) { return m_lmask_lev[lev][0]; }
 
     int
     lmask_min_reduce (amrex::iMultiFab& lmask, const int& nghost)

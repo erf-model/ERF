@@ -44,6 +44,18 @@ amrex::Real erf_esati (amrex::Real t) {
     return esati;
 }
 
+// From Clausius-Clapeyron
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real erf_esatw_cc (amrex::Real t) {
+    constexpr amrex::Real svp1  = 0.6112;
+    constexpr amrex::Real svp2  = 17.67;
+    constexpr amrex::Real svp3  = 29.65;
+    constexpr amrex::Real svpt0 = 273.15;
+    // NOTE: units of
+    amrex::Real esatw = 10.0 * svp1 * std::exp(svp2 * (t - svpt0) / (t - svp3));
+    return esatw;
+}
+
 // From Flatau et al. (1992):
 // https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
 // Coefficients come from Table 4 and the data is valid over a
@@ -60,13 +72,13 @@ amrex::Real erf_esatw (amrex::Real t) {
     amrex::Real const a7 = -0.952447341e-13;
     amrex::Real const a8 = -0.976195544e-15;
 
-    amrex::Real dtt_in = t-273.16;
-    AMREX_ALWAYS_ASSERT(dtt_in>-85);
-    //
-    // Rather than assert dt < 70, we impose that the saturation pressure does not change above 70
-    //
-    amrex::Real dtt = std::min(dtt_in,70.);
-    amrex::Real esatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
+    amrex::Real dtt = t-273.16;
+    amrex::Real esatw;
+    if (dtt>-85 && dtt<70.0) {
+        esatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
+    } else {
+        esatw = erf_esatw_cc(t);
+    }
     return esatw;
 }
 
@@ -97,6 +109,18 @@ amrex::Real erf_dtesati (amrex::Real t) {
     return dtesati;
 }
 
+// From Clausius-Clapeyron
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real erf_dtesatw_cc (amrex::Real t) {
+    constexpr amrex::Real svp1  = 0.6112;
+    constexpr amrex::Real svp2  = 17.67;
+    constexpr amrex::Real svp3  = 29.65;
+    constexpr amrex::Real svpt0 = 273.15;
+    amrex::Real dtesatw = 10.0 * svp1 * svp2 * std::exp(svp2 * (t - svpt0) / (t - svp3))
+                        * (svpt0 - svp3) / ((t - svp3) * (t - svp3));
+    return dtesatw;
+}
+
 // From Flatau et al. (1992):
 // https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
 // Coefficients come from Table 4 and the data is valid over a
@@ -114,20 +138,12 @@ amrex::Real erf_dtesatw (amrex::Real t) {
     amrex::Real const a8 = -0.599634321e-17;
 
     amrex::Real dtt = t-273.16;
-    AMREX_ALWAYS_ASSERT(dtt>-85);
-
     amrex::Real dtesatw;
-
-    //
-    // Rather than assert dt < 70, we impose that the saturation pressure does not change above 70,
-    //     hence the derivative is 0.
-    //
-    if (dtt >= 70.) {
-        dtesatw = amrex::Real(0.0);
-    } else {
+    if (dtt>-85.0 && dtt<70.) {
         dtesatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
+    } else {
+        dtesatw = erf_dtesatw_cc(t);
     }
-
     return dtesatw;
 }
 

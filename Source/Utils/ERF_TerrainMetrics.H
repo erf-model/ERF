@@ -12,6 +12,8 @@
 
 // Declare functions for ERF.cpp
 void init_zlevels (amrex::Vector<amrex::Vector<amrex::Real>> & zlevels_stag,
+                   amrex::Vector<amrex::Vector<amrex::Real>> & stretched_dz_h,
+                   amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> & stretched_dz_d,
                    amrex::Vector<amrex::Geometry> const& geom,
                    amrex::Vector<amrex::IntVect>  const& ref_ratio,
                    const amrex::Real grid_stretching_ratio,

@@ -61,8 +61,8 @@ Fitch::advance (const Geometry& geom,
     AMREX_ALWAYS_ASSERT(time > -1.0);
     source_terms_cellcentered(geom, cons_in, mf_vars_fitch, U_old, V_old, W_old, mf_Nturb);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
+    compute_power_output(cons_in, U_old, V_old, mf_SMark, mf_Nturb, time);
 }
-
 
 void
 Fitch::update (const Real& dt_advance,
@@ -95,6 +95,67 @@ Fitch::update (const Real& dt_advance,
         {
             cons_array(i,j,k,RhoKE_comp) = cons_array(i,j,k,RhoKE_comp) + fitch_array(i,j,k,4)*dt_advance;
         });
+    }
+}
+
+void
+Fitch::compute_power_output (const MultiFab& cons_in,
+                             const MultiFab& U_old,
+                             const MultiFab& V_old,
+                             const MultiFab& mf_SMark,
+                             const MultiFab& mf_Nturb,
+                             const Real& time)
+{
+     get_turb_loc(xloc, yloc);
+     get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+                  wind_speed, thrust_coeff, power);
+
+     const int n_spec_table = wind_speed.size();
+
+     Gpu::DeviceVector<Real> d_wind_speed(wind_speed.size());
+     Gpu::DeviceVector<Real> d_power(wind_speed.size());
+     Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
+     Gpu::copy(Gpu::hostToDevice, power.begin(), power.end(), d_power.begin());
+
+    Gpu::DeviceScalar<Real> d_total_power(0.0);
+    Real* d_total_power_ptr = d_total_power.dataPtr();
+
+     const Real* d_wind_speed_ptr  = d_wind_speed.dataPtr();
+     const Real* d_power_ptr  = d_power.dataPtr();
+
+     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        auto SMark_array    = mf_SMark.array(mfi);
+        auto Nturb_array    = mf_Nturb.array(mfi);
+        auto u_vel          = U_old.array(mfi);
+        auto v_vel          = V_old.array(mfi);
+        Box tbx = mfi.nodaltilebox(0);
+
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+
+            if(SMark_array(i,j,k,0) == 1.0) {
+                Real avg_vel = std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),0.5);
+                Real turb_power = interpolate_1d(d_wind_speed_ptr, d_power_ptr, avg_vel, n_spec_table);
+                turb_power = turb_power*Nturb_array(i,j,k,0);
+                Gpu::Atomic::Add(d_total_power_ptr,turb_power);
+            }
+        });
+    }
+
+    Real h_total_power = 0.0;
+    Gpu::copy(Gpu::deviceToHost, d_total_power.dataPtr(), d_total_power.dataPtr()+1, &h_total_power);
+
+    amrex::ParallelAllReduce::Sum(&h_total_power, 1, amrex::ParallelContext::CommunicatorAll());
+
+    if (ParallelDescriptor::IOProcessor()){
+        static std::ofstream file("power_output_Fitch.txt", std::ios::app);
+        // Check if the file opened successfully
+        if (!file.is_open()) {
+            std::cerr << "Error opening file!" << std::endl;
+            Abort("Could not open file to write power output in ERF_AdvanceSimpleAD.cpp");
+        }
+        file << time << " " << h_total_power << "\n";
+        file.flush();
     }
 }
 

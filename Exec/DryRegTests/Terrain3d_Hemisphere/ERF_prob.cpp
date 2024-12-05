@@ -53,7 +53,7 @@ Problem::init_custom_pert (
     const int khi = geomdata.Domain().bigEnd()[2];
 
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
-    const bool use_terrain  = sc.use_terrain;
+    const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);
 
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 

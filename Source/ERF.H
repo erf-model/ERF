@@ -45,6 +45,7 @@
 #include <ERF_PhysBCFunct.H>
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
+#include <ERF_ForestDrag.H>
 
 #ifdef ERF_USE_PARTICLES
 #include "ERF_ParticleData.H"
@@ -89,7 +90,7 @@ AMREX_ENUM(StateInterpType,
  * Enum of possible plotfile types
 */
 AMREX_ENUM(PlotFileType,
-    None, Amrex, Netcdf, HDF5
+    None, Amrex, Netcdf
 );
 
 
@@ -163,13 +164,32 @@ public:
     void WriteMyEBSurface ();
 #endif
 
+    // Compute the divergence of the momenta
+    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Vector<amrex::MultiFab>& mom_mf,
+                             amrex::Geometry const& geom_at_lev);
+
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
-                             amrex::MultiFab& Omega, amrex::MultiFab& p);
+                             amrex::MultiFab& p);
 
     // Project the velocities to be divergence-free with a thin body
     void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
-                                amrex::MultiFab& Omega, amrex::MultiFab& p);
+                                amrex::MultiFab& p);
+
+#ifdef ERF_USE_FFT
+    amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM> get_fft_bc () const noexcept;
+    void solve_with_fft (int lev, amrex::MultiFab& rhs, amrex::MultiFab& p,
+                         amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
+#endif
+#ifdef ERF_USE_EB
+    void solve_with_EB_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
+                             amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
+#endif
+
+    void solve_with_gmres (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
+                           amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
+    void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
+                          amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
@@ -183,7 +203,8 @@ public:
     void restart ();
 
     // Is it time to write a plotfile or checkpoint?
-    bool writeNow (const amrex::Real cur_time, const amrex::Real dt, const int nstep, const int plot_int, const amrex::Real plot_per);
+    bool writeNow (const amrex::Real cur_time, const amrex::Real dt, const int nstep,
+                   const int plot_int, const amrex::Real plot_per);
 
     // Called after every level 0 timestep
     void post_timestep (int nstep, amrex::Real time, amrex::Real dt_lev);
@@ -733,9 +754,6 @@ private:
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
 
-    // Normal momentum on z-face
-    amrex::Vector<amrex::MultiFab> Omega;
-
     // amrex::Vector<amrex::MultiFab> xmom_crse_rhs;
     // amrex::Vector<amrex::MultiFab> ymom_crse_rhs;
     amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
@@ -825,6 +843,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
 
+    amrex::Vector<amrex::Vector<amrex::Real>> stretched_dz_h;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> stretched_dz_d;
+
     amrex::Vector<amrex::MultiFab> base_state;
     amrex::Vector<amrex::MultiFab> base_state_new;
 
@@ -906,6 +927,7 @@ private:
     int m_plot_int_2 = -1;
     amrex::Real m_plot_per_1 = -1.0;
     amrex::Real m_plot_per_2 = -1.0;
+    bool m_plot_face_vels = false;
 
     bool plot_lsm = false;
 
@@ -930,7 +952,7 @@ private:
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
-                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
+                                                    "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
                                                     "eq_pot_temp", "num_turb", "SMark0", "SMark1",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
@@ -946,6 +968,10 @@ private:
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate"
+#ifdef ERF_USE_EB
+                                                    // EB variables
+                                                    ,"volfrac",
+#endif
 #ifdef ERF_COMPUTE_ERROR
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
@@ -1097,6 +1123,7 @@ private:
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     std::unique_ptr<ABLMost>          m_most = nullptr;
+    amrex::Vector<std::unique_ptr<ForestDrag>> m_forest;
 
     //
     // Holds info for dynamically generated tagging criteria
@@ -1324,11 +1351,12 @@ private:
     //! The filename of the ith samplelinelog file.
     [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
-    amrex::Vector<std::unique_ptr<amrex::FabFactory<amrex::FArrayBox> > > m_factory;
+#ifdef ERF_USE_EB
+
+    amrex::Vector<std::unique_ptr<amrex::EBFArrayBoxFactory> > m_factory;
 
     [[nodiscard]] amrex::FabFactory<amrex::FArrayBox> const&
     Factory (int lev) const noexcept { return *m_factory[lev]; }
-#ifdef ERF_USE_EB
     [[nodiscard]] amrex::EBFArrayBoxFactory const&
     EBFactory (int lev) const noexcept {
         return static_cast<amrex::EBFArrayBoxFactory const&>(*m_factory[lev]);
@@ -1343,10 +1371,13 @@ private:
 
     [[nodiscard]] static int nghost_eb_full ()
     { return 4; }
+#else
+    amrex::Vector<std::unique_ptr<amrex::FabFactory<amrex::FArrayBox> > > m_factory;
 #endif
 
 #ifdef ERF_USE_FFT
-    std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_poisson;
+    std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>> m_3D_poisson;
+    std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_poisson;
 #endif
 
 public:

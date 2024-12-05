@@ -16,11 +16,11 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     =      0.   0.    0.
 geometry.prob_hi     =  25600. 100.  6400.
 
-xlo.type = "Symmetry"
-xhi.type = "Outflow"
+xlo.type = Symmetry
+xhi.type = Outflow
 
-zlo.type = "SlipWall"
-zhi.type = "SlipWall"
+zlo.type = SlipWall
+zhi.type = SlipWall
 
 geometry.is_periodic = 0 1 0
 
@@ -46,16 +46,16 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 # SOLVER CHOICE
 erf.use_gravity  = true
 erf.use_coriolis = false
-erf.use_terrain  = false
+erf.terrain_type = None
 
-erf.les_type         = "None"
+erf.les_type     = None
 #
 # Diffusion coefficient from Straka, K = 75 m^2/s
 #
-erf.molec_diff_type  = "ConstantAlpha" # where alpha == "K" in Straka et al 1993
-erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 75.0 # [kg/(m-s)] ==> alpha = 75.0 m^2/s
-erf.alpha_T          = 75.0 # [m^2/s]
+erf.molec_diff_type  = ConstantAlpha # where alpha == "K" in Straka et al 1993
+erf.rho0_trans       = 1.0           # [kg/m^3], used to convert input diffusivities
+erf.dynamicViscosity = 75.0          # [kg/(m-s)] ==> alpha = 75.0 m^2/s
+erf.alpha_T          = 75.0          # [m^2/s]
 
 erf.c_p = 1004.0
 
