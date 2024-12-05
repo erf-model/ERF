@@ -33,9 +33,8 @@ public:
 
 private:
 
-   // C++ variable for NoahmpIO struct
-   NoahmpIO_struct noahmp_io;
-   NoahmpIO_arrays noahmp_arr;
+   // C++ variable for NoahmpIO type
+   NoahmpIO_type noahmpio;
 
 };
 #endif

@@ -15,8 +15,8 @@ NOAH::Init (const MultiFab& cons_in,
     // Initialize Noahmp IO
     amrex::Print() << "Initializing Noahmp IO" << std::endl;
 
-    NoahmpIOVarInit(&noahmp_io, &noahmp_arr);
-    NoahmpInitMain(&noahmp_io);
+    NoahmpIOVarInitDefault(&noahmpio);
+    NoahmpInitMain(&noahmpio);
 
     amrex::Print() << "Noahmp IO Initialized" << std::endl;
 };
