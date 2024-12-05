@@ -204,9 +204,8 @@ void TerrainPoisson::precond (MultiFab& lhs, MultiFab const& rhs)
         // Make a version that isn't constant
         MultiFab& rhs_tmp = const_cast<MultiFab&>(rhs);
 
-        m_2D_fft_precond->solve(rhs_tmp, lhs, m_stretched_dz_d);
-
-        MultiFab::Copy(lhs, rhs, 0, 0, 1, 0);
+        lhs.setVal(0.);
+        m_2D_fft_precond->solve(lhs, rhs_tmp, m_stretched_dz_d);
 #if 0
         AMREX_ASSERT(m_zphys_fft.local_size() <= 1);
         FArrayBox const* zfab = nullptr;
