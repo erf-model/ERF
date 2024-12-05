@@ -181,10 +181,10 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         // NOTE: Numerical diffusion is tested on in FillPatchIntermediate and dictates the size of the
         //       box over which VelocityToMomentum is computed. V2M requires one more ghost cell be
         //       filled for rho than velocity. This logical condition ensures we fill enough ghost cells
-        //       when use_NumDiff is true.
+        //       when use_num_diff is true.
         int ng_cons = S_data[IntVars::cons].nGrowVect().max() - 1;
         int ng_vel  = S_data[IntVars::xmom].nGrowVect().max();
-        if (!solverChoice.use_NumDiff) {
+        if (!solverChoice.use_num_diff) {
             ng_cons = 1;
             ng_vel  = 1;
         }

@@ -45,8 +45,7 @@ erf.Ck       = 0.1
 erf.sigma_k  = 1.0
 erf.Ce       = 0.1
 
-erf.use_NumDiff  = true
-erf.NumDiffCoeff = 0.5
+erf.num_diff_coeff = 0.5
 
 erf.init_type = "uniform"
 erf.KE_0 = 0.1 # for Deardorff

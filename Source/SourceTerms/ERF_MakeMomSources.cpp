@@ -39,7 +39,7 @@ using namespace amrex;
 
 void make_mom_sources (int level,
                        int /*nrk*/,
-                       Real /*dt*/,
+                       Real dt,
                        Real time,
                        Vector<MultiFab>& S_data,
                        const  MultiFab & S_prim,
@@ -57,8 +57,8 @@ void make_mom_sources (int level,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& /*mapfac_m*/,
-                       std::unique_ptr<MultiFab>& /*mapfac_u*/,
-                       std::unique_ptr<MultiFab>& /*mapfac_v*/,
+                       std::unique_ptr<MultiFab>& mapfac_u,
+                       std::unique_ptr<MultiFab>& mapfac_v,
                        const Real* dptr_u_geos,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
@@ -480,12 +480,12 @@ void make_mom_sources (int level,
         // 7. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
         if (l_use_ndiff) {
-            /*
-            NumericalDiffusion_Xmom(tbx, dt, solverChoice.NumDiffCoeff,
+            const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
+            const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
+            NumericalDiffusion_Xmom(tbx, dt, solverChoice.num_diff_coeff,
                                     u, cell_data, xmom_src_arr, mf_u);
-            NumericalDiffusion_Ymom(tby, dt, solverChoice.NumDiffCoeff,
+            NumericalDiffusion_Ymom(tby, dt, solverChoice.num_diff_coeff,
                                     v, cell_data, ymom_src_arr, mf_v);
-            */
         }
 
         // *****************************************************************************
