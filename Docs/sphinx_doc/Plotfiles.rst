@@ -264,6 +264,12 @@ Output Options
 | **Kmh**                     | Horizontal       |
 |                             | Eddy Diffusivity |
 |                             | of Momentum      |
+|                             | (Note: For LES,  |
+|                             | this is the      |
+|                             | _dynamic_ eddy   |
+|                             | viscosity, mu_t  |
+|                             | = rho * nu_t     |
+|                             | and Kmh==Kmv)    |
 +-----------------------------+------------------+
 | **Khv**                     | Vertical         |
 |                             | Eddy Diffusivity |
