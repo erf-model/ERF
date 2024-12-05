@@ -14,7 +14,7 @@ void
 ERF::initRayleigh ()
 {
     const int khi = geom[0].Domain().bigEnd(2);
-    solverChoice.rayleigh_ztop = (solverChoice.use_terrain) ? zlevels_stag[0][khi+1] : geom[0].ProbHi(2);
+    solverChoice.rayleigh_ztop = (solverChoice.terrain_type == TerrainType::None) ?  geom[0].ProbHi(2) : zlevels_stag[0][khi+1];
 
     h_rayleigh_ptrs.resize(max_level+1);
     d_rayleigh_ptrs.resize(max_level+1);

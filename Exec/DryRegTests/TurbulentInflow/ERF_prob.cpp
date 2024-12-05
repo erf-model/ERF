@@ -65,7 +65,7 @@ Problem::init_custom_pert(
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-    const bool use_terrain = sc.use_terrain;
+    const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);
 
     if (parms.KE_decay_height > 0) {
         amrex::Print() << "Initial KE profile (order " << parms.KE_decay_order

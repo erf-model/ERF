@@ -252,7 +252,7 @@ ERF::init_from_wrfinput (int lev)
 
     const Box& domain = geom[lev].Domain();
     const Real& z_top = geom[lev].ProbHi(2);
-    if (solverChoice.use_terrain)
+    if (solverChoice.terrain_type != TerrainType::None)
     {
         if (ParallelDescriptor::IOProcessor()) {
             verify_terrain_top_boundary(z_top, NC_PH_fab, NC_PHB_fab);

@@ -7,10 +7,22 @@
 Mesh Refinement
 ===============
 
-ERF allows both static and dynamic mesh refinement, as well as the choice of one-way or two-way coupling.
-Dynamic refinement is currently only allowed when terrain is not being used.
+ERF also allows both dynamic and static mesh refinement with sub-cycling in time at finer levels of refinement.
+Arbitrary integer refinement ratios are allowed although typically ratios of 2, 3 or 4 are used; refinement can also be anisotropic,
+allowing refinement in one coordinate direction but not another.
 
-The refinement ratio is specified by the user at runtime. Refinement is not allowed in the vertical.
+We utilize two-way coupling, in which the coarse solution is used to provide boundary conditions for the fine solution
+and the fine solution is averaged down onto the coarser level.  In addition, we reflux all advected scalars to ensure conservation.
+For coarse-to-fine communication we provide ``ghost cell'' data for cell-centered data and tangential momentum components to
+the fine level by interpolating in space and time outside the region covered by the fine level.
+We also interpolate the normal momentum from coarse to fine on the coarse-fine interface itself;
+this ensures mass conservation since the normal momentum is in fact the flux for the density field.
+In order to ensure that the fine momentum on the coarse-fine boundary stays consistent with the
+interpolated coarse values throughout a fine timestep, we also interpolate the source term for
+the normal momentum on the coarse-fine interface.
+When using the anelastic approximation, this ensures that the computation of the updates to the
+fine momentum do not use any values of the perturbational pressure from the coarser level since
+the perturbational pressure is not synchronized between levels.
 
 Note that any tagged region will be covered by one or more boxes.  The user may
 specify the refinement criteria and/or region to be covered, but not the decomposition of the region into
@@ -141,47 +153,3 @@ computed by dividing the variable named rhotheta by the variable named density.
           erf.advdiff.field_name = rhoadv_0
           erf.advdiff.start_time = 0.001
           erf.advdiff.end_time = 0.002
-
-Coupling Types
---------------
-
-ERF supports one-way and two-way coupling between levels; this is a run-time input
-
-::
-
-      erf.coupling_type = "OneWay" or "TwoWay"
-
-By one-way coupling, we mean that between each pair of refinement levels,
-the coarse level communicates data to the fine level to serve as boundary conditions
-for the time advance of the fine solution. For cell-centered quantities,
-and face-baced normal momenta on the coarse-fine interface, the coarse data is conservatively
-interpolated to the fine level.
-
-The interpolated data is utilized to specify ghost cell data (outside of the valid fine region)
-as well as specified data inside the lateral boundaries of the fine region.
-See :ref:`sec:LateralBoundaryConditions` for the details of how the relaxation works; when
-used in the context of mesh refinement we fill the specified values by interpolation from the
-coarser level rather than reading from the external file. For coarse/fine boundaries,
-a user may specify the total width of the interior specified (Dirichlet) and relaxation region with
-``erf.cf_width = <Int>`` (yellow + blue)
-and analogously the width of the interior specified (Dirichlet) region may be specified with
-``erf.cf_set_width = <Int>`` (yellow).
-
-Setting ``erf.cf_set_width = 0`` designates that we interpolate the momenta
-at faces only on the coarse-fine boundary itself; no interior cell-centered data, or momenta
-inside the fine region, are filled from the coarser level.
-
-By two-way coupling, we mean that in additional to interpolating data from the coarser level
-to supply boundary conditions for the fine regions,
-the fine level also communicates data back to the coarse level in two ways:
-
-- The fine cell-centered data are conservatively averaged onto the coarse mesh covered by fine mesh.
-
-- The fine momenta are conservatively averaged onto the coarse faces covered by fine mesh.
-
-- A "reflux" operation is performed for all cell-centered data; this updates values on the coarser
-  level outside of regions covered by the finer level.
-
-We note that when one-way coupling is used, quantities which are advanced in conservation form
-potentially violate global conservation.  Two-way coupling ensures conservation of mass, and of the advective contribution
-to all scalar updates, but does not account for loss of conservation due to diffusive or source terms.

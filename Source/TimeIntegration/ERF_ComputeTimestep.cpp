@@ -87,8 +87,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     Real estdt_comp_inv = ReduceMax(S_new, ccvel, detJ, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
-                                  Array4<Real const> const& vf,
-                                  Array4<Real const> const& u) -> Real
+                                  Array4<Real const> const& u,
+                                  Array4<Real const> const& vf) -> Real
 #else
     Real estdt_comp_inv = ReduceMax(S_new, ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
@@ -201,9 +201,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          if (fixed_dt[level] > 0. && fixed_fast_dt[level] > 0.) {
              dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
          } else if (fixed_dt[level] > 0.) {
-             dt_fast_ratio = static_cast<long>( std::ceil((fixed_dt[level]/estdt_comp)) );
-         } else {
-             dt_fast_ratio = (estdt_lowM_inv > 0.0) ? static_cast<long>( std::ceil((estdt_lowM/estdt_comp)) ) : 1;
+             dt_fast_ratio = static_cast<long>( 6 );
          }
 
          // Force time step ratio to be an even value

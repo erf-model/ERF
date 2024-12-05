@@ -24,7 +24,37 @@ GeneralAD::advance (const Geometry& geom,
     compute_freestream_velocity(cons_in, U_old, V_old, mf_SMark);
     source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_generalAD);
     update(dt_advance, cons_in, U_old, V_old, W_old, mf_vars_generalAD);
+    compute_power_output(time);
 }
+
+void
+GeneralAD::compute_power_output (const Real& time)
+{
+     get_turb_loc(xloc, yloc);
+     get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+                  wind_speed, thrust_coeff, power);
+
+     const int n_spec_table = wind_speed.size();
+  // Compute power based on the look-up table
+
+    if (ParallelDescriptor::IOProcessor()){
+        static std::ofstream file("power_output_GeneralAD.txt", std::ios::app);
+        // Check if the file opened successfully
+        if (!file.is_open()) {
+            std::cerr << "Error opening file!" << std::endl;
+            Abort("Could not open file to write power output in ERF_AdvanceSimpleAD.cpp");
+        }
+        Real total_power = 0.0;
+        for(int it=0; it<xloc.size(); it++){
+            Real avg_vel = freestream_velocity[it]/(disk_cell_count[it] + 1e-10);
+            Real turb_power = interpolate_1d(wind_speed.data(), power.data(), avg_vel, n_spec_table);
+            total_power = total_power + turb_power;
+        }
+        file << time << " " << total_power << "\n";
+        file.flush();
+    }
+}
+
 
 void
 GeneralAD::update (const Real& dt_advance,
@@ -129,14 +159,14 @@ void GeneralAD::compute_freestream_velocity (const MultiFab& cons_in,
     get_turb_loc(xloc, yloc);
 
 
-    if (ParallelDescriptor::IOProcessor()){
+    /*if (ParallelDescriptor::IOProcessor()){
         for(int it=0; it<xloc.size(); it++){
-            //std::cout << "turbine index, freestream velocity is " << it << " " << freestream_velocity[it] << " " <<
-            //                                                 disk_cell_count[it]  <<  " " <<
-            //                                                freestream_velocity[it]/(disk_cell_count[it] + 1e-10) << " " <<
-            //                                              freestream_phi[it]/(disk_cell_count[it] + 1e-10) << "\n";
+            std::cout << "turbine index, freestream velocity is " << it << " " << freestream_velocity[it] << " " <<
+                                                             disk_cell_count[it]  <<  " " <<
+                                                            freestream_velocity[it]/(disk_cell_count[it] + 1e-10) << " " <<
+                                                          freestream_phi[it]/(disk_cell_count[it] + 1e-10) << "\n";
         }
-    }
+    }*/
 }
 
 AMREX_FORCE_INLINE

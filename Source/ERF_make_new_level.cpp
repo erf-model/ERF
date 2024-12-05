@@ -53,7 +53,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     if (lev == 0) init_bcs();
 
-#ifdef AMREX_USE_EB
+#ifdef ERF_USE_EB
     m_factory[lev] = makeEBFabFactory(geom[lev], grids[lev], dmap[lev],
                                       {nghost_eb_basic(),
                                        nghost_eb_volume(),
@@ -131,6 +131,18 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         }
     }
 
+     // Read in tables needed for windfarm simulations
+    // fill in Nturb multifab - number of turbines in each mesh cell
+    // write out the vtk files for wind turbine location and/or
+    // actuator disks
+    #ifdef ERF_USE_WINDFARM
+        init_windfarm(lev);
+    #endif
+    // ********************************************************************************************
+    // Build the data structures for canopy model (depends upon z_phys)
+    // ********************************************************************************************
+    if (solverChoice.do_forest) { m_forest[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -198,12 +210,17 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
     //
-    if (solverChoice.use_terrain != 0) {
+    if (SolverChoice::terrain_type != TerrainType::None) {
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
     }
+
+    // ********************************************************************************************
+    // Build the data structures for canopy model (depends upon z_phys)
+    // ********************************************************************************************
+    if (solverChoice.do_forest) { m_forest[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
 
     //********************************************************************************************
     // Microphysics
@@ -322,12 +339,17 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
     //
-    if (solverChoice.use_terrain != 0) {
+    if (SolverChoice::terrain_type != TerrainType::None) {
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
     }
+
+    // ********************************************************************************************
+    // Build the data structures for canopy model (depends upon z_phys)
+    // ********************************************************************************************
+    if (solverChoice.do_forest) { m_forest[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
 
     // *****************************************************************************************************
     // Create the physbcs objects (after initializing the terrain but before calling FillCoarsePatch
@@ -447,8 +469,6 @@ ERF::ClearLevel (int lev)
     rV_old[lev].clear();
     rW_new[lev].clear();
     rW_old[lev].clear();
-
-    Omega[lev].clear();
 
     if (lev > 0) {
         zmom_crse_rhs[lev].clear();

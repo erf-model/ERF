@@ -32,6 +32,7 @@ tracer_particles.place_randomly_in_cells = true
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 1E-3
+erf.fixed_mri_dt_ratio = 12
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
@@ -65,7 +66,7 @@ erf.box1.in_box_lo =  2. 0.25
 erf.box1.in_box_hi =  8. 0.75
 
 # TERRRAIN GRID TYPE
-erf.use_terrain = true
+erf.terrain_type = Static
 erf.terrain_smoothing = 0
 
 erf.dycore_horiz_adv_type  = Centered_2nd

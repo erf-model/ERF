@@ -12,8 +12,14 @@ Plotfiles
 Controlling PlotFile Generation
 ===============================
 
-"Plotfiles" can be written very efficiently in parallel in a native AMReX format
-or in HDF5.  They can also be written in NetCDF.
+Plotfiles can be written very efficiently in parallel in a native AMReX format.
+They can also be written in NetCDF. It is possible to output plotfiles in the
+same or separate formats at two distinct frequencies.
+
+The computational cost associated with writing plotfiles
+in the AMReX native format is typically negligible relative to the overall cost of the simulation;
+in a recent performance study the cost of writing a plotfile was roughly a percent or two
+of the cost of a single timestep.
 
 The following options in the inputs file control the generation of plotfiles.
 Note that plotfiles can be written at two different frequencies; the names,
@@ -28,9 +34,8 @@ List of Parameters
 | Parameter                   | Definition       | Acceptable            | Default    |
 |                             |                  | Values                |            |
 +=============================+==================+=======================+============+
-| **erf.plotfile_type**       | AMReX, NETCDF    | "amrex" or            | "amrex"    |
-|                             | or HDF5          | "netcdf / "NetCDF" or |            |
-|                             |                  | "hdf5" / "HDF5"       |            |
+| **erf.plotfile_type**       | AMReX or NETCDF  | "amrex" or            | "amrex"    |
+|                             |                  | "netcdf / "NetCDF" or |            |
 +-----------------------------+------------------+-----------------------+------------+
 | **erf.plot_file_1**         | prefix for       | String                | “*plt_1_*” |
 |                             | plotfiles        |                       |            |
@@ -98,8 +103,7 @@ Examples of Usage
    means that native plot files (actually directories) starting with the prefix
    “*plt_run*” will be generated every 10 level-0 time steps. If using
    amrex format, that directory names will be *plt_run00000*, *plt_run00010*,
-   *plt_run00020*, etc.  If using HDF5 format, the names will have ".h5"
-   appended;  if using NetCDF format, the names will have ".nc" appended.
+   *plt_run00020*, etc.  If using NetCDF format, the names will have ".nc" appended.
 
    In addition, while the amrex plotfiles will contain data at all of the refinement
    levels,  NetCDF files are separated by level.

@@ -95,7 +95,7 @@ ERF::initHSE (int lev)
 
         std::unique_ptr<MultiFab> new_z_phys_cc;
         std::unique_ptr<MultiFab> new_z_phys_nd;
-        if (solverChoice.use_terrain) {
+        if (solverChoice.terrain_type != TerrainType::None) {
             new_z_phys_cc = std::make_unique<MultiFab>(ba_new,dm_new,1,1);
             new_z_phys_cc->ParallelCopy(*z_phys_cc[lev],0,0,1,1,1);
 
@@ -151,7 +151,7 @@ ERF::erf_enforce_hse (int lev,
                       std::unique_ptr<MultiFab>& z_cc)
 {
     Real l_gravity = solverChoice.gravity;
-    bool l_use_terrain = solverChoice.use_terrain;
+    bool l_use_terrain = (solverChoice.terrain_type != TerrainType::None);
 
     const auto geomdata = geom[lev].data();
     const Real dz = geomdata.CellSize(2);
