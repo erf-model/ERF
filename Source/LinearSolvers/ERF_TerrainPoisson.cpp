@@ -5,9 +5,9 @@ using namespace amrex;
 
 TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
                                 DistributionMapping const& dm,
-                                Array<std::string,2*AMREX_SPACEDIM>& domain_bc_type,
                                 Gpu::DeviceVector<Real>& stretched_dz_lev_d,
-                                MultiFab const* z_phys_nd)
+                                MultiFab const* z_phys_nd,
+                                Array<std::string,2*AMREX_SPACEDIM>& domain_bc_type)
     : m_geom(geom),
       m_grids(ba),
       m_dmap(dm),
@@ -16,9 +16,6 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
 {
 #ifdef ERF_USE_FFT
     if (!m_2D_fft_precond) {
-        // auto const& [ba, dm] = m_2D_fft_precond->getSpectralDataLayout();
-        // m_zphys_fft.define(amrex::convert(ba,m_zphys->ixType()), dm, 1, 0);
-
         Box bounding_box = ba.minimalBox();
         auto bc_fft = get_fft_bc(geom,domain_bc_type,bounding_box);
         m_2D_fft_precond = std::make_unique<FFT::PoissonHybrid<MultiFab>>(geom,bc_fft);

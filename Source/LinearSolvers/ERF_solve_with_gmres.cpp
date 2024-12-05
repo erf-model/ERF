@@ -19,8 +19,8 @@ void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& ph
 
     amrex::GMRES<MultiFab, TerrainPoisson> gmsolver;
 
-    TerrainPoisson tp(geom[lev], rhs[0].boxArray(), rhs[0].DistributionMap(), domain_bc_type, stretched_dz_d[lev],
-                      z_phys_nd[lev].get());
+    TerrainPoisson tp(geom[lev], rhs[0].boxArray(), rhs[0].DistributionMap(), stretched_dz_d[lev],
+                      z_phys_nd[lev].get(), domain_bc_type);
 
     gmsolver.define(tp);
 
