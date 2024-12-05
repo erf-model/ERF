@@ -1002,6 +1002,29 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             }
         }
 
+        if (containerHasElement(plot_var_names, "nut")) {
+            MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
+            MultiFab cmf(vars_new[lev][Vars::cons], make_alias, 0, 1); // to provide rho only
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                auto       prim = dmf[mfi].array();
+                auto const cons = cmf[mfi].const_array();
+                auto const diff = (*eddyDiffs_lev[lev])[mfi].const_array();
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    const Real rho = cons(i, j, k, Rho_comp);
+                    const Real Kmv = diff(i, j, k, EddyDiff::Mom_v);
+                    prim(i,j,k) = Kmv / rho;
+                });
+            }
+
+            mf_comp++;
+        }
+
         if (containerHasElement(plot_var_names, "Kmv")) {
             MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Mom_v,mf_comp,1,0);
             mf_comp ++;

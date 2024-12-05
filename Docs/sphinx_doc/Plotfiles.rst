@@ -257,6 +257,9 @@ Output Options
 |                             | mass points      |
 |                             |                  |
 +-----------------------------+------------------+
+| **nut**                     | Eddy viscosity,  |
+|                             | nu_t             |
++-----------------------------+------------------+
 | **Kmv**                     | Vertical         |
 |                             | Eddy Diffusivity |
 |                             | of Momentum      |

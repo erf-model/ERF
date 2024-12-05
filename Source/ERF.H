@@ -975,6 +975,8 @@ private:
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",
                                                     // eddy viscosity
+                                                    "nut",
+                                                    // eddy diffusivity of momentum
                                                     "Kmv","Kmh",
                                                     // eddy diffusivity of heat
                                                     "Khv","Khh",
