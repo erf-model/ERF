@@ -37,7 +37,7 @@ xlo.theta   = 300.0
 
 # TIME STEP CONTROL
 erf.cfl = 0.5
-erf.dynamicViscosity = 0.001
+
 erf.fix_random_seed  = 1
 
 # DIAGNOSTICS & VERBOSITY
@@ -60,8 +60,6 @@ erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure
 #erf.check_per       = 1.0
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1

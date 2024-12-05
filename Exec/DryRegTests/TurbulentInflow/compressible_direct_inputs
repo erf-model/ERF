@@ -35,7 +35,6 @@ xlo.dirichlet_file = "input_ReTau395Ana_inflow.txt"
 # TIME STEP CONTROL
 erf.fixed_dt = 0.0002
 erf.fixed_mri_dt_ratio = 4
-erf.dynamicViscosity = 0.001
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 100    # timesteps between computing mass
@@ -57,8 +56,6 @@ erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure
 #erf.check_per       = 1.0
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1

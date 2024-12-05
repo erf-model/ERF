@@ -61,7 +61,6 @@ erf.les_type = "None"
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
-erf.dynamicViscosity = 0.0
 
 erf.alpha_T = 0.0
 erf.alpha_C = 0.0

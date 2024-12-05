@@ -73,10 +73,10 @@ erf.terrain_z_levels = 0 0.000237889 0.000487134 0.000748273 0.00102187 0.001308
 #erf.spatial_order_WENO = 5
 
 # Constant diffusion coefficient
-erf.molec_diff_type = "ConstantAlpha"
-erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 2.0 # [kg/(m-s)]
-erf.alpha_T = 0.0 # [m^2/s]
+erf.molec_diff_type   = "ConstantAlpha"
+erf.rho0_trans        = 1.0 # [kg/m^3], used to convert input diffusivities
+erf.dynamic_viscosity = 2.0 # [kg/(m-s)]
+erf.alpha_T           = 0.0 # [m^2/s]
 
 #erf.abl_driver_type = "PressureGradient"
 #erf.abl_pressure_grad = -0.2 0. 0.

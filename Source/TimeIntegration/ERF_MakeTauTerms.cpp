@@ -82,8 +82,8 @@ void erf_make_tau_terms (int level, int nrk,
         // if using constant alpha (mu = rho * alpha), then first divide by the
         // reference density -- mu_eff will be scaled by the instantaneous
         // local density later when ComputeStress*Visc_*() is called
-        Real mu_eff = (l_use_constAlpha) ? 2.0 * dc.dynamicViscosity / dc.rho0_trans
-                                         : 2.0 * dc.dynamicViscosity;
+        Real mu_eff = (l_use_constAlpha) ? 2.0 * dc.dynamic_viscosity / dc.rho0_trans
+                                         : 2.0 * dc.dynamic_viscosity;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

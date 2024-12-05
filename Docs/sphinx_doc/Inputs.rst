@@ -906,7 +906,7 @@ List of Parameters
 |                                  | viscosity and      | "Constant", or      |              |
 |                                  | diffusivity?       | "ConstantAlpha"     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dynamicViscosity**         | Viscous coeff. if  | Real                | 0.0          |
+| **erf.dynamic_viscosity**        | Viscous coeff. if  | Real                | 0.0          |
 |                                  | DNS                |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.Cs**                       | Constant           | Real                | 0.0          |
