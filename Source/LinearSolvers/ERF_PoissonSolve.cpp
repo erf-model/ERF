@@ -176,7 +176,8 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         if (!boxes_make_rectangle) {
             amrex::Abort("FFT preconditioner for GMRES won't work unless the boxArray covers the domain");
         } else {
-            solve_with_gmres(lev, rhs, phi, fluxes[0]);
+            amrex::Abort("GMRES with FFT preconditioner still a WIP");
+            solve_with_gmres(lev, rhs, phi, fluxes);
         }
 #else
         amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT preconditioner for GMRES");

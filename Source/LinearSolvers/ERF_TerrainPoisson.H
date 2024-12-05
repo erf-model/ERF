@@ -19,6 +19,7 @@ public:
     TerrainPoisson (amrex::Geometry const& geom, amrex::BoxArray const& ba,
                     amrex::DistributionMapping const& dm,
                     amrex::Array<std::string,2*AMREX_SPACEDIM>& domain_bc_type,
+                    amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_lev_d,
                     amrex::MultiFab const* z_phys_nd);
 
     void apply(amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
@@ -56,8 +57,9 @@ private:
     const amrex::MultiFab* m_zphys;
 #ifdef ERF_USE_FFT
     std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_fft_precond;
-    amrex::MultiFab m_zphys_fft;
 #endif
+    // amrex::MultiFab m_zphys_fft;
+    amrex::Gpu::DeviceVector<amrex::Real>  m_stretched_dz_d;
 };
 
 #endif
