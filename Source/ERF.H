@@ -177,7 +177,6 @@ public:
                                 amrex::MultiFab& p);
 
 #ifdef ERF_USE_FFT
-    amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM> get_fft_bc () const noexcept;
     void solve_with_fft (int lev, amrex::MultiFab& rhs, amrex::MultiFab& p,
                          amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 #endif
@@ -187,7 +186,7 @@ public:
 #endif
 
     void solve_with_gmres (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
-                           amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
+                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
@@ -1378,8 +1377,8 @@ private:
 #endif
 
 #ifdef ERF_USE_FFT
-    std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>> m_3D_poisson;
-    std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_poisson;
+    amrex::Vector<std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>>> m_3D_poisson;
+    amrex::Vector<std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>>> m_2D_poisson;
 #endif
 
 public:

@@ -90,9 +90,6 @@ public:
     void write_actuator_disks_vtk (const amrex::Geometry& geom,
                                    const amrex::Real& sampling_distance_by_D);
 
-    void gatherKeyValuePairs(const std::vector<std::pair<int, double>>& localData,
-                             std::vector<std::pair<int, double>>& globalData);
-
     void advance (const amrex::Geometry& a_geom,
                   const amrex::Real& dt_advance,
                   amrex::MultiFab& cons_in,
@@ -154,7 +151,6 @@ public:
 protected:
 
     amrex::Vector<amrex::Real> xloc, yloc, zloc;
-    amrex::Vector<int> turb_index;
     amrex::Real my_turb_disk_angle;
     amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;

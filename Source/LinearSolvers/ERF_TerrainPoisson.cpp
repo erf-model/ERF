@@ -1,28 +1,36 @@
 #include "ERF_TerrainPoisson.H"
+#include "ERF_FFT_Utils.H"
 
 using namespace amrex;
 
 TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
                                 DistributionMapping const& dm,
-                                MultiFab const* z_phys_nd)
+                                Gpu::DeviceVector<Real>& stretched_dz_lev_d,
+                                MultiFab const* z_phys_nd,
+                                Array<std::string,2*AMREX_SPACEDIM>& domain_bc_type)
     : m_geom(geom),
       m_grids(ba),
       m_dmap(dm),
+      m_stretched_dz_d(stretched_dz_lev_d),
       m_zphys(z_phys_nd)
 {
 #ifdef ERF_USE_FFT
     if (!m_2D_fft_precond) {
-        m_2D_fft_precond = std::make_unique<FFT::PoissonTerrainPrecond<MultiFab>>(geom);
+        Box bounding_box = ba.minimalBox();
+        auto bc_fft = get_fft_bc(geom,domain_bc_type,bounding_box);
+        m_2D_fft_precond = std::make_unique<FFT::PoissonHybrid<MultiFab>>(geom,bc_fft);
     }
+#else
+    amrex::ignore_unused(domain_bc_type);
 #endif
 }
 
-void TerrainPoisson::usePrecond(bool use_precond_in)
+void TerrainPoisson::usePrecond (bool use_precond_in)
 {
     m_use_precond = use_precond_in;
 }
 
-void TerrainPoisson::apply(MultiFab& lhs, MultiFab const& rhs)
+void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
 {
     AMREX_ASSERT(rhs.nGrowVect().allGT(0));
 
@@ -90,12 +98,12 @@ void TerrainPoisson::apply(MultiFab& lhs, MultiFab const& rhs)
     auto const& xc = xx.const_arrays();
     ParallelFor(rhs, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        terrpoisson_adotx(i,j,k,y[b], xc[b], zpa[b], dxinv[0], dxinv[1]);
+        terrpoisson_adotx(i, j, k, y[b], xc[b], zpa[b], dxinv[0], dxinv[1]);
     });
 }
 
-void TerrainPoisson::getFluxes(MultiFab& phi,
-                               Array<MultiFab,AMREX_SPACEDIM>& fluxes)
+void TerrainPoisson::getFluxes (MultiFab& phi,
+                                Array<MultiFab,AMREX_SPACEDIM>& fluxes)
 {
     auto const& dxinv = m_geom.InvCellSizeArray();
 
@@ -144,53 +152,92 @@ void TerrainPoisson::getFluxes(MultiFab& phi,
     });
 }
 
-void TerrainPoisson::assign(MultiFab& lhs, MultiFab const& rhs)
+void TerrainPoisson::assign (MultiFab& lhs, MultiFab const& rhs)
 {
     MultiFab::Copy(lhs, rhs, 0, 0, 1, 0);
 }
 
-void TerrainPoisson::scale(MultiFab& lhs, Real fac)
+void TerrainPoisson::scale (MultiFab& lhs, Real fac)
 {
     lhs.mult(fac);
 }
 
-Real TerrainPoisson::dotProduct(MultiFab const& v1, MultiFab const& v2)
+Real TerrainPoisson::dotProduct (MultiFab const& v1, MultiFab const& v2)
 {
     return MultiFab::Dot(v1, 0, v2, 0, 1, 0);
 }
 
-void TerrainPoisson::increment(MultiFab& lhs, MultiFab const& rhs, Real a)
+void TerrainPoisson::increment (MultiFab& lhs, MultiFab const& rhs, Real a)
 {
     MultiFab::Saxpy(lhs, a, rhs, 0, 0, 1, 0);
 }
 
-void TerrainPoisson::linComb(MultiFab& lhs, Real a, MultiFab const& rhs_a,
-                             Real b, MultiFab const& rhs_b)
+void TerrainPoisson::linComb (MultiFab& lhs, Real a, MultiFab const& rhs_a,
+                              Real b, MultiFab const& rhs_b)
 {
     MultiFab::LinComb(lhs, a, rhs_a, 0, b, rhs_b, 0, 0, 1, 0);
 }
 
 
-MultiFab TerrainPoisson::makeVecRHS()
+MultiFab TerrainPoisson::makeVecRHS ()
 {
     return MultiFab(m_grids, m_dmap, 1, 0);
 }
 
-MultiFab TerrainPoisson::makeVecLHS()
+MultiFab TerrainPoisson::makeVecLHS ()
 {
     return MultiFab(m_grids, m_dmap, 1, 1);
 }
 
-Real TerrainPoisson::norm2(MultiFab const& v)
+Real TerrainPoisson::norm2 (MultiFab const& v)
 {
     return v.norm2();
 }
 
-void TerrainPoisson::precond(MultiFab& lhs, MultiFab const& rhs)
+void TerrainPoisson::precond (MultiFab& lhs, MultiFab const& rhs)
 {
 #ifdef ERF_USE_FFT
-    if (m_use_precond) {
-        m_2D_fft_precond->solve(lhs, rhs, *m_zphys);
+    if (m_use_precond)
+    {
+        amrex::Print() << "Using the hybrid FFT solver as a preconditioner..." << std::endl;
+
+        // Make a version that isn't constant
+        MultiFab& rhs_tmp = const_cast<MultiFab&>(rhs);
+
+        lhs.setVal(0.);
+        m_2D_fft_precond->solve(lhs, rhs_tmp, m_stretched_dz_d);
+#if 0
+        AMREX_ASSERT(m_zphys_fft.local_size() <= 1);
+        FArrayBox const* zfab = nullptr;
+        if (m_zphys_fft.local_size() == 1) {
+            zfab = m_zphys_fft.fabPtr(m_zphys_fft.IndexArray()[0]);
+        }
+        auto za = zfab ? zfab->const_array() : Array4<Real const>{};
+        auto dxinv = m_geom.InvCellSize(0);
+        auto dyinv = m_geom.InvCellSize(1);
+        m_2D_fft_precond->solve(lhs, rhs,
+            [=] AMREX_GPU_DEVICE (int ii, int jj, int k) -> Real
+            {
+                int i = 0; int j = 0;
+                Real hzeta_inv_on_cc = Real(4.0) / ( (za(i,j,k+1) + za(i+1,j,k+1) + za(i,j+1,k+1) + za(i+1,j+1,k+1))
+                                                   -(za(i,j,k  ) + za(i+1,j,k  ) + za(i,j+1,k  ) + za(i+1,j+1,k  )) );
+                eal hzeta_inv_on_zlo = Real(8.0) / ( (za(i,j,k+1) + za(i+1,j,k+1) + za(i,j+1,k+1) + za(i+1,j+1,k+1))
+                                                    -(za(i,j,k-1) + za(i+1,j,k-1) + za(i,j+1,k-1) + za(i+1,j+1,k-1)) );
+                Real h_xi_on_zlo  = Real(0.5) * (za(i+1,j+1,k  ) + za(i+1,j,k  ) - za(i,j+1,k  ) - za(i,j,k  )) * dxinv;
+                Real h_eta_on_zlo = Real(0.5) * (za(i+1,j+1,k  ) + za(i,j+1,k  ) - za(i+1,j,k  ) - za(i,j,k  )) * dyinv;
+                return hzeta_inv_on_cc * (Real(1.0) + h_xi_on_zlo*h_xi_on_zlo + h_eta_on_zlo*h_eta_on_zlo) * hzeta_inv_on_zlo;
+            },
+            [=] AMREX_GPU_DEVICE (int ii, int jj, int k) -> Real
+            {
+                Real hzeta_inv_on_cc = Real(4.0) / ( (za(i,j,k+1) + za(i+1,j,k+1) + za(i,j+1,k+1) + za(i+1,j+1,k+1))
+                                                    -(za(i,j,k  ) + za(i+1,j,k  ) + za(i,j+1,k  ) + za(i+1,j+1,k  )) );
+                Real hzeta_inv_on_zhi = Real(8.0) / ( (za(i,j,k+2) + za(i+1,j,k+2) + za(i,j+1,k+2) + za(i+1,j+1,k+2))
+                                                     -(za(i,j,k  ) + za(i+1,j,k  ) + za(i,j+1,k  ) + za(i+1,j+1,k  )) );
+                Real h_xi_on_zhi  = Real(0.5) * (za(i+1,j+1,k+1) + za(i+1,j,k+1) - za(i,j+1,k+1) - za(i,j,k+1)) * dxinv;
+                Real h_eta_on_zhi = Real(0.5) * (za(i+1,j+1,k+1) + za(i,j+1,k+1) - za(i+1,j,k+1) - za(i,j,k+1)) * dyinv;
+                return hzeta_inv_on_cc * (Real(1.0) + h_xi_on_zhi*h_xi_on_zhi + h_eta_on_zhi*h_eta_on_zhi) * hzeta_inv_on_zhi;
+            });
+#endif
     } else
 #endif
     {
