@@ -201,7 +201,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          if (fixed_dt[level] > 0. && fixed_fast_dt[level] > 0.) {
              dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
          } else if (fixed_dt[level] > 0.) {
-             dt_fast_ratio = static_cast<long>( 6 );
+             // Max CFL_c = 2.0 and 6 substeps
+             static constexpr Real max_ratio = 2.0 / 6.0;
+             auto dt_sub_max = max_ratio * (estdt_comp/cfl);
+             dt_fast_ratio = static_cast<long>( fixed_dt[level] / dt_sub_max );
          }
 
          // Force time step ratio to be an even value
