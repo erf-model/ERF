@@ -7,7 +7,7 @@
 #include <AMReX_MultiFabUtil.H>
 #include "ERF_Constants.H"
 #include "ERF_Config.H"
-#iclude "rrtmgp_const.h"
+#include "rrtmgp_const.h"
 #include "ERF_WaterVaporSaturation.H"
 #include "ERF_LinearInterpolate.H"
 
