@@ -50,18 +50,17 @@ erf.molec_diff_type = "Constant"
 erf.dynamic_viscosity = 75.0
 
 erf.init_type = "uniform"
-erf.KE_0 = 0.1 # for Deardorff
 
-# PROBLEM PARAMETERS
+# PROBLEM PARAMETERS -- set these for uniform init only
 prob.rho_0 = 1.0
-prob.A_0 = 1.0
-
-prob.U_0 = 10.0
-prob.V_0 = 0.0
-prob.W_0 = 0.0
+prob.A_0   = 1.0 # advected scalar
+prob.U_0   = 10.0
+prob.V_0   = 0.0
+prob.W_0   = 0.0
+prob.KE_0  = 0.1
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
 prob.U_0_Pert_Mag = 0.08
-prob.V_0_Pert_Mag = 0.08 #
+prob.V_0_Pert_Mag = 0.08
 prob.W_0_Pert_Mag = 0.0
