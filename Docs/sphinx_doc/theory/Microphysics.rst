@@ -20,15 +20,28 @@ Governing equations for the microphysical quantities for Kessler microphysics fr
 .. math::
     \frac{\partial q_c}{\partial t} = C_c - E_c - (A_c + K_c)
 .. math::
-    \frac{\partial q_p}{\partial t} =  \frac{1}{\overline{\rho}}\frac{\partial}{\partial z}(\overline{\rho}Vq_p) + (A_c + K_c) - E_r
+    \frac{\partial q_p}{\partial t} =  \frac{1}{\rho_{d}}\frac{\partial}{\partial z}(\rho_{d} w_{t} q_p) + (A_c + K_c) - E_r
 .. math::
     \frac{\partial q_t}{\partial t} = \frac{\partial q_v}{\partial t} + \frac{\partial q_c}{\partial t}
                                     =  E_r - (A_c + K_c)
 
 where :math:`C_c` is the rate of condensation of water vapor to cloud water, :math:`E_c` is the rate of evaporation of cloud water to water vapor,
 :math:`A_c` is the autoconversion of cloud water to rain, :math:`K_c` is the accretion of cloud water to rain drops, :math:`E_r` is the evaporation of
-rain to water vapor and :math:`F_r` is the sedimentation of rain. The parametrization used is given in `klemp1978simulation`_, and is given
-below. Note that in all the equations, :math:`p` is specified in millibars and :math:`\overline{\rho}` is specified in g cm :math:`^{-3}`. The parametrization
+rain to water vapor and :math:`F_r = \rho_{d} w_{t} q_p` is the sedimentation flux. The source terms that enter into the governing equations are then given by:
+
+.. math::
+   \mathbf{F_{n}} \equiv [F_{q_v}, F_{q_c}] = \left[ -C_c, \;\; C_c \right],
+
+   \mathbf{G_{p}} = \left[ E_r, \;\; -A_c - K_c \right],
+
+   H_{n} = \rho_d \frac{L_v}{c_p} \frac{\theta_d}{T} C_c,
+
+   F_{p} = A_c + K_c - E_c,
+
+   H_{p} = -\rho_d \frac{L_v}{c_p} \frac{\theta_d}{T} E_r.
+
+The parametrizations provided in `klemp1978simulation`_ are given below for each term.
+Note that in all the equations, :math:`p` is specified in millibars and :math:`\overline{\rho}` is specified in g cm :math:`^{-3}`. The parametrization
 of the source terms are given below.
 
 .. _`gabervsek2012dry`: https://journals.ametsoc.org/view/journals/mwre/140/10/mwr-d-11-00144.1.xml
@@ -47,12 +60,12 @@ From `klemp1978simulation`_, we have the following expressions.
 If the air is not saturated, i.e. :math:`q_v > q_{vs}`
 
 .. math::
-    C_c = \frac{q_v - q_{vs}}{1 + \cfrac{q_{vs}^*4093L}{C_p(T-36)^2}}
+    C_c = \frac{q_v - q_{vs}}{1 + \cfrac{q_{vs}^*4093L}{c_p(T-36)^2}}
 
 If the air is not saturated, i.e. :math:`q_v < q_{vs}`, then cloud water evaporates to water vapor at the rate
 
 .. math::
-    E_c = \frac{q_{vs} - q_v}{1 + \cfrac{q_{vs}^*4093L}{C_p(T-36)^2}}
+    E_c = \frac{q_{vs} - q_v}{1 + \cfrac{q_{vs}^*4093L}{c_p(T-36)^2}}
 
 Rate of autoconversion of cloud water into rain
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -90,7 +103,7 @@ Terminal fall velocity of rain
 The terminal fall velocity of rain is given by
 
 .. math::
-    V = 3634(\overline{\rho}q_r)^{0.1346}\Bigg(\cfrac{\overline{\rho}}{\rho_0}\Bigg)^{-\frac{1}{2}}~\text{[cm/s]}
+    w_{t} = 3634(\overline{\rho}q_r)^{0.1346}\Bigg(\cfrac{\overline{\rho}}{\rho_0}\Bigg)^{-\frac{1}{2}}~\text{[cm/s]}
 
 .. raw:: latex
 

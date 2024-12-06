@@ -10,8 +10,8 @@ using namespace amrex;
 void
 read_from_metgrid (int lev, const Box& domain, const std::string& fname,
                    std::string& NC_dateTime, Real& NC_epochTime,
-                   int& flag_psfc, int& flag_msfu, int& flag_msfv,  int& flag_msfm,
-                   int& flag_hgt,  int& flag_sst,  int& flag_lmask,
+                   int& flag_psfc, int& flag_msf,
+                   int& flag_sst,  int& flag_lmask,
                    int& NC_nx,     int& NC_ny,
                    Real& NC_dx,    Real& NC_dy,
                    FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
@@ -32,24 +32,32 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
         { // Global Attributes (int)
             std::vector<int> attr;
-            ncf.get_attr("FLAG_PSFC", attr);     flag_psfc  = attr[0];
-
             /* UNCOMMENT FOR FLOWMAS
-            flag_msfu  = 0; //ncf.get_attr("FLAG_MAPFAC_U", attr); flag_msfu  = attr[0];
-            flag_msfv  = 0; //ncf.get_attr("FLAG_MAPFAC_V", attr); flag_msfv  = attr[0];
-            flag_msfm = 0; //ncf.get_attr("FLAG_MAPFAC_M", attr); flag_msfm  = attr[0];
-            flag_hgt = 1; //ncf.get_attr("FLAG_HGT_M", attr);    flag_hgt   = attr[0];
-            flag_sst = 0; //ncf.get_attr("FLAG_SST", attr);      flag_sst   = attr[0];
+            flag_psfc  = 0; //ncf.get_attr("FLAG_PSFC", attr);     flag_psfc  = attr[0];
+            flag_msf   = 0; //ncf.get_attr("FLAG_MF_XY", attr);    flag_msf   = attr[0];
+            flag_sst   = 0; //ncf.get_attr("FLAG_SST", attr);      flag_sst   = attr[0];
             flag_lmask = 0; //ncf.get_attr("FLAG_LANDMASK", attr); flag_lmask = attr[0];
             */
-
-            ncf.get_attr("FLAG_MAPFAC_U", attr); flag_msfu  = attr[0];
-            ncf.get_attr("FLAG_MAPFAC_V", attr); flag_msfv  = attr[0];
-            ncf.get_attr("FLAG_MAPFAC_M", attr); flag_msfm  = attr[0];
-            ncf.get_attr("FLAG_HGT_M", attr);    flag_hgt   = attr[0];
-            flag_sst = 0; //ncf.get_attr("FLAG_SST", attr);      flag_sst   = attr[0];
-            ncf.get_attr("FLAG_LANDMASK", attr); flag_lmask = attr[0];
-
+            if (ncf.has_attr("FLAG_PSFC")) {
+                ncf.get_attr("FLAG_PSFC", attr);     flag_psfc  = attr[0];
+            } else {
+                flag_psfc = 0;
+            }
+            if (ncf.has_attr("FLAG_MF_XY")) {
+                ncf.get_attr("FLAG_MF_XY", attr);    flag_msf   = attr[0];
+            } else {
+                flag_msf = 0;
+            }
+            if (ncf.has_attr("FLAG_SST")) {
+                ncf.get_attr("FLAG_SST", attr);      flag_sst   = attr[0];
+            } else {
+                flag_sst = 0;
+            }
+            if (ncf.has_attr("FLAG_LANDMASK")) {
+                ncf.get_attr("FLAG_LANDMASK", attr); flag_lmask = attr[0];
+            } else {
+                flag_lmask = 0;
+            }
 
             ncf.get_attr("WEST-EAST_GRID_DIMENSION", attr);   NC_nx = attr[0];
             ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); NC_ny = attr[0];
@@ -85,10 +93,7 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     }
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
     ParallelDescriptor::Bcast(&flag_psfc,    1, ioproc);
-    ParallelDescriptor::Bcast(&flag_msfu,    1, ioproc);
-    ParallelDescriptor::Bcast(&flag_msfv,    1, ioproc);
-    ParallelDescriptor::Bcast(&flag_msfm,    1, ioproc);
-    ParallelDescriptor::Bcast(&flag_hgt,     1, ioproc);
+    ParallelDescriptor::Bcast(&flag_msf,     1, ioproc);
     ParallelDescriptor::Bcast(&flag_sst,     1, ioproc);
     ParallelDescriptor::Bcast(&flag_lmask,   1, ioproc);
     ParallelDescriptor::Bcast(&NC_nx,        1, ioproc);
@@ -112,21 +117,21 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     NC_fabs.push_back(&NC_rhum_fab);      NC_fnames.push_back("RH");        NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_pres_fab);      NC_fnames.push_back("PRES");      NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_ght_fab);       NC_fnames.push_back("GHT");       NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_LAT_fab);       NC_fnames.push_back("XLAT_V");    NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
-    NC_fabs.push_back(&NC_LON_fab);       NC_fnames.push_back("XLONG_U");   NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+    NC_fabs.push_back(&NC_LAT_fab);       NC_fnames.push_back("XLAT_M");    NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+    NC_fabs.push_back(&NC_LON_fab);       NC_fnames.push_back("XLONG_M");   NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+    NC_fabs.push_back(&NC_hgt_fab);       NC_fnames.push_back("HGT_M");     NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
 
     if (flag_psfc)  { NC_fabs.push_back(&NC_psfc_fab);      NC_fnames.push_back("PSFC");      NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
-    if (flag_msfu)  { NC_fabs.push_back(&NC_msfu_fab);      NC_fnames.push_back("MAPFAC_U");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
-    if (flag_msfv)  { NC_fabs.push_back(&NC_msfv_fab);      NC_fnames.push_back("MAPFAC_V");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
-    if (flag_msfm)  { NC_fabs.push_back(&NC_msfm_fab);      NC_fnames.push_back("MAPFAC_M");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
-    if (flag_hgt)   { NC_fabs.push_back(&NC_hgt_fab);       NC_fnames.push_back("HGT_M");     NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
+    if (flag_msf)   { NC_fabs.push_back(&NC_msfu_fab);      NC_fnames.push_back("MAPFAC_U");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
+    if (flag_msf)   { NC_fabs.push_back(&NC_msfv_fab);      NC_fnames.push_back("MAPFAC_V");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
+    if (flag_msf)   { NC_fabs.push_back(&NC_msfm_fab);      NC_fnames.push_back("MAPFAC_M");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
     if (flag_sst)   { NC_fabs.push_back(&NC_sst_fab);       NC_fnames.push_back("SST");       NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
 
     if (flag_lmask) { NC_iabs.push_back(&NC_lmask_iab);     NC_inames.push_back("LANDMASK");   NC_idim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
 
     // Read the netcdf file and fill these FABs
-    std::string Lat_var_name = "XLAT_V";
-    std::string Lon_var_name = "XLONG_U";
+    std::string Lat_var_name = "XLAT_M";
+    std::string Lon_var_name = "XLONG_M";
     Print() << "Building initial FABS from file " << fname << std::endl;
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, Latitude, Longitude,
                                             Lat_var_name, Lon_var_name,
