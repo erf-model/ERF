@@ -19,11 +19,11 @@ In compressible mode, in the absence of moisture, ERF solves the following parti
 expressing conservation of mass :math:`(\rho)`, momentum :math:`(\rho \mathbf{u})`, potential temperature :math:`(\rho \theta_{d})`, and scalars :math:`(\rho \mathbf{\phi})`:
 
 .. math::
-   \frac{\partial \rho_d}{\partial t} = - \nabla \cdot (\rho_d \mathbf{u}),
+   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}),
 
-   \frac{\partial (\rho_d \mathbf{u})}{\partial t} = - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) - \frac{1}{1 + q_v + q_c} ( \nabla p^\prime  - \delta_{i,3}\mathbf{B} ) - \nabla \cdot \boldsymbol{\tau} + \mathbf{F}_{u},
+   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) - \frac{1}{1 + q_v + q_c} ( \nabla p^\prime  - \delta_{i,3}\mathbf{B} ) - \nabla \cdot \boldsymbol{\tau} + \mathbf{F}_{u},
 
-   \frac{\partial (\rho_d \theta_d)}{\partial t} = - \nabla \cdot (\rho_d \mathbf{u} \theta_d) + \nabla \cdot ( \rho_d \alpha_{\theta}\ \nabla \theta_d) + F_{\theta},
+   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d) + \nabla \cdot ( \rho_d \alpha_{\theta}\ \nabla \theta_d) + F_{\theta},
 
    \frac{\partial (\rho_d \boldsymbol{\phi})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \boldsymbol{\phi}) + \nabla \cdot ( \rho_d \alpha_{\phi}\ \nabla \boldsymbol{\phi}) + \mathbf{F}_{\phi}.
 

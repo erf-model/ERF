@@ -30,15 +30,15 @@ where :math:`C_c` is the rate of condensation of water vapor to cloud water, :ma
 rain to water vapor and :math:`F_r = \rho_{d} w_{t} q_p` is the sedimentation flux. The source terms that enter into the governing equations are then given by:
 
 .. math::
-   \mathbf{F_{n}} \equiv [F_{q_v}, F_{q_c}] = \left[ -C_c, \;\; C_c \right],
+   \mathbf{F_{n}} &\equiv [F_{q_v}, F_{q_c}] = \left[ -C_c, \;\; C_c \right],
 
-   \mathbf{G_{p}} = \left[ E_r, \;\; -A_c - K_c \right],
+   \mathbf{G_{p}} &= \left[ E_r, \;\; -A_c - K_c \right],
 
-   H_{n} = \rho_d \frac{L_v}{c_p} \frac{\theta_d}{T} C_c,
+   H_{n} &= \rho_d \frac{L_v}{c_p} \frac{\theta_d}{T} C_c,
 
-   F_{p} = A_c + K_c - E_c,
+   F_{p} &= A_c + K_c - E_c,
 
-   H_{p} = -\rho_d \frac{L_v}{c_p} \frac{\theta_d}{T} E_r.
+   H_{p} &= -\rho_d \frac{L_v}{c_p} \frac{\theta_d}{T} E_r.
 
 The parametrizations provided in `klemp1978simulation`_ are given below for each term.
 Note that in all the equations, :math:`p` is specified in millibars and :math:`\overline{\rho}` is specified in g cm :math:`^{-3}`. The parametrization
