@@ -149,10 +149,10 @@
 #endif
                     });
                 }
-            } // mfi
 #ifdef ERF_USE_EB
             // call to redistribute_term -- pass in ssum[IntVars::cons] which is MF
 #endif
+            } // mfi
         } // omp
 
         // Even if we update all the conserved variables we don't need
