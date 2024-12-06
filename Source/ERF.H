@@ -30,7 +30,7 @@
 #include <AMReX_MemProfiler.H>
 #endif
 
-#include "ERF_prob_common.H"
+#include "ERF_ProbCommon.H"
 
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
@@ -177,7 +177,6 @@ public:
                                 amrex::MultiFab& p);
 
 #ifdef ERF_USE_FFT
-    amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM> get_fft_bc () const noexcept;
     void solve_with_fft (int lev, amrex::MultiFab& rhs, amrex::MultiFab& p,
                          amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 #endif
@@ -187,7 +186,7 @@ public:
 #endif
 
     void solve_with_gmres (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
-                           amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
+                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
@@ -1051,6 +1050,21 @@ private:
     // used with init_type == InitType::Input_Sounding
     static bool init_sounding_ideal;
 
+    // Options for vertical interpolation of met_em*.nc data.
+    bool        metgrid_debug_quiescent{false};
+    bool        metgrid_debug_isothermal{false};
+    bool        metgrid_debug_dry{false};
+    bool        metgrid_debug_psfc{false};
+    bool        metgrid_debug_msf{false};
+    bool        metgrid_interp_theta{false};
+    bool        metgrid_basic_linear{false};
+    bool        metgrid_use_below_sfc{true};
+    bool        metgrid_use_sfc{true};
+    bool        metgrid_retain_sfc{false};
+    amrex::Real metgrid_proximity{1000.0};
+    int         metgrid_order{2};
+    int         metgrid_force_sfc_k{0};
+
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
     static int         column_interval;
@@ -1378,8 +1392,8 @@ private:
 #endif
 
 #ifdef ERF_USE_FFT
-    std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>> m_3D_poisson;
-    std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_poisson;
+    amrex::Vector<std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>>> m_3D_poisson;
+    amrex::Vector<std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>>> m_2D_poisson;
 #endif
 
 public:

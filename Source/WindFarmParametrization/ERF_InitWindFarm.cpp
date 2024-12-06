@@ -351,99 +351,28 @@ WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_table
 }
 
 void
-WindFarm::gatherKeyValuePairs(const std::vector<std::pair<int, double>>& localData,
-                              std::vector<std::pair<int, double>>& globalData)
-{
-    int myRank = amrex::ParallelDescriptor::MyProc();
-    int nProcs = amrex::ParallelDescriptor::NProcs();
-
-    int localSize = localData.size();
-
-    // Prepare separate vectors for keys and values
-    std::vector<int> localKeys(localSize);
-    std::vector<double> localValues(localSize);
-
-    for (size_t i = 0; i < localData.size(); ++i) {
-        localKeys[i] = localData[i].first;
-        localValues[i] = localData[i].second;
-    }
-
-    // Gather sizes of the arrays from all processes
-    std::vector<int> allSizes(nProcs);
-    amrex::ParallelDescriptor::Gather(&localSize, 1, allSizes.data(), 1, 0);
-
-    // Compute displacements for global data
-    std::vector<int> displs(nProcs, 0);
-    int totalSize = 0;
-    if (amrex::ParallelDescriptor::MyProc() == 0) {
-        for (int i = 0; i < nProcs; ++i) {
-            displs[i] = totalSize;
-            totalSize += allSizes[i];
-        }
-        globalData.resize(totalSize);
-    }
-
-    // Gather keys
-    std::vector<int> globalKeys(totalSize);
-    amrex::ParallelDescriptor::Gatherv(localKeys.data(), localSize,
-                                       globalKeys.data(), allSizes,
-                                       displs, 0);
-
-    // Gather values
-    std::vector<double> globalValues(totalSize);
-    amrex::ParallelDescriptor::Gatherv(localValues.data(), localSize,
-                                        globalValues.data(), allSizes,
-                                        displs, 0);
-
-  // Rank 0 combines keys and values into globalData
-    if (myRank == 0) {
-        globalData.clear();
-        for (int i = 0; i < totalSize; ++i) {
-            globalData.emplace_back(globalKeys[i], globalValues[i]);
-        }
-
-        // Sort global data by keys
-        std::sort(globalData.begin(), globalData.end());
-    }
-
-    // Broadcast the global data to all processes
-    int globalCount = globalData.size();
-    amrex::ParallelDescriptor::Bcast(&globalCount, 1, 0);
-
-    if (myRank != 0) {
-        globalData.resize(globalCount);
-    }
-
-    // Broadcast the actual pairs
-    for (int i = 0; i < globalCount; ++i) {
-        amrex::ParallelDescriptor::Bcast(&globalData[i].first, 1, 0);
-        amrex::ParallelDescriptor::Bcast(&globalData[i].second, 1, 0);
-    }
-}
-
-
-void
 WindFarm::fill_Nturb_multifab (const Geometry& geom,
                                MultiFab& mf_Nturb,
                                std::unique_ptr<MultiFab>& z_phys_nd)
 {
 
-    zloc.resize(xloc.size(),-1.0);
-    turb_index.resize(xloc.size(),-1);
+    zloc.resize(xloc.size(),0.0);
+    Vector<int> is_counted;
+    is_counted.resize(xloc.size(),0);
 
     amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
     amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
     amrex::Gpu::DeviceVector<Real> d_zloc(xloc.size());
-    amrex::Gpu::DeviceVector<int> d_turb_index(xloc.size());
+    amrex::Gpu::DeviceVector<int> d_is_counted(xloc.size());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zloc.begin(), zloc.end(), d_zloc.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, turb_index.begin(), turb_index.end(), d_turb_index.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, is_counted.begin(), is_counted.end(), d_is_counted.begin());
 
     Real* d_xloc_ptr       = d_xloc.data();
     Real* d_yloc_ptr       = d_yloc.data();
     Real* d_zloc_ptr       = d_zloc.data();
-    int* d_turb_index_ptr = d_turb_index.data();
+    int* d_is_counted_ptr = d_is_counted.data();
 
     mf_Nturb.setVal(0);
 
@@ -477,39 +406,46 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
             for(int it=0; it<num_turb; it++){
                 if( d_xloc_ptr[it]+1e-3 > x1 and d_xloc_ptr[it]+1e-3 < x2 and
                     d_yloc_ptr[it]+1e-3 > y1 and d_yloc_ptr[it]+1e-3 < y2){
-                       Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
-                       if(is_terrain) {
-                            d_zloc_ptr[it] = z_nd_arr(i,j,k0);
-                            d_turb_index_ptr[it] = it;
-                       }
-                       else {
-                            d_zloc_ptr[it] = 0.0;
-                            d_turb_index_ptr[it] = it;
-                       }
+                    Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
+                    // Perform atomic operations to ensure "increment only once"
+                    if (is_terrain) {
+                        int expected = 0;
+                        int desired = 1;
+                        // Atomic Compare-And-Swap: Increment only if d_is_counted_ptr[it] was 0
+                        if (Gpu::Atomic::CAS(&d_is_counted_ptr[it], expected, desired) == expected) {
+                            // The current thread successfully set d_is_counted_ptr[it] from 0 to 1
+                            Gpu::Atomic::Add(&d_zloc_ptr[it], z_nd_arr(i, j, k0));
+                        }
+                    }
                 }
             }
         });
     }
 
     Gpu::copy(Gpu::deviceToHost, d_zloc.begin(), d_zloc.end(), zloc.begin());
-    Gpu::copy(Gpu::deviceToHost, d_turb_index.begin(), d_turb_index.end(), turb_index.begin());
+    Gpu::copy(Gpu::deviceToHost, d_is_counted.begin(), d_is_counted.end(), is_counted.begin());
 
-        std::vector<std::pair<int, double>> turb_index_zloc;
-        for(int it=0;it<xloc.size();it++){
-            if(turb_index[it] != -1) {
-                turb_index_zloc.emplace_back(std::make_pair(turb_index[it], zloc[it]));
-            }
+    amrex::ParallelAllReduce::Sum(zloc.data(),
+                                  zloc.size(),
+                                  amrex::ParallelContext::CommunicatorAll());
+
+    amrex::ParallelAllReduce::Sum(is_counted.data(),
+                                  is_counted.size(),
+                                  amrex::ParallelContext::CommunicatorAll());
+
+    for(int it=0;it<num_turb;it++) {
+        if(is_terrain and is_counted[it] != 1) {
+            Abort("Wind turbine " + std::to_string(it) + "has been counted " + std::to_string(is_counted[it]) + " times" +
+                  " It should have been counted only once. Aborting....");
         }
+    }
 
-        std::vector<std::pair<int, double>> turb_index_zloc_glob;
+    // Debugging
+    /*int my_rank = amrex::ParallelDescriptor::MyProc();
 
-        gatherKeyValuePairs(turb_index_zloc, turb_index_zloc_glob);
-
-        // Each process now has the global array
-        for (const auto& kv : turb_index_zloc_glob) {
-            //std::cout << "Rank " << amrex::ParallelDescriptor::MyProc() <<   "Global data" << kv.first << " " << kv.second << "\n";
-            zloc[kv.first] = kv.second;
-        }
+    for(int it=0;it<num_turb;it++) {
+        std::cout << "The value of zloc is " << my_rank << " " << zloc[it] << " " << is_counted[it] << "\n";
+    }*/
 }
 
 void

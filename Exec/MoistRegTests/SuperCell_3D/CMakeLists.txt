@@ -3,7 +3,7 @@ set(erf_exe_name erf_supercell)
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
    PRIVATE
-     ERF_prob.cpp
+     ERF_Prob.cpp
 )
 
 target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

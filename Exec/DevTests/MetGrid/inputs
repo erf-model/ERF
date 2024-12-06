@@ -25,7 +25,7 @@ erf.most.zref = 40.0
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5  # fixed time step depending on grid resolution
 
-erf.use_terrain = true
+erf.terrain_type = Static
 erf.terrain_smoothing = 2
 
 # DIAGNOSTICS & VERBOSITY

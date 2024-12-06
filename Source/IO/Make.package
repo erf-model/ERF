@@ -1,7 +1,7 @@
 
 CEXE_sources += ERF_Plotfile.cpp
 CEXE_sources += ERF_Checkpoint.cpp
-CEXE_sources += ERF_writeJobInfo.cpp
+CEXE_sources += ERF_WriteJobInfo.cpp
 
 CEXE_headers += ERF_WriteBndryPlanes.H
 CEXE_headers += ERF_ReadBndryPlanes.H
@@ -12,7 +12,7 @@ CEXE_sources += ERF_Write1DProfiles.cpp
 CEXE_sources += ERF_Write1DProfiles_stag.cpp
 CEXE_sources += ERF_WriteScalarProfiles.cpp
 
-CEXE_sources += ERF_console_io.cpp
+CEXE_sources += ERF_ConsoleIO.cpp
 
 CEXE_headers += ERF_SampleData.H
 
