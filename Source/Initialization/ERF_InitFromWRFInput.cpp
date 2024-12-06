@@ -305,6 +305,11 @@ ERF::init_from_wrfinput (int lev)
         if (nc_bdy_file.empty()) {
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
+
+        // At least three points are necessary if there is a relaxation zone.
+        if (real_width > real_set_width)
+            AMREX_ALWAYS_ASSERT(real_width-real_set_width >= 3);
+
         bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              real_width, start_bdy_time);
