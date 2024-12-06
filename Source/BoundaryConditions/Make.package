@@ -2,8 +2,8 @@ CEXE_sources += ERF_BoundaryConditionsXvel.cpp
 CEXE_sources += ERF_BoundaryConditionsYvel.cpp
 CEXE_sources += ERF_BoundaryConditionsZvel.cpp
 CEXE_sources += ERF_BoundaryConditionsCons.cpp
-CEXE_sources += ERF_BoundaryConditionsBasestate.cpp
-CEXE_sources += ERF_BoundaryConditionsBndryreg.cpp
+CEXE_sources += ERF_BoundaryConditionsBaseState.cpp
+CEXE_sources += ERF_BoundaryConditionsBndryReg.cpp
 CEXE_sources += ERF_BoundaryConditionsRealbdy.cpp
 
 CEXE_headers += ERF_ABLMost.H
