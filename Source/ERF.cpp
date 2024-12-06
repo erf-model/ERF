@@ -1503,6 +1503,21 @@ ERF::ReadParameters ()
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);
 
+        // Options for vertical interpolation of met_em*.nc data.
+        pp.query("metgrid_debug_quiescent",  metgrid_debug_quiescent);
+        pp.query("metgrid_debug_isothermal", metgrid_debug_isothermal);
+        pp.query("metgrid_debug_dry",        metgrid_debug_dry);
+        pp.query("metgrid_debug_psfc",       metgrid_debug_psfc);
+        pp.query("metgrid_debug_msf",        metgrid_debug_msf);
+        pp.query("metgrid_interp_theta",     metgrid_interp_theta);
+        pp.query("metgrid_basic_linear",     metgrid_basic_linear);
+        pp.query("metgrid_use_below_sfc",    metgrid_use_below_sfc);
+        pp.query("metgrid_use_sfc",          metgrid_use_sfc);
+        pp.query("metgrid_retain_sfc",       metgrid_retain_sfc);
+        pp.query("metgrid_proximity",        metgrid_proximity);
+        pp.query("metgrid_order",            metgrid_order);
+        pp.query("metgrid_force_sfc_k",      metgrid_force_sfc_k);
+
         // Set default to FullState for now ... later we will try Perturbation
         interpolation_type = StateInterpType::FullState;
         pp.query_enum_case_insensitive("interpolation_type"  ,interpolation_type);
