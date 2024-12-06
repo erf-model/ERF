@@ -21,7 +21,7 @@ expressing conservation of mass :math:`(\rho)`, momentum :math:`(\rho \mathbf{u}
 .. math::
    \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}),
 
-   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) - \frac{1}{1 + q_v + q_c} ( \nabla p^\prime  - \delta_{i,3}\mathbf{B} ) - \nabla \cdot \boldsymbol{\tau} + \mathbf{F}_{u},
+   \frac{\partial (\rho_d \mathbf{u})}{\partial t} = - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -  \nabla p^\prime  + \delta_{i,3}\mathbf{B}  - \nabla \cdot \boldsymbol{\tau} + \mathbf{F}_{u},
 
    \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d) + \nabla \cdot ( \rho_d \alpha_{\theta}\ \nabla \theta_d) + F_{\theta},
 
