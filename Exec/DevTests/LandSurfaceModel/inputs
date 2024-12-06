@@ -57,7 +57,7 @@ erf.Cs              = 0.1
 #erf.pbl_type        = "MYNN2.5"
 #erf.KE_0           = 0.5
      
-erf.use_terrain = true
+erf.terrain_type = Static
 erf.terrain_smoothing = 2
 
 erf.moisture_model = "None"

@@ -49,7 +49,7 @@ erf.Cs              = 0.1
 
 erf.moisture_model = "Kessler"
 
-erf.use_terrain       = true
+erf.terrain_type = Static
 erf.terrain_smoothing = 2
 erf.buoyancy_type     = 1
 

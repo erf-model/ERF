@@ -2,17 +2,17 @@ CEXE_headers += ERF_TerrainPoisson_3D_K.H
 CEXE_headers += ERF_TerrainPoisson.H
 CEXE_sources += ERF_TerrainPoisson.cpp
 
-CEXE_sources += ERF_compute_divergence.cpp
+CEXE_sources += ERF_ComputeDivergence.cpp
 CEXE_sources += ERF_PoissonSolve.cpp
 CEXE_sources += ERF_PoissonSolve_tb.cpp
-CEXE_sources += ERF_solve_with_fft.cpp
-CEXE_sources += ERF_solve_with_gmres.cpp
-CEXE_sources += ERF_solve_with_mlmg.cpp
+CEXE_sources += ERF_SolveWithGMRES.cpp
+CEXE_sources += ERF_SolveWithMLMG.cpp
 
 ifeq ($(USE_FFT), TRUE)
-CEXE_headers += ERF_FFT_TerrainPrecond.H
+CEXE_headers += ERF_FFTUtils.H
+CEXE_sources += ERF_SolveWithFFT.cpp
 endif
 
 ifeq ($(USE_EB), TRUE)
-CEXE_sources += ERF_solve_with_EB_mlmg.cpp
+CEXE_sources += ERF_SolveWithEBMLMG.cpp
 endif

@@ -1,10 +1,6 @@
 #include <AMReX_MultiFab.H>
-#include <ERF_Src_headers.H>
+#include <ERF_SrcHeaders.H>
 #include <ERF_InputSpongeData.H>
-
-//#include <ERF_TerrainMetrics.H>
-//#include <ERF_IndexDefines.H>
-//#include <ERF_PlaneAverage.H>
 
 using namespace amrex;
 
