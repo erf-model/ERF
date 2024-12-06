@@ -3,8 +3,8 @@
 //
 #include "ERF_Optics.H"
 #include "ERF_Slingo.H"
-#include "ERF_Ebert_curry.H"
-#include "ERF_Rad_constants.H"
+#include "ERF_EbertCurry.H"
+#include "ERF_RadConstants.H"
 #include "AMReX_Random.H"
 using yakl::fortran::parallel_for;
 using yakl::fortran::SimpleBounds;

@@ -19,7 +19,7 @@
 #include <AMReX_MultiFabUtil.H>
 
 #include "ERF_Constants.H"
-#include "ERF_Microphysics_Utils.H"
+#include "ERF_MicrophysicsUtils.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
