@@ -133,7 +133,6 @@ Problem::init_custom_pert(
             } else {
                 state_pert(i, j, k, RhoScalar_comp) = 0.0;
             }
-            
         } else {
             // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
             if (r3d < r0) {
