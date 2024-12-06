@@ -42,7 +42,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/EB/ERF_EBCylinder.cpp
                    ${SRC_DIR}/EB/ERF_EBRegular.cpp
                    ${SRC_DIR}/EB/ERF_InitEB.cpp
-                   ${SRC_DIR}/EB/ERF_WriteEBsurface.cpp 
+                   ${SRC_DIR}/EB/ERF_WriteEBSurface.cpp 
                    ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/EB>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EB)
