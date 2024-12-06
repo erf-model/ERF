@@ -25,7 +25,7 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/ERF_InitConstantDensityHSEDry.H"
+#include "Prob/ERF_InitDensityHSEDry.H"
 
     void init_custom_pert (
         const amrex::Box&  bx,
