@@ -1,7 +1,7 @@
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF.H>
 
-#include <ERF_eb_if.H>
+#include <ERF_EBIF.H>
 #include <ERF.H>
 
 using namespace amrex;
