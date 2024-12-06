@@ -12,7 +12,7 @@
 #include <ERF_EOS.H>
 #include <ERF_Constants.H>
 #include <ERF_Interpolation_1D.H>
-#include <ERF_HSE_utils.H>
+#include <ERF_HSEUtils.H>
 
 /**
  * Data structure storing input sounding data. Also
