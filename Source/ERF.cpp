@@ -665,51 +665,6 @@ ERF::InitData_post ()
             }
         }
 
-        // If using the Deardoff LES model,
-        // we initialize rho_KE to be nonzero (and positive) so that we end up
-        // with reasonable values for the eddy diffusivity and the MOST fluxes
-        // (~ 1/diffusivity) do not blow up
-        Real RhoKE_0;
-        ParmParse pp(pp_prefix);
-        if (pp.query("RhoKE_0", RhoKE_0)) {
-            // Uniform initial rho*e field
-            for (int lev = 0; lev <= finest_level; lev++) {
-                if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
-                    Print() << "Initializing uniform rhoKE=" << RhoKE_0
-                        << " on level " << lev
-                        << std::endl;
-                    vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
-                } else {
-                    vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
-                }
-            }
-        }
-
-        Real KE_0;
-        if (pp.query("KE_0", KE_0)) {
-            // Uniform initial e field
-            for (int lev = 0; lev <= finest_level; lev++) {
-                auto& lev_new = vars_new[lev];
-                if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
-                    Print() << "Initializing uniform KE=" << KE_0
-                        << " on level " << lev
-                        << std::endl;
-                    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const Box &bx = mfi.tilebox();
-                        const auto &cons_arr = lev_new[Vars::cons].array(mfi);
-                        // We want to set the lateral BC values, too
-                        Box gbx = bx; // Copy constructor
-                        gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
-                        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            cons_arr(i,j,k,RhoKE_comp) = cons_arr(i,j,k,Rho_comp) * KE_0;
-                        });
-                    } // mfi
-                } else {
-                    lev_new[Vars::cons].setVal(0.0,RhoKE_comp,1,0);
-                }
-            } // lev
-        }
-
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
             AverageDown();
         }
