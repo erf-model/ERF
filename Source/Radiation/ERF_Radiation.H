@@ -25,10 +25,10 @@
 
 #include "ERF_Config.H"
 #include "ERF_Constants.H"
-#include "ERF_Rad_constants.H"
-#include "ERF_Rrtmgp.H"
+#include "ERF_RadConstants.H"
+#include "ERF_RRTMGP.H"
 #include "ERF_Optics.H"
-#include "ERF_Aero_rad_props.H"
+#include "ERF_AeroRadProps.H"
 #include "ERF_Parameterizations.H"
 #include "ERF_Albedo.H"
 

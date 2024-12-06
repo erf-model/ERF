@@ -9,7 +9,7 @@
 #include <ERF_TerrainMetrics.H>
 
 #include <ERF_TileNoZ.H>
-#include <ERF_prob_common.H>
+#include <ERF_ProbCommon.H>
 
 #ifdef ERF_USE_EB
 #include <AMReX_EBMultiFabUtil.H>

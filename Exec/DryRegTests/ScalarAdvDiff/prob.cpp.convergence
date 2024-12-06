@@ -1,5 +1,5 @@
-#include "ERF_prob.H"
-#include "ERF_prob_common.H"
+#include "ERF_Prob.H"
+#include "ERF_ProbCommon.H"
 
 #include "AMReX_ParmParse.H"
 #include "AMReX_MultiFab.H"

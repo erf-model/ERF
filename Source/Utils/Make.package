@@ -1,5 +1,5 @@
 CEXE_headers += ERF_EOS.H
-CEXE_headers += ERF_HSE_Utils.H
+CEXE_headers += ERF_HSEUtils.H
 CEXE_headers += ERF_Interpolation_UPW.H
 CEXE_headers += ERF_Interpolation_WENO.H
 CEXE_headers += ERF_Interpolation_WENO_Z.H
@@ -10,14 +10,10 @@ CEXE_headers += ERF_TerrainMetrics.H
 CEXE_headers += ERF_TileNoZ.H
 CEXE_headers += ERF_Utils.H
 
-CEXE_headers += ERF_TerrainPoisson_3D_K.H
-CEXE_headers += ERF_TerrainPoisson.H
-CEXE_sources += ERF_TerrainPoisson.cpp
-
 CEXE_headers += ERF_ParFunctions.H
 
 CEXE_headers += ERF_Sat_methods.H
-CEXE_headers += ERF_Water_vapor_saturation.H
+CEXE_headers += ERF_WaterVaporSaturation.H
 CEXE_headers += ERF_DirectionSelector.H
 
 CEXE_sources += ERF_AverageDown.cpp
@@ -26,4 +22,4 @@ CEXE_sources += ERF_MomentumToVelocity.cpp
 CEXE_sources += ERF_VelocityToMomentum.cpp
 CEXE_sources += ERF_InteriorGhostCells.cpp
 CEXE_sources += ERF_TerrainMetrics.cpp
-CEXE_sources += ERF_Time_Avg_Vel.cpp  
+CEXE_sources += ERF_TimeAvgVel.cpp  

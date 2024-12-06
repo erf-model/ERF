@@ -5,7 +5,6 @@
 #include <ERF_DataStruct.H>
 #include <AMReX_MultiFab.H>
 
-
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real

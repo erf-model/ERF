@@ -1,13 +1,13 @@
 
-CEXE_headers += ERF_Rrtmgp.H
-CEXE_headers += ERF_Rad_constants.H
+CEXE_headers += ERF_RRTMGP.H
+CEXE_headers += ERF_RadConstants.H
 CEXE_headers += ERF_Slingo.H
-CEXE_headers += ERF_Ebert_curry.H
-CEXE_headers += ERF_Linear_interpolate.H
-CEXE_headers += ERF_Phys_prop.H
+CEXE_headers += ERF_EbertCurry.H
+CEXE_headers += ERF_LinearInterpolate.H
+CEXE_headers += ERF_PhysProp.H
 
 CEXE_sources += ERF_Finalize_rrtmgp.cpp
-CEXE_sources += ERF_Init_rrtmgp.cpp 
-CEXE_sources += ERF_Run_longwave_rrtmgp.cpp 
-CEXE_sources += ERF_Run_shortwave_rrtmgp.cpp 
+CEXE_sources += ERF_InitRRTMGP.cpp 
+CEXE_sources += ERF_RunLongWaveRRTMGP.cpp 
+CEXE_sources += ERF_RunShortWaveRRTMGP.cpp 
 

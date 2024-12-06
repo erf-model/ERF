@@ -300,8 +300,7 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
 
     Real hzeta_inv_on_zhi = 8.0 / ( (zp(i,j,k+2) + zp(i+1,j,k+2) + zp(i,j+1,k+2) + zp(i+1,j+1,k+2))
                                    -(zp(i,j,k  ) + zp(i+1,j,k  ) + zp(i,j+1,k  ) + zp(i+1,j+1,k  )) );
-    // pz_hi *= hzeta_inv_on_zhi * (1.0 + h_xi_on_zhi*h_xi_on_zhi + h_eta_on_zhi*h_eta_on_zhi);
-    pz_hi *= hzeta_inv_on_zhi;
+    pz_hi *= hzeta_inv_on_zhi * (1.0 + h_xi_on_zhi*h_xi_on_zhi + h_eta_on_zhi*h_eta_on_zhi);
 
     pz_hi -= 0.5 * h_xi_on_zhi  * ( (px_hi_md_hi + px_lo_md_hi) - (pz_hi_md_hi + pz_lo_md_hi) );
     pz_hi -= 0.5 * h_eta_on_zhi * ( (py_md_hi_hi + py_md_lo_hi) - (pz_md_hi_hi + pz_md_lo_hi) );
@@ -328,8 +327,7 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
 
     Real hzeta_inv_on_zlo = 8.0 / ( (zp(i,j,k+1) + zp(i+1,j,k+1) + zp(i,j+1,k+1) + zp(i+1,j+1,k+1))
                                    -(zp(i,j,k-1) + zp(i+1,j,k-1) + zp(i,j+1,k-1) + zp(i+1,j+1,k-1)) );
-    // pz_lo *= hzeta_inv_on_zlo * (1.0 + h_xi_on_zlo*h_xi_on_zlo + h_eta_on_zlo*h_eta_on_zlo);
-    pz_lo *= hzeta_inv_on_zlo;
+    pz_lo *= hzeta_inv_on_zlo * (1.0 + h_xi_on_zlo*h_xi_on_zlo + h_eta_on_zlo*h_eta_on_zlo);
 
     pz_lo -= 0.5 * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
     pz_lo -= 0.5 * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
