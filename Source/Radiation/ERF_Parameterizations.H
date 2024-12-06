@@ -6,7 +6,7 @@
 #define ERF_PARAMETERIZATIONS_H_
 
 #include "rrtmgp_const.h"
-#include "ERF_Rad_constants.H"
+#include "ERF_RadConstants.H"
 #include "ERF_Constants.H"
 
  AMREX_FORCE_INLINE

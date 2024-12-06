@@ -17,8 +17,8 @@
 #include <AMReX_MultiFabUtil.H>
 
 #include "ERF_Constants.H"
-#include "ERF_Aero_rad_props.H"
-#include "ERF_Cloud_rad_props.H"
+#include "ERF_AeroRadProps.H"
+#include "ERF_CloudRadProps.H"
 
 // Radiation code interface class
 class Optics {

@@ -1,5 +1,5 @@
 #include "ERF_TerrainPoisson.H"
-#include "ERF_FFT_Utils.H"
+#include "ERF_FFTUtils.H"
 
 using namespace amrex;
 

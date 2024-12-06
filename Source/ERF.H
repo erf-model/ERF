@@ -30,7 +30,7 @@
 #include <AMReX_MemProfiler.H>
 #endif
 
-#include "ERF_prob_common.H"
+#include "ERF_ProbCommon.H"
 
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>

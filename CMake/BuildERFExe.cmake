@@ -37,20 +37,20 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_EB)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/EB/Init_EB.cpp
-                   ${SRC_DIR}/EB/ERF_eb_box.cpp
-                   ${SRC_DIR}/EB/ERF_eb_cylinder.cpp
-                   ${SRC_DIR}/EB/ERF_eb_regular.cpp
-                   ${SRC_DIR}/EB/ERF_initEB.cpp
-                   ${SRC_DIR}/EB/ERF_writeEBsurface.cpp 
-                   ${SRC_DIR}/LinearSolvers/ERF_solve_with_EB_mlmg.cpp)
+                   ${SRC_DIR}/EB/InitEB.cpp
+                   ${SRC_DIR}/EB/ERF_EBBox.cpp
+                   ${SRC_DIR}/EB/ERF_EBCylinder.cpp
+                   ${SRC_DIR}/EB/ERF_EBRegular.cpp
+                   ${SRC_DIR}/EB/ERF_InitEB.cpp
+                   ${SRC_DIR}/EB/ERF_WriteEBsurface.cpp 
+                   ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/EB>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EB)
   endif()
 
   if(ERF_ENABLE_FFT)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/LinearSolvers/ERF_solve_with_fft.cpp)
+                   ${SRC_DIR}/LinearSolvers/ERF_SolveWithFFT.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_FFT)
   endif()
 
@@ -80,12 +80,12 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_RRTMGP)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Utils/ERF_Orbit.cpp
-                   ${SRC_DIR}/Radiation/ERF_Init_rrtmgp.cpp
-                   ${SRC_DIR}/Radiation/ERF_Finalize_rrtmgp.cpp
-                   ${SRC_DIR}/Radiation/ERF_Run_longwave_rrtmgp.cpp
-                   ${SRC_DIR}/Radiation/ERF_Run_shortwave_rrtmgp.cpp
-                   ${SRC_DIR}/Radiation/ERF_Cloud_rad_props.cpp
-                   ${SRC_DIR}/Radiation/ERF_Aero_rad_props.cpp
+                   ${SRC_DIR}/Radiation/ERF_InitRRTMGP.cpp
+                   ${SRC_DIR}/Radiation/ERF_FinalizeRRTMGP.cpp
+                   ${SRC_DIR}/Radiation/ERF_RunLongWaveRRTMGP.cpp
+                   ${SRC_DIR}/Radiation/ERF_RunShortWaveRRTMGP.cpp
+                   ${SRC_DIR}/Radiation/ERF_CloudRadProps.cpp
+                   ${SRC_DIR}/Radiation/ERF_AeroRadProps.cpp
                    ${SRC_DIR}/Radiation/ERF_Optics.cpp
                    ${SRC_DIR}/Radiation/ERF_Radiation.cpp
                    ${SRC_DIR}/Radiation/ERF_Albedo.cpp
@@ -107,22 +107,22 @@ function(build_erf_lib erf_lib_name)
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
        ${SRC_DIR}/ERF.cpp
-       ${SRC_DIR}/ERF_make_new_arrays.cpp
-       ${SRC_DIR}/ERF_make_new_level.cpp
-       ${SRC_DIR}/ERF_read_waves.cpp
+       ${SRC_DIR}/ERF_MakeNewArrays.cpp
+       ${SRC_DIR}/ERF_MakeNewLevel.cpp
+       ${SRC_DIR}/ERF_ReadWaves.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForState.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForOpenBC.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_ABLMost.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_MOSTAverage.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_cons.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_xvel.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_yvel.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_zvel.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_basestate.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_bndryreg.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditions_realbdy.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsCons.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsXvel.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsYvel.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsZvel.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBaseState.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBndryReg.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsRealbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillCoarsePatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillIntermediatePatch.cpp
@@ -138,18 +138,18 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeTurbulentViscosity.cpp
-       ${SRC_DIR}/Initialization/ERF_init_bcs.cpp
-       ${SRC_DIR}/Initialization/ERF_init_custom.cpp
-       ${SRC_DIR}/Initialization/ERF_init_from_hse.cpp
-       ${SRC_DIR}/Initialization/ERF_init_from_input_sounding.cpp
-       ${SRC_DIR}/Initialization/ERF_init_from_wrfinput.cpp
-       ${SRC_DIR}/Initialization/ERF_init_from_metgrid.cpp
-       ${SRC_DIR}/Initialization/ERF_init_geowind.cpp
-       ${SRC_DIR}/Initialization/ERF_init_rayleigh.cpp
-       ${SRC_DIR}/Initialization/ERF_init_sponge.cpp
-       ${SRC_DIR}/Initialization/ERF_init_uniform.cpp
-       ${SRC_DIR}/Initialization/ERF_init1d.cpp
-       ${SRC_DIR}/Initialization/ERF_init_TurbPert.cpp
+       ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
+       ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
+       ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
+       ${SRC_DIR}/Initialization/ERF_InitFromInputSounding.cpp
+       ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
+       ${SRC_DIR}/Initialization/ERF_InitFromMetgrid.cpp
+       ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp
+       ${SRC_DIR}/Initialization/ERF_InitRayleigh.cpp
+       ${SRC_DIR}/Initialization/ERF_InitSponge.cpp
+       ${SRC_DIR}/Initialization/ERF_InitUniform.cpp
+       ${SRC_DIR}/Initialization/ERF_Init1D.cpp
+       ${SRC_DIR}/Initialization/ERF_InitTurbPert.cpp
        ${SRC_DIR}/IO/ERF_Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
@@ -157,55 +157,55 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Write1DProfiles_stag.cpp
        ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
        ${SRC_DIR}/IO/ERF_Plotfile.cpp
-       ${SRC_DIR}/IO/ERF_writeJobInfo.cpp
-       ${SRC_DIR}/IO/ERF_console_io.cpp
+       ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
+       ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNN25.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
-       ${SRC_DIR}/SourceTerms/ERF_make_buoyancy.cpp
-       ${SRC_DIR}/SourceTerms/ERF_add_thin_body_sources.cpp
-       ${SRC_DIR}/SourceTerms/ERF_make_mom_sources.cpp
-       ${SRC_DIR}/SourceTerms/ERF_make_sources.cpp
-       ${SRC_DIR}/SourceTerms/ERF_moist_set_rhs.cpp
+       ${SRC_DIR}/SourceTerms/ERF_MakeBuoyancy.cpp
+       ${SRC_DIR}/SourceTerms/ERF_AddThinBodySources.cpp
+       ${SRC_DIR}/SourceTerms/ERF_MakeMomSources.cpp
+       ${SRC_DIR}/SourceTerms/ERF_MakeSources.cpp
+       ${SRC_DIR}/SourceTerms/ERF_MoistSetRhs.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_advance_dycore.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_advance_microphysics.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_advance_lsm.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_advance_radiation.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_make_tau_terms.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_T.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_MT.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_AdvanceDycore.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_AdvanceMicrophysics.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_AdvanceLSM.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_AdvanceRadiation.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_MakeFastCoeffs.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_MakeTauTerms.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPre.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPost.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_N.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_T.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_MT.cpp
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_compute_divergence.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_solve_with_gmres.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_solve_with_mlmg.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp 
+       ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
-       ${SRC_DIR}/Utils/ERF_Time_Avg_Vel.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_Init_SAM.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_Cloud_SAM.cpp
+       ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_Precip.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_PrecipFall.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_Update_SAM.cpp
-       ${SRC_DIR}/Microphysics/Kessler/ERF_Init_Kessler.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_UpdateSAM.cpp
+       ${SRC_DIR}/Microphysics/Kessler/ERF_InitKessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/ERF_Kessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/ERF_Update_Kessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/ERF_UpdateKessler.cpp
        ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
        ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
        ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
