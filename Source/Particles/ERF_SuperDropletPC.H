@@ -265,7 +265,11 @@ class SuperDropletPC : public ERFPC
 
         /*! Initialization parameters objects */
         int m_num_initializations = 1;
+        /*! vector of initializations */
         std::vector< std::unique_ptr<SDInitialization> > m_initializations;
+
+        /*! sigma_0 parameter for mass distribution calculation */
+        amrex::Real m_sigma0;
 
         /*! \brief read inputs from file */
         virtual void readInputs ();

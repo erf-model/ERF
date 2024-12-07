@@ -36,6 +36,7 @@ void SuperDropletPC::readInputs ()
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
     m_distribution_grid_size = 100;
+    m_sigma0 = 0.62;
 
     /* Newton solver parameters */
     m_newton_rtol = 1.0e-6;
@@ -74,6 +75,7 @@ void SuperDropletPC::readInputs ()
     pp.query("mass_change_unconverged_log_filename", m_mass_change_log_fname);
     pp.query("distribution_grid_size", m_distribution_grid_size);
     pp.query("include_brownian_coalescence", m_include_brownian_coalescence);
+    pp.query("sigma0", m_sigma0);
 
     std::string ti_name = "backward_euler";
     pp.query("mass_change_cfl", m_mass_change_cfl);
