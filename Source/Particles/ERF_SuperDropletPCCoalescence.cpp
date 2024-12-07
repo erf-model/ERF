@@ -128,6 +128,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
         auto* t_coal_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::t_coalescence).data();
+        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
 
         /* aerosol masses */
         SDAerosolMassArr aerosol_mass_ptrs;
@@ -338,6 +339,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     v_i[d] = v_ptr[d][pi];
                     v_j[d] = v_ptr[d][pj];
                 }
+                v_i[AMREX_SPACEDIM-1] -= vterm_ptr[pi];
+                v_j[AMREX_SPACEDIM-1] -= vterm_ptr[pj];
 
                 if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
                     k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
@@ -389,7 +392,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
             auto scaled_prob = prob_sd_ij * scaling_factor;
 
-            auto t_coalescence = 1.0/scaled_prob;
+            auto t_coalescence = 1.0/(scaled_prob+1.0e-99);
             t_coal_ptr[i] = t_coalescence;
 
             auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
