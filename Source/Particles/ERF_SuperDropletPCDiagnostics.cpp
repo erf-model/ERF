@@ -348,8 +348,7 @@ void SuperDropletPC::ComputeDistributions( const int& a_iter,
     }
 
     const auto np = NumSuperDroplets();
-    const ParticleReal sigma_0 = 0.62;
-    const ParticleReal sigma = sigma_0 * std::exp(-0.2*std::log(static_cast<ParticleReal>(np)));
+    const ParticleReal sigma = m_sigma0 * std::exp(-0.2*std::log(static_cast<ParticleReal>(np)));
     const ParticleReal lambda = 1.0 / (2.0*sigma*sigma);
     const ParticleReal gamma = 1.0/(std::sqrt(2.0*PI)*sigma) * inv_bin_volume;
 
