@@ -5,7 +5,7 @@
  .. role:: f(code)
     :language: fortran
 
-.. _sec:Buoyancy:
+.. _Buoyancy:
 
 ERF has several options for how to define the buoyancy force.
 
