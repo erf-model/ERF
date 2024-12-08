@@ -47,8 +47,6 @@ erf.plot_vars_1     = density rhotheta rhoadv_0 x_velocity y_velocity z_velocity
 erf.plot_lsm = true
 
 # SOLVER CHOICE
-erf.alpha_T = 1.0
-erf.alpha_C = 1.0
 erf.use_gravity = true
 
 erf.molec_diff_type = "None"
