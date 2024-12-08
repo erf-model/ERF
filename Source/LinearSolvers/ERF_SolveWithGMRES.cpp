@@ -32,5 +32,7 @@ void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& ph
     gmsolver.solve(phi[0], rhs[0], reltol, abstol);
 
     tp.getFluxes(phi[0], fluxes[0]);
+#else
+    amrex::ignore_unused(lev, rhs, phi, fluxes);
 #endif
 }
