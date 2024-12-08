@@ -1,3 +1,5 @@
+#ifdef ERF_USE_FFT
+
 #include "ERF_TerrainPoisson.H"
 #include "ERF_FFTUtils.H"
 
@@ -14,15 +16,11 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
       m_stretched_dz_d(stretched_dz_lev_d),
       m_zphys(z_phys_nd)
 {
-#ifdef ERF_USE_FFT
     if (!m_2D_fft_precond) {
         Box bounding_box = ba.minimalBox();
         bc_fft = get_fft_bc(geom,domain_bc_type,bounding_box);
         m_2D_fft_precond = std::make_unique<FFT::PoissonHybrid<MultiFab>>(geom,bc_fft);
     }
-#else
-    amrex::ignore_unused(domain_bc_type);
-#endif
 }
 
 void TerrainPoisson::usePrecond (bool use_precond_in)
@@ -251,3 +249,4 @@ void TerrainPoisson::setToZero(MultiFab& v)
 {
     v.setVal(0);
 }
+#endif

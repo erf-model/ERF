@@ -1,14 +1,13 @@
 #ifndef ERF_TERRAIN_POISSON_H_
 #define ERF_TERRAIN_POISSON_H_
 
-#include "ERF_TerrainPoisson_3D_K.H"
-
-#ifdef ERF_USE_FFT
-#include <AMReX_FFT_Poisson.H>
-#endif
-
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
+
+#ifdef ERF_USE_FFT
+
+#include "ERF_TerrainPoisson_3D_K.H"
+#include <AMReX_FFT_Poisson.H>
 
 class TerrainPoisson
 {
@@ -59,10 +58,9 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> m_stretched_dz_d;
     const amrex::MultiFab* m_zphys;
 
-#ifdef ERF_USE_FFT
     std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_fft_precond;
     amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM> bc_fft;
-#endif
 };
 
+#endif
 #endif
