@@ -77,7 +77,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     Real rhsnorm = rhs[0].norm0();
 
     if (mg_verbose > 0) {
-        Print() << "Max norm of divergence before solve at level " << lev << " : " << rhsnorm << std::endl;
+        Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " << rhs[0].norm2() << std::endl;
     }
 
     // ****************************************************************************
@@ -214,7 +214,21 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     {
         compute_divergence(lev, rhs[0], mom_mf, geom_tmp[0]);
 
-        amrex::Print() << "Max norm of divergence after  solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
+        Print() << "Max/L2 norm of divergence  after solve at level " << lev << " : " << rhs[0].norm0() << " " << rhs[0].norm2() << std::endl;
+
+#if 0
+         // FOR DEBUGGING ONLY
+         for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+         {
+            const Array4<Real const>& rhs_arr = rhs[0].const_array(mfi);
+            Box bx = mfi.validbox();
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (std::abs(rhs_arr(i,j,k)) > 1.e-10) {
+                    amrex::Print() << "RHS AT " << IntVect(i,j,k) << " " << rhs_arr(i,j,k) << std::endl;
+                }
+            });
+         } // mfi
+#endif
 
     } // mg_verbose
 

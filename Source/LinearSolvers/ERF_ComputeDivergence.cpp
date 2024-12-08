@@ -62,14 +62,15 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Vector<MultiFab>& mom_mf, 
 
             const Array4<Real const>& ax_arr = ax[lev]->const_array(mfi);
             const Array4<Real const>& ay_arr = ay[lev]->const_array(mfi);
-            const Array4<Real const>& az_arr = az[lev]->const_array(mfi);
             const Array4<Real const>& dJ_arr = detJ_cc[lev]->const_array(mfi);
-
+            //
+            // az == 1 for terrain-fitted coordinates
+            //
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 rhs_arr(i,j,k) =   ((ax_arr(i+1,j,k)*rho0u_arr(i+1,j,k) - ax_arr(i,j,k)*rho0u_arr(i,j,k)) * dxInv[0]
                                    +(ay_arr(i,j+1,k)*rho0v_arr(i,j+1,k) - ay_arr(i,j,k)*rho0v_arr(i,j,k)) * dxInv[1]
-                                   +(az_arr(i,j,k+1)*rho0w_arr(i,j,k+1) - az_arr(i,j,k)*rho0w_arr(i,j,k)) * dxInv[2]) / dJ_arr(i,j,k);
+                                   +(                rho0w_arr(i,j,k+1) -               rho0w_arr(i,j,k)) * dxInv[2]) / dJ_arr(i,j,k);
             });
         } // mfi
 

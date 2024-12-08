@@ -21,7 +21,7 @@ get_fft_bc (Geometry const& lev_geom,
             (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir)) &&
             (lev_geom.Domain().bigEnd(dir)   == bounding_box.bigEnd(dir)) ) {
             r[dir] = std::make_pair(FFT::Boundary::periodic,FFT::Boundary::periodic);
-             amrex::Print() << "SETTING " << dir << " TO PERIODIC " << std::endl;
+             // amrex::Print() << "SETTING " << dir << " TO PERIODIC " << std::endl;
         }
 
         else if ( (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir)) &&
@@ -30,7 +30,7 @@ get_fft_bc (Geometry const& lev_geom,
                   (bc_type_hi != "Outflow" && bc_type_hi != "Open") )
         {
             r[dir] = std::make_pair(FFT::Boundary::even,FFT::Boundary::even);
-            amrex::Print() << "SETTING " << dir << " TO EVEN EVEN " << std::endl;
+            // amrex::Print() << "SETTING " << dir << " TO EVEN EVEN " << std::endl;
         }
 
         else if ( (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir)) &&
@@ -39,26 +39,26 @@ get_fft_bc (Geometry const& lev_geom,
                   (bc_type_hi == "Outflow" || bc_type_hi == "Open") )
         {
             r[dir] = std::make_pair(FFT::Boundary::odd,FFT::Boundary::odd);
-            amrex::Print() << "SETTING " << dir << " TO ODD ODD " << std::endl;
+            // amrex::Print() << "SETTING " << dir << " TO ODD ODD " << std::endl;
         }
 
         else if ( (lev_geom.Domain().smallEnd(dir)   == bounding_box.smallEnd(dir)) &&
                   (bc_type_lo == "Outflow" || bc_type_lo == "Open") )
         {
                 r[dir] = std::make_pair(FFT::Boundary::odd,FFT::Boundary::even);
-             amrex::Print() << "SETTING " << dir << " TO ODD EVEN " << std::endl;
+             // amrex::Print() << "SETTING " << dir << " TO ODD EVEN " << std::endl;
         }
 
         else if ( (lev_geom.Domain().bigEnd(dir)   == bounding_box.bigEnd(dir)) &&
                   (bc_type_hi == "Outflow" || bc_type_hi == "Open") )
         {
             r[dir] = std::make_pair(FFT::Boundary::even,FFT::Boundary::odd);
-            amrex::Print() << "SETTING " << dir << " TO EVEN ODD " << std::endl;
+            // amrex::Print() << "SETTING " << dir << " TO EVEN ODD " << std::endl;
         }
         else
         {
             r[dir] = std::make_pair(FFT::Boundary::even,FFT::Boundary::even);
-            amrex::Print() << "SETTING " << dir << " TO EVEN EVEN " << std::endl;
+            // amrex::Print() << "SETTING " << dir << " TO EVEN EVEN " << std::endl;
         }
     } // dir
 

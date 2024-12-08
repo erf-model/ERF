@@ -24,6 +24,8 @@ public:
 
     void apply(amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
 
+    void apply_bcs(amrex::MultiFab& phi);
+
     void usePrecond(bool precond_flag);
 
     void getFluxes(amrex::MultiFab& phi, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
@@ -59,6 +61,7 @@ private:
 
 #ifdef ERF_USE_FFT
     std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_fft_precond;
+    amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM> bc_fft;
 #endif
 };
 
