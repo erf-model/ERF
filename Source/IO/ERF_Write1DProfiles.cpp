@@ -356,33 +356,28 @@ ERF::derive_diag_profiles(Real /*time*/,
             const Array4<Real>& v_cc_arr =  v_cc.array(mfi);
             const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
             const Array4<Real>&   p0_arr = p_hse.array(mfi);
-            const Array4<Real>&   qv_arr = qmoist[0][0]->array(mfi); // TODO: Is this written only on lev 0?
 
             int rhoqr_comp = solverChoice.RhoQr_comp;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+                Real qv = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);
+                Real qc = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);
+                Real qr = (rhoqr_comp > -1) ?  cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp) :
+                                               Real(0.0);
+                Real p  = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
 
                 p -= p0_arr(i,j,k);
                 fab_arr(i, j, k,18) = p;                       // p
                 fab_arr(i, j, k,19) = p * u_cc_arr(i,j,k);     // p*u
                 fab_arr(i, j, k,20) = p * v_cc_arr(i,j,k);     // p*v
                 fab_arr(i, j, k,21) = p * w_cc_arr(i,j,k);     // p*w
-                fab_arr(i, j, k,22) = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // qv
-                fab_arr(i, j, k,23) = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // qc
-                if (rhoqr_comp > -1) {
-                    fab_arr(i, j, k,24) = cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp);  // qr
-                } else {
-                    fab_arr(i, j, k,24) = Real(0.0);
-                }
-                fab_arr(i, j, k,25) = w_cc_arr(i,j,k) * cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // w*qv
-                fab_arr(i, j, k,26) = w_cc_arr(i,j,k) * cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // w*qc
-                if (rhoqr_comp > -1) {
-                    fab_arr(i, j, k,27) = w_cc_arr(i,j,k) * cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp);  // w*qr
-                } else {
-                    fab_arr(i, j, k,27) = Real(0.0);
-                }
+                fab_arr(i, j, k,22) = qv;  // qv
+                fab_arr(i, j, k,23) = qc;  // qc
+                fab_arr(i, j, k,24) = qr;  // qr
+                fab_arr(i, j, k,25) = w_cc_arr(i,j,k) * qv;  // w*qv
+                fab_arr(i, j, k,26) = w_cc_arr(i,j,k) * qc;  // w*qc
+                fab_arr(i, j, k,27) = w_cc_arr(i,j,k) * qr;  // w*qr
                 if (n_qstate > 3) {
                     fab_arr(i, j, k,28) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
                     fab_arr(i, j, k,29) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
@@ -392,9 +387,9 @@ ERF::derive_diag_profiles(Real /*time*/,
                     fab_arr(i, j, k,29) = 0.0;  // qs
                     fab_arr(i, j, k,30) = 0.0;  // qg
                 }
-                Real ql = fab_arr(i, j, k,22) + fab_arr(i, j, k,23);
+                Real ql    = qc + qr;
                 Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
-                Real thv = theta * (1 + 0.61*qv_arr(i,j,k) - ql);
+                Real thv   = theta * (1 + 0.61*qv - ql);
                 fab_arr(i, j, k,31) = w_cc_arr(i,j,k) * thv; // w*thv
             });
         } // mfi
