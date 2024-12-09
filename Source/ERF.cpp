@@ -1061,7 +1061,9 @@ ERF::InitData_post ()
                 // we don't want to call update_fluxes multiple times because
                 // it will change u* and theta* from their previous values
                 m_most->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
-                                    solverChoice.RhoQv_comp, solverChoice.RhoQr_comp);
+                                    solverChoice.RhoQv_comp,
+                                    solverChoice.RhoQc_comp,
+                                    solverChoice.RhoQr_comp);
                 m_most->update_fluxes(lev, time);
             }
         }
