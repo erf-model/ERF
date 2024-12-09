@@ -72,7 +72,12 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // Compute divergence which will form RHS
     // Note that we replace "rho0w" with the contravariant momentum, Omega
     // ****************************************************************************
-    compute_divergence(lev, rhs[0], mom_mf, geom_tmp[0]);
+    Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
+    rho0_u_const[0] = &mom_mf[IntVars::xmom];
+    rho0_u_const[1] = &mom_mf[IntVars::ymom];
+    rho0_u_const[2] = &mom_mf[IntVars::zmom];
+
+    compute_divergence(lev, rhs[0], rho0_u_const, geom_tmp[0]);
 
     Real rhsnorm = rhs[0].norm0();
 
@@ -212,7 +217,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     //
     if (mg_verbose > 0)
     {
-        compute_divergence(lev, rhs[0], mom_mf, geom_tmp[0]);
+        compute_divergence(lev, rhs[0], rho0_u_const, geom_tmp[0]);
 
         Print() << "Max/L2 norm of divergence  after solve at level " << lev << " : " << rhs[0].norm0() << " " << rhs[0].norm2() << std::endl;
 

@@ -22,8 +22,8 @@ private:
     std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
     std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_inc;
     std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int )> slow_rhs_post;
-    std::function<void(int, int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real,
-                                                                const amrex::Real, const amrex::Real)> fast_rhs;
+    std::function<void(int, int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real,
+                                                                const amrex::Real, const amrex::Real, const amrex::Real)> fast_rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -145,6 +145,7 @@ public:
     }
 
     void set_fast_rhs (std::function<void(int, int, int, T&, const T&, T&, T&, T&,
+                                          const amrex::Real, const amrex::Real,
                                           const amrex::Real, const amrex::Real,
                                           const amrex::Real, const amrex::Real)> F)
     {
@@ -289,8 +290,10 @@ public:
                 // *******************************************************************************
                 for (int ks = 0; ks < nsubsteps; ++ks)
                 {
+                    // We pass time and time_stage so that -- in the case of moving terrain --
+                    //    we can interpolate the base state between old_step_time and time_stage
                     fast_rhs(ks, nsubsteps, nrk, *F_slow, S_old, S_new, *S_sum, *S_scratch, dtau, inv_fac,
-                             time + ks*dtau, time + (ks+1) * dtau);
+                             time, time_stage, time + ks*dtau, time + (ks+1) * dtau);
 
                 } // ks
 

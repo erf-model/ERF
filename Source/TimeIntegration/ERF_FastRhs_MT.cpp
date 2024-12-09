@@ -29,7 +29,8 @@ using namespace amrex;
  * @param[in   ] detJ_cc_old Jacobian of the metric transformation at old time
  * @param[in   ] detJ_cc_new Jacobian of the metric transformation at new time
  * @param[in   ] detJ_cc_stg Jacobian of the metric transformation at previous stage
- * @param[in   ] dtau fast time step
+ * @param[in   ] delta_r0
+ * @param[in   ] dtau        fast time step
  * @param[in   ] beta_s  Coefficient which determines how implicit vs explicit the solve is
  * @param[in   ] facinv inverse factor for time-averaging the momenta
  * @param[in   ] mapfac_m map factor at cell centers
@@ -63,6 +64,7 @@ void erf_fast_rhs_MT (int step, int nrk,
                       std::unique_ptr<MultiFab>& detJ_cc_old,        // at previous substep time (tau)
                       std::unique_ptr<MultiFab>& detJ_cc_new,        // at      new substep time (tau + delta tau)
                       std::unique_ptr<MultiFab>& detJ_cc_stg,        // at last RK stg
+                      const MultiFab& delta_r0,
                       const Real dtau, const Real beta_s,
                       const Real facinv,
                       std::unique_ptr<MultiFab>& mapfac_m,
@@ -173,6 +175,8 @@ void erf_fast_rhs_MT (int step, int nrk,
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
+
+        const Array4<Real const>& delta_r0_arr = delta_r0.const_array(mfi);
 
         // Map factors
         const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
@@ -444,7 +448,10 @@ void erf_fast_rhs_MT (int step, int nrk,
 
             // line 1
             RHS_a(i,j,k) = dJ_old_kface * prev_zmom(i,j,k) - dJ_stg_kface * stg_zmom(i,j,k)
-                            + dtau *(slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp );
+                            + dtau *(slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
+
+            // Subtract the RHS with the time-varying base state adjustment
+            RHS_a(i,j,k) -= dtau * halfg * (delta_r0_arr(i,j,k) + delta_r0_arr(i,j,k-1));
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
             Real UppVpp = dJ_new_kface * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,z_nd_new,dxInv)

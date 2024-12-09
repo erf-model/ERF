@@ -288,6 +288,7 @@ ERF::ERF_shared ()
     // Base state
     base_state.resize(nlevs_max);
     base_state_new.resize(nlevs_max);
+    base_state_src.resize(nlevs_max);
 
     // Wave coupling data
     Hwave.resize(nlevs_max);
@@ -575,7 +576,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         // Copy z_phs_nd and detJ_cc at end of timestep
         MultiFab::Copy(*z_phys_nd[lev], *z_phys_nd_new[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
         MultiFab::Copy(  *detJ_cc[lev],   *detJ_cc_new[lev], 0, 0, 1,   detJ_cc[lev]->nGrowVect());
-        MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
+        MultiFab::Copy(base_state[lev]    ,base_state_new[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
+        MultiFab::Copy(base_state_src[lev],base_state_new[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
 
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
@@ -968,9 +970,10 @@ ERF::InitData_post ()
         // For moving terrain only
         if (solverChoice.terrain_type == TerrainType::Moving) {
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
+            MultiFab::Copy(base_state_src[lev],base_state[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
+            base_state_src[lev].FillBoundary(geom[lev].periodicity());
         }
-
     }
 
     // Allow idealized cases over water, used to set lmask

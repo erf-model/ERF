@@ -37,6 +37,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.terrain_type == TerrainType::Moving) {
         base_state_new[lev].define(ba,dm,BaseState::num_comps,base_state[lev].nGrowVect());
         base_state_new[lev].setVal(0.);
+        base_state_src[lev].define(ba,dm,BaseState::num_comps,base_state[lev].nGrowVect());
+        base_state_src[lev].setVal(0.);
     }
 
     // ********************************************************************************************

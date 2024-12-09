@@ -157,6 +157,7 @@
                                   xflux_imask[level], yflux_imask[level], zflux_imask[level],
                                   thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
+
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
             //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
             //    we no longer discretize the vertical pressure gradient in perturbational form.
@@ -174,6 +175,10 @@
             const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
             const Real l_rdOcp   = solverChoice.rdOcp;
+
+            // First copy base_state_new into base_state_src, so that base_state_src always holds the
+            //  base state at the time where we most recently computed the slow RHS
+            MultiFab::Copy(base_state_src[level], base_state_new[level], 0, 0, BaseState::num_comps,base_state_new[level].nGrowVect());
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())

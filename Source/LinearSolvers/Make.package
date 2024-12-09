@@ -1,10 +1,9 @@
 CEXE_headers += ERF_TerrainPoisson_3D_K.H
 CEXE_headers += ERF_TerrainPoisson.H
-CEXE_sources += ERF_TerrainPoisson.cpp
 
-CEXE_sources += ERF_ComputeDivergence.cpp
 CEXE_sources += ERF_PoissonSolve.cpp
 CEXE_sources += ERF_PoissonSolve_tb.cpp
+CEXE_sources += ERF_TerrainPoisson.cpp
 CEXE_sources += ERF_SolveWithGMRES.cpp
 CEXE_sources += ERF_SolveWithMLMG.cpp
 

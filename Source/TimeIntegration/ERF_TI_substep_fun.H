@@ -9,6 +9,8 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         Vector<MultiFab>& S_scratch,
                         const Real dtau,
                         const Real inv_fac,
+                        const Real old_step_time,
+                        const Real new_stage_time,
                         const Real old_substep_time,
                         const Real new_substep_time)
     {
@@ -96,6 +98,30 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                              l_use_moisture, SolverChoice::terrain_type, solverChoice.gravity, solverChoice.c_p,
                              detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
 
+            MultiFab r0_at_old_step_time(base_state[level]    , make_alias, BaseState::r0_comp , 1);
+            MultiFab r0_at_old_stg_time (base_state_src[level], make_alias, BaseState::r0_comp , 1);
+            MultiFab r0_at_new_stg_time (base_state_new[level], make_alias, BaseState::r0_comp , 1);
+
+            Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
+            Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
+            Real time_of_fast_rhs = beta_1 * old_substep_time + beta_2 * new_substep_time;
+
+            // No ghost cells needed since this is only for buoyancy computation
+            MultiFab delta_r0_at_fast_rhs_time(base_state[level].boxArray(), base_state[level].DistributionMap(),1,0);
+            //
+            // First we compute r0 at the time when the fast RHS will be computed (time_of_fast_rhs) and
+            //
+            Real alpha = (time_of_fast_rhs - old_step_time) / (new_stage_time - old_step_time);
+            Real   oma = 1.0 - alpha;
+            MultiFab::LinComb(delta_r0_at_fast_rhs_time, oma, r0_at_old_step_time, 0, alpha, r0_at_new_stg_time, 0, 0, 1, 0);
+            //
+            // Note we really want to pass in the difference between
+            //     r0 at the time when the fast RHS will be computed (time_of_fast_rhs) and
+            //     r0 at the time when the slow RHS     was computed (old_stage_time)
+            // so we subtract off the latter
+            //
+            MultiFab::Subtract(delta_r0_at_fast_rhs_time, r0_at_old_stg_time,0,0,1,0);
+
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
@@ -105,6 +131,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
+                                delta_r0_at_fast_rhs_time,
                                 dtau, beta_s, inv_fac,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
@@ -117,6 +144,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
+                                delta_r0_at_fast_rhs_time,
                                 dtau, beta_s, inv_fac,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);

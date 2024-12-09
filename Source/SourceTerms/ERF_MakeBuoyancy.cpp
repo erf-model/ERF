@@ -40,9 +40,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 {
     BL_PROFILE("make_buoyancy()");
 
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
-    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
-
     const int klo = geom.Domain().smallEnd()[2];
     const int khi = geom.Domain().bigEnd()[2] + 1;
 
@@ -52,6 +49,8 @@ void make_buoyancy (Vector<MultiFab>& S_data,
     MultiFab r0 (base_state, make_alias, BaseState::r0_comp , 1);
     MultiFab p0 (base_state, make_alias, BaseState::p0_comp , 1);
     MultiFab th0(base_state, make_alias, BaseState::th0_comp, 1);
+
+    Real grav_gpu = -solverChoice.gravity;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -83,7 +82,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 //
                 // Return -rho0 g (thetaprime / theta0)
                 //
-                buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,grav_gpu[2],
+                buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,grav_gpu,
                                                                r0_arr,th0_arr,cell_data);
             });
         }
@@ -97,7 +96,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 //
                 // Return -rho0 g (thetaprime / theta0)
                 //
-                buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],rv_over_rd,
+                buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu,rv_over_rd,
                                                                  r0_arr,th0_arr,cell_data);
             });
         }
@@ -114,7 +113,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     //
                     // Return -rho0 g (thetaprime / theta0)
                     //
-                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,n_q_dry,grav_gpu[2],
+                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,n_q_dry,grav_gpu,
                                                              r0_arr,cell_data);
                 });
             }
@@ -125,7 +124,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     //
                     // Return -rho0 g (Tprime / T0)
                     //
-                    buoyancy_fab(i, j, k) = buoyancy_dry_Tpert(i,j,k,grav_gpu[2],rd_over_cp,
+                    buoyancy_fab(i, j, k) = buoyancy_dry_Tpert(i,j,k,grav_gpu,rd_over_cp,
                                                                r0_arr,p0_arr,th0_arr,cell_data);
                 });
             }
@@ -136,7 +135,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     //
                     // Return -rho0 g (Theta_prime / Theta_0)
                     //
-                    buoyancy_fab(i, j, k) = buoyancy_dry_Thpert(i,j,k,grav_gpu[2],
+                    buoyancy_fab(i, j, k) = buoyancy_dry_Thpert(i,j,k,grav_gpu,
                                                                 r0_arr,th0_arr,cell_data);
                 });
             } // buoyancy_type for dry compressible
@@ -158,7 +157,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             {
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,n_qstate,grav_gpu[2],
+                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,n_qstate,grav_gpu,
                                                              r0_arr,cell_data);
                 });
             }
@@ -167,7 +166,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],rd_over_cp,
+                    buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu,rd_over_cp,
                                                                  r0_arr,th0_arr,p0_arr,
                                                                  cell_prim,cell_data);
                 });
@@ -176,7 +175,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             {
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    buoyancy_fab(i, j, k) = buoyancy_moist_Thpert(i,j,k,n_qstate,grav_gpu[2],
+                    buoyancy_fab(i, j, k) = buoyancy_moist_Thpert(i,j,k,n_qstate,grav_gpu,
                                                                   r0_arr,th0_arr,cell_prim);
                     });
             }
