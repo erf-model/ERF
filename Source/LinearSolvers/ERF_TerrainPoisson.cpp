@@ -1,3 +1,5 @@
+#ifdef ERF_USE_FFT
+
 #include "ERF_TerrainPoisson.H"
 #include "ERF_FFTUtils.H"
 
@@ -14,15 +16,11 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
       m_stretched_dz_d(stretched_dz_lev_d),
       m_zphys(z_phys_nd)
 {
-#ifdef ERF_USE_FFT
     if (!m_2D_fft_precond) {
         Box bounding_box = ba.minimalBox();
-        auto bc_fft = get_fft_bc(geom,domain_bc_type,bounding_box);
+        bc_fft = get_fft_bc(geom,domain_bc_type,bounding_box);
         m_2D_fft_precond = std::make_unique<FFT::PoissonHybrid<MultiFab>>(geom,bc_fft);
     }
-#else
-    amrex::ignore_unused(domain_bc_type);
-#endif
 }
 
 void TerrainPoisson::usePrecond (bool use_precond_in)
@@ -34,9 +32,6 @@ void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
 {
     AMREX_ASSERT(rhs.nGrowVect().allGT(0));
 
-    auto domlo = lbound(m_geom.Domain());
-    auto domhi = ubound(m_geom.Domain());
-
     MultiFab& xx = const_cast<MultiFab&>(rhs);
 
     auto const& dxinv = m_geom.InvCellSizeArray();
@@ -44,62 +39,87 @@ void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
     auto const& y = lhs.arrays();
     auto const& zpa = m_zphys->const_arrays();
 
-    // Impose periodic and internal boundary conditions
-    xx.FillBoundary(m_geom.periodicity());
-
-    if (!m_geom.isPeriodic(0)) {
-        for (MFIter mfi(xx,true); mfi.isValid(); ++mfi)
-        {
-            Box bx = mfi.tilebox();
-            const Array4<Real>& x_arr = xx.array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                if (i == domlo.x) {
-                    x_arr(i-1,j,k) = x_arr(i,j,k);
-                } else if (i == domhi.x) { // OUTFLOW
-                    x_arr(i+1,j,k) = -x_arr(i,j,k);
-                }
-            });
-        }
-    }
-    if (!m_geom.isPeriodic(1)) {
-        for (MFIter mfi(xx,true); mfi.isValid(); ++mfi)
-        {
-            Box bx = mfi.tilebox();
-            Box bx2(bx); bx2.grow(0,1);
-            const Array4<Real>& x_arr = xx.array(mfi);
-            ParallelFor(bx2, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                if (j == domlo.y) {
-                    x_arr(i,j-1,k) = x_arr(i,j,k);
-                } else if (j == domhi.y) {
-                    x_arr(i,j+1,k) = x_arr(i,j,k);
-                }
-            });
-        } // mfi
-    }
-
-    for (MFIter mfi(xx,true); mfi.isValid(); ++mfi)
-    {
-        Box bx = mfi.tilebox();
-        Box bx2(bx); bx2.grow(0,1);
-        Box bx3(bx2); bx3.grow(1,1);
-        const Array4<Real>& x_arr = xx.array(mfi);
-        ParallelFor(bx3, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            if (k == domlo.z) {
-                x_arr(i,j,k-1) = x_arr(i,j,k);
-            } else if (k == domhi.z) {
-                x_arr(i,j,k+1) = x_arr(i,j,k);
-            }
-        });
-    } // mfi
+    apply_bcs(xx);
 
     auto const& xc = xx.const_arrays();
     ParallelFor(rhs, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
         terrpoisson_adotx(i, j, k, y[b], xc[b], zpa[b], dxinv[0], dxinv[1]);
     });
+}
+
+void TerrainPoisson::apply_bcs (MultiFab& phi)
+{
+    auto domlo = lbound(m_geom.Domain());
+    auto domhi = ubound(m_geom.Domain());
+
+    phi.FillBoundary(m_geom.periodicity());
+
+    if (!m_geom.isPeriodic(0)) {
+        for (MFIter mfi(phi,true); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.tilebox();
+            const Array4<Real>& phi_arr = phi.array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                if (i == domlo.x) {
+                    if (bc_fft[0].first == FFT::Boundary::even) {
+                        phi_arr(i-1,j,k) =  phi_arr(i,j,k);
+                    } else if (bc_fft[0].first == FFT::Boundary::odd) {
+                        phi_arr(i-1,j,k) = -phi_arr(i,j,k);
+                    }
+                } else if (i == domhi.x) {
+                    if (bc_fft[0].second == FFT::Boundary::even) {
+                        phi_arr(i+1,j,k) =  phi_arr(i,j,k);
+                    } else if (bc_fft[0].second == FFT::Boundary::odd) {
+                        phi_arr(i+1,j,k) = -phi_arr(i,j,k);
+                    }
+                }
+            });
+        } // mfi
+    }
+    if (!m_geom.isPeriodic(1)) {
+        for (MFIter mfi(phi,true); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.tilebox();
+            Box bx2(bx); bx2.grow(0,1);
+            const Array4<Real>& phi_arr = phi.array(mfi);
+            ParallelFor(bx2, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                if (j == domlo.y) {
+                    if (bc_fft[1].first == FFT::Boundary::even) {
+                        phi_arr(i,j-1,k) =  phi_arr(i,j,k);
+                    } else if (bc_fft[1].first == FFT::Boundary::odd) {
+                        phi_arr(i,j-1,k) = -phi_arr(i,j,k);
+                    }
+                } else if (j == domhi.y) {
+                    if (bc_fft[1].second == FFT::Boundary::even) {
+                        phi_arr(i,j+1,k) =  phi_arr(i,j,k);
+                    } else if (bc_fft[1].second == FFT::Boundary::odd) {
+                        phi_arr(i,j+1,k) = -phi_arr(i,j,k);
+                    }
+                }
+            });
+        } // mfi
+    }
+
+    for (MFIter mfi(phi,true); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        Box bx2(bx); bx2.grow(0,1);
+        Box bx3(bx2); bx3.grow(1,1);
+        const Array4<Real>& phi_arr = phi.array(mfi);
+        ParallelFor(bx3, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (k == domlo.z) {
+                phi_arr(i,j,k-1) = phi_arr(i,j,k);
+            } else if (k == domhi.z) {
+                phi_arr(i,j,k+1) = phi_arr(i,j,k);
+            }
+        });
+    } // mfi
+
+    phi.FillBoundary(m_geom.periodicity());
 }
 
 void TerrainPoisson::getFluxes (MultiFab& phi,
@@ -113,42 +133,24 @@ void TerrainPoisson::getFluxes (MultiFab& phi,
     auto const& x   = phi.const_arrays();
     auto const& zpa = m_zphys->const_arrays();
 
-    phi.FillBoundary(m_geom.periodicity());
+    apply_bcs(phi);
 
     auto const& fx = fluxes[0].arrays();
     ParallelFor(fluxes[0], [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        if (i == domlo.x) {
-            fx[b](i,j,k) = 0.0;
-        } else if (i == domhi.x+1) {
-            fx[b](i,j,k) = 0.0;
-        } else {
-            fx[b](i,j,k) = terrpoisson_flux_x(i,j,k,x[b],zpa[b],dxinv[0]);
-        }
+        fx[b](i,j,k) = terrpoisson_flux_x(i,j,k,x[b],zpa[b],dxinv[0]);
     });
 
     auto const& fy = fluxes[1].arrays();
     ParallelFor(fluxes[1], [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        if (j == domlo.y) {
-            fy[b](i,j,k) = 0.0;
-        } else if (j == domhi.y+1) {
-            fy[b](i,j,k) = 0.0;
-        } else {
-            fy[b](i,j,k) = terrpoisson_flux_y(i,j,k,x[b],zpa[b],dxinv[1]);
-        }
+        fy[b](i,j,k) = terrpoisson_flux_y(i,j,k,x[b],zpa[b],dxinv[1]);
     });
 
     auto const& fz = fluxes[2].arrays();
     ParallelFor(fluxes[2], [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        if (k == domlo.z) {
-            fz[b](i,j,k) = 0.0;
-        } else if (k == domhi.z+1) {
-            fz[b](i,j,k) = 0.0;
-        } else {
-            fz[b](i,j,k) = terrpoisson_flux_z(i,j,k,x[b],zpa[b],dxinv[0],dxinv[1]);
-        }
+        fz[b](i,j,k) = terrpoisson_flux_z(i,j,k,x[b],zpa[b],dxinv[0],dxinv[1]);
     });
 }
 
@@ -199,8 +201,6 @@ void TerrainPoisson::precond (MultiFab& lhs, MultiFab const& rhs)
 #ifdef ERF_USE_FFT
     if (m_use_precond)
     {
-        amrex::Print() << "Using the hybrid FFT solver as a preconditioner..." << std::endl;
-
         // Make a version that isn't constant
         MultiFab& rhs_tmp = const_cast<MultiFab&>(rhs);
 
@@ -249,3 +249,4 @@ void TerrainPoisson::setToZero(MultiFab& v)
 {
     v.setVal(0);
 }
+#endif
