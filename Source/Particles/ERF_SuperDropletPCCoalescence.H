@@ -204,7 +204,7 @@ struct CollisionKernel
 
         } else if ((irr >= 1) && (irr < 15)) {
 
-            RT p =   ( a_r1*1.0e6            - Halls_data_r0col(irr-1) )
+            RT p =   ( r1*1.0e6              - Halls_data_r0col(irr-1) )
                    / ( Halls_data_r0col(irr) - Halls_data_r0col(irr-1) );
 
             RT q =   ( ratio                  - Halls_data_ratcol(iqq-1) )
