@@ -79,7 +79,7 @@ ERF::redistribute_term ( MFIter const& mfi, int lev,
         //     scratch(i,j,k) = 1.;
         // });
 
-        std::string redistribution_type = "StateRedistribution";
+        std::string redistribution_type = "StateRedist";
 
         // State redist acts on the state.
         Array4<Real const> state_arr = state.const_array(mfi);
