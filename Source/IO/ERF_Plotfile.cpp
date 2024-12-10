@@ -1,7 +1,6 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
 #include "AMReX_Interp_3D_C.H"
-#include "AMReX_PlotFileUtil.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Constants.H"
 
@@ -368,7 +367,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             u[0] = &(vars_new[lev][Vars::xvel]);
             u[1] = &(vars_new[lev][Vars::yvel]);
             u[2] = &(vars_new[lev][Vars::zvel]);
-            computeDivergence(dmf, u, geom[lev]);
+            compute_divergence (lev, dmf, u, geom[lev]);
             mf_comp += 1;
         }
 

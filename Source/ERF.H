@@ -164,8 +164,8 @@ public:
     void WriteMyEBSurface ();
 #endif
 
-    // Compute the divergence of the momenta
-    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Vector<amrex::MultiFab>& mom_mf,
+    // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
+    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
                              amrex::Geometry const& geom_at_lev);
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
