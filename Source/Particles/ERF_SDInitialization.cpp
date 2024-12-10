@@ -40,7 +40,8 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
     pp.query("initial_super_droplet_density", m_numdens_sd_init);
     pp.query("maximum_multiplicity", m_max_multiplicity);
     pp.query("initial_condensate_distribution_type", m_condensate_init_type);
-    pp.query("initial_condensate_mass", m_mass_condensate_mean);
+    pp.query("initial_condensate_mass_mean", m_mass_condensate_mean);
+    pp.query("initial_condensate_mass_min", m_mass_condensate_min);
     pp.query("initial_condensate_min_radius", m_radius_condensate_min);
     pp.query("initial_condensate_max_radius", m_radius_condensate_max);
 
@@ -137,6 +138,7 @@ void SDInitialization::printParameters ( const std::vector<std::unique_ptr<Mater
         Print() << "value=" << m_mass_condensate_mean;
     } else if (m_condensate_init_type == SupDropInit::attrib_init_exp) {
         Print() << "mean=" << m_mass_condensate_mean;
+        Print() << ", min=" << m_mass_condensate_min;
     } else if (m_condensate_init_type == SupDropInit::attrib_init_lnr) {
         Print() << "min=" << m_radius_condensate_min
                 << ", max=" << m_radius_condensate_max;
@@ -226,9 +228,10 @@ void SDInitialization::getCondensateDistribution ( amrex::Vector<amrex::Real>& a
     if (m_condensate_init_type == SupDropInit::attrib_init_exp) {
         std::random_device rd;
         std::mt19937 rng(rd());
-        std::exponential_distribution<amrex::Real> ed(1.0/m_mass_condensate_mean);
+        auto delta = m_mass_condensate_mean - m_mass_condensate_min;
+        std::exponential_distribution<amrex::Real> ed(1.0/delta);
         for (int n = 0; n < a_np; n++) {
-            a_condensate_mass[n] = ed(rng);
+            a_condensate_mass[n] = ed(rng) + m_mass_condensate_min;
         }
     } else if (m_condensate_init_type == SupDropInit::attrib_init_const) {
         for (int n = 0; n < a_np; n++) {
