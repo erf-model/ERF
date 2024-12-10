@@ -51,6 +51,8 @@ struct SDInitialization
     std::string m_condensate_init_type = SupDropInit::attrib_init_const;
     /*! Initial mean condensate mass */
     amrex::Real m_mass_condensate_mean = 4.1887902e-42; // => radius = 1e-15 [m];
+    /*! Initial minimum condensate mass */
+    amrex::Real m_mass_condensate_min = 4.1887902e-45; // => radius = 1e-16 [m];
     /*! Initial minimum condensate radius */
     amrex::Real m_radius_condensate_min = 1e-15;
     /*! Initial maximum condensate radius */
