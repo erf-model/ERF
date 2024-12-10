@@ -29,7 +29,6 @@ xlo.velocity = 10. 0. 0.
 xlo.density  = 1.0
 xlo.theta    = 1.0
 xlo.scalar   = 0.
-xlo.rhotheta = 1.
 
 zlo.type = SlipWall
 zhi.type = SlipWall
