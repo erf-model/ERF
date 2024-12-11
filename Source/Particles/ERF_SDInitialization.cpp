@@ -25,6 +25,8 @@ void SDInitialization::setDefaults ( const std::vector<std::unique_ptr<MaterialP
         m_radius_aerosol_mean[i] = 1.0e-40;
         m_radius_aerosol_std[i] = 1.0;
     }
+
+    m_mult_type = SDMultiplicityType::sampled;
 }
 
 void SDInitialization::readInputs ( const std::string& a_prefix,
@@ -47,6 +49,8 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
 
     pp.query("initial_seeds_per_cell", m_ppc_seed);
     pp.query("seed_condensate_mass", m_seed_mass);
+
+    pp.query("multiplicity_type", m_mult_type);
 
     if (m_type == SupDropInit::init_uniform) {
         amrex::Vector<amrex::Real> particle_box_lo(AMREX_SPACEDIM);
@@ -131,7 +135,8 @@ void SDInitialization::printParameters ( const std::vector<std::unique_ptr<Mater
     using namespace amrex;
     Print() << "    Initial particle box: " << m_init_particle_box << "\n"
             << "    Initial number density: " << m_numdens_init << "\n"
-            << "    Iniital super-droplets number density: " << m_numdens_sd_init << "\n";
+            << "    Inital super-droplets number density: " << m_numdens_sd_init << "\n"
+            << "    Initial multiplicity type: " << amrex::getEnumNameString(m_mult_type) << "\n";
 
     Print() << "    Condensate initial distribution: " << m_condensate_init_type << " (";
     if (m_condensate_init_type == SupDropInit::attrib_init_const) {
@@ -170,6 +175,42 @@ void SDInitialization::printParameters ( const std::vector<std::unique_ptr<Mater
     Print() << "    Number of seed particles per cell: " << m_ppc_seed << "\n"
             << "    Seed condensate mass: " << m_seed_mass << "\n";
 
+}
+
+void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_aerosol_mass,
+                                                const int a_idx,
+                                                const int a_np,
+                                                const amrex::Real a_density ) const
+{
+    a_aerosol_mass.resize(a_np);
+    if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_const) {
+        for (int n = 0; n < a_np; n++) {
+            a_aerosol_mass[n] = m_mass_aerosol_mean[a_idx];
+        }
+    } else if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_exp) {
+        std::random_device rd;
+        std::mt19937 rng(rd());
+        auto delta = m_mass_aerosol_mean[a_idx] - m_mass_aerosol_min[a_idx];
+        std::exponential_distribution<amrex::Real> ed(1.0/delta);
+        for (int n = 0; n < a_np; n++) {
+            a_aerosol_mass[n] = ed(rng) + m_mass_aerosol_min[a_idx];
+        }
+    } else if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_lnr) {
+        std::random_device rd;
+        std::mt19937 rng(rd());
+        std::uniform_real_distribution<> urd(0.0, 1.0);
+        auto delta =   std::log(m_radius_aerosol_max[a_idx])
+                     - std::log(m_radius_aerosol_min[a_idx]);
+        for (int n = 0; n < a_np; n++) {
+            auto term = std::log(m_radius_aerosol_min[a_idx]) + urd(rng)*delta;
+            auto dry_r = std::exp(term);
+            a_aerosol_mass[n] = (4.0/3.0) * PI
+                                * dry_r * dry_r * dry_r
+                                * a_density;
+        }
+    } else {
+        amrex::Abort("Unknown m_aerosol_init_type!");
+    }
 }
 
 void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_aerosol_mass,

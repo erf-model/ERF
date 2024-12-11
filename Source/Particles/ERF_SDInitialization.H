@@ -6,6 +6,7 @@
 #include <random>
 
 #include <AMReX_ParmParse.H>
+#include <AMReX_Enum.H>
 #include <AMReX_REAL.H>
 #include <AMReX_RealBox.H>
 #include <AMReX_Geometry.H>
@@ -29,6 +30,10 @@ namespace SupDropInit
     const std::string attrib_init_exp = "mass_exponential";
     const std::string attrib_init_lnr = "radius_log_normal";
 }
+
+AMREX_ENUM(SDMultiplicityType,
+    constant, sampled
+);
 
 /*! \brief Super-droplets initialization structure */
 struct SDInitialization
@@ -86,6 +91,9 @@ struct SDInitialization
     /*! box within which to place particles*/
     amrex::RealBox m_init_particle_box;
 
+    /*! multiplicity type */
+    SDMultiplicityType m_mult_type;
+
     /*! set default values */
     void setDefaults ( const std::vector<std::unique_ptr<MaterialProperties>>& );
 
@@ -97,7 +105,10 @@ struct SDInitialization
     /*! print super-droplets initialization parameters to screen */
     void printParameters ( const std::vector<std::unique_ptr<MaterialProperties>>& ) const;
 
-    /*! Compute the aerosol mass distribution */
+    /*! Compute the aerosol mass distribution (constant multiplicity) */
+    void getAerosolDistribution ( amrex::Vector<amrex::Real>&, int, int, amrex::Real ) const;
+
+    /*! Compute the aerosol mass distribution (sampled multiplicity) */
     void getAerosolDistribution ( amrex::Vector<amrex::Real>&, amrex::Vector<amrex::Real>&, int, int, amrex::Real ) const;
 
     /*! Compute the condensate mass distribution */
@@ -125,6 +136,12 @@ struct SDInitialization
             num_par_per_cell = 1;
         }
         return num_par_per_cell;
+    }
+
+    /* return whether multiplicity is sampled or constant */
+    [[nodiscard]] inline bool sampledMultiplicity() const
+    {
+        return (m_mult_type == SDMultiplicityType::sampled);
     }
 
 };

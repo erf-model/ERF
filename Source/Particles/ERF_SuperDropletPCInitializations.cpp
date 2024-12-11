@@ -361,6 +361,8 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
     const int n_aerosols_max = SupDropInit::num_aerosols_max;
     const Real mat_density = m_vapour_mat->density();
 
+    const auto sampled_multiplicity = a_init.sampledMultiplicity();
+
     const int n_seeds = a_init.m_ppc_seed;
     const Real condensate_mass_seed = a_init.m_seed_mass;
 
@@ -455,16 +457,22 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         Vector<Real> multiplicity_h(np, 0.0);
         for (int i = 0; i < n_aerosols; i++) {
             Vector<Real> aerosol_mass_h;
-            a_init.getAerosolDistribution( aerosol_mass_h, multiplicity_h, i, np,  m_aerosol_mat[i]->density() );
+            if (sampled_multiplicity) {
+                a_init.getAerosolDistribution( aerosol_mass_h, multiplicity_h, i, np,  m_aerosol_mat[i]->density() );
+            } else {
+                a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->density() );
+            }
             Gpu::copy( Gpu::hostToDevice,
                        aerosol_mass_h.begin(),
                        aerosol_mass_h.end(),
                        aerosol_mass_d.begin() + (i*np) );
         }
-        Gpu::copy( Gpu::hostToDevice,
-                   multiplicity_h.begin(),
-                   multiplicity_h.end(),
-                   multiplicity_d.begin() );
+        if (sampled_multiplicity) {
+            Gpu::copy( Gpu::hostToDevice,
+                       multiplicity_h.begin(),
+                       multiplicity_h.end(),
+                       multiplicity_d.begin() );
+        }
 
         Gpu::DeviceVector<Real> condensate_mass_d;
         {
@@ -491,12 +499,13 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
             Real num_to_add = num_par_per_cell;
             Real n_par_per_supdrop = std::ceil(num_par_per_cell/num_sd_per_cell);
 
-            Real mult_sum = 0.0;
-            {
+            Real mult_scale = 1.0;
+            if (sampled_multiplicity) {
+                Real mult_sum = 0.0;
                 int start = offset_arr(i,j,k);
                 for (int n = start; n < start+num_sd_this_cell; n++) { mult_sum += mult_arr[n]; }
+                mult_scale = num_par_per_cell / mult_sum;
             }
-            auto mult_scale = num_par_per_cell / mult_sum;
 
             int start = offset_arr(i,j,k);
             for (int n = start; n < start+num_sd_this_cell; n++) {
@@ -514,14 +523,19 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 p.idata(SuperDropletsIntIdxAoS::k) = k;
 
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = 0.0;
-                auto mult_this_sd = std::ceil(mult_arr[n] * mult_scale);
+
+                Real mult_this_sd = 0;
+                if (sampled_multiplicity) {
+                    mult_this_sd = std::ceil(mult_arr[n] * mult_scale);
+                } else {
+                    mult_this_sd = n_par_per_supdrop;
+                }
                 if (mult_this_sd < num_to_add) {
                     mult_ptr[n] = mult_this_sd;
-                    num_to_add -= mult_this_sd;
                 } else {
                     mult_ptr[n] = num_to_add;
-                    num_to_add = 0;
                 }
+                num_to_add -= mult_ptr[n];
 
                 ParticleReal aerosol_mass_total = 0.0;
                 for (int ctr = 0; ctr < n_aerosols; ctr++) {
