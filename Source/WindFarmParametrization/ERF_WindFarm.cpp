@@ -84,6 +84,7 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
     file.close();
 
     Real rad_earth = 6371.0e3; // Radius of the earth
+    Real km_per_deg_lat = rad_earth*2.0*M_PI/(2.0*180.0);
 
     // Find the coordinates of average of min and max of the farm
     // Rotate about that point
@@ -93,8 +94,8 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
     Real lon_min = *std::min_element(lon.begin(), lon.end());
     Real lon_max = *std::max_element(lon.begin(), lon.end());
 
-    Real lat_cen = 0.5*(lat_min+lat_max)*M_PI/180.0;
-    Real lon_cen = 0.5*(lon_min+lon_max)*M_PI/180.0;
+    Real lat_cen = lat_min*M_PI/180.0;
+    Real lon_cen = lon_min*M_PI/180.0;
 
     // (lat_lo, lon_lo) is mapped to (0,0)
 
@@ -119,12 +120,9 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         yloc.push_back(dy_turb);
     }
 
-    Real xloc_min = *std::min_element(xloc.begin(),xloc.end());
-    Real yloc_min = *std::min_element(yloc.begin(),yloc.end());
-
     for(int it = 0;it<xloc.size(); it++){
-        xloc[it] = xloc[it] - xloc_min + windfarm_x_shift;
-        yloc[it] = yloc[it] - yloc_min + windfarm_y_shift;
+        xloc[it] = xloc[it] + windfarm_x_shift;
+        yloc[it] = yloc[it] + windfarm_y_shift;
     }
 }
 
