@@ -115,15 +115,16 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    // If we are doing implicit acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
                    if (l_implicit_substepping) {
-                       if (nxc > 1 && nyc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
-                       } else if (nxc > 1) {
+                       if ((nxc > 1) && (nyc==1)) {
+                           // 2-D in x-z
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]), new_comp_dt);
-                       } else if (nyc > 1) {
+                       } else if ((nyc > 1) && (nxc==1)) {
+                           // 2-D in y-z
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
                        } else {
-                           amrex::Abort("Not sure how to compute dt for this case");
+                           // 3-D or SCM
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
                        }
 
                    // If we are not doing implicit acoustic substepping, then the z-direction contributes

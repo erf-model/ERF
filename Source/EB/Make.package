@@ -6,6 +6,5 @@ CEXE_sources += ERF_EBCylinder.cpp
 CEXE_sources += ERF_EBRegular.cpp
 CEXE_sources += ERF_Redistribute.cpp
 CEXE_sources += ERF_WriteEBSurface.cpp
-
 CEXE_headers += ERF_EBIF.H
 CEXE_headers += ERF_TerrainIF.H

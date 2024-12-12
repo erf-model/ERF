@@ -8,12 +8,12 @@ using namespace amrex;
 
 /*! \brief Compute coalescence rate between two superdroplets */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static ParticleReal coalescence_rate ( const RandomEngine& a_rnd_eng, /*!< random engine */
+static ParticleReal coalescence_rate ( const Real a_rnd, /*!< random real number */
                                        const Real a_p /*!< probability */ )
 {
     ParticleReal p_int = std::floor(a_p);
     ParticleReal gamma = p_int;
-    if (Random(a_rnd_eng) < (a_p-p_int)) { gamma += 1; }
+    if (a_rnd < (a_p-p_int)) { gamma += 1; }
     return gamma;
 }
 
@@ -157,9 +157,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             // get the max bin size
             Gpu::Buffer<unsigned int> max_np_bin_d({0});
             auto max_np_bin_ptr = max_np_bin_d.data();
-            ParallelForRNG( bins.numBins(),
-                            [=] AMREX_GPU_DEVICE (int i_bin,
-                                                  RandomEngine const& rnd_eng) noexcept
+            ParallelFor( bins.numBins(), [=] AMREX_GPU_DEVICE (int i_bin) noexcept
             {
                 auto bin_start = offsets[i_bin];
                 auto bin_stop = offsets[i_bin+1];
@@ -172,11 +170,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             Vector<unsigned int> stencil_vec(max_np_bin);
             for (unsigned int i = 0; i < max_np_bin; i++) { stencil_vec[i] = i; }
             // now shuffle it
-            {
-                std::random_device rd;
-                std::mt19937 g(rd());
-                std::shuffle ( stencil_vec.begin(),stencil_vec.end(), g );
-            }
+            std::shuffle ( stencil_vec.begin(),stencil_vec.end(), *m_random_engine );
             // Copy to device
             Gpu::DeviceVector<unsigned int> stencil_vec_d;
             stencil_vec_d.resize(max_np_bin);
@@ -214,11 +208,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
         }
 #else
         for (int i_bin = 0; i_bin < bins.numBins(); i_bin++) {
-            std::random_device rd;
-            std::mt19937 g(rd());
             std::shuffle( inds + offsets[i_bin],
                           inds + offsets[i_bin+1],
-                          g );
+                          *m_random_engine );
         }
 #endif
 
@@ -277,9 +269,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         struct timeval mcpairing_start, mcpairing_end;
         gettimeofday(&mcpairing_start, NULL);
 
-        ParallelForRNG( bins.numBins(),
-                        [=] AMREX_GPU_DEVICE (int i_bin,
-                                              RandomEngine const& rnd_eng) noexcept
+        ParallelFor( bins.numBins(), [=] AMREX_GPU_DEVICE (int i_bin) noexcept
         {
             auto bin_start = offsets[i_bin];
             auto bin_stop = offsets[i_bin+1];
@@ -316,9 +306,21 @@ void SuperDropletPC::Coalescence( int   a_lev,
         struct timeval coalescence_start, coalescence_end;
         gettimeofday(&coalescence_start, NULL);
 
-        ParallelForRNG( np,
-                        [=] AMREX_GPU_DEVICE (int i,
-                                              RandomEngine const& rnd_eng) noexcept
+        Gpu::DeviceVector<Real> rand_d(np);
+        {
+            Vector<Real> rand_h(rand_d.size());
+            std::uniform_real_distribution<> urd(0.0,1.0);
+            for (int i = 0; i < rand_h.size(); i++) {
+                rand_h[i] = urd(*m_random_engine);
+            }
+            Gpu::copy( Gpu::hostToDevice,
+                        rand_h.begin(),
+                        rand_h.end(),
+                        rand_d.begin() );
+        }
+        auto rand_arr = rand_d.data();
+
+        ParallelFor( np, [=] AMREX_GPU_DEVICE (int i) noexcept
         {
             if (partner_idx_ptr[i] < 0) { return; }
             if (!flag_prey_ptr[i]) { return; }
@@ -395,7 +397,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto t_coalescence = 1.0/(scaled_prob+1.0e-99);
             t_coal_ptr[i] = t_coalescence;
 
-            auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
+            auto gamma = coalescence_rate ( rand_arr[i], (scaled_prob*a_dt) );
             if (gamma > 0) {
                 amrex::Gpu::Atomic::Add(particle_collisions_ptr, gamma);
                 coal_rate_ptr[pi] = std::min(gamma,std::floor(mult_ptr[pi]/mult_ptr[pj]));

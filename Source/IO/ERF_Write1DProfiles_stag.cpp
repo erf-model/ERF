@@ -459,21 +459,24 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
             const Array4<Real>& v_cc_arr =  v_cc.array(mfi);
             const Array4<Real>& w_fc_arr =  w_fc.array(mfi);
             const Array4<Real>&   p0_arr = p_hse.array(mfi);
-            const Array4<Real>&   qv_arr = qmoist[0][0]->array(mfi); // TODO: Is this written only on lev 0?
 
             int rhoqr_comp = solverChoice.RhoQr_comp;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+                Real qv = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);
+                Real qc = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);
+                Real qr = (rhoqr_comp > -1) ?  cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp) :
+                                               Real(0.0);
+                Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
 
                 p -= p0_arr(i,j,k);
                 fab_arr(i, j, k,13) = p;                       // p
                 fab_arr(i, j, k,14) = p * u_cc_arr(i,j,k);     // p*u
                 fab_arr(i, j, k,15) = p * v_cc_arr(i,j,k);     // p*v
-                fab_arr(i, j, k,16) = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // qv
-                fab_arr(i, j, k,17) = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // qc
-                fab_arr(i, j, k,18) = cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp);  // qr
+                fab_arr(i, j, k,16) = qv;  // qv
+                fab_arr(i, j, k,17) = qc;  // qc
+                fab_arr(i, j, k,18) = qr;  // qr
                 if (n_qstate > 3) { // SAM model
                     fab_arr(i, j, k,19) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
                     fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
@@ -488,19 +491,21 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
             const Box& zbx = mfi.tilebox(IntVect(0,0,1));
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real p0 = getPgivenRTh(cons_arr(i, j, k  , RhoTheta_comp), qv_arr(i,j,k  )) - p0_arr(i,j,k  );
-                Real p1 = getPgivenRTh(cons_arr(i, j, k-1, RhoTheta_comp), qv_arr(i,j,k-1)) - p0_arr(i,j,k-1);
-                Real pface = 0.5 * (p0 + p1);
-
                 Real qv0 = cons_arr(i,j,k  ,RhoQ1_comp) / cons_arr(i,j,k  ,Rho_comp);
                 Real qv1 = cons_arr(i,j,k-1,RhoQ1_comp) / cons_arr(i,j,k-1,Rho_comp);
                 Real qc0 = cons_arr(i,j,k  ,RhoQ2_comp) / cons_arr(i,j,k  ,Rho_comp);
                 Real qc1 = cons_arr(i,j,k-1,RhoQ2_comp) / cons_arr(i,j,k-1,Rho_comp);
-                Real qr0 = cons_arr(i,j,k  ,RhoQ3_comp) / cons_arr(i,j,k  ,Rho_comp);
-                Real qr1 = cons_arr(i,j,k-1,RhoQ3_comp) / cons_arr(i,j,k-1,Rho_comp);
+                Real qr0 = (rhoqr_comp > -1) ? cons_arr(i,j,k  ,RhoQ3_comp) / cons_arr(i,j,k  ,Rho_comp) :
+                                               Real(0.0);
+                Real qr1 = (rhoqr_comp > -1) ? cons_arr(i,j,k-1,RhoQ3_comp) / cons_arr(i,j,k-1,Rho_comp) :
+                                               Real(0.0);
                 Real qvface = 0.5 * (qv0 + qv1);
                 Real qcface = 0.5 * (qc0 + qc1);
                 Real qrface = 0.5 * (qr0 + qr1);
+
+                Real p0 = getPgivenRTh(cons_arr(i, j, k  , RhoTheta_comp), qv0) - p0_arr(i,j,k  );
+                Real p1 = getPgivenRTh(cons_arr(i, j, k-1, RhoTheta_comp), qv1) - p0_arr(i,j,k-1);
+                Real pface = 0.5 * (p0 + p1);
 
                 Real theta0 = cons_arr(i,j,k  ,RhoTheta_comp) / cons_arr(i,j,k  ,Rho_comp);
                 Real theta1 = cons_arr(i,j,k-1,RhoTheta_comp) / cons_arr(i,j,k-1,Rho_comp);

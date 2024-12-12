@@ -9,10 +9,11 @@ using namespace amrex;
 
 void
 ERF::redistribute_term ( int lev,
-                         MultiFab& result,
-                         MultiFab& result_tmp, // Saves doing a MF::copy. does this matter???
-                         MultiFab const& state,
-                         BCRec const* bc) // this is bc for the state (needed for SRD slopes)
+                    MultiFab& result,
+                    MultiFab& result_tmp, // Saves doing a MF::copy. does this matter???
+                    MultiFab const& state,
+                    BCRec const* bc, // this is bc for the state (needed for SRD slopes)
+                    Real const dt)
 {
     // ************************************************************************
     // Redistribute result_tmp and pass out result
@@ -26,16 +27,17 @@ ERF::redistribute_term ( int lev,
 #endif
     for (MFIter mfi(state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        redistribute_term(mfi, result, result_tmp, state, bc, lev);
+        redistribute_term(mfi, lev, result, result_tmp, state, bc, dt);
     }
 }
 
 void
 ERF::redistribute_term ( MFIter const& mfi, int lev,
-                         MultiFab& result,
-                         MultiFab& result_tmp,
-                         MultiFab const& state,
-                         BCRec const* bc) // this is bc for the state (needed for SRD slopes)
+                    MultiFab& result,
+                    MultiFab& result_tmp,
+                    MultiFab const& state,
+                    BCRec const* bc, // this is bc for the state (needed for SRD slopes)
+                    Real const dt)
 {
     AMREX_ASSERT(result.nComp() == state.nComp());
 
@@ -57,13 +59,13 @@ ERF::redistribute_term ( MFIter const& mfi, int lev,
         auto const& vfrac = ebfact.getVolFrac().const_array(mfi);
         auto const& ccc   = ebfact.getCentroid().const_array(mfi);
 
-        auto const& apx = ebfact.getAreaFrac()[0]->const_array(mfi);,
-        auto const& apy = ebfact.getAreaFrac()[1]->const_array(mfi);,
-        auto const& apz = ebfact.getAreaFrac()[2]->const_array(mfi););
+        auto const& apx = ebfact.getAreaFrac()[0]->const_array(mfi);
+        auto const& apy = ebfact.getAreaFrac()[1]->const_array(mfi);
+        auto const& apz = ebfact.getAreaFrac()[2]->const_array(mfi);
 
-        auto const& fcx = ebfact.getFaceCent()[0]->const_array(mfi);,
-        auto const& fcy = ebfact.getFaceCent()[1]->const_array(mfi);,
-        auto const& fcz = ebfact.getFaceCent()[2]->const_array(mfi););
+        auto const& fcx = ebfact.getFaceCent()[0]->const_array(mfi);
+        auto const& fcy = ebfact.getFaceCent()[1]->const_array(mfi);
+        auto const& fcz = ebfact.getFaceCent()[2]->const_array(mfi);
 
         Box gbx = bx; gbx.grow(3);
 
@@ -77,7 +79,7 @@ ERF::redistribute_term ( MFIter const& mfi, int lev,
         //     scratch(i,j,k) = 1.;
         // });
 
-        std::string redistribution_type = "StateRedistribution";
+        std::string redistribution_type = "StateRedist";
 
         // State redist acts on the state.
         Array4<Real const> state_arr = state.const_array(mfi);
@@ -85,7 +87,7 @@ ERF::redistribute_term ( MFIter const& mfi, int lev,
                              scratch, flag,
                              apx, apy, apz, vfrac,
                              fcx, fcy, fcz, ccc,
-                             bc, geom[lev], m_dt, edistribution_type);
+                             bc, geom[lev], dt, redistribution_type);
     }
     else
     {

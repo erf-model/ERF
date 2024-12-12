@@ -107,19 +107,25 @@ struct SolverChoice {
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
         if (moisture_type == MoistureType::SAM) {
             RhoQv_comp = RhoQ1_comp;
+            RhoQc_comp = RhoQ2_comp;
             RhoQr_comp = RhoQ4_comp;
         } else if (moisture_type == MoistureType::SAM_NoIce) {
             RhoQv_comp = RhoQ1_comp;
+            RhoQc_comp = RhoQ2_comp;
             RhoQr_comp = RhoQ4_comp;
         } else if (moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
             RhoQv_comp = RhoQ1_comp;
+            RhoQc_comp = RhoQ2_comp;
         } else if (moisture_type == MoistureType::Kessler) {
             RhoQv_comp = RhoQ1_comp;
+            RhoQc_comp = RhoQ2_comp;
             RhoQr_comp = RhoQ3_comp;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {
             RhoQv_comp = RhoQ1_comp;
+            RhoQc_comp = RhoQ2_comp;
         } else if (moisture_type == MoistureType::SuperDroplets) {
             RhoQv_comp = RhoQ1_comp;
+            RhoQc_comp = RhoQ2_comp;
             RhoQr_comp = RhoQ3_comp;
         }
 
@@ -644,6 +650,7 @@ struct SolverChoice {
     bool do_precip {true};
     bool use_moist_background {false};
     int RhoQv_comp {-1};
+    int RhoQc_comp {-1};
 
     // This component will be model-dependent:
     // if a model with no rain, this will stay -1
