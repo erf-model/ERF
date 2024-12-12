@@ -10,6 +10,7 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
 #include <AMReX_buildInfo.H>
+#include <AMReX_Random.H>
 #include <ERF_Utils.H>
 #include <ERF_TerrainMetrics.H>
 #include <memory>
@@ -84,6 +85,15 @@ Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 //             - initializes BCRec boundary condition object
 ERF::ERF ()
 {
+    int fix_random_seed = 0;
+    ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
+    // Note that the value of 1024UL is not significant -- the point here is just to set the
+    // same seed for all MPI processes for the purpose of regression testing
+    if (fix_random_seed) {
+        Print() << "Fixing the random seed" << std::endl;
+        InitRandom(1024UL);
+    }
+
     ERF_shared();
 }
 

@@ -223,6 +223,8 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         std::string m_initialization_type;  /*!< initial particle distribution type */
         int m_ppc_init;                     /*!< initial number of particles per cell */
 
+        bool m_stable_redistribute;         /*!< use stable redistribute for deterministic simulations */
+
         /*! read inputs from file */
         virtual void readInputs ();
 
