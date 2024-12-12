@@ -62,7 +62,10 @@
 
         // Canopy data for mom sources
         MultiFab* forest_drag = nullptr;
-        if (solverChoice.do_forest) { forest_drag = m_forest[level]->get_drag_field(); }
+        if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
+        // Immersed Forcing
+        MultiFab* terrain_blank = nullptr;
+        if(solverChoice.do_terrain_drag) { terrain_blank = m_terrain_drag[level]->get_terrain_blank_field(); }
 
         // Moving terrain
         if ( solverChoice.terrain_type == TerrainType::Moving )
@@ -131,7 +134,7 @@
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new, zvel_new,
                              xmom_src, ymom_src, zmom_src,
-                             base_state_new[level], forest_drag, fine_geom, solverChoice,
+                             base_state_new[level], forest_drag, terrain_blank, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -240,7 +243,7 @@
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new, zvel_new,
                              xmom_src, ymom_src, zmom_src,
-                             base_state[level], forest_drag, fine_geom, solverChoice,
+                             base_state[level], forest_drag, terrain_blank, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
@@ -432,7 +435,10 @@
 
         // Canopy data for mom sources
         MultiFab* forest_drag = nullptr;
-        if (solverChoice.do_forest) { forest_drag = m_forest[level]->get_drag_field(); }
+        if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
+        // Immersed Forcing
+        MultiFab* terrain_blank = nullptr;
+        if(solverChoice.do_terrain_drag) { terrain_blank = m_terrain_drag[level]->get_terrain_blank_field(); }
 
         make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
@@ -449,7 +455,7 @@
                          z_phys_nd[level], z_phys_cc[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
-                         base_state[level], forest_drag, fine_geom, solverChoice,
+                         base_state[level], forest_drag, terrain_blank, fine_geom, solverChoice,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,

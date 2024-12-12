@@ -53,6 +53,7 @@ void make_mom_sources (int level,
                               MultiFab & zmom_src,
                        const MultiFab& base_state,
                              MultiFab* forest_drag,
+                             MultiFab* terrain_blank,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& /*mapfac_m*/,
@@ -86,10 +87,21 @@ void make_mom_sources (int level,
     //    6. nudging towards input sounding data
     //    7. numerical diffusion for (xmom,ymom,zmom)
     //    8. sponge
+    //    9. Forest canopy
+    //   10. Immersed Forcing
     // *****************************************************************************
-    const bool l_use_ndiff    = solverChoice.use_NumDiff;
-    const bool use_terrain    = solverChoice.terrain_type != TerrainType::None;
-    const bool l_do_forest    = solverChoice.do_forest;
+    const bool l_use_ndiff       = solverChoice.use_NumDiff;
+    const bool l_use_zphys       = (solverChoice.mesh_type != MeshType::ConstantDz);
+    const bool l_do_forest_drag  = solverChoice.do_forest_drag;
+    const bool l_do_terrain_drag = solverChoice.do_terrain_drag;
+
+    // Check if terrain and immersed terrain clash
+    if(l_use_zphys && l_do_terrain_drag){
+        amrex::Error(" Cannot use immersed forcing for terrain with terrain-fitted coordinates");
+    }
+    if(l_do_forest_drag && l_do_terrain_drag){
+        amrex::Error(" Currently forest canopy cannot be used with immersed forcing");
+    }
 
     // *****************************************************************************
     // Data for Coriolis forcing
@@ -228,10 +240,12 @@ void make_mom_sources (int level,
 
         const Array4<const Real>& f_drag_arr = (forest_drag) ? forest_drag->const_array(mfi) :
                                                                Array4<const Real>{};
+        const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
+                                                               Array4<const Real>{};
 
-        const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) :
+        const Array4<const Real>& z_nd_arr = (l_use_zphys) ? z_phys_nd->const_array(mfi) :
                                                              Array4<const Real>{};
-        const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) :
+        const Array4<const Real>& z_cc_arr = (l_use_zphys) ? z_phys_cc->const_array(mfi) :
                                                              Array4<const Real>{};
 
         // *****************************************************************************
@@ -491,7 +505,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 9. Add CANOPY source terms
         // *****************************************************************************
-        if (l_do_forest) {
+        if (l_do_forest_drag) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = u(i, j, k);
@@ -524,6 +538,49 @@ void make_mom_sources (int level,
                 const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real f_drag = 0.5 * (f_drag_arr(i, j, k) + f_drag_arr(i, j, k-1));
                 zmom_src_arr(i, j, k) -= f_drag * uz * windspeed;
+            });
+        }
+        // *****************************************************************************
+        // 10. Add Immersed source terms
+        // *****************************************************************************
+        if (l_do_terrain_drag) {
+            const Real drag_coefficient=10.0/dz;
+            const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real ux = u(i, j, k);
+                const Real uy = 0.25 * ( v(i, j  , k  ) + v(i-1, j  , k  )
+                                       + v(i, j+1, k  ) + v(i-1, j+1, k  ) );
+                const Real uz = 0.25 * ( w(i, j  , k  ) + w(i-1, j  , k  )
+                                       + w(i, j  , k+1) + w(i-1, j  , k+1) );
+                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
+                xmom_src_arr(i, j, k) -= t_blank * CdM * ux * windspeed;
+            });
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real ux = 0.25 * ( u(i  , j  , k  ) + u(i  , j-1, k  )
+                                       + u(i+1, j  , k  ) + u(i+1, j-1, k  ) );
+                const Real uy = v(i, j, k);
+                const Real uz = 0.25 * ( w(i  , j  , k  ) + w(i  , j-1, k  )
+                                       + w(i  , j  , k+1) + w(i  , j-1, k+1) );
+                const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
+                ymom_src_arr(i, j, k) -= t_blank * CdM * uy * windspeed;
+            });
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const amrex::Real ux = 0.25 * ( u(i  , j  , k  ) + u(i+1, j  , k  )
+                                              + u(i  , j  , k-1) + u(i+1, j  , k-1) );
+                const amrex::Real uy = 0.25 * ( v(i  , j  , k  ) + v(i  , j+1, k  )
+                                              + v(i  , j  , k-1) + v(i  , j+1, k-1) );
+                const amrex::Real uz = w(i, j, k);
+                const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
+                zmom_src_arr(i, j, k) -= t_blank * CdM * uz * windspeed;
             });
         }
     } // mfi

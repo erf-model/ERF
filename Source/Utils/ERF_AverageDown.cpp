@@ -55,7 +55,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         const Box& bx = mfi.tilebox();
         const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
         const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-        if (SolverChoice::terrain_type != TerrainType::None) {
+        if (SolverChoice::mesh_type != MeshType::ConstantDz) {
             const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
             ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
@@ -119,7 +119,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         const Box& bx = mfi.tilebox();
         const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
         const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-        if (SolverChoice::terrain_type != TerrainType::None) {
+        if (SolverChoice::mesh_type != MeshType::ConstantDz) {
             const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
             ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
