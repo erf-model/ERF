@@ -92,10 +92,10 @@ struct SDInitialization
     void printParameters ( const std::vector<std::unique_ptr<MaterialProperties>>& ) const;
 
     /*! Compute the aerosol mass distribution */
-    void getAerosolDistribution ( amrex::Vector<amrex::Real>&, int, int, amrex::Real ) const;
+    void getAerosolDistribution ( amrex::Vector<amrex::Real>&, int, int, amrex::Real, std::default_random_engine& ) const;
 
     /*! Compute the condensate mass distribution */
-    void getCondensateDistribution ( amrex::Vector<amrex::Real>&, int, amrex::Real ) const;
+    void getCondensateDistribution ( amrex::Vector<amrex::Real>&, int, amrex::Real, std::default_random_engine& ) const;
 
     /*! Compute number of super-droplets per grid cell */
     [[nodiscard]] inline int numSDPerCell (const amrex::Real a_dv) const

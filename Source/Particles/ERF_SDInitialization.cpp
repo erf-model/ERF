@@ -151,7 +151,8 @@ void SDInitialization::printParameters ( const std::vector<std::unique_ptr<Mater
 void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_aerosol_mass,
                                                 const int a_idx,
                                                 const int a_np,
-                                                const amrex::Real a_density ) const
+                                                const amrex::Real a_density,
+                                                std::default_random_engine& a_rng ) const
 {
     a_aerosol_mass.resize(a_np);
     if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_const) {
@@ -159,21 +160,17 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
             a_aerosol_mass[n] = m_mass_aerosol_mean[a_idx];
         }
     } else if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_exp) {
-        std::random_device rd;
-        std::mt19937 rng(rd());
         auto delta = m_mass_aerosol_mean[a_idx] - m_mass_aerosol_min[a_idx];
         std::exponential_distribution<amrex::Real> ed(1.0/delta);
         for (int n = 0; n < a_np; n++) {
-            a_aerosol_mass[n] = ed(rng) + m_mass_aerosol_min[a_idx];
+            a_aerosol_mass[n] = ed(a_rng) + m_mass_aerosol_min[a_idx];
         }
     } else if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_lnr) {
-        std::random_device rd;
-        std::mt19937 rng(rd());
         std::uniform_real_distribution<> urd(0.0, 1.0);
         auto delta =   std::log(m_radius_aerosol_max[a_idx])
                      - std::log(m_radius_aerosol_min[a_idx]);
         for (int n = 0; n < a_np; n++) {
-            auto term = std::log(m_radius_aerosol_min[a_idx]) + urd(rng)*delta;
+            auto term = std::log(m_radius_aerosol_min[a_idx]) + urd(a_rng)*delta;
             auto dry_r = std::exp(term);
             a_aerosol_mass[n] = (4.0/3.0) * PI
                                 * dry_r * dry_r * dry_r
@@ -186,29 +183,26 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
 
 void SDInitialization::getCondensateDistribution ( amrex::Vector<amrex::Real>& a_condensate_mass,
                                                    const int a_np,
-                                                   const amrex::Real a_density ) const
+                                                   const amrex::Real a_density,
+                                                   std::default_random_engine& a_rng ) const
 {
     a_condensate_mass.resize(a_np);
     if (m_condensate_init_type == SupDropInit::attrib_init_exp) {
-        std::random_device rd;
-        std::mt19937 rng(rd());
         auto delta = m_mass_condensate_mean - m_mass_condensate_min;
         std::exponential_distribution<amrex::Real> ed(1.0/delta);
         for (int n = 0; n < a_np; n++) {
-            a_condensate_mass[n] = ed(rng) + m_mass_condensate_min;
+            a_condensate_mass[n] = ed(a_rng) + m_mass_condensate_min;
         }
     } else if (m_condensate_init_type == SupDropInit::attrib_init_const) {
         for (int n = 0; n < a_np; n++) {
             a_condensate_mass[n] = m_mass_condensate_mean;
         }
     } else if (m_condensate_init_type == SupDropInit::attrib_init_lnr) {
-        std::random_device rd;
-        std::mt19937 rng(rd());
         std::uniform_real_distribution<> urd(0.0, 1.0);
         auto delta =    std::log(m_radius_condensate_max)
                      -  std::log(m_radius_condensate_min);
         for (int n = 0; n < a_np; n++) {
-            auto term = std::log(m_radius_condensate_min) + urd(rng)*delta;
+            auto term = std::log(m_radius_condensate_min) + urd(a_rng)*delta;
             auto radius = std::exp(term);
             a_condensate_mass[n] =    (4.0/3.0) * PI
                                     * radius * radius * radius

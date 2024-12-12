@@ -3,6 +3,8 @@
 
 #ifdef ERF_USE_PARTICLES
 
+#include <random>
+
 #include "ERF_MaterialProperties.H"
 #include "ERFPC.H"
 #include "ERF_SDInitialization.H"
@@ -270,6 +272,9 @@ class SuperDropletPC : public ERFPC
 
         /*! sigma_0 parameter for mass distribution calculation */
         amrex::Real m_sigma0;
+
+        /*! random engine */
+        std::unique_ptr<std::default_random_engine> m_random_engine;
 
         /*! \brief read inputs from file */
         virtual void readInputs ();
