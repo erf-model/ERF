@@ -156,7 +156,7 @@ struct SolverChoice {
         // Is the terrain none, static or moving?
         pp.query_enum_case_insensitive("terrain_type",terrain_type);
 
-        if (terrain_type == TerrainType::Moving) {
+        if (terrain_type != TerrainType::None) {
             mesh_type = MeshType::VariableDz;
         }
 
