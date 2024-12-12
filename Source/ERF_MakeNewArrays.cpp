@@ -42,7 +42,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Allocate terrain arrays
     // ********************************************************************************************
-    if (SolverChoice::terrain_type != TerrainType::None) {
+    if (SolverChoice::mesh_type == MeshType::StretchedDz ||
+        SolverChoice::mesh_type == MeshType::VariableDz) {
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
         if (solverChoice.terrain_type == TerrainType::Moving)
@@ -452,7 +453,8 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 void
 ERF::init_zphys (int lev, Real time)
 {
-    if (SolverChoice::terrain_type != TerrainType::None)
+    if (SolverChoice::mesh_type == MeshType::StretchedDz ||
+        SolverChoice::mesh_type == MeshType::VariableDz)
     {
         if (init_type != InitType::Real && init_type != InitType::Metgrid)
         {
@@ -490,7 +492,7 @@ ERF::init_zphys (int lev, Real time)
 void
 ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
-    if (lev > 0 && SolverChoice::terrain_type != TerrainType::None)
+    if (lev > 0 && SolverChoice::mesh_type == MeshType::VariableDz)
     {
         //
         // First interpolate from coarser level
@@ -517,7 +519,8 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 void
 ERF::update_terrain_arrays (int lev)
 {
-    if (SolverChoice::terrain_type != TerrainType::None) {
+    if (SolverChoice::mesh_type == MeshType::StretchedDz ||
+        SolverChoice::mesh_type == MeshType::VariableDz) {
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
@@ -549,7 +552,7 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 void
 ERF::make_physbcs (int lev)
 {
-    if (SolverChoice::terrain_type != TerrainType::None) {
+    if (SolverChoice::mesh_type == MeshType::VariableDz) {
         AMREX_ALWAYS_ASSERT(z_phys_nd[lev] != nullptr);
     }
 

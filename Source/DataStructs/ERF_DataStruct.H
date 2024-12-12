@@ -29,6 +29,10 @@ AMREX_ENUM(SubsteppingType,
     None, Explicit, Implicit
 );
 
+AMREX_ENUM(MeshType,
+    ConstantDz, StretchedDz, VariableDz
+);
+
 AMREX_ENUM(TerrainType,
     None, Static, Moving
 );
@@ -87,6 +91,9 @@ struct SolverChoice {
                                       "The grid stretching ratio must be greater than 1");
         }
         if (grid_stretching_ratio >= 1) {
+            if (mesh_type == MeshType::ConstantDz) {
+                mesh_type    = MeshType::StretchedDz;
+            }
             if (terrain_type != TerrainType::Static) {
                 amrex::Print() << "Turning terrain on to enable grid stretching" << std::endl;
                 terrain_type = TerrainType::Static;
@@ -148,10 +155,20 @@ struct SolverChoice {
 
         // Is the terrain none, static or moving?
         pp.query_enum_case_insensitive("terrain_type",terrain_type);
+
+        if (terrain_type == TerrainType::Moving) {
+            mesh_type = MeshType::VariableDz;
+        }
+
         int n_zlevels = pp.countval("terrain_z_levels");
-        if (n_zlevels > 0 and terrain_type == TerrainType::None)
+        if (n_zlevels > 0)
         {
-            terrain_type = TerrainType::Static;
+            if (terrain_type == TerrainType::None) {
+                terrain_type = TerrainType::Static;
+            }
+            if (mesh_type == MeshType::ConstantDz) {
+                mesh_type    = MeshType::StretchedDz;
+            }
         }
 
         // Use lagged_delta_rt in the fast integrator?
@@ -434,6 +451,17 @@ struct SolverChoice {
             amrex::Print() << "    None" << std::endl;
         }
 
+        amrex::Print() << "   Mesh Type: " << std::endl;
+        if (mesh_type == MeshType::ConstantDz) {
+            amrex::Print() << "    ConstantDz" << std::endl;
+        } else if (mesh_type == MeshType::StretchedDz) {
+            amrex::Print() << "    StretchedDz" << std::endl;
+        } else if (mesh_type == MeshType::VariableDz) {
+            amrex::Print() << "    VariableDz" << std::endl;
+        } else {
+            amrex::Abort("No mesh_type set!");
+        }
+
         amrex::Print() << "ABL Driver Type: " << std::endl;
         if (abl_driver_type == ABLDriverType::None) {
             amrex::Print() << "    None" << std::endl;
@@ -532,6 +560,9 @@ struct SolverChoice {
 
     inline static
     TerrainType terrain_type = TerrainType::None;
+
+    inline static
+    MeshType mesh_type = MeshType::ConstantDz;
 
     static
     void set_flat_terrain_flag ()

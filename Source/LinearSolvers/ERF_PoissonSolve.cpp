@@ -16,8 +16,6 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     auto const dom_hi = ubound(geom[lev].Domain());
 #endif
 
-    bool l_use_terrain = SolverChoice::terrain_type != TerrainType::None;
-
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(mom_mf[Vars::cons].DistributionMap());
@@ -44,7 +42,8 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // ****************************************************************************
     //
 #ifndef ERF_USE_EB
-    if (l_use_terrain && !SolverChoice::terrain_is_flat) {
+    if (solverChoice.mesh_type == MeshType::VariableDz)
+    {
         for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);
@@ -133,7 +132,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // ****************************************************************************
     // No terrain or grid stretching
     // ****************************************************************************
-    if (!l_use_terrain) {
+    if (solverChoice.mesh_type == MeshType::ConstantDz) {
 #ifdef ERF_USE_FFT
         if (use_fft) {
             if (boxes_make_rectangle) {
@@ -156,7 +155,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // ****************************************************************************
     // Grid stretching (flat terrain)
     // ****************************************************************************
-    else if (l_use_terrain && SolverChoice::terrain_is_flat) {
+    else if (solverChoice.mesh_type == MeshType::StretchedDz) {
 #ifndef ERF_USE_FFT
         amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
 #else
@@ -174,7 +173,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // ****************************************************************************
     // General terrain
     // ****************************************************************************
-    else if (l_use_terrain && !SolverChoice::terrain_is_flat) {
+    else if (solverChoice.mesh_type == MeshType::VariableDz) {
 #ifdef ERF_USE_FFT
         if (use_fft)
         {
@@ -243,7 +242,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // Now convert the rho0w MultiFab back to holding (rho0w) rather than Omega
     // ****************************************************************************
     //
-    if (l_use_terrain && !solverChoice.terrain_is_flat)
+    if (solverChoice.mesh_type == MeshType::VariableDz)
     {
         for (MFIter mfi(mom_mf[Vars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
