@@ -10,15 +10,18 @@ amrex::Real
 Thetav (int i, int j, int k,
         const amrex::Array4<const amrex::Real>& cell_data,
         const int RhoQv_comp,
+        const int RhoQc_comp,
         const int RhoQr_comp)
 {
     amrex::Real thetav = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
 
     if (RhoQr_comp > 0) {
         thetav *= (1.0 + 0.61 * cell_data(i,j,k,RhoQv_comp) / cell_data(i,j,k,Rho_comp)
+                              - cell_data(i,j,k,RhoQc_comp) / cell_data(i,j,k,Rho_comp)
                               - cell_data(i,j,k,RhoQr_comp) / cell_data(i,j,k,Rho_comp));
     } else if (RhoQv_comp > 0) {
-        thetav *= (1.0 + 0.61 * cell_data(i,j,k,RhoQ1_comp) / cell_data(i,j,k,Rho_comp));
+        thetav *= (1.0 + 0.61 * cell_data(i,j,k,RhoQ1_comp) / cell_data(i,j,k,Rho_comp)
+                              - cell_data(i,j,k,RhoQc_comp) / cell_data(i,j,k,Rho_comp));
     }
 
     return thetav;
