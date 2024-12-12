@@ -62,10 +62,10 @@
 
         // Canopy data for mom sources
         MultiFab* forest_drag = nullptr;
-        if (solverChoice.do_forest) { forest_drag = m_forest[level]->get_drag_field(); }
+        if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
         // Immersed Forcing
         MultiFab* terrain_blank = nullptr;
-        if(solverChoice.do_terrain) { terrain_blank = m_terrain[level]->get_terrain_blank_field(); }
+        if(solverChoice.do_terrain_drag) { terrain_blank = m_terrain_drag[level]->get_terrain_blank_field(); }
 
         // Moving terrain
         if ( solverChoice.terrain_type == TerrainType::Moving )
@@ -435,10 +435,10 @@
 
         // Canopy data for mom sources
         MultiFab* forest_drag = nullptr;
-        if (solverChoice.do_forest) { forest_drag = m_forest[level]->get_drag_field(); }
+        if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
         // Immersed Forcing
         MultiFab* terrain_blank = nullptr;
-        if(solverChoice.do_terrain) { terrain_blank = m_terrain[level]->get_terrain_blank_field(); }
+        if(solverChoice.do_terrain_drag) { terrain_blank = m_terrain_drag[level]->get_terrain_blank_field(); }
 
         make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)

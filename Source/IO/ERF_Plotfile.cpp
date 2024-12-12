@@ -491,7 +491,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
         if (containerHasElement(plot_var_names, "terrain_IB_mask"))
         {
-            MultiFab* terrain_blank = m_terrain[lev]->get_terrain_blank_field();
+            MultiFab* terrain_blank = m_terrain_drag[lev]->get_terrain_blank_field();
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif

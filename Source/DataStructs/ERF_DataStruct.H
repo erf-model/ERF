@@ -688,9 +688,10 @@ struct SolverChoice {
     amrex::Real windfarm_x_shift = -1.0;
     amrex::Real windfarm_y_shift = -1.0;
 
-    // Flag for valid canopy model
-    bool do_forest {false};
-    // Immersed Forcing
-    bool do_terrain {false};
+    // Use forest canopy model?
+    bool do_forest_drag {false};
+
+    // Use immersed forcing representation of terrain?
+    bool do_terrain_drag {false};
 };
 #endif

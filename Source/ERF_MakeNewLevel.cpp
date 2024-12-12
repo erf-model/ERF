@@ -141,9 +141,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
-    if (solverChoice.do_forest) { m_forest[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_forest_drag) { m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
 
-    if (solverChoice.do_terrain) { m_terrain[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_terrain_drag) { m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -221,9 +221,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
-    if (solverChoice.do_forest) { m_forest[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_forest_drag) { m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
 
-    if (solverChoice.do_terrain) { m_terrain[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_terrain_drag) { m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -351,9 +351,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
-    if (solverChoice.do_forest) { m_forest[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_forest_drag) { m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
 
-    if (solverChoice.do_terrain) { m_terrain[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_terrain_drag) { m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
     // *****************************************************************************************************
     // Create the physbcs objects (after initializing the terrain but before calling FillCoarsePatch
     // *****************************************************************************************************

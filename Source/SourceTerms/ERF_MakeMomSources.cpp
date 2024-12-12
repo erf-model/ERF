@@ -90,16 +90,16 @@ void make_mom_sources (int level,
     //    9. Forest canopy
     //   10. Immersed Forcing
     // *****************************************************************************
-    const bool l_use_ndiff    = solverChoice.use_NumDiff;
-    const bool use_terrain    = solverChoice.terrain_type != TerrainType::None;
-    const bool l_do_forest    = solverChoice.do_forest;
-    const bool l_do_terrain   = solverChoice.do_terrain;
+    const bool l_use_ndiff       = solverChoice.use_NumDiff;
+    const bool l_use_zphys       = (solverChoice.mesh_type != MeshType::ConstantDz);
+    const bool l_do_forest_drag  = solverChoice.do_forest_drag;
+    const bool l_do_terrain_drag = solverChoice.do_terrain_drag;
 
     // Check if terrain and immersed terrain clash
-    if(use_terrain && l_do_terrain){
-        amrex::Error(" Cannot use immersed forcing with terrain");
+    if(l_use_zphys && l_do_terrain_drag){
+        amrex::Error(" Cannot use immersed forcing for terrain with terrain-fitted coordinates");
     }
-    if(l_do_forest && l_do_terrain){
+    if(l_do_forest_drag && l_do_terrain_drag){
         amrex::Error(" Currently forest canopy cannot be used with immersed forcing");
     }
 
@@ -243,9 +243,9 @@ void make_mom_sources (int level,
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                Array4<const Real>{};
 
-        const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) :
+        const Array4<const Real>& z_nd_arr = (l_use_zphys) ? z_phys_nd->const_array(mfi) :
                                                              Array4<const Real>{};
-        const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) :
+        const Array4<const Real>& z_cc_arr = (l_use_zphys) ? z_phys_cc->const_array(mfi) :
                                                              Array4<const Real>{};
 
         // *****************************************************************************
@@ -505,7 +505,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 9. Add CANOPY source terms
         // *****************************************************************************
-        if (l_do_forest) {
+        if (l_do_forest_drag) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = u(i, j, k);
@@ -543,7 +543,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 10. Add Immersed source terms
         // *****************************************************************************
-        if (l_do_terrain) {
+        if (l_do_terrain_drag) {
             const Real drag_coefficient=10.0/dz;
             const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

@@ -1157,8 +1157,8 @@ private:
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     std::unique_ptr<ABLMost>          m_most = nullptr;
-    amrex::Vector<std::unique_ptr<ForestDrag>> m_forest;
-    amrex::Vector<std::unique_ptr<TerrainDrag>> m_terrain;
+    amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
+    amrex::Vector<std::unique_ptr<TerrainDrag>> m_terrain_drag;
 
     //
     // Holds info for dynamically generated tagging criteria
