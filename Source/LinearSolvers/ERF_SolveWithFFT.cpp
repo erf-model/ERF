@@ -29,7 +29,7 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
     //
     // This calls the full 3D FFT solver with bc's set through bc_fft
     //
-    if (SolverChoice.mesh_type == MeshType::ConstantDz)
+    if (solverChoice.mesh_type == MeshType::ConstantDz)
     {
         if (mg_verbose > 0) {
             amrex::Print() << "Using the 3D FFT solver..." << std::endl;
@@ -47,7 +47,7 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
     // and Neumann at top and bottom z-boundaries
     //
     }
-    else if (SolverChoice.mesh_type == MeshType::StretchedDz)
+    else if (solverChoice.mesh_type == MeshType::StretchedDz)
     {
         if (mg_verbose > 0) {
             amrex::Print() << "Using the hybrid FFT solver..." << std::endl;
@@ -87,7 +87,7 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
 
         Box const& zbx = mfi.nodaltilebox(2);
         Array4<Real> const& fz_arr  = fluxes[2].array(mfi);
-        if (SolverChoice.mesh_type == MeshType::StretchedDz) {
+        if (solverChoice.mesh_type == MeshType::StretchedDz) {
             Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
