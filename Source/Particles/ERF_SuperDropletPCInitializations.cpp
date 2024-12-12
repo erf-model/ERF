@@ -26,8 +26,6 @@ void SuperDropletPC::add_superdroplet_attributes()
 /*! Read inputs from file */
 void SuperDropletPC::readInputs ()
 {
-    ERFPC::readInputs();
-
     BL_PROFILE("SuperDropletPC::readInputs");
     ParmParse pp(m_name);
 
@@ -161,6 +159,21 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
 #endif
     if (m_mass_change_logging) {
         m_mass_change_log = fopen(m_mass_change_log_fname.c_str(), "w");
+    }
+
+    /* initialize random engine */
+    {
+        unsigned long int seed;
+        int fix_seed = 0;
+        ParmParse pp_erf("erf"); pp_erf.query("fix_random_seed", fix_seed);
+        if (fix_seed) {
+            seed = 1024UL;
+        } else {
+            std::random_device rd;
+            std::uniform_int_distribution<unsigned long int> dist(0, std::numeric_limits<unsigned long int>::max());
+            seed = dist(rd);
+        }
+        m_random_engine = std::make_unique<std::default_random_engine>(seed);
     }
 }
 
@@ -450,17 +463,15 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                                                     + i ).data() + size_old;
         }
 
-        Gpu::DeviceVector<Real> aerosol_mass_d;
-        Gpu::DeviceVector<Real> multiplicity_d;
-        aerosol_mass_d.resize(n_aerosols*np);
-        multiplicity_d.resize(np);
+        Gpu::DeviceVector<Real> aerosol_mass_d(n_aerosols*np);
+        Gpu::DeviceVector<Real> multiplicity_d(np);
         Vector<Real> multiplicity_h(np, 0.0);
         for (int i = 0; i < n_aerosols; i++) {
             Vector<Real> aerosol_mass_h;
             if (sampled_multiplicity) {
-                a_init.getAerosolDistribution( aerosol_mass_h, multiplicity_h, i, np,  m_aerosol_mat[i]->density() );
+                a_init.getAerosolDistribution( aerosol_mass_h, multiplicity_h, i, np,  m_aerosol_mat[i]->density(), *m_random_engine );
             } else {
-                a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->density() );
+                a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->density(), *m_random_engine );
             }
             Gpu::copy( Gpu::hostToDevice,
                        aerosol_mass_h.begin(),
@@ -474,11 +485,10 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                        multiplicity_d.begin() );
         }
 
-        Gpu::DeviceVector<Real> condensate_mass_d;
+        Gpu::DeviceVector<Real> condensate_mass_d(np);
         {
-            condensate_mass_d.resize(np);
             Vector<Real> condensate_mass_h;
-            a_init.getCondensateDistribution( condensate_mass_h, np, mat_density );
+            a_init.getCondensateDistribution( condensate_mass_h, np, mat_density, *m_random_engine );
             Gpu::copy( Gpu::hostToDevice,
                        condensate_mass_h.begin(),
                        condensate_mass_h.end(),
@@ -492,8 +502,21 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
 
         auto num_superdroplets_arr = num_superdroplets[mfi].array();
 
-        ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k,
-                                                       const RandomEngine& rnd_engine) noexcept
+        Gpu::DeviceVector<Real> rand_d(3*np);
+        {
+            Vector<Real> rand_h(rand_d.size());
+            std::uniform_real_distribution<> urd(0.0,1.0);
+            for (int i = 0; i < rand_h.size(); i++) {
+                rand_h[i] = urd(*m_random_engine);
+            }
+            Gpu::copy( Gpu::hostToDevice,
+                        rand_h.begin(),
+                        rand_h.end(),
+                        rand_d.begin() );
+        }
+        auto rand_arr = rand_d.data();
+
+        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int num_sd_this_cell = num_superdroplets_arr(i,j,k);
             Real num_to_add = num_par_per_cell;
@@ -509,9 +532,9 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
 
             int start = offset_arr(i,j,k);
             for (int n = start; n < start+num_sd_this_cell; n++) {
-                Real x = plo[0] + (i + Random(rnd_engine))*dx[0];
-                Real y = plo[1] + (j + Random(rnd_engine))*dx[1];
-                Real z = plo[2] + (k + Random(rnd_engine))*dx[2];
+                Real x = plo[0] + (i + rand_arr[0*np+n])*dx[0];
+                Real y = plo[1] + (j + rand_arr[1*np+n])*dx[1];
+                Real z = plo[2] + (k + rand_arr[2*np+n])*dx[2];
 
                 auto& p = aos[n+size_old];
                 p.id()  = pid + n;
@@ -562,7 +585,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
 
             /* Seed particles */
             for (int ns = 0; ns < n_seeds; ns++) {
-                int n = start + Random_int(num_sd_this_cell, rnd_engine);
+                int n = start + ns;
 
                 ParticleReal aerosol_mass_total = 0.0;
                 for (int ctr = 0; ctr < n_aerosols; ctr++) {
@@ -586,9 +609,22 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
 
         if (a_height_ptr) {
 
+            Gpu::DeviceVector<Real> rand_d(np);
+            {
+                Vector<Real> rand_h(rand_d.size());
+                std::uniform_real_distribution<> urd(0.0,1.0);
+                for (int i = 0; i < rand_h.size(); i++) {
+                    rand_h[i] = urd(*m_random_engine);
+                }
+                Gpu::copy( Gpu::hostToDevice,
+                            rand_h.begin(),
+                            rand_h.end(),
+                            rand_d.begin() );
+            }
+            auto rand_arr = rand_d.data();
+
             const auto height_arr = (*a_height_ptr)[mfi].array();
-            ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k,
-                                                           const RandomEngine& rnd_engine) noexcept
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int num_sd_this_cell = num_superdroplets_arr(i,j,k);
                 int start = offset_arr(i,j,k);
@@ -598,7 +634,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                     Real y = p.pos(1);
                     Real r[3] = { (x-plo[0])/dx[0] - i,
                                   (y-plo[1])/dx[1] - j,
-                                  Random(rnd_engine) };
+                                  rand_arr[n] };
 
                     Real sx[] = { amrex::Real(1.) - r[0], r[0]};
                     Real sy[] = { amrex::Real(1.) - r[1], r[1]};
@@ -679,7 +715,21 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
 
         auto condensate_mass_density = a_rhoc[pti.index()].array();
 
-        ParallelForRNG(n, [=] AMREX_GPU_DEVICE (int i, RandomEngine const& rnd_engine)
+        Gpu::DeviceVector<Real> rand_d(n);
+        {
+            Vector<Real> rand_h(rand_d.size());
+            std::uniform_real_distribution<> urd(0.0,1.0);
+            for (int i = 0; i < rand_h.size(); i++) {
+                rand_h[i] = urd(*m_random_engine);
+            }
+            Gpu::copy( Gpu::hostToDevice,
+                        rand_h.begin(),
+                        rand_h.end(),
+                        rand_d.begin() );
+        }
+        auto rand_arr = rand_d.data();
+
+        ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
@@ -688,7 +738,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             const Real mass_condensate_cell = condensate_mass_density(iv[0],iv[1],iv[2],0) * cell_volume;
             const Real mass_condensate_sd = mass_condensate_cell / num_sd_per_cell;
 
-            Real mult_rnd = -mult_ptr[i]/3 + 2*mult_ptr[i]/3*Random(rnd_engine);
+            Real mult_rnd = -mult_ptr[i]/3 + 2*mult_ptr[i]/3*rand_arr[i];
             mult_ptr[i] += mult_rnd;
 
             ParticleReal aerosol_mass_total = 0.0;

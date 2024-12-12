@@ -475,6 +475,18 @@ public:
     void make_eb_box ();
     void make_eb_cylinder ();
     void make_eb_regular ();
+    void redistribute_term ( int lev,
+                        amrex::MultiFab& result,
+                        amrex::MultiFab& result_tmp,
+                        amrex::MultiFab const& state,
+                        amrex::BCRec const* bc,
+                        amrex::Real const dt);
+    void redistribute_term ( amrex::MFIter const& mfi, int lev,
+                        amrex::MultiFab& result,
+                        amrex::MultiFab& result_tmp,
+                        amrex::MultiFab const& state,
+                        amrex::BCRec const* bc,
+                        amrex::Real const dt);
 #endif
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
