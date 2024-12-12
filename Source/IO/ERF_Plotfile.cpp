@@ -1053,7 +1053,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
             // Precipitating components
             //--------------------------------------------------------------------------
-            if(containerHasElement(plot_var_names, "qp"))
+            if(containerHasElement(plot_var_names, "qp") && (n_qstate >= 3))
             {
                 int n_start = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
                 int n_end   = ncomp_cons - 1;

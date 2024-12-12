@@ -38,7 +38,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    Kessler, SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler_NoRain, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -123,15 +123,19 @@ struct SolverChoice {
         } else if (moisture_type == MoistureType::Kessler_NoRain) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
+        } else if (moisture_type == MoistureType::SatAdj) {
+            RhoQv_comp = RhoQ1_comp;
+            RhoQc_comp = RhoQ2_comp;
         }
 
         // TODO: should we set default for dry??
         // Set a different default for moist vs dry
         if (moisture_type != MoistureType::None) {
-            if (moisture_type == MoistureType::Kessler_NoRain ||
-                moisture_type == MoistureType::SAM ||
-                moisture_type == MoistureType::SAM_NoIce ||
-                moisture_type == MoistureType::SAM_NoPrecip_NoIce)
+            if (moisture_type == MoistureType::Kessler_NoRain     ||
+                moisture_type == MoistureType::SAM                ||
+                moisture_type == MoistureType::SAM_NoIce          ||
+                moisture_type == MoistureType::SAM_NoPrecip_NoIce ||
+                moisture_type == MoistureType::SatAdj)
             {
                 buoyancy_type = 1; // uses Rhoprime
             } else {
