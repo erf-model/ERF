@@ -671,7 +671,6 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     const auto plo = Geom(m_lev).ProbLoArray();
     const auto dx_h = Geom(m_lev).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
-    const auto dx = Geom(m_lev).CellSize();
     const auto dxi = Geom(m_lev).InvCellSizeArray();
     const auto domain = Geom(m_lev).Domain();
 
@@ -772,8 +771,6 @@ void SuperDropletPC::DensityScaling (const MultiFab& a_rho /*!< density of air *
         auto *p_pbox = aos().data();
         const int n = aos.numParticles();
 
-        /* SoA attributes */
-        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
         /* Runtime-added SoA attributes */
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
