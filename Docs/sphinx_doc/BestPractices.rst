@@ -53,8 +53,8 @@ Large-Eddy Simulations
     ``erf.fixed_fast_dt``, the number of substeps in ERF is chosen based on the
     same algorithm as WRF. If the user follows the recommendation that
     dt [s] ~ 6 dx [km],
-    then 4 substeps will be used, giving a CFL roximately 0.5. This
-    meets the stability criteria from Wicker & Skamarock 2002 that, for a
+    then 4 substeps will be used, giving an effective CFL of approximately 0.5.
+    This meets the stability criteria from Wicker & Skamarock 2002 that, for a
     5th-order scheme, the CFL be less than 1.42/sqrt(3) = 0.820.
 
     .. code-block:: python
@@ -67,9 +67,11 @@ Large-Eddy Simulations
        #   or
        #erf.fixed_fast_dt      = 0.015  # ==> CFL~0.45
        #   or, let ERF chose the fast timestep
-       #erf.cfl                = 0.5
+       #erf.substepping_cfl    = 0.5
 
-  - We note that ERF LESs with up to 10 fast timesteps have successfully been
+  - Following the WRF guidelines for dt is conservative. More aggressive time
+    integration--i.e., larger time steps with more substeps--is possible. We
+    note that ERF LESs with 10 or more fast timesteps have successfully been
     run but your mileage may vary.
 
 
@@ -86,3 +88,18 @@ Single-Column Model
 
 * An SCM was successfully run with third-order advection in the horizontal and
   vertical.
+
+
+2-D Cases
+---------
+
+* A 2-D planar domain can be configured as follows:
+
+  .. code-block:: python
+
+     geometry.prob_extent = 10000  100  1000
+     amr.n_cell           =   100    1    20
+     geometry.is_periodic =     0    0     0
+
+     ylo.type = "SlipWall"
+     yhi.type = "SlipWall"
