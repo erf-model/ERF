@@ -101,7 +101,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // ********************************************************************************************
     // Thin immersed body
     // *******************************************************************************************
-    init_immersed_body(lev, ba, dm);
+    init_thin_body(lev, ba, dm);
 
     // ********************************************************************************************
     // Initialize the integrator class
@@ -496,7 +496,7 @@ ERF::ClearLevel (int lev)
 }
 
 void
-ERF::init_immersed_body (int lev, const BoxArray& ba, const DistributionMapping& dm)
+ERF::init_thin_body (int lev, const BoxArray& ba, const DistributionMapping& dm)
 {
     //********************************************************************************************
     // Thin immersed body
