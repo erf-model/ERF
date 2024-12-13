@@ -150,6 +150,9 @@ class SuperDropletPC : public ERFPC
         /*! \brief Set super-droplets attributes from a given condensate mass density */
         virtual void SetAttributes (  amrex::MultiFab& );
 
+        /*! \brief Scale the SDM number density with air density  */
+        virtual void DensityScaling ( const amrex::MultiFab& );
+
         /*! \brief Evolve particles for one time step */
         virtual void EvolveParticles ( int,
                                        amrex::Real,
@@ -237,6 +240,7 @@ class SuperDropletPC : public ERFPC
         SDTerminalVelocityType m_term_vel_type; /*!< Terminal velocity model */
 
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
+        bool m_density_scaling; /*!< Scale initial number density with air density */
         bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
 
         int m_num_aerosols; /*!< Number of aerosols */

@@ -45,7 +45,7 @@ struct SDInitialization
     /*!< Maximum multiplicity */
     amrex::Real m_max_multiplicity = 1000000;
 
-    /*!< Initial number density of physical particles */
+    /*!< Initial number density (m^{-3}) of physical particles */
     amrex::Real m_numdens_init = -1;
     /*!< Initial number density of super-droplets */
     amrex::Real m_numdens_sd_init = -1;

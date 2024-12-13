@@ -152,7 +152,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         struct timeval mcshuffle_start, mcshuffle_end;
         gettimeofday(&mcshuffle_start, NULL);
 
-#ifdef AMREX_USE_CUDA /* TODO: should this be AMREX_USE_GPU? */
+#ifdef AMREX_USE_GPU
         {
             // get the max bin size
             Gpu::Buffer<unsigned int> max_np_bin_d({0});
