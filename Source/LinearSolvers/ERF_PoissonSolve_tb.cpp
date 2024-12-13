@@ -20,7 +20,7 @@ bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
 void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFab& pmf)
 {
     BL_PROFILE("ERF::project_velocities_tb()");
-    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::None);
+    AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::ConstantDz);
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(vmf[Vars::cons].boxArray());

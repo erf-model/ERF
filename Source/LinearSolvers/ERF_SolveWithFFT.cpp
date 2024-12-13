@@ -12,8 +12,6 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
 {
     BL_PROFILE("ERF::solve_with_fft()");
 
-    bool l_use_terrain = SolverChoice::terrain_type != TerrainType::None;
-
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
 
@@ -29,10 +27,9 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
     // FFT solve
     // ****************************************************************************
     //
-    // No terrain or stretched grids
     // This calls the full 3D FFT solver with bc's set through bc_fft
     //
-    if (!l_use_terrain)
+    if (solverChoice.mesh_type == MeshType::ConstantDz)
     {
         if (mg_verbose > 0) {
             amrex::Print() << "Using the 3D FFT solver..." << std::endl;
@@ -49,7 +46,8 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
     // This calls the hybrid 2D FFT solver + tridiagonal in z with lateral bc's set through bc_fft
     // and Neumann at top and bottom z-boundaries
     //
-    } else if (l_use_terrain && SolverChoice::terrain_is_flat)
+    }
+    else if (solverChoice.mesh_type == MeshType::StretchedDz)
     {
         if (mg_verbose > 0) {
             amrex::Print() << "Using the hybrid FFT solver..." << std::endl;
@@ -89,7 +87,7 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
 
         Box const& zbx = mfi.nodaltilebox(2);
         Array4<Real> const& fz_arr  = fluxes[2].array(mfi);
-        if (l_use_terrain && SolverChoice::terrain_is_flat) {
+        if (solverChoice.mesh_type == MeshType::StretchedDz) {
             Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {

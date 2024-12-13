@@ -406,7 +406,7 @@ ERF::volWgtSumMF (int lev,
     auto const& dx = geom[lev].CellSizeArray();
     Real cell_vol = dx[0]*dx[1]*dx[2];
     volume.setVal(cell_vol);
-    if (solverChoice.terrain_type != TerrainType::None) {
+    if (solverChoice.mesh_type != MeshType::ConstantDz) {
         MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
     }
     sum = MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
