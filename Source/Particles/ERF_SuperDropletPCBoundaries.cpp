@@ -63,8 +63,6 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
-        auto* tcoal_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::t_coalescence).data();
 
         GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
         for (int i = 0; i < n_aerosols; i++) {
@@ -90,7 +88,6 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     p.pos(2) = z_ground + 0.01*dx[2];
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                     mult_ptr[i] = 0.0;
-                    supdrop_mass_ptr[i] = 0.0;
                 }
             }
 
@@ -105,7 +102,6 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     p.pos(2) = z_roof - dx[2];
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                     mult_ptr[i] = 0.0;
-                    supdrop_mass_ptr[i] = 0.0;
                 }
             }
 
@@ -133,8 +129,6 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         radius_ptr[i] = par_radius;
                         mass_ptr[i] = cond_mass + aerosol_mass_total;
                         mult_ptr[i] = multiplicity;
-                        supdrop_mass_ptr[i] = mass_ptr[i]*multiplicity;
-                        tcoal_ptr[i] = 0.0;
                     }
                 } else if (p.pos(d) > x_max) {
                     auto delta = p.pos(d) - x_max;
@@ -153,8 +147,6 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         radius_ptr[i] = par_radius;
                         mass_ptr[i] = cond_mass + aerosol_mass_total;
                         mult_ptr[i] = multiplicity;
-                        supdrop_mass_ptr[i] = mass_ptr[i]*multiplicity;
-                        tcoal_ptr[i] = 0.0;
                     }
                 }
 

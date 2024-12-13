@@ -16,9 +16,7 @@ Vector<std::string> SuperDropletPC::varNames () const
                                             "particle_mass",
                                             "radius",
                                             "multiplicity",
-                                            "superdroplet_mass",
                                             "terminal_velocity",
-                                            "t_coalescence",
                                             "uid" };
     for (int i = 0; i < m_num_aerosols; i++) {
         retval.push_back(std::string("aerosol_mass_"+m_aerosol_mat[i]->name()));
@@ -104,22 +102,6 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                          return n*m;
                                      } );
 
-    auto min_t_coales   = ReduceMin( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
-                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::t_coalescence][i]; } );
-
-    auto max_t_coales   = ReduceMax( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
-                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::t_coalescence][i]; } );
-
-    auto avg_t_coales   = ReduceSum( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
-                                     {
-                                         auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                         auto m = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::t_coalescence][i];
-                                         return n*m;
-                                     } );
-
     auto min_par_vx = ReduceMin( *this,
                                  [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
                                  { return ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i]; } );
@@ -185,7 +167,6 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                  } );
 
     ParallelDescriptor::ReduceRealMin(&min_par_mass,1);
-    ParallelDescriptor::ReduceRealMin(&min_t_coales,1);
     ParallelDescriptor::ReduceRealMin(&min_par_radius,1);
     ParallelDescriptor::ReduceRealMin(&min_multiplic,1);
     ParallelDescriptor::ReduceRealMin(&min_par_vx,1);
@@ -194,7 +175,6 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealMin(&min_term_v,1);
 
     ParallelDescriptor::ReduceRealMax(&max_par_mass,1);
-    ParallelDescriptor::ReduceRealMax(&max_t_coales,1);
     ParallelDescriptor::ReduceRealMax(&max_par_radius,1);
     ParallelDescriptor::ReduceRealMax(&max_multiplic,1);
     ParallelDescriptor::ReduceRealMax(&max_par_vx,1);
@@ -203,7 +183,6 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealMax(&max_term_v,1);
 
     ParallelDescriptor::ReduceRealSum(&avg_par_mass,1);
-    ParallelDescriptor::ReduceRealSum(&avg_t_coales,1);
     ParallelDescriptor::ReduceRealSum(&avg_par_radius,1);
     ParallelDescriptor::ReduceRealSum(&avg_multiplic,1);
     ParallelDescriptor::ReduceRealSum(&avg_par_vx,1);
@@ -213,7 +192,6 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
 
     if (num_total_particles > 0) {
         avg_par_mass /= num_total_particles;
-        avg_t_coales /= num_total_particles;
         avg_par_radius /= num_total_particles;
         avg_multiplic /= num_superdroplets;
         avg_par_vx /= num_total_particles;
@@ -222,7 +200,6 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
         avg_term_v /= num_total_particles;
     } else {
         avg_par_mass = 0;
-        avg_t_coales = 0;
         avg_par_radius = 0;
         avg_multiplic = 0;
         avg_par_vx = 0;
@@ -261,9 +238,6 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
         }
     }
 
-
-    m_t_coalescence = max_t_coales;
-
     Print() << "SuperDropletPC(" << m_name << ") attributes (min, max, avg):\n"
             << "    mass [kg]: "
             << min_par_mass << ", " << max_par_mass << ", " << avg_par_mass << "\n"
@@ -278,8 +252,6 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
             << min_par_vy << ", " << max_par_vy << ", " << avg_par_vy << "\n"
             << "        z: "
             << min_par_vz << ", " << max_par_vz << ", " << avg_par_vz << "\n"
-            << "    coalescence time scale [s]: "
-            << min_t_coales << ", " << max_t_coales << ", " << avg_t_coales << "\n"
             << "    terminal velocity [m/s]: "
             << min_term_v << ", " << max_term_v << ", " << avg_term_v << "\n";
 
