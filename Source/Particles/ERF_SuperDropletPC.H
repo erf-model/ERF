@@ -276,7 +276,7 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_sigma0;
 
         /*! random engine */
-        std::unique_ptr<std::default_random_engine> m_random_engine;
+        std::mt19937 m_rndeng;
 
         /*! \brief read inputs from file */
         virtual void readInputs ();

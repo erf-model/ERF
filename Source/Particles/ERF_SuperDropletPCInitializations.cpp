@@ -169,13 +169,14 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
         int fix_seed = 0;
         ParmParse pp_erf("erf"); pp_erf.query("fix_random_seed", fix_seed);
         if (fix_seed) {
+            Print() << "Using fixed seed for SuperDropletPC random engine.\n";
             seed = 1024UL;
         } else {
             std::random_device rd;
             std::uniform_int_distribution<unsigned long int> dist(0, std::numeric_limits<unsigned long int>::max());
             seed = dist(rd);
         }
-        m_random_engine = std::make_unique<std::default_random_engine>(seed);
+        m_rndeng.seed(seed);
     }
 }
 
@@ -469,9 +470,9 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         for (int i = 0; i < n_aerosols; i++) {
             Vector<Real> aerosol_mass_h;
             if (sampled_multiplicity) {
-                a_init.getAerosolDistribution( aerosol_mass_h, multiplicity_h, i, np,  m_aerosol_mat[i]->density(), *m_random_engine );
+                a_init.getAerosolDistribution( aerosol_mass_h, multiplicity_h, i, np,  m_aerosol_mat[i]->density(), m_rndeng );
             } else {
-                a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->density(), *m_random_engine );
+                a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->density(), m_rndeng );
             }
             Gpu::copy( Gpu::hostToDevice,
                        aerosol_mass_h.begin(),
@@ -488,7 +489,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         Gpu::DeviceVector<Real> condensate_mass_d(np);
         {
             Vector<Real> condensate_mass_h;
-            a_init.getCondensateDistribution( condensate_mass_h, np, mat_density, *m_random_engine );
+            a_init.getCondensateDistribution( condensate_mass_h, np, mat_density, m_rndeng );
             Gpu::copy( Gpu::hostToDevice,
                        condensate_mass_h.begin(),
                        condensate_mass_h.end(),
@@ -507,7 +508,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
             Vector<Real> rand_h(rand_d.size());
             std::uniform_real_distribution<> urd(0.0,1.0);
             for (int i = 0; i < rand_h.size(); i++) {
-                rand_h[i] = urd(*m_random_engine);
+                rand_h[i] = urd(m_rndeng);
             }
             Gpu::copy( Gpu::hostToDevice,
                         rand_h.begin(),
@@ -515,6 +516,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                         rand_d.begin() );
         }
         auto rand_arr = rand_d.data();
+        Gpu::synchronize();
 
         ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -609,7 +611,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 Vector<Real> rand_h(rand_d.size());
                 std::uniform_real_distribution<> urd(0.0,1.0);
                 for (int i = 0; i < rand_h.size(); i++) {
-                    rand_h[i] = urd(*m_random_engine);
+                    rand_h[i] = urd(m_rndeng);
                 }
                 Gpu::copy( Gpu::hostToDevice,
                             rand_h.begin(),
@@ -617,6 +619,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                             rand_d.begin() );
             }
             auto rand_arr = rand_d.data();
+            Gpu::synchronize();
 
             const auto height_arr = (*a_height_ptr)[mfi].array();
             ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -713,7 +716,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             Vector<Real> rand_h(rand_d.size());
             std::uniform_real_distribution<> urd(0.0,1.0);
             for (int i = 0; i < rand_h.size(); i++) {
-                rand_h[i] = urd(*m_random_engine);
+                rand_h[i] = urd(m_rndeng);
             }
             Gpu::copy( Gpu::hostToDevice,
                         rand_h.begin(),
