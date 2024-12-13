@@ -9,7 +9,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent = 20000.0 400.0  10000.0
-amr.n_cell           = 200     4      100
+amr.n_cell           = 100     4      50 
 geometry.is_periodic = 0 1 0
 xlo.type = "SlipWall"
 xhi.type = "SlipWall"    
@@ -74,7 +74,7 @@ super_droplets_moisture.initial_aerosol_min_mass_NaCl = 1.0e-22 #kg
 super_droplets_moisture.initial_aerosol_mean_mass_NaCl = 1.0e-19 #kg
 super_droplets_moisture.initial_aerosol_max_mass_NaCl = 1.0e-18 #kg
 super_droplets_moisture.initial_number_density = 1.0e7 #m^{-3}
-super_droplets_moisture.initial_particles_per_cell = 32
+super_droplets_moisture.initial_particles_per_cell = 8
 
 # PROBLEM PARAMETERS (optional)
 # warm bubble input
