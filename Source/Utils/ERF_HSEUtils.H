@@ -46,8 +46,13 @@ namespace HSEutils
     {
         int iter=0;
         int max_iter=30;
-        Real eps  = 1.0e-6;
-        Real ieps = 1.0e6;
+        static constexpr Real tol_max  = 1.0e-8;
+        static constexpr Real tol_grow = std::sqrt(10.0);
+        static constexpr Real eps      = 1.0e-6;
+        static constexpr Real ieps     = 1.0e6;
+        Real tol   = std::min(m_tol,tol_max);
+        Real F_abs = 1.0e6;
+        Real F_old = 1.0e6;
         do {
             // Compute change in pressure
             Real hi = getRhogivenThetaPress(T, P + eps, RdOCp, qv);
@@ -63,11 +68,16 @@ namespace HSEutils
             Real r_tot = rd * (1. + qt);
             F = P + 0.5*r_tot*g*dz + C;
             ++iter;
+
+            // Reduce tolerance if resid is not decreasing
+            F_abs = std::fabs(F);
+            if ((F_abs>F_old) && (tol<tol_max)) { tol = std::min(tol*tol_grow,tol_max); }
+            F_old = F_abs;
         }
-        while (std::abs(F)>m_tol && iter<max_iter);
+        while (F_abs>tol && iter<max_iter);
         if (iter>=max_iter) {
             printf("WARNING: HSE Newton iterations did not converge to tolerance!\n");
-            printf("HSE Newton tol: %e %e\n",F,m_tol);
+            printf("HSE Newton tol: %e %e\n",F,tol);
         }
     }
 
