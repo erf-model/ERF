@@ -14,7 +14,7 @@ using namespace amrex;
  * @param[in]  S_stage_prim primitive variables (i.e. conserved variables divided by density) at the last stage
  * @param[in]  pi_stage Exner function at the last stage
  * @param[in]  geom   Container for geometric information
- * @param[in]  terrain_type  Are we using terrain-fitted coordinates
+ * @param[in]  mesh_type     Do we have constant dz?
  * @param[in]  gravity       Magnitude of gravity
  * @param[in]  c_p           Coefficient at constant pressure
  * @param[in]  r0            Reference (hydrostatically stratified) density
@@ -30,7 +30,7 @@ void make_fast_coeffs (int /*level*/,
                        const MultiFab& pi_stage,                       // Exner function evaluated at least stage
                        const amrex::Geometry geom,
                        bool l_use_moisture,
-                       TerrainType terrain_type,
+                       MeshType mesh_type,
                        Real gravity, Real c_p,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const MultiFab* r0, const MultiFab* pi0,
@@ -76,7 +76,7 @@ void make_fast_coeffs (int /*level*/,
         const Array4<const Real> & stage_cons = S_stage_data[IntVars::cons].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
-        const Array4<const Real>& detJ        = (terrain_type != TerrainType::None) ? detJ_cc->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ        = (mesh_type != MeshType::ConstantDz) ? detJ_cc->const_array(mfi) : Array4<const Real>{};
 
         const Array4<const Real>& r0_ca       = r0->const_array(mfi);
         const Array4<const Real>& pi0_ca      = pi0->const_array(mfi);
@@ -107,7 +107,7 @@ void make_fast_coeffs (int /*level*/,
         Real halfg = std::abs(0.5 * grav_gpu[2]);
 
         //Note we don't act on the bottom or top boundaries of the domain
-        if (terrain_type != TerrainType::None)
+        if (mesh_type != MeshType::ConstantDz)
         {
             ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {

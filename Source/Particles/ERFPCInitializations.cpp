@@ -49,6 +49,14 @@ void ERFPC::readInputs ()
     m_advect_w_gravity = (m_name == ERFParticleNames::hydro ? true : false);
     pp.query("advect_with_gravity", m_advect_w_gravity);
 
+    m_stable_redistribute = false;
+    pp.query("stable_redistribute", m_stable_redistribute);
+
+    if (m_stable_redistribute) {
+        Print() << "Note: using stable Redistribute() for particle container " << m_name << ".\n";
+    }
+    setStableRedistribute(m_stable_redistribute);
+
     return;
 }
 
@@ -65,6 +73,7 @@ void ERFPC::InitializeParticles (const std::unique_ptr<MultiFab>& a_height_ptr)
                 << m_name << " particle species.\n";
         Error("See error message!");
     }
+
     return;
 }
 

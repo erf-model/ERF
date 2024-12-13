@@ -46,6 +46,7 @@
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_TerrainDrag.H>
 
 #ifdef ERF_USE_PARTICLES
 #include "ERF_ParticleData.H"
@@ -826,8 +827,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q1fx1_lev, SFS_q1fx2_lev, SFS_q1fx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
-    // Terrain / grid stretching
+    // Grid stretching
     amrex::Vector<amrex::Vector<amrex::Real>> zlevels_stag; // nominal height levels
+
+    // Terrain data structures
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
 
@@ -850,6 +853,7 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
+    // Map scale factors
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
@@ -979,6 +983,8 @@ private:
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate"
+                                                    // Terrain IB mask
+                                                    "terrain_IB_mask"
 #ifdef ERF_USE_EB
                                                     // EB variables
                                                     ,"volfrac",
@@ -1149,7 +1155,8 @@ private:
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     std::unique_ptr<ABLMost>          m_most = nullptr;
-    amrex::Vector<std::unique_ptr<ForestDrag>> m_forest;
+    amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
+    amrex::Vector<std::unique_ptr<TerrainDrag>> m_terrain_drag;
 
     //
     // Holds info for dynamically generated tagging criteria
