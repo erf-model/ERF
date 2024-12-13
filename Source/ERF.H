@@ -853,6 +853,9 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
+    // Wall distance function
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  walldist;
+
     // Map scale factors
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;

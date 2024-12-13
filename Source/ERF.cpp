@@ -288,6 +288,9 @@ ERF::ERF_shared ()
 
     z_t_rk.resize(nlevs_max);
 
+    // Wall distance
+    walldist.resize(nlevs_max);
+
     // Mapfactors
     mapfac_m.resize(nlevs_max);
     mapfac_u.resize(nlevs_max);
