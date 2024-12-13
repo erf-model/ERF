@@ -30,6 +30,7 @@ void SuperDropletPC::readInputs ()
     ParmParse pp(m_name);
 
     /* default values */
+    m_density_scaling = false;
     m_nucleate_particles = false;
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
@@ -62,6 +63,7 @@ void SuperDropletPC::readInputs ()
     }
 
     /* read these parameters if specified */
+    pp.query("density_scaling", m_density_scaling);
     pp.query("nucleate_particles", m_nucleate_particles);
     pp.query("advect_with_flow", m_advect_w_flow);
     pp.query("advect_with_gravity", m_advect_w_gravity);
@@ -271,10 +273,10 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd, /*!< integer 
 }
 
 /*! Sets the initial number of the super-droplets per cell as a bubble with a uniform distribution */
-void SuperDropletPC::setNumSDBubbleDistribution (iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
-                                              const int a_n_per_cell, /*!< number of superdroplets per cell */
-                                              const MFPtr& a_height_ptr, /*!< terrain */
-                                              const RealBox& a_box /*!< box within which to initialize particles */ )
+void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
+                                                  const int a_n_per_cell, /*!< number of superdroplets per cell */
+                                                  const MFPtr& a_height_ptr, /*!< terrain */
+                                                  const RealBox& a_box /*!< box within which to initialize particles */ )
 {
     BL_PROFILE("SuperDropletPC::setNumSDBubbleDistribution()");
     a_num_sd.setVal(0);
@@ -751,6 +753,52 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             Real radius_cubed = mass_particle / ((4.0/3.0)*PI*mat_density);
             Real radius = (radius_cubed == 0.0 ? 0.0 : std::cbrt(radius_cubed));
             radius_ptr[i] = radius;
+            supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
+        });
+
+    }
+
+    return;
+}
+
+/*! Scale the multiplicities with density of air */
+void SuperDropletPC::DensityScaling (const MultiFab& a_rho /*!< density of air */)
+{
+    BL_PROFILE("SuperDropletPC::DensityScaling");
+    if (!m_density_scaling) { return; }
+
+    const auto plo = Geom(m_lev).ProbLoArray();
+    const auto dxi = Geom(m_lev).InvCellSizeArray();
+    const auto domain = Geom(m_lev).Domain();
+
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (ParIterType pti(*this, m_lev); pti.isValid(); ++pti) {
+        auto& particle_tile = ParticlesAt(m_lev, pti);
+        auto& soa = particle_tile.GetStructOfArrays();
+        auto& aos = particle_tile.GetArrayOfStructs();
+        auto *p_pbox = aos().data();
+        const int n = aos.numParticles();
+
+        /* SoA attributes */
+        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
+        /* Runtime-added SoA attributes */
+        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
+        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
+
+        auto density = a_rho[pti.index()].const_array();
+
+        ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
+        {
+            ParticleType& p = p_pbox[i];
+            if (p.id() <= 0) { return; }
+            auto iv = getParticleCell(p, plo, dxi, domain);
+
+            auto rho_air = density(iv[0],iv[1],iv[2],0);
+            mult_ptr[i] *= rho_air;
+
             supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
         });
 
