@@ -126,8 +126,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
-        auto* t_coal_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::t_coalescence).data();
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
 
         /* aerosol masses */
@@ -351,6 +349,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
                     k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                 }
+
+                if (k_val < 0.0) {
+                    amrex::Abort("Invalid value for k_val");
+                }
             }
 
             if (include_brownian_coalescence) {
@@ -367,25 +369,29 @@ void SuperDropletPC::Coalescence( int   a_lev,
                              aero_mass_2 = 0.0,
                              aero_vol_1 = 0.0,
                              aero_vol_2 = 0.0;
-                {
-                    for (int ia = 0; ia < num_aerosols; ia++) {
-                        aero_mass_1 += aerosol_mass_ptrs[ia][pi];
-                        aero_mass_2 += aerosol_mass_ptrs[ia][pj];
-                        aero_vol_1 += aerosol_mass_ptrs[ia][pi]/aero_density[ia];
-                        aero_vol_2 += aerosol_mass_ptrs[ia][pj]/aero_density[ia];
-                    }
+                for (int ia = 0; ia < num_aerosols; ia++) {
+                    aero_mass_1 += aerosol_mass_ptrs[ia][pi];
+                    aero_mass_2 += aerosol_mass_ptrs[ia][pj];
+                    aero_vol_1 += aerosol_mass_ptrs[ia][pi]/aero_density[ia];
+                    aero_vol_2 += aerosol_mass_ptrs[ia][pj]/aero_density[ia];
                 }
 
-                k_val += ckernel.Brownian_SeinfeldPandis( radius_ptr[pi],
-                                                          radius_ptr[pj],
-                                                          aero_mass_1,
-                                                          aero_mass_2,
-                                                          aero_vol_1,
-                                                          aero_vol_2,
-                                                          condensate_density,
-                                                          pressure,
-                                                          temperature );
+                auto k_brown = ckernel.Brownian_SeinfeldPandis( radius_ptr[pi],
+                                                                radius_ptr[pj],
+                                                                aero_mass_1,
+                                                                aero_mass_2,
+                                                                aero_vol_1,
+                                                                aero_vol_2,
+                                                                condensate_density,
+                                                                pressure,
+                                                                temperature );
+                if (k_brown < 0.0) {
+                    amrex::Abort("Invalid value for k_brown");
+                }
+
+                k_val += k_brown;
             }
+
 
             auto prob_ij = k_val*inv_bin_volume;
             auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
@@ -395,7 +401,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto scaled_prob = prob_sd_ij * scaling_factor;
 
             auto t_coalescence = 1.0/(scaled_prob+1.0e-99);
-            t_coal_ptr[i] = t_coalescence;
 
             auto gamma = coalescence_rate ( rand_arr[i], (scaled_prob*a_dt) );
             if (gamma > 0) {
@@ -434,10 +439,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
         coalescence_wtime = (  (coalescence_end.tv_sec   * 1000000 + coalescence_end.tv_usec  )
                              - (coalescence_start.tv_sec * 1000000 + coalescence_start.tv_usec) );
         coalescence_wtime_sec += (double) coalescence_wtime / 1000000.0;
-
-        ParallelFor( np, [=] AMREX_GPU_DEVICE (int i)
-                     { supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i]; } );
-
     }
 
     ParallelDescriptor::ReduceRealSum(  &num_collisions,

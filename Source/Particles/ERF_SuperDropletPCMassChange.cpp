@@ -53,7 +53,6 @@ void SuperDropletPC::MassChange ( int                                         a_
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
 
         SDAerosolMassArr aerosol_mass_ptrs;
         Gpu::DeviceVector<ParticleReal> aerosol_mol_weight(num_aerosols);
@@ -169,8 +168,6 @@ void SuperDropletPC::MassChange ( int                                         a_
                 radius_ptr[i] = std::sqrt(r_sq);
                 // update mass of particle
                 mass_ptr[i] = (4.0/3.0)*PI*r_sq*radius_ptr[i]*mat_density;
-                // update superdroplet total mass
-                supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
             }
 
         });

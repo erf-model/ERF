@@ -25,9 +25,7 @@ struct SuperDropletsRealIdxSoA_RT
         radius = 0,     /*!< Radius of physical particles */
         multiplicity,   /*!< Number of droplets that this super-droplet represents
                              (Real type to handle large values) */
-        sd_mass,        /*!< Superdroplet mass */
         term_vel,       /*!< Terminal velocity */
-        t_coalescence,  /*!< Coalescence time scale */
         uid,            /*!< unique ID */
         ncomps
     };
