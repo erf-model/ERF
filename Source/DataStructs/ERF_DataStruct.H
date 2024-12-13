@@ -510,7 +510,6 @@ struct SolverChoice {
         pp.query("rotational_time_period", rot_time_period);
 
         coriolis_factor = 2.0 * 2.0 * PI / rot_time_period;
-        amrex::Print() << "Coriolis factor = " << coriolis_factor << std::endl;
 
         amrex::Real latitude = 90.0;
         pp.query("latitude", latitude);
