@@ -180,6 +180,8 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
                                      MultiFab& a_cons_vars, /*!< Conserved variables */
                                      const Vector<MFPtr>& a_z_phys_nd /*!< terrain */)
 {
+    m_super_droplets->DensityScaling(*(m_mic_fab_vars[MicVar_SD::rho]));
+
     if (m_init_type == SuperDropletsMoistInitializations::init_rhoc) {
 
         /* initial super-droplets attributes computed from condensate mass density */
