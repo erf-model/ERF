@@ -400,8 +400,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
             auto scaled_prob = prob_sd_ij * scaling_factor;
 
-            auto t_coalescence = 1.0/(scaled_prob+1.0e-99);
-
             auto gamma = coalescence_rate ( rand_arr[i], (scaled_prob*a_dt) );
             if (gamma > 0) {
                 amrex::Gpu::Atomic::Add(particle_collisions_ptr, gamma);
