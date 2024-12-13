@@ -23,6 +23,7 @@ set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUB
 option(ERF_ENABLE_MOISTURE "Enable Full Moisture" ON)
 option(ERF_ENABLE_WARM_NO_PRECIP "Enable Warm Moisture" OFF)
 option(ERF_ENABLE_RRTMGP "Enable RTE-RRTMGP Radiation" OFF)
+option(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS "Enable ML UPHYS diagnostics in SDM" OFF)
 
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
