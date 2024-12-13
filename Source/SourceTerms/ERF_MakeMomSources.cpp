@@ -479,6 +479,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 7. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
+#if 0
         if (l_use_ndiff) {
             const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
             const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
@@ -487,6 +488,7 @@ void make_mom_sources (int level,
             NumericalDiffusion_Ymom(tby, dt, solverChoice.num_diff_coeff,
                                     v, cell_data, ymom_src_arr, mf_v);
         }
+#endif
 
         // *****************************************************************************
         // 8. Add SPONGING
