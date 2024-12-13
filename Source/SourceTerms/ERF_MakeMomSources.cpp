@@ -90,7 +90,7 @@ void make_mom_sources (int level,
     //    9. Forest canopy
     //   10. Immersed Forcing
     // *****************************************************************************
-    const bool l_use_ndiff       = solverChoice.use_NumDiff;
+    const bool l_use_ndiff       = solverChoice.use_num_diff;
     const bool l_use_zphys       = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool l_do_forest_drag  = solverChoice.do_forest_drag;
     const bool l_do_terrain_drag = solverChoice.do_terrain_drag;
