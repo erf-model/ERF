@@ -455,6 +455,9 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data() + size_old;
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data() + size_old;
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data() + size_old;
+#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+        auto* condt_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::cond_tendency).data() + size_old;
+#endif
         auto* uid_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::uid).data() + size_old;
 
         GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
@@ -580,6 +583,9 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 mass_ptr[n] = cond_mass + aerosol_mass_total;
                 radius_ptr[n] = par_radius;
                 vterm_ptr[n] = 0.0;
+#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+                condt_ptr[n] = 0.0;
+#endif
                 uid_ptr[n] = ParticleReal((pid+n-1)*nprocs + my_proc + 1);
             }
 

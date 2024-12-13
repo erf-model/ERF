@@ -7,6 +7,48 @@
 
 namespace SDMassChangeUtils
 {
+#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+    /*! \brief Phase change equation (in terms of R) */
+    template <typename RT /*!< real-type */ >
+    struct dRdt
+    {
+        RT a;         /*!< curvature effect coefficient */
+        RT b;         /*!< solute effect coefficient */
+        RT L;         /*!< latent heat of vaporization (condensate) */
+        RT K;         /*!< thermal conductivity (condensate) */
+        RT Rv;        /*!< gas constant of air with vapour */
+        RT rho_l;     /*!< density of condensate */
+        RT D;         /*!< molecular diffusion coefficient of air */
+
+        /*! \brief Right-hand-side of the phase change ODE */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT operator () ( const RT a_R,   /*!< radius */
+                         const RT a_S,   /*!< saturation ratio */
+                         const RT a_T,   /*!< temperature */
+                         const RT a_e_s, /*!< saturation pressure */
+                         const RT a_N_s  /*!< total solute moles */ ) const noexcept
+        {
+            RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
+            RT F_d = (rho_l*Rv*a_T) / (D*a_e_s);
+
+            RT R_inv = 1.0/a_R;
+            RT R_inv_cubed = R_inv*R_inv*R_inv;
+
+            RT alpha = (a_S-1.0) / (F_k + F_d);
+            RT retval = alpha*R_inv;
+
+            RT beta = -(a/a_T) / (F_k + F_d);
+            retval += beta*R_inv*R_inv;
+
+            RT gamma = b * a_N_s / (F_k + F_d);
+            retval += gamma*R_inv_cubed*R_inv;
+
+            return retval;
+        }
+
+    };
+#endif
+
     /*! \brief Phase change equation (in terms of R^2) */
     template <typename RT /*!< real-type */ >
     struct dRsqdt

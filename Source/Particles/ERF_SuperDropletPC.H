@@ -26,6 +26,9 @@ struct SuperDropletsRealIdxSoA_RT
         multiplicity,   /*!< Number of droplets that this super-droplet represents
                              (Real type to handle large values) */
         term_vel,       /*!< Terminal velocity */
+#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+        cond_tendency,  /*!< Condensation/evaporation tendency */
+#endif
         uid,            /*!< unique ID */
         ncomps
     };
