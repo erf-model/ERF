@@ -432,10 +432,12 @@ List of Parameters
 | **erf.no_substepping**     | Should we turn off   | int (0 or 1)   | 0                 |
 |                            | substepping in time? |                |                   |
 +----------------------------+----------------------+----------------+-------------------+
-| **erf.cfl**                | CFL number for       | Real > 0 and   | 0.8               |
-|                            | hydro                | <= 1           |                   |
-|                            |                      |                |                   |
-|                            |                      |                |                   |
+| **erf.cfl**                | CFL number used to   | Real > 0 and   | 0.8               |
+|                            | compute level 0 dt   | <= 1           |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.substepping_cfl**    | CFL number used to   | Real > 0 and   | 1.0               |
+|                            | compute the number   | <= 1           |                   |
+|                            | of substeps          |                |                   |
 +----------------------------+----------------------+----------------+-------------------+
 | **erf.fixed_dt**           | set level 0 dt       | Real > 0       | unused if not     |
 |                            | as this value        |                | set               |

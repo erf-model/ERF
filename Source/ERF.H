@@ -922,6 +922,7 @@ private:
 
     // Time step controls
     static amrex::Real cfl;
+    static amrex::Real sub_cfl;
     static amrex::Real init_shrink;
     static amrex::Real change_max;
 

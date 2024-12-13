@@ -26,6 +26,7 @@ SolverChoice ERF::solverChoice;
 
 // Time step control
 Real ERF::cfl           =  0.8;
+Real ERF::sub_cfl       =  1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
 int  ERF::fixed_mri_dt_ratio = 0;
@@ -1455,6 +1456,7 @@ ERF::ReadParameters ()
 
         // Time step controls
         pp.query("cfl", cfl);
+        pp.query("substepping_cfl", sub_cfl);
         pp.query("init_shrink", init_shrink);
         pp.query("change_max", change_max);
 
