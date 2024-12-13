@@ -39,7 +39,7 @@ using namespace amrex;
 
 void make_mom_sources (int level,
                        int /*nrk*/,
-                       Real dt,
+                       Real /*dt*/,
                        Real time,
                        Vector<MultiFab>& S_data,
                        const  MultiFab & S_prim,
@@ -57,8 +57,8 @@ void make_mom_sources (int level,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& /*mapfac_m*/,
-                       std::unique_ptr<MultiFab>& mapfac_u,
-                       std::unique_ptr<MultiFab>& mapfac_v,
+                       std::unique_ptr<MultiFab>& /*mapfac_u*/,
+                       std::unique_ptr<MultiFab>& /*mapfac_v*/,
                        const Real* dptr_u_geos,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
@@ -90,7 +90,7 @@ void make_mom_sources (int level,
     //    9. Forest canopy
     //   10. Immersed Forcing
     // *****************************************************************************
-    const bool l_use_ndiff       = solverChoice.use_num_diff;
+  //const bool l_use_ndiff       = solverChoice.use_num_diff;
     const bool l_use_zphys       = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool l_do_forest_drag  = solverChoice.do_forest_drag;
     const bool l_do_terrain_drag = solverChoice.do_terrain_drag;
