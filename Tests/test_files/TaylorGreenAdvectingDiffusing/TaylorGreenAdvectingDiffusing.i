@@ -35,13 +35,14 @@ erf.plot_int_1      = 10         # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp theta scalar
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = false
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "Constant"
-erf.dynamicViscosity = 6.25e-4 # 1.5e-5
+erf.les_type = "None"
+
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 6.25e-4 # 1.5e-5
+erf.alpha_T           = 0.0
+erf.alpha_C           = 0.0
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

@@ -42,7 +42,6 @@ erf.use_gravity = false
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "Constant"
-erf.rho0_trans       = 1.0
 erf.dynamicViscosity = 0.0
 
 erf.init_type = "uniform"

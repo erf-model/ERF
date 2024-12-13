@@ -43,7 +43,6 @@ erf.plot_int_1      = 3840       # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse
 
 # SOLVER CHOICE
-erf.alpha_C = 0.0
 erf.use_gravity = true
 erf.use_coriolis = false
 
@@ -51,10 +50,10 @@ erf.les_type         = "None"
 #
 # Diffusion coefficient from Straka, K = 75 m^2/s
 #
-erf.molec_diff_type  = "ConstantAlpha" # where alpha == "K" in Straka et al 1993
-erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 75.0 # [kg/(m-s)] ==> alpha = 75.0 m^2/s
-erf.alpha_T          = 75.0 # [m^2/s]
+erf.molec_diff_type   = "ConstantAlpha" # where alpha == "K" in Straka et al 1993
+erf.dynamic_viscosity = 75.0 # [kg/(m-s)] ==> alpha = 75.0 m^2/s
+erf.alpha_T           = 75.0 # [m^2/s]
+erf.alpha_C           = 0.0
 
 erf.dycore_horiz_adv_type  = Centered_2nd
 erf.dycore_vert_adv_type   = Centered_2nd
