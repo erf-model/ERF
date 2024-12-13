@@ -47,7 +47,7 @@ namespace HSEutils
         int iter=0;
         int max_iter=30;
         static constexpr Real tol_max  = 1.0e-8;
-        static constexpr Real tol_grow = std::sqrt(10.0);
+        static constexpr Real tol_grow = 3.16228; // sqrt(10.0)
         static constexpr Real eps      = 1.0e-6;
         static constexpr Real ieps     = 1.0e6;
         Real tol   = std::min(m_tol,tol_max);
