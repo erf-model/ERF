@@ -277,6 +277,10 @@ ifeq ($(USE_TERRAIN_VELOCITY), TRUE)
   DEFINES += -DERF_USE_TERRAIN_VELOCITY
 endif
 
+ifeq ($(USE_ML_UPHYS_DIAGNOSTICS), TRUE)
+  DEFINES += -DERF_USE_ML_UPHYS_DIAGNOSTICS
+endif
+
 CEXE_sources += AMReX_buildInfo.cpp
 CEXE_headers += $(AMREX_HOME)/Tools/C_scripts/AMReX_buildInfo.H
 INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts
