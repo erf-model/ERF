@@ -156,7 +156,7 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
     add_superdroplet_attributes();
     readInputs();
 
-#ifdef AMREX_USE_CUDA
+#ifdef AMREX_USE_GPU
     AMREX_ASSERT(!m_mass_change_logging);
 #endif
     if (m_mass_change_logging) {

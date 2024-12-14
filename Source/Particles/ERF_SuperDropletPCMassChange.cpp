@@ -172,7 +172,7 @@ void SuperDropletPC::MassChange ( int                                         a_
 
             if (!success) {
                 if (log_unconverged) {
-#ifndef AMREX_USE_CUDA
+#ifndef AMREX_USE_GPU
                     fprintf(file_handle,
                             "r=%1.16e, S=%1.16e, T=%1.16e, e=%1.16e, sol_mass=%1.16e\n",
                             radius_ptr[i], sat_ratio, temperature, e_sat, solute_moles );

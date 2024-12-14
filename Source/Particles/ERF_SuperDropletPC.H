@@ -282,7 +282,7 @@ class SuperDropletPC : public ERFPC
         std::mt19937 m_rndeng;
 
         /*! \brief read inputs from file */
-        virtual void readInputs ();
+        virtual void readInputs () override;
 
         /*! \brief Particle initialization - null (no particles are initialized) */
         void initializeParticlesNull (const MFPtr&) { }
