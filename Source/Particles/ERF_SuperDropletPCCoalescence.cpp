@@ -168,7 +168,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             Vector<unsigned int> stencil_vec(max_np_bin);
             for (unsigned int i = 0; i < max_np_bin; i++) { stencil_vec[i] = i; }
             // now shuffle it
-            std::shuffle ( stencil_vec.begin(),stencil_vec.end(), *m_random_engine );
+            std::shuffle ( stencil_vec.begin(),stencil_vec.end(), m_rndeng );
             // Copy to device
             Gpu::DeviceVector<unsigned int> stencil_vec_d;
             stencil_vec_d.resize(max_np_bin);
@@ -208,7 +208,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         for (int i_bin = 0; i_bin < bins.numBins(); i_bin++) {
             std::shuffle( inds + offsets[i_bin],
                           inds + offsets[i_bin+1],
-                          *m_random_engine );
+                          m_rndeng );
         }
 #endif
 
@@ -309,7 +309,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             Vector<Real> rand_h(rand_d.size());
             std::uniform_real_distribution<> urd(0.0,1.0);
             for (int i = 0; i < rand_h.size(); i++) {
-                rand_h[i] = urd(*m_random_engine);
+                rand_h[i] = urd(m_rndeng);
             }
             Gpu::copy( Gpu::hostToDevice,
                         rand_h.begin(),
@@ -317,6 +317,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                         rand_d.begin() );
         }
         auto rand_arr = rand_d.data();
+        Gpu::synchronize();
 
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i) noexcept
         {

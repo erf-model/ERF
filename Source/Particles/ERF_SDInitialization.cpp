@@ -181,7 +181,7 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
                                                 const int a_idx,
                                                 const int a_np,
                                                 const amrex::Real a_density,
-                                                std::default_random_engine& a_rng ) const
+                                                std::mt19937& a_rng ) const
 {
     a_aerosol_mass.resize(a_np);
     if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_const) {
@@ -215,7 +215,7 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
                                                 const int a_idx,
                                                 const int a_np,
                                                 const amrex::Real a_density,
-                                                std::default_random_engine& a_rng ) const
+                                                std::mt19937& a_rng ) const
 {
     a_aerosol_mass.resize(a_np);
     AMREX_ALWAYS_ASSERT(a_multiplicity.size() == a_np);
@@ -256,7 +256,7 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
 void SDInitialization::getCondensateDistribution ( amrex::Vector<amrex::Real>& a_condensate_mass,
                                                    const int a_np,
                                                    const amrex::Real a_density,
-                                                   std::default_random_engine& a_rng ) const
+                                                   std::mt19937& a_rng ) const
 {
     a_condensate_mass.resize(a_np);
     if (m_condensate_init_type == SupDropInit::attrib_init_exp) {

@@ -156,7 +156,7 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
     add_superdroplet_attributes();
     readInputs();
 
-#ifdef AMREX_USE_CUDA
+#ifdef AMREX_USE_GPU
     AMREX_ASSERT(!m_mass_change_logging);
 #endif
     if (m_mass_change_logging) {
@@ -169,13 +169,14 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
         int fix_seed = 0;
         ParmParse pp_erf("erf"); pp_erf.query("fix_random_seed", fix_seed);
         if (fix_seed) {
+            Print() << "Using fixed seed for SuperDropletPC random engine.\n";
             seed = 1024UL;
         } else {
             std::random_device rd;
             std::uniform_int_distribution<unsigned long int> dist(0, std::numeric_limits<unsigned long int>::max());
             seed = dist(rd);
         }
-        m_random_engine = std::make_unique<std::default_random_engine>(seed);
+        m_rndeng.seed(seed);
     }
 }
 
@@ -454,6 +455,9 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data() + size_old;
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data() + size_old;
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data() + size_old;
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        auto* condt_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::cond_tendency).data() + size_old;
+#endif
         auto* uid_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::uid).data() + size_old;
 
         GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
@@ -469,9 +473,9 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         for (int i = 0; i < n_aerosols; i++) {
             Vector<Real> aerosol_mass_h;
             if (sampled_multiplicity) {
-                a_init.getAerosolDistribution( aerosol_mass_h, multiplicity_h, i, np,  m_aerosol_mat[i]->density(), *m_random_engine );
+                a_init.getAerosolDistribution( aerosol_mass_h, multiplicity_h, i, np,  m_aerosol_mat[i]->density(), m_rndeng );
             } else {
-                a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->density(), *m_random_engine );
+                a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->density(), m_rndeng );
             }
             Gpu::copy( Gpu::hostToDevice,
                        aerosol_mass_h.begin(),
@@ -488,7 +492,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         Gpu::DeviceVector<Real> condensate_mass_d(np);
         {
             Vector<Real> condensate_mass_h;
-            a_init.getCondensateDistribution( condensate_mass_h, np, mat_density, *m_random_engine );
+            a_init.getCondensateDistribution( condensate_mass_h, np, mat_density, m_rndeng );
             Gpu::copy( Gpu::hostToDevice,
                        condensate_mass_h.begin(),
                        condensate_mass_h.end(),
@@ -507,7 +511,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
             Vector<Real> rand_h(rand_d.size());
             std::uniform_real_distribution<> urd(0.0,1.0);
             for (int i = 0; i < rand_h.size(); i++) {
-                rand_h[i] = urd(*m_random_engine);
+                rand_h[i] = urd(m_rndeng);
             }
             Gpu::copy( Gpu::hostToDevice,
                         rand_h.begin(),
@@ -515,6 +519,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                         rand_d.begin() );
         }
         auto rand_arr = rand_d.data();
+        Gpu::synchronize();
 
         ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -578,6 +583,9 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 mass_ptr[n] = cond_mass + aerosol_mass_total;
                 radius_ptr[n] = par_radius;
                 vterm_ptr[n] = 0.0;
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+                condt_ptr[n] = 0.0;
+#endif
                 uid_ptr[n] = ParticleReal((pid+n-1)*nprocs + my_proc + 1);
             }
 
@@ -609,7 +617,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 Vector<Real> rand_h(rand_d.size());
                 std::uniform_real_distribution<> urd(0.0,1.0);
                 for (int i = 0; i < rand_h.size(); i++) {
-                    rand_h[i] = urd(*m_random_engine);
+                    rand_h[i] = urd(m_rndeng);
                 }
                 Gpu::copy( Gpu::hostToDevice,
                             rand_h.begin(),
@@ -617,6 +625,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                             rand_d.begin() );
             }
             auto rand_arr = rand_d.data();
+            Gpu::synchronize();
 
             const auto height_arr = (*a_height_ptr)[mfi].array();
             ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -713,7 +722,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             Vector<Real> rand_h(rand_d.size());
             std::uniform_real_distribution<> urd(0.0,1.0);
             for (int i = 0; i < rand_h.size(); i++) {
-                rand_h[i] = urd(*m_random_engine);
+                rand_h[i] = urd(m_rndeng);
             }
             Gpu::copy( Gpu::hostToDevice,
                         rand_h.begin(),

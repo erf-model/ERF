@@ -25,6 +25,10 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WARM_NO_PRECIP)
   endif()
 
+  if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_ML_UPHYS_DIAGNOSTICS)
+  endif()
+
   if(ERF_ENABLE_PARTICLES)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Particles/ERFPCEvolve.cpp
