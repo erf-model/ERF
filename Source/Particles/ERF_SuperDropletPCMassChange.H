@@ -7,7 +7,7 @@
 
 namespace SDMassChangeUtils
 {
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     /*! \brief Phase change equation (in terms of R) */
     template <typename RT /*!< real-type */ >
     struct dRdt

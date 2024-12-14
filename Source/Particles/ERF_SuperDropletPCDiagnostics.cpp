@@ -17,7 +17,7 @@ Vector<std::string> SuperDropletPC::varNames () const
                                             "radius",
                                             "multiplicity",
                                             "terminal_velocity",
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
                                             "condensation_tendency",
 #endif
                                             "uid" };
@@ -169,7 +169,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                      return n*m;
                                  } );
 
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     auto min_cond_t = ReduceMin( *this,
                                  [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
                                  { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i]; } );
@@ -194,7 +194,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealMin(&min_par_vy,1);
     ParallelDescriptor::ReduceRealMin(&min_par_vz,1);
     ParallelDescriptor::ReduceRealMin(&min_term_v,1);
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     ParallelDescriptor::ReduceRealMin(&min_cond_t,1);
 #endif
 
@@ -205,7 +205,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealMax(&max_par_vy,1);
     ParallelDescriptor::ReduceRealMax(&max_par_vz,1);
     ParallelDescriptor::ReduceRealMax(&max_term_v,1);
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     ParallelDescriptor::ReduceRealMax(&max_cond_t,1);
 #endif
 
@@ -216,7 +216,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealSum(&avg_par_vy,1);
     ParallelDescriptor::ReduceRealSum(&avg_par_vz,1);
     ParallelDescriptor::ReduceRealSum(&avg_term_v,1);
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     ParallelDescriptor::ReduceRealSum(&avg_cond_t,1);
 #endif
 
@@ -228,7 +228,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
         avg_par_vy /= num_total_particles;
         avg_par_vz /= num_total_particles;
         avg_term_v /= num_total_particles;
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         avg_cond_t /= num_total_particles;
 #endif
     } else {
@@ -239,7 +239,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
         avg_par_vy = 0;
         avg_par_vz = 0;
         avg_term_v = 0;
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         avg_cond_t = 0;
 #endif
     }
@@ -288,12 +288,12 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
             << min_par_vy << ", " << max_par_vy << ", " << avg_par_vy << "\n"
             << "        z: "
             << min_par_vz << ", " << max_par_vz << ", " << avg_par_vz << "\n"
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+            << "    condensation/evaporation tendency [m/s]: "
+            << min_cond_t << ", " << max_cond_t << ", " << avg_cond_t << "\n"
+#endif
             << "    terminal velocity [m/s]: "
             << min_term_v << ", " << max_term_v << ", " << avg_term_v << "\n";
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
-            << "    condensation/evaporation tendency [m/s]: "
-            << min_cond_t << ", " << max_cond_t << ", " << avg_cond_t << "\n";
-#endif
 
     Print() << "    aerosol masses [kg]:\n";
     for (int ia = 0; ia < m_num_aerosols; ia++) {

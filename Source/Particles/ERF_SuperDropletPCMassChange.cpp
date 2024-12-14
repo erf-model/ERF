@@ -53,8 +53,8 @@ void SuperDropletPC::MassChange ( int                                         a_
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
-        auto* condt_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::cond_tendency).data() + size_old;
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        auto* condt_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
 #endif
 
         SDAerosolMassArr aerosol_mass_ptrs;
@@ -84,7 +84,7 @@ void SuperDropletPC::MassChange ( int                                         a_
         const auto& sat_ratio_arr = a_sat_ratio[grid].array();
         const auto& temperature_arr = a_temperature[grid].array();
 
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         dRdt<ParticleReal> drdt{ m_vapour_mat->coeffCurv(),
                                  m_vapour_mat->coeffVPSolute(),
                                  m_vapour_mat->latHeatVap(),
@@ -142,7 +142,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                 }
             }
 
-#ifdef ERF_ML_UPHYS_DIAGNOSTICS
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
             condt_ptr[i] = drdt( radius_ptr[i], sat_ratio, temperature, e_sat, solute_moles);
 #endif
 
