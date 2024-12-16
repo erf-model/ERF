@@ -264,9 +264,9 @@ public:
     }
 
     void
-    Qmoist_Restart_Vars ( const SolverChoice& a_sc,
-                          std::vector<int>& a_idx,
-                          std::vector<std::string>& a_names) const override
+    Qmoist_Restart_Vars (const SolverChoice& a_sc,
+                         std::vector<int>& a_idx,
+                         std::vector<std::string>& a_names) const override
     {
         a_idx.clear();
         a_names.clear();
@@ -283,7 +283,7 @@ private:
     // Number of qmoist variables (qt, qv, qcl, qci, qp, qpr, qps, qpg)
     int m_qmoist_size = 11;
 
-    // Number of qmoist variables
+    // Number of qstate variables
     int m_qstate_size = 6;
 
     // CFL MAX for vertical advection

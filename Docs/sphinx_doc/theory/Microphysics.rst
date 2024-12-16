@@ -170,3 +170,8 @@ The evaporation rate of rain is
 .. math::
    Q_{revp} = 2\pi(S-1)n_{0R}[0.78\lambda_{R}^{-2}+0.31S_{c}^{1/3}\Gamma[(b+5)/2]a^{1/2}\mu^{-1/2}(\frac{\rho_{0}}{\rho})^{1/4}\lambda_{R}^{(b+5)/2}](\frac{1}{\rho})(\frac{L_{v}^{2}}{K_{0}R_{w}T^{2}}+\frac{1}{\rho r_{s}\psi})^{-1}
 
+
+   Saturation Adjustment Microphysics Model
+----------------------------------
+The saturation adjustment microphysics model is the simplest possible moisture model and only transports the
+water vapor mixing ratio, :math:`q_v`, and the cloud water mixing ration, :math:`q_c`. Evaporation, :math:`q_v \longrightarrow q_c`, and condensation, :math:`q_c \longrightarrow q_v`, are the only relevant mechanisms. The final saturation state, :math:`q_v = q_{vs}(T)` is obtained from Newton-Raphson iterations on the thermal temperature :math:`T`.

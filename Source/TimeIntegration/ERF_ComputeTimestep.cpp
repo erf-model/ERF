@@ -115,15 +115,16 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    // If we are doing implicit acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
                    if (l_implicit_substepping) {
-                       if (nxc > 1 && nyc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
-                       } else if (nxc > 1) {
+                       if ((nxc > 1) && (nyc==1)) {
+                           // 2-D in x-z
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]), new_comp_dt);
-                       } else if (nyc > 1) {
+                       } else if ((nyc > 1) && (nxc==1)) {
+                           // 2-D in y-z
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
                        } else {
-                           amrex::Abort("Not sure how to compute dt for this case");
+                           // 3-D or SCM
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
                        }
 
                    // If we are not doing implicit acoustic substepping, then the z-direction contributes
@@ -201,8 +202,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          if (fixed_dt[level] > 0. && fixed_fast_dt[level] > 0.) {
              dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
          } else if (fixed_dt[level] > 0.) {
-             // Max CFL_c = 1.0 for substeps, but we enforce a min of 4 substeps
-             auto dt_sub_max = (estdt_comp/cfl);
+             // Max CFL_c = 1.0 for substeps by default, but we enforce a min of 4 substeps
+             auto dt_sub_max = (estdt_comp/cfl * sub_cfl);
+             Print() << "fixed_dt="<<fixed_dt[level] << " dt_sub_max="<<dt_sub_max << std::endl;
              dt_fast_ratio = static_cast<long>( std::max(fixed_dt[level]/dt_sub_max,4.) );
          }
 

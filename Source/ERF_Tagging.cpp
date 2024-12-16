@@ -161,7 +161,7 @@ ERF::refinement_criteria_setup ()
                     jlo = static_cast<int>((rbox_lo[1] - plo[1])/dx[1]);
                     ihi = static_cast<int>((rbox_hi[0] - plo[0])/dx[0]-1);
                     jhi = static_cast<int>((rbox_hi[1] - plo[1])/dx[1]-1);
-                    if (SolverChoice::terrain_type != TerrainType::None) {
+                    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                         // Search for k indices corresponding to nominal grid
                         // AGL heights
                         const Box& domain = geom[lev_for_box].Domain();

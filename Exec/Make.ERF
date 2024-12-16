@@ -149,6 +149,11 @@ include $(ERF_MOISTURE_KESSLER_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_KESSLER_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_KESSLER_DIR)
 
+ERF_MOISTURE_SATADJ_DIR = $(ERF_SOURCE_DIR)/Microphysics/SatAdj
+include $(ERF_MOISTURE_SATADJ_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_SATADJ_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_SATADJ_DIR)
+
 # If using windfarm parametrization, then compile all models and choose 
 # at runtime from the inputs
 ifeq ($(USE_WINDFARM), TRUE)
