@@ -177,6 +177,9 @@ public:
     void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
                                 amrex::MultiFab& p);
 
+    // Calculate wall distance by solving a Poisson equation
+    void poisson_wall_dist (int lev);
+
 #ifdef ERF_USE_FFT
     void solve_with_fft (int lev, amrex::MultiFab& rhs, amrex::MultiFab& p,
                          amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
@@ -981,8 +984,10 @@ private:
                                                     "Kmv","Kmh",
                                                     // eddy diffusivity of heat
                                                     "Khv","Khh",
-                                                    // mynn pbl lengthscale
+                                                    // turbulence lengthscale
                                                     "Lturb",
+                                                    // wall distance
+                                                    "walldist",
                                                     // moisture vars
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",

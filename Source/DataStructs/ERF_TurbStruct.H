@@ -5,6 +5,8 @@
 
 AMREX_ENUM(LESType, None, Smagorinsky, Deardorff);
 
+AMREX_ENUM(RANSType, None, kEqn);
+
 AMREX_ENUM(PBLType, None, MYNN25, YSU);
 
 template <typename T>
@@ -35,6 +37,10 @@ struct TurbChoice {
         // Which LES closure?
         std::string les_type_string = "None";
         query_one_or_per_level(pp, "les_type", les_type, lev, max_level);
+
+        // Which RANS closure?
+        std::string rans_type_string = "None";
+        query_one_or_per_level(pp, "rans_type", rans_type, lev, max_level);
 
         // Which PBL Closure
         static std::string pbl_type_string = "None";
@@ -187,6 +193,9 @@ struct TurbChoice {
     amrex::Real sigma_k = 0.5;
 
     amrex::Real theta_ref = 300.0;
+
+    // RANS type
+    RANSType rans_type;
 
     // PBL model
     PBLType pbl_type;

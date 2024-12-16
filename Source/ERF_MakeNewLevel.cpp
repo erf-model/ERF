@@ -144,6 +144,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (solverChoice.do_forest_drag) { m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
 
     if (solverChoice.do_terrain_drag) { m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+
+    //********************************************************************************************
+    // Create wall distance field for RANS model (depends upon z_phys)
+    // *******************************************************************************************
+    if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
+        poisson_wall_dist(lev);
+    }
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************

@@ -101,7 +101,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Create wall distance array for RANS modeling
     // ********************************************************************************************
-    if (true) {
+    if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
         walldist[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
         walldist[lev]->setVal(1e23);
     } else {

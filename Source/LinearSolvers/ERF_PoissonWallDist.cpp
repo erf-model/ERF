@@ -1,0 +1,215 @@
+#include "ERF.H"
+#include "ERF_Utils.H"
+
+#include <AMReX_MLMG.H>
+#include <AMReX_MLPoisson.H>
+//#include <AMReX_MLNodeLaplacian.H>
+
+using namespace amrex;
+
+/**
+ * Calculate wall distances using the Poisson equation
+ *
+ * See Tucker, P. G. (2003). Differential equation-based wall distance
+ * computation for DES and RANS. Journal of Computational Physics,
+ * 190(1), 229–248. https://doi.org/10.1016/S0021-9991(03)00272-9
+ */
+void ERF::poisson_wall_dist (int lev)
+{
+    BL_PROFILE("ERF::poisson_wall_dist()");
+    Print() << "Calculating wall distance" << std::endl;
+    if (solverChoice.terrain_type == TerrainType::None) {
+        // Handle this trivial case
+// This is commented out to test the wall dist calc:
+#if 0
+        for (MFIter mfi(phi[0]); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto dist_arr = wall_dist.array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                const Real* prob_lo = geomdata.ProbLo();
+                const Real* dx = geomdata.CellSize();
+                dist_arr(i, j, k) = prob_lo[2] + (k + 0.5) * dx[2];
+            });
+        }
+#endif
+    } else {
+        Error("Wall dist calc not implemented over terrain yet");
+    }
+
+    BoxArray ba_nd(vars_new[lev][Vars::cons].boxArray());
+    ba_nd.surroundingNodes();
+
+    // Make sure the solver only sees the levels over which we are solving
+    Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
+    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(ba_nd);
+    Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(vars_new[lev][Vars::cons].DistributionMap());
+
+    Vector<MultiFab> rhs;
+    Vector<MultiFab> phi;
+
+#ifdef ERF_USE_EB
+    Error("Wall dist calc not implemented for EB";
+#else
+    rhs.resize(1);   rhs[0].define(ba_nd, dm_tmp[0], 1, 0);
+    phi.resize(1);   phi[0].define(ba_nd, dm_tmp[0], 1, 1);
+#endif
+
+    rhs[0].setVal(-1.0);
+
+    // Define an overset mask to set dirichlet nodes on walls
+    iMultiFab mask(ba_nd, dm_tmp[0], 1, 0);
+    Vector<const iMultiFab*> overset_mask = {&mask};
+
+    // ****************************************************************************
+    // Initialize phi
+    // (It is essential that we do this in order to fill the corners; these are never
+    //  used but the Saxpy requires the values to be initialized.)
+    // ****************************************************************************
+    phi[0].setVal(42.);
+
+    // ****************************************************************************
+    // Interior boundaries are marked with phi=0
+    // ****************************************************************************
+    // Overset mask is 0/1: 1 means the node is an unknown. 0 means it's known.
+    mask.setVal(1);
+#if 0
+        for (MFIter mfi(phi[0]); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+
+            auto phi_arr  = phi[0].array(mfi);
+            auto mask_arr = mask.array(mfi);
+
+            ParallelFor(makeSlab(bx,2,0), [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                phi_arr(i, j, k) = 0.0;
+                mask_arr(i, j, k) = 0;
+            });
+        }
+#endif
+
+    // ****************************************************************************
+    // Setup BCs, with solid domain boundaries being dirichlet
+    // We assume that the zlo boundary corresponds to the land surface
+    // ****************************************************************************
+    auto const dom_lo = lbound(geom[lev].Domain());
+    auto const dom_hi = ubound(geom[lev].Domain());
+
+    amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bc3d_lo, bc3d_hi;
+    Orientation zlo(Direction::z, Orientation::low);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (geom[0].isPeriodic(dir)) {
+            bc3d_lo[dir] = LinOpBCType::Periodic;
+            bc3d_hi[dir] = LinOpBCType::Periodic;
+        } else {
+            bc3d_lo[dir] = LinOpBCType::Neumann;
+            bc3d_hi[dir] = LinOpBCType::Neumann;
+        }
+    }
+    if ( (phys_bc_type[zlo] == ERF_BC::MOST) ||
+         (phys_bc_type[zlo] == ERF_BC::no_slip_wall) ||
+         ((phys_bc_type[zlo] == ERF_BC::slip_wall) && (dom_hi.z > dom_lo.z))
+       )
+    {
+        // Only consider slip wall on zlo if we're not 2D in xy
+        Print() << "Poisson zlo BC is dirichlet" << std::endl;
+        bc3d_lo[2] = LinOpBCType::Dirichlet;
+    }
+
+    LPInfo info;
+    // Allow a hidden direction if the domain is one cell wide in any lateral direction
+    if (dom_lo.x == dom_hi.x) {
+        info.setHiddenDirection(0);
+    } else if (dom_lo.y == dom_hi.y) {
+        info.setHiddenDirection(1);
+    }
+
+    // ****************************************************************************
+    // Solve nodal masked Poisson problem with MLMG
+    // TODO: different solver for terrain
+    // ****************************************************************************
+    const Real reltol = solverChoice.poisson_reltol;
+    const Real abstol = solverChoice.poisson_abstol;
+
+#if 0
+    /* MLNodeLaplacian is incompatible with the cell-based solvers that are
+     * already included; the source code is compiled only for the
+     * AMReX_LINEAR_SOLVERS_INCFLO option, which cannot be simultaneously used
+     * with the default AMReX_LINEAR_SOLVERS option.
+     */
+    const Real sigma{1.0};
+    MLNodeLaplacian mlpoisson(geom_tmp, ba_tmp, dm_tmp, info, {}, sigma);
+#endif
+    MLPoisson mlpoisson(geom_tmp, ba_tmp, dm_tmp, overset_mask, info);
+
+    mlpoisson.setDomainBC(bc3d_lo, bc3d_hi);
+
+    if (lev > 0) {
+        mlpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
+    }
+
+    // Solve
+    MLMG mlmg(mlpoisson);
+    int max_iter = 100;
+    mlmg.setMaxIter(max_iter);
+
+    mlmg.setVerbose(mg_verbose);
+    mlmg.setBottomVerbose(0);
+
+    mlmg.solve(GetVecOfPtrs(phi),
+               GetVecOfConstPtrs(rhs),
+               reltol, abstol);
+
+    // Now overwrite with periodic fill outside domain and fine-fine fill inside
+    phi[0].FillBoundary(geom[lev].periodicity());
+
+    // ****************************************************************************
+    // Compute div(phi) to get distances
+    // TODO: include terrain metrics for dphi/dz
+    // ****************************************************************************
+    for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+
+        auto const& phi_arr = phi[0].const_array(mfi);
+        auto dist_arr = walldist[lev]->array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+            const auto invCellSize = geom[lev].InvCellSizeArray();
+            Real dpdx{0}, dpdy{0}, dpdz{0};
+
+            // dphi/dx
+            if (dom_lo.x != dom_hi.x) {
+                if (i==dom_lo.x) {
+                    dpdx = 0.5*invCellSize[0]*(-3.*phi_arr(i  , j, k) + 4.*phi_arr(i+1, j, k) - phi_arr(i+2, j, k));
+                } else if (i==dom_hi.x) {
+                    dpdx = 0.5*invCellSize[0]*( 3.*phi_arr(i  , j, k) - 4.*phi_arr(i-1, j, k) + phi_arr(i-2, j, k));
+                } else {
+                    dpdx = 0.5*invCellSize[0]*(    phi_arr(i+1, j, k) -    phi_arr(i-1, j, k));
+                }
+            }
+
+            // dphi/dy
+            if (dom_lo.y != dom_hi.y) {
+                if (j==dom_lo.y) {
+                    dpdy = 0.5*invCellSize[1]*(-3.*phi_arr(i, j  , k) + 4.*phi_arr(i, j+1, k) - phi_arr(i, j+2, k));
+                } else if (j==dom_hi.y) {                                                                     
+                    dpdy = 0.5*invCellSize[1]*( 3.*phi_arr(i, j  , k) - 4.*phi_arr(i, j-1, k) + phi_arr(i, j-2, k));
+                } else {                                                                 
+                    dpdy = 0.5*invCellSize[1]*(    phi_arr(i, j+1, k) -    phi_arr(i, j-1, k));
+                }
+            }
+
+            // dphi/dz
+            if (dom_lo.z != dom_hi.z) {
+                if (k==dom_lo.z) {
+                    dpdz = 0.5*invCellSize[2]*(-3.*phi_arr(i, j, k  ) + 4.*phi_arr(i, j, k+1) - phi_arr(i, j, k+2));
+                } else if (k==dom_hi.z) {                                                                        
+                    dpdz = 0.5*invCellSize[2]*( 3.*phi_arr(i, j, k  ) - 4.*phi_arr(i, j, k-1) + phi_arr(i, j, k-2));
+                } else {                                                                    
+                    dpdz = 0.5*invCellSize[2]*(    phi_arr(i, j, k+1) -    phi_arr(i, j, k-1));
+                }
+            }
+
+            Real dp_dot_dp = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
+            dist_arr(i, j, k) = -std::sqrt(dp_dot_dp) + std::sqrt(dp_dot_dp + 2*phi_arr(i, j, k));
+        });
+    }
+}
