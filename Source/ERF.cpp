@@ -717,9 +717,7 @@ ERF::InitData_post ()
             AverageDown();
         }
 
-        if ((solverChoice.advChoice.zero_xflux.size() > 0) ||
-            (solverChoice.advChoice.zero_yflux.size() > 0) ||
-            (solverChoice.advChoice.zero_zflux.size() > 0))
+        if (solverChoice.advChoice.have_zero_flux_faces)
         {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
                 "Thin immersed body with refinement not currently supported.");

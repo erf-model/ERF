@@ -65,29 +65,94 @@ void ERF::poisson_wall_dist (int lev)
 
     // ****************************************************************************
     // Initialize phi
-    // (It is essential that we do this in order to fill the corners; these are never
-    //  used but the Saxpy requires the values to be initialized.)
+    // (It is essential that we do this in order to fill the corners; this is
+    // used if we include blanking.)
     // ****************************************************************************
-    phi[0].setVal(42.);
+    phi[0].setVal(0.0);
 
     // ****************************************************************************
     // Interior boundaries are marked with phi=0
     // ****************************************************************************
     // Overset mask is 0/1: 1 means the node is an unknown. 0 means it's known.
     mask.setVal(1);
-#if 0
+    if (solverChoice.advChoice.have_zero_flux_faces) {
+        Gpu::DeviceVector<IntVect> xfacelist, yfacelist, zfacelist;
+
+        xfacelist.resize(solverChoice.advChoice.zero_xflux.size());
+        yfacelist.resize(solverChoice.advChoice.zero_yflux.size());
+        zfacelist.resize(solverChoice.advChoice.zero_zflux.size());
+
+        if (xfacelist.size() > 0) {
+            Gpu::copy(amrex::Gpu::hostToDevice,
+                      solverChoice.advChoice.zero_xflux.begin(),
+                      solverChoice.advChoice.zero_xflux.end(),
+                      xfacelist.begin());
+            Print() << "  masking interior xfaces" << std::endl;
+        }
+        if (yfacelist.size() > 0) {
+            Gpu::copy(amrex::Gpu::hostToDevice,
+                      solverChoice.advChoice.zero_yflux.begin(),
+                      solverChoice.advChoice.zero_yflux.end(),
+                      yfacelist.begin());
+            Print() << "  masking interior yfaces" << std::endl;
+        }
+        if (zfacelist.size() > 0) {
+            Gpu::copy(amrex::Gpu::hostToDevice,
+                      solverChoice.advChoice.zero_zflux.begin(),
+                      solverChoice.advChoice.zero_zflux.end(),
+                      zfacelist.begin());
+            Print() << "  masking interior zfaces" << std::endl;
+        }
+
         for (MFIter mfi(phi[0]); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
 
             auto phi_arr  = phi[0].array(mfi);
             auto mask_arr = mask.array(mfi);
 
-            ParallelFor(makeSlab(bx,2,0), [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                phi_arr(i, j, k) = 0.0;
-                mask_arr(i, j, k) = 0;
-            });
+            if (xfacelist.size() > 0) {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    for (int iface=0; iface < xfacelist.size(); ++iface) {
+                        if ((i == xfacelist[iface][0]) &&
+                            (j == xfacelist[iface][1]) &&
+                            (k == xfacelist[iface][2]))
+                        {
+                            mask_arr(i, j, k) = 0;
+                            mask_arr(i-1, j, k) = 0;
+                        }
+                    }
+                });
+            }
+
+            if (yfacelist.size() > 0) {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    for (int iface=0; iface < yfacelist.size(); ++iface) {
+                        if ((i == yfacelist[iface][0]) &&
+                            (j == yfacelist[iface][1]) &&
+                            (k == yfacelist[iface][2]))
+                        {
+                            mask_arr(i, j, k) = 0;
+                            mask_arr(i, j-1, k) = 0;
+                        }
+                    }
+                });
+            }
+
+            if (zfacelist.size() > 0) {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    for (int iface=0; iface < zfacelist.size(); ++iface) {
+                        if ((i == xfacelist[iface][0]) &&
+                            (j == xfacelist[iface][1]) &&
+                            (k == xfacelist[iface][2]))
+                        {
+                            mask_arr(i, j, k) = 0;
+                            mask_arr(i, j, k-1) = 0;
+                        }
+                    }
+                });
+            }
         }
-#endif
+    }
 
     // ****************************************************************************
     // Setup BCs, with solid domain boundaries being dirichlet

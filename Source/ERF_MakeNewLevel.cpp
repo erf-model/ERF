@@ -552,7 +552,7 @@ ERF::init_thin_body (int lev, const BoxArray& ba, const DistributionMapping& dm)
     }
 
     if (solverChoice.advChoice.zero_yflux.size() > 0) {
-        amrex::Print() << "Setting up thin interface boundary for "
+        amrex::Print() << "Setting up thin immersed body for "
             << solverChoice.advChoice.zero_yflux.size() << " yfaces" << std::endl;
         BoxArray ba_yf(ba);
         ba_yf.surroundingNodes(1);
@@ -584,7 +584,7 @@ ERF::init_thin_body (int lev, const BoxArray& ba, const DistributionMapping& dm)
     }
 
     if (solverChoice.advChoice.zero_zflux.size() > 0) {
-        amrex::Print() << "Setting up thin interface boundary for "
+        amrex::Print() << "Setting up thin immersed body for "
             << solverChoice.advChoice.zero_zflux.size() << " zfaces" << std::endl;
         BoxArray ba_zf(ba);
         ba_zf.surroundingNodes(2);
