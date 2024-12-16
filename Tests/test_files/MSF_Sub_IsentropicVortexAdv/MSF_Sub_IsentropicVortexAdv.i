@@ -20,7 +20,8 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.substepping_type = Implicit
 erf.fixed_dt         = 0.0003
-
+erf.fixed_mri_dt_ratio = 6
+    
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass
 erf.v               = 1       # verbosity in ERF.cpp

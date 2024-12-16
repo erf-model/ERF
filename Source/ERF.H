@@ -30,7 +30,7 @@
 #include <AMReX_MemProfiler.H>
 #endif
 
-#include "ERF_prob_common.H"
+#include "ERF_ProbCommon.H"
 
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
@@ -46,6 +46,7 @@
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_TerrainDrag.H>
 
 #ifdef ERF_USE_PARTICLES
 #include "ERF_ParticleData.H"
@@ -164,8 +165,8 @@ public:
     void WriteMyEBSurface ();
 #endif
 
-    // Compute the divergence of the momenta
-    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Vector<amrex::MultiFab>& mom_mf,
+    // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
+    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
                              amrex::Geometry const& geom_at_lev);
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
@@ -475,6 +476,18 @@ public:
     void make_eb_box ();
     void make_eb_cylinder ();
     void make_eb_regular ();
+    void redistribute_term ( int lev,
+                        amrex::MultiFab& result,
+                        amrex::MultiFab& result_tmp,
+                        amrex::MultiFab const& state,
+                        amrex::BCRec const* bc,
+                        amrex::Real const dt);
+    void redistribute_term ( amrex::MFIter const& mfi, int lev,
+                        amrex::MultiFab& result,
+                        amrex::MultiFab& result_tmp,
+                        amrex::MultiFab const& state,
+                        amrex::BCRec const* bc,
+                        amrex::Real const dt);
 #endif
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
@@ -814,8 +827,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q1fx1_lev, SFS_q1fx2_lev, SFS_q1fx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
-    // Terrain / grid stretching
+    // Grid stretching
     amrex::Vector<amrex::Vector<amrex::Real>> zlevels_stag; // nominal height levels
+
+    // Terrain data structures
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
 
@@ -838,6 +853,7 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
+    // Map scale factors
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
@@ -906,6 +922,7 @@ private:
 
     // Time step controls
     static amrex::Real cfl;
+    static amrex::Real sub_cfl;
     static amrex::Real init_shrink;
     static amrex::Real change_max;
 
@@ -965,7 +982,9 @@ private:
                                                     "Lturb",
                                                     // moisture vars
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
-                                                    "rain_accum", "snow_accum", "graup_accum"
+                                                    "rain_accum", "snow_accum", "graup_accum",
+                                                    // Terrain IB mask
+                                                    "terrain_IB_mask"
 #ifdef ERF_USE_EB
                                                     // EB variables
                                                     ,"volfrac",
@@ -1050,6 +1069,21 @@ private:
     // used with init_type == InitType::Input_Sounding
     static bool init_sounding_ideal;
 
+    // Options for vertical interpolation of met_em*.nc data.
+    bool        metgrid_debug_quiescent{false};
+    bool        metgrid_debug_isothermal{false};
+    bool        metgrid_debug_dry{false};
+    bool        metgrid_debug_psfc{false};
+    bool        metgrid_debug_msf{false};
+    bool        metgrid_interp_theta{false};
+    bool        metgrid_basic_linear{false};
+    bool        metgrid_use_below_sfc{true};
+    bool        metgrid_use_sfc{true};
+    bool        metgrid_retain_sfc{false};
+    amrex::Real metgrid_proximity{1000.0};
+    int         metgrid_order{2};
+    int         metgrid_force_sfc_k{0};
+
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
     static int         column_interval;
@@ -1124,7 +1158,8 @@ private:
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     std::unique_ptr<ABLMost>          m_most = nullptr;
-    amrex::Vector<std::unique_ptr<ForestDrag>> m_forest;
+    amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
+    amrex::Vector<std::unique_ptr<TerrainDrag>> m_terrain_drag;
 
     //
     // Holds info for dynamically generated tagging criteria

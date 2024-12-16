@@ -9,7 +9,7 @@
 #include <ERF_TerrainMetrics.H>
 
 #include <ERF_TileNoZ.H>
-#include <ERF_prob_common.H>
+#include <ERF_ProbCommon.H>
 
 #ifdef ERF_USE_EB
 #include <AMReX_EBMultiFabUtil.H>
@@ -112,7 +112,7 @@ void make_fast_coeffs (int level,
                        const amrex::MultiFab& pi_stage,
                        const amrex::Geometry geom,
                        const bool use_moisture,
-                       const TerrainType terrain_type,
+                       const MeshType mesh_type,
                        const amrex::Real gravity,
                        const amrex::Real c_p,
                        std::unique_ptr<amrex::MultiFab>& detJ_cc,

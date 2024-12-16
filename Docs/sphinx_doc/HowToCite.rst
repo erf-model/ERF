@@ -6,11 +6,14 @@
 How to Cite ERF
 ===============
 
-If you use ERF, please cite the following reference.
+If you use ERF, please cite the following references.
+
+Lattanzi et al., (2025), ERF: Energy Research and Forecasting.
+https://arxiv.org/abs/2412.04395
 
 Almgren et al., (2023). ERF: Energy Research and Forecasting. Journal of Open Source Software, 8(87), 5202, https://doi.org/10.21105/joss.05202
 
-The bibtex version would be
+The bibtex version of the JOSS paper would be
 
 @article{ERF_JOSS,
     title   = {ERF: Energy Research and Forecasting},

@@ -53,7 +53,7 @@ erf.Cs              = 0.1
 
 erf.moisture_model = "Kessler"
 
-erf.use_terrain       = true
+erf.terrain_type = Static
 erf.terrain_smoothing = 0
 erf.buoyancy_type     = 1
 erf.terrain_z_levels  = 0 53.25373067 116.3299934 190.8583428 278.6665766 381.7196783 502.1312033 642.3454199 \

@@ -368,7 +368,9 @@ public:
     update_pblh (const int& lev,
                  amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                  amrex::MultiFab* z_phys_cc,
-                 const int RhoQv_comp, const int RhoQr_comp);
+                 const int RhoQv_comp,
+                 const int RhoQc_comp,
+                 const int RhoQr_comp);
 
     template <typename PBLHeightEstimator>
     void
@@ -376,7 +378,9 @@ public:
                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                   amrex::MultiFab* z_phys_cc,
                   const PBLHeightEstimator& est,
-                  const int RhoQv_comp, const int RhoQr_comp);
+                  const int RhoQv_comp,
+                  const int RhoQc_comp,
+                  const int RhoQr_comp);
 
     void
     read_custom_roughness (const int& lev,

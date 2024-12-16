@@ -93,7 +93,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             // We have to call this each step since it depends on the substep time now
             // Note we pass in the *old* detJ here
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                             l_use_moisture, SolverChoice::terrain_type, solverChoice.gravity, solverChoice.c_p,
+                             l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
                              detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
 
             if (fast_step == 0) {
@@ -121,12 +121,12 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
-        } else if (solverChoice.terrain_type == TerrainType::Static) {
+        } else if (solverChoice.mesh_type != MeshType::ConstantDz) {
             if (fast_step == 0) {
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                                 l_use_moisture, SolverChoice::terrain_type, solverChoice.gravity, solverChoice.c_p,
+                                 l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
@@ -152,7 +152,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                                 l_use_moisture, SolverChoice::terrain_type, solverChoice.gravity, solverChoice.c_p,
+                                 l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
 
                 // If this is the first substep we pass in S_old as the previous step's solution

@@ -1,7 +1,6 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
 #include "AMReX_Interp_3D_C.H"
-#include "AMReX_PlotFileUtil.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Constants.H"
 
@@ -73,7 +72,8 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            if (SolverChoice::terrain_type != TerrainType::None || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
+            if ( SolverChoice::mesh_type != MeshType::ConstantDz ||
+                (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
                 if ( (solverChoice.moisture_type == MoistureType::SAM ||
                       solverChoice.moisture_type == MoistureType::SAM_NoIce) ||
                      (derived_names[i] != "qi" &&
@@ -226,7 +226,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
     // Vector of MultiFabs for nodal data
     Vector<MultiFab> mf_nd(finest_level+1);
-    if (SolverChoice::terrain_type != TerrainType::None) {
+    if ( SolverChoice::mesh_type != MeshType::ConstantDz) {
         for (int lev = 0; lev <= finest_level; ++lev) {
             BoxArray nodal_grids(grids[lev]); nodal_grids.surroundingNodes();
             mf_nd[lev].define(nodal_grids, dmap[lev], 3, 0);
@@ -368,7 +368,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             u[0] = &(vars_new[lev][Vars::xvel]);
             u[1] = &(vars_new[lev][Vars::yvel]);
             u[2] = &(vars_new[lev][Vars::zvel]);
-            computeDivergence(dmf, u, geom[lev]);
+            compute_divergence (lev, dmf, u, geom[lev]);
             mf_comp += 1;
         }
 
@@ -489,6 +489,24 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp ++;
         }
 
+        if (containerHasElement(plot_var_names, "terrain_IB_mask"))
+        {
+            MultiFab* terrain_blank = m_terrain_drag[lev]->get_terrain_blank_field();
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat  = mf[lev].array(mfi);
+                const Array4<Real const>& src = terrain_blank->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i, j, k, mf_comp) = src(i,j,k);
+                });
+            }
+            mf_comp ++;
+        }
+
 #ifdef ERF_USE_WINDFARM
         if (containerHasElement(plot_var_names, "num_turb") and
             (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
@@ -579,7 +597,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real> & p_arr  = pres.array(mfi);
 
-                if (SolverChoice::terrain_type != TerrainType::None) {
+                if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                     const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
 
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -673,7 +691,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real> & p_arr  = pres.array(mfi);
 
-                if (SolverChoice::terrain_type != TerrainType::None) {
+                if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                     const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
 
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -844,7 +862,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp += 1;
         } // pres_hse_y
 
-        if (SolverChoice::terrain_type != TerrainType::None) {
+        if (SolverChoice::mesh_type != MeshType::ConstantDz) {
             if (containerHasElement(plot_var_names, "z_phys"))
             {
                 MultiFab::Copy(mf[lev],*z_phys_cc[lev],0,mf_comp,1,0);
@@ -1054,7 +1072,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
             // Precipitating components
             //--------------------------------------------------------------------------
-            if(containerHasElement(plot_var_names, "qp"))
+            if(containerHasElement(plot_var_names, "qp") && (n_qstate >= 3))
             {
                 int n_start = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
                 int n_end   = ncomp_cons - 1;
@@ -1351,7 +1369,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 #endif
 
     // Fill terrain distortion MF
-    if (SolverChoice::terrain_type != TerrainType::None) {
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         for (int lev(0); lev <= finest_level; ++lev) {
             MultiFab::Copy(mf_nd[lev],*z_phys_nd[lev],0,2,1,0);
             Real dz = Geom()[lev].CellSizeArray()[2];
@@ -1400,7 +1418,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         if (plotfile_type == PlotFileType::Amrex)
         {
             Print() << "Writing native plotfile " << plotfilename << "\n";
-            if (SolverChoice::terrain_type != TerrainType::None) {
+            if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                    GetVecOfConstPtrs(mf),
                                                    GetVecOfConstPtrs(mf_nd),
@@ -1511,7 +1529,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 }
 
                Print() << "Writing plotfile " << plotfilename << "\n";
-               if (SolverChoice::terrain_type != TerrainType::None) {
+               if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                    WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                       GetVecOfConstPtrs(mf2),
                                                       GetVecOfConstPtrs(mf_nd),
@@ -1524,7 +1542,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                }
 
             } else {
-                if (SolverChoice::terrain_type != TerrainType::None) {
+               if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                     WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                        GetVecOfConstPtrs(mf),
                                                        GetVecOfConstPtrs(mf_nd),
