@@ -18,7 +18,7 @@ void ERF::poisson_wall_dist (int lev)
 {
     BL_PROFILE("ERF::poisson_wall_dist()");
     Print() << "Calculating wall distance" << std::endl;
-    if (solverChoice.terrain_type == TerrainType::None) {
+    if (solverChoice.mesh_type == MeshType::ConstantDz) {
         // Handle this trivial case
 // This is commented out to test the wall dist calc:
 #if 0
@@ -31,18 +31,18 @@ void ERF::poisson_wall_dist (int lev)
                 dist_arr(i, j, k) = prob_lo[2] + (k + 0.5) * dx[2];
             });
         }
+        return;
 #endif
+    } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+        // TODO: Handle this trivial case
     } else {
         Error("Wall dist calc not implemented over terrain yet");
     }
 
-    BoxArray ba_nd(vars_new[lev][Vars::cons].boxArray());
-    ba_nd.surroundingNodes();
-
     // Make sure the solver only sees the levels over which we are solving
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
-    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(ba_nd);
-    Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(vars_new[lev][Vars::cons].DistributionMap());
+    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(walldist[lev]->boxArray());
+    Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(walldist[lev]->DistributionMap());
 
     Vector<MultiFab> rhs;
     Vector<MultiFab> phi;
@@ -50,15 +50,18 @@ void ERF::poisson_wall_dist (int lev)
 #ifdef ERF_USE_EB
     Error("Wall dist calc not implemented for EB";
 #else
-    rhs.resize(1);   rhs[0].define(ba_nd, dm_tmp[0], 1, 0);
-    phi.resize(1);   phi[0].define(ba_nd, dm_tmp[0], 1, 1);
+    rhs.resize(1);   rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
+    phi.resize(1);   phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
 #endif
 
     rhs[0].setVal(-1.0);
 
     // Define an overset mask to set dirichlet nodes on walls
-    iMultiFab mask(ba_nd, dm_tmp[0], 1, 0);
+    iMultiFab mask(ba_tmp[0], dm_tmp[0], 1, 0);
     Vector<const iMultiFab*> overset_mask = {&mask};
+
+    auto const dom_lo = lbound(geom[lev].Domain());
+    auto const dom_hi = ubound(geom[lev].Domain());
 
     // ****************************************************************************
     // Initialize phi
@@ -90,9 +93,6 @@ void ERF::poisson_wall_dist (int lev)
     // Setup BCs, with solid domain boundaries being dirichlet
     // We assume that the zlo boundary corresponds to the land surface
     // ****************************************************************************
-    auto const dom_lo = lbound(geom[lev].Domain());
-    auto const dom_hi = ubound(geom[lev].Domain());
-
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bc3d_lo, bc3d_hi;
     Orientation zlo(Direction::z, Orientation::low);
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
@@ -104,23 +104,34 @@ void ERF::poisson_wall_dist (int lev)
             bc3d_hi[dir] = LinOpBCType::Neumann;
         }
     }
-    if ( (phys_bc_type[zlo] == ERF_BC::MOST) ||
-         (phys_bc_type[zlo] == ERF_BC::no_slip_wall) ||
-         ((phys_bc_type[zlo] == ERF_BC::slip_wall) && (dom_hi.z > dom_lo.z))
-       )
+    if ( ( phys_bc_type[zlo] == ERF_BC::MOST                               ) ||
+         ( phys_bc_type[zlo] == ERF_BC::no_slip_wall                       ) ||
+         ((phys_bc_type[zlo] == ERF_BC::slip_wall) && (dom_hi.z > dom_lo.z)) )
     {
         // Only consider slip wall on zlo if we're not 2D in xy
-        Print() << "Poisson zlo BC is dirichlet" << std::endl;
+        Print() << "  Poisson zlo BC is dirichlet" << std::endl;
         bc3d_lo[2] = LinOpBCType::Dirichlet;
     }
+    Print() << "  bc lo : " << bc3d_lo << std::endl;
+    Print() << "  bc hi : " << bc3d_hi << std::endl;
 
     LPInfo info;
-    // Allow a hidden direction if the domain is one cell wide in any lateral direction
+/* Solving in 2D results in a qualitatively correct phi field but the maximum
+ * phi--and resulting wall distances--are smaller than expected.
+ */
+#if 0
+    // Allow a hidden direction if the domain is one cell wide
     if (dom_lo.x == dom_hi.x) {
         info.setHiddenDirection(0);
+        Print() << "  domain is 2D in yz" << std::endl;
     } else if (dom_lo.y == dom_hi.y) {
         info.setHiddenDirection(1);
+        Print() << "  domain is 2D in xz" << std::endl;
+    } else if (dom_lo.z == dom_hi.z) {
+        info.setHiddenDirection(2);
+        Print() << "  domain is 2D in xy" << std::endl;
     }
+#endif
 
     // ****************************************************************************
     // Solve nodal masked Poisson problem with MLMG
@@ -129,15 +140,6 @@ void ERF::poisson_wall_dist (int lev)
     const Real reltol = solverChoice.poisson_reltol;
     const Real abstol = solverChoice.poisson_abstol;
 
-#if 0
-    /* MLNodeLaplacian is incompatible with the cell-based solvers that are
-     * already included; the source code is compiled only for the
-     * AMReX_LINEAR_SOLVERS_INCFLO option, which cannot be simultaneously used
-     * with the default AMReX_LINEAR_SOLVERS option.
-     */
-    const Real sigma{1.0};
-    MLNodeLaplacian mlpoisson(geom_tmp, ba_tmp, dm_tmp, info, {}, sigma);
-#endif
     MLPoisson mlpoisson(geom_tmp, ba_tmp, dm_tmp, overset_mask, info);
 
     mlpoisson.setDomainBC(bc3d_lo, bc3d_hi);
@@ -145,6 +147,8 @@ void ERF::poisson_wall_dist (int lev)
     if (lev > 0) {
         mlpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
     }
+
+    mlpoisson.setLevelBC(0, nullptr);
 
     // Solve
     MLMG mlmg(mlpoisson);
@@ -162,10 +166,10 @@ void ERF::poisson_wall_dist (int lev)
     phi[0].FillBoundary(geom[lev].periodicity());
 
     // ****************************************************************************
-    // Compute div(phi) to get distances
+    // Compute grad(phi) to get distances
     // TODO: include terrain metrics for dphi/dz
     // ****************************************************************************
-    for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(phi[0]); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
 
         auto const& phi_arr = phi[0].const_array(mfi);
@@ -210,6 +214,8 @@ void ERF::poisson_wall_dist (int lev)
 
             Real dp_dot_dp = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
             dist_arr(i, j, k) = -std::sqrt(dp_dot_dp) + std::sqrt(dp_dot_dp + 2*phi_arr(i, j, k));
+
+            //dist_arr(i, j, k) = phi_arr(i, j, k); // DEBUG: output phi instead
         });
     }
 }
