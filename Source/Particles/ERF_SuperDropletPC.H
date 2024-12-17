@@ -281,6 +281,9 @@ class SuperDropletPC : public ERFPC
         /*! sigma_0 parameter for mass distribution calculation */
         amrex::Real m_sigma0;
 
+        /*! place the initial SDs randomly within cells */
+        bool m_place_randomly_in_cells;
+
         /*! random engine */
         std::mt19937 m_rndeng;
 

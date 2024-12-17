@@ -36,6 +36,7 @@ void SuperDropletPC::readInputs ()
     m_advect_w_gravity = true;
     m_distribution_grid_size = 100;
     m_sigma0 = 0.62;
+    m_place_randomly_in_cells = true;
 
     /* Newton solver parameters */
     m_newton_rtol = 1.0e-6;
@@ -76,6 +77,7 @@ void SuperDropletPC::readInputs ()
     pp.query("distribution_grid_size", m_distribution_grid_size);
     pp.query("include_brownian_coalescence", m_include_brownian_coalescence);
     pp.query("sigma0", m_sigma0);
+    pp.query("place_randomly_in_cells", m_place_randomly_in_cells);
 
     std::string ti_name = "backward_euler";
     pp.query("mass_change_cfl", m_mass_change_cfl);
@@ -505,6 +507,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         auto mult_arr = multiplicity_d.data();
 
         auto num_superdroplets_arr = num_superdroplets[mfi].array();
+        auto random_place = m_place_randomly_in_cells;
 
         ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k, const RandomEngine& rnd_engine) noexcept
         {
@@ -522,19 +525,22 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
 
             int start = offset_arr(i,j,k);
             for (int n = start; n < start+num_sd_this_cell; n++) {
-                Real x = plo[0] + (i + Random(rnd_engine))*dx[0];
-                Real y = plo[1] + (j + Random(rnd_engine))*dx[1];
-                Real z = plo[2] + (k + Random(rnd_engine))*dx[2];
 
                 auto& p = aos[n+size_old];
                 p.id()  = pid + n;
                 p.cpu() = my_proc;
-                p.pos(0) = x;
-                p.pos(1) = y;
-                p.pos(2) = z;
+
+                if (random_place) {
+                    p.pos(0) = plo[0] + (i + Random(rnd_engine))*dx[0];
+                    p.pos(1) = plo[1] + (j + Random(rnd_engine))*dx[1];
+                    p.pos(2) = plo[2] + (k + Random(rnd_engine))*dx[2];
+                } else {
+                    p.pos(0) = plo[0] + (i + 0.5)*dx[0];
+                    p.pos(1) = plo[1] + (j + 0.5)*dx[1];
+                    p.pos(2) = plo[2] + (k + 0.5)*dx[2];
+                }
 
                 p.idata(SuperDropletsIntIdxAoS::k) = k;
-
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = 0.0;
 
                 Real mult_this_sd = 0;
