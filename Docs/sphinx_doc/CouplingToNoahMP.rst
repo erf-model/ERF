@@ -78,7 +78,7 @@ This module contains a mirroring of the C++ structure for NOAH-MP
 input-output operations.
 
 The following functions are used to operate on the `NoahmpIO_type` and
-interface with thier respective Fortran implementations:
+interface with their respective Fortran implementations:
 
 -  `void NoahmpIOVarInitDefault(NoahmpIO_type* noahmpio)`: Initializes
    default variables of `NoahmpIO_type`. Create C pointer for Fortran
