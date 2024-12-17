@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include "ERF_DataStruct.H"
+#include "ERF_IndexDefines.H"
 
 /*! \brief Base class for microphysics interface */
 class Microphysics {
@@ -39,7 +40,8 @@ public:
                           const amrex::Real&,
                           const SolverChoice&,
                           amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                          const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) = 0;
+                          const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&,
+                          const amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& ) = 0;
 
     /*! \brief update microphysics variables from ERF state variables */
     virtual void Update_Micro_Vars_Lev (const int&, amrex::MultiFab&) = 0;
