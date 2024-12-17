@@ -8,7 +8,8 @@ using namespace amrex;
 
 /*! Handle the boundaries for the particles */
 void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
-                                              const Vector<MFPtr>&  a_z_phys_nd )
+                                              const Vector<MFPtr>&  a_z_phys_nd,
+                                              const BCTypeArr&      a_bctypes )
 {
     BL_PROFILE("SuperDropletPC::applyBoundaryTreatment()");
     const MFPtr& z_height = a_z_phys_nd[a_lev];
@@ -112,42 +113,69 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 auto x_min = plo[d];
                 auto x_max = phi[d];
 
+                auto bc_lo = a_bctypes[Orientation(d,Orientation::low)];
+                auto bc_hi = a_bctypes[Orientation(d,Orientation::high)];
+
                 if (p.pos(d) < x_min) {
-                    auto delta = x_min - p.pos(d);
-                    p.pos(d) = x_max - delta;
-                    if (!is_periodic[d]) {
-                        v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
 
-                        ParticleReal aerosol_mass_total = 0.0;
-                        for (int ctr = 0; ctr < n_aerosols; ctr++) {
-                            aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
+                    if ((bc_lo == ERF_BC::slip_wall) || (bc_lo == ERF_BC::no_slip_wall)) {
+
+                        p.pos(d) = x_min + 0.01*dx[d];
+                        v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                        mult_ptr[i] = 0.0;
+
+                    } else {
+
+                        auto delta = x_min - p.pos(d);
+                        p.pos(d) = x_max - delta;
+                        if (!is_periodic[d]) {
+                            v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+
+                            ParticleReal aerosol_mass_total = 0.0;
+                            for (int ctr = 0; ctr < n_aerosols; ctr++) {
+                                aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
+                            }
+
+                            auto par_radius = 1.0e-15;
+                            auto cond_mass = (4.0/3.0)*PI
+                                             * par_radius*par_radius*par_radius*mat_density;
+                            radius_ptr[i] = par_radius;
+                            mass_ptr[i] = cond_mass + aerosol_mass_total;
+                            mult_ptr[i] = multiplicity;
                         }
 
-                        auto par_radius = 1.0e-15;
-                        auto cond_mass = (4.0/3.0)*PI
-                                         * par_radius*par_radius*par_radius*mat_density;
-                        radius_ptr[i] = par_radius;
-                        mass_ptr[i] = cond_mass + aerosol_mass_total;
-                        mult_ptr[i] = multiplicity;
                     }
+
                 } else if (p.pos(d) > x_max) {
-                    auto delta = p.pos(d) - x_max;
-                    p.pos(d) = x_min + delta;
-                    if (!is_periodic[d]) {
-                        v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
 
-                        ParticleReal aerosol_mass_total = 0.0;
-                        for (int ctr = 0; ctr < n_aerosols; ctr++) {
-                            aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
+                    if ((bc_hi == ERF_BC::slip_wall) || (bc_hi == ERF_BC::no_slip_wall)) {
+
+                        p.pos(d) = x_max - 0.01*dx[d];
+                        v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+                        mult_ptr[i] = 0.0;
+
+                    } else {
+
+                        auto delta = p.pos(d) - x_max;
+                        p.pos(d) = x_min + delta;
+                        if (!is_periodic[d]) {
+                            v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+
+                            ParticleReal aerosol_mass_total = 0.0;
+                            for (int ctr = 0; ctr < n_aerosols; ctr++) {
+                                aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
+                            }
+
+                            auto par_radius = 1.0e-15;
+                            auto cond_mass = (4.0/3.0)*PI
+                                             * par_radius*par_radius*par_radius*mat_density;
+                            radius_ptr[i] = par_radius;
+                            mass_ptr[i] = cond_mass + aerosol_mass_total;
+                            mult_ptr[i] = multiplicity;
                         }
 
-                        auto par_radius = 1.0e-15;
-                        auto cond_mass = (4.0/3.0)*PI
-                                         * par_radius*par_radius*par_radius*mat_density;
-                        radius_ptr[i] = par_radius;
-                        mass_ptr[i] = cond_mass + aerosol_mass_total;
-                        mult_ptr[i] = multiplicity;
                     }
+
                 }
 
             }
