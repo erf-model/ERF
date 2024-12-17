@@ -5,6 +5,7 @@
 
 #include <random>
 
+#include "ERF_IndexDefines.H"
 #include "ERF_MaterialProperties.H"
 #include "ERFPC.H"
 #include "ERF_SDInitialization.H"
@@ -58,6 +59,7 @@ enum struct SDMassChangeTIMethod {
 
 using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
 using MFPtr = std::unique_ptr<amrex::MultiFab>;
+using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
 
 class SuperDropletPC : public ERFPC
 {
@@ -170,7 +172,8 @@ class SuperDropletPC : public ERFPC
                                          const amrex::MultiFab&,
                                          const amrex::MultiFab&,
                                          const amrex::MultiFab&,
-                                         const amrex::Vector<MFPtr>& );
+                                         const amrex::Vector<MFPtr>&,
+                                         const BCTypeArr& );
 
         /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int,
@@ -229,7 +232,7 @@ class SuperDropletPC : public ERFPC
         virtual void effectiveRadius ( amrex::MultiFab&, const int& a_comp=0 ) const;
 
         /*! \brief Applies boundary treatment to the particle container */
-        virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>& );
+        virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr& );
 
     protected:
 

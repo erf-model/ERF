@@ -15,7 +15,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                                        const MultiFab&       a_density,
                                        const MultiFab&       a_pressure,
                                        const MultiFab&       a_temperature,
-                                       const Vector<MFPtr>&  a_z_phys_nd )
+                                       const Vector<MFPtr>&  a_z_phys_nd,
+                                       const BCTypeArr&      a_bctypes )
 {
     BL_PROFILE("SuperDropletPC::AdvectParticles()");
     const MFPtr& z_height = a_z_phys_nd[a_lev];
@@ -181,7 +182,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         Gpu::synchronize();
     }
 
-    applyBoundaryTreatment(a_lev, a_z_phys_nd);
+    applyBoundaryTreatment(a_lev, a_z_phys_nd, a_bctypes);
     Redistribute();
 }
 
