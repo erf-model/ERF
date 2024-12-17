@@ -78,10 +78,10 @@ erf.Ce       = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
 erf.Ce_wall  = 3.9  # To account for "wall effects"
 erf.sigma_k  = 0.5  # TKE diffusion coeff = 2*Km = Km * inv_sigma_k, Moeng1984, Eqn. 15
 
-erf.rayleigh_damp_U = true
-erf.rayleigh_damp_V = true
+erf.rayleigh_damp_U = false
+erf.rayleigh_damp_V = false
 erf.rayleigh_damp_W = true
-erf.rayleigh_damp_T = true
+erf.rayleigh_damp_T = false
 erf.rayleigh_dampcoef = 0.2 # [1/s] following FastEddy
 erf.rayleigh_zdamp = 100. # from Beare et al. 2006, "most models applied gravity wave damping above 300 m"
 
