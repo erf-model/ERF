@@ -118,8 +118,10 @@ void ERF::poisson_wall_dist (int lev)
                             (j == xfacelist[iface][1]) &&
                             (k == xfacelist[iface][2]))
                         {
-                            mask_arr(i, j, k) = 0;
-                            mask_arr(i-1, j, k) = 0;
+                            mask_arr(i, j  , k  ) = 0;
+                            mask_arr(i, j  , k+1) = 0;
+                            mask_arr(i, j+1, k  ) = 0;
+                            mask_arr(i, j+1, k+1) = 0;
                         }
                     }
                 });
@@ -132,8 +134,10 @@ void ERF::poisson_wall_dist (int lev)
                             (j == yfacelist[iface][1]) &&
                             (k == yfacelist[iface][2]))
                         {
-                            mask_arr(i, j, k) = 0;
-                            mask_arr(i, j-1, k) = 0;
+                            mask_arr(i  , j, k  ) = 0;
+                            mask_arr(i  , j, k+1) = 0;
+                            mask_arr(i+1, j, k  ) = 0;
+                            mask_arr(i+1, j, k+1) = 0;
                         }
                     }
                 });
@@ -146,8 +150,10 @@ void ERF::poisson_wall_dist (int lev)
                             (j == xfacelist[iface][1]) &&
                             (k == xfacelist[iface][2]))
                         {
-                            mask_arr(i, j, k) = 0;
-                            mask_arr(i, j, k-1) = 0;
+                            mask_arr(i  , j  , k) = 0;
+                            mask_arr(i  , j+1, k) = 0;
+                            mask_arr(i+1, j  , k) = 0;
+                            mask_arr(i+1, j+1, k) = 0;
                         }
                     }
                 });
@@ -214,6 +220,8 @@ void ERF::poisson_wall_dist (int lev)
     }
 
     mlpoisson.setLevelBC(0, nullptr);
+
+    mlpoisson.setOversetMask(0, mask);
 
     // Solve
     MLMG mlmg(mlpoisson);
