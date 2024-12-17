@@ -2,8 +2,7 @@
 #include "ERF_Utils.H"
 
 #include <AMReX_MLMG.H>
-#include <AMReX_MLPoisson.H>
-//#include <AMReX_MLNodeLaplacian.H>
+#include <AMReX_MLNodeLaplacian.H>
 
 using namespace amrex;
 
@@ -40,8 +39,10 @@ void ERF::poisson_wall_dist (int lev)
     }
 
     // Make sure the solver only sees the levels over which we are solving
+    BoxArray nba = walldist[lev]->boxArray();
+    nba.surroundingNodes();
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
-    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(walldist[lev]->boxArray());
+    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(nba);
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(walldist[lev]->DistributionMap());
 
     Vector<MultiFab> rhs;
@@ -181,9 +182,7 @@ void ERF::poisson_wall_dist (int lev)
     Print() << "  bc hi : " << bc3d_hi << std::endl;
 
     LPInfo info;
-/* Solving in 2D results in a qualitatively correct phi field but the maximum
- * phi--and resulting wall distances--are smaller than expected.
- */
+/* Nodal solver cannot have hidden dimensions */
 #if 0
     // Allow a hidden direction if the domain is one cell wide
     if (dom_lo.x == dom_hi.x) {
@@ -205,7 +204,8 @@ void ERF::poisson_wall_dist (int lev)
     const Real reltol = solverChoice.poisson_reltol;
     const Real abstol = solverChoice.poisson_abstol;
 
-    MLPoisson mlpoisson(geom_tmp, ba_tmp, dm_tmp, overset_mask, info);
+    Real sigma = 1.0;
+    MLNodeLaplacian mlpoisson(geom_tmp, ba_tmp, dm_tmp, info, {}, sigma);
 
     mlpoisson.setDomainBC(bc3d_lo, bc3d_hi);
 
@@ -234,7 +234,7 @@ void ERF::poisson_wall_dist (int lev)
     // Compute grad(phi) to get distances
     // TODO: include terrain metrics for dphi/dz
     // ****************************************************************************
-    for (MFIter mfi(phi[0]); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
 
         auto const& phi_arr = phi[0].const_array(mfi);
@@ -246,41 +246,24 @@ void ERF::poisson_wall_dist (int lev)
 
             // dphi/dx
             if (dom_lo.x != dom_hi.x) {
-                if (i==dom_lo.x) {
-                    dpdx = 0.5*invCellSize[0]*(-3.*phi_arr(i  , j, k) + 4.*phi_arr(i+1, j, k) - phi_arr(i+2, j, k));
-                } else if (i==dom_hi.x) {
-                    dpdx = 0.5*invCellSize[0]*( 3.*phi_arr(i  , j, k) - 4.*phi_arr(i-1, j, k) + phi_arr(i-2, j, k));
-                } else {
-                    dpdx = 0.5*invCellSize[0]*(    phi_arr(i+1, j, k) -    phi_arr(i-1, j, k));
-                }
+                dpdx = invCellSize[0]*(phi_arr(i, j, k) - phi_arr(i-1, j, k));
             }
 
             // dphi/dy
             if (dom_lo.y != dom_hi.y) {
-                if (j==dom_lo.y) {
-                    dpdy = 0.5*invCellSize[1]*(-3.*phi_arr(i, j  , k) + 4.*phi_arr(i, j+1, k) - phi_arr(i, j+2, k));
-                } else if (j==dom_hi.y) {                                                                     
-                    dpdy = 0.5*invCellSize[1]*( 3.*phi_arr(i, j  , k) - 4.*phi_arr(i, j-1, k) + phi_arr(i, j-2, k));
-                } else {                                                                 
-                    dpdy = 0.5*invCellSize[1]*(    phi_arr(i, j+1, k) -    phi_arr(i, j-1, k));
-                }
+                dpdy = invCellSize[1]*(phi_arr(i, j, k) - phi_arr(i, j-1, k));
             }
 
             // dphi/dz
             if (dom_lo.z != dom_hi.z) {
-                if (k==dom_lo.z) {
-                    dpdz = 0.5*invCellSize[2]*(-3.*phi_arr(i, j, k  ) + 4.*phi_arr(i, j, k+1) - phi_arr(i, j, k+2));
-                } else if (k==dom_hi.z) {                                                                        
-                    dpdz = 0.5*invCellSize[2]*( 3.*phi_arr(i, j, k  ) - 4.*phi_arr(i, j, k-1) + phi_arr(i, j, k-2));
-                } else {                                                                    
-                    dpdz = 0.5*invCellSize[2]*(    phi_arr(i, j, k+1) -    phi_arr(i, j, k-1));
-                }
+                dpdz = invCellSize[2]*(phi_arr(i, j, k) - phi_arr(i, j, k-1));
             }
 
             Real dp_dot_dp = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
             dist_arr(i, j, k) = -std::sqrt(dp_dot_dp) + std::sqrt(dp_dot_dp + 2*phi_arr(i, j, k));
 
-            //dist_arr(i, j, k) = phi_arr(i, j, k); // DEBUG: output phi instead
+            // DEBUG: output phi instead
+            //dist_arr(i, j, k) = phi_arr(i, j, k);
         });
     }
 }
