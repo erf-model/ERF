@@ -1,0 +1,23 @@
+Version_Two_Dot_One_double
+3
+9
+xvel
+yvel
+zvel
+particle_mass
+radius
+multiplicity
+terminal_velocity
+uid
+aerosol_mass_NaCl
+1
+int_comp0
+1
+256
+65
+0
+4
+0 64 0
+1 64 0
+2 64 0
+3 64 0

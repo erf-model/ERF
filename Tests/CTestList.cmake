@@ -187,6 +187,7 @@ add_test_r(MoistBubble                       "MoistRegTests/Bubble/erf_bubble" "
 add_test_r(SquallLine_2D                     "MoistRegTests/SquallLine_2D/erf_squallline" "plt00010")
 add_test_r(SuperCell_3D                      "MoistRegTests/SuperCell_3D/erf_supercell"   "plt00010")
 add_test_r(SDM_Bubble2D_Adv                  "MoistRegTests/Bubble/erf_bubble"   "plt00050")
+add_test_r(SDM_Box3D_Cond                    "MoistRegTests/Bubble/erf_bubble"   "plt00001")
 
 add_test_0(InitSoundingIdeal_stationary      "ABL/erf_abl" "plt00010")
 add_test_0(Deardorff_stationary              "ABL/erf_abl" "plt00010")
