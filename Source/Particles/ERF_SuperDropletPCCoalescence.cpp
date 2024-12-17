@@ -8,12 +8,12 @@ using namespace amrex;
 
 /*! \brief Compute coalescence rate between two superdroplets */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static ParticleReal coalescence_rate ( const Real a_rnd, /*!< random real number */
+static ParticleReal coalescence_rate ( const RandomEngine& a_rnd_eng, /*!< random engine */
                                        const Real a_p /*!< probability */ )
 {
     ParticleReal p_int = std::floor(a_p);
     ParticleReal gamma = p_int;
-    if (a_rnd < (a_p-p_int)) { gamma += 1; }
+    if (Random(a_rnd_eng) < (a_p-p_int)) { gamma += 1; }
     return gamma;
 }
 
@@ -304,22 +304,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         struct timeval coalescence_start, coalescence_end;
         gettimeofday(&coalescence_start, NULL);
 
-        Gpu::DeviceVector<Real> rand_d(np);
-        {
-            Vector<Real> rand_h(rand_d.size());
-            std::uniform_real_distribution<> urd(0.0,1.0);
-            for (int i = 0; i < rand_h.size(); i++) {
-                rand_h[i] = urd(m_rndeng);
-            }
-            Gpu::copy( Gpu::hostToDevice,
-                        rand_h.begin(),
-                        rand_h.end(),
-                        rand_d.begin() );
-        }
-        auto rand_arr = rand_d.data();
-        Gpu::synchronize();
-
-        ParallelFor( np, [=] AMREX_GPU_DEVICE (int i) noexcept
+        ParallelForRNG( np, [=] AMREX_GPU_DEVICE (int i, RandomEngine const& rnd_eng) noexcept
         {
             if (partner_idx_ptr[i] < 0) { return; }
             if (!flag_prey_ptr[i]) { return; }
@@ -401,7 +386,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
             auto scaled_prob = prob_sd_ij * scaling_factor;
 
-            auto gamma = coalescence_rate ( rand_arr[i], (scaled_prob*a_dt) );
+            auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
             if (gamma > 0) {
                 amrex::Gpu::Atomic::Add(particle_collisions_ptr, gamma);
                 coal_rate_ptr[pi] = std::min(gamma,std::floor(mult_ptr[pi]/mult_ptr[pj]));
