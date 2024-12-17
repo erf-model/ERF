@@ -26,7 +26,7 @@ Files Overview
 
 -  **Submodules/NOAH-MP/drivers/hrldas/NoahmpIO.H**: Defines the C++
    `NoahmpIO_type` that is used to interface with Noah-MP implementations
-   following similar structure as the underlying Fortran interface 
+   following similar structure as the underlying Fortran interface
    (https://dx.doi.org/10.5065/ew8g-yr95).
 
 -  **Submodules/NOAH-MP/drivers/hrldas/NoahmpIO.cpp**: Contains the
