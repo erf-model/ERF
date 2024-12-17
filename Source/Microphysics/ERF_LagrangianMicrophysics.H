@@ -70,10 +70,11 @@ public:
                   const amrex::Real& time, /*!< current time */
                   const SolverChoice& /*solverChoice*/, /*!< Solver choice object */
                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& a_vars, /*!< Dycore state variables */
-                  const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z/*!< terrain */) override
+                  const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z/*!< terrain */,
+                  const amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& a_phys_bc_types ) override
     {
         if (lev > 0) return;
-        m_moist_model->Advance(dt_advance, iter, time, a_vars, a_z);
+        m_moist_model->Advance(dt_advance, iter, time, a_vars, a_z, a_phys_bc_types);
     }
 
     /*! \brief update microphysics variables from ERF state variables */
