@@ -60,7 +60,7 @@ erf.alpha_T          = 75.0 # [m^2/s]
 erf.c_p = 1004.0
 
 # TERRAIN SMOOTHING
-erf.use_terrain = true
+erf.terrain_type = Static
 erf.terrain_smoothing = 1
 
 # Z LEVELS

@@ -53,7 +53,9 @@ void SuperDropletPC::MassChange ( int                                         a_
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        auto* condt_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
+#endif
 
         SDAerosolMassArr aerosol_mass_ptrs;
         Gpu::DeviceVector<ParticleReal> aerosol_mol_weight(num_aerosols);
@@ -81,6 +83,16 @@ void SuperDropletPC::MassChange ( int                                         a_
         const auto& sat_pressure_arr = a_sat_pressure[grid].array();
         const auto& sat_ratio_arr = a_sat_ratio[grid].array();
         const auto& temperature_arr = a_temperature[grid].array();
+
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        dRdt<ParticleReal> drdt{ m_vapour_mat->coeffCurv(),
+                                 m_vapour_mat->coeffVPSolute(),
+                                 m_vapour_mat->latHeatVap(),
+                                 therco, /* ERF_Constants.H */
+                                 m_vapour_mat->Rv(),
+                                 mat_density,
+                                 diffelq /* ERF_Constants.H */};
+#endif
 
         dRsqdt<ParticleReal> drsqdt{ m_vapour_mat->coeffCurv(),
                                      m_vapour_mat->coeffVPSolute(),
@@ -130,6 +142,9 @@ void SuperDropletPC::MassChange ( int                                         a_
                 }
             }
 
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+            condt_ptr[i] = drdt( radius_ptr[i], sat_ratio, temperature, e_sat, solute_moles);
+#endif
 
             TI< dRsqdt<ParticleReal>,
                 NewtonSolver<dRsqdt<ParticleReal>, ParticleReal>,
@@ -157,7 +172,7 @@ void SuperDropletPC::MassChange ( int                                         a_
 
             if (!success) {
                 if (log_unconverged) {
-#ifndef AMREX_USE_CUDA
+#ifndef AMREX_USE_GPU
                     fprintf(file_handle,
                             "r=%1.16e, S=%1.16e, T=%1.16e, e=%1.16e, sol_mass=%1.16e\n",
                             radius_ptr[i], sat_ratio, temperature, e_sat, solute_moles );
@@ -169,8 +184,6 @@ void SuperDropletPC::MassChange ( int                                         a_
                 radius_ptr[i] = std::sqrt(r_sq);
                 // update mass of particle
                 mass_ptr[i] = (4.0/3.0)*PI*r_sq*radius_ptr[i]*mat_density;
-                // update superdroplet total mass
-                supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
             }
 
         });

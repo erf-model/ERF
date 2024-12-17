@@ -110,7 +110,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             //       Reassign the field ptrs for MAC avg computation.
             m_most->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
             m_most->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
-                                solverChoice.RhoQv_comp, solverChoice.RhoQr_comp);
+                                solverChoice.RhoQv_comp,
+                                solverChoice.RhoQc_comp,
+                                solverChoice.RhoQr_comp);
             m_most->update_fluxes(lev, time);
         }
     }

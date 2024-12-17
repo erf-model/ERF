@@ -1,7 +1,6 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
 #include "AMReX_Interp_3D_C.H"
-#include "AMReX_PlotFileUtil.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Constants.H"
 
@@ -73,7 +72,8 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            if (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
+            if ( SolverChoice::mesh_type != MeshType::ConstantDz ||
+                (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
                 if ( (solverChoice.moisture_type == MoistureType::SAM ||
                       solverChoice.moisture_type == MoistureType::SAM_NoIce) ||
                      (derived_names[i] != "qi" &&
@@ -97,7 +97,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
             if(solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP) {
-                if(derived_names[i] == "num_turb") {
+                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0") {
                     tmp_plot_names.push_back(derived_names[i]);
                 }
             }
@@ -236,11 +236,29 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
     // Vector of MultiFabs for nodal data
     Vector<MultiFab> mf_nd(finest_level+1);
-    if (solverChoice.use_terrain) {
+    if ( SolverChoice::mesh_type != MeshType::ConstantDz) {
         for (int lev = 0; lev <= finest_level; ++lev) {
             BoxArray nodal_grids(grids[lev]); nodal_grids.surroundingNodes();
             mf_nd[lev].define(nodal_grids, dmap[lev], 3, 0);
             mf_nd[lev].setVal(0.);
+        }
+    }
+
+    // Vector of MultiFabs for face-centered velocity
+    Vector<MultiFab> mf_u(finest_level+1);
+    Vector<MultiFab> mf_v(finest_level+1);
+    Vector<MultiFab> mf_w(finest_level+1);
+    if (m_plot_face_vels) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            BoxArray grid_stag_u(grids[lev]); grid_stag_u.surroundingNodes(0);
+            BoxArray grid_stag_v(grids[lev]); grid_stag_v.surroundingNodes(1);
+            BoxArray grid_stag_w(grids[lev]); grid_stag_w.surroundingNodes(2);
+            mf_u[lev].define(grid_stag_u, dmap[lev], 1, 0);
+            mf_v[lev].define(grid_stag_v, dmap[lev], 1, 0);
+            mf_w[lev].define(grid_stag_w, dmap[lev], 1, 0);
+            MultiFab::Copy(mf_u[lev],vars_new[lev][Vars::xvel],0,0,1,0);
+            MultiFab::Copy(mf_v[lev],vars_new[lev][Vars::yvel],0,0,1,0);
+            MultiFab::Copy(mf_w[lev],vars_new[lev][Vars::zvel],0,0,1,0);
         }
     }
 
@@ -360,22 +378,26 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             u[0] = &(vars_new[lev][Vars::xvel]);
             u[1] = &(vars_new[lev][Vars::yvel]);
             u[2] = &(vars_new[lev][Vars::zvel]);
-            computeDivergence(dmf, u, geom[lev]);
+            compute_divergence (lev, dmf, u, geom[lev]);
             mf_comp += 1;
         }
 
-        MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
-        MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
+        MultiFab  r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
+        MultiFab  p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
+        MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
         if (containerHasElement(plot_var_names, "pres_hse"))
         {
-            // p_0 is second component of base_state
             MultiFab::Copy(mf[lev],p_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
         if (containerHasElement(plot_var_names, "dens_hse"))
         {
-            // r_0 is first component of base_state
             MultiFab::Copy(mf[lev],r_hse,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+        if (containerHasElement(plot_var_names, "theta_hse"))
+        {
+            MultiFab::Copy(mf[lev],th_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
@@ -477,6 +499,24 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp ++;
         }
 
+        if (containerHasElement(plot_var_names, "terrain_IB_mask"))
+        {
+            MultiFab* terrain_blank = m_terrain_drag[lev]->get_terrain_blank_field();
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat  = mf[lev].array(mfi);
+                const Array4<Real const>& src = terrain_blank->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i, j, k, mf_comp) = src(i,j,k);
+                });
+            }
+            mf_comp ++;
+        }
+
 #ifdef ERF_USE_WINDFARM
         if (containerHasElement(plot_var_names, "num_turb") and
             (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
@@ -498,7 +538,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
 
         if( containerHasElement(plot_var_names, "SMark0") and
-           (solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) ) {
+           (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
+            solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) ) {
              for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
@@ -566,7 +607,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real> & p_arr  = pres.array(mfi);
 
-                if (solverChoice.use_terrain) {
+                if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                     const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
 
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -660,7 +701,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real> & p_arr  = pres.array(mfi);
 
-                if (solverChoice.use_terrain) {
+                if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                     const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
 
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -831,7 +872,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp += 1;
         } // pres_hse_y
 
-        if (solverChoice.use_terrain) {
+        if (SolverChoice::mesh_type != MeshType::ConstantDz) {
             if (containerHasElement(plot_var_names, "z_phys"))
             {
                 MultiFab::Copy(mf[lev],*z_phys_cc[lev],0,mf_comp,1,0);
@@ -1041,7 +1082,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
             // Precipitating components
             //--------------------------------------------------------------------------
-            if(containerHasElement(plot_var_names, "qp"))
+            if(containerHasElement(plot_var_names, "qp") && (n_qstate >= 3))
             {
                 int n_start = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
                 int n_end   = ncomp_cons - 1;
@@ -1354,14 +1395,14 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 #endif
     }
 
-#ifdef EB_USE_EB
+#ifdef ERF_USE_EB
     for (int lev = 0; lev <= finest_level; ++lev) {
         EB_set_covered(mf[lev], 0.0);
     }
 #endif
 
     // Fill terrain distortion MF
-    if (solverChoice.use_terrain) {
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         for (int lev(0); lev <= finest_level; ++lev) {
             MultiFab::Copy(mf_nd[lev],*z_phys_nd[lev],0,2,1,0);
             Real dz = Geom()[lev].CellSizeArray()[2];
@@ -1376,10 +1417,19 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     }
 
     std::string plotfilename;
+    std::string plotfilenameU;
+    std::string plotfilenameV;
+    std::string plotfilenameW;
     if (which == 1) {
        plotfilename = Concatenate(plot_file_1, istep[0], 5);
+       plotfilenameU = Concatenate(plot_file_1+"U", istep[0], 5);
+       plotfilenameV = Concatenate(plot_file_1+"V", istep[0], 5);
+       plotfilenameW = Concatenate(plot_file_1+"W", istep[0], 5);
     } else if (which == 2) {
        plotfilename = Concatenate(plot_file_2, istep[0], 5);
+       plotfilenameU = Concatenate(plot_file_2+"U", istep[0], 5);
+       plotfilenameV = Concatenate(plot_file_2+"V", istep[0], 5);
+       plotfilenameW = Concatenate(plot_file_2+"W", istep[0], 5);
     }
 
     // LSM writes it's own data
@@ -1401,7 +1451,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         if (plotfile_type == PlotFileType::Amrex)
         {
             Print() << "Writing native plotfile " << plotfilename << "\n";
-            if (solverChoice.use_terrain) {
+            if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                    GetVecOfConstPtrs(mf),
                                                    GetVecOfConstPtrs(mf_nd),
@@ -1415,16 +1465,24 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             }
             writeJobInfo(plotfilename);
 
+            if (m_plot_face_vels) {
+                Print() << "Writing face velocities" << std::endl;
+                WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
+                                        GetVecOfConstPtrs(mf_u),
+                                        {"x_velocity_stag"},
+                                        Geom(), t_new[0], istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameV, finest_level+1,
+                                        GetVecOfConstPtrs(mf_v),
+                                        {"y_velocity_stag"},
+                                        Geom(), t_new[0], istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
+                                        GetVecOfConstPtrs(mf_w),
+                                        {"z_velocity_stag"},
+                                        Geom(), t_new[0], istep, refRatio());
+            }
+
 #ifdef ERF_USE_PARTICLES
             particleData.writePlotFile(plotfilename);
-#endif
-#ifdef ERF_USE_HDF5
-        } else if (plotfile_type == PlotFileType::HDF5) {
-            Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
-            WriteMultiLevelPlotfileHDF5(plotfilename, finest_level+1,
-                                        GetVecOfConstPtrs(mf),
-                                        varnames,
-                                        Geom(), t_new[0], istep, refRatio());
 #endif
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == PlotFileType::Netcdf) {
@@ -1504,7 +1562,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 }
 
                Print() << "Writing plotfile " << plotfilename << "\n";
-               if (solverChoice.use_terrain) {
+               if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                    WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                       GetVecOfConstPtrs(mf2),
                                                       GetVecOfConstPtrs(mf_nd),
@@ -1517,7 +1575,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                }
 
             } else {
-                if (solverChoice.use_terrain) {
+               if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                     WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                        GetVecOfConstPtrs(mf),
                                                        GetVecOfConstPtrs(mf_nd),
@@ -1526,6 +1584,21 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 } else {
                     WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                             GetVecOfConstPtrs(mf), varnames,
+                                            geom, t_new[0], istep, ref_ratio);
+                }
+                if (m_plot_face_vels) {
+                    Print() << "Writing face velocities" << std::endl;
+                    WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
+                                            GetVecOfConstPtrs(mf_u),
+                                            {"x_velocity_stag"},
+                                            geom, t_new[0], istep, ref_ratio);
+                    WriteMultiLevelPlotfile(plotfilenameV, finest_level+1,
+                                            GetVecOfConstPtrs(mf_v),
+                                            {"y_velocity_stag"},
+                                            geom, t_new[0], istep, ref_ratio);
+                    WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
+                                            GetVecOfConstPtrs(mf_w),
+                                            {"z_velocity_stag"},
                                             geom, t_new[0], istep, ref_ratio);
                 }
             } // ref_ratio test

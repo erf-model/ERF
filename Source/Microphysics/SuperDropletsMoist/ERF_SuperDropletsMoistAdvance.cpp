@@ -9,7 +9,8 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                    const int& a_iter, /*!< Iteration number */
                                    const Real& /* a_time */, /*!< Simulation time */
                                    Vector<Vector<MultiFab>>& a_flow_vars, /*!< flow variables (*all*) */
-                                   const Vector<std::unique_ptr<MultiFab>>& a_z /*!< terrain */)
+                                   const Vector<MFPtr>& a_z, /*!< terrain */
+                                   const BCTypeArr& a_bc /*! Boundary types */)
 {
     amrex::Print() << "SuperDropletsMoist: iteration=" << a_iter+1
                    << ", dt=" << a_dt <<", evolving "
@@ -34,7 +35,8 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                             *(m_mic_fab_vars[MicVar_SD::rho]),
                                             *(m_mic_fab_vars[MicVar_SD::pressure]),
                                             *(m_mic_fab_vars[MicVar_SD::temperature]),
-                                            a_z );
+                                            a_z,
+                                            a_bc );
     }
 
     // Coalescence of super-droplets

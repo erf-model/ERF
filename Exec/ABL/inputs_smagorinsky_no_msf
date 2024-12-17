@@ -5,7 +5,7 @@ amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
-erf.use_terrain = 1
+erf.terrain_type   = Static
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  2048    2048   1024

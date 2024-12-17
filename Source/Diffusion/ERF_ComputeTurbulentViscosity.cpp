@@ -189,12 +189,12 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 }
                 Real E              = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp),Real(0.0));
-                Real stratification = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
+                Real stratification = l_abs_g * dtheta_dz * l_inv_theta0;
                 Real length;
                 if (stratification <= eps) {
                     length = DeltaMsf;
                 } else {
-                    length = 0.76 * std::sqrt(E / stratification);
+                    length = 0.76 * std::sqrt(E / amrex::max(stratification,eps));
                     // mixing length should be _reduced_ for stable stratification
                     length = amrex::min(length, DeltaMsf);
                     // following WRF, make sure the mixing length isn't too small
@@ -489,7 +489,8 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
         ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
                                  geom, turbChoice, most, use_moisture,
                                  level, bc_ptr, vert_only, z_phys_nd,
-                                 solverChoice.RhoQv_comp, solverChoice.RhoQr_comp);
+                                 solverChoice.RhoQv_comp, solverChoice.RhoQc_comp,
+                                 solverChoice.RhoQr_comp);
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, most, use_moisture,

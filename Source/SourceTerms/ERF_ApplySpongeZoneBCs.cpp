@@ -1,9 +1,5 @@
 #include <AMReX_MultiFab.H>
-#include <ERF_Src_headers.H>
-
-//#include <ERF_TerrainMetrics.H>
-//#include <ERF_IndexDefines.H>
-//#include <ERF_PlaneAverage.H>
+#include <ERF_SrcHeaders.H>
 
 using namespace amrex;
 
@@ -27,6 +23,13 @@ ApplySpongeZoneBCsForCC (
     const int use_yhi_sponge_damping = spongeChoice.use_yhi_sponge_damping;
     const int use_zlo_sponge_damping = spongeChoice.use_zlo_sponge_damping;
     const int use_zhi_sponge_damping = spongeChoice.use_zhi_sponge_damping;
+    if (!use_xlo_sponge_damping &&
+        !use_xhi_sponge_damping &&
+        !use_ylo_sponge_damping &&
+        !use_yhi_sponge_damping &&
+        !use_zlo_sponge_damping &&
+        !use_zhi_sponge_damping)
+        return;
 
     const Real xlo_sponge_end   = spongeChoice.xlo_sponge_end;
     const Real xhi_sponge_start = spongeChoice.xhi_sponge_start;
@@ -136,6 +139,13 @@ ApplySpongeZoneBCsForMom (
     const int use_yhi_sponge_damping = spongeChoice.use_yhi_sponge_damping;
     const int use_zlo_sponge_damping = spongeChoice.use_zlo_sponge_damping;
     const int use_zhi_sponge_damping = spongeChoice.use_zhi_sponge_damping;
+    if (!use_xlo_sponge_damping &&
+        !use_xhi_sponge_damping &&
+        !use_ylo_sponge_damping &&
+        !use_yhi_sponge_damping &&
+        !use_zlo_sponge_damping &&
+        !use_zhi_sponge_damping)
+        return;
 
     const Real xlo_sponge_end   = spongeChoice.xlo_sponge_end;
     const Real xhi_sponge_start = spongeChoice.xhi_sponge_start;

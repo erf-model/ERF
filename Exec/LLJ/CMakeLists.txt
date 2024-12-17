@@ -1,10 +1,9 @@
-set(erf_exe_name erf_llj_real)
+Pet(erf_exe_name erf_llj_real)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
    PRIVATE
-     ERF_prob.H
-     ERF_prob.cpp
+     ERF_Prob.cpp
 )
 
 target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

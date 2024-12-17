@@ -1,10 +1,14 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 100
-max_step = 0
+max_step = 800
 
 amr.max_grid_size = 256 256 256
 
 eb2.geometry = terrain
+eb2.small_volfrac = 1.e-4
+erf.anelastic = 1
+erf.mg_v = 2
+
+erf.project_initial_velocity = true
 
 amrex.fpe_trap_invalid = 1
 
@@ -12,26 +16,26 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = 0.   0.  0.
-geometry.prob_hi     = 10.  1.  4.
+geometry.prob_hi     = 16.  4.  8.
 
-amr.n_cell           = 256  8   64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+amr.n_cell           = 64   4   32
 
 geometry.is_periodic = 0 1 0
 
-xlo.type = "Inflow"
-xhi.type = "Outflow"
+xlo.type = Inflow
+xhi.type = Outflow
 
-xlo.velocity = 1. 0. 0.
-xlo.density  = 1.16
-xlo.theta    = 300.
+xlo.velocity = 10. 0. 0.
+xlo.density  = 1.0
+xlo.theta    = 1.0
 xlo.scalar   = 0.
 
-zlo.type = "SlipWall"
-zhi.type = "SlipWall"
+zlo.type = SlipWall
+zhi.type = SlipWall
 
 # TIME STEP CONTROL
 erf.substepping_type = None
-erf.fixed_dt         = 1.e-5
+erf.fixed_dt         = 1.e-3
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -48,10 +52,10 @@ erf.check_int       = 100        # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 20         # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure scalar volfrac
+erf.plot_vars_1     = density rhotheta theta rhoadv_0 x_velocity y_velocity z_velocity pressure scalar volfrac
 
 # SOLVER CHOICE
-erf.use_gravity = true
+erf.use_gravity = false
 erf.use_coriolis = false
 erf.les_type = "None"
 
@@ -65,4 +69,12 @@ erf.alpha_C = 0.0
 erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS
-prob.u_0   = 1.0
+prob.rho_0 = 1.0
+prob.T_0   = 1.0
+prob.u_0   = 10.0
+prob.A_0 = 1.0
+prob.prob_type = 11
+prob.xradius = 3.0
+prob.zradius = 1.5
+prob.xc_frac = 0.25
+prob.zc_frac = 0.15

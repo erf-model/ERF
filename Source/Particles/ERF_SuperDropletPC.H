@@ -3,6 +3,9 @@
 
 #ifdef ERF_USE_PARTICLES
 
+#include <random>
+
+#include "ERF_IndexDefines.H"
 #include "ERF_MaterialProperties.H"
 #include "ERFPC.H"
 #include "ERF_SDInitialization.H"
@@ -23,9 +26,10 @@ struct SuperDropletsRealIdxSoA_RT
         radius = 0,     /*!< Radius of physical particles */
         multiplicity,   /*!< Number of droplets that this super-droplet represents
                              (Real type to handle large values) */
-        sd_mass,        /*!< Superdroplet mass */
         term_vel,       /*!< Terminal velocity */
-        t_coalescence,  /*!< Coalescence time scale */
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        cond_tendency,  /*!< Condensation/evaporation tendency */
+#endif
         uid,            /*!< unique ID */
         ncomps
     };
@@ -55,6 +59,7 @@ enum struct SDMassChangeTIMethod {
 
 using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
 using MFPtr = std::unique_ptr<amrex::MultiFab>;
+using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
 
 class SuperDropletPC : public ERFPC
 {
@@ -148,6 +153,9 @@ class SuperDropletPC : public ERFPC
         /*! \brief Set super-droplets attributes from a given condensate mass density */
         virtual void SetAttributes (  amrex::MultiFab& );
 
+        /*! \brief Scale the SDM number density with air density  */
+        virtual void DensityScaling ( const amrex::MultiFab& );
+
         /*! \brief Evolve particles for one time step */
         virtual void EvolveParticles ( int,
                                        amrex::Real,
@@ -164,7 +172,8 @@ class SuperDropletPC : public ERFPC
                                          const amrex::MultiFab&,
                                          const amrex::MultiFab&,
                                          const amrex::MultiFab&,
-                                         const amrex::Vector<MFPtr>& );
+                                         const amrex::Vector<MFPtr>&,
+                                         const BCTypeArr& );
 
         /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int,
@@ -223,7 +232,7 @@ class SuperDropletPC : public ERFPC
         virtual void effectiveRadius ( amrex::MultiFab&, const int& a_comp=0 ) const;
 
         /*! \brief Applies boundary treatment to the particle container */
-        virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>& );
+        virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr& );
 
     protected:
 
@@ -235,6 +244,7 @@ class SuperDropletPC : public ERFPC
         SDTerminalVelocityType m_term_vel_type; /*!< Terminal velocity model */
 
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
+        bool m_density_scaling; /*!< Scale initial number density with air density */
         bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
 
         int m_num_aerosols; /*!< Number of aerosols */
@@ -265,10 +275,17 @@ class SuperDropletPC : public ERFPC
 
         /*! Initialization parameters objects */
         int m_num_initializations = 1;
+        /*! vector of initializations */
         std::vector< std::unique_ptr<SDInitialization> > m_initializations;
 
+        /*! sigma_0 parameter for mass distribution calculation */
+        amrex::Real m_sigma0;
+
+        /*! random engine */
+        std::mt19937 m_rndeng;
+
         /*! \brief read inputs from file */
-        virtual void readInputs ();
+        virtual void readInputs () override;
 
         /*! \brief Particle initialization - null (no particles are initialized) */
         void initializeParticlesNull (const MFPtr&) { }

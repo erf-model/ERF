@@ -92,8 +92,6 @@ or if using tcsh,
    +--------------------+------------------------------+------------------+-------------+
    | USE_NETCDF         | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
-   | USE_HDF5           | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
-   +--------------------+------------------------------+------------------+-------------+
    | USE_PARTICLES      | Whether to enable particles  | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
    | USE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
@@ -183,8 +181,6 @@ Analogous to GNU Make, the list of cmake directives is as follows:
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_NETCDF         | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_HDF5           | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
-   +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_PARTICLES      | Whether to enable particles  | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
@@ -205,19 +201,9 @@ Analogous to GNU Make, the list of cmake directives is as follows:
 Mac with CMake
 ~~~~~~~~~~~~~~
 Tested with macOS 12.7 (Monterey) using cmake (3.27.8), open-mpi (5.0.0), and
-pkg-config (0.29.2) installed with the homebrew package manager. HDF5 and
+pkg-config (0.29.2) installed with the homebrew package manager.
 NetCDF will be compiled from source. The instructions below should be version
 agnostic.
-
-HDF5 (tested with v1.14.3)
-
-#. Download latest source package from `hdfgroup.org`_
-#. Extract source code ``tar xzf hdf5-<version>.tar.gz``
-#. Create build directory ``cd hdf5-<version> && mkdir build && cd build``
-#. Configure for your system ``../configure --prefix=/usr/local --enable-parallel``
-#. Build ``make -j8`` and ``sudo make install``
-
-.. _hdfgroup.org: https://www.hdfgroup.org/download-hdf5/source-code/
 
 NetCDF (tested with v4.9.2)
 
@@ -250,7 +236,6 @@ ERF (tested with commit ``40e64ed35ebc080ad61d08aea828330dfbdbc162``)
        -DERF_ENABLE_FCOMPARE:BOOL=ON \
        -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
        -DERF_ENABLE_NETCDF:BOOL=ON \
-       -DERF_ENABLE_HDF5:BOOL=ON \
        -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
        .. && make -j8
 
@@ -272,7 +257,6 @@ If you will be using NetCDF, we suggest you add the following four lines to you 
 
    module load cray-hdf5-parallel/1.12.2.9
    module load cray-netcdf-hdf5parallel
-   export HDF5_DIR=/opt/cray/pe/hdf5-parallel/1.12.2.9
    export NETCDF_DIR=/opt/cray/pe/netcdf-hdf5parallel/4.9.0.9
 
 Then build ERF as, for example (specify your own path to the AMReX submodule in ``ERF/Submodules/AMReX``):

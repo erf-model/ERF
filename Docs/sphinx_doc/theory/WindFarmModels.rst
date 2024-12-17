@@ -1,3 +1,6 @@
+
+.. _sec:WindFarmModels:
+
 Wind farm models
 ==================
 
@@ -5,6 +8,15 @@ Introduction
 -------------
 
 ERF supports models for wind farm parametrization in which the effects of wind turbines are represented by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE). Currently the Fitch model (`Fitch et al. 2012`_), Explicit Wake Parametrization (EWP) model (`Volker et al. 2015`_), Simplified actuator disk model (See Section 3.2 in `Wind Energy Handbook 2nd edition`_), and Generalized actuator disk model (`Mirocha et. al. 2014`_, see Chapter 3 of `Small Wind Turbines`_) are supported.
+
+.. _fig:WindFarmModels:
+
+.. figure:: ../figures/WindFarmModels.png
+   :width: 600
+   :align: center
+
+   Instantaneous horizontal velocity magnitude at the hub-height of 89 [m] and t= 1 [hr] for: (row-wise) Fitch model, EWP model, Simple actuator disk model, and General actuator disk model.
+
 
 .. _Fitch model:
 

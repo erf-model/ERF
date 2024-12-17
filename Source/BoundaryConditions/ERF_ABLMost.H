@@ -368,7 +368,9 @@ public:
     update_pblh (const int& lev,
                  amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                  amrex::MultiFab* z_phys_cc,
-                 const int RhoQv_comp, const int RhoQr_comp);
+                 const int RhoQv_comp,
+                 const int RhoQc_comp,
+                 const int RhoQr_comp);
 
     template <typename PBLHeightEstimator>
     void
@@ -376,7 +378,9 @@ public:
                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                   amrex::MultiFab* z_phys_cc,
                   const PBLHeightEstimator& est,
-                  const int RhoQv_comp, const int RhoQr_comp);
+                  const int RhoQv_comp,
+                  const int RhoQc_comp,
+                  const int RhoQr_comp);
 
     void
     read_custom_roughness (const int& lev,
@@ -431,15 +435,15 @@ public:
     get_t_surf (const int& lev) { return t_surf[lev].get(); }
 
     amrex::Real
-    get_zref () {return m_ma.get_zref();}
+    get_zref () { return m_ma.get_zref(); }
 
     const amrex::FArrayBox*
-    get_z0 (const int& lev) {return &z_0[lev];}
+    get_z0 (const int& lev) { return &z_0[lev]; }
 
     bool have_variable_sea_roughness() { return m_var_z0; }
 
     const amrex::iMultiFab*
-    get_lmask(const int& lev) {return m_lmask_lev[lev][0];}
+    get_lmask(const int& lev) { return m_lmask_lev[lev][0]; }
 
     int
     lmask_min_reduce (amrex::iMultiFab& lmask, const int& nghost)

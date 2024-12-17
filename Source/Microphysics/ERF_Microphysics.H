@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include "ERF_DataStruct.H"
+#include "ERF_IndexDefines.H"
 
 /*! \brief Base class for microphysics interface */
 class Microphysics {
@@ -44,7 +45,8 @@ public:
                           const amrex::Real&,
                           const SolverChoice&,
                           amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                          const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) = 0;
+                          const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&,
+                          const amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& ) = 0;
 
     /*! \brief update microphysics variables from ERF state variables */
     virtual void Update_Micro_Vars_Lev (const int&, amrex::MultiFab&) = 0;
@@ -63,7 +65,10 @@ public:
 
     /*! \brief get the indices and names of moisture model variables for restart
                at a given level */
-    virtual void Get_Qmoist_Restart_Vars ( int, const SolverChoice&, std::vector<int>&, std::vector<std::string>& ) const = 0;
+    virtual void Get_Qmoist_Restart_Vars (int,
+                                          const SolverChoice&,
+                                          std::vector<int>&,
+                                          std::vector<std::string>& ) const = 0;
 
     /*! \brief query if a specified moisture model is Eulerian or Lagrangian */
     static MoistureModelType modelType (const MoistureType a_moisture_type)
@@ -73,6 +78,7 @@ public:
              || (a_moisture_type == MoistureType::SAM_NoPrecip_NoIce)
              || (a_moisture_type == MoistureType::Kessler)
              || (a_moisture_type == MoistureType::Kessler_NoRain)
+             || (a_moisture_type == MoistureType::SatAdj)
              || (a_moisture_type == MoistureType::None) ) {
             return MoistureModelType::Eulerian;
         } else if ( (a_moisture_type == MoistureType::SuperDroplets) ) {
