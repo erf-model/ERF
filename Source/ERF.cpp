@@ -10,6 +10,7 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
 #include <AMReX_buildInfo.H>
+#include <AMReX_Random.H>
 #include <ERF_Utils.H>
 #include <ERF_TerrainMetrics.H>
 #include <memory>
@@ -25,6 +26,7 @@ SolverChoice ERF::solverChoice;
 
 // Time step control
 Real ERF::cfl           =  0.8;
+Real ERF::sub_cfl       =  1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
 int  ERF::fixed_mri_dt_ratio = 0;
@@ -84,6 +86,15 @@ Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 //             - initializes BCRec boundary condition object
 ERF::ERF ()
 {
+    int fix_random_seed = 0;
+    ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
+    // Note that the value of 1024UL is not significant -- the point here is just to set the
+    // same seed for all MPI processes for the purpose of regression testing
+    if (fix_random_seed) {
+        Print() << "Fixing the random seed" << std::endl;
+        InitRandom(1024UL);
+    }
+
     ERF_shared();
 }
 
@@ -130,8 +141,13 @@ ERF::ERF_shared ()
     lsm_flux.resize(nlevs_max);
 
     // NOTE: size canopy model before readparams (if file exists, we construct)
-    m_forest.resize(nlevs_max);
-    for (int lev = 0; lev < max_level; ++lev) { m_forest[lev] = nullptr; }
+    m_forest_drag.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev) { m_forest_drag[lev] = nullptr;}
+
+    // Immersed Forcing Representation of Terrain
+    m_terrain_drag.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev) { m_terrain_drag[lev] = nullptr;}
+
 
     ReadParameters();
     initializeMicrophysics(nlevs_max);
@@ -143,7 +159,7 @@ ERF::ERF_shared ()
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    // This is only used when we have flat terrain and stretched z levels.
+    // This is only used when we have mesh_type == MeshType::StretchedDz
     stretched_dz_h.resize(nlevs_max);
     stretched_dz_d.resize(nlevs_max);
 
@@ -159,7 +175,8 @@ ERF::ERF_shared ()
                  solverChoice.zsurf,
                  solverChoice.dz0);
 
-    if (SolverChoice::terrain_type != TerrainType::None) {
+    if (SolverChoice::mesh_type == MeshType::StretchedDz ||
+        SolverChoice::mesh_type == MeshType::VariableDz) {
         int nz = geom[0].Domain().length(2) + 1; // staggered
         if (std::fabs(zlevels_stag[0][nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
             Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)
@@ -448,7 +465,6 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (solverChoice.coupling_type == CouplingType::TwoWay)
     {
-        bool use_terrain = (SolverChoice::terrain_type != TerrainType::None);
         int ncomp = vars_new[0][Vars::cons].nComp();
         for (int lev = finest_level-1; lev >= 0; lev--)
         {
@@ -459,16 +475,16 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
                 const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-                if (use_terrain) {
+                if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        cons_arr(i,j,k,n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                    });
+                } else {
                     const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
                         cons_arr(i,j,k,n) *= detJ_arr(i,j,k) / (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
-                    });
-                } else {
-                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                    {
-                        cons_arr(i,j,k,n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
                     });
                 }
             } // mfi
@@ -482,16 +498,16 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
                 const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-                if (use_terrain) {
+                if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        cons_arr(i,j,k,n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                    });
+                } else {
                     const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
                         cons_arr(i,j,k,n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0)) / detJ_arr(i,j,k);
-                    });
-                } else {
-                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                    {
-                        cons_arr(i,j,k,n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
                     });
                 }
             } // mfi
@@ -633,16 +649,16 @@ void
 ERF::InitData_post ()
 {
     if (restart_chkfile.empty()) {
-        if (SolverChoice::terrain_type != TerrainType::None) {
+        if (SolverChoice::mesh_type != MeshType::ConstantDz) {
             if (init_type == InitType::Ideal) {
-                Abort("We do not currently support init_type = ideal with terrain");
+                Abort("We do not currently support init_type = ideal with non-constant dz");
             }
         }
 
         //
         // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
         //
-        if (SolverChoice::terrain_type != TerrainType::None) {
+        if (SolverChoice::mesh_type != MeshType::ConstantDz) {
             for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
                 average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
                 average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
@@ -704,8 +720,8 @@ ERF::InitData_post ()
         {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
                 "Thin immersed body with refinement not currently supported.");
-            if (SolverChoice::terrain_type != TerrainType::None) {
-                amrex::Print() << "NOTE: Thin immersed body with terrain has not been tested." << std::endl;
+            if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+                amrex::Print() << "NOTE: Thin immersed body with non-constant dz has not been tested." << std::endl;
             }
         }
 
@@ -782,8 +798,8 @@ ERF::InitData_post ()
                                                  h_v_geos[lev], d_v_geos[lev],
                                                  geom[lev], z_phys_cc[lev]);
             } else {
-                if (SolverChoice::terrain_type != TerrainType::None && !SolverChoice::terrain_is_flat) {
-                    amrex::Print() << "Note: 1-D geostrophic wind profile input is only defined for grid stretching, not real terrain" << std::endl;
+                if (SolverChoice::mesh_type == MeshType::VariableDz) {
+                    amrex::Print() << "Note: 1-D geostrophic wind profile input is not defined for real terrain" << std::endl;
                 }
                 init_geo_wind_profile(solverChoice.abl_geo_wind_table,
                                       h_u_geos[lev], d_u_geos[lev],
@@ -875,7 +891,6 @@ ERF::InitData_post ()
     //
     if (restart_chkfile == "")
     {
-        // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
             Real dummy_dt = 1.0;
             for (int lev = 0; lev <= finest_level; ++lev)
@@ -917,7 +932,7 @@ ERF::InitData_post ()
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         dz_min[lev] = geom[lev].CellSize(2);
-        if ( SolverChoice::terrain_type != TerrainType::None ) {
+        if ( SolverChoice::mesh_type != MeshType::ConstantDz ) {
             dz_min[lev] *= (*detJ_cc[lev]).min(0);
         }
     }
@@ -1441,6 +1456,7 @@ ERF::ReadParameters ()
 
         // Time step controls
         pp.query("cfl", cfl);
+        pp.query("substepping_cfl", sub_cfl);
         pp.query("init_shrink", init_shrink);
         pp.query("change_max", change_max);
 
@@ -1614,10 +1630,19 @@ ERF::ReadParameters ()
 
         // Query the canopy model file name
         std::string forestfile;
-        solverChoice.do_forest = pp.query("forest_file", forestfile);
-        if (solverChoice.do_forest) {
+        solverChoice.do_forest_drag = pp.query("forest_file", forestfile);
+        if (solverChoice.do_forest_drag) {
             for (int lev = 0; lev <= max_level; ++lev) {
-                m_forest[lev] = std::make_unique<ForestDrag>(forestfile);
+                m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
+            }
+        }
+
+        //Query the terrain file name
+        std::string terrainfile;
+        solverChoice.do_terrain_drag = pp.query("terrain_file", terrainfile);
+        if (solverChoice.do_terrain_drag) {
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_terrain_drag[lev] = std::make_unique<TerrainDrag>(terrainfile);
             }
         }
 

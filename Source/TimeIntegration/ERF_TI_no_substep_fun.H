@@ -151,7 +151,13 @@
                 }
             } // mfi
 #ifdef ERF_USE_EB
-            // call to redistribute_term -- pass in ssum[IntVars::cons] which is MF
+            // // call to redistribute_term -- pass in ssum[IntVars::cons] which is MF
+            // MultiFab dUdt_tmp (ba, dm, n_data, 3, MFInfo(), Factory(level));
+            // dUdt_tmp.setVal(0.);
+            // dUdt_tmp.FillBoundary(fine_geom.periodicity());
+            // const BCRec* bc_ptr_h = domain_bcs_type.data(); // Should be host or device or both?
+            // redistribute_term ( level, F_slow[IntVars::cons], dUdt_tmp,
+            //                     S_sum[IntVars::cons], bc_ptr_h, slow_dt);
 #endif
         } // omp
 

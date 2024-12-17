@@ -60,48 +60,70 @@ void TerrainPoisson::apply_bcs (MultiFab& phi)
         {
             Box bx = mfi.tilebox();
             const Array4<Real>& phi_arr = phi.array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                if (i == domlo.x) {
-                    if (bc_fft[0].first == FFT::Boundary::even) {
+            if (bx.smallEnd(0) <= domlo.x) {
+                if (bc_fft[0].first == FFT::Boundary::even) {
+                    ParallelFor(makeSlab(bx,0,domlo.x), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
                         phi_arr(i-1,j,k) =  phi_arr(i,j,k);
-                    } else if (bc_fft[0].first == FFT::Boundary::odd) {
-                        phi_arr(i-1,j,k) = -phi_arr(i,j,k);
-                    }
-                } else if (i == domhi.x) {
-                    if (bc_fft[0].second == FFT::Boundary::even) {
-                        phi_arr(i+1,j,k) =  phi_arr(i,j,k);
-                    } else if (bc_fft[0].second == FFT::Boundary::odd) {
-                        phi_arr(i+1,j,k) = -phi_arr(i,j,k);
-                    }
+                    });
+                } else if (bc_fft[0].first == FFT::Boundary::odd) {
+                    ParallelFor(makeSlab(bx,0,domlo.x), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        phi_arr(i-1,j,k) =  -phi_arr(i,j,k);
+                    });
                 }
-            });
+            } // lo x
+            if (bx.bigEnd(0) >= domhi.x) {
+                if (bc_fft[0].second == FFT::Boundary::even) {
+                    ParallelFor(makeSlab(bx,0,domhi.x), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        phi_arr(i+1,j,k) =  phi_arr(i,j,k);
+                    });
+                } else if (bc_fft[0].second == FFT::Boundary::odd) {
+                    ParallelFor(makeSlab(bx,0,domhi.x), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        phi_arr(i+1,j,k) =  -phi_arr(i,j,k);
+                    });
+                }
+            } // lo x
         } // mfi
-    }
+    } // not periodic in x
+
     if (!m_geom.isPeriodic(1)) {
         for (MFIter mfi(phi,true); mfi.isValid(); ++mfi)
         {
             Box bx = mfi.tilebox();
             Box bx2(bx); bx2.grow(0,1);
             const Array4<Real>& phi_arr = phi.array(mfi);
-            ParallelFor(bx2, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                if (j == domlo.y) {
-                    if (bc_fft[1].first == FFT::Boundary::even) {
+            if (bx.smallEnd(1) <= domlo.y) {
+                if (bc_fft[1].first == FFT::Boundary::even) {
+                    ParallelFor(makeSlab(bx2,1,domlo.y), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
                         phi_arr(i,j-1,k) =  phi_arr(i,j,k);
-                    } else if (bc_fft[1].first == FFT::Boundary::odd) {
-                        phi_arr(i,j-1,k) = -phi_arr(i,j,k);
-                    }
-                } else if (j == domhi.y) {
-                    if (bc_fft[1].second == FFT::Boundary::even) {
-                        phi_arr(i,j+1,k) =  phi_arr(i,j,k);
-                    } else if (bc_fft[1].second == FFT::Boundary::odd) {
-                        phi_arr(i,j+1,k) = -phi_arr(i,j,k);
-                    }
+                    });
+                } else if (bc_fft[1].first == FFT::Boundary::odd) {
+                    ParallelFor(makeSlab(bx2,1,domlo.y), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        phi_arr(i,j-1,k) =  -phi_arr(i,j,k);
+                    });
                 }
-            });
+            } // lo x
+            if (bx.bigEnd(1) >= domhi.y) {
+                if (bc_fft[1].second == FFT::Boundary::even) {
+                    ParallelFor(makeSlab(bx2,1,domhi.y), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        phi_arr(i,j+1,k) =  phi_arr(i,j,k);
+                    });
+                } else if (bc_fft[1].second == FFT::Boundary::odd) {
+                    ParallelFor(makeSlab(bx2,1,domhi.y), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        phi_arr(i,j+1,k) =  -phi_arr(i,j,k);
+                    });
+                }
+            } // lo x
+
         } // mfi
-    }
+    } // not periodic in y
 
     for (MFIter mfi(phi,true); mfi.isValid(); ++mfi)
     {

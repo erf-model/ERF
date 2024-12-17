@@ -1,6 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 100
-max_step = 10
+max_step = 800
 
 amr.max_grid_size = 256 256 256
 
@@ -17,16 +16,16 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = 0.   0.  0.
-geometry.prob_hi     = 16.  1.  16.
+geometry.prob_hi     = 16.  4.  8.
 
-amr.n_cell           = 64   4   64
+amr.n_cell           = 64   4   32
 
 geometry.is_periodic = 0 1 0
 
 xlo.type = Inflow
 xhi.type = Outflow
 
-xlo.velocity = 1. 0. 0.
+xlo.velocity = 10. 0. 0.
 xlo.density  = 1.0
 xlo.theta    = 1.0
 xlo.scalar   = 0.
@@ -36,7 +35,7 @@ zhi.type = SlipWall
 
 # TIME STEP CONTROL
 erf.substepping_type = None
-erf.fixed_dt         = 1.e-5
+erf.fixed_dt         = 1.e-3
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -72,4 +71,10 @@ erf.init_type = "uniform"
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.T_0   = 1.0
-prob.u_0   = 1.0
+prob.u_0   = 10.0
+prob.A_0 = 1.0
+prob.prob_type = 11
+prob.xradius = 3.0
+prob.zradius = 1.5
+prob.xc_frac = 0.25
+prob.zc_frac = 0.15

@@ -145,7 +145,7 @@ ERF::WriteCheckpointFile () const
         MultiFab::Copy(base,base_state[lev],0,0,ncomp_base,ng_base);
         VisMF::Write(base, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
 
-        if (SolverChoice::terrain_type != TerrainType::None)  {
+        if (SolverChoice::mesh_type != MeshType::ConstantDz)  {
             // Note that we also write the ghost cells of z_phys_nd
             IntVect ng = z_phys_nd[lev]->nGrowVect();
             MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
@@ -443,7 +443,7 @@ ERF::ReadCheckpointFile ()
         }
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
-        if (SolverChoice::terrain_type != TerrainType::None)  {
+        if (SolverChoice::mesh_type != MeshType::ConstantDz)  {
            // Note that we also read the ghost cells of z_phys_nd
            IntVect ng = z_phys_nd[lev]->nGrowVect();
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
