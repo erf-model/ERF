@@ -94,16 +94,14 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
     Real lon_ref, lat_ref;
 
     if (valid_fname_USGS) {
-        std::ifstream file(fname_usgs);
-        file >> lon_ref >> lat_ref;
-        file.close();
+        std::ifstream file_usgs(fname_usgs);
+        file_usgs >> lon_ref >> lat_ref;
+        file_usgs.close();
         lon_ref = lon_ref*M_PI/180.0;
         lat_ref = lat_ref*M_PI/180.0;
     } else {
         Real lat_min = *std::min_element(lat.begin(), lat.end());
-        Real lat_max = *std::max_element(lat.begin(), lat.end());
         Real lon_min = *std::min_element(lon.begin(), lon.end());
-        Real lon_max = *std::max_element(lon.begin(), lon.end());
 
         lon_ref = lon_min*M_PI/180.0;
         lat_ref = lat_min*M_PI/180.0;
@@ -131,10 +129,6 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         }
         Real tmp = std::pow(dist,2) - std::pow(dy_turb,2);
 
-        if (ParallelDescriptor::IOProcessor()){
-                std::cout << "Values are " << it << " " << dist << " "<< dy_turb << " " << tmp << "\n";
-        }
-
         if(std::fabs(tmp)<1e-8){
             tmp = 0.0;
         }
@@ -153,13 +147,6 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
     for(int it = 0;it<xloc.size(); it++){
         xloc[it] = xloc[it] + windfarm_x_shift;
         yloc[it] = yloc[it] + windfarm_y_shift;
-    }
-
-        if (ParallelDescriptor::IOProcessor()){
-        auto xminElement = std::min_element(xloc.begin(), xloc.end());
-        auto yminElement = std::min_element(yloc.begin(), yloc.end());
-
-        std::cout << "Min elements " << *xminElement << " " << *yminElement << "\n";
     }
 }
 

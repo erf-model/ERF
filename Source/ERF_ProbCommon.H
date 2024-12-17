@@ -474,9 +474,9 @@ public:
         }
         file.close();
 
-        AMREX_ASSERT(m_xterrain.size() == nlons*nlats);
-        AMREX_ASSERT(m_yterrain.size() == nlats);
-        AMREX_ASSERT(m_zterrain.size() == nlons*nlats);
+        AMREX_ASSERT(m_xterrain.size() == static_cast<long unsigned int>(nlons*nlats));
+        AMREX_ASSERT(m_yterrain.size() == static_cast<long unsigned int>(nlats));
+        AMREX_ASSERT(m_zterrain.size() == static_cast<long unsigned int>(nlons*nlats));
 
         // Shift the terrain so that there is some flat region for the
         // inflow to come in
@@ -498,13 +498,13 @@ public:
             amrex::Abort("Error: m_xterrain is empty!\n");
         }
 
-        auto it = std::max_element(m_xterrain.begin(), m_xterrain.end());
-        amrex::Real xmax_terrain = *it;
-        it = std::max_element(m_yterrain.begin(), m_yterrain.end());
-        amrex::Real ymax_terrain = *it;
+        auto index = std::max_element(m_xterrain.begin(), m_xterrain.end());
+        amrex::Real xmax_terrain = *index;
+        index = std::max_element(m_yterrain.begin(), m_yterrain.end());
+        amrex::Real ymax_terrain = *index;
 
-        it = std::min_element(m_zterrain.begin(), m_zterrain.end());
-        amrex::Real zmin_terrain = *it;
+        index = std::min_element(m_zterrain.begin(), m_zterrain.end());
+        amrex::Real zmin_terrain = *index;
 
         for(auto& v : m_zterrain){
             v -= zmin_terrain;
