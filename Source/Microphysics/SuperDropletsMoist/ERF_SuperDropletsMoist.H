@@ -40,6 +40,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
     using FabPtr = std::shared_ptr<MultiFab>;
     using MFPtr = std::unique_ptr<MultiFab>;
+    using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
 
     public:
 
@@ -86,7 +87,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                               const int&,
                               const Real&,
                               Vector<Vector<MultiFab>>&,
-                              const Vector<MFPtr>& ) override;
+                              const Vector<MFPtr>&,
+                              const BCTypeArr& ) override;
 
         /*! \brief Update microphysics variables */
         virtual void Update_Micro_Vars (MultiFab& a_cons_vars) override;
