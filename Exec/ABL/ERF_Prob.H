@@ -11,7 +11,8 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real rho_0 = 0.0;
   amrex::Real T_0   = 0.0;
   amrex::Real A_0   = 1.0;
-  amrex::Real KE_0  = 0.1;
+  amrex::Real KE_0  = 0.1;  // initialize to calculated rho_hse times input KE
+  amrex::Real rhoKE_0 = -1; // alternatively, initialize to specified (rho*KE)
 
   amrex::Real KE_decay_height = -1;
   amrex::Real KE_decay_order  =  1;

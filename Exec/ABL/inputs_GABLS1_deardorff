@@ -76,7 +76,6 @@ erf.les_type = "Deardorff"
 erf.Ck       = 0.1  # Coefficient in Moeng1984, Eqn. 19
 erf.Ce       = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
 erf.Ce_wall  = 3.9  # To account for "wall effects"
-erf.sigma_k  = 0.5  # TKE diffusion coeff = 2*Km = Km * inv_sigma_k, Moeng1984, Eqn. 15
 
 erf.rayleigh_damp_U = false
 erf.rayleigh_damp_V = false

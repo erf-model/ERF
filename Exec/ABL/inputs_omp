@@ -43,13 +43,10 @@ erf.alpha_T = 0.0
 erf.alpha_C = 1.0
 erf.use_gravity = false
 
-erf.molec_diff_type = "Constant"
-erf.dynamicViscosity = 1.0
-    
 erf.les_type = "None"
-erf.Ck       = 0.1
-erf.sigma_k  = 1.0
-erf.Ce       = 0.1
+
+erf.molec_diff_type = "Constant"
+erf.dynamic_viscosity = 1.0
 
 erf.init_type = "uniform"
 

@@ -40,9 +40,9 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = false
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "Constant"
-erf.dynamicViscosity = 6.25e-4 # 1.5e-5
+erf.les_type          = "None"
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 6.25e-4  #1.5e-5
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

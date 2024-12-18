@@ -57,7 +57,7 @@ void make_sources (int level,
     // *****************************************************************************
     source.setVal(0.0);
 
-    const bool l_use_ndiff      = solverChoice.use_NumDiff;
+    const bool l_use_ndiff      = solverChoice.use_num_diff;
     const bool use_terrain      = solverChoice.terrain_type != TerrainType::None;
 
     TurbChoice tc = solverChoice.turbChoice[level];
@@ -335,20 +335,20 @@ void make_sources (int level,
             const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
 
             // Rho is a special case
-            NumericalDiffusion_Scal(bx, sc=0, nc=1, dt, solverChoice.NumDiffCoeff,
+            NumericalDiffusion_Scal(bx, sc=0, nc=1, dt, solverChoice.num_diff_coeff,
                                     cell_data, cell_data, cell_src, mf_m);
 
             // Other scalars proceed as normal
-            NumericalDiffusion_Scal(bx, sc=1, nc=1, dt, solverChoice.NumDiffCoeff,
+            NumericalDiffusion_Scal(bx, sc=1, nc=1, dt, solverChoice.num_diff_coeff,
                                     cell_prim, cell_data, cell_src, mf_m);
 
 
             if (l_use_KE && l_diff_KE) {
-                NumericalDiffusion_Scal(bx, sc=RhoKE_comp, nc=1, dt, solverChoice.NumDiffCoeff,
+                NumericalDiffusion_Scal(bx, sc=RhoKE_comp, nc=1, dt, solverChoice.num_diff_coeff,
                                         cell_prim, cell_data, cell_src, mf_m);
             }
 
-            NumericalDiffusion_Scal(bx, sc=RhoScalar_comp, nc=NSCALARS, dt, solverChoice.NumDiffCoeff,
+            NumericalDiffusion_Scal(bx, sc=RhoScalar_comp, nc=NSCALARS, dt, solverChoice.num_diff_coeff,
                                     cell_prim, cell_data, cell_src, mf_m);
         }
 

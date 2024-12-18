@@ -45,18 +45,16 @@ erf.buoyancy_type = 1
 erf.use_coriolis = false
 
 #erf.les_type = "Smagorinsky"
-erf.Cs              = 0.25
+#erf.Cs       = 0.25
 erf.les_type = "None"
 
 #
 # diffusion coefficient from Straka, K = 75 m^2/s
 #
-erf.molec_diff_type = "ConstantAlpha"
-#erf.molec_diff_type = "Constant"
-erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 200.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
-erf.alpha_T = 200.0 # [m^2/s]
-erf.alpha_C = 200.0
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 200.0 # [kg/(m-s)]
+erf.alpha_T           = 200.0 # [m^2/s]
+erf.alpha_C           = 200.0
 
 erf.moisture_model = "Kessler"
 erf.use_moist_background = true

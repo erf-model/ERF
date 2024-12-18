@@ -90,7 +90,7 @@ void make_mom_sources (int level,
     //    9. Forest canopy
     //   10. Immersed Forcing
     // *****************************************************************************
-    const bool l_use_ndiff       = solverChoice.use_NumDiff;
+  //const bool l_use_ndiff       = solverChoice.use_num_diff;
     const bool l_use_zphys       = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool l_do_forest_drag  = solverChoice.do_forest_drag;
     const bool l_do_terrain_drag = solverChoice.do_terrain_drag;
@@ -479,14 +479,16 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 7. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
+#if 0
         if (l_use_ndiff) {
-            /*
-            NumericalDiffusion_Xmom(tbx, dt, solverChoice.NumDiffCoeff,
+            const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
+            const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
+            NumericalDiffusion_Xmom(tbx, dt, solverChoice.num_diff_coeff,
                                     u, cell_data, xmom_src_arr, mf_u);
-            NumericalDiffusion_Ymom(tby, dt, solverChoice.NumDiffCoeff,
+            NumericalDiffusion_Ymom(tby, dt, solverChoice.num_diff_coeff,
                                     v, cell_data, ymom_src_arr, mf_v);
-            */
         }
+#endif
 
         // *****************************************************************************
         // 8. Add SPONGING

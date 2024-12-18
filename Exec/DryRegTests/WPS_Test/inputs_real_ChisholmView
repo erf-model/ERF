@@ -50,9 +50,9 @@ erf.terrain_type = Static
 
 erf.moisture_model = "Kessler"
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "Constant"
-erf.dynamicViscosity = 5.0
+erf.les_type          = "None"
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 5.0
 
 erf.use_coriolis = true
 erf.abl_driver_type = "GeostrophicWind"

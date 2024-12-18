@@ -318,12 +318,14 @@ struct SolverChoice {
         pp.query("use_moist_background", use_moist_background);
 
         // Use numerical diffusion?
-        pp.query("use_NumDiff",use_NumDiff);
-        if(use_NumDiff) {
-            pp.query("NumDiffCoeff",NumDiffCoeff);
-            AMREX_ASSERT_WITH_MESSAGE(( (NumDiffCoeff >= 0.) && (NumDiffCoeff <= 1.) ),
-                                      "Numerical diffusion coefficient must be between 0 & 1.");
-            NumDiffCoeff *= std::pow(2.0,-6);
+        pp.query("num_diff_coeff",num_diff_coeff);
+        AMREX_ASSERT_WITH_MESSAGE(( (num_diff_coeff >= 0.) && (num_diff_coeff <= 1.) ),
+                                  "Numerical diffusion coefficient must be between 0 & 1.");
+        use_num_diff = (num_diff_coeff > 0);
+        if (use_num_diff) {
+            amrex::Print() << "6th-order numerical diffusion turned on with coefficient = "
+                << num_diff_coeff << std::endl;
+            num_diff_coeff *= std::pow(2.0,-6);
         }
 
         // Use monotonic advection?
@@ -508,7 +510,6 @@ struct SolverChoice {
         pp.query("rotational_time_period", rot_time_period);
 
         coriolis_factor = 2.0 * 2.0 * PI / rot_time_period;
-        amrex::Print() << "Coriolis factor = " << coriolis_factor << std::endl;
 
         amrex::Real latitude = 90.0;
         pp.query("latitude", latitude);
@@ -653,8 +654,8 @@ struct SolverChoice {
     PerturbationType pert_type;
 
     // Numerical diffusion
-    bool use_NumDiff{false};
-    amrex::Real NumDiffCoeff{0.};
+    bool use_num_diff{false};
+    amrex::Real num_diff_coeff{0.};
 
     // Monotonic advection limiter
     bool use_mono_adv{false};

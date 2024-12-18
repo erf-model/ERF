@@ -65,9 +65,8 @@ erf.pbl_type = "MYNN2.5"
 erf.advect_KE = false
 erf.les_type = "None"
 erf.molec_diff_type = "None"
-#erf.molec_diff_type  = "Constant"
-#erf.dynamicViscosity = 0.0 # 5.0
-#erf.Cs = 0.16
+#erf.molec_diff_type = "Constant"
+#erf.dynamic_viscosity = 0.0  #5.0
 
 erf.dycore_horiz_adv_type  = "Upwind_5th"
 erf.dycore_vert_adv_type   = "Upwind_3rd"
