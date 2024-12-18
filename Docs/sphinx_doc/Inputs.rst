@@ -1087,11 +1087,32 @@ List of Parameters
 | **erf.coriolis_3d**                 | Include z component in | true / false      | true                |
 |                                     | the Coriolis forcing   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.use_rayleigh_damping**        | Include explicit       | true / false      | false               |
-|                                     | Rayleigh damping       |                   |                     |
+| **erf.rayleigh_damp_U**             | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping in    |                   |                     |
+|                                     | the x-momentum equation|                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.nudging_from_input_sounding** | Include explicit       | true / false      | false               |
-|                                     | Rayleigh damping       |                   |                     |
+| **erf.rayleigh_damp_V**             | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping in    |                   |                     |
+|                                     | the y-momentum equation|                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_damp_W**             | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping in    |                   |                     |
+|                                     | the z-momentum equation|                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_damp_T**             | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping in    |                   |                     |
+|                                     | the potential          |                   |                     |
+|                                     | temperature equation   |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_dampcoef**           | Rayleigh damping       | Real              | 0.2                 |
+|                                     | coefficient, an inverse|                   |                     |
+|                                     | timescale              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_from_input_sounding** | Add momentum source    | true / false      | false               |
+|                                     | terms to nudge the     |                   |                     |
+|                                     | solution towards the   |                   |                     |
+|                                     | initial sounding       |                   |                     |
+|                                     | profile                |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding_file |
 |                                     | input sounding file(s) |                   |                     |
