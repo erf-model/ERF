@@ -17,6 +17,8 @@ void ERF::poisson_wall_dist (int lev)
 {
     BL_PROFILE("ERF::poisson_wall_dist()");
 
+    auto const& geomdata = geom[lev];
+
     if (solverChoice.mesh_type == MeshType::ConstantDz) {
 // Comment this out to test the wall dist calc in the trivial case:
 //#if 0
@@ -25,8 +27,8 @@ void ERF::poisson_wall_dist (int lev)
             const Box& bx = mfi.validbox();
             auto dist_arr = walldist[lev]->array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                const Real* prob_lo = geom[lev].ProbLo();
-                const Real* dx = geom[lev].CellSize();
+                const Real* prob_lo = geomdata.ProbLo();
+                const Real* dx = geomdata.CellSize();
                 dist_arr(i, j, k) = prob_lo[2] + (k + 0.5) * dx[2];
             });
         }
@@ -264,7 +266,7 @@ void ERF::poisson_wall_dist (int lev)
         auto dist_arr = walldist[lev]->array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            const auto invCellSize = geom[lev].InvCellSizeArray();
+            const auto invCellSize = geomdata.InvCellSizeArray();
             Real dpdx{0}, dpdy{0}, dpdz{0};
 
             // dphi/dx
