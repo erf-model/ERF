@@ -23,12 +23,12 @@ void ERF::poisson_wall_dist (int lev)
 // Comment this out to test the wall dist calc in the trivial case:
 //#if 0
         Print() << "Directly calculating direct wall distance for constant dz" << std::endl;
+        const Real* prob_lo = geomdata.ProbLo();
+        const Real* dx = geomdata.CellSize();
         for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto dist_arr = walldist[lev]->array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                const Real* prob_lo = geomdata.ProbLo();
-                const Real* dx = geomdata.CellSize();
                 dist_arr(i, j, k) = prob_lo[2] + (k + 0.5) * dx[2];
             });
         }
@@ -262,11 +262,12 @@ void ERF::poisson_wall_dist (int lev)
     for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
 
+        const auto invCellSize = geomdata.InvCellSizeArray();
+
         auto const& phi_arr = phi[0].const_array(mfi);
         auto dist_arr = walldist[lev]->array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            const auto invCellSize = geomdata.InvCellSizeArray();
             Real dpdx{0}, dpdy{0}, dpdz{0};
 
             // dphi/dx
@@ -301,11 +302,6 @@ void ERF::poisson_wall_dist (int lev)
                     phi_arr(i  , j  , k  ) + phi_arr(i  , j  , k+1) + phi_arr(i  , j+1, k  ) + phi_arr(i  , j+1, k+1)
                   + phi_arr(i+1, j  , k  ) + phi_arr(i+1, j  , k+1) + phi_arr(i+1, j+1, k  ) + phi_arr(i+1, j+1, k+1) );
             dist_arr(i, j, k) = -std::sqrt(dp_dot_dp) + std::sqrt(dp_dot_dp + 2*phi_avg);
-
-            if ((i==104) && (j>=105)) {
-                Print() << IntVect(i,j,k) << "dpdx^2="<<dpdx*dpdx<<" dpdy^2="<<dpdy*dpdy<<" dpdz^2="<<dpdz*dpdz
-                    << " phi="<<phi_avg << " walldist="<<dist_arr(i,j,k) << std::endl;
-            }
 
             // DEBUG: output phi instead
             //dist_arr(i, j, k) = phi_arr(i, j, k);
