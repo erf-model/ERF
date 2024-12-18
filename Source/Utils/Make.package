@@ -23,3 +23,5 @@ CEXE_sources += ERF_VelocityToMomentum.cpp
 CEXE_sources += ERF_InteriorGhostCells.cpp
 CEXE_sources += ERF_TerrainMetrics.cpp
 CEXE_sources += ERF_TimeAvgVel.cpp  
+
+CEXE_sources += ERF_ThinBodyWallDist.cpp

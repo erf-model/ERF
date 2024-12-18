@@ -377,6 +377,7 @@ ApplyMask (amrex::MultiFab& dst,
         }
     }
 }
+
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
@@ -399,4 +400,11 @@ ApplyInvertedMask (amrex::MultiFab& dst,
     }
 }
 
+void
+thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
+                    amrex::Vector<amrex::IntVect>& xfaces,
+                    amrex::Vector<amrex::IntVect>& yfaces,
+                    amrex::Vector<amrex::IntVect>& zfaces,
+                    const amrex::Geometry& geomdata,
+                    std::unique_ptr<amrex::MultiFab>& z_phys_cc);
 #endif

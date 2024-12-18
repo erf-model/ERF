@@ -98,8 +98,7 @@ void ERF::poisson_wall_dist (int lev)
     // Overset mask is 0/1: 1 means the node is an unknown. 0 means it's known.
     mask.setVal(1);
     if (solverChoice.advChoice.have_zero_flux_faces) {
-        Warning("Poisson distance is inaccurate for bodies in open domains that are small compared to the domain size, skipping...");
-        walldist[lev]->setVal(1e34);
+        Warning("Poisson distance is inaccurate for bodies in open domains that are small compared to the domain size, skipping");
         return;
 #if 0
         Gpu::DeviceVector<IntVect> xfacelist, yfacelist, zfacelist;

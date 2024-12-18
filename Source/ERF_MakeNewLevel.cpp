@@ -150,6 +150,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // *******************************************************************************************
     if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
         poisson_wall_dist(lev);
+
+        if (solverChoice.advChoice.have_zero_flux_faces) {
+            thinbody_wall_dist(walldist[lev],
+                               solverChoice.advChoice.zero_xflux,
+                               solverChoice.advChoice.zero_yflux,
+                               solverChoice.advChoice.zero_zflux,
+                               geom[lev],
+                               z_phys_cc[lev]);
+        }
     }
 
     //********************************************************************************************
