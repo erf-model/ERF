@@ -906,7 +906,7 @@ List of Parameters
 |                                  | viscosity and      | "Constant", or      |              |
 |                                  | diffusivity?       | "ConstantAlpha"     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dynamicViscosity**         | Viscous coeff. if  | Real                | 0.0          |
+| **erf.dynamic_viscosity**        | Viscous coeff. if  | Real                | 0.0          |
 |                                  | DNS                |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.Cs**                       | Constant           | Real                | 0.0          |
@@ -918,13 +918,11 @@ List of Parameters
 | **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0          |
 |                                  | Number             |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_NumDiff**              | Use 6th order      | "true",             | "false"      |
-|                                  | numerical diffusion| "false"             |              |
-|                                  |                    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.NumDiffCoeff**             | Coefficient for    | Real                | 0.0          |
-|                                  | 6th order          | [0.0,  1.0]         |              |
-|                                  | numerical diffusion|                     |              |
+| **erf.num_diff_coeff**           | Coefficient for    | Real                | 0.0          |
+|                                  | 6th-order          | [0.0,  1.0]         |              |
+|                                  | numerical          |                     |              |
+|                                  | diffusion, set to 0|                     |              |
+|                                  | to disable         |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the

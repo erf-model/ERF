@@ -36,17 +36,17 @@ erf.check_int       = 1000       # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 100        # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity 
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity            = false
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "Constant"
-erf.rho0_trans       = 1.0
-erf.dynamicViscosity = 0.1
+erf.les_type = "None"
+
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 0.1
+erf.alpha_T           = 0.0
+erf.alpha_C           = 0.0
 
 erf.use_coriolis = false
 erf.abl_driver_type = "PressureGradient"

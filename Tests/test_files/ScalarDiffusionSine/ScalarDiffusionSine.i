@@ -36,14 +36,14 @@ erf.plot_int_1      = 20         # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 1.0
 erf.use_gravity = false
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "Constant"
-erf.rho0_trans       = 1.0
-erf.dynamicViscosity = 0.0
+erf.les_type = "None"
+
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 0.0
+erf.alpha_T           = 0.0
+erf.alpha_C           = 1.0
 
 erf.init_type = "uniform"
 

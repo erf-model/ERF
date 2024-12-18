@@ -62,7 +62,6 @@ erf.use_coriolis = false
 erf.les_type = "None"
 
 erf.molec_diff_type = "None"
-#erf.dynamicViscosity = 1e-5 # [kg/(m-s)]
 
 erf.rayleigh_damp_W = true
 erf.rayleigh_zdamp = 5000.0

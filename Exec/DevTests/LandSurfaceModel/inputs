@@ -47,15 +47,12 @@ erf.plot_vars_1     = density rhotheta rhoadv_0 x_velocity y_velocity z_velocity
 erf.plot_lsm = true
 
 # SOLVER CHOICE
-erf.alpha_T = 1.0
-erf.alpha_C = 1.0
 erf.use_gravity = true
 
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 #erf.pbl_type        = "MYNN2.5"
-#erf.KE_0           = 0.5
      
 erf.terrain_type = Static
 erf.terrain_smoothing = 2

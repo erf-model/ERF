@@ -55,13 +55,18 @@ erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 0. 0. 0.  # no background pressure gradient
 
 erf.molec_diff_type = "None"
+
 erf.les_type = "Deardorff"
 erf.Ck       = 0.1
 erf.Ce       = 0.93
 erf.Pr_t     = 0.3333
 erf.theta_ref = 290.0 # used in buoyancy term
-erf.KE_0  = 0.000656292002688172 # exact soln in uniform density field, e = Ck/Ce*(dUdz*delta)**2
 
 # INITIAL PROFILES
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_sounding" # with linear wind profile
+
+# exact soln in uniform density field
+#   e = Ck/Ce*(dUdz*delta)**2,
+# with dU/dz=0.01 and  dx=dy=dz=delta=7.8125
+prob.rhoKE_0 = 0.000656292002688172

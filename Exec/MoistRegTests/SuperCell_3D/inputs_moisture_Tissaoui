@@ -22,8 +22,8 @@ zlo.type = "SlipWall"
 zhi.type = "HO_Outflow"
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 0.5      # fixed time step [s] -- Straka et al 1993
-erf.fixed_fast_dt  = 0.25     # fixed time step [s] -- Straka et al 1993
+erf.fixed_dt       = 0.5      # fixed time step [s]
+erf.fixed_fast_dt  = 0.25     # fixed time step [s]
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -47,21 +47,16 @@ erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_veloci
 erf.use_gravity = true
 erf.buoyancy_type = 1
 erf.use_coriolis = false
-erf.use_rayleigh_damping = false
 
 #erf.les_type = "Smagorinsky"
 erf.Cs              = 0.25
 erf.les_type = "None"
 
-#
-# diffusion coefficient from Straka, K = 75 m^2/s
-#
-erf.molec_diff_type = "ConstantAlpha"
-#erf.molec_diff_type = "Constant"
-erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 33.33 # [kg/(m-s)] ==> nu = 75.0 m^2/s
-erf.alpha_T = 33.33 # [m^2/s]
-erf.alpha_C = 33.33
+# Constant diffusion coefficient
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 33.33 # [kg/(m-s)]
+erf.alpha_T           = 33.33 # [m^2/s]
+erf.alpha_C           = 33.33
 
 erf.moisture_model = "Kessler"
 erf.use_moist_background = true

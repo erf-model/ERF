@@ -41,15 +41,16 @@ erf.plot_int_1      = 3840       # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 erf.use_coriolis = false
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "ConstantAlpha"
+erf.les_type = "None"
+
 # diffusion = 75 m^2/s, rho_0 = 1e5/(287*300) = 1.1614401858
-erf.dynamicViscosity = 87.108013935 # kg/(m-s)
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 87.108013935 # kg/(m-s)
+erf.alpha_T           = 0.0
+erf.alpha_C           = 0.0
 
 erf.init_type = ""
 

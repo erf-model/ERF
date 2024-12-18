@@ -335,7 +335,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
 
-    int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
+    int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff);
 
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);

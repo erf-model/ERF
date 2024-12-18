@@ -17,6 +17,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("T_0", parms.T_0);
   pp.query("A_0", parms.A_0);
   pp.query("KE_0", parms.KE_0);
+  pp.query("rhoKE_0", parms.rhoKE_0);
   pp.query("KE_decay_height", parms.KE_decay_height);
   pp.query("KE_decay_order", parms.KE_decay_order);
 
@@ -126,7 +127,11 @@ Problem::init_custom_pert(
     // Set an initial value for SGS KE
     if (state_pert.nComp() > RhoKE_comp) {
         // Deardorff
-        state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * parms_d.KE_0;
+        if (parms_d.rhoKE_0 > 0) {
+            state_pert(i, j, k, RhoKE_comp) = parms_d.rhoKE_0;
+        } else {
+            state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * parms_d.KE_0;
+        }
         if (parms_d.KE_decay_height > 0) {
             // scale initial SGS kinetic energy with height
             state_pert(i, j, k, RhoKE_comp) *= max(
