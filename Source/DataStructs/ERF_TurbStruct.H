@@ -42,6 +42,10 @@ struct TurbChoice {
         std::string rans_type_string = "None";
         query_one_or_per_level(pp, "rans_type", rans_type, lev, max_level);
 
+        if ((rans_type != RANSType::None) && (les_type != LESType::None)) {
+            amrex::Error("Hybrid RANS-LES not implemented");
+        }
+
         // Which PBL Closure
         static std::string pbl_type_string = "None";
         query_one_or_per_level(pp, "pbl_type", pbl_type, lev, max_level);
