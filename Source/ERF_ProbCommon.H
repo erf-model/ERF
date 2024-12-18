@@ -274,11 +274,14 @@ public:
                          const amrex::Real& time)
     {
         // Check if a valid text file exists for the terrain
-        std::string fname;
+        std::string fname, fname_usgs, ftype;
         amrex::ParmParse pp("erf");
         auto valid_fname = pp.query("terrain_file_name",fname);
+        auto valid_fname_USGS = pp.query("terrain_file_name_USGS",fname_usgs);
         if (valid_fname) {
             this->read_custom_terrain(fname,geom,z_phys_nd,time);
+        } else if(valid_fname_USGS) {
+            this->read_custom_terrain_USGS(fname_usgs,geom,z_phys_nd,time);
         } else {
             // Note that this only sets the terrain value at the ground IF k=0 is in the box
             amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
@@ -307,6 +310,7 @@ public:
             SolverChoice::set_flat_terrain_flag();
         }
     }
+
 
     /**
     * Function to perform custom initialization of terrain
@@ -422,6 +426,187 @@ public:
             });
         }
     }
+
+    virtual void
+    read_custom_terrain_USGS (const std::string& fname_usgs,
+                               const amrex::Geometry& geom,
+                              amrex::MultiFab& z_phys_nd,
+                               const amrex::Real& /*time*/)
+    {
+        // Read terrain file on the host
+        amrex::Print()<<"Reading terrain file: "<< fname_usgs << std::endl;
+        std::ifstream file(fname_usgs);
+
+        if (!file.is_open()) {
+            amrex::Abort("Error: Could not open the file " + fname_usgs + "\n");
+        }
+
+        // Check if file is empty
+        if (file.peek() == std::ifstream::traits_type::eof()) {
+            amrex::Abort("Error: The file  " + fname_usgs + " is empty.\n");
+        }
+
+        amrex::Gpu::HostVector<amrex::Real> m_xterrain,m_yterrain,m_zterrain;
+        amrex::Real value1,value2,value3;
+        amrex::Real lat_min, lon_min;
+        int nlons, nlats;
+
+        file >> lon_min >> lat_min;
+         if(std::fabs(lon_min) > 180.0) {
+            amrex::Error("The value of longitude for entry in the first line in " + fname_usgs
+                         + " should not exceed 180. It is " + std::to_string(lon_min));
+        }
+         if(std::fabs(lat_min) > 90.0) {
+            amrex::Error("The value of latitude for entry in the first line in " + fname_usgs
+                         + " should not exceed 90. It is " + std::to_string(lat_min));
+        }
+
+        file >> nlons >> nlats;
+
+        int counter = 0;
+        while(file >> value1 >> value2 >> value3){
+            m_xterrain.push_back(value1);
+            if(counter%nlons==0) {
+                m_yterrain.push_back(value2);
+            }
+            m_zterrain.push_back(value3);
+            counter += 1;
+        }
+        file.close();
+
+        AMREX_ASSERT(m_xterrain.size() == static_cast<long unsigned int>(nlons*nlats));
+        AMREX_ASSERT(m_yterrain.size() == static_cast<long unsigned int>(nlats));
+        AMREX_ASSERT(m_zterrain.size() == static_cast<long unsigned int>(nlons*nlats));
+
+        // Shift the terrain so that there is some flat region for the
+        // inflow to come in
+
+        amrex::ParmParse pp("erf");
+        amrex::Real x_shift, y_shift;
+        pp.query("windfarm_x_shift",x_shift);
+        pp.query("windfarm_x_shift",y_shift);
+
+
+        for(auto& v : m_xterrain){
+            v += x_shift;
+        }
+        for(auto& v : m_yterrain){
+            v += y_shift;
+        }
+
+        if (m_xterrain.empty()) {
+            amrex::Abort("Error: m_xterrain is empty!\n");
+        }
+
+        auto index = std::max_element(m_xterrain.begin(), m_xterrain.end());
+        amrex::Real xmax_terrain = *index;
+        index = std::max_element(m_yterrain.begin(), m_yterrain.end());
+        amrex::Real ymax_terrain = *index;
+
+        index = std::min_element(m_zterrain.begin(), m_zterrain.end());
+        amrex::Real zmin_terrain = *index;
+
+        for(auto& v : m_zterrain){
+            v -= zmin_terrain;
+        }
+
+        // Copy data to the GPU
+        int nnode = nlons*nlats;
+        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nnode),d_yterrain(nlats),d_zterrain(nnode);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_xterrain.begin(), m_xterrain.end(), d_xterrain.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_yterrain.begin(), m_yterrain.end(), d_yterrain.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_zterrain.begin(), m_zterrain.end(), d_zterrain.begin());
+        amrex::Real* d_xt = d_xterrain.data();
+        amrex::Real* d_yt = d_yterrain.data();
+        amrex::Real* d_zt = d_zterrain.data();
+
+        // Populate z_phys data
+        int ngrow = z_phys_nd.nGrow();
+        auto dx = geom.CellSizeArray();
+        auto ProbLoArr = geom.ProbLoArray();
+        int ilo = geom.Domain().smallEnd(0);
+        int jlo = geom.Domain().smallEnd(1);
+        int klo = geom.Domain().smallEnd(2);
+        int ihi = geom.Domain().bigEnd(0) + 1;
+        int jhi = geom.Domain().bigEnd(1) + 1;
+
+        for (amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            // Grown box with no z range
+            amrex::Box xybx = mfi.growntilebox(ngrow);
+            xybx.setRange(2,0);
+
+            amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+            amrex::ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+            {
+                // Clip indices for ghost-cells
+                int ii = amrex::min(amrex::max(i,ilo),ihi);
+                int jj = amrex::min(amrex::max(j,jlo),jhi);
+
+                // Location of nodes
+                amrex::Real x = ProbLoArr[0]  + ii  * dx[0] + 1e-3;
+                amrex::Real y = ProbLoArr[1]  + jj  * dx[1] + 1e-3;
+
+                if(x < x_shift or x > xmax_terrain or
+                   y < y_shift or y > ymax_terrain) {
+                    z_arr(i,j,klo) = 0.0;
+                } else {
+                    int jindex_terrain = -1;
+                    for (int it = 0; it < nlats && jindex_terrain == -1; it++) {
+                        if (d_yt[it] > y) {
+                            jindex_terrain = it-1;
+                        }
+                    }
+                    //if(jindex_terrain == -1){
+                    //    printf("Could not find the jindex for a y value of %0.15g\n",y);
+                    //}
+                    // Now the index to check for x goes from jindex_terrain*nlons to
+                    // (jindex_terrain+1)*nlons-1
+                    int iindex_terrain=-1;
+                    int gstart = jindex_terrain*nlons;
+                    int gend = (jindex_terrain+1)*nlons-1;
+                    for (int it = gstart; it <= gend && iindex_terrain == -1; it++) {
+                        if (d_xt[it] > x) {
+                            iindex_terrain = it-gstart;
+                        }
+                    }
+                    //if(iindex_terrain == -1){
+                    //    printf("Could not find the iindex for a x value of %0.15g for a y index of %d and y value of %0.15g\n",x, jindex_terrain,y);
+                    //}
+
+                    // Now do an averaging
+                    int ind11, ind12, ind21, ind22;
+                    ind11 = jindex_terrain*nlons + iindex_terrain;
+                    ind12 = ind11+nlons;
+                    ind21 = ind11+1;
+                    ind22 = ind12+1;
+                    amrex::Real x1 = d_xt[ind11];
+                    amrex::Real x2 = d_xt[ind21];
+                    amrex::Real y1 = d_yt[jindex_terrain];
+                    amrex::Real y2 = d_yt[jindex_terrain+1];
+                    // Do bilinear interpolation
+                    amrex::Real denom = (x2-x1)*(y2-y1);
+                    amrex::Real w_11 = (x2-x)*(y2-y)/denom;
+                    amrex::Real w_12 = (x2-x)*(y-y1)/denom;
+                    amrex::Real w_21 = (x-x1)*(y2-y)/denom;
+                    amrex::Real w_22 = (x-x1)*(y-y1)/denom;
+
+                    z_arr(i,j,klo) = w_11*d_zt[ind11] + w_12*d_zt[ind12] + w_21*d_zt[ind21] + w_22*d_zt[ind22];
+
+                    //z_arr(i,j,klo) = 0.25*(d_zt[ind1] + d_zt[ind2] + d_zt[ind3] + d_zt[ind4]);
+                    // Smoothen out the edges using Gaussian
+                    /*amrex::Real sigma = 600.0;
+                    amrex::Real fac = 2.0*sigma*sigma;
+                    z_arr(i,j,klo) = z_arr(i,j,klo)*(1.0-exp(-(x-x_shift)*(x-x_shift)/fac))*
+                                                    (1.0-exp(-(x-xmax_terrain)*(x-xmax_terrain)/fac))*
+                                                    (1.0-exp(-(y-y_shift)*(y-y_shift)/fac))*
+                                                    (1.0-exp(-(y-ymax_terrain)*(y-ymax_terrain)/fac)); */
+                    //std::cout << "Values of z is " << d_zt[ind1] << " " << d_zt[ind2] << " " << d_zt[ind3] << " " << d_zt[ind4] << "\n";
+                }
+            });
+        }
+    }
+
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
     virtual amrex::Real compute_terrain_velocity(const amrex::Real /*time*/)

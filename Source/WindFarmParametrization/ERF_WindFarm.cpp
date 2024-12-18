@@ -84,32 +84,57 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
     file.close();
 
     Real rad_earth = 6371.0e3; // Radius of the earth
+    Real m_per_deg_lat = rad_earth*2.0*M_PI/(2.0*180.0);
 
     // Find the coordinates of average of min and max of the farm
     // Rotate about that point
+    ParmParse pp("erf");
+    std::string fname_usgs;
+    auto valid_fname_USGS = pp.query("terrain_file_name_USGS",fname_usgs);
+    Real lon_ref, lat_ref;
 
-    Real lat_min = *std::min_element(lat.begin(), lat.end());
-    Real lat_max = *std::max_element(lat.begin(), lat.end());
-    Real lon_min = *std::min_element(lon.begin(), lon.end());
-    Real lon_max = *std::max_element(lon.begin(), lon.end());
+    if (valid_fname_USGS) {
+        std::ifstream file_usgs(fname_usgs);
+        file_usgs >> lon_ref >> lat_ref;
+        file_usgs.close();
+        lon_ref = lon_ref*M_PI/180.0;
+        lat_ref = lat_ref*M_PI/180.0;
+    } else {
+        Real lat_min = *std::min_element(lat.begin(), lat.end());
+        Real lon_min = *std::min_element(lon.begin(), lon.end());
 
-    Real lat_cen = 0.5*(lat_min+lat_max)*M_PI/180.0;
-    Real lon_cen = 0.5*(lon_min+lon_max)*M_PI/180.0;
-
-    // (lat_lo, lon_lo) is mapped to (0,0)
+        lon_ref = lon_min*M_PI/180.0;
+        lat_ref = lat_min*M_PI/180.0;
+    }
 
 
     for(int it=0;it<lat.size();it++){
         lat[it] = lat[it]*M_PI/180.0;
         lon[it] = lon[it]*M_PI/180.0;
-        Real delta_lat = (lat[it] - lat_cen);
-        Real delta_lon = (lon[it] - lon_cen);
+        Real delta_lat = (lat[it] - lat_ref);
+        Real delta_lon = (lon[it] - lon_ref);
 
         Real term1 = std::pow(sin(delta_lat/2.0),2);
-        Real term2 = cos(lat[it])*cos(lat_cen)*std::pow(sin(delta_lon/2.0),2);
+        Real term2 = cos(lat[it])*cos(lat_ref)*std::pow(sin(delta_lon/2.0),2);
         Real dist =  2.0*rad_earth*std::asin(std::sqrt(term1 + term2));
-        Real dy_turb = (lat[it] - lat_cen) * 111000.0 * 180.0/M_PI ;
-        Real dx_turb = std::sqrt(std::pow(dist,2) - std::pow(dy_turb,2));
+        Real dy_turb = delta_lat * m_per_deg_lat * 180.0/M_PI ;
+
+        if(dist<dy_turb){
+            if(std::fabs(dist-dy_turb)<1e-8){
+                dist=dy_turb;
+            }
+            else{
+                Abort("The value of dist is less than dy_turb "+ std::to_string(dist) + " " + std::to_string(dy_turb));
+            }
+        }
+        Real tmp = std::pow(dist,2) - std::pow(dy_turb,2);
+
+        if(std::fabs(tmp)<1e-8){
+            tmp = 0.0;
+        }
+        Real dx_turb = std::sqrt(tmp);
+
+
         if(delta_lon >= 0.0) {
             xloc.push_back(dx_turb);
         }
@@ -119,12 +144,9 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
         yloc.push_back(dy_turb);
     }
 
-    Real xloc_min = *std::min_element(xloc.begin(),xloc.end());
-    Real yloc_min = *std::min_element(yloc.begin(),yloc.end());
-
     for(int it = 0;it<xloc.size(); it++){
-        xloc[it] = xloc[it] - xloc_min + windfarm_x_shift;
-        yloc[it] = yloc[it] - yloc_min + windfarm_y_shift;
+        xloc[it] = xloc[it] + windfarm_x_shift;
+        yloc[it] = yloc[it] + windfarm_y_shift;
     }
 }
 
@@ -384,6 +406,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
               "It should be usually of order 1 m");
     }
     auto ProbLoArr = geom.ProbLoArray();
+    auto ProbHiArr = geom.ProbHiArray();
     int num_turb = xloc.size();
 
     bool is_terrain = z_phys_nd ? true: false;
@@ -434,9 +457,15 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
                                   amrex::ParallelContext::CommunicatorAll());
 
     for(int it=0;it<num_turb;it++) {
-        if(is_terrain and is_counted[it] != 1) {
-            Abort("Wind turbine " + std::to_string(it) + "has been counted " + std::to_string(is_counted[it]) + " times" +
-                  " It should have been counted only once. Aborting....");
+        if(is_terrain and
+           xloc[it] > ProbLoArr[0] and
+           xloc[it] < ProbHiArr[0] and
+           yloc[it] > ProbLoArr[1] and
+           yloc[it] < ProbHiArr[1]    ) {
+            if(is_counted[it] != 1) {
+                Abort("Wind turbine " + std::to_string(it) + "has been counted " + std::to_string(is_counted[it]) + " times" +
+                      " It should have been counted only once. Aborting....");
+            }
         }
     }
 
