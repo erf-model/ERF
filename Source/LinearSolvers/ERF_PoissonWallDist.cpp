@@ -18,9 +18,8 @@ void ERF::poisson_wall_dist (int lev)
     BL_PROFILE("ERF::poisson_wall_dist()");
     Print() << "Calculating wall distance" << std::endl;
     if (solverChoice.mesh_type == MeshType::ConstantDz) {
-        // Handle this trivial case
-// This is commented out to test the wall dist calc:
-#if 0
+// Comment this out to test the wall dist calc in the trivial case:
+//#if 0
         for (MFIter mfi(phi[0]); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto dist_arr = wall_dist.array(mfi);
@@ -31,10 +30,12 @@ void ERF::poisson_wall_dist (int lev)
             });
         }
         return;
-#endif
+//#endif
     } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
         // TODO: Handle this trivial case
+        Error("Wall dist calc not implemented with grid stretching yet");
     } else {
+        // TODO
         Error("Wall dist calc not implemented over terrain yet");
     }
 
@@ -77,6 +78,10 @@ void ERF::poisson_wall_dist (int lev)
     // Overset mask is 0/1: 1 means the node is an unknown. 0 means it's known.
     mask.setVal(1);
     if (solverChoice.advChoice.have_zero_flux_faces) {
+        Warning("Poisson distance is inaccurate for bodies in open domains that are small compared to the domain size, skipping...");
+        walldist[lev]->setVal(1e34);
+        return;
+#if 0
         Gpu::DeviceVector<IntVect> xfacelist, yfacelist, zfacelist;
 
         xfacelist.resize(solverChoice.advChoice.zero_xflux.size());
@@ -159,6 +164,7 @@ void ERF::poisson_wall_dist (int lev)
                 });
             }
         }
+#endif
     }
 
     // ****************************************************************************
@@ -167,6 +173,7 @@ void ERF::poisson_wall_dist (int lev)
     // ****************************************************************************
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bc3d_lo, bc3d_hi;
     Orientation zlo(Direction::z, Orientation::low);
+    bool havewall{false};
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         if (geom[0].isPeriodic(dir)) {
             bc3d_lo[dir] = LinOpBCType::Periodic;
@@ -177,15 +184,19 @@ void ERF::poisson_wall_dist (int lev)
         }
     }
     if ( ( phys_bc_type[zlo] == ERF_BC::MOST                               ) ||
-         ( phys_bc_type[zlo] == ERF_BC::no_slip_wall                       ) ||
-         ((phys_bc_type[zlo] == ERF_BC::slip_wall) && (dom_hi.z > dom_lo.z)) )
+         ( phys_bc_type[zlo] == ERF_BC::no_slip_wall                       ) )/*||
+         ((phys_bc_type[zlo] == ERF_BC::slip_wall) && (dom_hi.z > dom_lo.z)) )*/
     {
-        // Only consider slip wall on zlo if we're not 2D in xy
         Print() << "  Poisson zlo BC is dirichlet" << std::endl;
         bc3d_lo[2] = LinOpBCType::Dirichlet;
+        havewall = true;
     }
     Print() << "  bc lo : " << bc3d_lo << std::endl;
     Print() << "  bc hi : " << bc3d_hi << std::endl;
+
+    if (!solverChoice.advChoice.have_zero_flux_faces && !havewall) {
+        Error("No solid boundaries in the computational domain");
+    }
 
     LPInfo info;
 /* Nodal solver cannot have hidden dimensions */
@@ -205,7 +216,7 @@ void ERF::poisson_wall_dist (int lev)
 
     // ****************************************************************************
     // Solve nodal masked Poisson problem with MLMG
-    // TODO: different solver for terrain
+    // TODO: different solver for terrain?
     // ****************************************************************************
     const Real reltol = solverChoice.poisson_reltol;
     const Real abstol = solverChoice.poisson_abstol;
@@ -240,7 +251,8 @@ void ERF::poisson_wall_dist (int lev)
 
     // ****************************************************************************
     // Compute grad(phi) to get distances
-    // TODO: include terrain metrics for dphi/dz
+    // - Note that phi is nodal and walldist is cell-centered
+    // - TODO: include terrain metrics for dphi/dz
     // ****************************************************************************
     for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -254,21 +266,41 @@ void ERF::poisson_wall_dist (int lev)
 
             // dphi/dx
             if (dom_lo.x != dom_hi.x) {
-                dpdx = invCellSize[0]*(phi_arr(i, j, k) - phi_arr(i-1, j, k));
+                dpdx = 0.25 * invCellSize[0] * (
+                        (phi_arr(i+1, j  , k  ) - phi_arr(i, j  , k  ))
+                      + (phi_arr(i+1, j  , k+1) - phi_arr(i, j  , k+1))
+                      + (phi_arr(i+1, j+1, k  ) - phi_arr(i, j+1, k  ))
+                      + (phi_arr(i+1, j+1, k+1) - phi_arr(i, j+1, k+1)) );
             }
 
             // dphi/dy
             if (dom_lo.y != dom_hi.y) {
-                dpdy = invCellSize[1]*(phi_arr(i, j, k) - phi_arr(i, j-1, k));
+                dpdy = 0.25 * invCellSize[1] * (
+                        (phi_arr(i  , j+1, k  ) - phi_arr(i  , j, k  ))
+                      + (phi_arr(i  , j+1, k+1) - phi_arr(i  , j, k+1))
+                      + (phi_arr(i+1, j+1, k  ) - phi_arr(i+1, j, k  ))
+                      + (phi_arr(i+1, j+1, k+1) - phi_arr(i+1, j, k+1)) );
             }
 
             // dphi/dz
             if (dom_lo.z != dom_hi.z) {
-                dpdz = invCellSize[2]*(phi_arr(i, j, k) - phi_arr(i, j, k-1));
+                dpdz = 0.25 * invCellSize[2] * (
+                        (phi_arr(i  , j  , k+1) - phi_arr(i  , j  , k))
+                      + (phi_arr(i  , j+1, k+1) - phi_arr(i  , j+1, k))
+                      + (phi_arr(i+1, j  , k+1) - phi_arr(i+1, j  , k))
+                      + (phi_arr(i+1, j+1, k+1) - phi_arr(i+1, j+1, k)) );
             }
 
             Real dp_dot_dp = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
-            dist_arr(i, j, k) = -std::sqrt(dp_dot_dp) + std::sqrt(dp_dot_dp + 2*phi_arr(i, j, k));
+            Real phi_avg = 0.125 * (
+                    phi_arr(i  , j  , k  ) + phi_arr(i  , j  , k+1) + phi_arr(i  , j+1, k  ) + phi_arr(i  , j+1, k+1)
+                  + phi_arr(i+1, j  , k  ) + phi_arr(i+1, j  , k+1) + phi_arr(i+1, j+1, k  ) + phi_arr(i+1, j+1, k+1) );
+            dist_arr(i, j, k) = -std::sqrt(dp_dot_dp) + std::sqrt(dp_dot_dp + 2*phi_avg);
+
+            if ((i==104) && (j>=105)) {
+                Print() << IntVect(i,j,k) << "dpdx^2="<<dpdx*dpdx<<" dpdy^2="<<dpdy*dpdy<<" dpdz^2="<<dpdz*dpdz
+                    << " phi="<<phi_avg << " walldist="<<dist_arr(i,j,k) << std::endl;
+            }
 
             // DEBUG: output phi instead
             //dist_arr(i, j, k) = phi_arr(i, j, k);
