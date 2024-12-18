@@ -10,7 +10,7 @@ CEXE_sources += ERF_Init1D.cpp
 CEXE_sources += ERF_InitTurbPert.cpp
 
 ifeq ($(USE_WINDFARM),TRUE)
-CEXE_sources += ERFInitWindFarm.cpp
+CEXE_sources += ERF_InitWindFarm.cpp
 endif
 
 ifeq ($(USE_NETCDF),TRUE)
