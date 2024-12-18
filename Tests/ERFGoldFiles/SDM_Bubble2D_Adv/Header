@@ -1,10 +1,7 @@
 HyperCLaw-V1.1
-36
+28
 density
 rhotheta
-rhoadv_0
-rhoQ1
-rhoQ2
 x_velocity
 y_velocity
 z_velocity
@@ -17,11 +14,6 @@ pressure
 pert_pres
 pert_dens
 eq_pot_temp
-qt
-qv
-qc
-qrain
-rain_accum
 super_droplets_moisture_mass_flux_x
 super_droplets_moisture_mass_flux_y
 super_droplets_moisture_mass_flux_z
