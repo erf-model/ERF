@@ -16,10 +16,11 @@ using namespace amrex;
 void ERF::poisson_wall_dist (int lev)
 {
     BL_PROFILE("ERF::poisson_wall_dist()");
-    Print() << "Calculating wall distance" << std::endl;
+
     if (solverChoice.mesh_type == MeshType::ConstantDz) {
 // Comment this out to test the wall dist calc in the trivial case:
 //#if 0
+        Print() << "Direct wall distance calculation for constant dz" << std::endl;
         for (MFIter mfi(phi[0]); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto dist_arr = wall_dist.array(mfi);
@@ -38,6 +39,8 @@ void ERF::poisson_wall_dist (int lev)
         // TODO
         Error("Wall dist calc not implemented over terrain yet");
     }
+
+    Print() << "Calculating Poisson wall distance" << std::endl;
 
     // Make sure the solver only sees the levels over which we are solving
     BoxArray nba = walldist[lev]->boxArray();
