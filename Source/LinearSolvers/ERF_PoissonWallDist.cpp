@@ -20,13 +20,13 @@ void ERF::poisson_wall_dist (int lev)
     if (solverChoice.mesh_type == MeshType::ConstantDz) {
 // Comment this out to test the wall dist calc in the trivial case:
 //#if 0
-        Print() << "Direct wall distance calculation for constant dz" << std::endl;
-        for (MFIter mfi(phi[0]); mfi.isValid(); ++mfi) {
+        Print() << "Directly calculating direct wall distance for constant dz" << std::endl;
+        for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
-            auto dist_arr = wall_dist.array(mfi);
+            auto dist_arr = walldist[lev]->array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                const Real* prob_lo = geomdata.ProbLo();
-                const Real* dx = geomdata.CellSize();
+                const Real* prob_lo = geom[lev].ProbLo();
+                const Real* dx = geom[lev].CellSize();
                 dist_arr(i, j, k) = prob_lo[2] + (k + 0.5) * dx[2];
             });
         }
