@@ -84,11 +84,11 @@ void ERF::advance_dycore(int level,
     }
 
     bool l_use_terrain = (SolverChoice::terrain_type != TerrainType::None);
+    bool l_use_kturb   = ( (tc.les_type  != LESType::None)   ||
+                           (tc.rans_type != RANSType::None)  ||
+                           (tc.pbl_type  != PBLType::None) );
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
-                           (tc.les_type        !=       LESType::None) ||
-                           (tc.pbl_type        !=       PBLType::None) );
-    bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
-                           (tc.pbl_type != PBLType::None) );
+                           l_use_kturb );
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 

@@ -125,12 +125,14 @@ struct TurbChoice {
     {
         amrex::Print() << "Turbulence Settings at level " << lev << std::endl;
 
-        if (les_type == LESType::None && pbl_type == PBLType::None) {
+        if (les_type == LESType::None && rans_type == RANSType::None && pbl_type == PBLType::None) {
             amrex::Print() << "    Using DNS model at level " << lev << std::endl;
         } else if  (les_type == LESType::Smagorinsky) {
             amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
         } else if  (les_type == LESType::Deardorff) {
             amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
+        } else if  (rans_type == RANSType::kEqn) {
+            amrex::Print() << "    Using Axell & Liungman one-equation RANS k model at level " << lev << std::endl;
         } else if  (pbl_type == PBLType::MYNN25) {
             amrex::Print() << "    Using MYNN2.5 PBL model at level " << lev << std::endl;
         } else if  (pbl_type == PBLType::YSU) {
