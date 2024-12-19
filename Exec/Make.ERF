@@ -117,7 +117,7 @@ ifeq ($(USE_EB),TRUE)
 AMReXdirs             += EB
 endif
 
-USE_LINEAR_SOLVERS_INCFLO = FALSE
+USE_LINEAR_SOLVERS_INCFLO = TRUE
 USE_LINEAR_SOLVERS_EM     = FALSE
 AMReXdirs                += LinearSolvers
 
