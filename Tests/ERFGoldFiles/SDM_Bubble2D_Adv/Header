@@ -1,5 +1,5 @@
 HyperCLaw-V1.1
-28
+24
 density
 rhotheta
 x_velocity
@@ -8,11 +8,7 @@ z_velocity
 temp
 theta
 scalar
-pres_hse
-dens_hse
 pressure
-pert_pres
-pert_dens
 eq_pot_temp
 super_droplets_moisture_mass_flux_x
 super_droplets_moisture_mass_flux_y
