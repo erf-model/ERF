@@ -94,7 +94,7 @@ void ERF::advance_dycore(int level,
 
     const bool use_most = (m_most != nullptr);
     const bool exp_most = (solverChoice.use_explicit_most);
-    amrex::ignore_unused(use_most);
+    const FArrayBox* z_0 = (use_most) ? m_most->get_z0(level) : nullptr;
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -214,10 +214,12 @@ void ERF::advance_dycore(int level,
                                   *Tau11_lev[level].get(), *Tau22_lev[level].get(), *Tau33_lev[level].get(),
                                   *Tau12_lev[level].get(), *Tau13_lev[level].get(), *Tau23_lev[level].get(),
                                   state_old[IntVars::cons],
+                                  walldist[level],
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], solverChoice,
-                                  m_most, exp_most, l_use_moisture, level, bc_ptr_h);
+                                  m_most, z_0, exp_most,
+                                  l_use_moisture, level, bc_ptr_h);
     }
 
     // ***********************************************************************************************

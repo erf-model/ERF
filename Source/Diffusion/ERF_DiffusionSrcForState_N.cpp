@@ -670,6 +670,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     }
 
     // Using Deardorff (see Sullivan et al 1994)
+    //    or k-eqn RANS (see Axell & Liungman 2001)
     //
     // Note: At this point, the thermal diffusivity ("Khv" field in ERF), the
     //       subgrid heat flux ("hfx_z" here), and the subgrid dissipation

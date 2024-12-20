@@ -105,12 +105,19 @@ struct TurbChoice {
 
         query_one_or_per_level(pp, "Ce"      , Ce, lev, max_level);
         query_one_or_per_level(pp, "Ce_wall" , Ce_wall, lev, max_level);
-        query_one_or_per_level(pp, "sigma_k" , sigma_k, lev, max_level);
 
         if (les_type == LESType::Deardorff) {
             query_one_or_per_level(pp, "Ck" , Ck, lev, max_level);
         }
 
+        // k-eqn constants
+        query_one_or_per_level(pp, "Cmu0"   , Cmu0   , lev, max_level);
+        query_one_or_per_level(pp, "Cb"     , Cb     , lev, max_level);
+        query_one_or_per_level(pp, "Rt_crit", Rt_crit, lev, max_level);
+        query_one_or_per_level(pp, "Rt_min" , Rt_min , lev, max_level);
+
+        // Common inputs (LES or RANS)
+        query_one_or_per_level(pp, "sigma_k" , sigma_k, lev, max_level);
         query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
         // Validate inputs
@@ -151,6 +158,11 @@ struct TurbChoice {
                 amrex::Print() << "Ce at wall                  : " << Ce_wall << std::endl;
                 amrex::Print() << "Ck                          : " << Ck << std::endl;
                 amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
+            }
+            if (rans_type == RANSType::kEqn) {
+                amrex::Print() << "Cmu0                        : " << Cmu0 << std::endl;
+                amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
+                amrex::Print() << "Cb                          : " << Cb << std::endl;
             }
             amrex::Print() << "reference theta             : " << theta_ref << std::endl;
         }
@@ -195,7 +207,14 @@ struct TurbChoice {
     amrex::Real Ce_wall = 0.0; // if > 0, then set Ce to this at k=0
     // Deardorff Ck coefficient
     amrex::Real Ck = 0.1;
-    // Deardorff sigma_k coefficient
+
+    // k-eqn RANS coefficients (Axell & Liungman 2001)
+    amrex::Real Cmu0 = 0.5562;
+    amrex::Real Cb = 0.35;
+    amrex::Real Rt_crit = -1.0;
+    amrex::Real Rt_min = -3.0;
+
+    // Schmidt number (for Deardorff or k-eqn RANS models)
     amrex::Real sigma_k = 0.5;
 
     amrex::Real theta_ref = 300.0;
