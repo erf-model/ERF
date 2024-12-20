@@ -528,7 +528,9 @@ void ComputeTurbulentViscosityRANS (const MultiFab& Tau11, const MultiFab& Tau22
 
                 // Turbulent length scale
                 Real length;
-                if (N2 >= eps) {
+                if (std::abs(N2) <= eps) {
+                    length = l_g;
+                } else if (N2 > eps) {
                     // Stable (AL01, Eqn. 26)
                     length = std::sqrt(1.0 /
                             (1.0 / (l_g * l_g) + inv_Cb_sq * N2 / tke));
