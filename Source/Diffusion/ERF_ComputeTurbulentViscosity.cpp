@@ -430,7 +430,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
  */
 void ComputeTurbulentViscosityRANS (const MultiFab& Tau11, const MultiFab& Tau22, const MultiFab& Tau33,
                                     const MultiFab& Tau12, const MultiFab& Tau13, const MultiFab& Tau23,
-                                    const MultiFab& cons_in, std::unique_ptr<MultiFab>& wdist,
+                                    const MultiFab& cons_in, const MultiFab& wdist,
                                     MultiFab& eddyViscosity,
                                     MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
                                     const Geometry& geom,
@@ -467,10 +467,10 @@ void ComputeTurbulentViscosityRANS (const MultiFab& Tau11, const MultiFab& Tau22
 #endif
         for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Box bxcc  = mfi.tilebox();
+            Box bxcc = mfi.tilebox();
 
-            const Array4<Real const>& d_arr  = wdist->const_array(mfi);
-            const Array4<Real const>& z0_arr = z_0->const_array();
+            const Array4<Real const>& d_arr  = wdist.const_array(mfi);
+            const Array4<Real const>& z0_arr = (use_most) ? z_0->const_array() : Array4<Real const>{};
 
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& hfx_x   = Hfx1.array(mfi);
@@ -478,9 +478,9 @@ void ComputeTurbulentViscosityRANS (const MultiFab& Tau11, const MultiFab& Tau22
             const Array4<Real>& hfx_z   = Hfx3.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 
-            const Array4<Real const > &cell_data = cons_in.array(mfi);
+            const Array4<Real const>& cell_data = cons_in.array(mfi);
 
-            Array4<Real const> z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real const>{};
+            const Array4<Real const>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real const>{};
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -513,7 +513,8 @@ void ComputeTurbulentViscosityRANS (const MultiFab& Tau11, const MultiFab& Tau22
                 Real N2 = abs_g * inv_theta0 * dtheta_dz; // Brunt–Väisälä frequency squared
 
                 // Geometric length scale (AL01, Eqn. 22)
-                Real l_g = KAPPA * (d_arr(i, j, k) + z0_arr(i, j, 0));
+                Real l_g = (z0_arr) ? KAPPA * (d_arr(i, j, k) + z0_arr(i, j, 0))
+                                    : KAPPA * d_arr(i, j, k);;
 
                 // Turbulent Richardson number (AL01, Eqn. 29)
                 // using the old dissipation value
@@ -778,7 +779,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                 const MultiFab& Tau11, const MultiFab& Tau22, const MultiFab& Tau33,
                                 const MultiFab& Tau12, const MultiFab& Tau13, const MultiFab& Tau23,
                                 const MultiFab& cons_in,
-                                std::unique_ptr<amrex::MultiFab>& wdist,
+                                const MultiFab& wdist,
                                 MultiFab& eddyViscosity,
                                 MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
                                 const Geometry& geom,
