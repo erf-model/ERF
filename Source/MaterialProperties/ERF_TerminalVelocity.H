@@ -10,6 +10,14 @@ struct TerminalVelocity
 {
     RT m_rho;
 
+    /*! \brief Terminal velocity - Rogers & Yau, 1989 */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT RogersYau( const RT a_r) const noexcept
+    {
+        static const RT k1 = 1.233e8; // m^{-1} s^{-1}
+        return (k1 * a_r * a_r);
+    };
+
     /*! \brief Terminal velocity - Atlas & Ulbrich, 1977 */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT AtlasUlbrich( const RT a_r) const noexcept
