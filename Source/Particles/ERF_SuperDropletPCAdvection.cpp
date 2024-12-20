@@ -144,6 +144,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             ParticleReal terminal_vel = 0.0;
             if (term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
                 terminal_vel = term_vel.AtlasUlbrich( r_eff );
+            } else if (term_vel_type == SDTerminalVelocityType::RogersYau) {
+                terminal_vel = term_vel.RogersYau( r_eff );
             } else if (term_vel_type == SDTerminalVelocityType::CloudRainShima) {
                 ParticleReal density, pressure, temperature;
                 if (use_terrain) {

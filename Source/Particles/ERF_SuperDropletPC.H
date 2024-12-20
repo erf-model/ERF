@@ -40,6 +40,7 @@ using SuperDropletsIntIdxSoA = ERFParticlesIntIdxSoA;
 
 /*! \brief Types of terminal velocity models */
 enum struct SDTerminalVelocityType {
+    RogersYau,
     AtlasUlbrich,
     CloudRainShima
 };

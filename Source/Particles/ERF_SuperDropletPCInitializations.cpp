@@ -112,6 +112,8 @@ void SuperDropletPC::readInputs ()
     pp.query("terminal_velocity_model", term_vel_name);
     if (term_vel_name == "AtlasUlbrich") {
         m_term_vel_type = SDTerminalVelocityType::AtlasUlbrich;
+    } else if (term_vel_name == "RogersYau") {
+        m_term_vel_type = SDTerminalVelocityType::RogersYau;
     } else if (term_vel_name == "CloudRainShima") {
         m_term_vel_type = SDTerminalVelocityType::CloudRainShima;
     } else {
@@ -215,6 +217,8 @@ void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
     Print() << "    Terminal velocity model: ";
     if (m_term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
         Print() << "AtlasUlbrich" << "\n";
+    } else if (m_term_vel_type == SDTerminalVelocityType::RogersYau) {
+        Print() << "RogersYau" << "\n";
     } else if (m_term_vel_type ==  SDTerminalVelocityType::CloudRainShima) {
         Print() << "CloudRainShima" << "\n";
     }
