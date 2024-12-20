@@ -458,6 +458,7 @@ void ComputeTurbulentViscosityRANS (const MultiFab& Tau11, const MultiFab& Tau22
         const Real inv_Cb_sq  = 1.0 / (turbChoice.Cb * turbChoice.Cb);
         const Real Rt_crit    = turbChoice.Rt_crit;
         const Real Rt_min     = turbChoice.Rt_min;
+        const Real l_g_max    = turbChoice.l_g_max;
 
         const Real abs_g      = const_grav;
         const Real inv_theta0 = 1.0 / turbChoice.theta_ref;
@@ -514,7 +515,10 @@ void ComputeTurbulentViscosityRANS (const MultiFab& Tau11, const MultiFab& Tau22
 
                 // Geometric length scale (AL01, Eqn. 22)
                 Real l_g = (z0_arr) ? KAPPA * (d_arr(i, j, k) + z0_arr(i, j, 0))
-                                    : KAPPA * d_arr(i, j, k);;
+                                    : KAPPA * d_arr(i, j, k);
+
+                // Enforce a maximum value
+                l_g = l_g_max * l_g / (l_g_max + l_g);
 
                 // Turbulent Richardson number (AL01, Eqn. 29)
                 // using the old dissipation value

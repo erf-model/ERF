@@ -111,10 +111,11 @@ struct TurbChoice {
         }
 
         // k-eqn constants
-        query_one_or_per_level(pp, "Cmu0"   , Cmu0   , lev, max_level);
-        query_one_or_per_level(pp, "Cb"     , Cb     , lev, max_level);
-        query_one_or_per_level(pp, "Rt_crit", Rt_crit, lev, max_level);
-        query_one_or_per_level(pp, "Rt_min" , Rt_min , lev, max_level);
+        query_one_or_per_level(pp, "Cmu0"           , Cmu0   , lev, max_level);
+        query_one_or_per_level(pp, "Cb"             , Cb     , lev, max_level);
+        query_one_or_per_level(pp, "Rt_crit"        , Rt_crit, lev, max_level);
+        query_one_or_per_level(pp, "Rt_min"         , Rt_min , lev, max_level);
+        query_one_or_per_level(pp, "max_geom_lscale", l_g_max, lev, max_level);
 
         // Common inputs (LES or RANS)
         query_one_or_per_level(pp, "sigma_k" , sigma_k, lev, max_level);
@@ -148,41 +149,48 @@ struct TurbChoice {
 
         if (les_type != LESType::None) {
             if (les_type == LESType::Smagorinsky) {
-                amrex::Print() << "Cs                          : " << Cs << std::endl;
-                amrex::Print() << "CI                          : " << CI << std::endl;
-                amrex::Print() << "Pr_t                        : " << Pr_t << std::endl;
-                amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
+                amrex::Print() << "    Cs                      : " << Cs << std::endl;
+                amrex::Print() << "    CI                      : " << CI << std::endl;
+                amrex::Print() << "    Pr_t                    : " << Pr_t << std::endl;
+                amrex::Print() << "    Sc_t                    : " << Sc_t << std::endl;
             }
             if (les_type == LESType::Deardorff) {
-                amrex::Print() << "Ce                          : " << Ce << std::endl;
-                amrex::Print() << "Ce at wall                  : " << Ce_wall << std::endl;
-                amrex::Print() << "Ck                          : " << Ck << std::endl;
-                amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
+                amrex::Print() << "    Ce                      : " << Ce << std::endl;
+                amrex::Print() << "    Ce at wall              : " << Ce_wall << std::endl;
+                amrex::Print() << "    Ck                      : " << Ck << std::endl;
             }
+            amrex::Print() << "    sigma_k                 : " << sigma_k << std::endl;
+            amrex::Print() << "    reference theta         : " << theta_ref << std::endl;
+        }
+        if (rans_type != RANSType::None) {
             if (rans_type == RANSType::kEqn) {
-                amrex::Print() << "Cmu0                        : " << Cmu0 << std::endl;
-                amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
-                amrex::Print() << "Cb                          : " << Cb << std::endl;
+                amrex::Print() << "    Cmu0                    : " << Cmu0 << std::endl;
+                amrex::Print() << "    sigma_k                 : " << sigma_k << std::endl;
+                amrex::Print() << "    Cb                      : " << Cb << std::endl;
+                amrex::Print() << "    Rt_crit                 : " << Rt_crit << std::endl;
+                amrex::Print() << "    Rt_min                  : " << Rt_min << std::endl;
+                amrex::Print() << "    max_geom_lscale         : " << l_g_max << std::endl;
             }
-            amrex::Print() << "reference theta             : " << theta_ref << std::endl;
+            amrex::Print() << "    sigma_k                 : " << sigma_k << std::endl;
+            amrex::Print() << "    reference theta         : " << theta_ref << std::endl;
         }
 
         if (pbl_type == PBLType::MYNN25) {
-            amrex::Print() << "pbl_mynn_A1                      : " << pbl_mynn.A1 << std::endl;
-            amrex::Print() << "pbl_mynn_A2                      : " << pbl_mynn.A2 << std::endl;
-            amrex::Print() << "pbl_mynn_B1                      : " << pbl_mynn.B1 << std::endl;
-            amrex::Print() << "pbl_mynn_B2                      : " << pbl_mynn.B2 << std::endl;
-            amrex::Print() << "pbl_mynn_C1                      : " << pbl_mynn.C1 << std::endl;
-            amrex::Print() << "pbl_mynn_C2                      : " << pbl_mynn.C2 << std::endl;
-            amrex::Print() << "pbl_mynn_C3                      : " << pbl_mynn.C3 << std::endl;
-            amrex::Print() << "pbl_mynn_C4                      : " << pbl_mynn.C4 << std::endl;
-            amrex::Print() << "pbl_mynn_C5                      : " << pbl_mynn.C5 << std::endl;
+            amrex::Print() << "    pbl_mynn_A1 : " << pbl_mynn.A1 << std::endl;
+            amrex::Print() << "    pbl_mynn_A2 : " << pbl_mynn.A2 << std::endl;
+            amrex::Print() << "    pbl_mynn_B1 : " << pbl_mynn.B1 << std::endl;
+            amrex::Print() << "    pbl_mynn_B2 : " << pbl_mynn.B2 << std::endl;
+            amrex::Print() << "    pbl_mynn_C1 : " << pbl_mynn.C1 << std::endl;
+            amrex::Print() << "    pbl_mynn_C2 : " << pbl_mynn.C2 << std::endl;
+            amrex::Print() << "    pbl_mynn_C3 : " << pbl_mynn.C3 << std::endl;
+            amrex::Print() << "    pbl_mynn_C4 : " << pbl_mynn.C4 << std::endl;
+            amrex::Print() << "    pbl_mynn_C5 : " << pbl_mynn.C5 << std::endl;
         } else if (pbl_type == PBLType::YSU) {
-            amrex::Print() << "pbl_ysu_coriolis_freq            : " << pbl_ysu_coriolis_freq << std::endl;
-            amrex::Print() << "pbl_ysu_use_consistent_coriolis  : " << pbl_ysu_use_consistent_coriolis << std::endl;
-            amrex::Print() << "pbl_ysu_force_over_water         : " << pbl_ysu_force_over_water << std::endl;
-            amrex::Print() << "pbl_ysu_land_Ribcr               : " << pbl_ysu_land_Ribcr << std::endl;
-            amrex::Print() << "pbl_ysu_unst_Ribcr               : " << pbl_ysu_unst_Ribcr << std::endl;
+            amrex::Print() << "    pbl_ysu_coriolis_freq           : " << pbl_ysu_coriolis_freq << std::endl;
+            amrex::Print() << "    pbl_ysu_use_consistent_coriolis : " << pbl_ysu_use_consistent_coriolis << std::endl;
+            amrex::Print() << "    pbl_ysu_force_over_water        : " << pbl_ysu_force_over_water << std::endl;
+            amrex::Print() << "    pbl_ysu_land_Ribcr              : " << pbl_ysu_land_Ribcr << std::endl;
+            amrex::Print() << "    pbl_ysu_unst_Ribcr              : " << pbl_ysu_unst_Ribcr << std::endl;
         }
     }
 
@@ -213,6 +221,7 @@ struct TurbChoice {
     amrex::Real Cb = 0.35;
     amrex::Real Rt_crit = -1.0;
     amrex::Real Rt_min = -3.0;
+    amrex::Real l_g_max = 1e99;
 
     // Schmidt number (for Deardorff or k-eqn RANS models)
     amrex::Real sigma_k = 0.5;
