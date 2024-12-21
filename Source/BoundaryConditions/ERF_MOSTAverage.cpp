@@ -319,7 +319,7 @@ MOSTAverage::set_plane_normalization ()
         //       for normalization, consistent with avg routine.
 
         // Bounded box of CC data used for normalization
-        Box bnd_bx = (m_fields[lev][0]->boxArray()).minimalBox();
+        Box bnd_bx = (m_fields[lev][2]->boxArray()).minimalBox();
 
         // NOTE: Bounding box must lie on the periodic boundaries
         //       in order to trip the is_per flag
