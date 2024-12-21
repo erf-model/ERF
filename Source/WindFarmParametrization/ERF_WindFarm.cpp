@@ -504,13 +504,13 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
      // Initialize wind farm
     for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box& bx     = mfi.tilebox();
+        const Box& gbx    = mfi.growntilebox(1);
         auto  SMark_array = mf_SMark.array(mfi);
         auto  Nturb_array = mf_Nturb.array(mfi);
         const Array4<const Real>& z_nd_arr = (z_phys_nd) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
-        int k0 = bx.smallEnd()[2];
+        int k0 = gbx.smallEnd()[2];
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             if(Nturb_array(i,j,k,0) > 0) {
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
@@ -574,7 +574,6 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
 
      // Initialize wind farm
     for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        //const Box& bx     = mfi.tilebox();
         const Box& gbx      = mfi.growntilebox(1);
         auto  SMark_array = mf_SMark.array(mfi);
 
