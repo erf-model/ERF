@@ -645,6 +645,15 @@ ERF::InitData_pre ()
             phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
             Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
         }
+
+        if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
+             (solverChoice.turbChoice[lev].Ce_wall > 0) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::slip_wall) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) ) {
+            Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
+        }
+
     }
 }
 
