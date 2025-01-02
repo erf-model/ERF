@@ -12,7 +12,7 @@ CEXE_headers += ERF_Utils.H
 
 CEXE_headers += ERF_ParFunctions.H
 
-CEXE_headers += ERF_Sat_methods.H
+CEXE_headers += ERF_SatMethods.H
 CEXE_headers += ERF_WaterVaporSaturation.H
 CEXE_headers += ERF_DirectionSelector.H
 
