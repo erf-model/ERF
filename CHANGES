@@ -1,3 +1,20 @@
+#25.01
+    -- AMReX submodule set to (b3f6738)
+
+    -- Higher order metgrid interpolation (#2037, 1630)
+ 
+    -- Wall distance RANS start (#2031)
+
+    -- Terrain with wind farm param (#2029, 1998)
+
+    -- NOAH-MP interface start (#1994)
+
+    -- Sat adjustment moisture model (#2020)
+
+    -- Immersed forcing method (#2017)
+
+    -- Bug fix for theta_v in PBL and output ((#2016, 2015)
+
 # 24.11
     -- AMReX submodule set to 24.11 release hash (4a6e7c8)
 
