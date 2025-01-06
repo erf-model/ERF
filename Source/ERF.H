@@ -989,9 +989,9 @@ private:
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     // Terrain IB mask
-                                                    "terrain_IB_mask"
+                                                    "terrain_IB_mask",
                                                     // EB variables
-                                                    ,"volfrac",
+                                                    "volfrac"
 #ifdef ERF_COMPUTE_ERROR
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
