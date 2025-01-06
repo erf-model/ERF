@@ -4,10 +4,12 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_YAFluxRegister.H>
+#include <AMReX_MultiCutFab.H>
+#include <AMReX_EBMultiFabUtil.H>
+
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_ABLMost.H"
-
 #include <ERF_Advection.H>
 #include <ERF_Diffusion.H>
 #include <ERF_EddyViscosity.H>
@@ -15,10 +17,6 @@
 #include <ERF_TerrainMetrics.H>
 #include <ERF_TileNoZ.H>
 
-#ifdef ERF_USE_EB
-#include <AMReX_MultiCutFab.H>
-#include <AMReX_EBMultiFabUtil.H>
-#endif
 
 void erf_make_tau_terms (int level, int nrk,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type,
@@ -100,9 +98,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
-#ifdef ERF_USE_EB
                       amrex::EBFArrayBoxFactory const& ebfact,
-#endif
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine);
 
@@ -147,9 +143,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v,
-#ifdef ERF_USE_EB
                        amrex::EBFArrayBoxFactory const& ebfact,
-#endif
 #if defined(ERF_USE_NETCDF)
                        const bool& moist_zero,
                        const amrex::Real& bdy_time_interval,

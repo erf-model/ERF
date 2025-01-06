@@ -53,15 +53,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     if (lev == 0) init_bcs();
 
-#ifdef ERF_USE_EB
-    m_factory[lev] = makeEBFabFactory(geom[lev], grids[lev], dmap[lev],
-                                      {nghost_eb_basic(),
-                                       nghost_eb_volume(),
-                                       nghost_eb_full()},
-                                       EBSupport::full);
-#else
-    m_factory[lev] = std::make_unique<FArrayBoxFactory>();
-#endif
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+    {
+        m_factory[lev] = makeEBFabFactory(geom[lev], grids[lev], dmap[lev],
+                                          {nghost_eb_basic(),
+                                           nghost_eb_volume(),
+                                           nghost_eb_full()},
+                                           EBSupport::full);
+    } else {
+        // m_factory[lev] = std::make_unique<FabFactory<FArrayBox>>();
+    }
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
@@ -138,12 +140,20 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     #ifdef ERF_USE_WINDFARM
         init_windfarm(lev);
     #endif
+
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
-    if (solverChoice.do_forest_drag) { m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_forest_drag) {
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+    }
 
-    if (solverChoice.do_terrain_drag) { m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    // ********************************************************************************************
+    // Build the data structures for immersed forcing representation of terrain
+    // ********************************************************************************************
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+    }
 
     //********************************************************************************************
     // Create wall distance field for RANS model (depends upon z_phys)
@@ -229,9 +239,17 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
-    if (solverChoice.do_forest_drag) { m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_forest_drag) {
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+    }
 
-    if (solverChoice.do_terrain_drag) { m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    // ********************************************************************************************
+    // Build the data structures for immersed forcing representation of terrain
+    // ********************************************************************************************
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+    }
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -314,7 +332,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
 
     AMREX_ALWAYS_ASSERT(lev > 0);
-    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::Moving);
+    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::MovingFittedMesh);
 
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
     DistributionMapping dm_old(vars_new[lev][Vars::cons].DistributionMap());
@@ -359,9 +377,17 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
-    if (solverChoice.do_forest_drag) { m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_forest_drag) {
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+    }
 
-    if (solverChoice.do_terrain_drag) { m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    // ********************************************************************************************
+    // Build the data structures for immersed forcing representation of terrain
+    // ********************************************************************************************
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+    }
+
     // *****************************************************************************************************
     // Create the physbcs objects (after initializing the terrain but before calling FillCoarsePatch
     // *****************************************************************************************************

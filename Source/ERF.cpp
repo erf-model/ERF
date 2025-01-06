@@ -361,10 +361,12 @@ ERF::ERF_shared ()
     // We will create each of these in MakeNewLevel.../RemakeLevel
     m_factory.resize(max_level+1);
 
-#ifdef ERF_USE_EB
     // This is needed before initializing level MultiFabs
-    MakeEBGeometry();
-#endif
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+    {
+        MakeEBGeometry();
+    }
 }
 
 ERF::~ERF () = default;
@@ -587,7 +589,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     // Moving terrain
-    if ( solverChoice.terrain_type == TerrainType::Moving )
+    if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
     {
       for (int lev = finest_level; lev >= 0; lev--)
       {
@@ -937,7 +939,7 @@ ERF::InitData_post ()
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         // For moving terrain only
-        if (solverChoice.terrain_type == TerrainType::Moving) {
+        if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
@@ -1174,11 +1176,13 @@ ERF::InitData_post ()
     pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
     if (do_line || do_plane) { data_sampler = std::make_unique<SampleData>(do_line, do_plane); }
 
-#ifdef ERF_USE_EB
-    bool write_eb_surface = false;
-    pp.query("write_eb_surface", write_eb_surface);
-    if (write_eb_surface) WriteMyEBSurface();
-#endif
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+    {
+        bool write_eb_surface = false;
+        pp.query("write_eb_surface", write_eb_surface);
+        if (write_eb_surface) WriteMyEBSurface();
+    }
 
 }
 
@@ -1584,24 +1588,6 @@ ERF::ReadParameters ()
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
 
-        // Query the canopy model file name
-        std::string forestfile;
-        solverChoice.do_forest_drag = pp.query("forest_file", forestfile);
-        if (solverChoice.do_forest_drag) {
-            for (int lev = 0; lev <= max_level; ++lev) {
-                m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
-            }
-        }
-
-        //Query the terrain file name
-        std::string terrainfile;
-        solverChoice.do_terrain_drag = pp.query("terrain_file", terrainfile);
-        if (solverChoice.do_terrain_drag) {
-            for (int lev = 0; lev <= max_level; ++lev) {
-                m_terrain_drag[lev] = std::make_unique<TerrainDrag>(terrainfile);
-            }
-        }
-
         // AmrMesh iterate on grids?
         bool iterate(true);
         pp_amr.query("iterate_grids",iterate);
@@ -1618,9 +1604,27 @@ ERF::ReadParameters ()
 
     solverChoice.init_params(max_level);
 
+    // Query the canopy model file name
+    std::string forestfile;
+    solverChoice.do_forest_drag = pp.query("forest_file", forestfile);
+    if (solverChoice.do_forest_drag) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
+        }
+    }
+
+    // Query the terrain file name (*after* reading in solverChoice inputs)
+    std::string terrainfile;
+    pp.query("terrain_file", terrainfile);
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            m_terrain_drag[lev] = std::make_unique<TerrainDrag>(terrainfile);
+        }
+    }
+
     // No moving terrain with init real (we must do this after init_params
     //    because that is where we set terrain_type
-    if (init_type == InitType::Real && solverChoice.terrain_type == TerrainType::Moving) {
+    if (init_type == InitType::Real && solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
         Abort("Moving terrain is not supported with init real");
     }
 

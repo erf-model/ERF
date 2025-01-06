@@ -65,10 +65,12 @@
         if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
         // Immersed Forcing
         MultiFab* terrain_blank = nullptr;
-        if(solverChoice.do_terrain_drag) { terrain_blank = m_terrain_drag[level]->get_terrain_blank_field(); }
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            terrain_blank = m_terrain_drag[level]->get_terrain_blank_field();
+        }
 
         // Moving terrain
-        if ( solverChoice.terrain_type == TerrainType::Moving )
+        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             // Note that the "old" and "new" metric terms correspond to
             // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
@@ -151,9 +153,7 @@
                              z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level], p0_new,
                              pp_inc[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#ifdef ERF_USE_EB
                              EBFactory(level),
-#endif
                              fr_as_crse, fr_as_fine);
 
             add_thin_body_sources(xmom_src, ymom_src, zmom_src,
@@ -260,9 +260,7 @@
                              z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
                              pp_inc[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#ifdef ERF_USE_EB
                              EBFactory(level),
-#endif
                              fr_as_crse, fr_as_fine);
 
             add_thin_body_sources(xmom_src, ymom_src, zmom_src,
@@ -349,7 +347,7 @@
         }
 
         // Moving terrain
-        if ( solverChoice.terrain_type == TerrainType::Moving ) {
+        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh ) {
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
@@ -357,9 +355,7 @@
                               fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc_new[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#ifdef ERF_USE_EB
                               EBFactory(level),
-#endif
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
                               real_width, real_set_width,
@@ -374,9 +370,7 @@
                               fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#ifdef ERF_USE_EB
                               EBFactory(level),
-#endif
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
                               real_width, real_set_width,
@@ -438,7 +432,9 @@
         if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
         // Immersed Forcing
         MultiFab* terrain_blank = nullptr;
-        if(solverChoice.do_terrain_drag) { terrain_blank = m_terrain_drag[level]->get_terrain_blank_field(); }
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            terrain_blank = m_terrain_drag[level]->get_terrain_blank_field();
+        }
 
         make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
@@ -473,9 +469,7 @@
                          z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
                          pp_inc[level],
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#ifdef ERF_USE_EB
                          EBFactory(level),
-#endif
                          fr_as_crse, fr_as_fine);
 
          add_thin_body_sources(xmom_src, ymom_src, zmom_src,

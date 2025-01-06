@@ -48,7 +48,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;
-        if ( solverChoice.terrain_type == TerrainType::Moving )
+        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             // Make "old" fast geom -- store in z_phys_nd for convenience
             if (verbose) Print() << "Making geometry at start of substep time: " << old_substep_time << std::endl;

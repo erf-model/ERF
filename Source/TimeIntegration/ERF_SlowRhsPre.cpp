@@ -109,17 +109,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
-#ifdef ERF_USE_EB
                        EBFArrayBoxFactory const& ebfact,
-#endif
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
-
-#ifdef ERF_USE_EB
-    amrex::ignore_unused(ax,ay,az,detJ);
-#endif
 
     const BCRec* bc_ptr_d = domain_bcs_type_d.data();
     const BCRec* bc_ptr_h = domain_bcs_type_h.data();
@@ -139,7 +133,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const Real    l_horiz_upw_frac = solverChoice.advChoice.dycore_horiz_upw_frac;
     const Real    l_vert_upw_frac  = solverChoice.advChoice.dycore_vert_upw_frac;
     const bool    l_use_terrain    = (solverChoice.terrain_type != TerrainType::None);
-    const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::Moving);
+    const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
@@ -447,17 +441,22 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // *****************************************************************************
-#ifdef ERF_USE_EB
-        auto const& ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
-        auto const& ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
-        auto const& az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
-        const auto& detJ_arr = ebfact.getVolFrac().const_array(mfi);
-#else
-        auto const& ax_arr   = ax->const_array(mfi);
-        auto const& ay_arr   = ay->const_array(mfi);
-        auto const& az_arr   = az->const_array(mfi);
-        auto const& detJ_arr = detJ->const_array(mfi);
-#endif
+        Array4<const Real> ax_arr;
+        Array4<const Real> ay_arr;
+        Array4<const Real> az_arr;
+        Array4<const Real> detJ_arr;
+        if (solverChoice.terrain_type == TerrainType::EB)
+        {
+            ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
+            ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
+            az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
+            detJ_arr = ebfact.getVolFrac().const_array(mfi);
+        } else {
+            ax_arr   = ax->const_array(mfi);
+            ay_arr   = ay->const_array(mfi);
+            az_arr   = az->const_array(mfi);
+            detJ_arr = detJ->const_array(mfi);
+        }
 
         AdvectionSrcForRho(bx, cell_rhs,
                            rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
@@ -561,7 +560,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            dxInv, mf_m, mf_u, mf_v,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
-                           l_use_terrain, lo_z_face, hi_z_face,
+                           solverChoice.terrain_type, lo_z_face, hi_z_face,
                            domain, bc_ptr_h);
 
         if (l_use_diff) {

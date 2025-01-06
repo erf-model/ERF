@@ -37,7 +37,7 @@ void erf_make_tau_terms (int level, int nrk,
     TurbChoice tc = solverChoice.turbChoice[level];
 
     const bool    l_use_terrain    = (solverChoice.terrain_type != TerrainType::None);
-    const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::Moving);
+    const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
 
