@@ -128,7 +128,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     TurbChoice tc = solverChoice.turbChoice[level];
 
     const MultiFab* t_mean_mf = nullptr;
-    if (most) t_mean_mf = most->get_mac_avg(0,2);
+    if (most) t_mean_mf = most->get_mac_avg(level,2);
 
     int start_comp = 0;
     int   num_comp = 2;
