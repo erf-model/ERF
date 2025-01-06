@@ -127,7 +127,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_ComputeTurbulentViscosity.cpp
        ${SRC_DIR}/EB/ERF_InitEB.cpp
        ${SRC_DIR}/EB/ERF_EBBox.cpp
-       ${SRC_DIR}/EB/ERF_EBCylinder.cpp
        ${SRC_DIR}/EB/ERF_EBRegular.cpp
        ${SRC_DIR}/EB/ERF_InitEB.cpp
        ${SRC_DIR}/EB/ERF_WriteEBSurface.cpp 

@@ -474,7 +474,6 @@ public:
 
     void MakeEBGeometry ();
     void make_eb_box ();
-    void make_eb_cylinder ();
     void make_eb_regular ();
     void redistribute_term ( int lev,
                         amrex::MultiFab& result,
