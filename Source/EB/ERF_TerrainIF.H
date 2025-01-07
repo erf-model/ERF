@@ -22,6 +22,8 @@ public:
 
             dx = m_geom.CellSizeArray()[0];
             dy = m_geom.CellSizeArray()[1];
+
+            terr_arr = m_terr.const_array();
         }
 
     AMREX_GPU_HOST_DEVICE inline
@@ -40,11 +42,11 @@ public:
     }
 
 protected:
-    amrex::Geometry&   m_geom;
-    amrex::Real dx, dy;
+    amrex::FArrayBox& m_terr;
+    amrex::Array4<amrex::Real const> terr_arr;
 
-    amrex::FArrayBox&  m_terr;
-    amrex::Array4<amrex::Real const> const& terr_arr = m_terr.const_array();
+    amrex::Geometry&  m_geom;
+    amrex::Real dx, dy;
 };
 
 #endif
