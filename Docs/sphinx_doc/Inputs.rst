@@ -1132,6 +1132,9 @@ List of Parameters
 |                                     | coefficient, an inverse|                   |                     |
 |                                     | timescale              |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_zdamp**              | Rayleigh damping       | Real              | 500.0               |
+|                                     | layer depth            |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.nudging_from_input_sounding** | Add momentum source    | true / false      | false               |
 |                                     | terms to nudge the     |                   |                     |
 |                                     | solution towards the   |                   |                     |
