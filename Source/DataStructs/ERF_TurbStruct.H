@@ -91,7 +91,6 @@ struct TurbChoice {
 
         // LES constants...
         query_one_or_per_level(pp, "Cs"  ,Cs, lev, max_level);
-        query_one_or_per_level(pp, "CI"  ,CI, lev, max_level);
         query_one_or_per_level(pp, "Pr_t",Pr_t, lev, max_level);
         query_one_or_per_level(pp, "Sc_t",Sc_t, lev, max_level);
 
@@ -136,17 +135,16 @@ struct TurbChoice {
         if (les_type != LESType::None) {
             if (les_type == LESType::Smagorinsky) {
                 amrex::Print() << "Cs                          : " << Cs << std::endl;
-                amrex::Print() << "CI                          : " << CI << std::endl;
-                amrex::Print() << "Pr_t                        : " << Pr_t << std::endl;
-                amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
             }
             if (les_type == LESType::Deardorff) {
                 amrex::Print() << "Ce                          : " << Ce << std::endl;
                 amrex::Print() << "Ce at wall                  : " << Ce_wall << std::endl;
                 amrex::Print() << "Ck                          : " << Ck << std::endl;
                 amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
+                amrex::Print() << "reference theta             : " << theta_ref << std::endl;
             }
-            amrex::Print() << "reference theta             : " << theta_ref << std::endl;
+            amrex::Print() << "Pr_t                        : " << Pr_t << std::endl;
+            amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
         }
 
         if (pbl_type == PBLType::MYNN25) {
@@ -173,25 +171,28 @@ struct TurbChoice {
 
     // LES model
     LESType les_type;
-    // Smagorinsky Cs coefficient
-    amrex::Real Cs = 0.0;
-    // Smagorinsky CI coefficient
-    amrex::Real CI = 0.0;
-    // Smagorinsky Turbulent Prandtl Number
+
+    // Turbulent Prandtl number
     amrex::Real Pr_t = amrex::Real(1.0) / amrex::Real(3.0);
     amrex::Real Pr_t_inv = amrex::Real(3.0);
-    // Smagorinsky Turbulent Schmidt Number
+
+    // Turbulent Schmidt number
     amrex::Real Sc_t = 1.0;
     amrex::Real Sc_t_inv = 1.0;
 
-    // Deardorff Ce coefficient
+    // Smagorinsky Cs coefficient
+    amrex::Real Cs = 0.0;
+
+    // Deardorff
+    // - Ce coefficient
     amrex::Real Ce = 0.93;
     amrex::Real Ce_wall = 0.0; // if > 0, then set Ce to this at k=0
-    // Deardorff Ck coefficient
+    // - Ck coefficient
     amrex::Real Ck = 0.1;
-    // Deardorff sigma_k coefficient
+    // - sigma_k coefficient
     amrex::Real sigma_k = 0.5;
-
+    // - reference potential temperature used to quantify the stratification in
+    //   a stable region
     amrex::Real theta_ref = 300.0;
 
     // RANS type
