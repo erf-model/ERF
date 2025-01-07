@@ -142,6 +142,9 @@ struct TurbChoice {
                 amrex::Print() << "Ck                          : " << Ck << std::endl;
                 amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
                 amrex::Print() << "reference theta             : " << theta_ref << std::endl;
+                // Sullivan et al 1994, Eqn 14
+                amrex::Real Cs_equiv = std::sqrt(Ck * std::sqrt(Ck/Ce));
+                amrex::Print() << "equivalent Cs               : " << Cs_equiv << std::endl;
             }
             amrex::Print() << "Pr_t                        : " << Pr_t << std::endl;
             amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
