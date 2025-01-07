@@ -975,7 +975,7 @@ List of Parameters
 | Parameter                               | Definition         | Acceptable          | Default     |
 |                                         |                    | Values              |             |
 +=========================================+====================+=====================+=============+
-| **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN2.5",  | "None"      |
+| **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN25",   | "None"      |
 |                                         | to be used         | "YSU"               |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_A1**                     | MYNN Constant A1   | Real                | 1.18        |

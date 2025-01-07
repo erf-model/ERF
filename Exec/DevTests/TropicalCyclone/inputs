@@ -32,7 +32,7 @@ erf.most.surf_temp      = 301.14
 erf.most.zref           = 10.
 erf.most.average_policy = 1  # local averaging
 erf.most.include_wstar = 1 # enable Beljaars correction
-erf.most.pblh_calc = "MYNN2.5" # for most.include_wstar
+erf.most.pblh_calc = "MYNN25" # for most.include_wstar
 erf.is_land             = 0  # sets landmask=0
 erf.most.roughness_type_sea = "donelan" # set erf.is_land=0 to activate
 
@@ -61,7 +61,7 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta KE
 
 # SOLVER CHOICE
 erf.use_gravity = true
-erf.pbl_type = "MYNN2.5"
+erf.pbl_type = "MYNN25"
 erf.advect_KE = false
 erf.les_type = "None"
 erf.molec_diff_type = "None"
