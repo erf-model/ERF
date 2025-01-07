@@ -504,7 +504,7 @@ Notes
      * | If neither **erf.fixed_mri_dt_ratio** nor **erf.fixed_fast_dt** is specified, then the fast timestep
          will be computed using the CFL condition for compressible flow, then adjusted (reduced if necessary)
          as above so that the ratio of slow timestep to fine timestep is an even integer.
-         If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
+         If **erf.substepping_cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
 .. _examples-of-usage-5:
 
