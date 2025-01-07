@@ -28,14 +28,13 @@ using namespace amrex;
  * @param[in] ax   Area fraction of x-faces
  * @param[in] ay   Area fraction of y-faces
  * @param[in] az   Area fraction of z-faces
- * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain_fitted_coords is false)
  * @param[in] cellSizeInv inverse of the mesh spacing
  * @param[in] mf_m map factor at cell centers
  * @param[in] mf_u map factor at x-faces
  * @param[in] mf_v map factor at y-faces
  * @param[in] horiz_adv_type sets the spatial order to be used for lateral derivatives
  * @param[in] vert_adv_type  sets the spatial order to be used for vertical derivatives
- * @param[in] use_terrain if true, use the terrain-aware derivatives (with metric terms)
  */
 void
 AdvectionSrcForMom (const Box& bx,
@@ -63,7 +62,7 @@ AdvectionSrcForMom (const Box& bx,
                     const AdvType vert_adv_type,
                     const Real horiz_upw_frac,
                     const Real vert_upw_frac,
-                    const bool use_terrain,
+                    TerrainType& terrain_type,
                     const int lo_z_face, const int hi_z_face,
                     const Box& domain,
                     const BCRec* bc_ptr_h)
@@ -82,6 +81,9 @@ AdvectionSrcForMom (const Box& bx,
     const Array4<Real>& mf_u_inv = mf_u_invFAB.array();
     const Array4<Real>& mf_v_inv = mf_v_invFAB.array();
 
+    const bool use_terrain_fitted_coords = ( terrain_type == TerrainType::StaticFittedMesh ||
+                                             terrain_type == TerrainType::MovingFittedMesh);
+
     ParallelFor(box2d_u, box2d_v,
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
@@ -92,23 +94,25 @@ AdvectionSrcForMom (const Box& bx,
         mf_v_inv(i,j,0) = 1. / mf_v(i,j,0);
     });
 
-#ifdef ERF_USE_EB
-    amrex::ignore_unused(use_terrain);
-    ParallelFor(bxx, bxy, bxz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    if ( terrain_type == TerrainType::EB ||
+         terrain_type == TerrainType::ImmersedForcing)
     {
-        rho_u_rhs(i, j, k) = 0.0;
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        rho_v_rhs(i, j, k) = 0.0;
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        rho_w_rhs(i, j, k) = 0.0;
-    });
-#else
-    if (!use_terrain) {
+        amrex::ignore_unused(use_terrain_fitted_coords);
+        ParallelFor(bxx, bxy, bxz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rho_u_rhs(i, j, k) = 0.0;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rho_v_rhs(i, j, k) = 0.0;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rho_w_rhs(i, j, k) = 0.0;
+        });
+    } else {
+        if ( !use_terrain_fitted_coords) {
         // Inline with 2nd order for efficiency
         if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
         {
@@ -215,9 +219,9 @@ AdvectionSrcForMom (const Box& bx,
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }
         }
-    } // end of use_terrain == false
+    } // end of use_terrain_fitted_coords == false
     else
-    { // now do use_terrain = true
+    { // now do use_terrain_fitted_coords = true
         // Inline with 2nd order for efficiency
         if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
         {
@@ -354,7 +358,8 @@ AdvectionSrcForMom (const Box& bx,
                     AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }
         } // higher order
-    } // terrain
+        } // terrain
+    } // Not EB
 
     // Open bc will be imposed upon all vars (we only access cons here for simplicity)
     const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
@@ -440,6 +445,5 @@ AdvectionSrcForMom (const Box& bx,
                                            ax, ay, az, detJ, cellSizeInv,
                                            domhi_z);
     }
-#endif
 }
 

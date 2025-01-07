@@ -54,12 +54,12 @@ void ERF::poisson_wall_dist (int lev)
     Vector<MultiFab> rhs;
     Vector<MultiFab> phi;
 
-#ifdef ERF_USE_EB
-    Error("Wall dist calc not implemented for EB";
-#else
-    rhs.resize(1);   rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
-    phi.resize(1);   phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
-#endif
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        amrex::Error("Wall dist calc not implemented for EB");
+    } else {
+        rhs.resize(1);   rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
+        phi.resize(1);   phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
+    }
 
     rhs[0].setVal(-1.0);
 
@@ -173,7 +173,7 @@ void ERF::poisson_wall_dist (int lev)
     }
 
     // ****************************************************************************
-    // Setup BCs, with solid domain boundaries being dirichlet
+    // Setup BCs, with solid domain boundaries being Dirichlet
     // We assume that the zlo boundary corresponds to the land surface
     // ****************************************************************************
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bc3d_lo, bc3d_hi;
@@ -227,7 +227,7 @@ void ERF::poisson_wall_dist (int lev)
     const Real abstol = solverChoice.poisson_abstol;
 
     Real sigma = 1.0;
-    MLNodeLaplacian mlpoisson(geom_tmp, ba_tmp, dm_tmp, info, {}, sigma);
+    MLNodeLaplacian mlpoisson(geom_tmp, ba_tmp, dm_tmp, info, {m_factory[lev].get()}, sigma);
 
     mlpoisson.setDomainBC(bc3d_lo, bc3d_hi);
 

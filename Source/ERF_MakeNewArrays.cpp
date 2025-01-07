@@ -34,7 +34,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     tmp_base_state.define(ba,dm,BaseState::num_comps,3);
     tmp_base_state.setVal(0.);
 
-    if (solverChoice.terrain_type == TerrainType::Moving) {
+    if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
         base_state_new[lev].define(ba,dm,BaseState::num_comps,base_state[lev].nGrowVect());
         base_state_new[lev].setVal(0.);
     }
@@ -46,7 +46,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         SolverChoice::mesh_type == MeshType::VariableDz) {
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
-        if (solverChoice.terrain_type == TerrainType::Moving)
+        if (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
         {
             detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
             detJ_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
@@ -69,7 +69,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff) + 2;
         tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
 
-        if (solverChoice.terrain_type == TerrainType::Moving) {
+        if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
             z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
             z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
         }
@@ -580,5 +580,5 @@ ERF::make_physbcs (int lev)
                                                             solverChoice.terrain_type, z_phys_nd[lev],
                                                             use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                               (solverChoice.terrain_type == TerrainType::Moving));
+                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 }

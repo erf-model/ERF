@@ -91,17 +91,18 @@ void make_mom_sources (int level,
     //   10. Immersed Forcing
     // *****************************************************************************
   //const bool l_use_ndiff       = solverChoice.use_num_diff;
-    const bool l_use_zphys       = (solverChoice.mesh_type != MeshType::ConstantDz);
-    const bool l_do_forest_drag  = solverChoice.do_forest_drag;
-    const bool l_do_terrain_drag = solverChoice.do_terrain_drag;
+    const bool l_use_zphys       = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
+                                    solverChoice.terrain_type == TerrainType::MovingFittedMesh);
 
-    // Check if terrain and immersed terrain clash
-    if(l_use_zphys && l_do_terrain_drag){
-        amrex::Error(" Cannot use immersed forcing for terrain with terrain-fitted coordinates");
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        if (solverChoice.do_forest_drag) {
+            amrex::Error(" Currently forest canopy cannot be used with immersed forcing");
+        }
+        if (solverChoice.mesh_type != MeshType::ConstantDz) {
+            amrex::Error(" Currently immersed forcing for terrain is only valid for constant dz");
+        }
     }
-    if(l_do_forest_drag && l_do_terrain_drag){
-        amrex::Error(" Currently forest canopy cannot be used with immersed forcing");
-    }
+
 
     // *****************************************************************************
     // Data for Coriolis forcing
@@ -507,7 +508,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 9. Add CANOPY source terms
         // *****************************************************************************
-        if (l_do_forest_drag) {
+        if (solverChoice.do_forest_drag) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = u(i, j, k);
@@ -545,7 +546,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 10. Add Immersed source terms
         // *****************************************************************************
-        if (l_do_terrain_drag) {
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
             const Real drag_coefficient=10.0/dz;
             const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

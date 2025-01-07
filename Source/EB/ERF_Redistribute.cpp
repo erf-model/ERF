@@ -1,7 +1,5 @@
 #include <AMReX_Config.H>
 
-#ifdef ERF_USE_EB
-
 #include <ERF.H>
 #include "AMReX_EB_Redistribution.H"
 
@@ -97,4 +95,3 @@ ERF::redistribute_term ( MFIter const& mfi, int lev,
         });
     }
 }
-#endif

@@ -35,19 +35,6 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
   endif()
 
-  if(ERF_ENABLE_EB)
-    target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/EB/ERF_InitEB.cpp
-                   ${SRC_DIR}/EB/ERF_EBBox.cpp
-                   ${SRC_DIR}/EB/ERF_EBCylinder.cpp
-                   ${SRC_DIR}/EB/ERF_EBRegular.cpp
-                   ${SRC_DIR}/EB/ERF_InitEB.cpp
-                   ${SRC_DIR}/EB/ERF_WriteEBSurface.cpp 
-                   ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp)
-    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/EB>)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EB)
-  endif()
-
   if(ERF_ENABLE_FFT)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/LinearSolvers/ERF_SolveWithFFT.cpp)
@@ -138,6 +125,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeTurbulentViscosity.cpp
+       ${SRC_DIR}/EB/ERF_InitEB.cpp
+       ${SRC_DIR}/EB/ERF_EBBox.cpp
+       ${SRC_DIR}/EB/ERF_EBRegular.cpp
+       ${SRC_DIR}/EB/ERF_InitEB.cpp
+       ${SRC_DIR}/EB/ERF_WriteEBSurface.cpp 
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
        ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
@@ -192,6 +184,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
        ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp 
+       ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
@@ -247,6 +240,7 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/BoundaryConditions>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/DataStructs>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Diffusion>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/EB>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Initialization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/IO>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LinearSolvers>)

@@ -78,30 +78,23 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     int l_implicit_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
     int l_anelastic      = solverChoice.anelastic[level];
 
-#ifdef ERF_USE_EB
-    EBFArrayBoxFactory ebfact = EBFactory(level);
-    const MultiFab& detJ = ebfact.getVolFrac();
-#endif
+    Real estdt_comp_inv;
 
-#ifdef ERF_USE_EB
-    Real estdt_comp_inv = ReduceMax(S_new, ccvel, detJ, 0,
-       [=] AMREX_GPU_HOST_DEVICE (Box const& b,
-                                  Array4<Real const> const& s,
-                                  Array4<Real const> const& u,
-                                  Array4<Real const> const& vf) -> Real
-#else
-    Real estdt_comp_inv = ReduceMax(S_new, ccvel, 0,
-       [=] AMREX_GPU_HOST_DEVICE (Box const& b,
-                                  Array4<Real const> const& s,
-                                  Array4<Real const> const& u) -> Real
-#endif
-       {
+    if (solverChoice.terrain_type == TerrainType::EB)
+    {
+        EBFArrayBoxFactory ebfact = EBFactory(level);
+        const MultiFab& detJ = ebfact.getVolFrac();
+
+        estdt_comp_inv = ReduceMax(S_new, ccvel, detJ, 0,
+        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
+                                   Array4<Real const> const& s,
+                                   Array4<Real const> const& u,
+                                   Array4<Real const> const& vf) -> Real
+        {
            Real new_comp_dt = -1.e100;
            amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
            {
-#ifdef ERF_USE_EB
                if (vf(i,j,k) > 0.)
-#endif
                {
                    const Real rho      = s(i, j, k, Rho_comp);
                    const Real rhotheta = s(i, j, k, RhoTheta_comp);
@@ -149,6 +142,64 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
            });
            return new_comp_dt;
        });
+
+    } else {
+       estdt_comp_inv = ReduceMax(S_new, ccvel, 0,
+       [=] AMREX_GPU_HOST_DEVICE (Box const& b,
+                                  Array4<Real const> const& s,
+                                  Array4<Real const> const& u) -> Real
+       {
+           Real new_comp_dt = -1.e100;
+           amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
+           {
+               {
+                   const Real rho      = s(i, j, k, Rho_comp);
+                   const Real rhotheta = s(i, j, k, RhoTheta_comp);
+
+                   // NOTE: even when moisture is present,
+                   //       we only use the partial pressure of the dry air
+                   //       to compute the soundspeed
+                   Real pressure = getPgivenRTh(rhotheta);
+                   Real c = std::sqrt(Gamma * pressure / rho);
+
+                   // If we are doing implicit acoustic substepping, then the z-direction does not contribute
+                   //    to the computation of the time step
+                   if (l_implicit_substepping) {
+                       if ((nxc > 1) && (nyc==1)) {
+                           // 2-D in x-z
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]), new_comp_dt);
+                       } else if ((nyc > 1) && (nxc==1)) {
+                           // 2-D in y-z
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                       } else {
+                           // 3-D or SCM
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                       }
+
+                   // If we are not doing implicit acoustic substepping, then the z-direction contributes
+                   //    to the computation of the time step
+                   } else {
+                       if (nxc > 1 && nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       } else if (nxc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       } else if (nyc > 1) {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       } else {
+                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                       }
+
+                   }
+               }
+           });
+           return new_comp_dt;
+       });
+    } // not EB
 
     ParallelDescriptor::ReduceRealMax(estdt_comp_inv);
     estdt_comp = cfl / estdt_comp_inv;

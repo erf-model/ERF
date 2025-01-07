@@ -19,19 +19,19 @@ public:
           m_geom(a_geom)
         {
             amrex::Print() << " EB type = Terrain " << std::endl;
+
+            dx = m_geom.CellSizeArray()[0];
+            dy = m_geom.CellSizeArray()[1];
+
+            terr_arr = m_terr.const_array();
         }
 
     AMREX_GPU_HOST_DEVICE inline
     amrex::Real operator() (AMREX_D_DECL(amrex::Real x, amrex::Real y, amrex::Real z))
         const noexcept
     {
-        amrex::Real dx = m_geom.CellSizeArray()[0];
-        amrex::Real dy = m_geom.CellSizeArray()[1];
-
         const int i = static_cast<int>(x / dx);
         const int j = static_cast<int>(y / dy);
-
-        amrex::Array4<amrex::Real const> const& terr_arr = m_terr.const_array();
 
         return -(z - terr_arr(i,j,0));
     }
@@ -42,8 +42,11 @@ public:
     }
 
 protected:
-    amrex::FArrayBox&  m_terr;
-    amrex::Geometry&   m_geom;
+    amrex::FArrayBox& m_terr;
+    amrex::Array4<amrex::Real const> terr_arr;
+
+    amrex::Geometry&  m_geom;
+    amrex::Real dx, dy;
 };
 
 #endif

@@ -80,9 +80,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
                         std::unique_ptr<MultiFab>& mapfac_v,
-#ifdef ERF_USE_EB
                         amrex::EBFArrayBoxFactory const& ebfact,
-#endif
 #if defined(ERF_USE_NETCDF)
                         const bool& moist_set_rhs_bool,
                         const Real& bdy_time_interval,
@@ -111,7 +109,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     if (most) t_mean_mf = most->get_mac_avg(level,2);
 
     const bool l_use_terrain      = (solverChoice.mesh_type != MeshType::ConstantDz);
-    const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::Moving);
+    const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
@@ -320,17 +318,21 @@ void erf_slow_rhs_post (int level, int finest_level,
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
         // Metric terms
-#ifdef ERF_USE_EB
-        auto const& ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
-        auto const& ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
-        auto const& az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
-        const auto& detJ_arr = ebfact.getVolFrac().const_array(mfi);
-#else
-        auto const& ax_arr   = ax->const_array(mfi);
-        auto const& ay_arr   = ay->const_array(mfi);
-        auto const& az_arr   = az->const_array(mfi);
-        auto const& detJ_arr = detJ->const_array(mfi);
-#endif
+        Array4<const Real> ax_arr;
+        Array4<const Real> ay_arr;
+        Array4<const Real> az_arr;
+        Array4<const Real> detJ_arr;
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
+            ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
+            az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
+            detJ_arr = ebfact.getVolFrac().const_array(mfi);
+        } else {
+            ax_arr   = ax->const_array(mfi);
+            ay_arr   = ay->const_array(mfi);
+            az_arr   = az->const_array(mfi);
+            detJ_arr = detJ->const_array(mfi);
+        }
 
         AdvType horiz_adv_type, vert_adv_type;
         Real    horiz_upw_frac, vert_upw_frac;

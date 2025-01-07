@@ -1207,12 +1207,16 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
 #endif
 
-#ifdef ERF_USE_EB
         if (containerHasElement(plot_var_names, "volfrac")) {
-            MultiFab::Copy(mf[lev], EBFactory(lev).getVolFrac(), 0, mf_comp, 1, 0);
+            if ( solverChoice.terrain_type == TerrainType::EB ||
+                 solverChoice.terrain_type == TerrainType::ImmersedForcing)
+            {
+                MultiFab::Copy(mf[lev], EBFactory(lev).getVolFrac(), 0, mf_comp, 1, 0);
+            } else {
+                mf[lev].setVal(1.0, mf_comp, 1, 0);
+            }
             mf_comp += 1;
         }
-#endif
 
 #ifdef ERF_COMPUTE_ERROR
         // Next, check for error in velocities and if desired, output them -- note we output none or all, not just some
@@ -1389,11 +1393,12 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 #endif
     }
 
-#ifdef ERF_USE_EB
-    for (int lev = 0; lev <= finest_level; ++lev) {
-        EB_set_covered(mf[lev], 0.0);
+    if (solverChoice.terrain_type == TerrainType::EB)
+    {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            EB_set_covered(mf[lev], 0.0);
+        }
     }
-#endif
 
     // Fill terrain distortion MF
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
@@ -1402,7 +1407,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             Real dz = Geom()[lev].CellSizeArray()[2];
             for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
-                Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
+                Array4<Real> mf_arr = mf_nd[lev].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     mf_arr(i,j,k,2) -= k * dz;
                 });

@@ -5,6 +5,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_YAFluxRegister.H>
+
 #include <ERF_DataStruct.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_ABLMost.H>
@@ -74,7 +75,8 @@ void AdvectionSrcForMom (const amrex::Box& bx,
                          const amrex::Array4<const amrex::Real>& mf_v,
                          const AdvType horiz_adv_type, const AdvType vert_adv_type,
                          const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
-                         const bool use_terrain, const int lo_z_face, const int hi_z_face,
+                         TerrainType& terrain_type,
+                         const int lo_z_face, const int hi_z_face,
                          const amrex::Box& domain,
                          const amrex::BCRec* bc_ptr_h);
 
