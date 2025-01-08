@@ -6,7 +6,7 @@
 using namespace amrex;
 
 void
-ERF::redistribute_term ( int lev,
+ERF::redistribute_term ( int lev, int ncomp,
                     MultiFab& result,
                     MultiFab& result_tmp, // Saves doing a MF::copy. does this matter???
                     MultiFab const& state,
@@ -25,12 +25,12 @@ ERF::redistribute_term ( int lev,
 #endif
     for (MFIter mfi(state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        redistribute_term(mfi, lev, result, result_tmp, state, bc, dt);
+        redistribute_term(mfi, lev, ncomp, result, result_tmp, state, bc, dt);
     }
 }
 
 void
-ERF::redistribute_term ( MFIter const& mfi, int lev,
+ERF::redistribute_term ( MFIter const& mfi, int lev, int ncomp,
                     MultiFab& result,
                     MultiFab& result_tmp,
                     MultiFab const& state,
@@ -50,7 +50,7 @@ ERF::redistribute_term ( MFIter const& mfi, int lev,
 
     Array4<Real      > out = result.array(mfi);
     Array4<Real      > in  = result_tmp.array(mfi);
-    int ncomp = result.nComp();
+    // int ncomp = result.nComp(); // ncomp is an input parameter
 
     if (!regular && !covered)
     {

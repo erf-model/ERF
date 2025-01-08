@@ -1218,6 +1218,16 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp += 1;
         }
 
+        if (containerHasElement(plot_var_names, "state_0")) {
+            MultiFab::Copy(mf[lev], state_plot[0], 0, mf_comp, 1, 0);
+            mf_comp += 1;
+        }
+
+        if (containerHasElement(plot_var_names, "state_1")) {
+            MultiFab::Copy(mf[lev], state_plot[1], 0, mf_comp, 1, 0);
+            mf_comp += 1;
+        }        
+
 #ifdef ERF_COMPUTE_ERROR
         // Next, check for error in velocities and if desired, output them -- note we output none or all, not just some
         if (containerHasElement(plot_var_names, "xvel_err") ||

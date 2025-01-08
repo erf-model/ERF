@@ -149,13 +149,57 @@
             } // mfi
 
             if (solverChoice.terrain_type == TerrainType::EB) {
-                // // call to redistribute_term -- pass in ssum[IntVars::cons] which is MF
-                // MultiFab dUdt_tmp (ba, dm, n_data, 3, MFInfo(), Factory(level));
-                // dUdt_tmp.setVal(0.);
-                // dUdt_tmp.FillBoundary(fine_geom.periodicity());
-                // const BCRec* bc_ptr_h = domain_bcs_type.data(); // Should be host or device or both?
-                // redistribute_term ( level, F_slow[IntVars::cons], dUdt_tmp,
-                //                     S_sum[IntVars::cons], bc_ptr_h, slow_dt);
+
+                // Redistribute cons states (cell-centered) 
+
+                MultiFab dUdt_tmp (ba, dm, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow(), MFInfo(), Factory(level));
+                dUdt_tmp.setVal(0.);
+                MultiFab::Copy(dUdt_tmp, F_slow[IntVars::cons], 0, 0, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow());
+                dUdt_tmp.FillBoundary(fine_geom.periodicity());
+                dUdt_tmp.setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
+
+                const BCRec* bc_ptr_h = domain_bcs_type.data(); // Should be host or device or both?
+                S_old[IntVars::cons].FillBoundary(fine_geom.periodicity());
+                S_old[IntVars::cons].setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
+
+                redistribute_term ( level, ncomp_fast[IntVars::cons], F_slow[IntVars::cons], dUdt_tmp,
+                                    S_old[IntVars::cons], bc_ptr_h, slow_dt); // Get a redistributed RHS, F_slow[IntVars::cons]
+
+                // Update state using the updated F_slow. (NOTE: redistribute_term returns RHS not state variables.)
+                // state_plot is only for plotting purposes
+
+                for ( MFIter mfi(S_sum[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box bx = mfi.tilebox();
+                    Vector<Array4<Real> >  ssum(ncomp_fast[IntVars::cons]);
+                    Vector<Array4<Real> >  sold(ncomp_fast[IntVars::cons]);
+                    Vector<Array4<Real> > fslow(ncomp_fast[IntVars::cons]);
+                    const Array4<const Real>& dJ_old = detJ_cc[level]->const_array(mfi);
+                    Vector<Array4<Real> > state_plot_arr(2);
+
+                    for (int i = 0; i < ncomp_fast[IntVars::cons]; ++i) {
+                        ssum[i]  = S_sum[i].array(mfi);
+                        sold[i]  = S_old[i].array(mfi);
+                        fslow[i] = F_slow[i].array(mfi);
+                        state_plot_arr[i] = state_plot[i].array(mfi);
+                    }
+
+                    ParallelFor(bx, ncomp_fast[IntVars::cons],
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
+                        const int n = scomp_fast[IntVars::cons] + nn;
+                        if (nn==1) {
+                            state_plot_arr[0](i,j,k) = ssum[IntVars::cons](i,j,k,n);
+                        }
+                        ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
+                            ( fslow[IntVars::cons](i,j,k,n) );
+                        if (nn==1) {
+                            state_plot_arr[1](i,j,k) = ssum[IntVars::cons](i,j,k,n);
+                        }
+                    });
+                }
+
+                // Redistribute momentum states (face-centered) will be added here.
+
             } // EB
         } // omp
 

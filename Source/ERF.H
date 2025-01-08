@@ -475,13 +475,13 @@ public:
     void MakeEBGeometry ();
     void make_eb_box ();
     void make_eb_regular ();
-    void redistribute_term ( int lev,
+    void redistribute_term ( int lev, int ncomp,
                         amrex::MultiFab& result,
                         amrex::MultiFab& result_tmp,
                         amrex::MultiFab const& state,
                         amrex::BCRec const* bc,
                         amrex::Real const dt);
-    void redistribute_term ( amrex::MFIter const& mfi, int lev,
+    void redistribute_term ( amrex::MFIter const& mfi, int lev, int ncomp,
                         amrex::MultiFab& result,
                         amrex::MultiFab& result_tmp,
                         amrex::MultiFab const& state,
@@ -991,7 +991,7 @@ private:
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
                                                     // EB variables
-                                                    "volfrac"
+                                                    "volfrac", "state_0", "state_1"
 #ifdef ERF_COMPUTE_ERROR
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
@@ -1389,6 +1389,9 @@ private:
 
     //! The filename of the ith samplelinelog file.
     [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
+
+    // state_plot is for plotting states to test State Redistribution for EB.
+    amrex::Vector<amrex::MultiFab> state_plot;
 
     // amrex::Vector<std::unique_ptr<amrex::EBFArrayBoxFactory> > m_factory;
     amrex::Vector<std::unique_ptr<amrex::FabFactory<amrex::FArrayBox> > > m_factory;

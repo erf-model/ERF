@@ -368,6 +368,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     #ifdef ERF_USE_WINDFARM
         //init_windfarm(lev);
     #endif
+
+    // This is for plotting state before/after State Redistribution. (development purposes)
+    if (solverChoice.terrain_type == TerrainType::EB)
+    {
+        state_plot.resize(2);
+        state_plot[0].define(ba,dm,1,0);
+        state_plot[1].define(ba,dm,1,0);
+        state_plot[0].setVal(0.);
+        state_plot[1].setVal(0.);
+    }
 }
 
 void
