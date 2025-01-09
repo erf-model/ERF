@@ -58,7 +58,6 @@ void make_sources (int level,
     source.setVal(0.0);
 
     const bool l_use_ndiff      = solverChoice.use_num_diff;
-    const bool use_terrain      = solverChoice.terrain_type != TerrainType::None;
 
     TurbChoice tc = solverChoice.turbChoice[level];
     const bool l_use_KE  =  ( (tc.les_type == LESType::Deardorff) ||
@@ -185,7 +184,7 @@ void make_sources (int level,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_src   = source.array(mfi);
 
-        const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& z_cc_arr = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
 
 #ifdef ERF_USE_RRTMGP
         // *************************************************************************************

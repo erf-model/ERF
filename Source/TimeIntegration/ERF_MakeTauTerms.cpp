@@ -36,9 +36,9 @@ void erf_make_tau_terms (int level, int nrk,
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
 
-    const bool    l_use_terrain    = (solverChoice.terrain_type != TerrainType::None);
+    const bool    l_use_terrain_fitted_coords = (z_phys_nd != nullptr);
     const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
-    if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
+    if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain_fitted_coords);
 
 
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
@@ -108,7 +108,7 @@ void erf_make_tau_terms (int level, int nrk,
             const Array4<Real const>& cell_data = l_use_constAlpha ? S_data[IntVars::cons].const_array(mfi) : Array4<const Real>{};
 
             // Terrain metrics
-            const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+            const Array4<const Real>& z_nd     = l_use_terrain_fitted_coords ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
             const Array4<const Real>& detJ_arr = detJ->const_array(mfi);
 
             //-------------------------------------------------------------------------------
@@ -171,7 +171,7 @@ void erf_make_tau_terms (int level, int nrk,
             // Strain magnitude
             Array4<Real> SmnSmn_a;
 
-            if (l_use_terrain) {
+            if (l_use_terrain_fitted_coords) {
                 // Terrain non-symmetric terms
                 FArrayBox S21,S31,S32;
                 S21.resize(tbxxy,1,The_Async_Arena()); S31.resize(tbxxz,1,The_Async_Arena()); S32.resize(tbxyz,1,The_Async_Arena());
@@ -433,7 +433,7 @@ void erf_make_tau_terms (int level, int nrk,
                     tau23(i,j,k) = s23(i,j,k);
                 });
                 } // end profile
-            } // l_use_terrain
+            } // l_use_terrain_fitted_coords
         } // MFIter
     } // l_use_diff
 }

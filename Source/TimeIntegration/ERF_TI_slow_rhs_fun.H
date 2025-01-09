@@ -66,7 +66,7 @@
         // Immersed Forcing
         MultiFab* terrain_blank = nullptr;
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-            terrain_blank = m_terrain_drag[level]->get_terrain_blank_field();
+            terrain_blank = terrain_blanking[level].get();
         }
 
         // Moving terrain
@@ -80,20 +80,20 @@
             // aka old_stage_time
 
             if (verbose) Print() << "Re-making old geometry at old time   : " << old_step_time << std::endl;
-            prob->init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
-            init_terrain_grid  (level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
+            prob->init_terrain_surface(fine_geom,*z_phys_nd[level],old_step_time);
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
             make_areas         (fine_geom,*z_phys_nd[level], *ax[level], *ay[level], *az[level]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  " << old_stage_time << std::endl;
-            prob->init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
-            init_terrain_grid  (level,fine_geom,*z_phys_nd_src[level], zlevels_stag[level], phys_bc_type);
+            prob->init_terrain_surface(fine_geom,*z_phys_nd_src[level],old_stage_time);
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_src[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd_src[level], *detJ_cc_src[level]);
             make_areas         (fine_geom,*z_phys_nd_src[level], *ax_src[level], *ay_src[level], *az_src[level]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: " << new_stage_time << std::endl;
-            prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
-            init_terrain_grid  (level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
+            prob->init_terrain_surface(fine_geom,*z_phys_nd_new[level],new_stage_time);
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
             make_areas         (fine_geom,*z_phys_nd_new[level], *ax_new[level], *ay_new[level], *az_new[level]);
 
@@ -433,7 +433,7 @@
         // Immersed Forcing
         MultiFab* terrain_blank = nullptr;
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-            terrain_blank = m_terrain_drag[level]->get_terrain_blank_field();
+            terrain_blank = terrain_blanking[level].get();
         }
 
         make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
