@@ -296,7 +296,7 @@ public:
     read_custom_terrain(const std::string& fname,
                          const bool is_usgs,
                          const amrex::Geometry& geom,
-                         amrex::MultiFab& z_phys_nd,
+                         amrex::MultiFab& terrain_mf,
                          const amrex::Real& /*time*/)
     {
         // Read terrain file
@@ -341,9 +341,9 @@ public:
                 m_zterrain.push_back(value3);
                 counter += 1;
             }
-            AMREX_ASSERT(m_xterrain.size() == static_cast<long unsigned int>(nx*ny));
-            AMREX_ASSERT(m_yterrain.size() == static_cast<long unsigned int>(ny));
-            AMREX_ASSERT(m_zterrain.size() == static_cast<long unsigned int>(nx*ny));
+            AMREX_ASSERT(m_xterrain.size() == static_cast<long int>(nx*ny));
+            AMREX_ASSERT(m_yterrain.size() == static_cast<long int>(ny));
+            AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
 
         } else {
             file >> nx; file >> ny;
@@ -382,8 +382,7 @@ public:
         amrex::Real* d_yt = d_yterrain.data();
         amrex::Real* d_zt = d_zterrain.data();
 
-        // Populate z_phys data
-        int ngrow = z_phys_nd.nGrow();
+        int ngrow = terrain_mf.nGrow();
         auto dx = geom.CellSizeArray();
         auto ProbLoArr = geom.ProbLoArray();
 
@@ -393,13 +392,13 @@ public:
         int ihi = geom.Domain().bigEnd(0) + 1;
         int jhi = geom.Domain().bigEnd(1) + 1;
 
-        for (amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for (amrex::MFIter mfi(terrain_mf,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             // Grown box with no z range
             amrex::Box xybx = mfi.growntilebox(ngrow);
             xybx.setRange(2,0);
 
-            amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+            amrex::Array4<amrex::Real> const& z_arr = terrain_mf.array(mfi);
 
             amrex::ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
             {
@@ -484,24 +483,24 @@ public:
      * Note: Terrain functionality can also be used to provide grid stretching.
      *
      * @param[in] geom container for geometric information
-     * @param[out] z_phys_nd height coordinate at nodes
+     * @param[out] terrain_mf height coordinate at nodes
      * @param[in] time current time
     */
     virtual void
     init_custom_terrain (const amrex::Geometry& /*geom*/,
-                         amrex::MultiFab& z_phys_nd,
+                         amrex::MultiFab& terrain_mf,
                          const amrex::Real& /*time*/)
     {
         // Note that this only sets the terrain value at the ground IF k=0 is in the box
         amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
 
         // Number of ghost cells
-        int ngrow = z_phys_nd.nGrow();
+        int ngrow = terrain_mf.nGrow();
 
         // Bottom of domain
         int k0 = 0;
 
-        for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        for ( amrex::MFIter mfi(terrain_mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             amrex::Box zbx = mfi.nodaltilebox(2);
             if (zbx.smallEnd(2) <= 0) {
@@ -509,7 +508,7 @@ public:
                 amrex::Box xybx = mfi.growntilebox(ngrow);
                 xybx.setRange(2,0);
 
-                amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+                amrex::Array4<amrex::Real> const& z_arr = terrain_mf.array(mfi);
 
                 ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
                     z_arr(i,j,k0) = 0.0;

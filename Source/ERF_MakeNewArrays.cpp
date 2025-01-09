@@ -492,7 +492,7 @@ ERF::init_zphys (int lev, Real time)
         Box bx(surroundingNodes(geom[lev].Domain())); bx.grow(2);
         BoxArray ba(makeSlab(bx,2,0));
         DistributionMapping dm(ba);
-        MultiFab terrain_mf(ba,dm,1,0);
+        MultiFab terrain_mf(ba,dm,1,1);
         terrain_mf.setVal(-1.e23);
 
         //
