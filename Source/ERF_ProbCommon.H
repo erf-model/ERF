@@ -368,12 +368,6 @@ public:
         // Close the file after reading
         file.close();
 
-        auto index_x = std::max_element(m_xterrain.begin(), m_xterrain.end());
-        amrex::Real xmax_terrain = *index_x;
-
-        auto index_y = std::max_element(m_yterrain.begin(), m_yterrain.end());
-        amrex::Real ymax_terrain = *index_y;
-
         // Copy data to the GPU
         int nxterr = m_xterrain.size();
         int nyterr = m_yterrain.size();
