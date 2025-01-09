@@ -24,7 +24,7 @@ erf.windfarm_loc_table = "windturbines_KingPlains.txt"
 erf.windfarm_spec_table = "windturbines_spec_KingPlains.tbl"
 erf.use_terrain = 1
 erf.terrain_file_name_USGS = "ERF_terrain_file.txt"
-erf.terrain_type = Static
+erf.terrain_type = StaticFittedMesh
 
 
 #erf.grid_stretching_ratio = 1.025
