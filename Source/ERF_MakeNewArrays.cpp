@@ -491,11 +491,12 @@ ERF::init_zphys (int lev, Real time)
         //
         BoxList bl2d_mf = grids[lev].boxList();
         for (auto& b : bl2d_mf) {
+            b.surroundingNodes();
             b.setRange(2,0);
         }
         BoxArray ba2d_mf(std::move(bl2d_mf));
         DistributionMapping dm(ba2d_mf);
-        MultiFab terrain_mf(ba2d_mf,dm,1,1);
+        MultiFab terrain_mf(ba2d_mf,dm,1,0);
         terrain_mf.setVal(-1.e23);
 
         //
@@ -505,7 +506,16 @@ ERF::init_zphys (int lev, Real time)
 
         if (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
             solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
-            MultiFab::Copy(*z_phys_nd[lev],terrain_mf,0,0,1,1);
+            for (MFIter mfi(terrain_mf,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Array4<Real      >& dest_arr = z_phys_nd[lev]->array(mfi);
+                const Array4<Real const>&  src_arr = terrain_mf.const_array(mfi);
+                Box bx_zlo = mfi.validbox();
+                ParallelFor(bx_zlo, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    dest_arr(i,j,k) = src_arr(i,j,k);
+                });
+            }
             make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
             terrain_blanking[lev]->setVal(1.0);
