@@ -11,7 +11,7 @@ ERF::redistribute_term ( int lev,
                     MultiFab& result_tmp, // Saves doing a MF::copy. does this matter???
                     MultiFab const& state,
                     BCRec const* bc, // this is bc for the state (needed for SRD slopes)
-                    Real const dt)
+                    Real const local_dt)
 {
     // ************************************************************************
     // Redistribute result_tmp and pass out result
@@ -25,7 +25,7 @@ ERF::redistribute_term ( int lev,
 #endif
     for (MFIter mfi(state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        redistribute_term(mfi, lev, result, result_tmp, state, bc, dt);
+        redistribute_term(mfi, lev, result, result_tmp, state, bc, local_dt);
     }
 }
 
@@ -35,7 +35,7 @@ ERF::redistribute_term ( MFIter const& mfi, int lev,
                     MultiFab& result_tmp,
                     MultiFab const& state,
                     BCRec const* bc, // this is bc for the state (needed for SRD slopes)
-                    Real const dt)
+                    Real const local_dt)
 {
     AMREX_ASSERT(result.nComp() == state.nComp());
 
@@ -85,7 +85,7 @@ ERF::redistribute_term ( MFIter const& mfi, int lev,
                              scratch, flag,
                              apx, apy, apz, vfrac,
                              fcx, fcy, fcz, ccc,
-                             bc, geom[lev], dt, redistribution_type);
+                             bc, geom[lev], local_dt, redistribution_type);
     }
     else
     {
