@@ -1,9 +1,7 @@
 ## Wind Farm - Simple actuator disk with terrain
 
 This folder contains an example of the Simple actuator disk wind farm parametetrization 
-for a wind farm with multiple wind turbines with terrain 
-
-The steps for running this example are
+for a wind farm with multiple wind turbines with terrain. The steps for running this example are
 
 1. Download the USGS terrain file for the region as a GeoTIFF (`.tif`) file from the USGS Earth Explorer.
    The file for this example can be obtained by the following command  
