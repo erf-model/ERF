@@ -65,9 +65,18 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   if(ERF_ENABLE_RRTMGP)
+    target_include_directories(${erf_lib_name} PUBLIC
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/cloud_optics>
+                              )
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Radiation/ERF_RRTMGP_Interface.cpp
-                   ${SRC_DIR}/Radiation/ERF_RRTMGP_Utils.cpp
                    ${SRC_DIR}/Radiation/ERF_Radiation.cpp
                    ${SRC_DIR}/Radiation/ERF_OrbCosZenith.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
@@ -81,19 +90,7 @@ function(build_erf_lib erf_lib_name)
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_load_cloud_coefficients.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
                   )
-
-    # The interface code needs to know about the RRTMGP includes
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
-
-    target_include_directories(${erf_lib_name} SYSTEM PUBLIC
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/cloud_optics
-                              )
   endif()
 
   target_sources(${erf_lib_name}
@@ -273,7 +270,6 @@ endif()
 
   if(ERF_ENABLE_RRTMGP)
      target_link_libraries(${erf_lib_name} PUBLIC yakl)
-     target_link_libraries(${erf_lib_name} PUBLIC rrtmgp)
   endif()
 
   #Link to amrex library
