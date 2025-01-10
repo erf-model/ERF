@@ -39,6 +39,13 @@ ERF::init_from_metgrid (int lev)
     if (real_width > real_set_width)
         AMREX_ALWAYS_ASSERT(real_width-real_set_width >= 3);
 
+    // Ensure a reasonable value for the order of the vertical interpolation scheme.
+    AMREX_ALWAYS_ASSERT(metgrid_order > 0 && metgrid_order <= 9);
+
+    // Odd behavior can occur if not using the surface and also omitting some near-surface levels.
+    if (metgrid_force_sfc_k > 0)
+        AMREX_ALWAYS_ASSERT(metgrid_use_sfc);
+
     // Size the SST and LANDMASK
       sst_lev[lev].resize(ntimes);
     lmask_lev[lev].resize(ntimes);

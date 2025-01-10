@@ -11,8 +11,8 @@ using namespace amrex;
 void ERF::MakeEBGeometry()
 {
    /******************************************************************************
-   * ERF.geometry=<string> specifies the EB geometry. <string> can be one of    *
-   * box, cylinder, or terrain */
+   * ERF.geometry=<string> specifies the EB geometry. <string> can be either     *
+   * box or terrain */
 
     ParmParse pp("eb2");
 
@@ -32,15 +32,15 @@ void ERF::MakeEBGeometry()
         max_coarsening_level = 0;
     }
 
-    if(geom_type == "cylinder") {
-        amrex::Print() << "\n Building cylinder geometry." << std::endl;
-        make_eb_cylinder();
-
-    } else if (geom_type == "terrain") {
+    if (geom_type == "terrain") {
         amrex::Print() << "\n Building EB geometry based on idealized terrain." << std::endl;
         Real dummy_time = 0.0;
         Box bx(surroundingNodes(Geom(0).Domain())); bx.grow(2);
-        FArrayBox terrain_fab(makeSlab(bx,2,0),1);
+        static FArrayBox terrain_fab;
+        if (!terrain_fab.isAllocated()) {
+            amrex::ExecOnFinalize([&] () { terrain_fab.clear(); });
+        }
+        terrain_fab.resize(makeSlab(bx,2,0),1);
         prob->init_custom_terrain(Geom(0), terrain_fab, dummy_time);
         TerrainIF ebterrain(terrain_fab, Geom(0));
         auto gshop = EB2::makeShop(ebterrain);

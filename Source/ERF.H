@@ -21,6 +21,8 @@
 #include <AMReX_PhysBCFunct.H>
 #include <AMReX_YAFluxRegister.H>
 #include <AMReX_ErrorList.H>
+#include <AMReX_EBFabFactory.H>
+#include <AMReX_EBMultiFabUtil.H>
 
 #ifdef ERF_USE_FFT
 #include <AMReX_FFT_Poisson.H>
@@ -161,9 +163,7 @@ public:
     // Initialize multilevel data after MultiBlock
     void InitData_post ();
 
-#ifdef ERF_USE_EB
     void WriteMyEBSurface ();
-#endif
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
     void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
@@ -184,10 +184,8 @@ public:
     void solve_with_fft (int lev, amrex::MultiFab& rhs, amrex::MultiFab& p,
                          amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 #endif
-#ifdef ERF_USE_EB
     void solve_with_EB_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                              amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
-#endif
 
     void solve_with_gmres (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                            amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
@@ -474,10 +472,8 @@ public:
                        const amrex::Real& time);
 #endif
 
-#ifdef ERF_USE_EB
     void MakeEBGeometry ();
     void make_eb_box ();
-    void make_eb_cylinder ();
     void make_eb_regular ();
     void redistribute_term ( int lev,
                         amrex::MultiFab& result,
@@ -491,7 +487,6 @@ public:
                         amrex::MultiFab const& state,
                         amrex::BCRec const* bc,
                         amrex::Real const dt);
-#endif
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
@@ -996,11 +991,9 @@ private:
                                                     "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     // Terrain IB mask
-                                                    "terrain_IB_mask"
-#ifdef ERF_USE_EB
+                                                    "terrain_IB_mask",
                                                     // EB variables
-                                                    ,"volfrac",
-#endif
+                                                    "volfrac"
 #ifdef ERF_COMPUTE_ERROR
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
@@ -1092,9 +1085,9 @@ private:
     bool        metgrid_use_below_sfc{true};
     bool        metgrid_use_sfc{true};
     bool        metgrid_retain_sfc{false};
-    amrex::Real metgrid_proximity{1000.0};
+    amrex::Real metgrid_proximity{500.0};
     int         metgrid_order{2};
-    int         metgrid_force_sfc_k{0};
+    int         metgrid_force_sfc_k{6};
 
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
@@ -1399,9 +1392,8 @@ private:
     //! The filename of the ith samplelinelog file.
     [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
-#ifdef ERF_USE_EB
-
-    amrex::Vector<std::unique_ptr<amrex::EBFArrayBoxFactory> > m_factory;
+    // amrex::Vector<std::unique_ptr<amrex::EBFArrayBoxFactory> > m_factory;
+    amrex::Vector<std::unique_ptr<amrex::FabFactory<amrex::FArrayBox> > > m_factory;
 
     [[nodiscard]] amrex::FabFactory<amrex::FArrayBox> const&
     Factory (int lev) const noexcept { return *m_factory[lev]; }
@@ -1419,9 +1411,6 @@ private:
 
     [[nodiscard]] static int nghost_eb_full ()
     { return 4; }
-#else
-    amrex::Vector<std::unique_ptr<amrex::FabFactory<amrex::FArrayBox> > > m_factory;
-#endif
 
 #ifdef ERF_USE_FFT
     amrex::Vector<std::unique_ptr<amrex::FFT::Poisson<amrex::MultiFab>>> m_3D_poisson;

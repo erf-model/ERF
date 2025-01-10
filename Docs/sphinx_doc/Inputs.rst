@@ -504,7 +504,7 @@ Notes
      * | If neither **erf.fixed_mri_dt_ratio** nor **erf.fixed_fast_dt** is specified, then the fast timestep
          will be computed using the CFL condition for compressible flow, then adjusted (reduced if necessary)
          as above so that the ratio of slow timestep to fine timestep is an even integer.
-         If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
+         If **erf.substepping_cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
 .. _examples-of-usage-5:
 
@@ -912,6 +912,30 @@ List of Parameters
 | **erf.Cs**                       | Constant           | Real                | 0.0          |
 |                                  | Smagorinsky coeff. |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
+| **erf.Ck**                       | Constant           | Real                | 0.1          |
+|                                  | Deardorff k coeff. |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.Ce**                       | Constant           | Real                | 0.93         |
+|                                  | Deardorff epsilon  |                     |              |
+|                                  | coeff.             |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.Ce_wall**                  | Constant           | Real                | 0.0          |
+|                                  | Deardorff epsilon  |                     |              |
+|                                  | coeff. at the wall;|                     |              |
+|                                  | if > 0, then set   |                     |              |
+|                                  | Ce to this at k=0  |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.sigma_k**                  | Constant Deardorff | Real                | 0.5          |
+|                                  | coeff. in          |                     |              |
+|                                  | downgradient       |                     |              |
+|                                  | diffusion term     |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.theta_ref**                | Reference potential| Real                | 300.0        |
+|                                  | temperature used   |                     |              |
+|                                  | to characterize    |                     |              |
+|                                  | stable             |                     |              |
+|                                  | stratficiation     |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
 | **erf.Pr_t**                     | Turbulent Prandtl  | Real                | 1.0          |
 |                                  | Number             |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
@@ -962,7 +986,7 @@ List of Parameters
 | Parameter                               | Definition         | Acceptable          | Default     |
 |                                         |                    | Values              |             |
 +=========================================+====================+=====================+=============+
-| **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN2.5",  | "None"      |
+| **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN25",   | "None"      |
 |                                         | to be used         | "YSU"               |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_A1**                     | MYNN Constant A1   | Real                | 1.18        |
@@ -1107,6 +1131,9 @@ List of Parameters
 | **erf.rayleigh_dampcoef**           | Rayleigh damping       | Real              | 0.2                 |
 |                                     | coefficient, an inverse|                   |                     |
 |                                     | timescale              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_zdamp**              | Rayleigh damping       | Real              | 500.0               |
+|                                     | layer depth            |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.nudging_from_input_sounding** | Add momentum source    | true / false      | false               |
 |                                     | terms to nudge the     |                   |                     |

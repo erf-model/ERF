@@ -169,14 +169,17 @@ Problem::init_custom_pert(
     dxInv[2] = 1. / dx[2];
 
     // Set the z-velocity from impenetrable condition
-    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-    {
-#ifdef ERF_USE_EB
-        z_vel_pert(i, j, k) = 0.0;
-#else
-        z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel_pert, y_vel_pert, z_nd, dxInv);
-#endif
-    });
+    if (sc.terrain_type == TerrainType::EB) {
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            z_vel_pert(i, j, k) = 0.0;
+        });
+    } else {
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel_pert, y_vel_pert, z_nd, dxInv);
+        });
+    }
 
     amrex::Gpu::streamSynchronize();
 }

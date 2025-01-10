@@ -149,6 +149,8 @@ lagrange_setup (char var_type,
                 const int& orig_n,
                 const int& new_n,
                 const int& order,
+                const int& i,
+                const int& j,
                 amrex::Real* orig_x_z,
                 amrex::Real* orig_x_p,
                 amrex::Real* orig_y,
@@ -156,14 +158,12 @@ lagrange_setup (char var_type,
                 amrex::Real* new_x_p,
                 amrex::Real* new_y)
 {
-    if (order < 1) amrex::Abort("metgrid initialization, we cannot go lower order than linear");
 
     amrex::Real CRC_const1 = 11880.516; // m
     amrex::Real CRC_const2 = 0.1902632;
     amrex::Real CRC_const3 = 0.0065; // K km-1
-    int vboundb = 4;
-    int vboundt = 0;
 
+    amrex::ignore_unused(i,j);
 #ifndef AMREX_USE_GPU
     bool debug = false;
 #endif
@@ -172,7 +172,8 @@ lagrange_setup (char var_type,
 #ifndef AMREX_USE_GPU
         if (debug) amrex::Print() << "new_k=" << new_k;
 #endif
-        // Find bounding x values and store the indices.
+        // Determine if interpolating or extrapolating.
+        // If interpolating, find bounding x values and store the indices.
         bool extrapolating = true;
         int kl, kr;
         for (int ko=0; ko < orig_n-1; ko++) {
@@ -190,9 +191,9 @@ lagrange_setup (char var_type,
             if (var_type == 'T') {
                 // Assume a standard atmosphere -6.5 K km-1 lapse rate.
                 // Comparable to the WRF default, t_extrap_type=2.
-                amrex::Real depth_of_extrap_in_p = new_x_p[new_k]-orig_x_p[1];
-                amrex::Real avg_of_extrap_p = 0.5*(new_x_p[new_k]+orig_x_p[1]);
-                amrex::Real temp_extrap_starting_point = orig_y[1]*std::pow(orig_x_p[1]/100000.0, R_d/Cp_d);
+                amrex::Real depth_of_extrap_in_p = new_x_p[new_k]-orig_x_p[0];
+                amrex::Real avg_of_extrap_p = 0.5*(new_x_p[new_k]+orig_x_p[0]);
+                amrex::Real temp_extrap_starting_point = orig_y[0]*std::pow(orig_x_p[0]/100000.0, R_d/Cp_d);
                 amrex::Real dZdP = CRC_const1*CRC_const2*std::pow(avg_of_extrap_p/100.0, CRC_const2-1.0);
                 amrex::Real dZ = dZdP*(depth_of_extrap_in_p/100.0);
                 amrex::Real dT = dZ*CRC_const3;
@@ -200,48 +201,93 @@ lagrange_setup (char var_type,
             } else {
                 // Use a constant value below ground.
                 // Comparable to the WRF default, extrap_type=2.
-                new_y[new_k] = orig_y[1];
+                new_y[new_k] = orig_y[0];
             }
             continue;
         }
 
         if (order%2 != 0) {
             if ((kl-((order+1)/2-1) >= 0) && (kr+((order+1)/2-1) <= orig_n-1)) {
-                int ksta = kl-((order/2)-1);
+                // Odd order interpolation.
+                int ksta = kl-(((order+1)/2)-1);
                 int kend = ksta+order;
+#ifndef AMREX_USE_GPU
+                int ksize = kend-ksta;
+                if (debug) amrex::Print() << "  (1a)  order=" << order << "  new_x_z=" << new_x_z[new_k] << "  new_x_p=" << new_x_p[new_k] << "  kl=" << kl << "  kr=" << kr << "  ksta=" << ksta << "  kend=" << kend << std::endl;
+#endif
                 amrex::Real new_x;
-                amrex::GpuArray<amrex::Real,2> orig_x_sub;
+                amrex::GpuArray<amrex::Real,9> orig_x_sub;
                 amrex::Real* orig_x_sub_p = orig_x_sub.data();
                 if (exp_interp) {
                     new_x = new_x_p[new_k];
-                    orig_x_sub_p[0] = orig_x_p[ksta];
-                    orig_x_sub_p[1] = orig_x_p[kend];
+                    for (int k=ksta; k <= kend; k++) { orig_x_sub_p[k-ksta] = orig_x_p[k]; }
                 } else {
                     new_x = new_x_z[new_k];
-                    orig_x_sub_p[0] = orig_x_z[ksta];
-                    orig_x_sub_p[1] = orig_x_z[kend];
+                    for (int k=ksta; k <= kend; k++) { orig_x_sub_p[k-ksta] = orig_x_z[k]; }
                 }
-                amrex::GpuArray<amrex::Real,2> orig_y_sub;
+                amrex::GpuArray<amrex::Real,9> orig_y_sub;
                 amrex::Real* orig_y_sub_p = orig_y_sub.data();
-                orig_y_sub_p[0] = orig_y[ksta];
-                orig_y_sub_p[1] = orig_y[kend];
+                for (int k=ksta; k <= kend; k++) { orig_y_sub_p[k-ksta] = orig_y[k]; }
+#ifndef AMREX_USE_GPU
+                if (debug) {
+                    amrex::Print() << "    orig_x_sub_p = [";
+                    for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_x_sub_p[k];
+                    amrex::Print() << "]" << std::endl;
+                    amrex::Print() << "    orig_y_sub_p = [";
+                    for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_y_sub_p[k];
+                    amrex::Print() << "]" << std::endl;
+                }
+#endif
                 lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
             } else {
-                amrex::Abort("metgrid initialization, lost in lagrange_setup (odd order)");
+                // Interpolation stencil is too big due to proximity to the surface or model top.
+                // We have bounding points so resort to a simple linear interpolation.
+                int ksta = kl;
+                int kend = kr;
+#ifndef AMREX_USE_GPU
+                int ksize = kend-ksta+1;
+                if (debug) amrex::Print() << "  (1b)  order=" << order << "  new_x=" << new_x_z[new_k] << "  new_x_p=" << new_x_p[new_k] << "  kl=" << kl << "  kr=" << kr << "  ksta=" << ksta << "  kend=" << kend << std::endl;
+#endif
+                amrex::Real new_x;
+                amrex::GpuArray<amrex::Real,2> orig_x_sub;
+                amrex::GpuArray<amrex::Real,2> orig_y_sub;
+                amrex::Real* orig_x_sub_p = orig_x_sub.data();
+                amrex::Real* orig_y_sub_p = orig_y_sub.data();
+                if (exp_interp) {
+                    new_x = new_x_p[new_k];
+                    for (int k=ksta; k <= kend; k++) { orig_x_sub_p[k-ksta] = orig_x_p[k]; }
+                } else {
+                    new_x = new_x_z[new_k];
+                    for (int k=ksta; k <= kend; k++) { orig_x_sub_p[k-ksta] = orig_x_z[k]; }
+                }
+                for (int k=ksta; k <= kend; k++) { orig_y_sub_p[k-ksta] = orig_y[k]; }
+#ifndef AMREX_USE_GPU
+                if (debug) {
+                    amrex::Print() << "    orig_x_sub_p = [";
+                    for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_x_sub_p[k];
+                    amrex::Print() << "]" << std::endl;
+                    amrex::Print() << "    orig_y_sub_p = [";
+                    for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_y_sub_p[k];
+                    amrex::Print() << "]" << std::endl;
+                }
+#endif
+                lagrange_interp(1, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
             }
-        } else if ((order%2 == 0) && (new_k >= 1+vboundb) && (new_k < new_n-vboundt)) {
+        } else if (order%2 == 0) {
             if ((kl-(order/2) >= 0) && (kr+order/2 <= orig_n-1)) {
+                // Even order interpolation.
+                // Interpolate twice. Offset the range by 1 the 2nd time. Average the results.
                 amrex::Real new_y_l, new_y_r;
                 {
                     int ksta = kl-(order/2-1);
                     int kend = ksta+order;
 #ifndef AMREX_USE_GPU
                     int ksize = kend-ksta;
-                    if (debug) amrex::Print() << "   (1a)   new_x=" << new_x_z[new_k] << "   new_x_p=" << new_x_p[new_k] << "   kl=" << kl << "   kr=" << kr <<"   ksta=" << ksta << "   kend=" << kend << std::endl;
+                    if (debug) amrex::Print() << "  (2a)  order=" << order << "  new_x_z=" << new_x_z[new_k] << "  new_x_p=" << new_x_p[new_k] << "  kl=" << kl << "  kr=" << kr << "  ksta=" << ksta << "  kend=" << kend << std::endl;
 #endif
                     amrex::Real new_x;
-                    amrex::GpuArray<amrex::Real,256> orig_x_sub;
-                    amrex::GpuArray<amrex::Real,256> orig_y_sub;
+                    amrex::GpuArray<amrex::Real,10> orig_x_sub;
+                    amrex::GpuArray<amrex::Real,10> orig_y_sub;
                     amrex::Real* orig_x_sub_p = orig_x_sub.data();
                     amrex::Real* orig_y_sub_p = orig_y_sub.data();
                     if (exp_interp) {
@@ -254,10 +300,10 @@ lagrange_setup (char var_type,
                     for (int k=ksta; k <= kend; k++) { orig_y_sub_p[k-ksta] = orig_y[k]; }
 #ifndef AMREX_USE_GPU
                     if (debug) {
-                        amrex::Print() << "    orig_x_sub = [";
+                        amrex::Print() << "    orig_x_sub_p = [";
                         for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_x_sub_p[k];
                         amrex::Print() << "]" << std::endl;
-                        amrex::Print() << "    orig_y_sub = [";
+                        amrex::Print() << "    orig_y_sub_p = [";
                         for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_y_sub_p[k];
                         amrex::Print() << "]" << std::endl;
                     }
@@ -269,11 +315,11 @@ lagrange_setup (char var_type,
                     int kend = ksta+order;
 #ifndef AMREX_USE_GPU
                     int ksize = kend-ksta;
-                    if (debug) amrex::Print() << "new_k=" << new_k << "   (1b)   new_x=" << new_x_z[new_k] << "   new_x_p=" << new_x_p[new_k] << "   kl=" << kl << "   kr=" << kr <<"   ksta=" << ksta << "   kend=" << kend << std::endl;
+                    if (debug) amrex::Print() << "new_k=" << new_k << "  (2b)  order=" << order << "  new_x_z=" << new_x_z[new_k] << "  new_x_p=" << new_x_p[new_k] << "  kl=" << kl << "  kr=" << kr << "  ksta=" << ksta << "  kend=" << kend << std::endl;
 #endif
                     amrex::Real new_x;
-                    amrex::GpuArray<amrex::Real,256> orig_x_sub;
-                    amrex::GpuArray<amrex::Real,256> orig_y_sub;
+                    amrex::GpuArray<amrex::Real,10> orig_x_sub;
+                    amrex::GpuArray<amrex::Real,10> orig_y_sub;
                     amrex::Real* orig_x_sub_p = orig_x_sub.data();
                     amrex::Real* orig_y_sub_p = orig_y_sub.data();
                     if (exp_interp) {
@@ -286,10 +332,10 @@ lagrange_setup (char var_type,
                     for (int k=ksta; k <= kend; k++) { orig_y_sub_p[k-ksta] = orig_y[k]; }
 #ifndef AMREX_USE_GPU
                     if (debug) {
-                        amrex::Print() << "    orig_x_sub = [";
+                        amrex::Print() << "    orig_x_sub_p = [";
                         for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_x_sub_p[k];
                         amrex::Print() << "]" << std::endl;
-                        amrex::Print() << "    orig_y_sub = [";
+                        amrex::Print() << "    orig_y_sub_p = [";
                         for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_y_sub_p[k];
                         amrex::Print() << "]" << std::endl;
                     }
@@ -297,19 +343,16 @@ lagrange_setup (char var_type,
                     lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y_r);
                 }
                 new_y[new_k] = 0.5*(new_y_l+new_y_r);
-#ifndef AMREX_USE_GPU
-                if (debug) amrex::Print() << "    new_y=" << new_y[new_k] << std::endl;
-#endif
             } else if ((kl-(order/2-1) >= 0) && (kr+order/2 <= orig_n-1)) {
                 int ksta = kl-(order/2-1);
                 int kend = ksta+order;
 #ifndef AMREX_USE_GPU
                 int ksize = kend-ksta;
-                if (debug) amrex::Print() << "   (2)   new_x=" << new_x_z[new_k] << "   new_x_p=" << new_x_p[new_k] << "   kl=" << kl << "   kr=" << kr <<"   ksta=" << ksta << "   kend=" << kend << std::endl;
+                if (debug) amrex::Print() << "  (3)  order=" << order << "  new_x_z=" << new_x_z[new_k] << "  new_x_p=" << new_x_p[new_k] << "  kl=" << kl << "  kr=" << kr << "  ksta=" << ksta << "  kend=" << kend << std::endl;
 #endif
                 amrex::Real new_x;
-                amrex::GpuArray<amrex::Real,256> orig_x_sub;
-                amrex::GpuArray<amrex::Real,256> orig_y_sub;
+                amrex::GpuArray<amrex::Real,10> orig_x_sub;
+                amrex::GpuArray<amrex::Real,10> orig_y_sub;
                 amrex::Real* orig_x_sub_p = orig_x_sub.data();
                 amrex::Real* orig_y_sub_p = orig_y_sub.data();
                 if (exp_interp) {
@@ -322,28 +365,25 @@ lagrange_setup (char var_type,
                 for (int k=ksta; k <= kend; k++) { orig_y_sub_p[k-ksta] = orig_y[k]; }
 #ifndef AMREX_USE_GPU
                 if (debug) {
-                    amrex::Print() << "    orig_x_sub = [";
+                    amrex::Print() << "    orig_x_sub_p = [";
                     for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_x_sub_p[k];
                     amrex::Print() << "]" << std::endl;
-                    amrex::Print() << "    orig_y_sub = [";
+                    amrex::Print() << "    orig_y_sub_p = [";
                     for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_y_sub_p[k];
                     amrex::Print() << "]" << std::endl;
                 }
 #endif
                 lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
-#ifndef AMREX_USE_GPU
-                if (debug) amrex::Print() << "    new_y=" << new_y[new_k] << std::endl;
-#endif
-            } else if ((kl-order/2 >= 0) && (kr+(order/2-1) <= orig_n-1)) {
+            } else if ((kl-order/2 >= 0) && (kr+order/2-1 <= orig_n-1)) {
                 int ksta = kl-order/2;
                 int kend = ksta+order;
 #ifndef AMREX_USE_GPU
                 int ksize = kend-ksta;
-                if (debug) amrex::Print() << "   (3)   new_x=" << new_x_z[new_k] << "   new_x_p=" << new_x_p[new_k] << "   kl=" << kl << "   kr=" << kr <<"   ksta=" << ksta << "   kend=" << kend << std::endl;
+                if (debug) amrex::Print() << "  (4)  order=" << order << "  new_x_z=" << new_x_z[new_k] << "  new_x_p=" << new_x_p[new_k] << "  kl=" << kl << "  kr=" << kr << "  ksta=" << ksta << "  kend=" << kend << std::endl;
 #endif
                 amrex::Real new_x;
-                amrex::GpuArray<amrex::Real,256> orig_x_sub;
-                amrex::GpuArray<amrex::Real,256> orig_y_sub;
+                amrex::GpuArray<amrex::Real,10> orig_x_sub;
+                amrex::GpuArray<amrex::Real,10> orig_y_sub;
                 amrex::Real* orig_x_sub_p = orig_x_sub.data();
                 amrex::Real* orig_y_sub_p = orig_y_sub.data();
                 if (exp_interp) {
@@ -356,57 +396,52 @@ lagrange_setup (char var_type,
                 for (int k=ksta; k <= kend; k++) { orig_y_sub_p[k-ksta] = orig_y[k]; }
 #ifndef AMREX_USE_GPU
                 if (debug) {
-                    amrex::Print() << "    orig_x_sub = [";
+                    amrex::Print() << "    orig_x_sub_p = [";
                     for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_x_sub_p[k];
                     amrex::Print() << "]" << std::endl;
-                    amrex::Print() << "    orig_y_sub = [";
+                    amrex::Print() << "    orig_y_sub_p = [";
                     for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_y_sub_p[k];
                     amrex::Print() << "]" << std::endl;
                 }
 #endif
                 lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
-#ifndef AMREX_USE_GPU
-                if (debug) amrex::Print() << "    new_y=" << new_y[new_k] << std::endl;
-#endif
             } else {
-                amrex::Abort("metgrid initialization, lost in lagrange_setup (even order)");
-            }
-        } else {
-            // Linear interpolation.
-            int ksta = kl;
-            int kend = kr;
+                // Linear interpolation.
+                int ksta = kl;
+                int kend = kr;
 #ifndef AMREX_USE_GPU
-            int ksize = kend-ksta;
-            if (debug) amrex::Print() << "   (4)   new_x=" << new_x_z[new_k] << "   new_x_p=" << new_x_p[new_k] << "   kl=" << kl << "   kr=" << kr <<"   ksta=" << ksta << "   kend=" << kend << std::endl;
+                int ksize = kend-ksta+1;
+                if (debug) amrex::Print() << "  (5)  order=" << order << "  new_x=" << new_x_z[new_k] << "  new_x_p=" << new_x_p[new_k] << "  kl=" << kl << "  kr=" << kr << "  ksta=" << ksta << "  kend=" << kend << std::endl;
 #endif
-            amrex::Real new_x;
-            amrex::GpuArray<amrex::Real,256> orig_x_sub;
-            amrex::GpuArray<amrex::Real,256> orig_y_sub;
-            amrex::Real* orig_x_sub_p = orig_x_sub.data();
-            amrex::Real* orig_y_sub_p = orig_y_sub.data();
-            if (exp_interp) {
-                new_x = new_x_p[new_k];
-                for (int k=ksta; k <= kend; k++) { orig_x_sub_p[k-ksta] = orig_x_p[k]; }
-            } else {
-                new_x = new_x_z[new_k];
-                for (int k=ksta; k <= kend; k++) { orig_x_sub_p[k-ksta] = orig_x_z[k]; }
-            }
-            for (int k=ksta; k <= kend; k++) { orig_y_sub_p[k-ksta] = orig_y[k]; }
+                amrex::Real new_x;
+                amrex::GpuArray<amrex::Real,2> orig_x_sub;
+                amrex::GpuArray<amrex::Real,2> orig_y_sub;
+                amrex::Real* orig_x_sub_p = orig_x_sub.data();
+                amrex::Real* orig_y_sub_p = orig_y_sub.data();
+                if (exp_interp) {
+                    new_x = new_x_p[new_k];
+                    for (int k=ksta; k <= kend; k++) { orig_x_sub_p[k-ksta] = orig_x_p[k]; }
+                } else {
+                    new_x = new_x_z[new_k];
+                    for (int k=ksta; k <= kend; k++) { orig_x_sub_p[k-ksta] = orig_x_z[k]; }
+                }
+                for (int k=ksta; k <= kend; k++) { orig_y_sub_p[k-ksta] = orig_y[k]; }
 #ifndef AMREX_USE_GPU
-            if (debug) {
-                amrex::Print() << "    orig_x_sub = [";
-                for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_x_sub_p[k];
-                amrex::Print() << "]" << std::endl;
-                amrex::Print() << "    orig_y_sub = [";
-                for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_y_sub_p[k];
-                amrex::Print() << "]" << std::endl;
+                if (debug) {
+                    amrex::Print() << "    orig_x_sub_p = [";
+                    for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_x_sub_p[k];
+                    amrex::Print() << "]" << std::endl;
+                    amrex::Print() << "    orig_y_sub_p = [";
+                    for (int k=0; k < ksize; k++) amrex::Print() << " " << orig_y_sub_p[k];
+                    amrex::Print() << "]" << std::endl;
+                }
+#endif
+                lagrange_interp(1, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
             }
-#endif
-            lagrange_interp(1, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
-#ifndef AMREX_USE_GPU
-            if (debug) amrex::Print() << "    new_y=" << new_y[new_k] << std::endl;
-#endif
         }
+#ifndef AMREX_USE_GPU
+        if (debug) amrex::Print() << "  new_y[" << new_k << "]=" << new_y[new_k] << std::endl;
+#endif
     }
 }
 
@@ -520,11 +555,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         }
     }
 
-    int zap = 0;
-    int zap_below = 0;
-    int zap_above = 0;
     int kend_order;
-    amrex::ignore_unused(zap,zap_above);
     amrex::GpuArray<amrex::Real,256> ordered_z;
     amrex::GpuArray<amrex::Real,256> ordered_data;
     amrex::Real* ordered_z_p = ordered_z.data();
@@ -553,8 +584,6 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         calc_p_isothermal(ordered_z_p[count-1], Pl);
         if (Pl-Pu < metgrid_proximity) {
             count--;
-            zap = 1;
-            zap_below = 1;
         }
 
         // Insert the surface level.
@@ -575,9 +604,6 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                 if (orig_z_p[k] > new_z_p[metgrid_force_sfc_k-1]) {
                     knext = k;
                     break;
-                } else {
-                    zap++;
-                    zap_above++;
                 }
             }
         }
@@ -588,8 +614,6 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         calc_p_isothermal(ordered_z_p[count-1], Pl);
         if (Pl-Pu < metgrid_proximity) {
             knext++;
-            zap++;
-            zap_above++;
         }
 
         // Insert levels that are above the surface.
@@ -616,9 +640,6 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                 if (orig_z_p[k] > new_z_p[metgrid_force_sfc_k]) {
                     knext = k;
                     break;
-                } else {
-                    zap++;
-                    zap_above++;
                 }
             }
         }
@@ -630,8 +651,6 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
             calc_p_isothermal(orig_z_p[k], Pu);
             calc_p_isothermal(ordered_z_p[count-1], Pl);
             if (Pl-Pu < metgrid_proximity) {
-                zap++;
-                zap_above++;
                 continue;
             }
             ordered_z_p[count] = orig_z_p[k];
@@ -645,7 +664,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
     if (metgrid_use_below_sfc && metgrid_use_sfc) {
         // Use all levels.
         ksta = 0;
-        kend = ksta+kend_order-1;
+        kend = kend_order-1;
     } else if (metgrid_use_below_sfc && !metgrid_use_sfc) {
         // Use all levels except for the surface.
         int ksfc = 0;
@@ -660,19 +679,18 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
             ordered_data_p[k] = ordered_data_p[k+1];
         }
         ksta = 0;
-        kend = ksta+kend_order-2;
+        kend = kend_order-2;
     } else if (!metgrid_use_below_sfc && metgrid_use_sfc) {
         // Use all levels above and including the surface.
-        int kcount = k_above_sfc-1-zap_below;
-        int  count = 0;
-        for (int k=0; k < kmax_orig; k++) {
-            if (ordered_z_p[kcount] == orig_z_p[k]) {
-                kcount++;
-                count++;
+        int ksfc = 0;
+        for (int k=0; k < kend_order; k++) {
+            if (ordered_z_p[k] == orig_z_p[0]) {
+                ksfc = k;
+                break;
             }
         }
-        ksta = k_above_sfc-1-zap_below;
-        kend = ksta+count-1;
+        ksta = ksfc;
+        kend = kend_order-1;
     } else {
         // We shouldn't be in here!
         amrex::Abort("metgrid initialization, !use_levels below_ground && !metgrid_use_sfc");
@@ -726,6 +744,8 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                    kend-ksta,
                    kmax_new,
                    metgrid_order,
+                   i,
+                   j,
                    final_z_p,
                    final_p_p,
                    final_data_p,

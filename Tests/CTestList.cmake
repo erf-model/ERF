@@ -123,6 +123,7 @@ add_test_r(DensityCurrent_detJ2              "DryRegTests/DensityCurrent" "erf_d
 add_test_r(DensityCurrent_detJ2_nosub        "DryRegTests/DensityCurrent" "erf_density_current" "plt00020")
 add_test_r(DensityCurrent_detJ2_MT           "DryRegTests/DensityCurrent" "erf_density_current" "plt00010")
 add_test_r(EkmanSpiral                       "DryRegTests/EkmanSpiral" "erf_ekman_spiral" "plt00010")
+add_test_r(FlowInABox                        "DevTests/FlowInABox"     "erf_flow_in_a_box" "plt00010")
 add_test_r(IsentropicVortexStationary        "DryRegTests/IsentropicVortex" "erf_isentropic_vortex" "plt00010")
 add_test_r(IsentropicVortexAdvecting         "DryRegTests/IsentropicVortex" "erf_isentropic_vortex" "plt00010")
 add_test_r(IVA_NumDiff                       "DryRegTests/IsentropicVortex" "erf_isentropic_vortex" "plt00010")

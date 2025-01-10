@@ -95,7 +95,6 @@ struct TurbChoice {
 
         // LES constants...
         query_one_or_per_level(pp, "Cs"  ,Cs, lev, max_level);
-        query_one_or_per_level(pp, "CI"  ,CI, lev, max_level);
         query_one_or_per_level(pp, "Pr_t",Pr_t, lev, max_level);
         query_one_or_per_level(pp, "Sc_t",Sc_t, lev, max_level);
 
@@ -149,30 +148,35 @@ struct TurbChoice {
 
         if (les_type != LESType::None) {
             if (les_type == LESType::Smagorinsky) {
-                amrex::Print() << "    Cs                      : " << Cs << std::endl;
-                amrex::Print() << "    CI                      : " << CI << std::endl;
-                amrex::Print() << "    Pr_t                    : " << Pr_t << std::endl;
-                amrex::Print() << "    Sc_t                    : " << Sc_t << std::endl;
+                amrex::Print() << "Cs                          : " << Cs << std::endl;
             }
             if (les_type == LESType::Deardorff) {
-                amrex::Print() << "    Ce                      : " << Ce << std::endl;
-                amrex::Print() << "    Ce at wall              : " << Ce_wall << std::endl;
-                amrex::Print() << "    Ck                      : " << Ck << std::endl;
+                amrex::Print() << "Ce                          : " << Ce << std::endl;
+                amrex::Print() << "Ce at wall                  : " << Ce_wall << std::endl;
+                amrex::Print() << "Ck                          : " << Ck << std::endl;
+                amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
+                amrex::Print() << "reference theta             : " << theta_ref << std::endl;
+                // Sullivan et al 1994, Eqn 14
+                amrex::Real Cs_equiv = std::sqrt(Ck * std::sqrt(Ck/Ce));
+                amrex::Print() << "equivalent Cs               : " << Cs_equiv << std::endl;
             }
-            amrex::Print() << "    sigma_k                 : " << sigma_k << std::endl;
-            amrex::Print() << "    reference theta         : " << theta_ref << std::endl;
         }
+
         if (rans_type != RANSType::None) {
             if (rans_type == RANSType::kEqn) {
-                amrex::Print() << "    Cmu0                    : " << Cmu0 << std::endl;
-                amrex::Print() << "    sigma_k                 : " << sigma_k << std::endl;
-                amrex::Print() << "    Cb                      : " << Cb << std::endl;
-                amrex::Print() << "    Rt_crit                 : " << Rt_crit << std::endl;
-                amrex::Print() << "    Rt_min                  : " << Rt_min << std::endl;
-                amrex::Print() << "    max_geom_lscale         : " << l_g_max << std::endl;
+                amrex::Print() << "Cmu0                        : " << Cmu0 << std::endl;
+                amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
+                amrex::Print() << "Cb                          : " << Cb << std::endl;
+                amrex::Print() << "Rt_crit                     : " << Rt_crit << std::endl;
+                amrex::Print() << "Rt_min                      : " << Rt_min << std::endl;
+                amrex::Print() << "max_geom_lscale             : " << l_g_max << std::endl;
+                amrex::Print() << "reference theta             : " << theta_ref << std::endl;
             }
-            amrex::Print() << "    sigma_k                 : " << sigma_k << std::endl;
-            amrex::Print() << "    reference theta         : " << theta_ref << std::endl;
+        }
+
+        if ((les_type != LESType::None) || (rans_type != RANSType::None)) {
+            amrex::Print() << "Pr_t                        : " << Pr_t << std::endl;
+            amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
         }
 
         if (pbl_type == PBLType::MYNN25) {
@@ -199,21 +203,21 @@ struct TurbChoice {
 
     // LES model
     LESType les_type;
-    // Smagorinsky Cs coefficient
-    amrex::Real Cs = 0.0;
-    // Smagorinsky CI coefficient
-    amrex::Real CI = 0.0;
-    // Smagorinsky Turbulent Prandtl Number
+
+    // Turbulent Prandtl number
     amrex::Real Pr_t = amrex::Real(1.0) / amrex::Real(3.0);
     amrex::Real Pr_t_inv = amrex::Real(3.0);
-    // Smagorinsky Turbulent Schmidt Number
+
+    // Turbulent Schmidt number
     amrex::Real Sc_t = 1.0;
     amrex::Real Sc_t_inv = 1.0;
 
-    // Deardorff Ce coefficient
+    // Smagorinsky Cs coefficient
+    amrex::Real Cs = 0.0;
+
+    // Deardorff
     amrex::Real Ce = 0.93;
     amrex::Real Ce_wall = 0.0; // if > 0, then set Ce to this at k=0
-    // Deardorff Ck coefficient
     amrex::Real Ck = 0.1;
 
     // k-eqn RANS coefficients (Axell & Liungman 2001)
@@ -223,9 +227,11 @@ struct TurbChoice {
     amrex::Real Rt_min = -3.0;
     amrex::Real l_g_max = 1e99;
 
-    // Schmidt number (for Deardorff or k-eqn RANS models)
+    // Deardorff or k-eqn RANS
+    // - diffusivity of tke is 1/sigma_k times the eddy viscosity
     amrex::Real sigma_k = 0.5;
-
+    // - reference potential temperature used to quantify the stratification in
+    //   a stable region
     amrex::Real theta_ref = 300.0;
 
     // RANS type

@@ -55,7 +55,7 @@
                 Array4<Real>* fslow = fslow_d.dataPtr();
 
                 // Moving terrain
-                if ( solverChoice.terrain_type == TerrainType::Moving )
+                if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
                 {
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
                     const Array4<const Real>& dJ_new = detJ_cc_new[level]->const_array(mfi);
@@ -106,59 +106,57 @@
                     });
 
                 } else { // Fixed or no terrain
-#ifdef ERF_USE_EB
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
-#endif
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
-#ifdef ERF_USE_EB
                         if (dJ_old(i,j,k) > 0.0) {
-#endif
                             ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
                                ( fslow[IntVars::cons](i,j,k,n) );
-#ifdef ERF_USE_EB
                         }
-#endif
                     });
 
-                    // Commenting out the update is a total HACK while developing the EB capability
-                    ParallelFor(tbx, tby, tbz,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-#ifdef ERF_USE_EB
-                        ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
-#else
-                        ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
-                                                  + slow_dt * fslow[IntVars::xmom](i,j,k);
-#endif
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-#ifdef ERF_USE_EB
-                        ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
-#else
-                        ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
-                                                  + slow_dt * fslow[IntVars::ymom](i,j,k);
-#endif
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-#ifdef ERF_USE_EB
-                        ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
-#else
-                        ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
-                                                  + slow_dt * fslow[IntVars::zmom](i,j,k);
-#endif
-                    });
-                }
+                    // Commenting out the update is a HACK while developing the EB capability
+                    if (solverChoice.terrain_type == TerrainType::EB)
+                    {
+                        ParallelFor(tbx, tby, tbz,
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
+                        },
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
+                        },
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
+                        });
+
+                    } else {
+                        ParallelFor(tbx, tby, tbz,
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
+                                                      + slow_dt * fslow[IntVars::xmom](i,j,k);
+                        },
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
+                                                      + slow_dt * fslow[IntVars::ymom](i,j,k);
+                        },
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
+                                                      + slow_dt * fslow[IntVars::zmom](i,j,k);
+                        });
+                    } // no EB
+                } // not moving terrain
             } // mfi
-#ifdef ERF_USE_EB
-            // // call to redistribute_term -- pass in ssum[IntVars::cons] which is MF
-            // MultiFab dUdt_tmp (ba, dm, n_data, 3, MFInfo(), Factory(level));
-            // dUdt_tmp.setVal(0.);
-            // dUdt_tmp.FillBoundary(fine_geom.periodicity());
-            // const BCRec* bc_ptr_h = domain_bcs_type.data(); // Should be host or device or both?
-            // redistribute_term ( level, F_slow[IntVars::cons], dUdt_tmp,
-            //                     S_sum[IntVars::cons], bc_ptr_h, slow_dt);
-#endif
+
+            if (solverChoice.terrain_type == TerrainType::EB) {
+                // // call to redistribute_term -- pass in ssum[IntVars::cons] which is MF
+                // MultiFab dUdt_tmp (ba, dm, n_data, 3, MFInfo(), Factory(level));
+                // dUdt_tmp.setVal(0.);
+                // dUdt_tmp.FillBoundary(fine_geom.periodicity());
+                // const BCRec* bc_ptr_h = domain_bcs_type.data(); // Should be host or device or both?
+                // redistribute_term ( level, F_slow[IntVars::cons], dUdt_tmp,
+                //                     S_sum[IntVars::cons], bc_ptr_h, slow_dt);
+            } // EB
         } // omp
 
         // Even if we update all the conserved variables we don't need

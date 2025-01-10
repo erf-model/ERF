@@ -188,7 +188,7 @@ The midpoint values given above :math:`q_{m - \frac{1}{2}}`, where :math:`q` may
     & & \\
    \left. q_{m - \frac{1}{2}} \right|^{3rd} = \left. q_{m - \frac{1}{2}} \right|^{4th}      & \hspace{-5pt} + \beta_{\text{up}}\frac{U_{d}}{\left| U_{d} \right|}\frac{1}{12}\left\lbrack \left( q_{m + 1} - q_{m - 2} \right) \right.\  & \hspace{-5pt} - 3\left. \ \left( q_{m} - q_{m - 1} \right) \right\rbrack \\
     & & \\
-   \left. q_{m - \frac{1}{2}} \right|^{5th} = \left. q_{m - \frac{1}{2}} \right|^{6th}      & \hspace{-5pt} - \beta_{\text{up}}\frac{U_{d}}{\left| U_{d} \right|}\frac{1}{60}\left\lbrack \left( q_{m + 2} - q_{m - 1} \right) \right.\  & \hspace{-5pt} - 5\left( q_{m + 1} - q_{m - 2} \right) + 10\left. \left( q_{m} - q_{m - 1} \right) \right\rbrack
+   \left. q_{m - \frac{1}{2}} \right|^{5th} = \left. q_{m - \frac{1}{2}} \right|^{6th}      & \hspace{-5pt} - \beta_{\text{up}}\frac{U_{d}}{\left| U_{d} \right|}\frac{1}{60}\left\lbrack \left( q_{m + 2} - q_{m - 3} \right) \right.\  & \hspace{-5pt} - 5\left( q_{m + 1} - q_{m - 2} \right) + 10\left. \left( q_{m} - q_{m - 1} \right) \right\rbrack
    \end{array}
 
 An extra blending factor (:math:`\beta_{\text{up}}`) has been added to allow control
