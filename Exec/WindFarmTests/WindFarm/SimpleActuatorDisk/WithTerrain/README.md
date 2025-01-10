@@ -7,7 +7,9 @@ The steps for running this example are
 
 1. Download the USGS terrain file for the region as a GeoTIFF (`.tif`) file from the USGS Earth Explorer.
    The file for this example can be obtained by the following command  
-   `wget https://zenodo.org/record/14629890/files/n36_w098_1arc_v3.tif`
+```
+wget https://zenodo.org/record/14629890/files/n36_w098_1arc_v3.tif
+```
 
 2. Read the USGS terrain file and write out an ERF-readable terrain file
 ```
