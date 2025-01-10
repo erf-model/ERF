@@ -489,10 +489,13 @@ ERF::init_zphys (int lev, Real time)
         //
         // Make a temporary MF to fill the terrain in case we don't allocate z_phys_nd (because not using terrain-fitted coords)
         //
-        Box bx(surroundingNodes(geom[lev].Domain())); bx.grow(2);
-        BoxArray ba(makeSlab(bx,2,0));
-        DistributionMapping dm(ba);
-        MultiFab terrain_mf(ba,dm,1,1);
+        BoxList bl2d_mf = grids[lev].boxList();
+        for (auto& b : bl2d_mf) {
+            b.setRange(2,0);
+        }
+        BoxArray ba2d_mf(std::move(bl2d_mf));
+        DistributionMapping dm(ba2d_mf);
+        MultiFab terrain_mf(ba2d_mf,dm,1,1);
         terrain_mf.setVal(-1.e23);
 
         //
@@ -502,7 +505,7 @@ ERF::init_zphys (int lev, Real time)
 
         if (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
             solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
-            z_phys_nd[lev]->ParallelCopy(terrain_mf,0,0,1,1,1);
+            MultiFab::Copy(*z_phys_nd[lev],terrain_mf,0,0,1,1);
             make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
             terrain_blanking[lev]->setVal(1.0);
