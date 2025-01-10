@@ -7,28 +7,14 @@ void ERF::advance_radiation (int lev,
                              MultiFab& cons,
                              const Real& dt_advance)
 {
-   bool do_sw_rad {true};
-   bool do_lw_rad {true};
-   bool do_aero_rad {true};
-   bool do_snow_opt {true};
-   bool is_cmip6_volcano {false};
-
-    rad.initialize(cons,
-                   sw_lw_fluxes[lev].get(),
-                   solar_zenith[lev].get(),
-                   qheating_rates[lev].get(),
-                   lat_m[lev].get(),
-                   lon_m[lev].get(),
-                   qmoist[lev],
-                   grids[lev],
-                   Geom(lev),
-                   dt_advance,
-                   do_sw_rad,
-                   do_lw_rad,
-                   do_aero_rad,
-                   do_snow_opt,
-                   is_cmip6_volcano);
-    rad.run();
-    rad.on_complete();
+    // TODO: Address issue with lev>0 not spanning all z?
+    if (lev == 0) {
+        rad[lev]->set_grids(lev, istep[lev], t_new[lev], dt_advance,
+                            cons.boxArray(), geom[lev], &(cons),
+                            ls_lw_fluxes[lev], solar_zenith[lev],
+                            qheating_rates[lev], z_phys_nd[lev],
+                            lat_m[lev], lon_m[lev]);
+        rad[lev]->rad_run_impl();
+    }
 }
 #endif

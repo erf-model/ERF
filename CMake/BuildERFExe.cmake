@@ -66,17 +66,19 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_RRTMGP)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/Utils/ERF_Orbit.cpp
-                   ${SRC_DIR}/Radiation/ERF_InitRRTMGP.cpp
-                   ${SRC_DIR}/Radiation/ERF_FinalizeRRTMGP.cpp
-                   ${SRC_DIR}/Radiation/ERF_RunLongWaveRRTMGP.cpp
-                   ${SRC_DIR}/Radiation/ERF_RunShortWaveRRTMGP.cpp
-                   ${SRC_DIR}/Radiation/ERF_CloudRadProps.cpp
-                   ${SRC_DIR}/Radiation/ERF_AeroRadProps.cpp
-                   ${SRC_DIR}/Radiation/ERF_Optics.cpp
+                   ${SRC_DIR}/Radiation/ERF_RRTMGP_Interface.cpp
+                   ${SRC_DIR}/Radiation/ERF_RRTMGP_Utils.cpp
                    ${SRC_DIR}/Radiation/ERF_Radiation.cpp
-                   ${SRC_DIR}/Radiation/ERF_Albedo.cpp
+                   ${SRC_DIR}/Radiation/ERF_OrbCosZenith.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels/mo_gas_optics_kernels.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/expand_and_transpose.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_fluxes_broadband_kernels.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_optical_props_kernels.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_rte_solver_kernels.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/mo_load_coefficients.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_garand_atmos_io.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_load_cloud_coefficients.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
                   )
 
@@ -84,9 +86,13 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
 
     target_include_directories(${erf_lib_name} SYSTEM PUBLIC
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/cloud_optics
+                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp
+                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels
+                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte
+                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels
                                ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples
+                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky
+                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/cloud_optics
                               )
   endif()
 
