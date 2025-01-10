@@ -86,15 +86,15 @@ Problem::init_custom_pert(
   });
 
   // Set the x-velocity
-  ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         x_vel_pert(i, j, k) = 0.0;
   });
   // Set the y-velocity
-  ParallelFor(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         y_vel_pert(i, j, k) = 0.0;
   });
   // Set the z-velocity
-  ParallelFor(zbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         z_vel_pert(i, j, k) = 0.0;
   });
 }
