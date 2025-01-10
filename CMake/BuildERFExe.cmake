@@ -67,6 +67,7 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_RRTMGP)
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte>
@@ -74,6 +75,7 @@ function(build_erf_lib erf_lib_name)
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/cloud_optics>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband>
                               )
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Radiation/ERF_RRTMGP_Interface.cpp
