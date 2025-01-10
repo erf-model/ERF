@@ -11,7 +11,7 @@ wget https://zenodo.org/record/14629890/files/n36_w098_1arc_v3.tif
 
 2. Read the USGS terrain file and write out an ERF-readable terrain file
 ```
-python3 ReadTerrainUSGS.p <tif file> <domain bounds file>
+python3 ReadTerrainUSGS.py n36_w098_1arc_v3.tif domain_bounds.txt
 ```
 the `<domain bounds file>` contains the extents of the terrain domain as 
 ```
