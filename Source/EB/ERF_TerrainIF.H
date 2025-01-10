@@ -15,16 +15,10 @@ class TerrainIF
 public:
 
     TerrainIF (amrex::FArrayBox& a_z_terrain, amrex::Geometry& a_geom)
-        : m_terr(a_z_terrain),
-          m_geom(a_geom)
-        {
-            amrex::Print() << " EB type = Terrain " << std::endl;
-
-            dx = m_geom.CellSizeArray()[0];
-            dy = m_geom.CellSizeArray()[1];
-
-            terr_arr = m_terr.const_array();
-        }
+        : terr_arr(a_z_terrain.const_array()),
+          dx(a_geom.CellSize(0)),
+          dy(a_geom.CellSize(1))
+        {}
 
     AMREX_GPU_HOST_DEVICE inline
     amrex::Real operator() (AMREX_D_DECL(amrex::Real x, amrex::Real y, amrex::Real z))
@@ -36,16 +30,14 @@ public:
         return -(z - terr_arr(i,j,0));
     }
 
+    AMREX_GPU_HOST_DEVICE
     inline amrex::Real operator() (const amrex::RealArray& p) const noexcept
     {
         return this->operator() (AMREX_D_DECL(p[0], p[1], p[2]));
     }
 
 protected:
-    amrex::FArrayBox& m_terr;
     amrex::Array4<amrex::Real const> terr_arr;
-
-    amrex::Geometry&  m_geom;
     amrex::Real dx, dy;
 };
 
