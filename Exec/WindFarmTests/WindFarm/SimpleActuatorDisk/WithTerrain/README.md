@@ -13,7 +13,7 @@ python3 ReadTerrainUSGS.p <tif file> <domain bounds file>
 the `<domain bounds file>` contains the extents of the terrain domain as 
 ```
 min longitude
-max longtiude 
+max longitude 
 min latitude
 max latitude
 ```
