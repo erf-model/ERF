@@ -36,6 +36,7 @@ void ERF::MakeEBGeometry()
         amrex::Print() << "\n Building EB geometry based on idealized terrain." << std::endl;
         Real dummy_time = 0.0;
         Box bx(surroundingNodes(Geom(0).Domain())); bx.grow(2);
+
         BoxArray ba(makeSlab(bx,2,0));
         DistributionMapping dm(ba);
         MultiFab terrain_mf(ba,dm,1,0);
