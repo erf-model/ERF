@@ -54,7 +54,7 @@ using namespace amrex;
  * @param[in] ax area fractions on x-faces
  * @param[in] ay area fractions on y-faces
  * @param[in] az area fractions on z-faces
- * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain_fitted_coords is false)
  * @param[in]  p0     Reference (hydrostatically stratified) pressure
  * @param[in] pp_inc  Perturbational pressure only used for anelastic flow
  * @param[in] mapfac_m map factor at cell centers
@@ -132,9 +132,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
     const Real    l_horiz_upw_frac = solverChoice.advChoice.dycore_horiz_upw_frac;
     const Real    l_vert_upw_frac  = solverChoice.advChoice.dycore_vert_upw_frac;
-    const bool    l_use_terrain    = (solverChoice.terrain_type != TerrainType::None);
+    const bool    l_use_terrain_fitted_coords    = (z_phys_nd != nullptr);
     const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
-    if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
+    if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain_fitted_coords);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_reflux = (solverChoice.coupling_type == CouplingType::TwoWay);
@@ -301,7 +301,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Terrain metrics
-        const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& z_nd     = l_use_terrain_fitted_coords ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
 
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
@@ -363,7 +363,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // ONLY if not doing anelastic + terrain -- in that case Omega will be defined coming
             // out of the projection
             //
-            if (!l_use_terrain) {
+            if (!l_use_terrain_fitted_coords) {
                 ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     omega_arr(i,j,k) = rho_w(i,j,k);
                 });
@@ -497,7 +497,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_start = amrex::max(start_comp,RhoTheta_comp);
             int n_comp  = end_comp - n_start + 1;
 
-            if (l_use_terrain) {
+            if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_exp_most, l_rot_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
@@ -525,7 +525,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         });
 
         // Multiply the slow RHS for rho and rhotheta by detJ here so we don't have to later
-        if (l_use_terrain && l_moving_terrain) {
+        if (l_use_terrain_fitted_coords && l_moving_terrain) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 cell_rhs(i,j,k,Rho_comp)      *= detJ_arr(i,j,k);
@@ -569,7 +569,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // viscosity") means that there is no contribution from a
             // turbulence model. However, whether this field truly is constant
             // depends on whether MolecDiffType is Constant or ConstantAlpha.
-            if (l_use_terrain) {
+            if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForMom_T(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                      tau11, tau22, tau33,
@@ -597,7 +597,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
             Real gpx = gp_xi;
 
-            if (l_use_terrain) {
+            if (l_use_terrain_fitted_coords) {
                 Real met_h_xi   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
                 Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
 
@@ -647,7 +647,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
             Real gpy = gp_eta;
 
-            if (l_use_terrain) {
+            if (l_use_terrain_fitted_coords) {
                 Real met_h_eta  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
                 Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
                 Real gp_zeta_on_jface;
@@ -665,7 +665,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                        - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
                 }
                 gpy -= (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
-            } // l_use_terrain
+            } // l_use_terrain_fitted_coords
 
             gpy *= mf_v(i,j,0);
 
@@ -727,7 +727,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // z-momentum equation
 
-            Real met_h_zeta = (l_use_terrain) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd) : 1;
+            Real met_h_zeta = (l_use_terrain_fitted_coords) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd) : 1;
             Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
             Real q = 0.0;
@@ -737,7 +737,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
             rho_w_rhs(i, j, k) += (zmom_src_arr(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q);
 
-            if (l_use_terrain && l_moving_terrain) {
+            if (l_use_terrain_fitted_coords && l_moving_terrain) {
                  rho_w_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
             }
         });

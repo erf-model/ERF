@@ -16,8 +16,8 @@ void ERF::MakeEBGeometry()
 
     ParmParse pp("eb2");
 
-    std::string geom_type;
-    pp.query("geometry", geom_type);
+    std::string geom_type = "terrain";
+    // pp.query("geometry", geom_type);
 
     /******************************************************************************
     *                                                                            *
@@ -36,13 +36,12 @@ void ERF::MakeEBGeometry()
         amrex::Print() << "\n Building EB geometry based on idealized terrain." << std::endl;
         Real dummy_time = 0.0;
         Box bx(surroundingNodes(Geom(0).Domain())); bx.grow(2);
-        static FArrayBox terrain_fab;
-        if (!terrain_fab.isAllocated()) {
-            amrex::ExecOnFinalize([&] () { terrain_fab.clear(); });
-        }
-        terrain_fab.resize(makeSlab(bx,2,0),1);
-        prob->init_custom_terrain(Geom(0), terrain_fab, dummy_time);
-        TerrainIF ebterrain(terrain_fab, Geom(0));
+
+        BoxArray ba(makeSlab(bx,2,0));
+        DistributionMapping dm(ba);
+        MultiFab terrain_mf(ba,dm,1,0);
+        prob->init_terrain_surface(Geom(0), terrain_mf, dummy_time);
+        TerrainIF ebterrain(terrain_mf[0], Geom(0));
         auto gshop = EB2::makeShop(ebterrain);
         EB2::Build(gshop, geom.back(), max_level, max_level+max_coarsening_level);
 
