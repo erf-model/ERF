@@ -428,13 +428,13 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
  * @param[in]  mapfac_v map factor at y-face
  * @param[in]  turbChoice container with turbulence parameters
  */
-void ComputeTurbulentViscosityRANS (const MultiFab& Tau11, const MultiFab& Tau22, const MultiFab& Tau33,
-                                    const MultiFab& Tau12, const MultiFab& Tau13, const MultiFab& Tau23,
+void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /*Tau22*/, const MultiFab& /*Tau33*/,
+                                    const MultiFab& /*Tau12*/, const MultiFab& /*Tau13*/, const MultiFab& /*Tau23*/,
                                     const MultiFab& cons_in, const MultiFab& wdist,
                                     MultiFab& eddyViscosity,
                                     MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
                                     const Geometry& geom,
-                                    const MultiFab& mapfac_u, const MultiFab& mapfac_v,
+                                    const MultiFab& /*mapfac_u*/, const MultiFab& /*mapfac_v*/,
                                     const std::unique_ptr<MultiFab>& z_phys_nd,
                                     const TurbChoice& turbChoice, const Real const_grav,
                                     std::unique_ptr<ABLMost>& most, const FArrayBox* z_0, const bool& exp_most)

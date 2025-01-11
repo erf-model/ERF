@@ -26,10 +26,17 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
         Error("Thinbody wall dist calc not implemented for terrain yet");
     }
 
+    Gpu::DeviceVector<IntVect> xfaces_d(xfaces.size());
+    Gpu::DeviceVector<IntVect> yfaces_d(yfaces.size());
+    Gpu::DeviceVector<IntVect> zfaces_d(zfaces.size());
+    Gpu::copyAsync(Gpu::hostToDevice, xfaces.begin(), xfaces.end(), xfaces_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, yfaces.begin(), yfaces.end(), yfaces_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, zfaces.begin(), zfaces.end(), zfaces_d.begin());
+
     for (MFIter mfi(*wdist); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
 
-        const auto& z_cc = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<const Real>{};
+        //const auto& z_cc = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<const Real>{};
         auto wd_arr      = wdist->array(mfi);
 
         if (!use_terrain) {
@@ -38,10 +45,10 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                 Real yr = prob_lo[1] + (j + 0.5) * dx[1];
                 Real zr = prob_lo[2] + (k + 0.5) * dx[2];
 
-                for (int iface=0; iface < xfaces.size(); ++iface) {
-                    int ii = xfaces[iface][0];
-                    int jj = xfaces[iface][1];
-                    int kk = xfaces[iface][2];
+                for (int iface=0; iface < xfaces_d.size(); ++iface) {
+                    int ii = xfaces_d[iface][0];
+                    int jj = xfaces_d[iface][1];
+                    int kk = xfaces_d[iface][2];
                     Real xfc = prob_lo[0] +  ii      * dx[0];
                     Real yfc = prob_lo[1] + (jj+0.5) * dx[1];
                     Real zfc = prob_lo[2] + (kk+0.5) * dx[2];
@@ -58,10 +65,10 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     wd_arr(i, j, k) = std::sqrt(wd2);
                 }
 
-                for (int iface=0; iface < yfaces.size(); ++iface) {
-                    int ii = yfaces[iface][0];
-                    int jj = yfaces[iface][1];
-                    int kk = yfaces[iface][2];
+                for (int iface=0; iface < yfaces_d.size(); ++iface) {
+                    int ii = yfaces_d[iface][0];
+                    int jj = yfaces_d[iface][1];
+                    int kk = yfaces_d[iface][2];
                     Real xfc = prob_lo[0] + (ii+0.5) * dx[0];
                     Real yfc = prob_lo[1] +  jj      * dx[1];
                     Real zfc = prob_lo[2] + (kk+0.5) * dx[2];
@@ -78,10 +85,10 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     wd_arr(i, j, k) = std::sqrt(wd2);
                 }
 
-                for (int iface=0; iface < zfaces.size(); ++iface) {
-                    int ii = zfaces[iface][0];
-                    int jj = zfaces[iface][1];
-                    int kk = zfaces[iface][2];
+                for (int iface=0; iface < zfaces_d.size(); ++iface) {
+                    int ii = zfaces_d[iface][0];
+                    int jj = zfaces_d[iface][1];
+                    int kk = zfaces_d[iface][2];
                     Real xfc = prob_lo[0] + (ii+0.5) * dx[0];
                     Real yfc = prob_lo[1] + (jj+0.5) * dx[1];
                     Real zfc = prob_lo[2] +  kk      * dx[2];
