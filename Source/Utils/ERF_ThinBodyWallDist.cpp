@@ -29,9 +29,9 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
     Gpu::DeviceVector<IntVect> xfaces_d(xfaces.size());
     Gpu::DeviceVector<IntVect> yfaces_d(yfaces.size());
     Gpu::DeviceVector<IntVect> zfaces_d(zfaces.size());
-    Gpu::copyAsync(Gpu::hostToDevice, xfaces.begin(), xfaces.end(), xfaces_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, yfaces.begin(), yfaces.end(), yfaces_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, zfaces.begin(), zfaces.end(), zfaces_d.begin());
+    Gpu::copy(Gpu::hostToDevice, xfaces.begin(), xfaces.end(), xfaces_d.begin());
+    Gpu::copy(Gpu::hostToDevice, yfaces.begin(), yfaces.end(), yfaces_d.begin());
+    Gpu::copy(Gpu::hostToDevice, zfaces.begin(), zfaces.end(), zfaces_d.begin());
 
     for (MFIter mfi(*wdist); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
