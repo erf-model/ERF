@@ -45,7 +45,8 @@ erf.Cs              = 0.1
 
 erf.init_type = "uniform"
 
-erf.terrain_file = erf_terrain_def
+erf.terrain_type      = ImmersedForcing
+erf.terrain_file_name = erf_terrain_def
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

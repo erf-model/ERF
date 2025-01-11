@@ -491,68 +491,32 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
         if (containerHasElement(plot_var_names, "terrain_IB_mask"))
         {
-            MultiFab* terrain_blank = m_terrain_drag[lev]->get_terrain_blank_field();
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat  = mf[lev].array(mfi);
-                const Array4<Real const>& src = terrain_blank->const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = src(i,j,k);
-                });
-            }
+            MultiFab* terrain_blank = terrain_blanking[lev].get();
+            MultiFab::Copy(mf[lev],*terrain_blank,0,mf_comp,1,0);
             mf_comp ++;
         }
 
 #ifdef ERF_USE_WINDFARM
-        if (containerHasElement(plot_var_names, "num_turb") and
-            (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
-            solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD))
+        if ( containerHasElement(plot_var_names, "num_turb") and
+             (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
+              solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) )
         {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat  = mf[lev].array(mfi);
-                const Array4<Real const>& Nturb_array = Nturb[lev].const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = Nturb_array(i,j,k,0);
-                });
-            }
+            MultiFab::Copy(mf[lev],Nturb[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
 
-        if( containerHasElement(plot_var_names, "SMark0") and
-           (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
-            solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) ) {
-             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat  = mf[lev].array(mfi);
-                const Array4<Real const>& SMark_array = SMark[lev].const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = SMark_array(i,j,k,0);
-                });
-            }
+        if ( containerHasElement(plot_var_names, "SMark0") and
+             (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
+              solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) )
+        {
+            MultiFab::Copy(mf[lev],SMark[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
 
-         if(containerHasElement(plot_var_names, "SMark1") and
-           (solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD)) {
-             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat  = mf[lev].array(mfi);
-                const Array4<Real const>& SMark_array = SMark[lev].const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = SMark_array(i,j,k,1);
-                });
-            }
+        if (containerHasElement(plot_var_names, "SMark1") and
+           (solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD))
+        {
+            MultiFab::Copy(mf[lev],SMark[lev],1,mf_comp,1,0);
             mf_comp ++;
         }
 
