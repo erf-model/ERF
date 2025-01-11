@@ -1,21 +1,20 @@
 #ifndef ERF_RRTMGP_INTERFACE_H
 #define ERF_RRTMGP_INTERFACE_H
 
-#include "mo_gas_optics_rrtmgp.h"
-#include "mo_cloud_optics.h"
-#include "mo_fluxes_byband.h"
-#include "mo_load_coefficients.h"
-#include "rrtmgp_const.h"
-#include "mo_gas_concentrations.h"
-#include "mo_gas_optics_rrtmgp.h"
-#include "mo_cloud_optics.h"
-#include "mo_rte_sw.h"
-#include "mo_rte_lw.h"
-#include "mo_load_cloud_coefficients.h"
+#include <rrtmgp_const.h>
+#include <mo_gas_optics_rrtmgp.h>
+#include <mo_cloud_optics.h>
+#include <mo_fluxes_byband.h>
+#include <mo_load_coefficients.h>
+#include <mo_gas_concentrations.h>
+#include <mo_gas_optics_rrtmgp.h>
+#include <mo_cloud_optics.h>
+#include <mo_rte_sw.h>
+#include <mo_rte_lw.h>
+#include <mo_load_cloud_coefficients.h>
 
-#include "ERF_RRTMGP_Utils.H"
-
-#include "ERF_Constants.H"
+#include <ERF_RRTMGP_Utils.H>
+#include <ERF_Constants.H>
 
 void init_kls ();
 void finalize_kls ();
@@ -73,7 +72,7 @@ rrtmgp_main (const int ncol, const int nlay,
              real2d &lw_clnsky_flux_up, real2d &lw_clnsky_flux_dn,
              real3d &sw_bnd_flux_up, real3d &sw_bnd_flux_dn, real3d &sw_bnd_flux_dn_dir,
              real3d &lw_bnd_flux_up, real3d &lw_bnd_flux_dn,
-             const Real tsi_scaling,
+             const real tsi_scaling,
              const bool extra_clnclrsky_diag = false, const bool extra_clnsky_diag = false);
 
 
@@ -88,7 +87,7 @@ rrtmgp_sw (const int ncol, const int nlay,
            FluxesBroadband &clnclrsky_fluxes,
            FluxesBroadband &clrsky_fluxes,
            FluxesBroadband &clnsky_fluxes,
-           const Real tsi_scaling,
+           const real tsi_scaling,
            const bool extra_clnclrsky_diag,
            const bool extra_clnsky_diag);
 
@@ -120,8 +119,8 @@ void
 compute_cloud_area (int ncol,
                     int nlay,
                     int ngpt,
-                    Real pmin,
-                    Real pmax,
+                    real pmin,
+                    real pmax,
                     const real2d& pmid,
                     const real3d& cld_tau_gpt,
                     real1d& cld_area);

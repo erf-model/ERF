@@ -2,7 +2,7 @@
 #define ERF_RRTMGP_UTILS_H
 
 #include "rrtmgp_const.h"
-#include "rrtmgp_conversion.h"
+//#include "rrtmgp_conversion.h"
 
 #include "YAKL.h"
 #include "YAKL_Bounds_fortran.h"
@@ -82,7 +82,7 @@ compute_heating_rate (yakl::Array<T,2,myMem,myStyle> const &flux_up,
     {
         heating_rate(icol,ilay) = ( flux_up(icol,ilay+1) - flux_up(icol,ilay)
                                   - flux_dn(icol,ilay+1) + flux_dn(icol,ilay) )
-                                  * / (Cp_d * rho(icol,ilay) * dz(icol,ilay);
+                                  / (Cp_d * rho(icol,ilay) * dz(icol,ilay));
     });
 }
 
@@ -101,43 +101,6 @@ radiation_do (const int irad,
     } else {
         return ( (nstep == 0) || (nstep % irad == 0) );
     }
-}
-
-
-// Verify that array only contains values within valid range, and if not
-// report min and max of array
-template <class T>
-bool
-check_range (T x,
-             Real xmin,
-             Real xmax,
-             std::string msg,
-             std::ostream& out=std::cout)
-{
-    bool pass = true;
-    auto _xmin = minval(x);
-    auto _xmax = maxval(x);
-    if (_xmin < xmin or _xmax > xmax) {
-        // How many outside range?
-        auto bad_mask = x.createDeviceCopy();
-        memset(bad_mask, 0);
-        yakl::c::parallel_for(yakl::c::SimpleBounds<1>(x.totElems()), YAKL_LAMBDA (int i)
-        {
-            if (x.data()[i] < xmin or x.data()[i] > xmax) {
-                bad_mask.data()[i] = 1;
-            }
-        });
-        auto num_bad = sum(bad_mask);
-        if (num_bad > 0) {
-            pass = false;
-            out << msg << ": "
-                << num_bad << " values outside range "
-                << "[" << xmin << "," << xmax << "]"
-                << "; minval = " << _xmin
-                << "; maxval = " << _xmax << "\n";
-        }
-    }
-    return pass;
 }
 
 } // namespace rrtmgp

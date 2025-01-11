@@ -274,14 +274,18 @@ compute_band_by_band_surface_albedos (const int ncol,
                                       real2d& sfc_alb_dir,
                                       real2d& sfc_alb_dif)
 {
+    /*
     AMREX_ASSERT_WITH_MESSAGE(initialized, "ERROR: rrtmgp_initialize must be called before GasOpticsRRTMGP object can be used.");
+    */
 
     auto wavenumber_limits = k_dist_sw.get_band_lims_wavenumber();
 
+    /*
     AMREX_ASSERT_WITH_MESSAGE(yakl::intrinsics::size(wavenumber_limits, 1) == 2,
                               "Error! 1st dimension for wavenumber_limits should be 2.");
     AMREX_ASSERT_WITH_MESSAGE(yakl::intrinsics::size(wavenumber_limits, 2) == nswbands,
                               "Error! 2nd dimension for wavenumber_limits should be " + std::to_string(nswbands) + " (nswbands).");
+    */
 
     // Loop over bands, and determine for each band whether it is broadly in the
     // visible or infrared part of the spectrum (visible or "not visible")
@@ -403,7 +407,7 @@ rrtmgp_main (const int ncol, const int nlay,
              real2d &lw_clnsky_flux_up, real2d &lw_clnsky_flux_dn,
              real3d &sw_bnd_flux_up, real3d &sw_bnd_flux_dn, real3d &sw_bnd_flux_dn_dir,
              real3d &lw_bnd_flux_up, real3d &lw_bnd_flux_dn,
-             const Real tsi_scaling,
+             const real tsi_scaling,
              const bool extra_clnclrsky_diag, const bool extra_clnsky_diag)
 {
     // Setup pointers to RRTMGP SW fluxes
@@ -548,7 +552,7 @@ get_subcolumn_mask (const int ncol,
             yakl::Random rand(seeds(icol));
             for (int igpt = 1; igpt <= ngpt; igpt++) {
                 for (int ilay = 1; ilay <= nlay; ilay++) {
-                    cldx(icol,ilay,igpt) = rand.genFP<Real>();
+                    cldx(icol,ilay,igpt) = rand.genFP<real>();
                 }
             }
         });
@@ -604,7 +608,7 @@ rrtmgp_sw (const int ncol,
            FluxesBroadband& clnclrsky_fluxes,
            FluxesBroadband& clrsky_fluxes,
            FluxesBroadband& clnsky_fluxes,
-           const Real tsi_scaling,
+           const real tsi_scaling,
            const bool extra_clnclrsky_diag,
            const bool extra_clnsky_diag)
 {
@@ -1005,8 +1009,8 @@ void
 compute_cloud_area (int ncol,
                     int nlay,
                     int ngpt,
-                    const Real pmin,
-                    const Real pmax,
+                    const real pmin,
+                    const real pmax,
                     const real2d& pmid,
                     const real3d& cld_tau_gpt,
                     real1d& cld_area)

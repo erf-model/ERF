@@ -93,6 +93,7 @@ function(build_erf_lib erf_lib_name)
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
                   )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
+    target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_YAKL)
   endif()
 
   target_sources(${erf_lib_name}

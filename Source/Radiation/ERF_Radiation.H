@@ -14,6 +14,7 @@
  * The RTE-RRTMGP uses BSD-3-Clause Open Source License, if you want to make changes,
  * and modifications to the code, please refer to BSD-3-Clause Open Source License.
  */
+
 #include <ctime>
 #include <string>
 #include <vector>
@@ -50,11 +51,11 @@ public:
     void
     set_grids (int& level,
                int& step,
-               const amrex::Real& time,
-               const amrex::Real& dt,
-               const amrex::BoxArray& ba,
-               const amrex::Geometry& geom,
-               const amrex::MultiFab* cons_in,
+               amrex::Real& time,
+               amrex::Real& dt,
+               amrex::BoxArray& ba,
+               amrex::Geometry& geom,
+               amrex::MultiFab* cons_in,
                amrex::MultiFab* lsm_fluxes,
                amrex::MultiFab* lsm_zenith,
                amrex::MultiFab* qheating_rates,
@@ -94,7 +95,7 @@ public:
     void
     rad_run_impl ()
     {
-        if (m_update_radiation) {
+        if (m_update_rad) {
             this->initialize_impl();
             this->run_impl();
             this->finalize_impl();
@@ -310,5 +311,5 @@ private:
     // 3d size (ncol, nlay, n[sw,lw]gpts)
     real3d cld_tau_sw_gpt;
     real3d cld_tau_lw_gpt;
-}
-
+};
+#endif
