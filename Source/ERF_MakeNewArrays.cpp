@@ -496,8 +496,9 @@ ERF::init_zphys (int lev, Real time)
         }
         BoxArray ba2d_mf(std::move(bl2d_mf));
         DistributionMapping dm(ba2d_mf);
-        MultiFab terrain_mf(ba2d_mf,dm,1,0);
-        terrain_mf.setVal(-1.e23);
+
+        int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff) + 2;
+        MultiFab terrain_mf(ba2d_mf,dm,1,IntVect(ngrow,ngrow,0));
 
         //
         // Fill the values of the terrain height at k=0 only
@@ -510,7 +511,7 @@ ERF::init_zphys (int lev, Real time)
             {
                 const Array4<Real      >& dest_arr = z_phys_nd[lev]->array(mfi);
                 const Array4<Real const>&  src_arr = terrain_mf.const_array(mfi);
-                Box bx_zlo = mfi.validbox();
+                Box bx_zlo = mfi.growntilebox();
                 ParallelFor(bx_zlo, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     dest_arr(i,j,k) = src_arr(i,j,k);
