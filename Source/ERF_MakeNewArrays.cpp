@@ -511,7 +511,7 @@ ERF::init_zphys (int lev, Real time)
             {
                 const Array4<Real      >& dest_arr = z_phys_nd[lev]->array(mfi);
                 const Array4<Real const>&  src_arr = terrain_mf.const_array(mfi);
-                Box bx_zlo = mfi.growntilebox();
+                const Box& bx_zlo = mfi.growntilebox();
                 ParallelFor(bx_zlo, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     dest_arr(i,j,k) = src_arr(i,j,k);
