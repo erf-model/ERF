@@ -85,7 +85,7 @@
             // Make a temporary MF to fill the terrain
             //
             Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[level]->nGrow());
-            FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1); 
+            FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
             FArrayBox terrain_fab_src(makeSlab(terrain_bx,2,0),1);
             FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
 
