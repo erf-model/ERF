@@ -147,7 +147,7 @@ Problem::erf_init_rayleigh (Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
 
 void
 Problem::init_custom_terrain (const Geometry& geom,
-                              MultiFab& z_phys_nd,
+                              FArrayBox& terrain_fab,
                               const Real& time)
 {
     // Domain cell size and real bounds
@@ -158,40 +158,27 @@ Problem::init_custom_terrain (const Geometry& geom,
     int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
     int domlo_z = domain.smallEnd(2);
 
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
-
-    // Populate bottom plane
-    int k0 = domlo_z;
-
     Real Ampl        = parms.Ampl;
     Real wavelength  = 100.;
     Real kp          = 2.0 * PI / wavelength;
     Real g           = CONST_GRAV;
     Real omega       = std::sqrt(g * kp);
 
-    for (MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    Box zbx = terrain_fab.box();
+    Array4<Real> const& z_arr = terrain_fab.array();
+
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
     {
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
+        // Clip indices for ghost-cells
+        int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
 
-        amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+        // Location of nodes
+        Real x = ii  * dx[0];
 
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
+        // Wave height
+        Real height = Ampl * std::sin(kp * x - omega * time);
 
-            // Clip indices for ghost-cells
-            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-
-            // Location of nodes
-            Real x = ii  * dx[0];
-
-            // Wave height
-            Real height = Ampl * std::sin(kp * x - omega * time);
-
-            // Populate terrain height
-            z_arr(i,j,k0) = height;
-        });
-    }
+        // Populate terrain height
+        z_arr(i,j,0) = height;
+    });
 }

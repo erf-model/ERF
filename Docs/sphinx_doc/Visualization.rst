@@ -28,7 +28,7 @@ To open a plotfile
    Open multiple plotfile at once by selecting ``plt..`` Paraview will load the plotfiles as a time series.
    ParaView will ask you about the file type -- choose "AMReX/BoxLib Grid Reader".
 
-#. If you have run the ERF executable with terrain, then the mapped grid information will
+#. If you have run the ERF executable with terrain-fitted coordinates, then the mapped grid information will
    be stored as nodal data.  Choose the "point data" called "nu", then click on "Warp by Vector"
    which can be found via Filters-->Alphabetical.  This will then plot data onto the mapped grid
    locations.

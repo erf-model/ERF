@@ -80,10 +80,17 @@ Problem::init_custom_pert (
     dxInv[2] = 1. / dx[2];
 
     // Set the z-velocity from impenetrable condition
-    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-    {
-        z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel_pert, y_vel_pert, z_nd, dxInv);
-    });
+    if (sc.terrain_type == TerrainType::StaticFittedMesh) {
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel_pert, y_vel_pert, z_nd, dxInv);
+        });
+    } else {
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            z_vel_pert(i, j, k) = 0.0;
+        });
+    }
 
     amrex::Gpu::streamSynchronize();
 }
@@ -91,7 +98,7 @@ Problem::init_custom_pert (
 void
 Problem::init_custom_terrain (
     const Geometry& geom,
-    MultiFab& z_phys_nd,
+    FArrayBox& terrain_fab,
     const Real& /*time*/)
 {
     // Domain cell size and real bounds
@@ -99,7 +106,6 @@ Problem::init_custom_terrain (
     auto ProbLoArr = geom.ProbLoArray();
     auto ProbHiArr = geom.ProbHiArray();
 
-    // Domain valid box (z_nd is nodal)
     const amrex::Box& domain = geom.Domain();
     int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
     // int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
@@ -115,24 +121,15 @@ Problem::init_custom_terrain (
     Real hm = parms.hmax;
     Real L = parms.L;
 
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
-
     // Populate bottom plane
     int k0 = domlo_z;
 
-    for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    amrex::Box zbx = terrain_fab.box();
+    if (zbx.smallEnd(2) <= k0)
     {
-        amrex::Box zbx = mfi.nodaltilebox(2);
-        if (zbx.smallEnd(2) > k0) continue;
+        amrex::Array4<Real> const& z_arr = terrain_fab.array();
 
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
-
-        amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Clip indices for ghost-cells
             int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);

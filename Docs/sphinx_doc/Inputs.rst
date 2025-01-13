@@ -192,7 +192,7 @@ Examples of Usage
 Grid Stretching
 ===============
 
-This automatically activates **erf.use_terrain**. By default, the
+This automatically activates **erf.terrain_type = StaticFittedMesh**. By default, the
 problem-specific terrain is initialized to be flat at an elevation of z=0.
 These inputs are used to automatically generate the staggered z levels used to
 calculate the grid metric transformation. Alternatively, arbitrary z levels may
@@ -1421,10 +1421,9 @@ Terrain
 =======
 
 ERF allows the use to specify whether terrain-fitted coordinates should be used by
-setting **erf.use_terrain** (default false).
-If terrain-fitted coordinates are chosen, they are defined to be static (default)
-or moving by setting **erf.terrain_type.**
-If using terrain, the user also has the option to specify one of three
+setting **erf.terrain_type = StaticFittedMesh** (static mesh) or
+**erf.terrain_type = MovingFittedMesh** (time-dependent mesh).
+If using terrain-fitted coordinates, the user also has the option to specify one of three
 methods for defining how the terrain-fitted coordinates given the topography:
 
 - Basic Terrain Following (BTF):
@@ -1434,10 +1433,18 @@ methods for defining how the terrain-fitted coordinates given the topography:
 - Sullivan Terrain Following (name TBD):
     The influence of the terrain decreases with the cube of height.
 
-A custom surface definition may be provided through the ``erf.terrain_file_name`` parameter.
-The specified input text file should have three space-delimited columns for x, y, and z coordinates,
-which will dictate the location of surface *nodes*. All surface nodes within the computational
-domain must be specified within the text file, but may be specified in any order.
+The user can also specify that terrain should be represented with an immersed forcing method, or
+with an embedded boundary / cut cell representation.
+
+.. note:: The embedded boundary / cut cell representation is a work in progress and not ready for use!
+
+The height at the surface nodes can be defined analytically or read from a text file
+specified by ``erf.terrain_file_name``.  The ordering of data in the file is first
+nx, ny (where nx is the number of values specified in the x-direction and
+ny is the number of values specified in the y-direction; note that these need not match
+the resolution of the problem).  Then nx x-values are read followed by ny y-values.   Finally,
+the z-coordinates are read in the order z(x1,y1), z(x1,y2), z(x1,y3), ... z(x2,y1), ... z(nx,ny).
+An example is given in Exec/ABL/erf_terrain_def.
 
 List of Parameters
 ------------------
@@ -1446,10 +1453,11 @@ List of Parameters
 | Parameter                   | Definition         | Acceptable         | Default    |
 |                             |                    | Values             |            |
 +=============================+====================+====================+============+
-| **erf.use_terrain**         | use terrain-fitted |  true / false      | false      |
-|                             | coordinates?       |                    |            |
-+-----------------------------+--------------------+--------------------+------------+
-| **erf.terrain_type**        | static or moving?  |  Static / Moving   | Static     |
+| **erf.terrain_type**        | Is there terrain   | None               | None       |
+|                             | and if so, how is  | StaticFittedMesh   |            |
+|                             | it represented?    | MovingFittedMesh   |            |
+|                             |                    | ImmersedForcing    |            |
+|                             |                    | EB                 |            |
 +-----------------------------+--------------------+--------------------+------------+
 | **erf.terrain_smoothing**   | specify terrain    | 0,                 | 0          |
 |                             | following          | 1,                 |            |
@@ -1465,7 +1473,7 @@ Examples of Usage
     BTF is used when generating the terrain following coordinate.
 
 -  **erf.terrain_smoothing**  = 1
-    STF is used when generating the terrain following coordinate. Additionally,
+    STF is used when generating the terrain-fitted coordinate. Additionally,
     ``erf.terrain_gamma_m`` (default=0.5) may be used to set the minimum
     allowable fractional grid spacing. From Klemp 2011, MWR: "Values of 0.5-0.6
     seem to work best in 2D applications, while values about half this

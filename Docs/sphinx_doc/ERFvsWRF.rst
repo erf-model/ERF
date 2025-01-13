@@ -53,8 +53,7 @@ wrfinput files).
 Key Differences
 --------------------
 
-**Vertical coordinates**: Unlike WRF, ERF uses a terrain-following height-based vertical coordinate,
-with vertical grid stretching permitted.
+**Vertical coordinates**: Unlike WRF, ERF uses a height-based vertical coordinate, with vertical grid stretching permitted.
 
 **Time Integration**: ERF supports using a 3rd-order Runge-Kutta scheme with no substepping as alternative to RK3 with acoustic substepping.
 

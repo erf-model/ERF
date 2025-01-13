@@ -471,13 +471,12 @@ struct SolverChoice {
             amrex::Print() << "Terrain Type: None" << std::endl;
         }
 
-        amrex::Print() << "   Mesh Type: " << std::endl;
         if (mesh_type == MeshType::ConstantDz) {
-            amrex::Print() << "    ConstantDz" << std::endl;
+            amrex::Print() << "   Mesh Type: ConstantDz" << std::endl;
         } else if (mesh_type == MeshType::StretchedDz) {
-            amrex::Print() << "    StretchedDz" << std::endl;
+            amrex::Print() << "   Mesh Type: StretchedDz" << std::endl;
         } else if (mesh_type == MeshType::VariableDz) {
-            amrex::Print() << "    VariableDz" << std::endl;
+            amrex::Print() << "   Mesh Type: VariableDz" << std::endl;
         } else {
             amrex::Abort("No mesh_type set!");
         }
