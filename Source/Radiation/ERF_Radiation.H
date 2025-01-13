@@ -52,8 +52,8 @@ public:
     set_grids (int& level,
                int& step,
                amrex::Real& time,
-               amrex::Real& dt,
-               amrex::BoxArray& ba,
+               const amrex::Real& dt,
+               const amrex::BoxArray& ba,
                amrex::Geometry& geom,
                amrex::MultiFab* cons_in,
                amrex::MultiFab* lsm_fluxes,
@@ -133,7 +133,7 @@ private:
     amrex::MultiFab* m_cons_in = nullptr;
 
     // Pointer to the radiation source terms
-    amrex::MultiFab* m_qrad_src = nullptr;
+    amrex::MultiFab* m_qheating_rates = nullptr;
 
     // Pointer to the terrain heights
     amrex::MultiFab* m_z_phys = nullptr;
@@ -157,16 +157,27 @@ private:
     std::string rrtmgp_cloud_optics_file_sw;
     std::string rrtmgp_cloud_optics_file_lw;
 
-    // TODO: Are these parsed from the inputs file in EAMXX?
     // Active gases
     int m_ngas = 8;
     const std::vector<std::string> m_gas_names = {"H2O", "CO2", "O3", "N2O",
                                                   "CO" , "CH4", "O2", "N2" };
     const std::vector<amrex::Real> m_mol_weight_gas = {18.01528, 44.00950, 47.9982, 44.0128,
                                                        28.01010, 16.04246, 31.9980, 28.0134}; // g/mol
-    real1d   m_gas_mol_weights;
-    string1d gas_names_yakl_offset;
-    GasConcs m_gas_concs;
+
+    // Prescribed greenhouse gas surface concentrations in moles / moles air
+    amrex::Real m_co2vmr = 388.717e-6;
+    amrex::Real m_o3vmr  = 1.8868676125307193E-7;
+    amrex::Real m_n2ovmr = 323.141e-9;
+    amrex::Real m_covmr  = 1.0e-7;
+    amrex::Real m_ch4vmr = 1807.851e-9;
+    amrex::Real m_o2vmr  = 0.209448;
+    amrex::Real m_n2vmr  = 0.7906;
+    //amrex::Real m_f11vmr = 768.7644e-12;
+    //amrex::Real m_f12vmr = 531.2820e-12;
+
+    real1d    m_gas_mol_weights;
+    string1dv gas_names_yakl_offset;
+    GasConcs  m_gas_concs;
 
     // Process interface vars modeled after EAMXX
     //===================================================================================
@@ -216,15 +227,7 @@ private:
     int m_nswgpts  = 112;
     int m_nlwgpts  = 128;
 
-    // Prescribed greenhouse gas surface concentrations in moles / moles air
-    amrex::Real m_o3vmr  = 1.8868676125307193E-7;
-    amrex::Real m_co2vmr = 388.717e-6;
-    amrex::Real m_n2ovmr = 323.141e-9;
-    amrex::Real m_ch4vmr = 1807.851e-9;
-    amrex::Real m_f11vmr = 768.7644e-12;
-    amrex::Real m_f12vmr = 531.2820e-12;
-    amrex::Real m_n2vmr  = 0.7906;
-    amrex::Real m_covmr  = 1.0e-7;
+
 
     // Rad frequency in number of steps
     int m_rad_freq_in_steps = 1;
@@ -251,9 +254,10 @@ private:
     real2d t_lay;
     real2d z_del;
     real2d p_del;
-    real2d qc;
-    real2d nc;
-    real2d qi;
+    real2d qv_lay;
+    real2d qc_lay;
+    real2d nc_lay;
+    real2d qi_lay;
     real2d cldfrac_tot;
     real2d eff_radius_qc;
     real2d eff_radius_qi;
@@ -293,6 +297,10 @@ private:
     real3d sw_bnd_flux_dn;
     real3d sw_bnd_flux_dir;
     real3d sw_bnd_flux_dif;
+
+    // 3d size (ncol, nlay+1, nlwbands)
+    real3d lw_bnd_flux_up;
+    real3d lw_bnd_flux_dn;
 
     // 2d size (ncol, nswbands)
     real2d sfc_alb_dir;

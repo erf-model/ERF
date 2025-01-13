@@ -1,43 +1,47 @@
 #ifndef ERF_ORB_COS_ZENITH_H
 #define ERF_ORB_COS_ZENITH_H
 
-#include <math.h>
+#include <vector>
+#include <cmath>
+
 #include <ERF_Constants.H>
 
-amrex::Real
-orbital_cos_zenith (amrex::Real& jday,
-                    amrex::Real& lat,
-                    amrex::Real& lon,
-                    amrex::Real& declin,
-                    amrex::Real dt_avg = -1.,
-                    amrex::Real uniform_angle = -1.,
-                    amrex::Real constant_zenith_angle_deg = -1.);
+typedef double real;
+
+real
+orbital_cos_zenith (real& jday,
+                    real& lat,
+                    real& lon,
+                    real& declin,
+                    real dt_avg = -1.,
+                    real uniform_angle = -1.,
+                    real constant_zenith_angle_deg = -1.);
 
 
-amrex::Real
-orbital_avg_cos_zenith (amrex::Real& jday,
-                        amrex::Real& lat,
-                        amrex::Real& lon,
-                        amrex::Real& declin,
-                        amrex::Real& dt_avg);
+real
+orbital_avg_cos_zenith (real& jday,
+                        real& lat,
+                        real& lon,
+                        real& declin,
+                        real& dt_avg);
 
 
 void
 orbital_params (int& iyear_AD,
-                amrex::Real& eccen,
-                amrex::Real& obliq,
-                amrex::Real& mvelp,
-                amrex::Real& obliqr,
-                amrex::Real& lambm0,
-                amrex::Real& mvelpp);
+                real& eccen,
+                real& obliq,
+                real& mvelp,
+                real& obliqr,
+                real& lambm0,
+                real& mvelpp);
 
 
 void
-orbital_decl (amrex::Real& calday,
-              amrex::Real& eccen,
-              amrex::Real& mvelpp,
-              amrex::Real& lambm0,
-              amrex::Real& obliqr,
-              amrex::Real& delta,
-              amrex::Real& eccf);
+orbital_decl (real& calday,
+              real& eccen,
+              real& mvelpp,
+              real& lambm0,
+              real& obliqr,
+              real& delta,
+              real& eccf);
 #endif
