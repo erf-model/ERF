@@ -192,7 +192,7 @@ Problem::init_custom_pert(
     */
     void
     Problem::init_custom_terrain (const amrex::Geometry& geom,
-                                  amrex::FArrayBox& z_phys_nd,
+                                  amrex::FArrayBox& terrain_fab,
                                   const amrex::Real& /*time*/)
     {
         // Bottom of domain
@@ -212,11 +212,9 @@ Problem::init_custom_pert(
         Real num  = 8.11 * a * a * a;
         Real xcen = 0.5 * (prob_lo[0] + prob_hi[0]);
 
-        // Grown box with no z range
-        amrex::Box bx = z_phys_nd.box();
-        bx.setRange(2,0);
+        amrex::Box bx = terrain_fab.box();
 
-        amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array();
+        amrex::Array4<amrex::Real> const& z_arr = terrain_fab.array();
 
         Real x_in = (-xcen);
         Real height_at_inflow = num / (x_in * x_in + 4.0 * a * a);

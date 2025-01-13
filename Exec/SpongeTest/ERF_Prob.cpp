@@ -84,10 +84,9 @@ Problem::init_custom_pert(
 }
 
 void
-Problem::init_custom_terrain(
-    const Geometry& geom,
-    MultiFab& z_phys_nd,
-    const Real& time)
+Problem::init_custom_terrain (const Geometry& geom,
+                              FArraybox& terrain_fab,
+                              const Real& time)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
@@ -106,36 +105,22 @@ Problem::init_custom_terrain(
     Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
     Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
 
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
+    Box zbox = terrain_fab.box();
+    Array4<Real> const& z_arr = terrain_fab.array();
 
-    // Populate bottom plane
-    int k0 = domlo_z;
-
-    for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
     {
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
+        // Clip indices for ghost-cells
+        int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
 
-        amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+        // Location of nodes
+        Real x = (ii  * dx[0] - xcen);
 
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
+        if (fabs(x)<a) {
+            z_arr(i,j,k0) = pow(a*a - x*x, 0.5);
+        } else {
+            z_arr(i,j,k0) = 0.0;
+        }
 
-            // Clip indices for ghost-cells
-            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-
-            // Location of nodes
-            Real x = (ii  * dx[0] - xcen);
-
-            if(fabs(x)<a){
-                z_arr(i,j,k0) = pow(a*a - x*x, 0.5);
-            }
-            else{
-                z_arr(i,j,k0) = 0.0;
-            }
-
-        });
-    }
+    });
 }

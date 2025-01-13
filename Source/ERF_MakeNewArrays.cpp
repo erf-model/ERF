@@ -46,6 +46,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         SolverChoice::mesh_type == MeshType::VariableDz) {
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
+        amrex::Print() << "WE ARE LIVE WITH ZPHYS! " << std::endl;
+
         if (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
         {
             detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
@@ -487,36 +489,21 @@ ERF::init_zphys (int lev, Real time)
                                   domain_bcs_type, BCVars::cons_bc);
         }
 
-        //
-        // Make a temporary MF to fill the terrain in case we don't allocate z_phys_nd (because not using terrain-fitted coords)
-        //
-        BoxList bl2d_mf = grids[lev].boxList();
-        for (auto& b : bl2d_mf) {
-            b.surroundingNodes();
-            b.setRange(2,0);
-        }
-        BoxArray ba2d_mf(std::move(bl2d_mf));
-        DistributionMapping dm(ba2d_mf);
-
         int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff) + 2;
-        MultiFab terrain_mf(ba2d_mf,dm,1,IntVect(ngrow,ngrow,0));
+        Box bx(surroundingNodes(Geom(0).Domain())); bx.grow(ngrow);
+        FArrayBox terrain_fab(makeSlab(bx,2,0),1);
 
         //
         // Fill the values of the terrain height at k=0 only
         //
-        prob->init_terrain_surface(geom[lev],terrain_mf,time);
+        prob->init_terrain_surface(geom[lev],terrain_fab,time);
 
         if (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
             solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
-            for (MFIter mfi(terrain_mf,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            for (MFIter mfi(*z_phys_nd[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Array4<Real      >& dest_arr = z_phys_nd[lev]->array(mfi);
-                const Array4<Real const>&  src_arr = terrain_mf.const_array(mfi);
-                const Box& bx_zlo = mfi.growntilebox();
-                ParallelFor(bx_zlo, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    dest_arr(i,j,k) = src_arr(i,j,k);
-                });
+                Box isect = terrain_fab.box() & (*z_phys_nd[lev])[mfi].box();
+                (*z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
             }
             make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
@@ -527,6 +514,8 @@ ERF::init_zphys (int lev, Real time)
         if (lev == 0 && z_phys_nd[0]) {
             Real zmax = z_phys_nd[0]->max(0,0,false);
             Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
+            amrex::Print() << "ZMAX " << zmax << std::endl;
+            amrex::Print() << "ZLEV " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
         } // lev == 0
 
@@ -538,7 +527,7 @@ ERF::init_zphys (int lev, Real time)
 }
 
 void
-ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
+ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
     if (lev > 0 && SolverChoice::mesh_type == MeshType::VariableDz)
     {
@@ -565,16 +554,8 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
         //
-        // Make a temporary MF to fill the terrain
+        // This assumes we have already remade the EBGeometry
         //
-        Box bx(surroundingNodes(geom[lev].Domain())); bx.grow(2);
-        BoxArray ba(makeSlab(bx,2,0));
-        DistributionMapping dm(ba);
-        MultiFab terrain_mf(ba,dm,1,0);
-        terrain_mf.setVal(-1.e23);
-
-        prob->init_terrain_surface(geom[lev],terrain_mf,time);
-
         terrain_blanking[lev]->setVal(1.0);
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, 0);
     }

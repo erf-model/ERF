@@ -86,7 +86,7 @@ Problem::init_custom_pert(
 void
 Problem::init_custom_terrain(
     const Geometry& geom,
-    MultiFab& z_phys_nd,
+    FArrayBox& terrain_fab,
     const Real& time)
 {
     // Domain cell size and real bounds
@@ -106,21 +106,16 @@ Problem::init_custom_terrain(
     Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
     Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
 
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
-
     // Populate bottom plane
     int k0 = domlo_z;
 
-    for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    Box zbx = terrain_fab.box();
+
+    if (zbx.smallEnd(2) <= k0)
     {
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
+        amrex::Array4<Real> const& z_arr = terrain_fab.array();
 
-        amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
 
             // Clip indices for ghost-cells
@@ -135,7 +130,6 @@ Problem::init_custom_terrain(
             else{
                 z_arr(i,j,k0) = 0.0;
             }
-
         });
     }
 }

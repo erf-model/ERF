@@ -51,14 +51,28 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             // Make "old" fast geom -- store in z_phys_nd for convenience
+            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[level]->nGrow());
+
             if (verbose) Print() << "Making geometry at start of substep time: " << old_substep_time << std::endl;
-            prob->init_terrain_surface(fine_geom,*z_phys_nd[level],old_substep_time);
-            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
-            make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
+            FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
+            prob->init_terrain_surface(fine_geom,terrain_fab_old,old_substep_time);
 
             // Make "new" fast geom
             if (verbose) Print() << "Making geometry for end of substep time :" << new_substep_time << std::endl;
-            prob->init_terrain_surface(fine_geom,*z_phys_nd_new[level],new_substep_time);
+            FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
+            prob->init_terrain_surface(fine_geom,terrain_fab_new,new_substep_time);
+
+            // Copy on intersection
+            for (MFIter mfi(*z_phys_nd[level],false); mfi.isValid(); ++mfi)
+            {
+                Box isect = terrain_fab_old.box() & (*z_phys_nd[level])[mfi].box();
+                (    *z_phys_nd[level])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
+                (*z_phys_nd_new[level])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
+            }
+
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
+            make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
+
             make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
             make_areas         (fine_geom,*z_phys_nd_new[level], *ax_new[level], *ay_new[level], *az_new[level]);

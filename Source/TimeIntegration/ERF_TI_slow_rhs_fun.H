@@ -80,19 +80,38 @@
             // aka old_stage_time
 
             if (verbose) Print() << "Re-making old geometry at old time   : " << old_step_time << std::endl;
-            prob->init_terrain_surface(fine_geom,*z_phys_nd[level],old_step_time);
+
+            //
+            // Make a temporary MF to fill the terrain
+            //
+            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[level]->nGrow());
+            FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
+            FArrayBox terrain_fab_src(makeSlab(terrain_bx,2,0),1);
+            FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
+
+            prob->init_terrain_surface(fine_geom,terrain_fab_old,old_step_time);
+            prob->init_terrain_surface(fine_geom,terrain_fab_src,old_stage_time);
+            prob->init_terrain_surface(fine_geom,terrain_fab_new,new_stage_time);
+
+            // Copy on intersection
+            for (MFIter mfi(*z_phys_nd[level],false); mfi.isValid(); ++mfi)
+            {
+                Box isect = terrain_fab_old.box() & (*z_phys_nd[level])[mfi].box();
+                (    *z_phys_nd[level])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
+                (*z_phys_nd_src[level])[mfi].template copy<RunOn::Device>(terrain_fab_src,isect,0,isect,0,1);
+                (*z_phys_nd_new[level])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
+            }
+
             make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
             make_areas         (fine_geom,*z_phys_nd[level], *ax[level], *ay[level], *az[level]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  " << old_stage_time << std::endl;
-            prob->init_terrain_surface(fine_geom,*z_phys_nd_src[level],old_stage_time);
             make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_src[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd_src[level], *detJ_cc_src[level]);
             make_areas         (fine_geom,*z_phys_nd_src[level], *ax_src[level], *ay_src[level], *az_src[level]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: " << new_stage_time << std::endl;
-            prob->init_terrain_surface(fine_geom,*z_phys_nd_new[level],new_stage_time);
             make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
             make_areas         (fine_geom,*z_phys_nd_new[level], *ax_new[level], *ay_new[level], *az_new[level]);
