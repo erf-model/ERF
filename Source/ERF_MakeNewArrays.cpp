@@ -525,7 +525,7 @@ ERF::init_zphys (int lev, Real time)
 }
 
 void
-ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
+ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
     if (lev > 0 && SolverChoice::mesh_type == MeshType::VariableDz)
     {
