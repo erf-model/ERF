@@ -568,7 +568,7 @@ get_subcolumn_mask (const int ncol,
                 } else {
                     // Cloud-less above, use new random number so that clouds are distributed
                     // randomly in this layer. Need to scale new random number to range
-                    // [0, 1.0 - cldf(ilay-1)] because we have artifically changed the distribution
+                    // [0, 1.0 - cldf(ilay-1)] because we have artificially changed the distribution
                     // of random numbers in this layer with the above branch of the conditional,
                     // which would otherwise inflate cloud fraction in this layer.
                     cldx(icol,ilay,igpt) = cldx(icol,ilay  ,igpt) * (1.0 - cldf(icol,ilay-1));
@@ -1117,7 +1117,7 @@ compute_aerocom_cloudtop (int ncol, int nlay, const real2d &tmid, const real2d &
     {
         // Loop over all layers in serial (due to accumulative
         // product), starting at 2 (second highest) layer because the
-        // highest is assumed to hav no clouds
+        // highest is assumed to have no clouds
         for(int ilay = 2; ilay <= nlay; ++ilay) {
             // Only do the calculation if certain conditions are met
             if((qc(icol, ilay) + qi(icol, ilay)) > q_threshold &&

@@ -143,7 +143,7 @@ ERF::ERF_shared ()
     // NOTE: size canopy model before readparams (if file exists, we construct)
     m_forest_drag.resize(nlevs_max);
     for (int lev = 0; lev < max_level; ++lev) { m_forest_drag[lev] = nullptr;}
-  
+
     ReadParameters();
     initializeMicrophysics(nlevs_max);
 
