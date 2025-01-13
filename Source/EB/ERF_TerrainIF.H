@@ -16,7 +16,7 @@ public:
 
     TerrainIF (amrex::FArrayBox& a_z_terrain, amrex::Geometry& a_geom, amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched)
         : terr_arr(a_z_terrain.const_array()),
-          dz_stretched(a_dz_stretched),
+          dz_s(a_dz_stretched.data()),
           dx(a_geom.CellSize(0)),
           dy(a_geom.CellSize(1)),
           dz(a_geom.CellSize(2)),
@@ -44,12 +44,11 @@ public:
         amrex::Real remainder_z = (z - z1)/dz;
 
         amrex::Real z_stretched = prob_lo_z;
-        amrex::Real const* dz_s = dz_stretched.data();
 
         for (int kk = 0; kk < k1; ++kk) {
             z_stretched += dz_s[kk];
         }
-        z_stretched += remainder_z * dz_stretched[k1];
+        z_stretched += remainder_z * dz_s[k1];
 
         // Do bilinear interpolation of the terrain surface
         amrex::Real denom = (x2-x1)*(y2-y1);
@@ -71,7 +70,7 @@ public:
 
 protected:
     amrex::Array4<amrex::Real const> terr_arr;
-    amrex::Gpu::DeviceVector<amrex::Real> dz_stretched;
+    amrex::Real const* dz_s;
     amrex::Real dx, dy, dz, prob_lo_z;
 };
 
