@@ -156,7 +156,6 @@ Problem::init_custom_terrain (const Geometry& geom,
     // Domain valid box (z_nd is nodal)
     const amrex::Box& domain = geom.Domain();
     int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    int domlo_z = domain.smallEnd(2);
 
     Real Ampl        = parms.Ampl;
     Real wavelength  = 100.;
@@ -165,6 +164,7 @@ Problem::init_custom_terrain (const Geometry& geom,
     Real omega       = std::sqrt(g * kp);
 
     Box zbx = terrain_fab.box();
+
     Array4<Real> const& z_arr = terrain_fab.array();
 
     ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)

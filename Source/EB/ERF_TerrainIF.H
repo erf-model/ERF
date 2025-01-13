@@ -27,13 +27,12 @@ public:
     amrex::Real operator() (AMREX_D_DECL(amrex::Real x, amrex::Real y, amrex::Real z))
         const noexcept
     {
-        const int i1 = std::floor(x / dx);
-        const int j1 = std::floor(y / dy);
-        const int k1 = std::floor(z / dz);
+        const int i1 = static_cast<int>(std::floor(x / dx));
+        const int j1 = static_cast<int>(std::floor(y / dy));
+        const int k1 = static_cast<int>(std::floor(z / dz));
 
         const int i2 = i1+1;
         const int j2 = j1+1;
-        const int k2 = k1+1;
 
         amrex::Real x1 = i1*dx;
         amrex::Real y1 = j1*dy;
@@ -45,8 +44,10 @@ public:
         amrex::Real remainder_z = (z - z1)/dz;
 
         amrex::Real z_stretched = prob_lo_z;
+        amrex::Real const* dz_s = dz_stretched.data();
+
         for (int kk = 0; kk < k1; ++kk) {
-            z_stretched += dz_stretched[kk];
+            z_stretched += dz_s[kk];
         }
         z_stretched += remainder_z * dz_stretched[k1];
 
@@ -70,8 +71,8 @@ public:
 
 protected:
     amrex::Array4<amrex::Real const> terr_arr;
-    amrex::Real dx, dy, dz, prob_lo_z;
     amrex::Gpu::DeviceVector<amrex::Real> dz_stretched;
+    amrex::Real dx, dy, dz, prob_lo_z;
 };
 
 #endif
