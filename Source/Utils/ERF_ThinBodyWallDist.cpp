@@ -48,7 +48,7 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                 Real yr = prob_lo[1] + (j + 0.5) * dx[1];
                 Real zr = prob_lo[2] + (k + 0.5) * dx[2];
 
-                for (int iface=0; iface < xfaces_d_ptr->size(); ++iface) {
+                for (std::size_t iface=0; iface < xfaces_d_ptr->size(); ++iface) {
                     int ii = xfaces_d_ptr[iface][0];
                     int jj = xfaces_d_ptr[iface][1];
                     int kk = xfaces_d_ptr[iface][2];
@@ -68,7 +68,7 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     wd_arr(i, j, k) = std::sqrt(wd2);
                 }
 
-                for (int iface=0; iface < yfaces_d_ptr->size(); ++iface) {
+                for (std::size_t iface=0; iface < yfaces_d_ptr->size(); ++iface) {
                     int ii = yfaces_d_ptr[iface][0];
                     int jj = yfaces_d_ptr[iface][1];
                     int kk = yfaces_d_ptr[iface][2];
@@ -88,7 +88,7 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     wd_arr(i, j, k) = std::sqrt(wd2);
                 }
 
-                for (int iface=0; iface < zfaces_d_ptr->size(); ++iface) {
+                for (std::size_t iface=0; iface < zfaces_d_ptr->size(); ++iface) {
                     int ii = zfaces_d_ptr[iface][0];
                     int jj = zfaces_d_ptr[iface][1];
                     int kk = zfaces_d_ptr[iface][2];
