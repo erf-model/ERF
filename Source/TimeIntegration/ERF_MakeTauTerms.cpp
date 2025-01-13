@@ -43,13 +43,16 @@ void erf_make_tau_terms (int level, int nrk,
 
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
+                                    (tc.rans_type       !=      RANSType::None) ||
                                     (tc.pbl_type        !=       PBLType::None) );
     const bool l_use_constAlpha = ( dc.molec_diff_type == MolecDiffType::ConstantAlpha );
-    const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
-                                    tc.les_type == LESType::Deardorff   ||
-                                    tc.pbl_type == PBLType::MYNN25      ||
-                                    tc.pbl_type == PBLType::YSU );
-    const bool use_ddorf        = (tc.les_type == LESType::Deardorff);
+    const bool l_use_turb       = ( tc.les_type  == LESType::Smagorinsky ||
+                                    tc.les_type  == LESType::Deardorff   ||
+                                    tc.rans_type == RANSType::kEqn       ||
+                                    tc.pbl_type  == PBLType::MYNN25      ||
+                                    tc.pbl_type  == PBLType::YSU );
+    const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
+                                   tc.rans_type == RANSType::kEqn);
 
     const bool use_most     = (most != nullptr);
     const bool exp_most     = (solverChoice.use_explicit_most);
@@ -235,9 +238,9 @@ void erf_make_tau_terms (int level, int nrk,
                                 mf_m, mf_u, mf_v);
                 } // profile
 
-                // Populate SmnSmn if using Deardorff (used as diff src in post)
+                // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (use_ddorf)) {
+                if ((nrk==0) && (need_SmnSmn)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -350,9 +353,9 @@ void erf_make_tau_terms (int level, int nrk,
                                 mf_m, mf_u, mf_v);
                 } // end profile
 
-                // Populate SmnSmn if using Deardorff (used as diff src in post)
+                // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (use_ddorf)) {
+                if ((nrk==0) && (need_SmnSmn)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {

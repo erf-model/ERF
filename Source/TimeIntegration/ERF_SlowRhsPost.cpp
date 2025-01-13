@@ -114,17 +114,21 @@ void erf_slow_rhs_post (int level, int finest_level,
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
-    const bool l_use_ddorf      = (tc.les_type == LESType::Deardorff);
-    const bool l_use_KE         = ( (tc.les_type == LESType::Deardorff) ||
-                                    (tc.pbl_type == PBLType::MYNN25) );
+    const bool l_use_KE         = ( (tc.les_type  == LESType::Deardorff) ||
+                                    (tc.rans_type == RANSType::kEqn) ||
+                                    (tc.pbl_type  == PBLType::MYNN25) );
+    const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff ||
+                                    tc.rans_type == RANSType::kEqn );
     const bool l_advect_KE      = (tc.use_KE && tc.advect_KE);
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
+                                   (tc.rans_type       !=      RANSType::None) ||
                                    (tc.pbl_type        !=       PBLType::None) );
-    const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
-                                    tc.les_type == LESType::Deardorff   ||
-                                    tc.pbl_type == PBLType::MYNN25      ||
-                                    tc.pbl_type == PBLType::YSU );
+    const bool l_use_turb       = ( tc.les_type  == LESType::Smagorinsky ||
+                                    tc.les_type  == LESType::Deardorff   ||
+                                    tc.rans_type == RANSType::kEqn       ||
+                                    tc.pbl_type  == PBLType::MYNN25      ||
+                                    tc.pbl_type  == PBLType::YSU );
     const bool exp_most         = (solverChoice.use_explicit_most);
     const bool rot_most         = (solverChoice.use_rotate_most);
 
@@ -275,8 +279,8 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
-        // SmnSmn for KE src with Deardorff
-        const Array4<const Real>& SmnSmn_a = l_use_ddorf ? SmnSmn->const_array(mfi) : Array4<const Real>{};
+        // SmnSmn for KE src with Deardorff or k-eqn RANS
+        const Array4<const Real>& SmnSmn_a = l_need_SmnSmn ? SmnSmn->const_array(mfi) : Array4<const Real>{};
 
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage

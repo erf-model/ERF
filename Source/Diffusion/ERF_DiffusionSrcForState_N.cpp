@@ -82,14 +82,16 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     Real l_inv_theta0    = 1.0 / turbChoice.theta_ref;
     Real l_abs_g         = std::abs(grav_gpu[2]);
 
-    bool l_use_ddorf = (turbChoice.les_type == LESType::Deardorff);
+    bool l_use_keqn  = ( (turbChoice.les_type  == LESType::Deardorff) ||
+                         (turbChoice.rans_type == RANSType::kEqn) );
     bool l_use_mynn  = (turbChoice.pbl_type == PBLType::MYNN25);
 
     bool l_consA  = (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
-    bool l_turb   = ( (turbChoice.les_type == LESType::Smagorinsky) ||
-                      (turbChoice.les_type == LESType::Deardorff  ) ||
-                      (turbChoice.pbl_type == PBLType::MYNN25     ) ||
-                      (turbChoice.pbl_type == PBLType::YSU        ) );
+    bool l_turb   = ( (turbChoice.les_type  == LESType::Smagorinsky) ||
+                      (turbChoice.les_type  == LESType::Deardorff  ) ||
+                      (turbChoice.rans_type == RANSType::kEqn  )     ||
+                      (turbChoice.pbl_type  == PBLType::MYNN25     ) ||
+                      (turbChoice.pbl_type  == PBLType::YSU        ) );
 
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
@@ -668,6 +670,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     }
 
     // Using Deardorff (see Sullivan et al 1994)
+    //    or k-eqn RANS (see Axell & Liungman 2001)
     //
     // Note: At this point, the thermal diffusivity ("Khv" field in ERF), the
     //       subgrid heat flux ("hfx_z" here), and the subgrid dissipation
@@ -679,7 +682,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     //       The surface heat flux hfx_z(i,j,-1) is updated in MOSTStress at
     //       each RK stage if using the ERF_EXPLICIT_MOST_STRESS path, but that
     //       does not change the buoyancy production term here.
-    if (l_use_ddorf && (start_comp <= RhoKE_comp) && (end_comp >=RhoKE_comp)) {
+    if (l_use_keqn && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
         int qty_index = RhoKE_comp;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {

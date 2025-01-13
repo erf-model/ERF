@@ -80,9 +80,10 @@ ERF::init_custom (int lev)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp,        1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,NSCALARS, cons_pert.nGrow());
 
-    // RhoKE is only relevant if using Deardorff with LES or MYNN with PBL
-    if ((solverChoice.turbChoice[lev].les_type == LESType::Deardorff) ||
-        (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25)) {
+    // RhoKE is relevant if using Deardorff with LES, k-equation for RANS, or MYNN with PBL
+    if ((solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
+        (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) ||
+        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNN25)) {
         MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoKE_comp,    RhoKE_comp,    1, cons_pert.nGrow());
     }
 

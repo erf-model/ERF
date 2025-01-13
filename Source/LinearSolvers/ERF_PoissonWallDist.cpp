@@ -9,6 +9,10 @@ using namespace amrex;
 /**
  * Calculate wall distances using the Poisson equation
  *
+ * The zlo boundary is assumed to correspond to the land surface. If there are
+ * no boundary walls, then the other use case is to calculate wall distances
+ * for immersed boundaries (embedded or thin body).
+ *
  * See Tucker, P. G. (2003). Differential equation-based wall distance
  * computation for DES and RANS. Journal of Computational Physics,
  * 190(1), 229–248. https://doi.org/10.1016/S0021-9991(03)00272-9
@@ -17,29 +21,40 @@ void ERF::poisson_wall_dist (int lev)
 {
     BL_PROFILE("ERF::poisson_wall_dist()");
 
+    bool havewall{false};
+    Orientation zlo(Direction::z, Orientation::low);
+    if ( ( phys_bc_type[zlo] == ERF_BC::MOST                               ) ||
+         ( phys_bc_type[zlo] == ERF_BC::no_slip_wall                       ) )/*||
+         ((phys_bc_type[zlo] == ERF_BC::slip_wall) && (dom_hi.z > dom_lo.z)) )*/
+    {
+        havewall = true;
+    }
+
     auto const& geomdata = geom[lev];
 
-    if (solverChoice.mesh_type == MeshType::ConstantDz) {
+    if (havewall) {
+        if (solverChoice.mesh_type == MeshType::ConstantDz) {
 // Comment this out to test the wall dist calc in the trivial case:
 //#if 0
-        Print() << "Directly calculating direct wall distance for constant dz" << std::endl;
-        const Real* prob_lo = geomdata.ProbLo();
-        const Real* dx = geomdata.CellSize();
-        for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.validbox();
-            auto dist_arr = walldist[lev]->array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                dist_arr(i, j, k) = prob_lo[2] + (k + 0.5) * dx[2];
-            });
-        }
-        return;
+            Print() << "Directly calculating direct wall distance for constant dz" << std::endl;
+            const Real* prob_lo = geomdata.ProbLo();
+            const Real* dx = geomdata.CellSize();
+            for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto dist_arr = walldist[lev]->array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    dist_arr(i, j, k) = prob_lo[2] + (k + 0.5) * dx[2];
+                });
+            }
+            return;
 //#endif
-    } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
-        // TODO: Handle this trivial case
-        Error("Wall dist calc not implemented with grid stretching yet");
-    } else {
-        // TODO
-        Error("Wall dist calc not implemented over terrain yet");
+        } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+            // TODO: Handle this trivial case
+            Error("Wall dist calc not implemented with grid stretching yet");
+        } else {
+            // TODO
+            Error("Wall dist calc not implemented over terrain yet");
+        }
     }
 
     Print() << "Calculating Poisson wall distance" << std::endl;
@@ -83,8 +98,7 @@ void ERF::poisson_wall_dist (int lev)
     // Overset mask is 0/1: 1 means the node is an unknown. 0 means it's known.
     mask.setVal(1);
     if (solverChoice.advChoice.have_zero_flux_faces) {
-        Warning("Poisson distance is inaccurate for bodies in open domains that are small compared to the domain size, skipping...");
-        walldist[lev]->setVal(1e34);
+        Warning("Poisson distance is inaccurate for bodies in open domains that are small compared to the domain size, skipping");
         return;
 #if 0
         Gpu::DeviceVector<IntVect> xfacelist, yfacelist, zfacelist;
@@ -173,12 +187,9 @@ void ERF::poisson_wall_dist (int lev)
     }
 
     // ****************************************************************************
-    // Setup BCs, with solid domain boundaries being Dirichlet
-    // We assume that the zlo boundary corresponds to the land surface
+    // Setup BCs, with solid domain boundaries being dirichlet
     // ****************************************************************************
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bc3d_lo, bc3d_hi;
-    Orientation zlo(Direction::z, Orientation::low);
-    bool havewall{false};
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         if (geom[0].isPeriodic(dir)) {
             bc3d_lo[dir] = LinOpBCType::Periodic;
@@ -188,13 +199,9 @@ void ERF::poisson_wall_dist (int lev)
             bc3d_hi[dir] = LinOpBCType::Neumann;
         }
     }
-    if ( ( phys_bc_type[zlo] == ERF_BC::MOST                               ) ||
-         ( phys_bc_type[zlo] == ERF_BC::no_slip_wall                       ) )/*||
-         ((phys_bc_type[zlo] == ERF_BC::slip_wall) && (dom_hi.z > dom_lo.z)) )*/
-    {
+    if (havewall) {
         Print() << "  Poisson zlo BC is dirichlet" << std::endl;
         bc3d_lo[2] = LinOpBCType::Dirichlet;
-        havewall = true;
     }
     Print() << "  bc lo : " << bc3d_lo << std::endl;
     Print() << "  bc hi : " << bc3d_hi << std::endl;

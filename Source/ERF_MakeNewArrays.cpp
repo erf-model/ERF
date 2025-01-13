@@ -385,12 +385,13 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     // Diffusive terms
     // ********************************************************************************************
     bool l_use_terrain = (SolverChoice::terrain_type != TerrainType::None);
+    bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type   != LESType::None)  ||
+                           (solverChoice.turbChoice[lev].rans_type  != RANSType::None) ||
+                           (solverChoice.turbChoice[lev].pbl_type   != PBLType::None) );
     bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
-                           (solverChoice.turbChoice[lev].les_type        !=       LESType::None) ||
-                           (solverChoice.turbChoice[lev].pbl_type        !=       PBLType::None) );
-    bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type        != LESType::None)   ||
-                           (solverChoice.turbChoice[lev].pbl_type        != PBLType::None) );
-    bool l_use_ddorf   = (solverChoice.turbChoice[lev].les_type       == LESType::Deardorff);
+                           l_use_kturb );
+    bool l_need_SmnSmn = ( (solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
+                           (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) );
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
@@ -457,7 +458,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     if (l_use_kturb) {
         eddyDiffs_lev[lev] = std::make_unique<MultiFab>(ba, dm, EddyDiff::NumDiffs, 2);
         eddyDiffs_lev[lev]->setVal(0.0);
-        if(l_use_ddorf) {
+        if(l_need_SmnSmn) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
         } else {
             SmnSmn_lev[lev] = nullptr;

@@ -1013,6 +1013,10 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             MultiFab::Copy(mf[lev],*walldist[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
+        if (containerHasElement(plot_var_names, "diss")) {
+            MultiFab::Copy(mf[lev],*SFS_diss_lev[lev],0,mf_comp,1,0);
+            mf_comp ++;
+        }
 
         // TODO: The size of the q variables can vary with different
         //       moisture models. Therefore, certain components may
