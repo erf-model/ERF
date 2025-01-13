@@ -94,6 +94,7 @@ function(build_erf_lib erf_lib_name)
                   )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
     target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_YAKL)
+    target_link_libraries(${erf_lib_name} PUBLIC yakl)
   endif()
 
   target_sources(${erf_lib_name}
@@ -232,10 +233,6 @@ endif()
     endif()
   endif()
 
-  if(ERF_ENABLE_RRTMGP)
-    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation>)
-  endif()
-
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
   endif()
@@ -270,10 +267,6 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/MM5>)
-
-  if(ERF_ENABLE_RRTMGP)
-     target_link_libraries(${erf_lib_name} PUBLIC yakl)
-  endif()
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC AMReX::amrex)

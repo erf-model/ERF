@@ -176,17 +176,21 @@ if(ERF_ENABLE_RRTMGP)
    endif()
 
    # Build YAKL as a static library
-   # YAKL_HOME is YAKL's source directlry
    set(YAKL_HOME ${CMAKE_SOURCE_DIR}/Submodules/YAKL)
-   # YAKL_BIN is where we're placing the YAKL library
    set(YAKL_BIN  ${CMAKE_BINARY_DIR}/yakl)
-   # Build the YAKL static library
    add_subdirectory(${YAKL_HOME} ${YAKL_BIN})
 
    # Build the static rrtmgp library
    set(RRTMGP_BIN ${CMAKE_BINARY_DIR}/rrtmgp)
    add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp ${RRTMGP_BIN})
 
+   # Set up libraries and definitions
+   set(RRTMGP_ENABLE_YAKL TRUE)
+   include(${YAKL_HOME}/yakl_utils.cmake)
+   yakl_process_target(rrtmgp)
+   target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_YAKL)
+   target_include_directories(rrtmgp PUBLIC ${YAKL_HOME})
+   message(STATUS "YAKL Flags: ${YAKL_COMPILER_FLAGS}")
 endif()
 
 ########################### ERF #####################################
