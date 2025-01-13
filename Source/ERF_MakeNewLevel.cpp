@@ -148,18 +148,22 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
     }
 
-    // ********************************************************************************************
-    // Build the data structures for immersed forcing representation of terrain
-    // ********************************************************************************************
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-        m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get());
-    }
-
     //********************************************************************************************
     // Create wall distance field for RANS model (depends upon z_phys)
     // *******************************************************************************************
     if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
+        // Handle bottom boundary
         poisson_wall_dist(lev);
+
+        // Correct the wall distance for immersed bodies
+        if (solverChoice.advChoice.have_zero_flux_faces) {
+            thinbody_wall_dist(walldist[lev],
+                               solverChoice.advChoice.zero_xflux,
+                               solverChoice.advChoice.zero_yflux,
+                               solverChoice.advChoice.zero_zflux,
+                               geom[lev],
+                               z_phys_cc[lev]);
+        }
     }
 
     //********************************************************************************************
@@ -221,7 +225,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     t_old[lev] = time - 1.e200;
 
     // ********************************************************************************************
-    // Build the data structures for terrain-related quantities
+    // Build the data structures for metric quantities used with terrain-fitted coordinates
     // ********************************************************************************************
     init_zphys(lev, time);
     update_terrain_arrays(lev);
@@ -241,13 +245,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
         m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
-    }
-
-    // ********************************************************************************************
-    // Build the data structures for immersed forcing representation of terrain
-    // ********************************************************************************************
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-        m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get());
     }
 
     //********************************************************************************************
@@ -361,7 +358,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Build the data structures for terrain-related quantities
     // ********************************************************************************************
-    remake_zphys(lev, temp_zphys_nd);
+    remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
 
     //
@@ -379,13 +376,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
         m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
-    }
-
-    // ********************************************************************************************
-    // Build the data structures for immersed forcing representation of terrain
-    // ********************************************************************************************
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-        m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get());
     }
 
     // *****************************************************************************************************
