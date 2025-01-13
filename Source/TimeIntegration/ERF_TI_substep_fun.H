@@ -65,8 +65,9 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             // Copy on intersection
             for (MFIter mfi(*z_phys_nd[level],false); mfi.isValid(); ++mfi)
             {
-                (    *z_phys_nd[level])[mfi].template copy<RunOn::Device>(terrain_fab_old,terrain_fab_old.box(),0,terrain_fab_old.box(),0,1);
-                (*z_phys_nd_new[level])[mfi].template copy<RunOn::Device>(terrain_fab_new,terrain_fab_old.box(),0,terrain_fab_new.box(),0,1);
+                Box isect = terrain_fab_old.box() & (*z_phys_nd[level])[mfi].box();
+                (    *z_phys_nd[level])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
+                (*z_phys_nd_new[level])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
             }
 
             make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
