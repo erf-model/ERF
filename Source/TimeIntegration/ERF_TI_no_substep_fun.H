@@ -162,8 +162,9 @@
                 S_old[IntVars::cons].FillBoundary(fine_geom.periodicity());
                 S_old[IntVars::cons].setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
 
+                // Update F_slow by Redistribution.
                 redistribute_term ( level, ncomp_fast[IntVars::cons], F_slow[IntVars::cons], dUdt_tmp,
-                                    S_old[IntVars::cons], bc_ptr_h, slow_dt); // Get a redistributed RHS, F_slow[IntVars::cons]
+                                    S_old[IntVars::cons], bc_ptr_h, slow_dt); 
 
                 // Update state using the updated F_slow. (NOTE: redistribute_term returns RHS not state variables.)
                 // state_plot is only for plotting purposes
@@ -171,18 +172,33 @@
                 for ( MFIter mfi(S_sum[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box bx = mfi.tilebox();
-                    Vector<Array4<Real> >  ssum(ncomp_fast[IntVars::cons]);
-                    Vector<Array4<Real> >  sold(ncomp_fast[IntVars::cons]);
-                    Vector<Array4<Real> > fslow(ncomp_fast[IntVars::cons]);
+                    Vector<Array4<Real> >  ssum_h(ncomp_fast[IntVars::cons]);
+                    Vector<Array4<Real> >  sold_h(ncomp_fast[IntVars::cons]);
+                    Vector<Array4<Real> > fslow_h(ncomp_fast[IntVars::cons]);
                     const Array4<const Real>& dJ_old = detJ_cc[level]->const_array(mfi);
-                    Vector<Array4<Real> > state_plot_arr(2);
+                    Vector<Array4<Real> > state_plot_arr_h(2);
 
                     for (int i = 0; i < ncomp_fast[IntVars::cons]; ++i) {
-                        ssum[i]  = S_sum[i].array(mfi);
-                        sold[i]  = S_old[i].array(mfi);
-                        fslow[i] = F_slow[i].array(mfi);
-                        state_plot_arr[i] = state_plot[i].array(mfi);
+                        ssum_h[i]  = S_sum[i].array(mfi);
+                        sold_h[i]  = S_old[i].array(mfi);
+                        fslow_h[i] = F_slow[i].array(mfi);
+                        state_plot_arr_h[i] = state_plot[i].array(mfi);
                     }
+
+                    Gpu::AsyncVector<Array4<Real> >  sold_d(ncomp_fast[IntVars::cons]);
+                    Gpu::AsyncVector<Array4<Real> >  ssum_d(ncomp_fast[IntVars::cons]);
+                    Gpu::AsyncVector<Array4<Real> > fslow_d(ncomp_fast[IntVars::cons]);
+                    Gpu::AsyncVector<Array4<Real> > state_plot_arr_d(ncomp_fast[IntVars::cons]);
+
+                    Gpu::copy(Gpu::hostToDevice,  sold_h.begin(),  sold_h.end(),  sold_d.begin());
+                    Gpu::copy(Gpu::hostToDevice,  ssum_h.begin(),  ssum_h.end(),  ssum_d.begin());
+                    Gpu::copy(Gpu::hostToDevice, fslow_h.begin(), fslow_h.end(), fslow_d.begin());
+                    Gpu::copy(Gpu::hostToDevice, state_plot_arr_h.begin(), state_plot_arr_h.end(), state_plot_arr_d.begin());
+
+                    Array4<Real>*  sold =  sold_d.dataPtr();
+                    Array4<Real>*  ssum =  ssum_d.dataPtr();
+                    Array4<Real>* fslow = fslow_d.dataPtr();
+                    Array4<Real>* state_plot_arr = state_plot_arr_d.dataPtr();
 
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
@@ -190,8 +206,10 @@
                         if (nn==1) {
                             state_plot_arr[0](i,j,k) = ssum[IntVars::cons](i,j,k,n);
                         }
+                        if (dJ_old(i,j,k) > 0.0) {
                         ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
                             ( fslow[IntVars::cons](i,j,k,n) );
+                        }
                         if (nn==1) {
                             state_plot_arr[1](i,j,k) = ssum[IntVars::cons](i,j,k,n);
                         }
