@@ -174,8 +174,11 @@ Problem::init_custom_terrain (
     std::string fname;
     ParmParse pp("erf");
     auto valid_fname = pp.query("terrain_file_name",fname);
+    auto valid_fname_USGS = pp.query("terrain_file_name_USGS",fname);
     if (valid_fname) {
         this->read_custom_terrain(fname,geom,z_phys_nd,time);
+    } else if (valid_fname_USGS) {
+        this->read_custom_terrain_USGS(fname,geom,z_phys_nd,time);
     } else {
         // Domain cell size and real bounds
         auto dx = geom.CellSizeArray();
