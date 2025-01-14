@@ -20,6 +20,8 @@ public:
           dx(a_geom.CellSize(0)),
           dy(a_geom.CellSize(1)),
           dz(a_geom.CellSize(2)),
+          prob_lo_x(a_geom.ProbLo(0)),
+          prob_lo_y(a_geom.ProbLo(1)),
           prob_lo_z(a_geom.ProbLo(2))
         {}
 
@@ -27,19 +29,19 @@ public:
     amrex::Real operator() (AMREX_D_DECL(amrex::Real x, amrex::Real y, amrex::Real z))
         const noexcept
     {
-        const int i1 = static_cast<int>(std::floor(x / dx));
-        const int j1 = static_cast<int>(std::floor(y / dy));
-        const int k1 = static_cast<int>(std::floor(z / dz));
+        const int i1 = static_cast<int>(std::floor((x-prob_lo_x) / dx));
+        const int j1 = static_cast<int>(std::floor((y-prob_lo_y) / dy));
+        const int k1 = static_cast<int>(std::floor((z-prob_lo_z) / dz));
 
         const int i2 = i1+1;
         const int j2 = j1+1;
 
-        amrex::Real x1 = i1*dx;
-        amrex::Real y1 = j1*dy;
-        amrex::Real z1 = k1*dz;
+        amrex::Real x1 = prob_lo_x + i1*dx;
+        amrex::Real y1 = prob_lo_y + j1*dy;
+        amrex::Real z1 = prob_lo_z + k1*dz;
 
-        amrex::Real x2 = i2*dx;
-        amrex::Real y2 = j2*dy;
+        amrex::Real x2 = prob_lo_x + i2*dx;
+        amrex::Real y2 = prob_lo_y + j2*dy;
 
         amrex::Real remainder_z = (z - z1)/dz;
 
@@ -71,7 +73,8 @@ public:
 protected:
     amrex::Array4<amrex::Real const> terr_arr;
     amrex::Real const* dz_s;
-    amrex::Real dx, dy, dz, prob_lo_z;
+    amrex::Real dx, dy, dz;
+    amrex::Real prob_lo_x, prob_lo_y, prob_lo_z;
 };
 
 #endif
