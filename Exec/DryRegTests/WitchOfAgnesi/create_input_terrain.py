@@ -40,56 +40,56 @@ z_arr = np.zeros((npoints_x,npoints_y),dtype=float)
 
 if case == "WitchOfAgnesi":
 
-	a    = 0.5
-	num  = 8 * a * a * a #8 * a * a * a;
-	xcen = 0.5 * (x_lo + x_hi);
-	for i in range(npoints_x):
-		x = x_arr[i] - xcen
-		for j in range(npoints_y):
-			z_arr[i,j] = num / (x*x + 4 * a * a)
+    a    = 0.5
+    num  = 8 * a * a * a #8 * a * a * a;
+    xcen = 0.5 * (x_lo + x_hi);
+    for i in range(npoints_x):
+        x = x_arr[i] - xcen
+        for j in range(npoints_y):
+            z_arr[i,j] = num / (x*x + 4 * a * a)
 
 elif case == "Cylinder":
 
-	a    = 0.5
-	xcen = 0.5 * (x_lo + x_hi);
-	for i in range(npoints_x):
-		x = x_arr[i] - xcen
-		for j in range(npoints_y):
-			if abs(x)<a:
-				z_arr[i,j] = np.sqrt(a**2 - x**2)
-			else:
-				z_arr[i,j] = 0.0
+    a    = 0.5
+    xcen = 0.5 * (x_lo + x_hi);
+    for i in range(npoints_x):
+        x = x_arr[i] - xcen
+        for j in range(npoints_y):
+            if abs(x)<a:
+                z_arr[i,j] = np.sqrt(a**2 - x**2)
+            else:
+                z_arr[i,j] = 0.0
 
 elif case == "Hemisphere":
 
-	a    = 0.5
-	xcen = 0.5 * (x_lo + x_hi);
-	ycen = 0.5 * (y_lo + y_hi);
-	for i in range(npoints_x):
-		x = x_arr[i] - xcen
-		for j in range(npoints_y):
-			y = y_arr[j] - ycen
-			if np.sqrt(x**2+y**2)<a:
-				z_arr[i,j] = np.sqrt(a**2 - x**2 - y**2)
-			else:
-				z_arr[i,j] = 0.0				
+    a    = 0.5
+    xcen = 0.5 * (x_lo + x_hi);
+    ycen = 0.5 * (y_lo + y_hi);
+    for i in range(npoints_x):
+        x = x_arr[i] - xcen
+        for j in range(npoints_y):
+            y = y_arr[j] - ycen
+            if np.sqrt(x**2+y**2)<a:
+                z_arr[i,j] = np.sqrt(a**2 - x**2 - y**2)
+            else:
+                z_arr[i,j] = 0.0
 
 elif case == "Gaussian":
 
-	a    = 0.5
-	sigma_x2 = (0.25*x_hi)**2
-	sigma_y2 = (0.1*y_hi)**2
-	xcen = 0.25 * x_hi 
-	ycen = 0.75 * y_hi 
-	for i in range(npoints_x):
-		x = x_arr[i] - xcen	
-		for j in range(npoints_y):
-			y = y_arr[j] - ycen
-			z_arr[i,j] = a * np.exp( -( x**2/2./sigma_x2 + y**2/2./sigma_y2 ) )
+    a    = 0.5
+    sigma_x2 = (0.25*x_hi)**2
+    sigma_y2 = (0.1*y_hi)**2
+    xcen = 0.25 * x_hi
+    ycen = 0.75 * y_hi
+    for i in range(npoints_x):
+        x = x_arr[i] - xcen
+        for j in range(npoints_y):
+            y = y_arr[j] - ycen
+            z_arr[i,j] = a * np.exp( -( x**2/2./sigma_x2 + y**2/2./sigma_y2 ) )
 
 else:
-	print("Wrong case.")
-	exit()
+    print("Wrong case.")
+    exit()
 
 
 #####################################
@@ -100,19 +100,19 @@ outfile = open("input_terrain.dat","w")
 outfile.write( str(npoints_x) + '\n' )
 outfile.write( str(npoints_y) + '\n' )
 for i in range(npoints_x):
-	outfile.write( str(x_arr[i]) + '\n' )
+    outfile.write( str(x_arr[i]) + '\n' )
 for i in range(npoints_y):
-	outfile.write( str(y_arr[i]) + '\n' )
-for j in range(npoints_y):	
-	for i in range(npoints_x):
-		outfile.write( str(z_arr[i,j]) + '\n' )
+    outfile.write( str(y_arr[i]) + '\n' )
+for j in range(npoints_y):
+    for i in range(npoints_x):
+        outfile.write( str(z_arr[i,j]) + '\n' )
 
-##################################### 
+#####################################
 # Surface Plot
 # Need to adjust the following:
-# 	- vmin
-#	- vmax
-# 	- ax.set_xlim, ax.set_ylim, ax.set_zlim
+#     - vmin
+#    - vmax
+#     - ax.set_xlim, ax.set_ylim, ax.set_zlim
 #####################################
 
 x_arr, y_arr = np.meshgrid(x_arr, y_arr)

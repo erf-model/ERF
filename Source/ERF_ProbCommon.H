@@ -353,8 +353,8 @@ public:
 
                 nx
                 ny
-                x1 
-                x2 
+                x1
+                x2
                 ...
                 xn
                 y1
@@ -369,7 +369,7 @@ public:
                 ...
                 z(xn,yn)
 
-                */ 
+                */
 
                 file >> nx; file >> ny;
                 AMREX_ALWAYS_ASSERT(nx > 0);
@@ -485,12 +485,12 @@ public:
                 x2 = d_xt[iindex_terrain+1];
                 y1 = d_yt[jindex_terrain];
                 y2 = d_yt[jindex_terrain+1];
-                
+
                 ind11 =           jindex_terrain         * nx + iindex_terrain;
                 ind21 =  std::min(jindex_terrain+1,ny-1) * nx + iindex_terrain;
 
                 ind12 =           jindex_terrain         * nx + std::min(iindex_terrain+1,nx-1);
-                ind22  = std::min(jindex_terrain+1,ny-1) * nx + std::min(iindex_terrain+1,nx-1);             
+                ind22  = std::min(jindex_terrain+1,ny-1) * nx + std::min(iindex_terrain+1,nx-1);
             }
 
             // Do bilinear interpolation
