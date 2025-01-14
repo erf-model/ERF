@@ -83,6 +83,15 @@ compute_heating_rate (yakl::Array<T,2,myMem,myStyle> const &flux_up,
         heating_rate(icol,ilay) = ( flux_up(icol,ilay+1) - flux_up(icol,ilay)
                                   - flux_dn(icol,ilay+1) + flux_dn(icol,ilay) )
                                   / (Cp_d * rho(icol,ilay) * dz(icol,ilay));
+
+        /*
+        if (icol == 1) {
+            printf("Heating Rate %i %e %e %e %e %e %e\n",ilay,
+                   flux_up(icol,ilay+1), flux_up(icol,ilay),
+                   flux_dn(icol,ilay+1), flux_dn(icol,ilay),
+                   rho(icol,ilay), dz(icol,ilay));
+        }
+        */
     });
 }
 

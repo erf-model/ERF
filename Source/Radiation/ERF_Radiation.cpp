@@ -20,7 +20,8 @@ using yakl::fortran::parallel_for;
 using yakl::fortran::SimpleBounds;
 
 
-Radiation::Radiation (SolverChoice& sc)
+Radiation::Radiation (const int& lev,
+                      SolverChoice& sc)
 {
     // Initialize YAKL
     if (!yakl::isInitialized()) { yakl::init(); }
@@ -45,7 +46,7 @@ Radiation::Radiation (SolverChoice& sc)
     // for duration of simulation.
     m_fixed_orbital_year = pp.query("orbital_year",m_orbital_year);
 
-    // Get orbital parameters from yaml file
+    // Get orbital parameters from inputs file
     pp.query("orbital_eccentricity", m_orbital_eccen);
     pp.query("orbital_obliquity"   , m_orbital_obliq);
     pp.query("orbital_mvelp"       , m_orbital_mvelp);
@@ -73,6 +74,12 @@ Radiation::Radiation (SolverChoice& sc)
     pp.query("extra_clnclrsky_diag", m_extra_clnclrsky_diag);
     pp.query("extra_clnsky_diag"   , m_extra_clnsky_diag);
 
+    // Parse the band and gauss pt sizes
+    pp.query("nswbands", m_nswbands);
+    pp.query("nlwbands", m_nlwbands);
+    pp.query("nswgpts" , m_nswgpts );
+    pp.query("nlwgpts" , m_nlwgpts );
+
     // Parse path and file names
     pp.query("rrtmgp_file_path"      , rrtmgp_file_path);
     pp.query("rrtmgp_coeffs_sw"      , rrtmgp_coeffs_sw  );
@@ -85,6 +92,17 @@ Radiation::Radiation (SolverChoice& sc)
     rrtmgp_coeffs_file_lw       = rrtmgp_file_path + "/" + rrtmgp_coeffs_lw;
     rrtmgp_cloud_optics_file_sw = rrtmgp_file_path + "/" + rrtmgp_cloud_optics_sw;
     rrtmgp_cloud_optics_file_lw = rrtmgp_file_path + "/" + rrtmgp_cloud_optics_lw;
+
+    // Output for user
+    if (lev == 0) {
+        Print() << "Radiation interface constructed:\n";
+        Print() << "========================================================\n";
+        Print() << "Coeff SW file: " << rrtmgp_coeffs_file_sw << "\n";
+        Print() << "Coeff LW file: " << rrtmgp_coeffs_file_lw << "\n";
+        Print() << "Cloud SW file: " << rrtmgp_cloud_optics_file_sw << "\n";
+        Print() << "Cloud LW file: " << rrtmgp_cloud_optics_file_lw << "\n";
+        Print() << "========================================================\n";
+    }
 }
 
 void
@@ -121,10 +139,12 @@ Radiation::set_grids (int& level,
     if (m_fixed_orbital_year) {
         m_orbital_mon  = timeinfo->tm_mon + 1;
         m_orbital_day  = timeinfo->tm_mday;
+        m_orbital_sec  = timeinfo->tm_hour*3600 + timeinfo->tm_min*60 + timeinfo->tm_sec;
     } else {
         m_orbital_year = timeinfo->tm_year + 1900;
         m_orbital_mon  = timeinfo->tm_mon  + 1;
         m_orbital_day  = timeinfo->tm_mday;
+        m_orbital_sec  = timeinfo->tm_hour*3600 + timeinfo->tm_min*60 + timeinfo->tm_sec;
     }
 
     // Only allocate and proceed if we are going to update radiation
@@ -160,13 +180,13 @@ Radiation::alloc_buffers ()
     // 1d size (m_ngas)
     m_gas_mol_weights = real1d("m_gas_mol_weights", m_ngas);
     realHost1d m_gas_mol_weights_h("m_gas_mol_weights_h", m_ngas);
+
     parallel_for(m_ngas, YAKL_LAMBDA (int igas)
     {
-        m_gas_mol_weights_h(igas)   = m_mol_weight_gas[igas];
-        gas_names_yakl_offset[igas] = m_gas_names[igas];
+        m_gas_mol_weights_h(igas)   = m_mol_weight_gas[igas-1];
+        gas_names_yakl_offset.push_back(m_gas_names[igas-1]);
     });
     m_gas_mol_weights.deep_copy_to(m_gas_mol_weights_h);
-
 
     // 1d size (ncol)
     cosine_zenith    = real1d("cosine_zenith"   , m_ncol);
@@ -395,12 +415,14 @@ Radiation::mf_to_yakl_buffers ()
                                                 + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
                                                 + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
                                                 + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k)) ) : dz;
+            // TODO: candidate for deletion
+            d_dz(icol,ilay)   = z_del(icol,ilay);
             qv_lay(icol,ilay) = qv;
             qc_lay(icol,ilay) = qc;
             qi_lay(icol,ilay) = qi;
             cldfrac_tot(icol,ilay) = ((qc+qi)>1.0e-5) ? 1. : 0.;
 
-            // HACK HACK HACK
+            // TODO: Fill properly
             lwp(icol,ilay) = 0.0;
             iwp(icol,ilay) = 0.0;
 
@@ -424,12 +446,13 @@ Radiation::mf_to_yakl_buffers ()
     parallel_for(SimpleBounds<2>(ncol, nlay), YAKL_LAMBDA (int icol, int ilay)
     {
         p_del(icol,ilay)  = p_lev(icol,ilay+1) - p_lev(icol,ilay);
+        // TODO: Fill properly
         nc_lay(icol,ilay) = 0.0;
         eff_radius_qc(icol,ilay) = 0.0;
         eff_radius_qi(icol,ilay) = 0.0;
     });
 
-    // HACK HACK HACK
+    // TODO: Fill properly
     // No LSM, so follow EAMXX dummy atmos and set constants
     yakl::memset(mu0, 0.86);
     yakl::memset(sfc_alb_dir_vis, 0.06);
@@ -437,7 +460,7 @@ Radiation::mf_to_yakl_buffers ()
     yakl::memset(sfc_alb_dif_vis, 0.06);
     yakl::memset(sfc_alb_dif_nir, 0.06);
 
-    // HACK HACK HACK
+    // TODO: Fill properly
     yakl::memset(aero_tau_sw, 0.0);
     yakl::memset(aero_ssa_sw, 0.0);
     yakl::memset(aero_g_sw  , 0.0);
@@ -455,37 +478,55 @@ Radiation::yakl_buffers_to_mf ()
         const int imin       = vbx.smallEnd(0);
         const int jmin       = vbx.smallEnd(1);
         const int offset     = m_col_offsets[mfi.index()];
-        const Array4<Real>& q_arr   = m_qheating_rates->array(mfi);
-        const Array4<Real>& lsm_arr = (m_lsm_fluxes) ? m_lsm_fluxes->array(mfi) :
-                                                       Array4<Real>{};
+        const Array4<Real>& q_arr = m_qheating_rates->array(mfi);
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // map [i,j,k] 0-based to [icol, ilay] 1-based
             const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
             const int ilay = k+1;
 
-            // Heating rate for SW and LW (this is for Temperature)
+            // Temperature heating rate for SW and LW
             q_arr(i,j,k,0) = sw_heating(icol,ilay);
             q_arr(i,j,k,1) = lw_heating(icol,ilay);
+
+            // Convert the rates for theta_d
+            Real exner = getExnergivenP(Real(p_lay(icol,ilay)), R_d/Cp_d);
+            q_arr(i,j,k,0) *= exner;
+            q_arr(i,j,k,1) *= exner;
+
+            /*
+            if (i==0 && j==0) {
+                Print() << "Qsrcs: " << IntVect(i,j,k) << ' '
+                        << IntVect(icol,0,ilay) << ' '
+                        << q_arr(i,j,k,0) << ' '
+                        << q_arr(i,j,k,1) << ' '
+                        << sw_heating(icol,ilay) << ' '
+                        << lw_heating(icol,ilay) << ' '
+                        << exner << "\n";
+            }
+            */
         });
-        ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            // map [i,j,k] 0-based to [icol, ilay] 1-based
-            const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
+        if (m_lsm_fluxes) {
+            const Array4<Real>& lsm_arr =  m_lsm_fluxes->array(mfi);
+            ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // map [i,j,k] 0-based to [icol, ilay] 1-based
+                const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
 
-            // SW fluxes for LSM
-            lsm_arr(i,j,k,0) = sfc_flux_dir_vis(icol);
-            lsm_arr(i,j,k,1) = sfc_flux_dir_nir(icol);
-            lsm_arr(i,j,k,2) = sfc_flux_dif_vis(icol);
-            lsm_arr(i,j,k,3) = sfc_flux_dif_nir(icol);
+                // SW fluxes for LSM
+                lsm_arr(i,j,k,0) = sfc_flux_dir_vis(icol);
+                lsm_arr(i,j,k,1) = sfc_flux_dir_nir(icol);
+                lsm_arr(i,j,k,2) = sfc_flux_dif_vis(icol);
+                lsm_arr(i,j,k,3) = sfc_flux_dif_nir(icol);
 
-            // New SW flux for LSM
-            lsm_arr(i,j,k,4) = sfc_flux_dir_vis(icol) + sfc_flux_dir_nir(icol)
-                             + sfc_flux_dif_vis(icol) + sfc_flux_dif_nir(icol);
+                // Net SW flux for LSM
+                lsm_arr(i,j,k,4) = sfc_flux_dir_vis(icol) + sfc_flux_dir_nir(icol)
+                                 + sfc_flux_dif_vis(icol) + sfc_flux_dif_nir(icol);
 
-            // LW fluxe for LSM (at bottom surface)
-            lsm_arr(i,j,k,5) = lw_flux_dn(icol,1);
-        });
+                // LW flux for LSM (at bottom surface)
+                lsm_arr(i,j,k,5) = lw_flux_dn(icol,1);
+            });
+        }
     }
 }
 
@@ -528,8 +569,9 @@ Radiation::run_impl ()
 
     // Use the orbital parameters to calculate the solar declination and eccentricity factor
     real delta, eccf;
-    // TODO: Generalize this.
-    auto calday = (m_orbital_mon-1.0)*365.0/12.0 + m_orbital_day;  // Want day + fraction; calday 1 == Jan 1 0Z
+    // TODO: Generalize the days per month.
+    // Want day + fraction; calday 1 == Jan 1 0Z
+    real calday = (m_orbital_mon-1.0)*365.0/12.0 + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
     orbital_decl(calday, eccen, mvelpp,
                  lambm0, obliqr, delta, eccf);
 

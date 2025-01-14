@@ -142,7 +142,7 @@ ERF::ERF_shared ()
 
     // NOTE: size canopy model before readparams (if file exists, we construct)
     m_forest_drag.resize(nlevs_max);
-    for (int lev = 0; lev < max_level; ++lev) { m_forest_drag[lev] = nullptr;}
+    for (int lev = 0; lev <= max_level; ++lev) { m_forest_drag[lev] = nullptr;}
 
     ReadParameters();
     initializeMicrophysics(nlevs_max);
@@ -153,7 +153,7 @@ ERF::ERF_shared ()
 
 #ifdef ERF_USE_RRTMGP
     rad.resize(nlevs_max);
-    for (int lev = 0; lev < max_level; ++lev) { rad[lev] = std::make_unique<Radiation>(solverChoice); }
+    for (int lev = 0; lev <= max_level; ++lev) { rad[lev] = std::make_unique<Radiation>(lev,solverChoice); }
 #endif
 
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);

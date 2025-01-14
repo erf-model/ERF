@@ -42,7 +42,8 @@ class Radiation {
 public:
 
     // Constructor
-    Radiation (SolverChoice& sc);
+    Radiation (const int& lev,
+               SolverChoice& sc);
 
     // Destructor
     ~Radiation () = default;
@@ -96,9 +97,11 @@ public:
     rad_run_impl ()
     {
         if (m_update_rad) {
+            amrex::Print() << "Advancing radiation at level: " << m_lev << " ...";
             this->initialize_impl();
             this->run_impl();
             this->finalize_impl();
+            amrex::Print() << "DONE\n";
         }
     }
 
@@ -148,8 +151,8 @@ private:
 
     // Path, data file, and coefficient file for K-distribution
     std::string rrtmgp_file_path       = ".";
-    std::string rrtmgp_coeffs_sw       = "rrtmgp-data-sw-g112-210809.nc";
-    std::string rrtmgp_coeffs_lw       = "rrtmgp-data-lw-g128-210809.nc";
+    std::string rrtmgp_coeffs_sw       = "rrtmgp-data-sw-g224-2018-12-04.nc";
+    std::string rrtmgp_coeffs_lw       = "rrtmgp-data-lw-g224-2018-12-04.nc";
     std::string rrtmgp_cloud_optics_sw = "rrtmgp-cloud-optics-coeffs-sw.nc";
     std::string rrtmgp_cloud_optics_lw = "rrtmgp-cloud-optics-coeffs-lw.nc";
     std::string rrtmgp_coeffs_file_sw;
@@ -202,6 +205,7 @@ private:
     int m_orbital_year = -9999;
     int m_orbital_mon  = -9999;
     int m_orbital_day  = -9999;
+    int m_orbital_sec  = -9999;
 
     // Orbital parameters, used for zenith angle calculations.
     // If >= 0, bypass computation based on orbital year and use fixed parameters
@@ -226,8 +230,6 @@ private:
     int m_nlwbands = 16;
     int m_nswgpts  = 112;
     int m_nlwgpts  = 128;
-
-
 
     // Rad frequency in number of steps
     int m_rad_freq_in_steps = 1;
