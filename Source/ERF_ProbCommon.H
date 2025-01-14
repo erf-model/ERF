@@ -348,6 +348,29 @@ public:
 
             } else {
 
+                /*
+                The terrain input file reads the following:
+
+                nx
+                ny
+                x1 
+                x2 
+                ...
+                xn
+                y1
+                y2
+                ...
+                yn
+                z(x1,y1)
+                z(x2,y1)
+                ...
+                z(xn,y1)
+                z(x1,y2)
+                ...
+                z(xn,yn)
+
+                */ 
+
                 file >> nx; file >> ny;
                 AMREX_ALWAYS_ASSERT(nx > 0);
                 AMREX_ALWAYS_ASSERT(ny > 0);
@@ -368,7 +391,6 @@ public:
             // Close the file after reading
             file.close();
         }
-
 
         amrex::ParallelDescriptor::Bcast(&nx,1,amrex::ParallelDescriptor::IOProcessorNumber());
         amrex::ParallelDescriptor::Bcast(&ny,1,amrex::ParallelDescriptor::IOProcessorNumber());
@@ -463,12 +485,12 @@ public:
                 x2 = d_xt[iindex_terrain+1];
                 y1 = d_yt[jindex_terrain];
                 y2 = d_yt[jindex_terrain+1];
+                
+                ind11 =           jindex_terrain         * nx + iindex_terrain;
+                ind21 =  std::min(jindex_terrain+1,ny-1) * nx + iindex_terrain;
 
-                ind11 =           iindex_terrain         * ny + jindex_terrain;
-                ind12 =  std::min(iindex_terrain+1,nx-1) * ny + jindex_terrain;
-
-                ind21 =           iindex_terrain         * ny + std::min(jindex_terrain+1,ny-1);
-                ind22  = std::min(iindex_terrain+1,nx-1) * ny + std::min(jindex_terrain+1,ny-1);
+                ind12 =           jindex_terrain         * nx + std::min(iindex_terrain+1,nx-1);
+                ind22  = std::min(jindex_terrain+1,ny-1) * nx + std::min(iindex_terrain+1,nx-1);             
             }
 
             // Do bilinear interpolation
