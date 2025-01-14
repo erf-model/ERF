@@ -301,6 +301,8 @@ public:
     {
         amrex::Vector<amrex::Real> m_xterrain,m_yterrain,m_zterrain;
 
+        int nx = 0; int ny = 0;
+
         if (amrex::ParallelDescriptor::IOProcessor()) {
             // Read terrain file
             amrex::Print()<<"Reading terrain file: "<< fname<< std::endl;
@@ -316,8 +318,6 @@ public:
             }
 
             amrex::Real value1,value2,value3;
-
-            int nx = 0; int ny = 0;
 
             if (is_usgs) {
                 amrex::Real lat_min, lon_min;
@@ -370,16 +370,21 @@ public:
             file.close();
         }
 
-        int nxterr = m_xterrain.size();
-        int nyterr = m_yterrain.size();
-        int nzterr = m_zterrain.size();
+        amrex::ParallelDescriptor::Bcast(&nx,1,amrex::ParallelDescriptor::IOProcessor());
+        amrex::ParallelDescriptor::Bcast(&ny,1,amrex::ParallelDescriptor::IOProcessor());
 
-        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nxterr,amrex::ParallelDescriptor::IOProcessor());
-        amrex::ParallelDescriptor::Bcast(m_yterrain.data(),nyterr,amrex::ParallelDescriptor::IOProcessor());
-        amrex::ParallelDescriptor::Bcast(m_zterrain.data(),nzterr,amrex::ParallelDescriptor::IOProcessor());
+        int nz = nx * ny;
+
+        m_xterrain.resize(nx);
+        m_yterrain.resize(ny);
+        m_zterrain.resize(nx * ny);
+
+        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx,amrex::ParallelDescriptor::IOProcessor());
+        amrex::ParallelDescriptor::Bcast(m_yterrain.data(),ny,amrex::ParallelDescriptor::IOProcessor());
+        amrex::ParallelDescriptor::Bcast(m_zterrain.data(),nz,amrex::ParallelDescriptor::IOProcessor());
 
         // Copy data to the GPU
-        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nxterr),d_yterrain(nyterr),d_zterrain(nzterr);
+        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx),d_yterrain(ny),d_zterrain(nz);
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_xterrain.begin(), m_xterrain.end(), d_xterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_yterrain.begin(), m_yterrain.end(), d_yterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_zterrain.begin(), m_zterrain.end(), d_zterrain.begin());
@@ -411,13 +416,13 @@ public:
             amrex::Real y = ProbLoArr[1] + jj * dx[1] + 1e-3;
 
             int jindex_terrain = -1;
-            for (int it = 0; it < nyterr && jindex_terrain == -1; it++) {
+            for (int it = 0; it < ny && jindex_terrain == -1; it++) {
                 if (d_yt[it] > y) {
                     jindex_terrain = it-1;
                 }
             }
             if (jindex_terrain == -1) {
-                jindex_terrain = nyterr-1;
+                jindex_terrain = ny-1;
             }
 
             int ind11, ind12, ind21, ind22;
@@ -425,8 +430,8 @@ public:
 
             int iindex_terrain=-1;
             if (is_usgs) {
-                int gstart = (jindex_terrain  )*nxterr;
-                int gend   = (jindex_terrain+1)*nxterr-1;
+                int gstart = (jindex_terrain  )*nx;
+                int gend   = (jindex_terrain+1)*nx-1;
                 for (int it = gstart; it <= gend && iindex_terrain == -1; it++) {
                     if (d_xt[it] > x) {
                         iindex_terrain = it-gstart;
@@ -434,8 +439,8 @@ public:
                 }
 
                 // Define the four values to interpolate between
-                ind11 = jindex_terrain*nxterr + iindex_terrain;
-                ind12 = ind11+nxterr;
+                ind11 = jindex_terrain*nx + iindex_terrain;
+                ind12 = ind11+nx;
                 ind21 = ind11+1;
                 ind22 = ind12+1;
                 x1 = d_xt[ind11];
@@ -444,13 +449,13 @@ public:
                 y2 = d_yt[jindex_terrain+1];
 
             } else {
-                for (int it = 0; it < nxterr && iindex_terrain == -1; it++) {
+                for (int it = 0; it < nx && iindex_terrain == -1; it++) {
                     if (d_xt[it] > x) {
                         iindex_terrain = it-1;
                     }
                 }
                 if (iindex_terrain == -1) {
-                    iindex_terrain = nxterr-1;
+                    iindex_terrain = nx-1;
                 }
 
                 // Define the four values to interpolate between
@@ -459,11 +464,11 @@ public:
                 y1 = d_yt[jindex_terrain];
                 y2 = d_yt[jindex_terrain+1];
 
-                ind11 =           iindex_terrain         * nyterr + jindex_terrain;
-                ind12 =  std::min(iindex_terrain+1,nxterr-1) * nyterr + jindex_terrain;
+                ind11 =           iindex_terrain         * ny + jindex_terrain;
+                ind12 =  std::min(iindex_terrain+1,nx-1) * ny + jindex_terrain;
 
-                ind21 =           iindex_terrain         * nyterr + std::min(jindex_terrain+1,nyterr-1);
-                ind22  = std::min(iindex_terrain+1,nxterr-1) * nyterr + std::min(jindex_terrain+1,nyterr-1);
+                ind21 =           iindex_terrain         * ny + std::min(jindex_terrain+1,ny-1);
+                ind22  = std::min(iindex_terrain+1,nx-1) * ny + std::min(jindex_terrain+1,ny-1);
             }
 
             // Do bilinear interpolation

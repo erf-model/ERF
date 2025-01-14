@@ -150,8 +150,10 @@ Problem::init_custom_terrain(
 
     amrex::Array4<Real> const& z_arr = terrain_fab.array();
 
+    Box zbx = terrain_fab.box();
+
     if (zbx.smallEnd(2) <= k0) {
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Clip indices for ghost-cells
             int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
