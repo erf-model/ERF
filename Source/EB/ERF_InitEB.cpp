@@ -38,7 +38,7 @@ void ERF::MakeEBGeometry()
         amrex::Print() << "\n Building EB geometry based on idealized terrain." << std::endl;
         Real dummy_time = 0.0;
 
-        Box bx(surroundingNodes(Geom(lev).Domain())); bx.grow(1);
+        Box bx(surroundingNodes(Geom(lev).Domain())); bx.grow(3);
         FArrayBox terrain_fab(makeSlab(bx,2,0),1);
 
         prob->init_terrain_surface(Geom(lev), terrain_fab, dummy_time);
