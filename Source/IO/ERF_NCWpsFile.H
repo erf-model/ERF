@@ -250,7 +250,6 @@ fill_fab_from_arrays (int iv,
 
     // TODO:  The box will only start at (0,0,0) at level 0 -- we need to generalize this
     amrex::Box my_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,ns1-1));
-    // amrex::Print() <<" MY BOX " << my_box << std::endl;
 
     if (var_name == "U" || var_name == "UU" ||
         var_name == "MAPFAC_U" || var_name == "MAPFAC_UY") my_box.setType(amrex::IndexType(amrex::IntVect(1,0,0)));
@@ -270,9 +269,6 @@ fill_fab_from_arrays (int iv,
     int joff = temp.box().smallEnd()[1];
 
     auto num_pts = my_box.numPts();
-
-    // amrex::Print() <<" ns1 * ns2 * ns3 " << ns1 * ns2 * ns3 << std::endl;
-    // amrex::Print() <<" NUMPTS " << num_pts << std::endl;
 
     for (int n(0); n < num_pts; ++n) {
         int k  = n / (ns2*ns3);
@@ -312,8 +308,7 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
     {
         FAB tmp;
         if (amrex::ParallelDescriptor::IOProcessor()) {
-            fill_fab_from_arrays<FAB,DType>(iv,
-                                            nc_arrays, nc_var_names[iv],
+            fill_fab_from_arrays<FAB,DType>(iv, nc_arrays, nc_var_names[iv],
                                             NC_dim_types[iv], tmp);
         }
 
