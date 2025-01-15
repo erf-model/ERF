@@ -180,7 +180,7 @@ Radiation::alloc_buffers ()
     // 1d size (m_ngas)
     m_gas_mol_weights = real1d("m_gas_mol_weights", m_ngas);
     realHost1d m_gas_mol_weights_h("m_gas_mol_weights_h", m_ngas);
-
+    gas_names_yakl_offset.clear();
     parallel_for(m_ngas, YAKL_LAMBDA (int igas)
     {
         m_gas_mol_weights_h(igas)   = m_mol_weight_gas[igas-1];
@@ -494,17 +494,17 @@ Radiation::yakl_buffers_to_mf ()
             q_arr(i,j,k,0) *= exner;
             q_arr(i,j,k,1) *= exner;
 
-            /*
+
             if (i==0 && j==0) {
-                Print() << "Qsrcs: " << IntVect(i,j,k) << ' '
-                        << IntVect(icol,0,ilay) << ' '
-                        << q_arr(i,j,k,0) << ' '
-                        << q_arr(i,j,k,1) << ' '
-                        << sw_heating(icol,ilay) << ' '
-                        << lw_heating(icol,ilay) << ' '
-                        << exner << "\n";
+                AllPrint() << "Qsrcs: " << IntVect(i,j,k) << ' '
+                           << IntVect(icol,0,ilay) << ' '
+                           << q_arr(i,j,k,0) << ' '
+                           << q_arr(i,j,k,1) << ' '
+                           << sw_heating(icol,ilay) << ' '
+                           << lw_heating(icol,ilay) << ' '
+                           << exner << "\n";
             }
-            */
+
         });
         if (m_lsm_fluxes) {
             const Array4<Real>& lsm_arr =  m_lsm_fluxes->array(mfi);
