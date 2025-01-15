@@ -494,19 +494,31 @@ ERF::init_zphys (int lev, Real time)
         FArrayBox terrain_fab(makeSlab(bx,2,0),1);
 
         //
-        // Fill the values of the terrain height at k=0 only
+        // If we are using fitted mesh then we use the surface as defined above
+        // If we are not using fitted mesh but are using z_levels, we still need z_phys (for now)
+        //    but we need to use a flat terrain for the mesh itself (the EB data has already been made
+        //    from the correct terrain)
         //
-        prob->init_terrain_surface(geom[lev],terrain_fab,time);
+        if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
+            solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
+                terrain_fab.setVal(0.0);
+        } else {
+            //
+            // Fill the values of the terrain height at k=0 only
+            //
+            prob->init_terrain_surface(geom[lev],terrain_fab,time);
+        }
 
-        if (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
-            solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
+        if (z_phys_nd[lev]) { // Has this been allocated?
             for (MFIter mfi(*z_phys_nd[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box isect = terrain_fab.box() & (*z_phys_nd[lev])[mfi].box();
                 (*z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
             }
             make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
-        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        }
+
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
             terrain_blanking[lev]->setVal(1.0);
             MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, 0);
         }
@@ -514,9 +526,11 @@ ERF::init_zphys (int lev, Real time)
         if (lev == 0 && z_phys_nd[0]) {
             Real zmax = z_phys_nd[0]->max(0,0,false);
             Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
-            amrex::Print() << "ZMAX " << zmax << std::endl;
-            amrex::Print() << "ZLEV " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
+            if (rel_diff < 1.e-8) {
+                amrex::Print() << "max of zphys_nd " << zmax << std::endl;
+                amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
+            }
         } // lev == 0
 
         if (z_phys_nd[lev]) {
