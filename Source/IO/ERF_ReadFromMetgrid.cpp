@@ -22,8 +22,6 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
                    FArrayBox& NC_msfm_fab, FArrayBox& NC_sst_fab,
                    FArrayBox& NC_LAT_fab,  FArrayBox& NC_LON_fab,
                    IArrayBox& NC_lmask_iab,
-                   Real& Latitude,
-                   Real& Longitude,
                    Geometry& geom)
 {
     Print() << "Loading header data from NetCDF file at level " << lev << std::endl;
@@ -133,15 +131,11 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     std::string Lat_var_name = "XLAT_M";
     std::string Lon_var_name = "XLONG_M";
     Print() << "Building initial FABS from file " << fname << std::endl;
-    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, Latitude, Longitude,
-                                            Lat_var_name, Lon_var_name,
-                                            fname, NC_fnames, NC_fdim_types, NC_fabs);
+    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs);
 
     // Read the netcdf file and fill these IABs
     Print() << "Building initial IABS from file " << fname << std::endl;
-    BuildFABsFromNetCDFFile<IArrayBox,int>(domain, Latitude, Longitude,
-                                           Lat_var_name, Lon_var_name,
-                                           fname, NC_inames, NC_idim_types, NC_iabs);
+    BuildFABsFromNetCDFFile<IArrayBox,int>(domain, fname, NC_inames, NC_idim_types, NC_iabs);
 
     // TODO: FIND OUT IF WE NEED TO DIVIDE VELS BY MAPFAC
     //
