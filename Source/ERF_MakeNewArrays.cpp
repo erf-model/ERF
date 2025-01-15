@@ -501,7 +501,7 @@ ERF::init_zphys (int lev, Real time)
         //
         if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
             solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
-                terrain_fab.setVal(0.0);
+                terrain_fab.template setVal<RunOn::Device>(0.0);
         } else {
             //
             // Fill the values of the terrain height at k=0 only
