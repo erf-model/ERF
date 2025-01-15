@@ -512,13 +512,12 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 void
 convert_wrfbdy_data (const Box& domain,
                      Vector<Vector<FArrayBox>>& bdy_data,
-                     const FArrayBox& NC_MUB_fab,
-                     const FArrayBox& NC_C1H_fab,
-                     const FArrayBox& NC_C2H_fab,
-                     const FArrayBox& NC_xvel_fab,
-                     const FArrayBox& NC_yvel_fab,
-                     const FArrayBox& NC_theta_fab,
-                     const FArrayBox& NC_QVAPOR_fab)
+                     const MultiFab& mf_MUB,
+                     const MultiFab& NC_C1H,
+                     const MultiFab& NC_C2H,
+                     const MultiFab& NC_xvel,
+                     const MultiFab& NC_yvel,
+                     const MultiFab& cons)
 {
     // These were filled from wrfinput
     Array4<Real const> c1h_arr  = NC_C1H_fab.const_array();

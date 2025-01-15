@@ -678,8 +678,6 @@ private:
 
     amrex::Real bdy_time_interval;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;
-    amrex::Real Latitude;
-    amrex::Real Longitude;
 #endif // ERF_USE_NETCDF
 
     // Struct for working with the sounding data we take as an input
