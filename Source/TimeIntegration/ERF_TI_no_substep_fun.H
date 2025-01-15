@@ -158,13 +158,13 @@
                 dUdt_tmp.FillBoundary(fine_geom.periodicity());
                 dUdt_tmp.setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
 
-                const BCRec* bc_ptr_h = domain_bcs_type.data(); // Should be host or device or both?
+                BCRec const* bc_ptr_h = domain_bcs_type.data(); // Should be host or device or both?
                 S_old[IntVars::cons].FillBoundary(fine_geom.periodicity());
                 S_old[IntVars::cons].setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
 
                 // Update F_slow by Redistribution.
                 redistribute_term ( level, ncomp_fast[IntVars::cons], F_slow[IntVars::cons], dUdt_tmp,
-                                    S_old[IntVars::cons], bc_ptr_h, slow_dt); 
+                                    S_old[IntVars::cons], bc_ptr_h, slow_dt);
 
                 // Update state using the updated F_slow. (NOTE: redistribute_term returns RHS not state variables.)
                 // state_plot is only for plotting purposes
