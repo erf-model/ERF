@@ -15,6 +15,10 @@ variables:
 
   TEST_SCRIPT: .gitlab/LC/gitlab_test.sh
 
+  # Update to checkout a different git reference (branch name, tag, hash, etc.)
+  # in the gold file repo
+  CI_GOLD_FILES_GIT_REF: main
+
   # Uncomment to disable testing on particular system
   #ON_LASSEN: "OFF"
   #ON_DANE: "OFF"

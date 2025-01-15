@@ -36,11 +36,7 @@ read_from_metgrid (int lev,
                    amrex::FArrayBox& NC_LAT_fab,
                    amrex::FArrayBox& NC_LON_fab,
                    amrex::IArrayBox& NC_lmask_iab,
-                   amrex::Real& Latitude,
-                   amrex::Real& Longitude,
                    amrex::Geometry& geom);
-
-
 
 void
 init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,

@@ -35,8 +35,6 @@ read_from_wrfinput (int lev, const Box& domain, const std::string& fname,
                     FArrayBox& NC_LAT_fab,
                     FArrayBox& NC_LON_fab,
                     MoistureType moisture_type,
-                    Real& Latitude,
-                    Real& Longitude,
                     Geometry& geom);
 
 Real
@@ -161,7 +159,7 @@ ERF::init_from_wrfinput (int lev)
                            NC_PH_fab[idx]    , NC_P_fab[idx]      , NC_PHB_fab[idx]  ,
                            NC_ALB_fab[idx]   , NC_PB_fab[idx]     ,
                            NC_LAT_fab[idx]   , NC_LON_fab[idx]    ,
-                           solverChoice.moisture_type, Latitude, Longitude, geom[lev]);
+                           solverChoice.moisture_type, geom[lev]);
     }
 
     auto& lev_new = vars_new[lev];

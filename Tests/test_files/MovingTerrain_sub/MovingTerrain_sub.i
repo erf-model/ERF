@@ -15,7 +15,7 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TERRRAIN GRID TYPE
-erf.terrain_type = Moving   # moving terrain
+erf.terrain_type = MovingFittedMesh   # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
 erf.use_lagged_delta_rt = false

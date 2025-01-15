@@ -170,7 +170,8 @@ struct SolverChoice {
             pp.query_enum_case_insensitive("terrain_type",terrain_type);
         }
 
-        if (terrain_type != TerrainType::None) {
+        if (terrain_type == TerrainType::StaticFittedMesh ||
+            terrain_type == TerrainType::MovingFittedMesh) {
             mesh_type = MeshType::VariableDz;
         }
 
@@ -462,17 +463,20 @@ struct SolverChoice {
             amrex::Print() << "Terrain Type: StaticFittedMesh" << std::endl;
         } else if (terrain_type == TerrainType::MovingFittedMesh) {
             amrex::Print() << "Terrain Type: MovingFittedMesh" << std::endl;
+        } else if (terrain_type == TerrainType::EB) {
+            amrex::Print() << "Terrain Type: EB" << std::endl;
+        } else if (terrain_type == TerrainType::ImmersedForcing) {
+            amrex::Print() << "Terrain Type: ImmersedForcing" << std::endl;
         } else {
-            amrex::Print() << "    None" << std::endl;
+            amrex::Print() << "Terrain Type: None" << std::endl;
         }
 
-        amrex::Print() << "   Mesh Type: " << std::endl;
         if (mesh_type == MeshType::ConstantDz) {
-            amrex::Print() << "    ConstantDz" << std::endl;
+            amrex::Print() << "   Mesh Type: ConstantDz" << std::endl;
         } else if (mesh_type == MeshType::StretchedDz) {
-            amrex::Print() << "    StretchedDz" << std::endl;
+            amrex::Print() << "   Mesh Type: StretchedDz" << std::endl;
         } else if (mesh_type == MeshType::VariableDz) {
-            amrex::Print() << "    VariableDz" << std::endl;
+            amrex::Print() << "   Mesh Type: VariableDz" << std::endl;
         } else {
             amrex::Abort("No mesh_type set!");
         }

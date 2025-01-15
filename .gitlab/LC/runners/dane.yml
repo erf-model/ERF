@@ -13,6 +13,8 @@
   rules:
     - if: '$ON_DANE == "OFF"'
       when: never
+    # test the default branch
+    - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
     # test the upstream branch
     - if: $CI_COMMIT_BRANCH == 'development'
     # branches starting with "gitlab"
@@ -20,7 +22,6 @@
     - if: $CI_PIPELINE_SOURCE == "push"
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
     - if: '$CI_JOB_NAME =~ /release_resources_dane/'
       when: always
     - when: on_success
@@ -50,6 +51,7 @@ release_resources_dane:
   stage: build
   needs: ["allocate_resources_dane"]
   variables:
+    CI_MACHINE: dane
     MPIEXEC_EXECUTABLE: srun
     MPIEXEC_PREFLAGS: "--cpu-bind=cores -v"
   script:

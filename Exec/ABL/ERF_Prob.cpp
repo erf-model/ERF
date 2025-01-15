@@ -66,8 +66,6 @@ Problem::init_custom_pert(
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-    const bool use_terrain = SolverChoice::terrain_type != TerrainType::None;
-
     if (parms.KE_decay_height > 0) {
         amrex::Print() << "Initial KE profile (order " << parms.KE_decay_order
                        << ") will extend up to " << parms.KE_decay_height
@@ -102,7 +100,7 @@ Problem::init_custom_pert(
     const Real* dx = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = use_terrain ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
+    const Real z = (z_cc) ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
 
     // Define a point (xc,yc,zc) at the center of the domain
     const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
@@ -151,7 +149,7 @@ Problem::init_custom_pert(
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = use_terrain ? 0.25*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
+    const Real z = (z_nd) ? 0.25*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
                                       + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
                                : prob_lo[2] + (k + 0.5) * dx[2];
 
@@ -177,7 +175,7 @@ Problem::init_custom_pert(
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const Real z = use_terrain ? 0.25*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
+    const Real z = (z_nd) ? 0.25*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
                                       + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) )
                                : prob_lo[2] + (k + 0.5) * dx[2];
 

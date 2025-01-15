@@ -35,7 +35,7 @@
 // Cell-centered state variables
 #define Rho_comp       0
 #define RhoTheta_comp  (Rho_comp+1)
-#define RhoKE_comp     (Rho_comp+2) // for Deardorff LES Model or MYNN PBL Model
+#define RhoKE_comp     (Rho_comp+2) // for Deardorff LES Model, k-equation RANS, or MYNN PBL Model
 
 #define RhoScalar_comp (RhoKE_comp+1)
 

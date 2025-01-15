@@ -223,10 +223,6 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
 template<class FAB,typename DType>
 void
 fill_fab_from_arrays (int iv,
-                      amrex::Real& Latitude,
-                      amrex::Real& Longitude,
-                      std::string& Lat_var_name,
-                      std::string& Lon_var_name,
                       amrex::Vector<NDArray<float>>& nc_arrays,
                       const std::string& var_name,
                       NC_Data_Dims_Type& NC_dim_type,
@@ -254,7 +250,6 @@ fill_fab_from_arrays (int iv,
 
     // TODO:  The box will only start at (0,0,0) at level 0 -- we need to generalize this
     amrex::Box my_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,ns1-1));
-    // amrex::Print() <<" MY BOX " << my_box << std::endl;
 
     if (var_name == "U" || var_name == "UU" ||
         var_name == "MAPFAC_U" || var_name == "MAPFAC_UY") my_box.setType(amrex::IndexType(amrex::IntVect(1,0,0)));
@@ -275,18 +270,12 @@ fill_fab_from_arrays (int iv,
 
     auto num_pts = my_box.numPts();
 
-    // amrex::Print() <<" ns1 * ns2 * ns3 " << ns1 * ns2 * ns3 << std::endl;
-    // amrex::Print() <<" NUMPTS " << num_pts << std::endl;
-
     for (int n(0); n < num_pts; ++n) {
         int k  = n / (ns2*ns3);
         int j  = (n - k*(ns2*ns3)) / ns3 + joff;
         int i  = n - k*(ns2*ns3) - (j-joff) * ns3 + ioff;
         fab_arr(i,j,k,0) = static_cast<DType>(*(nc_arrays[iv].get_data()+n));
     }
-
-    if (var_name == Lat_var_name) Latitude  = fab_arr(0,0,0);
-    if (var_name == Lon_var_name) Longitude = fab_arr(0,0,0);
 }
 
 /**
@@ -300,10 +289,6 @@ fill_fab_from_arrays (int iv,
 template<class FAB,typename DType>
 void
 BuildFABsFromNetCDFFile (const amrex::Box& domain,
-                         amrex::Real& Latitude,
-                         amrex::Real& Longitude,
-                         std::string& Lat_var_name,
-                         std::string& Lon_var_name,
                          const std::string &fname,
                          amrex::Vector<std::string> nc_var_names,
                          amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types,
@@ -322,10 +307,7 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
     {
         FAB tmp;
         if (amrex::ParallelDescriptor::IOProcessor()) {
-            fill_fab_from_arrays<FAB,DType>(iv, Latitude, Longitude,
-                                            Lat_var_name, Lon_var_name,
-                                            nc_arrays, nc_var_names[iv],
-                                            NC_dim_types[iv], tmp);
+            fill_fab_from_arrays<FAB,DType>(iv, nc_arrays, nc_var_names[iv], NC_dim_types[iv], tmp);
         }
 
         int ncomp = tmp.nComp();

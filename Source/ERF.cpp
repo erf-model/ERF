@@ -144,11 +144,6 @@ ERF::ERF_shared ()
     m_forest_drag.resize(nlevs_max);
     for (int lev = 0; lev < max_level; ++lev) { m_forest_drag[lev] = nullptr;}
 
-    // Immersed Forcing Representation of Terrain
-    m_terrain_drag.resize(nlevs_max);
-    for (int lev = 0; lev < max_level; ++lev) { m_terrain_drag[lev] = nullptr;}
-
-
     ReadParameters();
     initializeMicrophysics(nlevs_max);
 
@@ -288,6 +283,8 @@ ERF::ERF_shared ()
 
     z_t_rk.resize(nlevs_max);
 
+    terrain_blanking.resize(nlevs_max);
+
     // Wall distance
     walldist.resize(nlevs_max);
 
@@ -365,6 +362,7 @@ ERF::ERF_shared ()
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
+        amrex::Print() << "MAKING EB GEOMETRY " << std::endl;
         MakeEBGeometry();
     }
 }
@@ -480,7 +478,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
                 const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-                if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                if (SolverChoice::mesh_type == MeshType::ConstantDz) {
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
                         cons_arr(i,j,k,n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
@@ -503,7 +501,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
                 const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-                if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                if (SolverChoice::mesh_type == MeshType::ConstantDz) {
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
                         cons_arr(i,j,k,n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
@@ -647,6 +645,15 @@ ERF::InitData_pre ()
             phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
             Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
         }
+
+        if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
+             (solverChoice.turbChoice[lev].Ce_wall > 0) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::slip_wall) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) ) {
+            Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
+        }
+
     }
 }
 
@@ -1610,15 +1617,6 @@ ERF::ReadParameters ()
     if (solverChoice.do_forest_drag) {
         for (int lev = 0; lev <= max_level; ++lev) {
             m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
-        }
-    }
-
-    // Query the terrain file name (*after* reading in solverChoice inputs)
-    std::string terrainfile;
-    pp.query("terrain_file", terrainfile);
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-        for (int lev = 0; lev <= max_level; ++lev) {
-            m_terrain_drag[lev] = std::make_unique<TerrainDrag>(terrainfile);
         }
     }
 

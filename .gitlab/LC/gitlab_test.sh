@@ -21,6 +21,7 @@ host=$(hostname)
 build_type=${BUILD_TYPE:-"Debug"}
 
 ERF_ENABLE_CUDA=${ERF_ENABLE_CUDA:-"OFF"}
+ERF_ENABLE_HIP=${ERF_ENABLE_HIP:-"OFF"}
 
 basehost=${host//[[:digit:]]/}
 
@@ -69,6 +70,33 @@ then
     echo "====================================================="
 fi
 
+# Clone LC gold files repo -- note that we need to grant this repo job
+# token permissions to the gold file repo
+rm -rf erf-llnl-gold-files
+git clone \
+    --branch ${CI_GOLD_FILES_GIT_REF:-"main"} --depth 1 \
+    https://gitlab-ci-token:${CI_JOB_TOKEN}@lc.llnl.gov/gitlab/erf-model/erf-llnl-gold-files.git
+cd erf-llnl-gold-files
+git log -1
+if [[ -d ${CI_MACHINE} ]]
+then
+    ERF_TEST_GOLD_FILES_DIRECTORY="$(pwd)/${CI_MACHINE}"
+    if [[ "${ERF_ENABLE_CUDA}" == "ON" || "${ERF_ENABLE_HIP}" == "ON" ]]
+    then
+        if [[ -d "${CI_MACHINE}/gpu" ]]; then
+            ERF_TEST_GOLD_FILES_DIRECTORY+="/gpu"
+        fi
+    else
+        if [[ -d "${CI_MACHINE}/cpu" ]]; then
+            ERF_TEST_GOLD_FILES_DIRECTORY+="/cpu"
+        fi
+    fi
+    echo "====================================================="
+    echo "Using gold files at: ${ERF_TEST_GOLD_FILES_DIRECTORY}"
+    echo "====================================================="
+fi
+cd -
+
 mkdir ${build_dir}
 cd ${build_dir}
 pwd
@@ -91,6 +119,7 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
       -DERF_ENABLE_FCOMPARE:BOOL=ON \
       -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
       -DFCOMPARE_EXE="${FCOMPARE_EXE:-"$(pwd)/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"}" \
+      -DERF_TEST_GOLD_FILES_DIRECTORY="${ERF_TEST_GOLD_FILES_DIRECTORY:-"$(pwd)/../Tests/ERFGoldFiles"}" \
       -DERF_TEST_FCOMPARE_RTOL="${ERF_TEST_FCOMPARE_RTOL:-"5.0e-9"}" \
       -DERF_TEST_FCOMPARE_ATOL="${ERF_TEST_FCOMPARE_ATOL:-"2.0e-10"}" \
       -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \

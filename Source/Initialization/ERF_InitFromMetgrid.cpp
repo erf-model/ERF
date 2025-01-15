@@ -112,7 +112,7 @@ ERF::init_from_metgrid (int lev)
                           NC_ght_fab[itime],   NC_hgt_fab[itime],  NC_psfc_fab[itime],
                           NC_MSFU_fab[itime],  NC_MSFV_fab[itime], NC_MSFM_fab[itime],
                           NC_sst_fab[itime],   NC_LAT_fab[itime],  NC_LON_fab[itime],
-                          NC_lmask_iab[itime], Latitude,           Longitude,         geom[lev]);
+                          NC_lmask_iab[itime], geom[lev]);
     } // itime
 
     // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
@@ -150,7 +150,7 @@ ERF::init_from_metgrid (int lev)
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag[lev], phys_bc_type);
+    make_terrain_fitted_coords(lev, geom[lev], *z_phys, zlevels_stag[lev], phys_bc_type);
 
     // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();

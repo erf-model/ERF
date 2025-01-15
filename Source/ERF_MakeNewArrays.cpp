@@ -46,6 +46,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         SolverChoice::mesh_type == MeshType::VariableDz) {
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
+        amrex::Print() << "WE ARE LIVE WITH ZPHYS! " << std::endl;
+
         if (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
         {
             detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
@@ -85,6 +87,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
           detJ_cc_src[lev] = nullptr;
 
                z_t_rk[lev] = nullptr;
+    }
+
+    if (SolverChoice::terrain_type == TerrainType::ImmersedForcing)
+    {
+        terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+        terrain_blanking[lev]->setVal(1.0);
     }
 
     // We use these area arrays regardless of terrain, EB or none of the above
@@ -387,12 +395,13 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     // Diffusive terms
     // ********************************************************************************************
     bool l_use_terrain = (SolverChoice::terrain_type != TerrainType::None);
+    bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type   != LESType::None)  ||
+                           (solverChoice.turbChoice[lev].rans_type  != RANSType::None) ||
+                           (solverChoice.turbChoice[lev].pbl_type   != PBLType::None) );
     bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
-                           (solverChoice.turbChoice[lev].les_type        !=       LESType::None) ||
-                           (solverChoice.turbChoice[lev].pbl_type        !=       PBLType::None) );
-    bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type        != LESType::None)   ||
-                           (solverChoice.turbChoice[lev].pbl_type        != PBLType::None) );
-    bool l_use_ddorf   = (solverChoice.turbChoice[lev].les_type       == LESType::Deardorff);
+                           l_use_kturb );
+    bool l_need_SmnSmn = ( (solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
+                           (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) );
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
@@ -459,7 +468,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     if (l_use_kturb) {
         eddyDiffs_lev[lev] = std::make_unique<MultiFab>(ba, dm, EddyDiff::NumDiffs, 2);
         eddyDiffs_lev[lev]->setVal(0.0);
-        if(l_use_ddorf) {
+        if(l_need_SmnSmn) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
         } else {
             SmnSmn_lev[lev] = nullptr;
@@ -473,44 +482,76 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 void
 ERF::init_zphys (int lev, Real time)
 {
-    if (SolverChoice::mesh_type == MeshType::StretchedDz ||
-        SolverChoice::mesh_type == MeshType::VariableDz)
+    if (init_type != InitType::Real && init_type != InitType::Metgrid)
     {
-        if (init_type != InitType::Real && init_type != InitType::Metgrid)
-        {
-            if (lev > 0) {
-                //
-                // First interpolate from coarser level if there is one
-                // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-                //       have been pre-filled - this includes ghost cells both inside and outside
-                //       the domain
-                //
-                InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
-                                      IntVect(0,0,0), // do not fill ghost cells outside the domain
-                                      *z_phys_nd[lev-1], 0, 0, 1,
-                                      geom[lev-1], geom[lev],
-                                      refRatio(lev-1), &node_bilinear_interp,
-                                      domain_bcs_type, BCVars::cons_bc);
+        if (lev > 0 && z_phys_nd[lev]) {
+            //
+            // First interpolate from coarser level if there is one
+            // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+            //       have been pre-filled - this includes ghost cells both inside and outside
+            //       the domain
+            //
+            InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
+                                  IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  *z_phys_nd[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &node_bilinear_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
+
+        int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff) + 2;
+        Box bx(surroundingNodes(Geom(0).Domain())); bx.grow(ngrow);
+        FArrayBox terrain_fab(makeSlab(bx,2,0),1);
+
+        //
+        // If we are using fitted mesh then we use the surface as defined above
+        // If we are not using fitted mesh but are using z_levels, we still need z_phys (for now)
+        //    but we need to use a flat terrain for the mesh itself (the EB data has already been made
+        //    from the correct terrain)
+        //
+        if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
+            solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
+                terrain_fab.template setVal<RunOn::Device>(0.0);
+        } else {
+            //
+            // Fill the values of the terrain height at k=0 only
+            //
+            prob->init_terrain_surface(geom[lev],terrain_fab,time);
+        }
+
+        if (z_phys_nd[lev]) { // Has this been allocated?
+            for (MFIter mfi(*z_phys_nd[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                Box isect = terrain_fab.box() & (*z_phys_nd[lev])[mfi].box();
+                (*z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
             }
+            make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
+        }
 
-            z_phys_nd[lev]->setVal(-1.e23);
-            prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-            init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            terrain_blanking[lev]->setVal(1.0);
+            MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, 0);
+        }
 
-            if (lev == 0) {
-                Real zmax = z_phys_nd[0]->max(0,0,false);
-                Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
+        if (lev == 0 && z_phys_nd[0]) {
+            Real zmax = z_phys_nd[0]->max(0,0,false);
+            Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
+            if (rel_diff < 1.e-8) {
+                amrex::Print() << "max of zphys_nd " << zmax << std::endl;
+                amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
-            } // lev == 0
+            }
+        } // lev == 0
 
+        if (z_phys_nd[lev]) {
             z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
+        }
 
-        } // init_type
-    } // terrain
+    } // init_type
 }
 
 void
-ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
+ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
     if (lev > 0 && SolverChoice::mesh_type == MeshType::VariableDz)
     {
@@ -529,11 +570,19 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 
         // This recomputes the fine values using the bottom terrain at the fine resolution,
         //    and also fills values of z_phys_nd outside the domain
-        init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
+        make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
 
         std::swap(temp_zphys_nd, z_phys_nd[lev]);
 
     } // use_terrain && lev > 0
+
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        //
+        // This assumes we have already remade the EBGeometry
+        //
+        terrain_blanking[lev]->setVal(1.0);
+        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, 0);
+    }
 }
 
 void

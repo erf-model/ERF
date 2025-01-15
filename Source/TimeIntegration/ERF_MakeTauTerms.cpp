@@ -36,20 +36,23 @@ void erf_make_tau_terms (int level, int nrk,
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
 
-    const bool    l_use_terrain    = (solverChoice.terrain_type != TerrainType::None);
+    const bool    l_use_terrain_fitted_coords = (z_phys_nd != nullptr);
     const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
-    if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
+    if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain_fitted_coords);
 
 
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
+                                    (tc.rans_type       !=      RANSType::None) ||
                                     (tc.pbl_type        !=       PBLType::None) );
     const bool l_use_constAlpha = ( dc.molec_diff_type == MolecDiffType::ConstantAlpha );
-    const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
-                                    tc.les_type == LESType::Deardorff   ||
-                                    tc.pbl_type == PBLType::MYNN25      ||
-                                    tc.pbl_type == PBLType::YSU );
-    const bool use_ddorf        = (tc.les_type == LESType::Deardorff);
+    const bool l_use_turb       = ( tc.les_type  == LESType::Smagorinsky ||
+                                    tc.les_type  == LESType::Deardorff   ||
+                                    tc.rans_type == RANSType::kEqn       ||
+                                    tc.pbl_type  == PBLType::MYNN25      ||
+                                    tc.pbl_type  == PBLType::YSU );
+    const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
+                                   tc.rans_type == RANSType::kEqn);
 
     const bool use_most     = (most != nullptr);
     const bool exp_most     = (solverChoice.use_explicit_most);
@@ -108,7 +111,7 @@ void erf_make_tau_terms (int level, int nrk,
             const Array4<Real const>& cell_data = l_use_constAlpha ? S_data[IntVars::cons].const_array(mfi) : Array4<const Real>{};
 
             // Terrain metrics
-            const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+            const Array4<const Real>& z_nd     = l_use_terrain_fitted_coords ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
             const Array4<const Real>& detJ_arr = detJ->const_array(mfi);
 
             //-------------------------------------------------------------------------------
@@ -171,7 +174,7 @@ void erf_make_tau_terms (int level, int nrk,
             // Strain magnitude
             Array4<Real> SmnSmn_a;
 
-            if (l_use_terrain) {
+            if (l_use_terrain_fitted_coords) {
                 // Terrain non-symmetric terms
                 FArrayBox S21,S31,S32;
                 S21.resize(tbxxy,1,The_Async_Arena()); S31.resize(tbxxz,1,The_Async_Arena()); S32.resize(tbxyz,1,The_Async_Arena());
@@ -235,9 +238,9 @@ void erf_make_tau_terms (int level, int nrk,
                                 mf_m, mf_u, mf_v);
                 } // profile
 
-                // Populate SmnSmn if using Deardorff (used as diff src in post)
+                // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (use_ddorf)) {
+                if ((nrk==0) && (need_SmnSmn)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -350,9 +353,9 @@ void erf_make_tau_terms (int level, int nrk,
                                 mf_m, mf_u, mf_v);
                 } // end profile
 
-                // Populate SmnSmn if using Deardorff (used as diff src in post)
+                // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (use_ddorf)) {
+                if ((nrk==0) && (need_SmnSmn)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -433,7 +436,7 @@ void erf_make_tau_terms (int level, int nrk,
                     tau23(i,j,k) = s23(i,j,k);
                 });
                 } // end profile
-            } // l_use_terrain
+            } // l_use_terrain_fitted_coords
         } // MFIter
     } // l_use_diff
 }

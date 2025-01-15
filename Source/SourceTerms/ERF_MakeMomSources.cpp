@@ -91,15 +91,11 @@ void make_mom_sources (int level,
     //   10. Immersed Forcing
     // *****************************************************************************
   //const bool l_use_ndiff       = solverChoice.use_num_diff;
-    const bool l_use_zphys       = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
-                                    solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    const bool l_use_zphys       = (z_phys_nd != nullptr);
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
         if (solverChoice.do_forest_drag) {
             amrex::Error(" Currently forest canopy cannot be used with immersed forcing");
-        }
-        if (solverChoice.mesh_type != MeshType::ConstantDz) {
-            amrex::Error(" Currently immersed forcing for terrain is only valid for constant dz");
         }
     }
 

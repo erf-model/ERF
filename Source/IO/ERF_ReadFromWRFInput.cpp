@@ -29,8 +29,6 @@ read_from_wrfinput (int lev,
                     FArrayBox& NC_LAT_fab,
                     FArrayBox& NC_LON_fab,
                     MoistureType moisture_type,
-                    Real& Latitude,
-                    Real& Longitude,
                     Geometry& geom)
 {
     Print() << "Loading header data from NetCDF file at level " << lev << std::endl;
@@ -118,9 +116,7 @@ read_from_wrfinput (int lev,
     std::string Lat_var_name = "XLAT_V";
     std::string Lon_var_name = "XLONG_U";
     Print() << "Building initial FABS from file " << fname << std::endl;
-    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, Latitude, Longitude,
-                                            Lat_var_name, Lon_var_name,
-                                            fname, NC_names, NC_dim_types, NC_fabs);
+    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs);
 
 
     //

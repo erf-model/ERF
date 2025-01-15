@@ -143,9 +143,11 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
       (\rho \theta)_{z} = \frac{(\rho \theta)_{i,j,1} - (\rho \theta)_{i,j,0}}{\Delta z}
       (\rho \theta)_{i,j,-n} = (\rho \theta)_{i,j,0} - (\rho \theta)_{z} n \Delta z .
 
-   Finally, it must be noted that complex terrain will modify the surface normal and tangent vectors. Consequently, the MOST implementation with terrain will require local vector rotations. While the ERF dycore accounts for
-   terrain metrics when computing fluxes (e.g. for advection, diffusion, etc.), the impact of terrain metrics on MOST is still a work in progress. Therefore, running with terrain (``erf.use_terrain = true``) and with MOST
-   (``zlo.type = "Most"``) should be cautioned.
+   Finally, it must be noted that using terrain-fitted coorindates will modify the surface normal and tangent vectors.
+   Consequently, the MOST implementation with terrain-fitted coorindates will require local vector rotations.
+   While the ERF dycore accounts for terrain metric terms when computing fluxes (e.g. for advection, diffusion, etc.),
+   the impact of terrain metrics on MOST is still a work in progress.
+   Therefore, running with terrain (``erf.terrain_type = StaticFittedMesh``) and with MOST (``zlo.type = "Most"``) is not recommended.
 
 MOST Inputs
 ~~~~~~~~~~~~~~~~~~~
@@ -165,7 +167,7 @@ While the MOST methods relevant to air-sea interfaces (``charnock``, ``modified_
 
 in the inputs file and ERF will populate the 2D :math:`z_{0}` array with values contained in the text file.
 
-When computing an average :math:`\overline{\phi}` for the MOST boundary, where :math:`\phi` denotes a generic variable, ERF supports a variety of approaches. Specifically, ``planar averages`` and ``local region averages`` may be computed with or without ``time averaging``. With each averaging methodology, the query point :math:`z` may be determined from the following procedures: specified vertical distance :math:`z_{ref}` from the bottom surface, specified :math:`k_{index}`, or (when employing terrain-fit coordinates) specified normal vector length :math:`z_{ref}`. The available inputs to the MOST boundary and their associated data types are
+When computing an average :math:`\overline{\phi}` for the MOST boundary, where :math:`\phi` denotes a generic variable, ERF supports a variety of approaches. Specifically, ``planar averages`` and ``local region averages`` may be computed with or without ``time averaging``. With each averaging methodology, the query point :math:`z` may be determined from the following procedures: specified vertical distance :math:`z_{ref}` from the bottom surface, specified :math:`k_{index}`, or (when employing terrain-fitted coordinates) specified normal vector length :math:`z_{ref}`. The available inputs to the MOST boundary and their associated data types are
 
 ::
 
