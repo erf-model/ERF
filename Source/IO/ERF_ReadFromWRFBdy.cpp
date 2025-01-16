@@ -520,7 +520,6 @@ convert_wrfbdy_data (const Box& domain,
                      const MultiFab& cons,
                      const bool& use_moist)
 {
-    Print() << "HERE\n";
     int ntimes = bdy_data.size();
     for (int nt = 0; nt < ntimes; nt++)
     {
@@ -546,15 +545,6 @@ convert_wrfbdy_data (const Box& domain,
                 const Box& bx_v  = (ybx & bdy_data[nt][WRFBdyVars::V].box());
                 const Box& bx_t  = (vbx & bdy_data[nt][WRFBdyVars::T].box());
                 const Box& bx_qv = (vbx & bdy_data[nt][WRFBdyVars::QV].box());
-
-                AllPrint() << "Boxes: " << nt << ' '
-                        << bdy_data[nt][WRFBdyVars::U].box() << ' '
-                        << bdy_data[nt][WRFBdyVars::V].box() << ' '
-                        << bdy_data[nt][WRFBdyVars::T].box() << "\n";
-                AllPrint() << "Unions: " << nt << ' '
-                        << bx_u << ' '
-                        << bx_v << ' '
-                        << bx_t << "\n";
 
                 // BDY data
                 Array4<Real> bdy_u_arr  = bdy_data[nt][WRFBdyVars::U].array();  // This is x-face-centered
@@ -585,7 +575,7 @@ convert_wrfbdy_data (const Box& domain,
                         xmu = (  mu_arr(i,j,0) +  mu_arr(i-1,j,0)
                               + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * 0.5;
                     }
-                    Real xmu_mult    = c1h_arr(i,j,k) * xmu + c2h_arr(i,j,k);
+                    Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                     Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult;
                     bdy_u_arr(i,j,k) = new_bdy;
                 });
@@ -602,7 +592,7 @@ convert_wrfbdy_data (const Box& domain,
                         xmu =  (  mu_arr(i,j,0) +  mu_arr(i,j-1,0)
                                + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * 0.5;
                     }
-                    Real xmu_mult    = c1h_arr(i,j,k) * xmu + c2h_arr(i,j,k);
+                    Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                     Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;
                     bdy_v_arr(i,j,k) = new_bdy;
                 });
@@ -612,7 +602,7 @@ convert_wrfbdy_data (const Box& domain,
                 ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
-                    Real xmu_mult    = c1h_arr(i,j,k) * xmu + c2h_arr(i,j,k);
+                    Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                     Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + theta_ref;
                     Real qv_fac      = (1. + bdy_qv_arr(i,j,k) / 0.622 / xmu_mult);
                     new_bdy_Th      /= qv_fac;
@@ -623,7 +613,7 @@ convert_wrfbdy_data (const Box& domain,
                 ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
-                    Real xmu_mult     = c1h_arr(i,j,k) * xmu + c2h_arr(i,j,k);
+                    Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                     Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
                     bdy_qv_arr(i,j,k) = (use_moist) ? new_bdy_QV : 0.;
                 });

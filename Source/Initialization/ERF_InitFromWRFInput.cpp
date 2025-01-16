@@ -114,6 +114,10 @@ ERF::init_from_wrfinput (int lev)
 
     auto& lev_new = vars_new[lev];
 
+    // NOTE: Following MFs must have an underlying BA that follows
+    //       the shapes in ERF_ReadFromWRFInput.cpp
+    //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
+
     MultiFab mf_PH , mf_PHB;         // For terrain height
     MultiFab mf_ALB, mf_PB , mf_P  ; // For base state
     MultiFab mf_MUB, mf_C1H, mf_C2H; // For bdy convert
@@ -212,9 +216,25 @@ ERF::init_from_wrfinput (int lev)
           } // valid var (not rho)
 
           // Temporary MFs for derived quantities
-          auto& ba = lev_new[Vars::cons].boxArray();
-          auto& dm = lev_new[Vars::cons].DistributionMap();
-          IntVect ng = lev_new[Vars::cons].nGrowVect();
+          auto& ba    = lev_new[Vars::cons].boxArray();
+          auto& dm    = lev_new[Vars::cons].DistributionMap();
+          IntVect ng  = lev_new[Vars::cons].nGrowVect();
+          IntVect ngv = ng; ngv[2] = 0;
+
+          // Build 2D BA
+          BoxList bl2d = ba.boxList();
+          for (auto& b : bl2d) {
+              b.setRange(2,0);
+          }
+          BoxArray ba2d(std::move(bl2d));
+
+          // Build 1D BA
+          BoxList bl1d = ba.boxList();
+          for (auto& b : bl1d) {
+              b.setRange(0,0);
+              b.setRange(1,0);
+          }
+          BoxArray ba1d(std::move(bl1d));
 
           if ( var_name == "PH" ) {
               auto& ba_w = lev_new[Vars::zvel].boxArray();
@@ -274,7 +294,7 @@ ERF::init_from_wrfinput (int lev)
               }
               var_fab.clear();
           } else if ( var_name == "MUB" ) {
-              mf_MUB.define(ba, dm, 1, ng);
+              mf_MUB.define(ba2d, dm, 1, ng);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -285,7 +305,7 @@ ERF::init_from_wrfinput (int lev)
               }
               var_fab.clear();
           } else if ( var_name == "C1H" ) {
-              mf_C1H.define(ba, dm, 1, ng);
+              mf_C1H.define(ba1d, dm, 1, ng);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -296,7 +316,7 @@ ERF::init_from_wrfinput (int lev)
               }
               var_fab.clear();
           } else if ( var_name == "C2H" ) {
-              mf_C2H.define(ba, dm, 1, ng);
+              mf_C2H.define(ba1d, dm, 1, ng);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -308,13 +328,7 @@ ERF::init_from_wrfinput (int lev)
               var_fab.clear();
           }
 
-          // Build 2D BA
-          auto ngv = ng; ngv[2] = 0;
-          BoxList bl2d = ba.boxList();
-          for (auto& b : bl2d) {
-              b.setRange(2,0);
-          }
-          BoxArray ba2d(std::move(bl2d));
+
           int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
           int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
 
