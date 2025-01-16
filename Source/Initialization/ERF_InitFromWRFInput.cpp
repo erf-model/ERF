@@ -119,8 +119,6 @@ ERF::init_from_wrfinput (int lev)
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
       for (int ivar = 0; ivar < nvar; ++ ivar) {
 
-          amrex::Print() <<" IDX " << idx << " IVAR " << ivar << " NAME " << NC_names[ivar] << std::endl;
-
           read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
                              NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev]);
 
@@ -215,22 +213,24 @@ ERF::init_from_wrfinput (int lev)
           IntVect ng = lev_new[Vars::cons].nGrowVect();
 
           if ( var_name == "PH" ) {
-              mf_PH.define(ba, dm, 1, ng);
+              auto& ba_w = lev_new[Vars::zvel].boxArray();
+              mf_PH.define(ba_w, dm, 1, ng);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_PH, false); mfi.isValid(); ++mfi )
               {
                 FArrayBox &cur_fab = mf_PH[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
           } else if ( var_name == "PHB" ) {
-              mf_PHB.define(ba, dm, 1, ng);
+              auto& ba_w = lev_new[Vars::zvel].boxArray();
+              mf_PHB.define(ba_w, dm, 1, ng);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_PHB, false); mfi.isValid(); ++mfi )
               {
                 FArrayBox &cur_fab = mf_PHB[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
@@ -433,12 +433,9 @@ ERF::init_from_wrfinput (int lev)
 
         int n_qstate = micro->Get_Qstate_Size();
 
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-          init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
-                                        lev_new[Vars::cons], p_hse, pi_hse, th_hse, r_hse,
-                                        mf_PB, mf_P);
-        } // mfi
+        init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
+                                      lev_new[Vars::cons], p_hse, pi_hse, th_hse, r_hse,
+                                      mf_PB, mf_P);
 
         // FillBoundary to populate the internal ghost cells
          r_hse.FillBoundary(geom[lev].periodicity());
@@ -623,6 +620,9 @@ verify_terrain_top_boundary (const Real& z_top,
     } // mfi
 
     Gpu::copy(Gpu::deviceToHost, MaxMax_d.begin(), MaxMax_d.end(), MaxMax_h.begin());
+
+    ParallelDescriptor::ReduceRealMax(MaxMax_h[0]);
+    ParallelDescriptor::ReduceRealMax(MaxMax_h[1]);
 
     if ((z_top > MaxMax_h[0]) || (z_top < MaxMax_h[1])) {
       Print() << "Z problem extent " << z_top << " does not match NETCDF file min "

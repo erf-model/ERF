@@ -64,35 +64,22 @@ read_from_wrfinput (int lev,
     Vector<std::string> NC_names; NC_names.push_back(NC_name);
     Vector<enum NC_Data_Dims_Type> NC_dim_types;
 
-    if (NC_name == "ALB")       { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 0
-    if (NC_name == "AL")        { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 1
-    if (NC_name == "U")         { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 2
-    if (NC_name == "V")         { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 3
-    if (NC_name == "W")         { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 4
-    if (NC_name == "T")         { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 5
-    if (NC_name == "PH")        { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 6
-    if (NC_name == "PHB")       { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 7
-    if (NC_name == "PB")        { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 8
-    if (NC_name == "P")         { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 9
-    if (NC_name == "MUB")       { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 10
-    if (NC_name == "MAPFAC_UY") { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 11
-    if (NC_name == "MAPFAC_VY") { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 12
-    if (NC_name == "MAPFAC_MY") { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 13
-    if (NC_name == "SST")       { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 14
-    if (NC_name == "LANDMASK")  { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 15
-    if (NC_name == "C1H")       { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);       } // 16
-    if (NC_name == "C2H")       { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);       } // 17
-    if (NC_name == "XLAT_V")    { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 18
-    if (NC_name == "XLONG_U")   { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 19
-    if (NC_name == "QVAPOR")    { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 20
-    if (NC_name == "QCLOUD")    { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 21
-    if (NC_name == "QRAIN")     { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 22
-
-    amrex::Print() <<" NC_name " << NC_name << std::endl;
-    amrex::Print() <<" NC_fabs " << NC_fabs[0]->box() << std::endl;
-
-    amrex::Print() <<" SIZE OF NAMES " << NC_names.size() << std::endl;
-    amrex::Print() <<" SIZE OF  DIMS " << NC_dim_types.size() << std::endl;
+    if (NC_name == "ALB" || NC_name == "AL" || NC_name == "U" ||  NC_name == "V" ||  NC_name == "W" || 
+        NC_name == "T"   || NC_name == "PH" || NC_name == "PHB" || NC_name == "PB" || NC_name == "P" ||
+        NC_name == "QVAPOR"   || NC_name == "QCLOUD" || NC_name == "QRAIN")
+    {
+        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); 
+    } 
+    else if (NC_name == "MAPFAC_UY" || NC_name == "MAPFAC_VY" || NC_name == "MAPFAC_MY" ||
+             NC_name == "MUB"       || NC_name == "SST"       || NC_name == "LANDMASK"  ||
+             NC_name == "XLAT_V" || NC_name == "XLONG_U")
+    {
+        NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+    } 
+    else if (NC_name == "C1H" || NC_name == "C2H")
+    {
+        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);
+    } 
 
     // Read the netcdf file and fill these FABs
     Print() << "Building initial FABS from file " << fname << std::endl;
