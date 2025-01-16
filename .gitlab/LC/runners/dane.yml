@@ -43,7 +43,7 @@ release_resources_dane:
   stage: release
   script:
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
-    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID} || exit 0)
   when: always
 
 .job_on_dane:

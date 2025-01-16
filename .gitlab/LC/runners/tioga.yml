@@ -43,7 +43,7 @@ release_resources_tioga:
   stage: release
   script:
     - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
-    - ([[ -n "${JOBID}" ]] && flux cancel ${JOBID})
+    - ([[ -n "${JOBID}" ]] && flux cancel ${JOBID} || exit 0)
   when: always
 
 .job_on_tioga:
