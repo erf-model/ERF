@@ -38,8 +38,6 @@ read_from_metgrid (int lev,
                    amrex::IArrayBox& NC_lmask_iab,
                    amrex::Geometry& geom);
 
-
-
 void
 init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,
                            const amrex::Vector<amrex::FArrayBox>& NC_hgt_fab);

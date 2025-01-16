@@ -284,7 +284,6 @@ fill_fab_from_arrays (int iv,
         int i  = n - k*(ns2*ns3) - (j-joff) * ns3 + ioff;
         fab_arr(i,j,k,0) = static_cast<DType>(*(nc_arrays[iv].get_data()+n));
     }
-
 }
 
 /**
@@ -316,8 +315,7 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
     {
         FAB tmp;
         if (amrex::ParallelDescriptor::IOProcessor()) {
-            fill_fab_from_arrays<FAB,DType>(iv, nc_arrays, nc_var_names[iv],
-                                            NC_dim_types[iv], tmp);
+            fill_fab_from_arrays<FAB,DType>(iv, nc_arrays, nc_var_names[iv], NC_dim_types[iv], tmp);
         }
 
         int ncomp = tmp.nComp();
