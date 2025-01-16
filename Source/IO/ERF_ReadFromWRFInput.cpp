@@ -13,8 +13,6 @@ read_from_wrfinput (int lev,
                     const std::string& NC_name,
                     Geometry& geom)
 {
-    Print() << "Loading header data from NetCDF file at level " << lev << std::endl;
-
     if (ParallelDescriptor::IOProcessor()) {
         int  NC_nx, NC_ny;
         Real NC_dx, NC_dy;
@@ -58,8 +56,6 @@ read_from_wrfinput (int lev,
         }
     }
 
-    Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
-
     Vector<FArrayBox*> NC_fabs; NC_fabs.push_back(&NC_fab);
     Vector<std::string> NC_names; NC_names.push_back(NC_name);
     Vector<enum NC_Data_Dims_Type> NC_dim_types;
@@ -82,7 +78,6 @@ read_from_wrfinput (int lev,
     }
 
     // Read the netcdf file and fill these FABs
-    Print() << "Building initial FABS from file " << fname << std::endl;
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs);
 }
 #endif // ERF_USE_NETCDF

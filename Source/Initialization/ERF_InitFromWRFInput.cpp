@@ -32,13 +32,13 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 void
 convert_wrfbdy_data (const Box& domain,
                      Vector<Vector<FArrayBox>>& bdy_data,
-                     const FArrayBox& NC_MUB_fab,
-                     const FArrayBox& NC_C1H_fab,
-                     const FArrayBox& NC_C2H_fab,
-                     const FArrayBox& NC_xvel_fab,
-                     const FArrayBox& NC_yvel_fab,
-                     const FArrayBox& NC_theta_fab,
-                     const FArrayBox& NC_QVAPOR_fab);
+                     const MultiFab& mf_MUB,
+                     const MultiFab& mf_C1H,
+                     const MultiFab& mf_C2H,
+                     const MultiFab& xvel,
+                     const MultiFab& yvel,
+                     const MultiFab& cons,
+                     const bool& use_moist);
 
 void
 verify_terrain_top_boundary (const Real& z_top,
@@ -78,6 +78,8 @@ ERF::init_from_wrfinput (int lev)
         amrex::Error("NetCDF initialization file name must be provided via input");
     }
 
+    bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+
     // *** FArrayBox's at this level for holding the INITIAL data
     Vector<std::string> NC_names;
     NC_names.push_back("ALB");       // 0 DO RHO FIRST
@@ -100,7 +102,7 @@ ERF::init_from_wrfinput (int lev)
     NC_names.push_back("C2H");       // 17
     NC_names.push_back("XLAT_V");    // 18
     NC_names.push_back("XLONG_U");   // 19
-    if (solverChoice.moisture_type != MoistureType::None) {
+    if (use_moist) {
         NC_names.push_back("QVAPOR"); // 20
         NC_names.push_back("QCLOUD"); // 21
         NC_names.push_back("QRAIN");  // 22
@@ -116,14 +118,17 @@ ERF::init_from_wrfinput (int lev)
     MultiFab mf_ALB, mf_PB , mf_P  ; // For base state
     MultiFab mf_MUB, mf_C1H, mf_C2H; // For bdy convert
 
+    Print() << "Loading initial data from NetCDF file at level " << lev << "\n";
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
-      for (int ivar = 0; ivar < nvar; ++ ivar) {
+        Print() << "Reading from file " << nc_init_file[lev][idx] << "\n";
+        for (int ivar = 0; ivar < nvar; ++ ivar) {
+            Print() << "Reading variable " << NC_names[ivar] << " ...";
 
-          read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
-                             NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev]);
+            read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
+                               NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev]);
 
-          auto var_name = NC_names[ivar];
-          auto& var_fab  = NC_fab_var_file[idx][ivar];
+            auto var_name = NC_names[ivar];
+            auto& var_fab = NC_fab_var_file[idx][ivar];
 
           // Initialize rho =  1/(ALB + AL)
           if ( var_name == "ALB" ) {
@@ -137,7 +142,6 @@ ERF::init_from_wrfinput (int lev)
               }
 
           } if ( var_name == "AL" ) {
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -241,7 +245,7 @@ ERF::init_from_wrfinput (int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_ALB, false); mfi.isValid(); ++mfi )
               {
                 FArrayBox &cur_fab = mf_ALB[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
@@ -252,7 +256,7 @@ ERF::init_from_wrfinput (int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_PB, false); mfi.isValid(); ++mfi )
               {
                 FArrayBox &cur_fab = mf_PB[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
@@ -263,7 +267,7 @@ ERF::init_from_wrfinput (int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_P, false); mfi.isValid(); ++mfi )
               {
                 FArrayBox &cur_fab = mf_P[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
@@ -274,7 +278,7 @@ ERF::init_from_wrfinput (int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_MUB, false); mfi.isValid(); ++mfi )
               {
                 FArrayBox &cur_fab = mf_MUB[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
@@ -285,7 +289,7 @@ ERF::init_from_wrfinput (int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_C1H, false); mfi.isValid(); ++mfi )
               {
                 FArrayBox &cur_fab = mf_C1H[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
@@ -296,7 +300,7 @@ ERF::init_from_wrfinput (int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_C2H, false); mfi.isValid(); ++mfi )
               {
                 FArrayBox &cur_fab = mf_C2H[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
@@ -308,7 +312,7 @@ ERF::init_from_wrfinput (int lev)
           auto ngv = ng; ngv[2] = 0;
           BoxList bl2d = ba.boxList();
           for (auto& b : bl2d) {
-            b.setRange(2,0);
+              b.setRange(2,0);
           }
           BoxArray ba2d(std::move(bl2d));
           int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
@@ -362,7 +366,6 @@ ERF::init_from_wrfinput (int lev)
             (lmask_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
           }
 
-
           // Initialize MapFac U
           if ( var_name == "MAPFAC_UY" ) {
 #ifdef _OPENMP
@@ -375,7 +378,6 @@ ERF::init_from_wrfinput (int lev)
               msf_fab.template copy<RunOn::Device>(var_fab);
             }
           }
-
 
           // Initialize MapFac V
           if ( var_name == "MAPFAC_VY" ) {
@@ -390,7 +392,6 @@ ERF::init_from_wrfinput (int lev)
             }
           }
 
-
           // Initialize MapFac M
           if ( var_name == "MAPFAC_MY" ) {
 #ifdef _OPENMP
@@ -403,14 +404,12 @@ ERF::init_from_wrfinput (int lev)
               msf_fab.template copy<RunOn::Device>(var_fab);
             }
           }
+          Print() << " DONE\n";
+        } // ivar
+      Print() << "\n";
+    } // idx
 
-        // ASA -- ARE THESE IN THE RIGHT PLACE???
-        } // idx
-    } // ivar
-
-    //
     // Convert the velocities using the map factors
-    //
     for ( MFIter mfi(lev_new[Vars::xvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
         Box bx = mfi.tilebox();
@@ -453,16 +452,14 @@ ERF::init_from_wrfinput (int lev)
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
 
-    } // use_terrain
-
-    const Real l_rdOcp = solverChoice.rdOcp;
+    }
 
     // Initialize the base state
+    const Real l_rdOcp = solverChoice.rdOcp;
     MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
-
     if (init_type == InitType::Real) {
 
         int n_qstate = micro->Get_Qstate_Size();
@@ -477,19 +474,18 @@ ERF::init_from_wrfinput (int lev)
         pi_hse.FillBoundary(geom[lev].periodicity());
         th_hse.FillBoundary(geom[lev].periodicity());
 
-    } // init_type
+    }
 
-    // ASA HACK HACK HACK
-#if 0
-    if (init_type == InitType::Real && (lev == 0))
-    {
+    // Initialize the bdy data
+    if (init_type == InitType::Real && (lev == 0)) {
         if (nc_bdy_file.empty()) {
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
 
-        // At least three points are necessary if there is a relaxation zone.
-        if (real_width > real_set_width)
+        // Three points are necessary if a relaxation zone is present.
+        if (real_width > real_set_width) {
             AMREX_ALWAYS_ASSERT(real_width-real_set_width >= 3);
+        }
 
         bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
@@ -500,19 +496,18 @@ ERF::init_from_wrfinput (int lev)
                 << " and relaxation width: " << real_width - real_set_width << std::endl;
 
         convert_wrfbdy_data(domain,bdy_data_xlo,
-                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0],
-                            NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
+                            mf_MUB, mf_C1H, mf_C2H,
+                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons], use_moist);
         convert_wrfbdy_data(domain,bdy_data_xhi,
-                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0],
-                            NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
+                            mf_MUB, mf_C1H, mf_C2H,
+                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons], use_moist);
         convert_wrfbdy_data(domain,bdy_data_ylo,
-                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0],
-                            NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
+                            mf_MUB, mf_C1H, mf_C2H,
+                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons], use_moist);
         convert_wrfbdy_data(domain,bdy_data_yhi,
-                            NC_MUB_fab[0] , NC_C1H_fab[0] , NC_C2H_fab[0] ,
-                            NC_xvel_fab[0], NC_yvel_fab[0], NC_theta_fab[0], NC_QVAPOR_fab[0]);
+                            mf_MUB, mf_C1H, mf_C2H,
+                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons], use_moist);
     } // init_type == Real && lev == 0
-#endif
 
     // Start at the earliest time (read_from_wrfbdy)
     t_new[lev] = start_bdy_time;
