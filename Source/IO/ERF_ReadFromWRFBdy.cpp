@@ -519,7 +519,7 @@ convert_wrfbdy_data (const Box& domain,
                      const MultiFab& NC_yvel,
                      const MultiFab& cons)
 {
-// ASA HACK HACK  
+// ASA HACK HACK
 #if 0
     // These were filled from wrfinput
     Array4<Real const> c1h_arr  = NC_C1H_fab.const_array();

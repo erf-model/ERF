@@ -258,7 +258,7 @@ fill_fab_from_arrays (int iv,
     {
         my_box.setType(amrex::IndexType(amrex::IntVect(1,0,0)));
     } else if (var_name == "V" || var_name == "VV" ||
-        var_name == "MAPFAC_V" || var_name == "MAPFAC_VY") 
+        var_name == "MAPFAC_V" || var_name == "MAPFAC_VY")
     {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,1,0)));
     } else if (var_name == "W" || var_name == "WW") {

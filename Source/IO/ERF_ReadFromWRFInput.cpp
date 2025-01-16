@@ -64,22 +64,22 @@ read_from_wrfinput (int lev,
     Vector<std::string> NC_names; NC_names.push_back(NC_name);
     Vector<enum NC_Data_Dims_Type> NC_dim_types;
 
-    if (NC_name == "ALB" || NC_name == "AL" || NC_name == "U" ||  NC_name == "V" ||  NC_name == "W" || 
+    if (NC_name == "ALB" || NC_name == "AL" || NC_name == "U" ||  NC_name == "V" ||  NC_name == "W" ||
         NC_name == "T"   || NC_name == "PH" || NC_name == "PHB" || NC_name == "PB" || NC_name == "P" ||
         NC_name == "QVAPOR"   || NC_name == "QCLOUD" || NC_name == "QRAIN")
     {
-        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); 
-    } 
+        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    }
     else if (NC_name == "MAPFAC_UY" || NC_name == "MAPFAC_VY" || NC_name == "MAPFAC_MY" ||
              NC_name == "MUB"       || NC_name == "SST"       || NC_name == "LANDMASK"  ||
              NC_name == "XLAT_V" || NC_name == "XLONG_U")
     {
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
-    } 
+    }
     else if (NC_name == "C1H" || NC_name == "C2H")
     {
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);
-    } 
+    }
 
     // Read the netcdf file and fill these FABs
     Print() << "Building initial FABS from file " << fname << std::endl;
