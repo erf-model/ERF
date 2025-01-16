@@ -408,6 +408,40 @@ ERF::init_from_wrfinput (int lev)
         } // idx
     } // ivar
 
+    //
+    // Convert the velocities using the map factors
+    //
+    for ( MFIter mfi(lev_new[Vars::xvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        Box bx = mfi.tilebox();
+        const Array4<      Real>& dst_arr = lev_new[Vars::xvel].array(mfi);
+        const Array4<const Real>& src_arr = mapfac_u[lev]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            dst_arr(i,j,k) /= src_arr(i,j,0);
+        });
+    }
+    for ( MFIter mfi(lev_new[Vars::yvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        Box bx = mfi.tilebox();
+        const Array4<      Real>& dst_arr = lev_new[Vars::yvel].array(mfi);
+        const Array4<const Real>& src_arr = mapfac_v[lev]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            dst_arr(i,j,k) /= src_arr(i,j,0);
+        });
+    }
+    for ( MFIter mfi(lev_new[Vars::xvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        Box bx = mfi.tilebox();
+        const Array4<      Real>& dst_arr = lev_new[Vars::zvel].array(mfi);
+        const Array4<const Real>& src_arr = mapfac_m[lev]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            dst_arr(i,j,k) /= src_arr(i,j,0);
+        });
+    }
+
     // Initialize terrain height
     const Real& z_top = geom[lev].ProbHi(2);
     if (solverChoice.terrain_type != TerrainType::None) {
