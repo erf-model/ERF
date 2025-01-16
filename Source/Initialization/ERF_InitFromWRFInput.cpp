@@ -118,6 +118,9 @@ ERF::init_from_wrfinput (int lev)
 
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
       for (int ivar = 0; ivar < nvar; ++ ivar) {
+
+          amrex::Print() <<" IDX " << idx << " IVAR " << ivar << " NAME " << NC_names[ivar] << std::endl;
+
           read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
                              NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev]);
 
@@ -401,22 +404,22 @@ ERF::init_from_wrfinput (int lev)
             }
           }
 
-          // Initialize terrain height
-          const Real& z_top = geom[lev].ProbHi(2);
-          if (solverChoice.terrain_type != TerrainType::None) {
-              verify_terrain_top_boundary(z_top, mf_PH, mf_PHB);
-
-              init_terrain_from_wrfinput(lev, z_top, z_phys_nd[lev].get(), mf_PH, mf_PHB);
-
-             make_J  (geom[lev],*z_phys_nd[lev],*  detJ_cc[lev]);
-             make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
-             make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
-
-          } // use_terrain
-
         // ASA -- ARE THESE IN THE RIGHT PLACE???
         } // idx
     } // ivar
+
+    // Initialize terrain height
+    const Real& z_top = geom[lev].ProbHi(2);
+    if (solverChoice.terrain_type != TerrainType::None) {
+        verify_terrain_top_boundary(z_top, mf_PH, mf_PHB);
+
+        init_terrain_from_wrfinput(lev, z_top, z_phys_nd[lev].get(), mf_PH, mf_PHB);
+
+        make_J  (geom[lev],*z_phys_nd[lev],*  detJ_cc[lev]);
+        make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
+        make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+
+    } // use_terrain
 
     const Real l_rdOcp = solverChoice.rdOcp;
 
@@ -617,10 +620,10 @@ verify_terrain_top_boundary (const Real& z_top,
                                    phb(ii,jj-1,k) + phb(ii-1,jj-1,k) ) / CONST_GRAV;
             amrex::Gpu::Atomic::Max(&(mm_d[1]),z_calc);
         });
-
-    }
+    } // mfi
 
     Gpu::copy(Gpu::deviceToHost, MaxMax_d.begin(), MaxMax_d.end(), MaxMax_h.begin());
+
     if ((z_top > MaxMax_h[0]) || (z_top < MaxMax_h[1])) {
       Print() << "Z problem extent " << z_top << " does not match NETCDF file min "
               << MaxMax_h[1] << " and max " << MaxMax_h[0] << "!\n";

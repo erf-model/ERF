@@ -233,17 +233,17 @@ fill_fab_from_arrays (int iv,
         ns1 = nc_arrays[iv].get_vshape()[1];
         ns2 = 1;
         ns3 = 1;
-        // amrex::Print() << "TYPE BT " << ns1 << std::endl;
+        amrex::Print() << "TYPE BT " << ns1 << std::endl;
     } else if (NC_dim_type == NC_Data_Dims_Type::Time_SN_WE) {
         ns1 = 1;
         ns2 = nc_arrays[iv].get_vshape()[1];
         ns3 = nc_arrays[iv].get_vshape()[2];
-        // amrex::Print() << "TYPE SN WE " << ns2 << " " << ns3 << std::endl;
+        amrex::Print() << "TYPE SN WE " << ns2 << " " << ns3 << std::endl;
     } else if (NC_dim_type == NC_Data_Dims_Type::Time_BT_SN_WE) {
         ns1 = nc_arrays[iv].get_vshape()[1];
         ns2 = nc_arrays[iv].get_vshape()[2];
         ns3 = nc_arrays[iv].get_vshape()[3];
-        // amrex::Print() << "TYPE BT SN WE " << ns1 << " " << ns2 << " " << ns3 << std::endl;
+        amrex::Print() << "TYPE BT SN WE " << ns1 << " " << ns2 << " " << ns3 << std::endl;
     } else {
         amrex::Abort("Dont know this NC_Data_Dims_Type");
     }
@@ -256,6 +256,8 @@ fill_fab_from_arrays (int iv,
     if (var_name == "V" || var_name == "VV" ||
         var_name == "MAPFAC_V" || var_name == "MAPFAC_VY") my_box.setType(amrex::IndexType(amrex::IntVect(0,1,0)));
     if (var_name == "W" || var_name == "WW") my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
+
+    amrex::Print() << " MY_BOX " << my_box << std::endl;
 
     amrex::Arena* Arena_Used = amrex::The_Arena();
 #ifdef AMREX_USE_GPU
@@ -303,14 +305,19 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
     {
         ReadNetCDFFile(fname, nc_var_names, nc_arrays);
     }
+    amrex::Print() << "FILE READ WITH SIZE " << nc_var_names.size() << std::endl;
 
     for (int iv = 0; iv < nc_var_names.size(); iv++)
     {
         FAB tmp;
         if (amrex::ParallelDescriptor::IOProcessor()) {
+    amrex::Print() << "CALLING FILL WITH IV " << iv << std::endl;
+    amrex::Print() << "VAR NAME " << nc_var_names[iv] << std::endl;
+    if (NC_dim_types[iv] == NC_Data_Dims_Type::Time_SN_WE) amrex::Print() << " SN WE TYPE " << std::endl;
             fill_fab_from_arrays<FAB,DType>(iv, nc_arrays, nc_var_names[iv],
                                             NC_dim_types[iv], tmp);
         }
+    amrex::Print() << "END OF " << std::endl;
 
         int ncomp = tmp.nComp();
         amrex::Box box = tmp.box();
@@ -325,6 +332,7 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
             tmp.resize(box,ncomp);
 #endif
         }
+    amrex::Print() << "TEMP MADE " << tmp.box() << std::endl;
 
         amrex::ParallelDescriptor::Bcast(tmp.dataPtr(), tmp.size(), ioproc);
 

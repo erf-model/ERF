@@ -76,8 +76,8 @@ read_from_wrfinput (int lev,
     if (NC_name == "P")         { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 9
     if (NC_name == "MUB")       { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 10
     if (NC_name == "MAPFAC_UY") { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 11
-    if (NC_name == "MAPFAC_vY") { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 12
-    if (NC_name == "MAPFAC_mY") { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 13
+    if (NC_name == "MAPFAC_VY") { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 12
+    if (NC_name == "MAPFAC_MY") { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 13
     if (NC_name == "SST")       { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 14
     if (NC_name == "LANDMASK")  { NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    } // 15
     if (NC_name == "C1H")       { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);       } // 16
@@ -87,6 +87,12 @@ read_from_wrfinput (int lev,
     if (NC_name == "QVAPOR")    { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 20
     if (NC_name == "QCLOUD")    { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 21
     if (NC_name == "QRAIN")     { NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); } // 22
+
+    amrex::Print() <<" NC_name " << NC_name << std::endl;
+    amrex::Print() <<" NC_fabs " << NC_fabs[0]->box() << std::endl;
+
+    amrex::Print() <<" SIZE OF NAMES " << NC_names.size() << std::endl;
+    amrex::Print() <<" SIZE OF  DIMS " << NC_dim_types.size() << std::endl;
 
     // Read the netcdf file and fill these FABs
     Print() << "Building initial FABS from file " << fname << std::endl;
