@@ -519,6 +519,8 @@ convert_wrfbdy_data (const Box& domain,
                      const MultiFab& NC_yvel,
                      const MultiFab& cons)
 {
+// ASA HACK HACK  
+#if 0
     // These were filled from wrfinput
     Array4<Real const> c1h_arr  = NC_C1H_fab.const_array();
     Array4<Real const> c2h_arr  = NC_C2H_fab.const_array();
@@ -609,5 +611,6 @@ convert_wrfbdy_data (const Box& domain,
 
         } // nt ==0
     } // ntimes
+#endif
 }
 #endif // ERF_USE_NETCDF
