@@ -46,8 +46,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         SolverChoice::mesh_type == MeshType::VariableDz) {
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
-        amrex::Print() << "WE ARE LIVE WITH ZPHYS! " << std::endl;
-
         if (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
         {
             detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);

@@ -881,24 +881,41 @@ ERF::InitData_post ()
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
-        int ncomp = lev_new[Vars::cons].nComp();
-
         // ***************************************************************************
         // Physical bc's at domain boundary
         // ***************************************************************************
         IntVect ngvect_cons = vars_new[lev][Vars::cons].nGrowVect();
         IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
 
-        (*physbcs_cons[lev])(lev_new[Vars::cons],0,ncomp,ngvect_cons,t_new[lev],BCVars::cons_bc,true);
-        (   *physbcs_u[lev])(lev_new[Vars::xvel],0,1    ,ngvect_vels,t_new[lev],BCVars::xvel_bc,true);
-        (   *physbcs_v[lev])(lev_new[Vars::yvel],0,1    ,ngvect_vels,t_new[lev],BCVars::yvel_bc,true);
-        (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
-                             ngvect_vels,t_new[lev],BCVars::zvel_bc,true);
+        int ncomp_cons = lev_new[Vars::cons].nComp();
+        bool do_fb     = true;
 
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp,lev_new[Vars::cons].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,    1,lev_new[Vars::xvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,    1,lev_new[Vars::yvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,    1,lev_new[Vars::zvel].nGrowVect());
+#ifdef ERF_USE_NETCDF
+        // We call this here because it is an ERF routine
+        if (use_real_bcs && (lev==0)) {
+            int icomp_cons = 0;
+            bool cons_only = false;
+            Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
+                                         &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
+            fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                              ncomp_cons,ngvect_cons,ngvect_vels);
+            do_fb = false;
+    }
+#endif
+
+        (*physbcs_cons[lev])(lev_new[Vars::cons],0,ncomp_cons,
+                             ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
+        (   *physbcs_u[lev])(lev_new[Vars::xvel],0,1         ,
+                             ngvect_vels,t_new[lev],BCVars::xvel_bc,do_fb);
+        (   *physbcs_v[lev])(lev_new[Vars::yvel],0,1         ,
+                             ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
+        (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
+                             ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
+
+        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp_cons,lev_new[Vars::cons].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,         1,lev_new[Vars::xvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,         1,lev_new[Vars::yvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,         1,lev_new[Vars::zvel].nGrowVect());
     }
 
     // Compute the minimum dz in the domain at each level (to be used for setting the timestep)
