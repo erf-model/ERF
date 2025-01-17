@@ -57,7 +57,6 @@ erf.plot_vars_1     = density rhotheta theta rhoadv_0 x_velocity y_velocity z_ve
 # SOLVER CHOICE
 erf.use_gravity = false
 erf.use_coriolis = false
-erf.les_type = "None"
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
@@ -66,6 +65,8 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 
 erf.init_type = "uniform"
+
+erf.terrain_type = EB
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

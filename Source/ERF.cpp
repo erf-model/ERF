@@ -358,12 +358,21 @@ ERF::ERF_shared ()
     // We will create each of these in MakeNewLevel.../RemakeLevel
     m_factory.resize(max_level+1);
 
+    //
+    // Construct the EB data structures and store in a separate class
+    //
     // This is needed before initializing level MultiFabs
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
+        int lev = 0; Real dummy_time = 0.0;
+        Box terrain_bx(surroundingNodes(geom[lev].Domain())); terrain_bx.grow(3);
+        FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
+        prob->init_terrain_surface(geom[lev], terrain_fab, dummy_time);
+
         amrex::Print() << "MAKING EB GEOMETRY " << std::endl;
-        MakeEBGeometry();
+        eb_ eb(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
+        // MakeEBGeometry();
     }
 }
 

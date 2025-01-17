@@ -1,9 +1,18 @@
+CEXE_headers += ERF_EB.H
+CEXE_sources += ERF_EB.cpp
 
-CEXE_sources += main.cpp
-CEXE_sources += ERF_InitEB.cpp
-CEXE_sources += ERF_EBBox.cpp
-CEXE_sources += ERF_EBRegular.cpp
-CEXE_sources += ERF_Redistribute.cpp
-CEXE_sources += ERF_WriteEBSurface.cpp
+CEXE_headers += ERF_EBPolygon.H
+CEXE_headers += ERF_EBUtils.H
+
+CEXE_headers += ERF_EBCutCell.H
+CEXE_sources += ERF_EBCutCell.cpp
+
+CEXE_headers += ERF_EBAux.H
+CEXE_sources += ERF_EBAux.cpp
+
 CEXE_headers += ERF_EBIF.H
-CEXE_headers += ERF_TerrainIF.H
+CEXE_headers += ERF_EBIFTerrain.H
+
+CEXE_sources += ERF_EBBox.cpp
+CEXE_sources += ERF_EBRedistribute.cpp
+CEXE_sources += ERF_EBWriteSurface.cpp
