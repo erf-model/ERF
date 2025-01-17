@@ -29,6 +29,8 @@ Real ERF::cfl           =  0.8;
 Real ERF::sub_cfl       =  1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
+Real ERF::dt_max_initial = 1.0;
+Real ERF:: dt_max = 1e9;
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
@@ -1452,6 +1454,8 @@ ERF::ReadParameters ()
         pp.query("substepping_cfl", sub_cfl);
         pp.query("init_shrink", init_shrink);
         pp.query("change_max", change_max);
+        pp.query("dt_max_initial", dt_max_initial);
+        pp.query("dt_max", dt_max);
 
         fixed_dt.resize(max_level+1,-1.);
         fixed_fast_dt.resize(max_level+1,-1.);
