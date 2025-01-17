@@ -878,13 +878,13 @@ ERF::InitData_post ()
         IntVect ngvect_cons = vars_new[lev][Vars::cons].nGrowVect();
         IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
 
-        int icomp_cons = 0;
         int ncomp_cons = lev_new[Vars::cons].nComp();
         bool do_fb     = true;
 
 #ifdef ERF_USE_NETCDF
         // We call this here because it is an ERF routine
         if (use_real_bcs && (lev==0)) {
+            int icomp_cons = 0;
             bool cons_only = false;
             Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
                                          &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
