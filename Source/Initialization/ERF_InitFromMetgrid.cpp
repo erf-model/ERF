@@ -112,7 +112,7 @@ ERF::init_from_metgrid (int lev)
                           NC_ght_fab[itime],   NC_hgt_fab[itime],  NC_psfc_fab[itime],
                           NC_MSFU_fab[itime],  NC_MSFV_fab[itime], NC_MSFM_fab[itime],
                           NC_sst_fab[itime],   NC_LAT_fab[itime],  NC_LON_fab[itime],
-                          NC_lmask_iab[itime], Latitude,           Longitude,         geom[lev]);
+                          NC_lmask_iab[itime], geom[lev]);
     } // itime
 
     // Verify that files in nc_init_file[lev] are ordered from earliest to latest.

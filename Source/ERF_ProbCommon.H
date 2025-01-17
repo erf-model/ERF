@@ -347,41 +347,42 @@ public:
                 AMREX_ASSERT(m_yterrain.size() == static_cast<long int>(ny));
                 AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
 
-            } else {
-
-                file >> nx; file >> ny;
-                AMREX_ALWAYS_ASSERT(nx > 0);
-                AMREX_ALWAYS_ASSERT(ny > 0);
-                m_xterrain.resize(nx);
-                m_yterrain.resize(ny);
-                m_zterrain.resize(nx * ny);
-                for (int n = 0; n < nx; n++) {
-                    file >> m_xterrain[n];
-                }
-                for (int n = 0; n < ny; n++) {
-                    file >> m_yterrain[n];
-                }
-                for (int n = 0; n < nx * ny; n++) {
-                    file >> m_zterrain[n];
-                }
+        } else {
+            file >> nx; file >> ny;
+            AMREX_ALWAYS_ASSERT(nx > 0);
+            AMREX_ALWAYS_ASSERT(ny > 0);
+            m_xterrain.resize(nx);
+            m_yterrain.resize(ny);
+            m_zterrain.resize(nx * ny);
+            for (int n = 0; n < nx; n++) {
+                file >> m_xterrain[n];
             }
+            for (int n = 0; n < ny; n++) {
+                file >> m_yterrain[n];
+            }
+            for (int n = 0; n < nx * ny; n++) {
+                file >> m_zterrain[n];
+            }
+        }
+
+        amrex::Print() << "NX " << nx << " " << ny << std::endl;
 
             // Close the file after reading
             file.close();
         }
 
-        amrex::ParallelDescriptor::Bcast(&nx,1,amrex::ParallelDescriptor::IOProcessor());
-        amrex::ParallelDescriptor::Bcast(&ny,1,amrex::ParallelDescriptor::IOProcessor());
+        amrex::ParallelDescriptor::Bcast(&nx,1,amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(&ny,1,amrex::ParallelDescriptor::IOProcessorNumber());
 
         int nz = nx * ny;
 
         m_xterrain.resize(nx);
         m_yterrain.resize(ny);
-        m_zterrain.resize(nx * ny);
+        m_zterrain.resize(nz);
 
-        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx,amrex::ParallelDescriptor::IOProcessor());
-        amrex::ParallelDescriptor::Bcast(m_yterrain.data(),ny,amrex::ParallelDescriptor::IOProcessor());
-        amrex::ParallelDescriptor::Bcast(m_zterrain.data(),nz,amrex::ParallelDescriptor::IOProcessor());
+        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx,amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(m_yterrain.data(),ny,amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(m_zterrain.data(),nz,amrex::ParallelDescriptor::IOProcessorNumber());
 
         // Copy data to the GPU
         amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx),d_yterrain(ny),d_zterrain(nz);
@@ -464,11 +465,11 @@ public:
                 y1 = d_yt[jindex_terrain];
                 y2 = d_yt[jindex_terrain+1];
 
-                ind11 =           iindex_terrain         * ny + jindex_terrain;
-                ind12 =  std::min(iindex_terrain+1,nx-1) * ny + jindex_terrain;
+                ind11 =           jindex_terrain         * nx + iindex_terrain;
+                ind21 =  std::min(jindex_terrain+1,ny-1) * nx + iindex_terrain;
 
-                ind21 =           iindex_terrain         * ny + std::min(jindex_terrain+1,ny-1);
-                ind22  = std::min(iindex_terrain+1,nx-1) * ny + std::min(jindex_terrain+1,ny-1);
+                ind12 =           jindex_terrain         * nx + std::min(iindex_terrain+1,nx-1);
+                ind22  = std::min(jindex_terrain+1,ny-1) * nx + std::min(iindex_terrain+1,nx-1);
             }
 
             // Do bilinear interpolation

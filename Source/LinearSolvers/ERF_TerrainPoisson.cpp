@@ -149,9 +149,6 @@ void TerrainPoisson::getFluxes (MultiFab& phi,
 {
     auto const& dxinv = m_geom.InvCellSizeArray();
 
-    auto domlo = lbound(m_geom.Domain());
-    auto domhi = ubound(m_geom.Domain());
-
     auto const& x   = phi.const_arrays();
     auto const& zpa = m_zphys->const_arrays();
 

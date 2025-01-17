@@ -97,9 +97,6 @@ void make_mom_sources (int level,
         if (solverChoice.do_forest_drag) {
             amrex::Error(" Currently forest canopy cannot be used with immersed forcing");
         }
-        if (solverChoice.mesh_type != MeshType::ConstantDz) {
-            amrex::Error(" Currently immersed forcing for terrain is only valid for constant dz");
-        }
     }
 
 
