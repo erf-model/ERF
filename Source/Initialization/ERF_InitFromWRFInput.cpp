@@ -130,7 +130,7 @@ ERF::init_from_wrfinput (int lev)
     auto& ba    = lev_new[Vars::cons].boxArray();
     auto& dm    = lev_new[Vars::cons].DistributionMap();
     IntVect ng  = lev_new[Vars::cons].nGrowVect();
-    IntVect ngz = z_phys_nd[lev]->nGrowVect(); ngz[0] +=1; ngz[1] += 1;
+    IntVect ngz = (z_phys_nd[lev]) ? z_phys_nd[lev]->nGrowVect() : IntVect(0); ngz[0] +=1; ngz[1] += 1;
     IntVect ngv = ng; ngv[2] = 0;
 
     // Build 2D BA
