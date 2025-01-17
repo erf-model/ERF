@@ -122,6 +122,27 @@ ERF::init_from_wrfinput (int lev)
     MultiFab mf_ALB, mf_PB , mf_P  ; // For base state
     MultiFab mf_MUB, mf_C1H, mf_C2H; // For bdy convert
 
+    // Temporary MFs for derived quantities
+    auto& ba    = lev_new[Vars::cons].boxArray();
+    auto& dm    = lev_new[Vars::cons].DistributionMap();
+    IntVect ng  = lev_new[Vars::cons].nGrowVect();
+    IntVect ngv = ng; ngv[2] = 0;
+
+    // Build 2D BA
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d(std::move(bl2d));
+
+    // Build 1D BA
+    BoxList bl1d = ba.boxList();
+    for (auto& b : bl1d) {
+        b.setRange(0,0);
+        b.setRange(1,0);
+    }
+    BoxArray ba1d(std::move(bl1d));
+
     Print() << "Loading initial data from NetCDF file at level " << lev << "\n";
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
         Print() << "Reading from file " << nc_init_file[lev][idx] << "\n";
@@ -152,8 +173,9 @@ ERF::init_from_wrfinput (int lev)
               for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
               {
                   FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
+                  Box vbx = cons_fab.box(); vbx.grow(-ng);
                   cons_fab.template   plus<RunOn::Device>(var_fab, 0, Rho_comp, 1);
-                  cons_fab.template invert<RunOn::Device>(1.0);
+                  cons_fab.template invert<RunOn::Device>(1.0, vbx, Rho_comp, 1);
               }
           }
 
@@ -215,26 +237,7 @@ ERF::init_from_wrfinput (int lev)
               } // mfi
           } // valid var (not rho)
 
-          // Temporary MFs for derived quantities
-          auto& ba    = lev_new[Vars::cons].boxArray();
-          auto& dm    = lev_new[Vars::cons].DistributionMap();
-          IntVect ng  = lev_new[Vars::cons].nGrowVect();
-          IntVect ngv = ng; ngv[2] = 0;
 
-          // Build 2D BA
-          BoxList bl2d = ba.boxList();
-          for (auto& b : bl2d) {
-              b.setRange(2,0);
-          }
-          BoxArray ba2d(std::move(bl2d));
-
-          // Build 1D BA
-          BoxList bl1d = ba.boxList();
-          for (auto& b : bl1d) {
-              b.setRange(0,0);
-              b.setRange(1,0);
-          }
-          BoxArray ba1d(std::move(bl1d));
 
           if ( var_name == "PH" ) {
               auto& ba_w = lev_new[Vars::zvel].boxArray();
@@ -462,7 +465,7 @@ ERF::init_from_wrfinput (int lev)
 
         init_terrain_from_wrfinput(lev, z_top, z_phys_nd[lev].get(), mf_PH, mf_PHB);
 
-        make_J  (geom[lev],*z_phys_nd[lev],*  detJ_cc[lev]);
+        make_J  (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
 
@@ -560,7 +563,9 @@ init_base_state_from_wrfinput (const Box& domain,
 
     for ( MFIter mfi(cons, TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
 
+        Box tbx  = mfi.tilebox();
         Box gtbx = mfi.growntilebox();
+
         const Array4<Real      >&   cons_arr = cons.array(mfi);
         const Array4<Real      >&  p_hse_arr = p_hse.array(mfi);
         const Array4<Real      >& pi_hse_arr = pi_hse.array(mfi);
@@ -588,7 +593,12 @@ init_base_state_from_wrfinput (const Box& domain,
             Real RT    = cons_arr(ii,jj,kk,RhoTheta_comp);
             Real P_eos = getPgivenRTh(RT, Qv);
             Real DelP  = std::fabs(Ptot - P_eos);
-            AMREX_ASSERT_WITH_MESSAGE((DelP < 1.0), "Initial state is inconsistent with EOS!");
+
+            // NOTE: Ghost cells don't contain valid data
+            //       We want domain GCs and FB picks up interior GCs
+            if (tbx.contains(i,j,k)) {
+                AMREX_ASSERT_WITH_MESSAGE((DelP < 1.0), "Initial state is inconsistent with EOS!");
+            }
 
             // Compute rhse
             Real Rhse_Sum = cons_arr(ii,jj,kk,Rho_comp);
