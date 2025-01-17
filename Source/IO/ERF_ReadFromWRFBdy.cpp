@@ -529,11 +529,15 @@ convert_wrfbdy_data (const Box& domain,
                 const FArrayBox& xvel_fab = xvel[mfi];
                 const FArrayBox& yvel_fab = yvel[mfi];
                 const FArrayBox& cons_fab = cons[mfi];
+
                 bdy_data[0][WRFBdyVars::U].template  copy<RunOn::Device>(xvel_fab,0,0,1);
                 bdy_data[0][WRFBdyVars::V].template  copy<RunOn::Device>(yvel_fab,0,0,1);
                 bdy_data[0][WRFBdyVars::T].template  copy<RunOn::Device>(cons_fab,RhoTheta_comp,0,1);
+                bdy_data[0][WRFBdyVars::T].template divide<RunOn::Device>(cons_fab,bdy_data[0][WRFBdyVars::T].box(),Rho_comp,0,1);
+
                 if (use_moist) {
                     bdy_data[0][WRFBdyVars::QV].template copy<RunOn::Device>(cons_fab,RhoQ1_comp,0,1);
+                    bdy_data[0][WRFBdyVars::QV].template divide<RunOn::Device>(cons_fab,bdy_data[0][WRFBdyVars::QV].box(),Rho_comp,0,1);
                 } else {
                     bdy_data[0][WRFBdyVars::QV].template setVal<RunOn::Device>(0.);
                 }
