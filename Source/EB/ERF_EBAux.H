@@ -28,20 +28,20 @@ class eb_aux_
 
     int m_verbose;
 
-    int m_defined;
+    // int m_defined;
 
     amrex::FabArray<amrex::EBCellFlagFab>* m_cellflags = nullptr;
 
     amrex::MultiFab* m_volfrac = nullptr;
-    amrex::MultiCutFab* m_centroid = nullptr;
 
-    amrex::MultiCutFab* m_bndrycent = nullptr;
-    amrex::MultiCutFab* m_bndryarea = nullptr;
-    amrex::MultiCutFab* m_bndrynorm = nullptr;
+    // amrex::MultiCutFab* m_centroid = nullptr;
+    // amrex::MultiCutFab* m_bndrycent = nullptr;
+    // amrex::MultiCutFab* m_bndryarea = nullptr;
+    // amrex::MultiCutFab* m_bndrynorm = nullptr;
 
-    amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_areafrac {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
-    amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_facecent {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
-    amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_edgecent {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
+    // amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_areafrac {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
+    // amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_facecent {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
+    // amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_edgecent {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
 
 };
 

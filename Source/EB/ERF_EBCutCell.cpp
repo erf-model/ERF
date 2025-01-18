@@ -5,6 +5,8 @@
 
 using namespace amrex;
 
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
 eb_cut_cell_::
 eb_cut_cell_ ( EBCellFlag const& a_flag,
                RealBox    const& a_rbox,
@@ -73,7 +75,8 @@ eb_cut_cell_ ( EBCellFlag const& a_flag,
 
 }
 
-
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
 void
 eb_cut_cell_::
 calc_edge_intersections ( int const a_dry_run )

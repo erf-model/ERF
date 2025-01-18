@@ -25,7 +25,7 @@ define( int const& a_idim,
         Vector<int>         const& a_ngrow,
         EBFArrayBoxFactory  const* a_factory)
 {
-  Box dbox(a_geom.Domain());
+  // Box dbox(a_geom.Domain());
 
   const IntVect vdim(IntVect::TheDimensionVector(a_idim));
 
@@ -68,7 +68,7 @@ define( int const& a_idim,
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
 
       Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
-      Array4<Real const> const& ccent = (a_factory->getCentroid()).const_array(mfi);
+      // Array4<Real const> const& ccent = (a_factory->getCentroid()).const_array(mfi);
 
       Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
 
@@ -79,11 +79,14 @@ define( int const& a_idim,
       Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
       Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
 
-      ParallelFor(bx, [ verbose=m_verbose, vfrac, ccent, afrac, bnorm, bcent, flag,
-        aux_flag, aux_vfrac, vdim, idim=a_idim ]
+      ParallelFor(bx, [
+#ifndef AMREX_USE_GPU
+                  verbose=m_verbose,
+#endif
+                  vfrac, afrac, bnorm, bcent, flag,
+                  aux_flag, aux_vfrac, vdim, idim=a_idim ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-
         aux_flag(i,j,k).setCovered();
         aux_flag(i,j,k).setDisconnected();
 
@@ -218,18 +221,19 @@ define( int const& a_idim,
             }
 
             // The idim area of hi_eb_cc.areaHi() should equal hi_hi_eb_cc.areaLo()
-            { Real const abs_err = std::abs( hi_eb_cc.areaHi(idim) - hi_hi_eb_cc.areaLo(idim) );
+            {
 #ifndef AMREX_USE_GPU
-              if ( abs_err >= machine_tol ) {
+            Real const abs_err = std::abs( hi_eb_cc.areaHi(idim) - hi_hi_eb_cc.areaLo(idim) );
+            if ( abs_err >= machine_tol ) {
                 Print() << "\nFail: check-4 area abs_err: " << abs_err
                         << "\n  hi_eb_cc.areaHi " << hi_eb_cc.areaHi(idim)
                         << "\n  hi_hi_eb_cc.areaLo " << hi_hi_eb_cc.areaLo(idim)
                         << '\n';
-              } else if (verbose) {
+            } else if (verbose) {
                 Print() << "Pass: hi_eb_cc.areaHi = hi_hi_eb_cc.areaLo"
                         << "  abs_err: " << abs_err << "\n";
-              }
-              AMREX_ALWAYS_ASSERT( abs_err < machine_tol );
+            }
+            AMREX_ALWAYS_ASSERT( abs_err < machine_tol );
 #endif
             }
 

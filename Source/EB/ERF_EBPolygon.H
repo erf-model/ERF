@@ -139,7 +139,13 @@ class polygon_ {
       return cent / static_cast<amrex::Real>(m_vertices);
     }
 
-    void report ( int const a_id, amrex::RealVect a_v0 ) {
+#ifndef AMREX_USE_GPU
+    void report ( int const a_id, amrex::RealVect a_v0 )
+#else
+    void report ( int const /*a_id*/, amrex::RealVect /*a_v0*/ )
+#endif
+    {
+
 #ifndef AMREX_USE_GPU
       amrex::RealVect centroid = get_centroid();
       amrex::Print() << "Face " << a_id
