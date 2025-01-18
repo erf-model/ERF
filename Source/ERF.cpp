@@ -715,7 +715,7 @@ ERF::InitData_post ()
 
         // Create the physbc objects for {cons, u, v, w, base state}
         // We fill the additional base state ghost cells just in case we have read the old format
-        for (int lev(0); lev <= max_level; ++lev) {
+        for (int lev(0); lev <= finest_level; ++lev) {
             make_physbcs(lev);
             (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
         }
@@ -1249,7 +1249,6 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
     return;
 }
 
-
 #ifdef ERF_USE_WINDFARM
 void
 ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
@@ -1261,17 +1260,6 @@ ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
 void
 ERF::restart ()
 {
-    // TODO: This could be deleted since ba/dm are not created yet?
-    for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        auto& lev_new = vars_new[lev];
-        auto& lev_old = vars_old[lev];
-        lev_new[Vars::cons].setVal(0.); lev_old[Vars::cons].setVal(0.);
-        lev_new[Vars::xvel].setVal(0.); lev_old[Vars::xvel].setVal(0.);
-        lev_new[Vars::yvel].setVal(0.); lev_old[Vars::yvel].setVal(0.);
-        lev_new[Vars::zvel].setVal(0.); lev_old[Vars::zvel].setVal(0.);
-    }
-
 #ifdef ERF_USE_NETCDF
     if (restart_type == "netcdf") {
        ReadNCCheckpointFile();
