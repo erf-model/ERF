@@ -523,6 +523,14 @@ convert_wrfbdy_data (const Box& domain,
     int ntimes = bdy_data.size();
     for (int nt = 0; nt < ntimes; nt++)
     {
+        // Temporary bdy data structures for global reductions
+        int vsize = bdy_data[nt].size() - 2; // Don't do MU & PC
+        amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
+        for (int ivar(0); ivar < vsize; ++ivar) {
+            bdy_data_tmp[ivar].resize(bdy_data[nt][ivar].box(),1);
+            bdy_data_tmp[ivar].template setVal<RunOn::Device>(0.);
+        }
+
         for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
         {
             if (nt==0) {
@@ -530,16 +538,16 @@ convert_wrfbdy_data (const Box& domain,
                 const FArrayBox& yvel_fab = yvel[mfi];
                 const FArrayBox& cons_fab = cons[mfi];
 
-                bdy_data[0][WRFBdyVars::U].template  copy<RunOn::Device>(xvel_fab,0,0,1);
-                bdy_data[0][WRFBdyVars::V].template  copy<RunOn::Device>(yvel_fab,0,0,1);
-                bdy_data[0][WRFBdyVars::T].template  copy<RunOn::Device>(cons_fab,RhoTheta_comp,0,1);
-                bdy_data[0][WRFBdyVars::T].template divide<RunOn::Device>(cons_fab,bdy_data[0][WRFBdyVars::T].box(),Rho_comp,0,1);
+                bdy_data_tmp[WRFBdyVars::U].template  copy<RunOn::Device>(xvel_fab,0,0,1);
+                bdy_data_tmp[WRFBdyVars::V].template  copy<RunOn::Device>(yvel_fab,0,0,1);
+                bdy_data_tmp[WRFBdyVars::T].template  copy<RunOn::Device>(cons_fab,RhoTheta_comp,0,1);
+                bdy_data_tmp[WRFBdyVars::T].template divide<RunOn::Device>(cons_fab,bdy_data[0][WRFBdyVars::T].box(),Rho_comp,0,1);
 
                 if (use_moist) {
-                    bdy_data[0][WRFBdyVars::QV].template copy<RunOn::Device>(cons_fab,RhoQ1_comp,0,1);
-                    bdy_data[0][WRFBdyVars::QV].template divide<RunOn::Device>(cons_fab,bdy_data[0][WRFBdyVars::QV].box(),Rho_comp,0,1);
+                    bdy_data_tmp[WRFBdyVars::QV].template copy<RunOn::Device>(cons_fab,RhoQ1_comp,0,1);
+                    bdy_data_tmp[WRFBdyVars::QV].template divide<RunOn::Device>(cons_fab,bdy_data[0][WRFBdyVars::QV].box(),Rho_comp,0,1);
                 } else {
-                    bdy_data[0][WRFBdyVars::QV].template setVal<RunOn::Device>(0.);
+                    bdy_data_tmp[WRFBdyVars::QV].template setVal<RunOn::Device>(0.);
                 }
             } else {
                 Box vbx = mfi.validbox();
@@ -551,10 +559,10 @@ convert_wrfbdy_data (const Box& domain,
                 const Box& bx_qv = (vbx & bdy_data[nt][WRFBdyVars::QV].box());
 
                 // BDY data
-                Array4<Real> bdy_u_arr  = bdy_data[nt][WRFBdyVars::U].array();  // This is x-face-centered
-                Array4<Real> bdy_v_arr  = bdy_data[nt][WRFBdyVars::V].array();  // This is y-face-centered
-                Array4<Real> bdy_t_arr  = bdy_data[nt][WRFBdyVars::T].array();  // This is cell-centered
-                Array4<Real> bdy_qv_arr = bdy_data[nt][WRFBdyVars::QV].array(); // This is cell-centered
+                Array4<Real> bdy_u_arr  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
+                Array4<Real> bdy_v_arr  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
+                Array4<Real> bdy_t_arr  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
+                Array4<Real> bdy_qv_arr = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
                 Array4<Real> mu_arr     = bdy_data[nt][WRFBdyVars::MU].array(); // This is cell-centered
 
                 // Populated from read wrfinput
@@ -624,6 +632,14 @@ convert_wrfbdy_data (const Box& domain,
 
             } // nt ==0
         } // mfi
+
+        for (int ivar(0); ivar < vsize; ++ivar) {
+            amrex::ParallelAllReduce::Sum(bdy_data_tmp[ivar].dataPtr(),
+                                          bdy_data_tmp[ivar].size(),
+                                          ParallelContext::CommunicatorAll());
+            bdy_data[nt][ivar].template  copy<RunOn::Device>(bdy_data_tmp[ivar],0,0,1);
+        }
+
     } // ntimes
 }
 #endif // ERF_USE_NETCDF

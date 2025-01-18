@@ -926,6 +926,8 @@ private:
     static amrex::Real sub_cfl;
     static amrex::Real init_shrink;
     static amrex::Real change_max;
+    static amrex::Real dt_max_initial;
+    static amrex::Real dt_max;
 
     // Fixed dt for level 0 timesteps (only used if positive)
     amrex::Vector<amrex::Real> fixed_dt;

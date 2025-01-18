@@ -32,7 +32,6 @@ ERF::ComputeDt (int step)
             }
         }
     }
-
     // Limit dt's by the value of stop_time.
     const Real eps = 1.e-3*dt_0;
     if (t_new[0] + dt_0 > stop_time - eps) {
@@ -279,7 +278,18 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      } else {
          // Anelastic (substepping is not allowed)
          if (l_anelastic) {
+
+            // Make sure that timestep is less than the dt_max
+            estdt_lowM = amrex::min(estdt_lowM, dt_max);
+
+            // On the first timestep enforce dt_max_initial
+            if(istep[level] == 0){
+                return amrex::min(dt_max_initial, estdt_lowM);
+             }
+            else{
              return estdt_lowM;
+            }
+
 
          // Compressible with or without substepping
          } else {
