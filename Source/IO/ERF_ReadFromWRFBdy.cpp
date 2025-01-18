@@ -539,13 +539,13 @@ convert_wrfbdy_data (const Box& domain,
 
         for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
         {
-            Box vbx = mfi.validbox();
-            Box xbx = convert(vbx,IntVect(1,0,0));
-            Box ybx = convert(vbx,IntVect(0,1,0));
+            Box tbx = mfi.tilebox();
+            Box xbx = mfi.nodaltilebox(0);
+            Box ybx = mfi.nodaltilebox(1);
             const Box& bx_u  = (xbx & bdy_data[nt][WRFBdyVars::U].box());
             const Box& bx_v  = (ybx & bdy_data[nt][WRFBdyVars::V].box());
-            const Box& bx_t  = (vbx & bdy_data[nt][WRFBdyVars::T].box());
-            const Box& bx_qv = (vbx & bdy_data[nt][WRFBdyVars::QV].box());
+            const Box& bx_t  = (tbx & bdy_data[nt][WRFBdyVars::T].box());
+            const Box& bx_qv = (tbx & bdy_data[nt][WRFBdyVars::QV].box());
 
             // BDY data
             Array4<Real> bdy_u_arr  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
@@ -581,7 +581,8 @@ convert_wrfbdy_data (const Box& domain,
                 {
                     if (mask_c_arr(i,j,k)) {
                         bdy_t_arr(i,j,k)  = cons_fab(i,j,k,RhoTheta_comp)/cons_fab(i,j,k,Rho_comp);
-                        bdy_qv_arr(i,j,k) = cons_fab(i,j,k,RhoQ1_comp   )/cons_fab(i,j,k,Rho_comp);
+                        bdy_qv_arr(i,j,k) = (use_moist) ? cons_fab(i,j,k,RhoQ1_comp   )/cons_fab(i,j,k,Rho_comp) :
+                                                          0.0;
                     }
                 });
 
