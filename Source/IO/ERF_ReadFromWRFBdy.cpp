@@ -560,9 +560,9 @@ convert_wrfbdy_data (const Box& domain,
             const Array4<const int>& mask_v_arr = mask_v->const_array(mfi);
 
             if (nt==0) {
-                const FArrayBox& xvel_fab = xvel[mfi];
-                const FArrayBox& yvel_fab = yvel[mfi];
-                const FArrayBox& cons_fab = cons[mfi];
+                const Array4<const Real>& xvel_fab = xvel.const_array(mfi);
+                const Array4<const Real>& yvel_fab = yvel.const_array(mfi);
+                const Array4<const Real>& cons_fab = cons.const_array(mfi);
 
                 // Define u velocity
                 ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
