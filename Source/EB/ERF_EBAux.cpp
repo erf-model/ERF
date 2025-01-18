@@ -235,8 +235,8 @@ define( int const& a_idim,
             // The low-side area of hi_eb_cc should equal idim afrac.
             { Real const abs_err = amrex::min(std::abs(lo_eb_cc.areaHi(idim) - afrac(iv_hi)),
                                               std::abs(hi_eb_cc.areaLo(idim) - afrac(iv_hi)));
-#ifndef AMREX_USE_GPU
               Real compare_tol = 5.0e-6;
+#ifndef AMREX_USE_GPU
               if ( abs_err >= compare_tol ) {
                 //hi_eb_cc.debug();
                 Print() << "\nFail: check-2 area abs_err " << abs_err
@@ -256,8 +256,8 @@ define( int const& a_idim,
             // equal vfrac(iv_hi).
             { Real const vol = hi_eb_cc.volume() + hi_hi_eb_cc.volume();
               Real const abs_err = amrex::Math::abs(vfrac(iv_hi) - vol);
-#ifndef AMREX_USE_GPU
               Real compare_tol = 5.0e-6;
+#ifndef AMREX_USE_GPU
               if ( abs_err >= compare_tol ) {
                 hi_eb_cc.debug();
                 hi_hi_eb_cc.debug();
