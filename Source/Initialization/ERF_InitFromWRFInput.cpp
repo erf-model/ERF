@@ -40,6 +40,7 @@ convert_wrfbdy_data (const Box& domain,
                      const MultiFab& xvel,
                      const MultiFab& yvel,
                      const MultiFab& cons,
+                     const Geometry& geom,
                      const bool& use_moist);
 
 void
@@ -523,16 +524,20 @@ ERF::init_from_wrfinput (int lev)
 
         convert_wrfbdy_data(domain,bdy_data_xlo,
                             mf_MUB, mf_C1H, mf_C2H,
-                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons], use_moist);
+                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                            geom[lev], use_moist);
         convert_wrfbdy_data(domain,bdy_data_xhi,
                             mf_MUB, mf_C1H, mf_C2H,
-                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons], use_moist);
+                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                            geom[lev], use_moist);
         convert_wrfbdy_data(domain,bdy_data_ylo,
                             mf_MUB, mf_C1H, mf_C2H,
-                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons], use_moist);
+                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                            geom[lev], use_moist);
         convert_wrfbdy_data(domain,bdy_data_yhi,
                             mf_MUB, mf_C1H, mf_C2H,
-                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons], use_moist);
+                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                            geom[lev], use_moist);
     } // init_type == Real && lev == 0
 
     // Start at the earliest time (read_from_wrfbdy)
