@@ -4,6 +4,8 @@
 #include <AMReX_REAL.H>
 #include <AMReX_RealVect.H>
 
+#include "ERF_Constants.H"
+
 class polygon_ {
 
   public:
@@ -89,7 +91,7 @@ class polygon_ {
         m_theta[i] = std::atan2(m_zdir.dotProduct( vertex_cent[0].crossProduct(vertex_cent[i]) ),
                               vertex_cent[0].dotProduct(vertex_cent[i]));
 
-        m_theta[i] += ((m_theta[i] >= 0.) ? 0.0 : 2.0*M_PI);
+        m_theta[i] += ((m_theta[i] >= 0.) ? 0.0 : 2.0*PI);
       }
 
       // Sort counter clockwise based on theta.

@@ -53,10 +53,6 @@ define( int const& a_idim,
 
   const auto& FlagFab = a_factory->getMultiEBCellFlagFab();
 
-  Real constexpr machine_tol( 10.0*std::numeric_limits<amrex::Real>::epsilon() );
-  Real constexpr compare_tol( 5.0e-6 );
-  amrex::ignore_unused(machine_tol, compare_tol);
-
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
     const Box& bx = mfi.validbox();
@@ -222,6 +218,7 @@ define( int const& a_idim,
             {
 #ifndef AMREX_USE_GPU
             Real const abs_err = std::abs( hi_eb_cc.areaHi(idim) - hi_hi_eb_cc.areaLo(idim) );
+            Real machine_tol = 10.0*std::numeric_limits<amrex::Real>::epsilon();
             if ( abs_err >= machine_tol ) {
                 Print() << "\nFail: check-4 area abs_err: " << abs_err
                         << "\n  hi_eb_cc.areaHi " << hi_eb_cc.areaHi(idim)
@@ -239,6 +236,7 @@ define( int const& a_idim,
             { Real const abs_err = amrex::min(std::abs(lo_eb_cc.areaHi(idim) - afrac(iv_hi)),
                                               std::abs(hi_eb_cc.areaLo(idim) - afrac(iv_hi)));
 #ifndef AMREX_USE_GPU
+              Real compare_tol = 5.0e-6;
               if ( abs_err >= compare_tol ) {
                 //hi_eb_cc.debug();
                 Print() << "\nFail: check-2 area abs_err " << abs_err
@@ -259,6 +257,7 @@ define( int const& a_idim,
             { Real const vol = hi_eb_cc.volume() + hi_hi_eb_cc.volume();
               Real const abs_err = amrex::Math::abs(vfrac(iv_hi) - vol);
 #ifndef AMREX_USE_GPU
+              Real compare_tol = 5.0e-6;
               if ( abs_err >= compare_tol ) {
                 hi_eb_cc.debug();
                 hi_hi_eb_cc.debug();
