@@ -11,15 +11,13 @@ eb_aux_::
 eb_aux_::
 eb_aux_ ()
   : m_verbose(0)
-  , m_defined(0)
+// ,m_defined(0)
 {}
-
-        //const Geometry& a_geom,
 
 void
 eb_aux_::
 define( int const& a_idim,
-        Geometry            const& a_geom,
+        Geometry            const& /*a_geom*/,
         BoxArray            const& a_grids,
         DistributionMapping const& a_dmap,
         Vector<int>         const& a_ngrow,
