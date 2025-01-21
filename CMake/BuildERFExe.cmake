@@ -125,10 +125,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeTurbulentViscosity.cpp
-       ${SRC_DIR}/EB/ERF_InitEB.cpp
+       ${SRC_DIR}/EB/ERF_EBAdvectionSrcForState.cpp
        ${SRC_DIR}/EB/ERF_EBBox.cpp
        ${SRC_DIR}/EB/ERF_EBRegular.cpp
        ${SRC_DIR}/EB/ERF_InitEB.cpp
+       ${SRC_DIR}/EB/ERF_Redistribute.cpp
        ${SRC_DIR}/EB/ERF_WriteEBSurface.cpp 
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
        ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
