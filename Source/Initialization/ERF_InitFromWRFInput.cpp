@@ -205,8 +205,8 @@ ERF::init_from_wrfinput (int lev)
                   // Define fabs for holding the initial data
                   int icomp = 0;
                   bool mult_rho = false;
+                  FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
                   FArrayBox* cur_fab;
-
                   if (NC_names[ivar] == "U") {
                     cur_fab  = &lev_new[Vars::xvel][mfi];
                   } else if (NC_names[ivar] == "V") {
@@ -234,12 +234,9 @@ ERF::init_from_wrfinput (int lev)
                     if (n_qstate > 3) { icomp = RhoQ4_comp; }
                   }
 
-                  FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
-
                   cur_fab->template copy<RunOn::Device>(var_fab, 0, icomp, 1);
-
                   if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
-
+                  var_fab.clear();
               } // mfi
           } // valid var (not rho)
 
@@ -427,6 +424,8 @@ ERF::init_from_wrfinput (int lev)
               msf_fab.template copy<RunOn::Device>(var_fab);
             }
           }
+
+          var_fab.clear();
           Print() << " DONE\n";
         } // ivar
       Print() << "\n";
@@ -575,7 +574,7 @@ init_base_state_from_wrfinput (const Box& domain,
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    for ( MFIter mfi(cons, TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+    for ( MFIter mfi(p_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
 
         Box tbx  = mfi.tilebox();
         Box gtbx = mfi.growntilebox();
