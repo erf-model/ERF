@@ -4,7 +4,6 @@
 #include <AMReX_BLProfiler.H>
 #include <AMReX_ParallelDescriptor.H>
 
-//#include "IO.H"
 #include "ERF.H"
 
 #ifdef ERF_USE_WW3_COUPLING

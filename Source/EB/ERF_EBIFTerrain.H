@@ -14,7 +14,8 @@ class TerrainIF
 {
 public:
 
-    TerrainIF (amrex::FArrayBox& a_z_terrain, amrex::Geometry& a_geom, amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched)
+    TerrainIF (amrex::FArrayBox const& a_z_terrain, amrex::Geometry const& a_geom,
+               amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched)
         : terr_arr(a_z_terrain.const_array()),
           dz_s(a_dz_stretched.data()),
           dx(a_geom.CellSize(0)),

@@ -263,32 +263,21 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
-    // ********************************************************************************************
-    // Update the base state at this level by interpolation from coarser level
-    // ********************************************************************************************
-    //
-    // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-    //       have been pre-filled - this includes ghost cells both inside and outside
-    //       the domain
-    //
-    InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
-                          IntVect(0,0,0), // do not fill ghost cells outside the domain
-                          base_state[lev-1], 0, 0, base_state[lev].nComp(),
-                          geom[lev-1], geom[lev],
-                          refRatio(lev-1), &cell_cons_interp,
-                          domain_bcs_type, BCVars::cons_bc);
+    // *****************************************************************************************************
+    // Initialize the boundary conditions (after initializing the terrain but before calling
+    //     initHSE or FillCoarsePatch)
+    // *****************************************************************************************************
+    make_physbcs(lev);
 
+    // ********************************************************************************************
+    // Update the base state at this level by interpolation from coarser level (inside initHSE)
+    // ********************************************************************************************
     initHSE(lev);
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
-
-    // *****************************************************************************************************
-    // Initialize the boundary conditions (after initializing the terrain but before calling FillCoarsePatch
-    // *****************************************************************************************************
-    make_physbcs(lev);
 
     // ********************************************************************************************
     // Fill data at the new level by interpolation from the coarser level

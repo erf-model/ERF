@@ -82,6 +82,8 @@ Problem::init_custom_pert(
 
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
+    AMREX_ALWAYS_ASSERT(sc.terrain_type == TerrainType::EB);
+
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     // ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -169,17 +171,10 @@ Problem::init_custom_pert(
     dxInv[2] = 1. / dx[2];
 
     // Set the z-velocity from impenetrable condition
-    if (sc.terrain_type == TerrainType::EB) {
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            z_vel_pert(i, j, k) = 0.0;
-        });
-    } else {
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel_pert, y_vel_pert, z_nd, dxInv);
-        });
-    }
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        z_vel_pert(i, j, k) = 0.0;
+    });
 
     amrex::Gpu::streamSynchronize();
 }
