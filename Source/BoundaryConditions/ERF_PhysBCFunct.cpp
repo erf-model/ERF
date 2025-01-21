@@ -314,10 +314,10 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int ncomp, In
 
     if (m_geom.isAllPeriodic()) return;
 
-    if (m_moving_terrain) {
-        mf.FillBoundary(m_geom.periodicity());
-        return;
-    }
+    // if (m_moving_terrain) {
+    //     mf.FillBoundary(m_geom.periodicity());
+    //     return;
+    // }
 
     const auto& domain = m_geom.Domain();
 
