@@ -1512,14 +1512,24 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     g2[lev].define(d2,&(Geom()[lev].ProbDomain()),0,periodicity.data());
                 }
 
-                // Do piecewise interpolation of mf into mf2
+                //
+                // We need to make a temporary that is the size of ncomp_mf
+                // in order to not get an out of bounds error
+                // even though the values will not be used
+                //
+                Vector<BCRec> temp_domain_bcs_type;
+                temp_domain_bcs_type.resize(ncomp_mf);
+
+                //
+                // Do piecewise constant interpolation of mf into mf2
+                //
                 for (int lev = 1; lev <= finest_level; ++lev) {
                     Interpolater* mapper_c = &pc_interp;
                     InterpFromCoarseLevel(mf2[lev], t_new[lev], mf[lev],
                                           0, 0, ncomp_mf,
                                           geom[lev], g2[lev],
                                           null_bc_for_fill, 0, null_bc_for_fill, 0,
-                                          r2[lev-1], mapper_c, domain_bcs_type, 0);
+                                          r2[lev-1], mapper_c, temp_domain_bcs_type, 0);
                 }
 
                 // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
