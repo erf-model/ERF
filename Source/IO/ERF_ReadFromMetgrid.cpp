@@ -128,8 +128,6 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     if (flag_lmask) { NC_iabs.push_back(&NC_lmask_iab);     NC_inames.push_back("LANDMASK");   NC_idim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
 
     // Read the netcdf file and fill these FABs
-    std::string Lat_var_name = "XLAT_M";
-    std::string Lon_var_name = "XLONG_M";
     Print() << "Building initial FABS from file " << fname << std::endl;
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs);
 

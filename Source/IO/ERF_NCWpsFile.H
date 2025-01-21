@@ -251,11 +251,19 @@ fill_fab_from_arrays (int iv,
     // TODO:  The box will only start at (0,0,0) at level 0 -- we need to generalize this
     amrex::Box my_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,ns1-1));
 
-    if (var_name == "U" || var_name == "UU" ||
-        var_name == "MAPFAC_U" || var_name == "MAPFAC_UY") my_box.setType(amrex::IndexType(amrex::IntVect(1,0,0)));
-    if (var_name == "V" || var_name == "VV" ||
-        var_name == "MAPFAC_V" || var_name == "MAPFAC_VY") my_box.setType(amrex::IndexType(amrex::IntVect(0,1,0)));
-    if (var_name == "W" || var_name == "WW") my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
+    if (var_name == "PH" || var_name == "PHB") {
+        my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
+    } else if (var_name == "U" || var_name == "UU" ||
+        var_name == "MAPFAC_U" || var_name == "MAPFAC_UY")
+    {
+        my_box.setType(amrex::IndexType(amrex::IntVect(1,0,0)));
+    } else if (var_name == "V" || var_name == "VV" ||
+        var_name == "MAPFAC_V" || var_name == "MAPFAC_VY")
+    {
+        my_box.setType(amrex::IndexType(amrex::IntVect(0,1,0)));
+    } else if (var_name == "W" || var_name == "WW") {
+        my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
+    }
 
     amrex::Arena* Arena_Used = amrex::The_Arena();
 #ifdef AMREX_USE_GPU

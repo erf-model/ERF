@@ -24,6 +24,8 @@
 #include <AMReX_EBFabFactory.H>
 #include <AMReX_EBMultiFabUtil.H>
 
+#include <ERF_EB.H>
+
 #ifdef ERF_USE_FFT
 #include <AMReX_FFT_Poisson.H>
 #endif
@@ -474,18 +476,18 @@ public:
     void MakeEBGeometry ();
     void make_eb_box ();
     void make_eb_regular ();
-    void redistribute_term ( int lev,
-                        amrex::MultiFab& result,
-                        amrex::MultiFab& result_tmp,
-                        amrex::MultiFab const& state,
-                        amrex::BCRec const* bc,
-                        amrex::Real const dt);
-    void redistribute_term ( amrex::MFIter const& mfi, int lev,
-                        amrex::MultiFab& result,
-                        amrex::MultiFab& result_tmp,
-                        amrex::MultiFab const& state,
-                        amrex::BCRec const* bc,
-                        amrex::Real const dt);
+    void redistribute_term (int lev, int ncomp,
+                            amrex::MultiFab& result,
+                            amrex::MultiFab& result_tmp,
+                            amrex::MultiFab const& state,
+                            amrex::BCRec const* bc,
+                            amrex::Real const dt);
+    void redistribute_term (amrex::MFIter const& mfi, int lev, int ncomp,
+                            amrex::MultiFab& result,
+                            amrex::MultiFab& result_tmp,
+                            amrex::MultiFab const& state,
+                            amrex::BCRec const* bc,
+                            amrex::Real const dt);
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
@@ -926,6 +928,8 @@ private:
     static amrex::Real sub_cfl;
     static amrex::Real init_shrink;
     static amrex::Real change_max;
+    static amrex::Real dt_max_initial;
+    static amrex::Real dt_max;
 
     // Fixed dt for level 0 timesteps (only used if positive)
     amrex::Vector<amrex::Real> fixed_dt;

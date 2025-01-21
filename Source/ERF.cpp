@@ -29,6 +29,8 @@ Real ERF::cfl           =  0.8;
 Real ERF::sub_cfl       =  1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
+Real ERF::dt_max_initial = 1.0;
+Real ERF:: dt_max = 1e9;
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
@@ -358,12 +360,21 @@ ERF::ERF_shared ()
     // We will create each of these in MakeNewLevel.../RemakeLevel
     m_factory.resize(max_level+1);
 
+    //
+    // Construct the EB data structures and store in a separate class
+    //
     // This is needed before initializing level MultiFabs
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
+        int lev = 0; Real dummy_time = 0.0;
+        Box terrain_bx(surroundingNodes(geom[lev].Domain())); terrain_bx.grow(3);
+        FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
+        prob->init_terrain_surface(geom[lev], terrain_fab, dummy_time);
+
         amrex::Print() << "MAKING EB GEOMETRY " << std::endl;
-        MakeEBGeometry();
+        eb_ eb(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
+        // MakeEBGeometry();
     }
 }
 
@@ -704,7 +715,7 @@ ERF::InitData_post ()
 
         // Create the physbc objects for {cons, u, v, w, base state}
         // We fill the additional base state ghost cells just in case we have read the old format
-        for (int lev(0); lev <= max_level; ++lev) {
+        for (int lev(0); lev <= finest_level; ++lev) {
             make_physbcs(lev);
             (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
         }
@@ -872,24 +883,41 @@ ERF::InitData_post ()
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
-        int ncomp = lev_new[Vars::cons].nComp();
-
         // ***************************************************************************
         // Physical bc's at domain boundary
         // ***************************************************************************
         IntVect ngvect_cons = vars_new[lev][Vars::cons].nGrowVect();
         IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
 
-        (*physbcs_cons[lev])(lev_new[Vars::cons],0,ncomp,ngvect_cons,t_new[lev],BCVars::cons_bc,true);
-        (   *physbcs_u[lev])(lev_new[Vars::xvel],0,1    ,ngvect_vels,t_new[lev],BCVars::xvel_bc,true);
-        (   *physbcs_v[lev])(lev_new[Vars::yvel],0,1    ,ngvect_vels,t_new[lev],BCVars::yvel_bc,true);
-        (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
-                             ngvect_vels,t_new[lev],BCVars::zvel_bc,true);
+        int ncomp_cons = lev_new[Vars::cons].nComp();
+        bool do_fb     = true;
 
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp,lev_new[Vars::cons].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,    1,lev_new[Vars::xvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,    1,lev_new[Vars::yvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,    1,lev_new[Vars::zvel].nGrowVect());
+#ifdef ERF_USE_NETCDF
+        // We call this here because it is an ERF routine
+        if (use_real_bcs && (lev==0)) {
+            int icomp_cons = 0;
+            bool cons_only = false;
+            Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
+                                         &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
+            fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                              ncomp_cons,ngvect_cons,ngvect_vels);
+            do_fb = false;
+    }
+#endif
+
+        (*physbcs_cons[lev])(lev_new[Vars::cons],0,ncomp_cons,
+                             ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
+        (   *physbcs_u[lev])(lev_new[Vars::xvel],0,1         ,
+                             ngvect_vels,t_new[lev],BCVars::xvel_bc,do_fb);
+        (   *physbcs_v[lev])(lev_new[Vars::yvel],0,1         ,
+                             ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
+        (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
+                             ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
+
+        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp_cons,lev_new[Vars::cons].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,         1,lev_new[Vars::xvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,         1,lev_new[Vars::yvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,         1,lev_new[Vars::zvel].nGrowVect());
     }
 
     // Compute the minimum dz in the domain at each level (to be used for setting the timestep)
@@ -1221,7 +1249,6 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
     return;
 }
 
-
 #ifdef ERF_USE_WINDFARM
 void
 ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
@@ -1233,17 +1260,6 @@ ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
 void
 ERF::restart ()
 {
-    // TODO: This could be deleted since ba/dm are not created yet?
-    for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        auto& lev_new = vars_new[lev];
-        auto& lev_old = vars_old[lev];
-        lev_new[Vars::cons].setVal(0.); lev_old[Vars::cons].setVal(0.);
-        lev_new[Vars::xvel].setVal(0.); lev_old[Vars::xvel].setVal(0.);
-        lev_new[Vars::yvel].setVal(0.); lev_old[Vars::yvel].setVal(0.);
-        lev_new[Vars::zvel].setVal(0.); lev_old[Vars::zvel].setVal(0.);
-    }
-
 #ifdef ERF_USE_NETCDF
     if (restart_type == "netcdf") {
        ReadNCCheckpointFile();
@@ -1426,6 +1442,8 @@ ERF::ReadParameters ()
         pp.query("substepping_cfl", sub_cfl);
         pp.query("init_shrink", init_shrink);
         pp.query("change_max", change_max);
+        pp.query("dt_max_initial", dt_max_initial);
+        pp.query("dt_max", dt_max);
 
         fixed_dt.resize(max_level+1,-1.);
         fixed_fast_dt.resize(max_level+1,-1.);
