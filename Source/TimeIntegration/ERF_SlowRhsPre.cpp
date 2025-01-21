@@ -7,6 +7,7 @@
 #include <ERF_TI_slow_headers.H>
 #include <ERF_EOS.H>
 #include <ERF_Utils.H>
+#include <ERF_EBAdvection.H>
 
 using namespace amrex;
 
@@ -449,6 +450,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> ay_arr;
         Array4<const Real> az_arr;
         Array4<const Real> detJ_arr;
+        EBCellFlagFab const& cfg = ebfact.getMultiEBCellFlagFab()[mfi];
+        Array4<const EBCellFlag> const& cfg_arr = cfg.const_array();
+
         if (solverChoice.terrain_type == TerrainType::EB)
         {
             ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
@@ -470,14 +474,25 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            flx_arr, l_const_rho);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
-        AdvectionSrcForScalars(dt, bx, icomp, ncomp,
-                               avg_xmom, avg_ymom, avg_zmom,
-                               cell_data, cell_prim, cell_rhs,
-                               l_use_mono_adv, max_s_ptr, min_s_ptr,
-                               detJ_arr, dxInv, mf_m,
-                               l_horiz_adv_type, l_vert_adv_type,
-                               l_horiz_upw_frac, l_vert_upw_frac,
-                               flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+        if (solverChoice.terrain_type != TerrainType::EB){
+            AdvectionSrcForScalars(dt, bx, icomp, ncomp,
+                                avg_xmom, avg_ymom, avg_zmom,
+                                cell_data, cell_prim, cell_rhs,
+                                l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                detJ_arr, dxInv, mf_m,
+                                l_horiz_adv_type, l_vert_adv_type,
+                                l_horiz_upw_frac, l_vert_upw_frac,
+                                flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+        } else {
+            EBAdvectionSrcForScalars(dt, bx, icomp, ncomp,
+                                avg_xmom, avg_ymom, avg_zmom,
+                                cell_data, cell_prim, cell_rhs,
+                                l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                cfg_arr, detJ_arr, dxInv, mf_m,
+                                l_horiz_adv_type, l_vert_adv_type,
+                                l_horiz_upw_frac, l_vert_upw_frac,
+                                flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+        }
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
