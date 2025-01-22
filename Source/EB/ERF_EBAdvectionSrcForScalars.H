@@ -43,22 +43,22 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
     amrex::ParallelFor(xbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         const int cons_index = icomp + n;
-        
+
         if ( ax_arr(i,j,k) > 0. ) // Do we need a threshold value for the area fraction to avoid infinitesimal fractions?
         {
             // Find the highest upwind order based on the cell flag
 
             int icell = 0;
 
-            if (avg_xmom(i,j,k)>0.) 
+            if (avg_xmom(i,j,k)>0.)
             {
                 for (icell=0; icell<ncells_h; ++icell) {
                     if (cellflag(i-icell-1,j,k).isCovered()) {
                         break;
                     }
                 }
-            } 
-            else if (avg_xmom(i,j,k)<0.) 
+            }
+            else if (avg_xmom(i,j,k)<0.)
             {
                 for (icell=0; icell<ncells_h; ++icell) {
                     if (cellflag(i+icell,j,k).isCovered()) {
@@ -83,7 +83,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             }
             (flx_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * interpx;
         }
-        else 
+        else
         {
             (flx_arr[0])(i,j,k,cons_index) = 0.;
         }
@@ -99,15 +99,15 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
             int jcell = 0;
 
-            if (avg_ymom(i,j,k)>0.) 
+            if (avg_ymom(i,j,k)>0.)
             {
                 for (jcell=0; jcell<ncells_h; ++jcell) {
                     if (cellflag(i,j-jcell-1,k).isCovered()) {
                         break;
                     }
                 }
-            } 
-            else if (avg_ymom(i,j,k)<0.) 
+            }
+            else if (avg_ymom(i,j,k)<0.)
             {
                 for (jcell=0; jcell<ncells_h; ++jcell) {
                     if (cellflag(i,j+jcell,k).isCovered()) {
@@ -134,7 +134,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
         }
         else
         {
-            (flx_arr[1])(i,j,k,cons_index) = 0.; 
+            (flx_arr[1])(i,j,k,cons_index) = 0.;
         }
     });
 
@@ -148,15 +148,15 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
             int kcell = 0;
 
-            if (avg_zmom(i,j,k)>0.) 
+            if (avg_zmom(i,j,k)>0.)
             {
                 for (kcell=0; kcell<ncells_v; ++kcell) {
                     if (cellflag(i,j,k-kcell-1).isCovered()) {
                         break;
                     }
                 }
-            } 
-            else if (avg_zmom(i,j,k)<0.) 
+            }
+            else if (avg_zmom(i,j,k)<0.)
             {
                 for (kcell=0; kcell<ncells_v; ++kcell) {
                     if (cellflag(i,j,k+kcell).isCovered()) {
@@ -164,7 +164,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
                     }
                 }
             }
-            
+
             // Interpolate the scalar variable (cell_prim) using the highest-order scheme
 
             const int prim_index = cons_index - 1;
@@ -214,35 +214,35 @@ EBAdvectionSrcForScalarsVert (const amrex::Box& bx,
     case AdvType::Centered_2nd:
         EBAdvectionSrcForScalarsWrapper<InterpType_H,CENTERED2>(bx, ncomp, icomp,
                                                             flx_arr, cell_prim,
-                                                            avg_xmom, avg_ymom, avg_zmom, 
+                                                            avg_xmom, avg_ymom, avg_zmom,
                                                             cellflag, ax_arr, ay_arr, az_arr,
                                                             horiz_upw_frac, vert_upw_frac);
         break;
     case AdvType::Upwind_3rd:
         EBAdvectionSrcForScalarsWrapper<InterpType_H,UPWIND3>(bx, ncomp, icomp,
                                                             flx_arr, cell_prim,
-                                                            avg_xmom, avg_ymom, avg_zmom, 
+                                                            avg_xmom, avg_ymom, avg_zmom,
                                                             cellflag, ax_arr, ay_arr, az_arr,
                                                             horiz_upw_frac, vert_upw_frac);
         break;
     case AdvType::Centered_4th:
         EBAdvectionSrcForScalarsWrapper<InterpType_H,CENTERED4>(bx, ncomp, icomp,
                                                             flx_arr, cell_prim,
-                                                            avg_xmom, avg_ymom, avg_zmom, 
+                                                            avg_xmom, avg_ymom, avg_zmom,
                                                             cellflag, ax_arr, ay_arr, az_arr,
                                                             horiz_upw_frac, vert_upw_frac);
         break;
     case AdvType::Upwind_5th:
         EBAdvectionSrcForScalarsWrapper<InterpType_H,UPWIND5>(bx, ncomp, icomp,
                                                             flx_arr, cell_prim,
-                                                            avg_xmom, avg_ymom, avg_zmom, 
+                                                            avg_xmom, avg_ymom, avg_zmom,
                                                             cellflag, ax_arr, ay_arr, az_arr,
                                                             horiz_upw_frac, vert_upw_frac);
         break;
     case AdvType::Centered_6th:
         EBAdvectionSrcForScalarsWrapper<InterpType_H,CENTERED6>(bx, ncomp, icomp,
                                                             flx_arr, cell_prim,
-                                                            avg_xmom, avg_ymom, avg_zmom, 
+                                                            avg_xmom, avg_ymom, avg_zmom,
                                                             cellflag, ax_arr, ay_arr, az_arr,
                                                             horiz_upw_frac, vert_upw_frac);
         break;
