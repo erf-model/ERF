@@ -76,6 +76,11 @@ ERF::initHSE (int lev)
 
         erf_enforce_hse(lev, r_hse, p_hse, pi_hse, th_hse, z_phys_cc[lev]);
 
+        //
+        // Impose physical bc's on the base state
+        //
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+
     } else {
 
         BoxArray ba_new(domain);
@@ -113,6 +118,11 @@ ERF::initHSE (int lev)
         }
 
         erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_th_hse, new_z_phys_cc);
+
+        //
+        // Impose physical bc's on the base state
+        //
+        (*physbcs_base[lev])(new_base_state,0,new_base_state.nComp(),new_base_state.nGrowVect());
 
         // Now copy back into the original arrays
         base_state[lev].ParallelCopy(new_base_state,0,0,base_state[lev].nComp(),
@@ -168,6 +178,10 @@ ERF::erf_enforce_hse (int lev,
         b2d.grow(0,1);
         b2d.grow(1,1);
         b2d.setRange(2,0);
+
+        // Intersect this box with the domain
+        Box zdomain = convert(geom[lev].Domain(),tbz.ixType());
+        b2d &= zdomain;
 
         // We integrate to the first cell (and below) by using rho in this cell
         // If gravity == 0 this is constant pressure
