@@ -485,7 +485,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 l_horiz_upw_frac, l_vert_upw_frac,
                                 flx_arr, flx_tmp_arr, domain, bc_ptr_h);
         } else {
-            EBAdvectionSrcForScalars(dt, bx, icomp, ncomp,
+            EBAdvectionSrcForScalars(bx, icomp, ncomp,
                                 avg_xmom, avg_ymom, avg_zmom,
                                 cell_prim, cell_rhs,
                                 cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr, dxInv, mf_m,

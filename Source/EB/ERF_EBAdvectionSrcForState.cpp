@@ -28,8 +28,7 @@ using namespace amrex;
  */
 
 void
-EBAdvectionSrcForScalars (const Real& dt,
-                        const Box& bx,
+EBAdvectionSrcForScalars (const Box& bx,
                         const int icomp,
                         const int ncomp,
                         const Array4<const Real>& avg_xmom,

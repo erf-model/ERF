@@ -11,8 +11,7 @@
 #include <ERF_ABLMost.H>
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
-void EBAdvectionSrcForScalars (const amrex::Real& dt,
-                            const amrex::Box& bx,
+void EBAdvectionSrcForScalars (const amrex::Box& bx,
                             const int icomp, const int ncomp,
                             const amrex::Array4<const amrex::Real>& avg_xmom,
                             const amrex::Array4<const amrex::Real>& avg_ymom,
