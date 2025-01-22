@@ -450,8 +450,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> ay_arr;
         Array4<const Real> az_arr;
         Array4<const Real> detJ_arr;
+
         EBCellFlagFab const& cfg = ebfact.getMultiEBCellFlagFab()[mfi];
-        Array4<const EBCellFlag> const& cfg_arr = cfg.const_array();
+        Array4<const EBCellFlag> const& cfg_arr = cfg.const_array();     
 
         if (solverChoice.terrain_type == TerrainType::EB)
         {
@@ -483,12 +484,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 l_horiz_adv_type, l_vert_adv_type,
                                 l_horiz_upw_frac, l_vert_upw_frac,
                                 flx_arr, flx_tmp_arr, domain, bc_ptr_h);
-        } else {
+        } else {         
             EBAdvectionSrcForScalars(dt, bx, icomp, ncomp,
                                 avg_xmom, avg_ymom, avg_zmom,
                                 cell_data, cell_prim, cell_rhs,
                                 l_use_mono_adv, max_s_ptr, min_s_ptr,
-                                cfg_arr, detJ_arr, dxInv, mf_m,
+                                cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr, dxInv, mf_m,
                                 l_horiz_adv_type, l_vert_adv_type,
                                 l_horiz_upw_frac, l_vert_upw_frac,
                                 flx_arr, flx_tmp_arr, domain, bc_ptr_h);

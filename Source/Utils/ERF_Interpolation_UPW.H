@@ -81,6 +81,10 @@ struct CENTERED2
         return ( g1*a1 );
     }
 
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    int GetUpwindCellNumber() const {return 1;}
+
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real g1=(0.5);
@@ -194,6 +198,10 @@ struct UPWIND3
         return ( g1*a1 - g2*a2 + upw * g2 * (d2 - 3.0*d1) );
     }
 
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    int GetUpwindCellNumber() const {return 2;}
+
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real g1=(7.0/12.0);
@@ -287,6 +295,10 @@ struct CENTERED4
         // Interpolated value
         return ( g1*a1 - g2*a2 );
     }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    int GetUpwindCellNumber() const {return 2;}
 
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
@@ -412,6 +424,10 @@ struct UPWIND5
         return ( g1*a1 - g2*a2 + g3*a3 - upw * g3 * (d3 - 5.0*d2 + 10.0*d1) );
     }
 
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    int GetUpwindCellNumber() const {return 3;}
+
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real g1=(37.0/60.0);
@@ -514,6 +530,10 @@ struct CENTERED6
         // Interpolated value
         return ( g1*a1 - g2*a2 + g3*a3 );
     }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    int GetUpwindCellNumber() const {return 3;}
 
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate

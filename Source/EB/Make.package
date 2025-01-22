@@ -15,6 +15,7 @@ CEXE_headers += ERF_EBIFTerrain.H
 
 CEXE_sources += ERF_EBAdvectionSrcForState.cpp
 CEXE_headers += ERF_EBAdvection.H
+CEXE_headers += ERF_EBAdvectionSrcForScalars.H
 
 CEXE_sources += ERF_EBBox.cpp
 CEXE_sources += ERF_EBRedistribute.cpp
