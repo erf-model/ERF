@@ -81,8 +81,6 @@ struct CENTERED2
         return ( g1*a1 );
     }
 
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
     int GetUpwindCellNumber() const {return 1;}
 
 private:
@@ -198,8 +196,6 @@ struct UPWIND3
         return ( g1*a1 - g2*a2 + upw * g2 * (d2 - 3.0*d1) );
     }
 
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
     int GetUpwindCellNumber() const {return 2;}
 
 private:
@@ -296,8 +292,6 @@ struct CENTERED4
         return ( g1*a1 - g2*a2 );
     }
 
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
     int GetUpwindCellNumber() const {return 2;}
 
 private:
@@ -424,8 +418,6 @@ struct UPWIND5
         return ( g1*a1 - g2*a2 + g3*a3 - upw * g3 * (d3 - 5.0*d2 + 10.0*d1) );
     }
 
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
     int GetUpwindCellNumber() const {return 3;}
 
 private:
@@ -531,8 +523,6 @@ struct CENTERED6
         return ( g1*a1 - g2*a2 + g3*a3 );
     }
 
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
     int GetUpwindCellNumber() const {return 3;}
 
 private:
