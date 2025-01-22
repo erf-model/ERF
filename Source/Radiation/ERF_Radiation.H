@@ -29,6 +29,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_TableData.H>
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_PlotFileUtil.H>
 
 #include <ERF_RRTMGP_Interface.H>
 #include <ERF_RRTMGP_Utils.H>
@@ -80,6 +81,10 @@ public:
     void
     yakl_buffers_to_mf ();
 
+    // Write the rrtmgp fluxes
+    void
+    write_rrtmgp_fluxes ();
+
     // Initialize the implementation
     void
     initialize_impl ();
@@ -116,6 +121,9 @@ private:
     // Step number
     int m_step;
 
+    // Current time
+    amrex::Real m_time;
+
     // Timestep at given level
     amrex::Real m_dt;
 
@@ -127,6 +135,9 @@ private:
 
     // Are we updating radiation?
     bool m_update_rad = false;
+
+    // Are we writing out the fluxes?
+    bool m_rad_write_fluxes = false;
 
     // Do we have moisture and cold comps?
     bool m_moist = false;

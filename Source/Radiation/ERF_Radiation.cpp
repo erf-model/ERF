@@ -38,6 +38,9 @@ Radiation::Radiation (const int& lev,
     // Radiation timestep, as a number of atm steps
     pp.query("rad_freq_in_steps", m_rad_freq_in_steps);
 
+    // Flag to write fluxes to plt file
+    pp.query("rad_write_fluxes", m_rad_write_fluxes);
+
     // Do MCICA subcolumn sampling
     pp.query("do_subcol_sampling", m_do_subcol_sampling);
 
@@ -124,6 +127,7 @@ Radiation::set_grids (int& level,
     // Set data members that may change
     m_lev            = level;
     m_step           = step;
+    m_time           = time;
     m_dt             = dt;
     m_geom           = geom;
     m_cons_in        = cons_in;
@@ -554,6 +558,41 @@ Radiation::yakl_buffers_to_mf ()
 }
 
 void
+Radiation::write_rrtmgp_fluxes ()
+{
+    int n_fluxes = 5;
+    MultiFab mf_flux(m_cons_in->boxArray(), m_cons_in->DistributionMap(), n_fluxes, 0);
+
+   for (MFIter mfi(mf_flux); mfi.isValid(); ++mfi) {
+        const auto& vbx      = mfi.validbox();
+        const int nx         = vbx.length(0);
+        const int imin       = vbx.smallEnd(0);
+        const int jmin       = vbx.smallEnd(1);
+        const int offset     = m_col_offsets[mfi.index()];
+        const Array4<Real>& dst_arr = mf_flux.array(mfi);
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            // map [i,j,k] 0-based to [icol, ilay] 1-based
+            const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
+            const int ilay = k+1;
+
+            // SW and LW fluxes
+            dst_arr(i,j,k,0) = sw_flux_up(icol,ilay);
+            dst_arr(i,j,k,1) = sw_flux_dn(icol,ilay);
+            dst_arr(i,j,k,2) = sw_flux_dn_dir(icol,ilay);
+            dst_arr(i,j,k,3) = lw_flux_up(icol,ilay);
+            dst_arr(i,j,k,4) = lw_flux_dn(icol,ilay);
+        });
+   }
+
+
+   std::string plotfilename = amrex::Concatenate("plt_rad", m_step, 5);
+   Vector<std::string> flux_names = {"sw_flux_up", "sw_flux_dn", "sw_flux_dir",
+                                     "lw_flux_up", "lw_flux_dn"};
+   WriteSingleLevelPlotfile(plotfilename, mf_flux, flux_names, m_geom, m_time, m_step);
+}
+
+void
 Radiation::initialize_impl ()
 {
     // Call API to initialize
@@ -588,8 +627,7 @@ Radiation::run_impl ()
                    mvelp, obliqr, lambm0, mvelpp);
 
     // Use the orbital parameters to calculate the solar declination and eccentricity factor
-    real delta = 0.;
-    real eccf  = 0.;
+    real delta, eccf;
     // TODO: Generalize the days per month.
     // Want day + fraction; calday 1 == Jan 1 0Z
     static constexpr real dpm = (365.0/12.0);
@@ -672,7 +710,6 @@ Radiation::run_impl ()
     }
     h_mu0.deep_copy_to(mu0);
 
-
     // Compute layer cloud mass (per unit area), populates lwp/iwp
     rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_tot, p_del, lwp);
     rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_tot, p_del, iwp);
@@ -689,7 +726,7 @@ Radiation::run_impl ()
     rrtmgp::compute_band_by_band_surface_albedos(ncol, nswbands,
                                                  sfc_alb_dir_vis, sfc_alb_dir_nir,
                                                  sfc_alb_dif_vis, sfc_alb_dif_nir,
-                                                 sfc_alb_dir, sfc_alb_dif);
+                                                 sfc_alb_dir    , sfc_alb_dif);
 
     // Run RRTMGP driver
     rrtmgp::rrtmgp_main(ncol, m_nlay,
@@ -710,11 +747,71 @@ Radiation::run_impl ()
                         sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir, lw_bnd_flux_up, lw_bnd_flux_dn,
                         eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag);
 
+#if 0
+    // UNIT TEST
+    //================================================================================
+    yakl::memset(mu0, 0.86);
+    yakl::memset(sfc_alb_dir_vis, 0.06);
+    yakl::memset(sfc_alb_dir_nir, 0.06);
+    yakl::memset(sfc_alb_dif_vis, 0.06);
+    yakl::memset(sfc_alb_dif_nir, 0.06);
+
+    // Generate some fake liquid and ice water data. We pick values to be midway between
+    // the min and max of the valid lookup table values for effective radii
+    real rel_val = 0.5 * (rrtmgp::cloud_optics_sw.get_min_radius_liq()
+                        + rrtmgp::cloud_optics_sw.get_max_radius_liq());
+    real rei_val = 0.5 * (rrtmgp::cloud_optics_sw.get_min_radius_ice()
+                        + rrtmgp::cloud_optics_sw.get_max_radius_ice());
+
+    // Restrict clouds to troposphere (> 100 hPa = 100*100 Pa) and not very close to the ground (< 900 hPa), and
+    // put them in 2/3 of the columns since that's roughly the total cloudiness of earth.
+    // Set sane values for liquid and ice water path.
+    // NOTE: these "sane" values are in g/m2!
+    parallel_for( SimpleBounds<2>(nlay,ncol) , YAKL_LAMBDA (int ilay, int icol)
+    {
+        cldfrac_tot(icol,ilay) = (p_lay(icol,ilay) > 100._wp * 100._wp) &&
+                                 (p_lay(icol,ilay) < 900._wp * 100._wp) &&
+                                 (icol%3 != 0);
+        // Ice and liquid will overlap in a few layers
+        lwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) > 263._wp) ? 10._wp : 0._wp;
+        iwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) < 273._wp) ? 10._wp : 0._wp;
+        eff_radius_qc(icol,ilay) = (lwp(icol,ilay) > 0._wp) ? rel_val : 0._wp;
+        eff_radius_qi(icol,ilay) = (iwp(icol,ilay) > 0._wp) ? rei_val : 0._wp;
+    });
+
+    rrtmgp::compute_band_by_band_surface_albedos(ncol, nswbands,
+                                                 sfc_alb_dir_vis, sfc_alb_dir_nir,
+                                                 sfc_alb_dif_vis, sfc_alb_dif_nir,
+                                                 sfc_alb_dir    , sfc_alb_dif);
+
+    yakl::memset(aero_tau_sw, 0.0);
+    yakl::memset(aero_ssa_sw, 0.0);
+    yakl::memset(aero_g_sw  , 0.0);
+    yakl::memset(aero_tau_lw, 0.0);
+
+    rrtmgp::rrtmgp_main(ncol, m_nlay,
+                        p_lay, t_lay, p_lev, t_lev,
+                        m_gas_concs,
+                        sfc_alb_dir, sfc_alb_dif, mu0,
+                        lwp, iwp, eff_radius_qc, eff_radius_qi, cldfrac_tot,
+                        aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
+                        cld_tau_sw_bnd, cld_tau_lw_bnd,
+                        cld_tau_sw_gpt, cld_tau_lw_gpt,
+                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir, lw_flux_up, lw_flux_dn,
+                        sw_clnclrsky_flux_up, sw_clnclrsky_flux_dn, sw_clnclrsky_flux_dn_dir,
+                        sw_clrsky_flux_up, sw_clrsky_flux_dn, sw_clrsky_flux_dn_dir,
+                        sw_clnsky_flux_up, sw_clnsky_flux_dn, sw_clnsky_flux_dn_dir,
+                        lw_clnclrsky_flux_up, lw_clnclrsky_flux_dn,
+                        lw_clrsky_flux_up, lw_clrsky_flux_dn,
+                        lw_clnsky_flux_up, lw_clnsky_flux_dn,
+                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir, lw_bnd_flux_up, lw_bnd_flux_dn,
+                        1.0);
+    //================================================================================
+#endif
 
     // Update heating tendency
     rrtmgp::compute_heating_rate(sw_flux_up, sw_flux_dn, r_lay, z_del, sw_heating);
     rrtmgp::compute_heating_rate(lw_flux_up, lw_flux_dn, r_lay, z_del, lw_heating);
-
 
     // Compute surface fluxes
     const int kbot = nlay + 1; // Should this be 1 for our layout?
@@ -738,6 +835,9 @@ Radiation::finalize_impl ()
 
     // Fill the AMReX MFs from YAKL Arrays
     yakl_buffers_to_mf();
+
+    // Write fluxes if requested
+    if (m_rad_write_fluxes) { write_rrtmgp_fluxes(); }
 
     // Deallocate the buffer arrays
     dealloc_buffers();
