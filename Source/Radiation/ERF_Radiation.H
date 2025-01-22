@@ -169,7 +169,7 @@ private:
 
     // Prescribed greenhouse gas surface concentrations in moles / moles air
     amrex::Real m_co2vmr = 388.717e-6;
-    amrex::Real m_o3vmr  = 1.8868676125307193E-7;
+    amrex::Vector<amrex::Real> m_o3vmr;
     amrex::Real m_n2ovmr = 323.141e-9;
     amrex::Real m_covmr  = 1.0e-7;
     amrex::Real m_ch4vmr = 1807.851e-9;
@@ -178,6 +178,7 @@ private:
     //amrex::Real m_f11vmr = 768.7644e-12;
     //amrex::Real m_f12vmr = 531.2820e-12;
 
+    int m_o3_size;
     real1d    m_gas_mol_weights;
     string1dv gas_names_yakl_offset;
     GasConcs  m_gas_concs;
@@ -237,6 +238,9 @@ private:
     // Whether or not to do subcolumn sampling of cloud state for MCICA
     bool m_do_subcol_sampling = true;
 
+    // 1d size (1 or nlay)
+    real1d o3_lay;
+
     // 1d size (ncol)
     real1d cosine_zenith;
     real1d mu0;
@@ -248,9 +252,10 @@ private:
     real1d sfc_flux_dir_nir;
     real1d sfc_flux_dif_vis;
     real1d sfc_flux_dif_nir;
+    real1d lat;
+    real1d lon;
 
     // 2d size (ncol, nlay)
-    real2d d_dz;
     real2d r_lay;
     real2d p_lay;
     real2d t_lay;
@@ -258,7 +263,6 @@ private:
     real2d p_del;
     real2d qv_lay;
     real2d qc_lay;
-    real2d nc_lay;
     real2d qi_lay;
     real2d cldfrac_tot;
     real2d eff_radius_qc;
