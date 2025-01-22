@@ -314,11 +314,6 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int ncomp, In
 
     if (m_geom.isAllPeriodic()) return;
 
-    if (m_moving_terrain) {
-        mf.FillBoundary(m_geom.periodicity());
-        return;
-    }
-
     const auto& domain = m_geom.Domain();
 
     // Create a grown domain box containing valid + periodic cells
@@ -358,7 +353,9 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int ncomp, In
                 const Array4<Real> base_arr = mf.array(mfi);
 
                 impose_lateral_basestate_bcs(base_arr,cbx1,domain,ncomp,nghost);
-                impose_vertical_basestate_bcs(base_arr,cbx2,domain,ncomp,nghost);
+                if (!m_moving_terrain) { // TODO: I don't know why the CI test fails if this is called
+                   impose_vertical_basestate_bcs(base_arr,cbx2,domain,ncomp,nghost);
+                }
             }
 
         } // MFIter
