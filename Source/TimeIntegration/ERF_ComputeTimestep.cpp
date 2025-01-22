@@ -255,6 +255,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              // Max CFL_c = 1.0 for substeps by default, but we enforce a min of 4 substeps
              auto dt_sub_max = (estdt_comp/cfl * sub_cfl);
              dt_fast_ratio = static_cast<long>( std::max(fixed_dt[level]/dt_sub_max,4.) );
+         } else {
+             // auto dt_sub_max = (estdt_comp/cfl * sub_cfl);
+             // dt_fast_ratio = static_cast<long>( std::max(estdt_comp/dt_sub_max,4.) );
+             dt_fast_ratio = static_cast<long>( std::max(cfl / sub_cfl, 4.) );
          }
 
          // Force time step ratio to be an even value

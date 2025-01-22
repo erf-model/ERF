@@ -519,6 +519,7 @@ ERF::init_zphys (int lev, Real time)
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
             terrain_blanking[lev]->setVal(1.0);
             MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, 0);
+            terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         }
 
         if (lev == 0 && z_phys_nd[0]) {
