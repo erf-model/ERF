@@ -178,18 +178,24 @@ include $(ERF_LSM_SLM_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_LSM_SLM_DIR)
 INCLUDE_LOCATIONS += $(ERF_LSM_SLM_DIR)
 
+ERF_LSM_MM5_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/MM5
+include $(ERF_LSM_MM5_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_LSM_MM5_DIR)
+INCLUDE_LOCATIONS += $(ERF_LSM_MM5_DIR)
+
+
 # If using NOAH-MP model, then compile relevant source and headers
 ifeq ($(USE_NOAH), TRUE)
   ifneq ($(USE_NETCDF), TRUE)
     $(error USE_NETCDF must be true for using NOAH-MP interface)
   else
-    DEFINES += -DERF_USE_NOAH
-    includes += $(shell pkg-config --cflags netcdf-fortran)
+    DEFINES   += -DERF_USE_NOAH
+    includes  += $(shell pkg-config --cflags netcdf-fortran)
     LIBRARIES += $(shell pkg-config --libs netcdf-fortran)
-    NOAH_HOME  ?= $(ERF_HOME)/Submodules/NOAH-MP
-    VPATH_LOCATIONS += $(NOAH_HOME)/drivers/hrldas
+    NOAH_HOME ?= $(ERF_HOME)/Submodules/NOAH-MP
+    VPATH_LOCATIONS   += $(NOAH_HOME)/drivers/hrldas
     INCLUDE_LOCATIONS += $(NOAH_HOME)/drivers/hrldas
-    ERF_LSM_NOAH_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/NOAH
+    ERF_LSM_NOAH_DIR   = $(ERF_SOURCE_DIR)/LandSurfaceModel/NOAH
     include $(ERF_LSM_NOAH_DIR)/Make.package
     VPATH_LOCATIONS   += $(ERF_LSM_NOAH_DIR)
     INCLUDE_LOCATIONS += $(ERF_LSM_NOAH_DIR)
@@ -197,11 +203,38 @@ ifeq ($(USE_NOAH), TRUE)
 endif
 
 
-ERF_LSM_MM5_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/MM5
-include $(ERF_LSM_MM5_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_LSM_MM5_DIR)
-INCLUDE_LOCATIONS += $(ERF_LSM_MM5_DIR)
-
+# If using RRTMGP Radiation, compile relevant source and headers
+#ifeq ($(USE_RRTMGP), TRUE)
+#  ifneq ($(USE_NETCDF), TRUE)
+#    $(error USE_NETCDF must be true for using RRTMGP interface)
+#  else ifneq ($(USE_YAKL), TRUE)
+#    $(error USE_YAKL must be true for using RRTMGP interface)
+#  else
+#    DEFINES += -DERF_USE_RRTMGP
+#
+#    ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
+#    include $(ERF_RAD_DIR)/Make.package
+#    VPATH_LOCATIONS   += $(ERF_RAD_DIR)
+#    INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
+#    
+#    RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
+#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
+#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte
+#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte/kernels
+#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
+#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
+#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
+#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte
+#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
+#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
+#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
+#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
+#  endif
+#endif
+    
 include $(AMREX_HOME)/Src/Base/Make.package
 
 AMReXdirs             := Base Boundary AmrCore
@@ -243,10 +276,10 @@ ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
   has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
   ifeq ($(has_netcdf_mpi),0)
-    includes += $(shell pkg-config --cflags netcdf-mpi)
+    includes  += $(shell pkg-config --cflags netcdf-mpi)
     LIBRARIES += $(shell pkg-config --libs netcdf-mpi)
   else
-    includes += $(shell pkg-config --cflags netcdf)
+    includes  += $(shell pkg-config --cflags netcdf)
     LIBRARIES += $(shell pkg-config --libs netcdf)
   endif
 endif

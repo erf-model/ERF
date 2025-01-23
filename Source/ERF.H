@@ -788,7 +788,7 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
 
 #if defined(ERF_USE_RRTMGP)
-    Radiation rad;
+    amrex::Vector<std::unique_ptr<Radiation>> rad;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms
 
     // Containers for additional SLM inputs

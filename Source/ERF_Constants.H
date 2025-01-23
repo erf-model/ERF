@@ -92,4 +92,6 @@ constexpr amrex::Real ttrice   = 20.00;   // transition range from es over H2O t
 constexpr amrex::Real epsilo   = Rd_on_Rv;
 constexpr amrex::Real omeps    = 1. - epsilo;
 constexpr amrex::Real rhoh2o   = 1.000e3;  // density of liquid water
+
+static constexpr int  ORB_UNDEF_INT  = 2000000000;  // undefined int
 #endif

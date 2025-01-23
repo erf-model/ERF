@@ -1405,11 +1405,13 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     }
 
 #ifdef ERF_USE_RRTMGP
+    /*
     // write additional RRTMGP data
     // TODO: currently single level only
     if (which==1 && plot_rad) {
-        rad.writePlotfile(plot_file_1, t_new[0], istep[0]);
+        rad[0]->writePlotfile(plot_file_1, t_new[0], istep[0]);
     }
+    */
 #endif
 
     // Single level

@@ -457,7 +457,7 @@
 
         make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
-                     qheating_rates[level],
+                     qheating_rates[level].get(),
 #endif
                      fine_geom, solverChoice,
                      mapfac_u[level], mapfac_v[level], mapfac_m[level],

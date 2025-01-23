@@ -1,18 +1,17 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 1000
-stop_time = 90000.0
+max_step  = 100
+stop_time = 100.0
 
 amrex.fpe_trap_invalid = 1
 
-fabarray.mfiter_tile_size = 2048 1024 2048
+fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_lo     = -25600.   0.    0.
-geometry.prob_hi     =  25600. 400. 12800.
-amr.n_cell           =  128    4    32
+geometry.prob_lo     =      0.   0.    0.
+geometry.prob_hi     =  15000. 400. 50000.
+amr.n_cell           =     42    4     42
 
-# periodic in x to match WRF setup
-# - as an alternative, could use symmetry at x=0 and outflow at x=25600
+# Periodic in x and y
 geometry.is_periodic = 1 1 0
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
@@ -32,30 +31,42 @@ amr.max_level       = 0       # maximum level number allowed
 # CHECKPOINT FILES
 amr.check_file      = chk        # root name of checkpoint file
 amr.check_int       = 10000       # number of timesteps between checkpoints
-#amr.restart         = chk01000
 
 # PLOTFILES
-erf.plot_file_1         = plt        # root name of plotfile
-erf.plot_int_1          = 1         # number of timesteps between plotfiles
-erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 x_velocity y_velocity z_velocity pressure theta temp qt qp qv qc qi qsrc_sw qsrc_lw
-
-erf.plot_rad = true
+erf.plot_file_1     = plt        # root name of plotfile
+erf.plot_int_1      = 1         # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhotheta rhoQ1 rhoQ2 x_velocity y_velocity z_velocity pressure theta temp qv qc
 
 # SOLVER CHOICE
-erf.use_gravity = true
-erf.use_coriolis = false
-
-erf.moisture_model = "SAM"
-erf.les_type = "Deardorff"
-
-#erf.molec_diff_type = "ConstantAlpha"
-erf.molec_diff_type = "None"
-#erf.dynamic_viscosity = 75.0 # [kg/(m-s)]
-#erf.alpha_T = 75.0 # [m^2/s]
-
-# PROBLEM PARAMETERS (optional)
-prob.T_0 = 300.0
-prob.U_0 = 0
-prob.KE_0 = 0.1
-
-prob.T_pert = 3
+erf.use_gravity     = true
+erf.use_coriolis    = false
+erf.moisture_model  = "SatAdj"
+erf.molec_diff_type = "Constant"
+erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
+erf.alpha_T = 0.0 # [m^2/s]
+erf.alpha_C = 0.0 # [m^2/s]
+erf.init_type = "input_sounding"
+erf.input_sounding_file = "input_sounding_moist"
+erf.init_sounding_ideal = true
+    
+# RADIATION INPUTS
+erf.rad_freq_in_steps  = 1
+erf.do_subcol_sampling = true
+erf.rad_write_fluxes   = false
+erf.orbital_year       = 2018
+erf.co2vmr             = 0.00036
+erf.o3vmr              = 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 4.0e-8 4.25e-8 4.5e-8 4.9e-8 5.4e-8 6.0e-8 6.9e-8 8.0e-8 9.25e-8 1.07e-7 1.25e-7 1.63e-7 2.7e-7 5.4e-7 1.0e-6 1.7e-6 2.6e-6 4.0e-6 5.75e-6 7.5e-6 9.0e-6 9.6e-6 9.34e-6 7.83e-6 5.4e-6 3.3e-6 1.9e-6 9.1e-7 
+erf.n2ovmr             = 3.2e-7
+erf.covmr              = 1.5e-7
+erf.ch4vmr             = 1.7e-6
+erf.o2vmr              = 0.209
+erf.n2vmr              = 0.7906
+erf.nswbands           = 14
+erf.nlwbands           = 16
+erf.nswgpts            = 224
+erf.nlwgpts            = 256  
+erf.rrtmgp_file_path   = /home/alattanz/git/data-files
+erf.rrtmgp_coeffs_sw   = rrtmgp-data-sw-g224-2018-12-04.nc
+erf.rrtmgp_coeffs_lw   = rrtmgp-data-lw-g256-2018-12-04.nc
+erf.rrtmgp_cloud_optics_sw = rrtmgp-cloud-optics-coeffs-sw.nc
+erf.rrtmgp_cloud_optics_lw = rrtmgp-cloud-optics-coeffs-lw.nc
