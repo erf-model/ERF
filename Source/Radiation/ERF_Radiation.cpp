@@ -42,24 +42,28 @@ Radiation::Radiation (const int& lev,
     pp.query("rad_write_fluxes", m_rad_write_fluxes);
 
     // Do MCICA subcolumn sampling
-    pp.query("do_subcol_sampling", m_do_subcol_sampling);
+    pp.query("rad_do_subcol_sampling", m_do_subcol_sampling);
 
     // Determine orbital year. If orbital_year is negative, use current year
     // from timestamp for orbital year; if positive, use provided orbital year
     // for duration of simulation.
-    m_fixed_orbital_year = pp.query("orbital_year",m_orbital_year);
+    m_fixed_orbital_year = pp.query("rad_orbital_year", m_orbital_year);
 
     // Get orbital parameters from inputs file
-    pp.query("orbital_eccentricity", m_orbital_eccen);
-    pp.query("orbital_obliquity"   , m_orbital_obliq);
-    pp.query("orbital_mvelp"       , m_orbital_mvelp);
+    pp.query("rad_orbital_eccentricity", m_orbital_eccen);
+    pp.query("rad_orbital_obliquity"   , m_orbital_obliq);
+    pp.query("rad_orbital_mvelp"       , m_orbital_mvelp);
+
+    // Get a constant lat/lon for idealized simulations
+    pp.query("rad_cons_lat", m_lat_cons);
+    pp.query("rad_cons_lon", m_lon_cons);
 
     // Value for prescribing an invariant solar constant (i.e. total solar irradiance at
     // TOA).  Used for idealized experiments such as RCE. Disabled when value is less than 0.
     pp.query("fixed_total_solar_irradiance", m_fixed_total_solar_irradiance);
 
     // Determine whether or not we are using a fixed solar zenith angle (positive value)
-    pp.query("Fixed Solar Zenith Angle", m_fixed_solar_zenith_angle);
+    pp.query("fixed_solar_zenith_angle", m_fixed_solar_zenith_angle);
 
     // Get prescribed surface values of greenhouse gases
     pp.query("co2vmr", m_co2vmr);
@@ -71,11 +75,11 @@ Radiation::Radiation (const int& lev,
     pp.query("n2vmr" , m_n2vmr );
 
     // Required aerosol optical properties from SPA
-    pp.query("do_aerosol_rad", m_do_aerosol_rad);
+    pp.query("rad_do_aerosol", m_do_aerosol_rad);
 
     // Whether we do extra clean/clear sky calculations
-    pp.query("extra_clnclrsky_diag", m_extra_clnclrsky_diag);
-    pp.query("extra_clnsky_diag"   , m_extra_clnsky_diag);
+    pp.query("rad_extra_clnclrsky_diag", m_extra_clnclrsky_diag);
+    pp.query("rad_extra_clnsky_diag"   , m_extra_clnsky_diag);
 
     // Parse the band and gauss pt sizes
     pp.query("nswbands", m_nswbands);
@@ -395,6 +399,8 @@ Radiation::mf_to_yakl_buffers ()
     int  ncol  = m_ncol;
     int  nlay  = m_nlay;
     Real dz    = m_geom.CellSize(2);
+    Real cons_lat = m_lat_cons;
+    Real cons_lon = m_lon_cons;
     for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
         const auto& vbx  = mfi.validbox();
         const int nx     = vbx.length(0);
@@ -462,8 +468,8 @@ Radiation::mf_to_yakl_buffers ()
 
             // 1D data structures
             if (k==0) {
-                lat(icol) = (m_lat) ? lat_arr(i,j,0) :  39.809860;
-                lon(icol) = (m_lon) ? lon_arr(i,j,0) : -98.555183;
+                lat(icol) = (m_lat) ? lat_arr(i,j,0) : cons_lat;
+                lon(icol) = (m_lon) ? lon_arr(i,j,0) : cons_lon;
             }
 
         });

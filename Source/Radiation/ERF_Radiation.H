@@ -156,6 +156,10 @@ private:
     amrex::MultiFab* m_lat = nullptr;
     amrex::MultiFab* m_lon = nullptr;
 
+    // Constant lat/lon if the above MFs are not valid
+    amrex::Real m_lat_cons =  39.809860;
+    amrex::Real m_lon_cons = -98.555183;
+
     // Pointer to output data for LSM
     amrex::MultiFab* m_lsm_fluxes = nullptr;
     amrex::MultiFab* m_lsm_zenith = nullptr;
