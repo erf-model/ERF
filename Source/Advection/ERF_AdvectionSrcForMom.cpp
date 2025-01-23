@@ -94,8 +94,7 @@ AdvectionSrcForMom (const Box& bx,
         mf_v_inv(i,j,0) = 1. / mf_v(i,j,0);
     });
 
-    if ( terrain_type == TerrainType::EB ||
-         terrain_type == TerrainType::ImmersedForcing)
+    if ( terrain_type == TerrainType::EB)
     {
         amrex::ignore_unused(use_terrain_fitted_coords);
         ParallelFor(bxx, bxy, bxz,
