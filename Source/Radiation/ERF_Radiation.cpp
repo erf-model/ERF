@@ -452,6 +452,10 @@ Radiation::mf_to_yakl_buffers ()
             lwp(icol,ilay) = 0.0;
             iwp(icol,ilay) = 0.0;
 
+            // NOTE: These would be populated from P3 (we use the constants in p3_main_impl.hpp)
+            eff_radius_qc(icol,ilay) = (qc>1.0e-12) ? 10.0e-6 : 0.0;
+            eff_radius_qi(icol,ilay) = (qi>1.0e-12) ? 25.0e-6 : 0.0;
+
             // Buffers on z-faces (nlay+1)
             p_lev(icol,ilay) = getPgivenRTh(rt_avg, qv_avg);
             t_lev(icol,ilay) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
@@ -479,9 +483,6 @@ Radiation::mf_to_yakl_buffers ()
     parallel_for(SimpleBounds<2>(ncol, nlay), YAKL_LAMBDA (int icol, int ilay)
     {
         p_del(icol,ilay)  = p_lev(icol,ilay+1) - p_lev(icol,ilay);
-        // TODO: How to compute these?
-        eff_radius_qc(icol,ilay) = 0.0;
-        eff_radius_qi(icol,ilay) = 0.0;
     });
 
     // TODO: Fill properly
