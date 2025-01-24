@@ -424,7 +424,7 @@ void make_sources (int level,
             {
                 const Real t_blank = t_blank_arr(i, j, k);
                 cell_src(i, j, k, RhoTheta_comp) -= t_blank * CdT * U_s * (cell_data(i,j,k,RhoTheta_comp) - dptr_t_plane(k));
-                cell_src(i, j, k, Rho_comp)      -= t_blank * CdT * U_s * (cell_data(i,j,k,Rho_comp) - dptr_r_plane(k));                 
+                cell_src(i, j, k, Rho_comp)      -= t_blank * CdT * U_s * (cell_data(i,j,k,Rho_comp) - dptr_r_plane(k));
             });
         }
 
