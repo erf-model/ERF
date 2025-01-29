@@ -327,7 +327,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<const Real> ay_arr;
         Array4<const Real> az_arr;
         Array4<const Real> detJ_arr;
+        Array4<const EBCellFlag> cfg_arr;
         if (solverChoice.terrain_type == TerrainType::EB) {
+            EBCellFlagFab const& cfg = ebfact.getMultiEBCellFlagFab()[mfi];
+            cfg_arr  = cfg.const_array();
             ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
             ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
             az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
