@@ -1,6 +1,7 @@
 #include <AMReX.H>
 #include <ERF_SrcHeaders.H>
 #include <ERF_TI_slow_headers.H>
+#include <ERF_EBAdvection.H>
 
 using namespace amrex;
 
@@ -400,13 +401,23 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (( ivar != RhoKE_comp                 ) ||
                     ((ivar == RhoKE_comp) && l_advect_KE))
                 {
-                    AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                           cur_cons, cur_prim, cell_rhs,
-                                           l_use_mono_adv, max_s_ptr, min_s_ptr,
-                                           detJ_arr, dxInv, mf_m,
-                                           horiz_adv_type, vert_adv_type,
-                                           horiz_upw_frac, vert_upw_frac,
-                                           flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                    if (solverChoice.terrain_type != TerrainType::EB){
+                        AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                            cur_cons, cur_prim, cell_rhs,
+                                            l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                            detJ_arr, dxInv, mf_m,
+                                            horiz_adv_type, vert_adv_type,
+                                            horiz_upw_frac, vert_upw_frac,
+                                            flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                    } else {
+                        EBAdvectionSrcForScalars(tbx, start_comp, num_comp,
+                                            avg_xmom, avg_ymom, avg_zmom,
+                                            cur_prim, cell_rhs,
+                                            cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr, dxInv, mf_m,
+                                            horiz_adv_type, vert_adv_type,
+                                            horiz_upw_frac, vert_upw_frac,
+                                            flx_arr, domain, bc_ptr_h);
+                    }
                 }
 
                 if (l_use_diff) {
