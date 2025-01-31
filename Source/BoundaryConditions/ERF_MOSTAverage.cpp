@@ -310,20 +310,36 @@ MOSTAverage::set_plane_normalization ()
     m_plane_average.resize(m_maxlev);
 
     for (int lev(0); lev < m_maxlev; lev++) {
+        // True domain not used for normalization
+        Box domain = m_geom[lev].Domain();
+
+        // NOTE: Level 0 spans the whole domain, but finer
+        //       levels do not have such a restriction.
+        //       For now, use the bounding box of the boxArray
+        //       for normalization, consistent with avg routine.
+
+        // Bounded box of CC data used for normalization
+        Box bnd_bx = (m_fields[lev][2]->boxArray()).minimalBox();
+
+        // NOTE: Bounding box must lie on the periodic boundaries
+        //       in order to trip the is_per flag
+
         // Num components, plane avg, cells per plane
         Array<int,AMREX_SPACEDIM> is_per = {0,0,0};
         for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
-            if (m_geom[lev].isPeriodic(idim)) is_per[idim] = 1;
+            if ( m_geom[lev].isPeriodic(idim) &&
+                 bnd_bx.bigEnd(idim)==domain.bigEnd(idim) &&
+                 bnd_bx.smallEnd(idim)==domain.smallEnd(idim) ) { is_per[idim] = 1; }
         }
-        Box domain = m_geom[lev].Domain();
+
         m_ncell_plane[lev].resize(m_navg);
         m_plane_average[lev].resize(m_navg);
         for (int iavg(0); iavg < m_navg; ++iavg) {
-            // Convert domain to current index type
+            // Convert bnd_bx to current index type
             IndexType ixt = m_averages[lev][iavg]->boxArray().ixType();
-            domain.convert(ixt);
-            IntVect dom_lo(domain.loVect());
-            IntVect dom_hi(domain.hiVect());
+            bnd_bx.convert(ixt);
+            IntVect bnd_bx_lo(bnd_bx.loVect());
+            IntVect bnd_bx_hi(bnd_bx.hiVect());
 
             m_plane_average[lev][iavg] = 0.0;
 
@@ -331,9 +347,9 @@ MOSTAverage::set_plane_normalization ()
             for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
                 if (idim != 2) {
                     if (ixt.nodeCentered(idim) && is_per[idim]) {
-                        m_ncell_plane[lev][iavg] *= (dom_hi[idim] - dom_lo[idim]);
+                        m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim]);
                     } else {
-                        m_ncell_plane[lev][iavg] *= (dom_hi[idim] - dom_lo[idim] + 1);
+                        m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim] + 1);
                     }
                 }
             } // idim

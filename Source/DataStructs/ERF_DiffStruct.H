@@ -22,12 +22,6 @@ struct DiffChoice {
     {
         amrex::ParmParse pp(pp_prefix);
 
-        // Diffusive constants...
-        pp.query("alpha_T", alpha_T);
-        pp.query("alpha_C", alpha_C);
-        pp.query("dynamicViscosity", dynamicViscosity);
-        pp.query("rho0_trans", rho0_trans);
-
         static std::string molec_diff_type_string = "None";
         pp.query("molec_diff_type",molec_diff_type_string);
 
@@ -41,16 +35,30 @@ struct DiffChoice {
             amrex::Error("Don't know this molec_diff_type");
         }
 
-        if (molec_diff_type == MolecDiffType::ConstantAlpha) {
-            amrex::Print() << "Using constant kinematic diffusion coefficients" << std::endl;
-            amrex::Print() << "  momentum : " << dynamicViscosity/rho0_trans << " m^2/s" << std::endl;
-            amrex::Print() << "  temperature : " << alpha_T << " m^2/s" << std::endl;
-            amrex::Print() << "  scalar : " << alpha_C << " m^2/s" << std::endl;
+        if (molec_diff_type != MolecDiffType::None) {
+            pp.query("alpha_T", alpha_T);
+            pp.query("alpha_C", alpha_C);
+            pp.query("dynamic_viscosity", dynamic_viscosity);
+            pp.query("rho0_trans", rho0_trans);
         }
 
         // Compute relevant forms of diffusion parameters
         rhoAlpha_T = rho0_trans * alpha_T;
         rhoAlpha_C = rho0_trans * alpha_C;
+
+        if (molec_diff_type == MolecDiffType::ConstantAlpha) {
+            amrex::Print() << "Using constant kinematic diffusion coefficients" << std::endl;
+            amrex::Print() << "  momentum : " << dynamic_viscosity/rho0_trans << " m^2/s" << std::endl;
+            amrex::Print() << "  temperature : " << alpha_T << " m^2/s" << std::endl;
+            amrex::Print() << "  scalar : " << alpha_C << " m^2/s" << std::endl;
+        }
+        else if (molec_diff_type == MolecDiffType::Constant) {
+            amrex::Print() << "Using constant dynamic diffusion coefficients" << std::endl;
+            amrex::Print() << "  momentum : " << dynamic_viscosity << " kg/(m-s)" << std::endl;
+            amrex::Print() << "  temperature : " << rhoAlpha_T << " kg/(m-s)" << std::endl;
+            amrex::Print() << "  scalar : " << rhoAlpha_C << " kg/(m-s)" << std::endl;
+        }
+
     }
 
     void display()
@@ -59,7 +67,7 @@ struct DiffChoice {
         amrex::Print() << "    rho0_trans              : " << rho0_trans << std::endl;
         amrex::Print() << "    alpha_T                 : " << alpha_T << std::endl;
         amrex::Print() << "    alpha_C                 : " << alpha_C << std::endl;
-        amrex::Print() << "    dynamicViscosity        : " << dynamicViscosity << std::endl;
+        amrex::Print() << "    dynamic_viscosity       : " << dynamic_viscosity << std::endl;
 
         if (molec_diff_type == MolecDiffType::Constant) {
             amrex::Print() << "Using constant molecular diffusivity (relevant for DNS)" << std::endl;
@@ -85,6 +93,6 @@ struct DiffChoice {
     // Dynamic diffusion coefficients [kg/(m-s)]
     amrex::Real rhoAlpha_T = 0.0;
     amrex::Real rhoAlpha_C = 0.0;
-    amrex::Real dynamicViscosity = 0.0;
+    amrex::Real dynamic_viscosity = 0.0;
 };
 #endif

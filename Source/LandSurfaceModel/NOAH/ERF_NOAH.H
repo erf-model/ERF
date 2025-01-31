@@ -31,11 +31,10 @@ public:
           const amrex::Geometry& geom,
           const amrex::Real& dt) override;
 
-
 private:
 
-   // C++ variable for NoahmpIO struct
-   NoahmpIO_struct noahmpio;
+   // C++ variable for NoahmpIO type
+   NoahmpIO_type noahmpio;
 
 };
 #endif

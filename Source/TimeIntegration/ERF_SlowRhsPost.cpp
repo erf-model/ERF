@@ -1,6 +1,7 @@
 #include <AMReX.H>
 #include <ERF_SrcHeaders.H>
 #include <ERF_TI_slow_headers.H>
+#include <ERF_EBAdvection.H>
 
 using namespace amrex;
 
@@ -80,9 +81,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
                         std::unique_ptr<MultiFab>& mapfac_v,
-#ifdef ERF_USE_EB
                         amrex::EBFArrayBoxFactory const& ebfact,
-#endif
 #if defined(ERF_USE_NETCDF)
                         const bool& moist_set_rhs_bool,
                         const Real& bdy_time_interval,
@@ -108,25 +107,29 @@ void erf_slow_rhs_post (int level, int finest_level,
     TurbChoice tc = solverChoice.turbChoice[level];
 
     const MultiFab* t_mean_mf = nullptr;
-    if (most) t_mean_mf = most->get_mac_avg(0,2);
+    if (most) t_mean_mf = most->get_mac_avg(level,2);
 
     const bool l_use_terrain      = (solverChoice.mesh_type != MeshType::ConstantDz);
-    const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::Moving);
+    const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
-    const bool l_use_ddorf      = (tc.les_type == LESType::Deardorff);
-    const bool l_use_KE         = ( (tc.les_type == LESType::Deardorff) ||
-                                    (tc.pbl_type == PBLType::MYNN25) );
+    const bool l_use_KE         = ( (tc.les_type  == LESType::Deardorff) ||
+                                    (tc.rans_type == RANSType::kEqn) ||
+                                    (tc.pbl_type  == PBLType::MYNN25) );
+    const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff ||
+                                    tc.rans_type == RANSType::kEqn );
     const bool l_advect_KE      = (tc.use_KE && tc.advect_KE);
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
+                                   (tc.rans_type       !=      RANSType::None) ||
                                    (tc.pbl_type        !=       PBLType::None) );
-    const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
-                                    tc.les_type == LESType::Deardorff   ||
-                                    tc.pbl_type == PBLType::MYNN25      ||
-                                    tc.pbl_type == PBLType::YSU );
+    const bool l_use_turb       = ( tc.les_type  == LESType::Smagorinsky ||
+                                    tc.les_type  == LESType::Deardorff   ||
+                                    tc.rans_type == RANSType::kEqn       ||
+                                    tc.pbl_type  == PBLType::MYNN25      ||
+                                    tc.pbl_type  == PBLType::YSU );
     const bool exp_most         = (solverChoice.use_explicit_most);
     const bool rot_most         = (solverChoice.use_rotate_most);
 
@@ -277,8 +280,8 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
-        // SmnSmn for KE src with Deardorff
-        const Array4<const Real>& SmnSmn_a = l_use_ddorf ? SmnSmn->const_array(mfi) : Array4<const Real>{};
+        // SmnSmn for KE src with Deardorff or k-eqn RANS
+        const Array4<const Real>& SmnSmn_a = l_need_SmnSmn ? SmnSmn->const_array(mfi) : Array4<const Real>{};
 
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
@@ -320,17 +323,24 @@ void erf_slow_rhs_post (int level, int finest_level,
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
         // Metric terms
-#ifdef ERF_USE_EB
-        auto const& ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
-        auto const& ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
-        auto const& az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
-        const auto& detJ_arr = ebfact.getVolFrac().const_array(mfi);
-#else
-        auto const& ax_arr   = ax->const_array(mfi);
-        auto const& ay_arr   = ay->const_array(mfi);
-        auto const& az_arr   = az->const_array(mfi);
-        auto const& detJ_arr = detJ->const_array(mfi);
-#endif
+        Array4<const Real> ax_arr;
+        Array4<const Real> ay_arr;
+        Array4<const Real> az_arr;
+        Array4<const Real> detJ_arr;
+        Array4<const EBCellFlag> cfg_arr;
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            EBCellFlagFab const& cfg = ebfact.getMultiEBCellFlagFab()[mfi];
+            cfg_arr  = cfg.const_array();
+            ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
+            ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
+            az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
+            detJ_arr = ebfact.getVolFrac().const_array(mfi);
+        } else {
+            ax_arr   = ax->const_array(mfi);
+            ay_arr   = ay->const_array(mfi);
+            az_arr   = az->const_array(mfi);
+            detJ_arr = detJ->const_array(mfi);
+        }
 
         AdvType horiz_adv_type, vert_adv_type;
         Real    horiz_upw_frac, vert_upw_frac;
@@ -394,13 +404,23 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (( ivar != RhoKE_comp                 ) ||
                     ((ivar == RhoKE_comp) && l_advect_KE))
                 {
-                    AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                           cur_cons, cur_prim, cell_rhs,
-                                           l_use_mono_adv, max_s_ptr, min_s_ptr,
-                                           detJ_arr, dxInv, mf_m,
-                                           horiz_adv_type, vert_adv_type,
-                                           horiz_upw_frac, vert_upw_frac,
-                                           flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                    if (solverChoice.terrain_type != TerrainType::EB){
+                        AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                            cur_cons, cur_prim, cell_rhs,
+                                            l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                            detJ_arr, dxInv, mf_m,
+                                            horiz_adv_type, vert_adv_type,
+                                            horiz_upw_frac, vert_upw_frac,
+                                            flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                    } else {
+                        EBAdvectionSrcForScalars(tbx, start_comp, num_comp,
+                                            avg_xmom, avg_ymom, avg_zmom,
+                                            cur_prim, cell_rhs,
+                                            cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr, dxInv, mf_m,
+                                            horiz_adv_type, vert_adv_type,
+                                            horiz_upw_frac, vert_upw_frac,
+                                            flx_arr, domain, bc_ptr_h);
+                    }
                 }
 
                 if (l_use_diff) {

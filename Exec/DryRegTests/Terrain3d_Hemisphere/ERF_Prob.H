@@ -37,7 +37,7 @@ class Problem : public ProblemBase
 public:
     Problem (const amrex::Real* problo, const amrex::Real* probhi);
 
-#include "Prob/ERF_InitConstantDensityHSEDry.H"
+// #include "Prob/ERF_InitConstantDensityHSEDry.H"
 
     void init_custom_pert (
         const amrex::Box&  bx,
@@ -61,7 +61,7 @@ public:
 
     void init_custom_terrain (
         const amrex::Geometry& geom,
-        amrex::MultiFab& z_phys_nd,
+        amrex::FArrayBox& terrain_fab,
         const amrex::Real& time) override;
 
 protected:

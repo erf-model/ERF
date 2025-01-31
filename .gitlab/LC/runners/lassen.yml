@@ -13,6 +13,8 @@
   rules:
     - if: '$ON_LASSEN == "OFF"'
       when: never
+    # test the default branch
+    - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
     # test the upstream branch
     - if: $CI_COMMIT_BRANCH == 'development'
     # branches starting with "gitlab"
@@ -20,7 +22,6 @@
     - if: $CI_PIPELINE_SOURCE == "push"
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
     - when: on_success
 
 .job_on_lassen:
@@ -28,6 +29,7 @@
   stage: build
   needs: []
   variables:
+    CI_MACHINE: lassen
     MPIEXEC_EXECUTABLE: jsrun
     MPIEXEC_PREFLAGS: "-a 1 -c 1 -g 1"
   script:

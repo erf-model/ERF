@@ -266,165 +266,246 @@ public:
     /**
      * Function to perform custom initialization of terrain
      *
-     * Note: Terrain functionality can also be used to provide grid stretching.
-     *
      * @param[in] geom container for geometric information
      * @param[out] z_phys_nd height coordinate at nodes
      * @param[in] time current time
     */
-    virtual void
-    init_custom_terrain (const amrex::Geometry& geom,
-                         amrex::MultiFab& z_phys_nd,
-                         const amrex::Real& time)
+    void
+    init_terrain_surface (const amrex::Geometry& geom,
+                          amrex::FArrayBox& terrain_fab,
+                          const amrex::Real& time)
     {
         // Check if a valid text file exists for the terrain
-        std::string fname;
+        std::string fname, fname_usgs;
         amrex::ParmParse pp("erf");
-        auto valid_fname = pp.query("terrain_file_name",fname);
+        auto valid_fname      = pp.query("terrain_file_name",fname);
+        auto valid_fname_USGS = pp.query("terrain_file_name_USGS",fname_usgs);
+
+        bool is_usgs;
+
         if (valid_fname) {
-            this->read_custom_terrain(fname,geom,z_phys_nd,time);
+            is_usgs = false;
+            read_custom_terrain(fname,is_usgs,geom,terrain_fab,time);
+
+        } else if (valid_fname_USGS) {
+            is_usgs = true;
+            read_custom_terrain(fname_usgs,is_usgs,geom,terrain_fab,time);
+
         } else {
-            // Note that this only sets the terrain value at the ground IF k=0 is in the box
-            amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
-
-            // Number of ghost cells
-            int ngrow = z_phys_nd.nGrow();
-
-            // Bottom of domain
-            int k0 = 0;
-
-            for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
-            {
-                amrex::Box zbx = mfi.nodaltilebox(2);
-                if (zbx.smallEnd(2) <= 0) {
-                    // Grown box with no z range
-                    amrex::Box xybx = mfi.growntilebox(ngrow);
-                    xybx.setRange(2,0);
-
-                    amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
-
-                    ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                        z_arr(i,j,k0) = 0.0;
-                    });
-                }
-            }
-            SolverChoice::set_flat_terrain_flag();
+            init_custom_terrain (geom, terrain_fab, time);
         }
     }
 
-    /**
-    * Function to perform custom initialization of terrain
-    *
-    * This version takes a single FArrayBox instead of a MultiFab
-    *
-    */
-    virtual void
-    init_custom_terrain (const amrex::Geometry& /*geom*/,
-                         amrex::FArrayBox& z_phys_nd,
-                         const amrex::Real& /*time*/)
-    {
-        // Note that this only sets the terrain value at the ground IF k=0 is in the box
-        amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
-
-        // Bottom of domain
-        int k0 = 0;
-
-        // Grown box with no z range
-        amrex::Box bx = z_phys_nd.box();
-        amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array();
-
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-            z_arr(i,j,k0) = 0.0;
-        });
-
-        SolverChoice::set_flat_terrain_flag();
-    }
-
-    /**
-     * Function to perform custom initialization of terrain from an input file
-     *
-     * Note: Terrain functionality can also be used to provide grid stretching.
-     *
-     * @param[in] geom container for geometric information
-     * @param[out] z_phys_nd height coordinate at nodes
-     * @param[in] time current time
-    */
-    virtual void
-    read_custom_terrain (const std::string& fname,
+    void
+    read_custom_terrain(const std::string& fname,
+                         const bool is_usgs,
                          const amrex::Geometry& geom,
-                         amrex::MultiFab& z_phys_nd,
+                         amrex::FArrayBox& terrain_fab,
                          const amrex::Real& /*time*/)
     {
-        // Read terrain file on the host
-        amrex::Print()<<"Reading terrain file: "<< fname << std::endl;
-        std::ifstream file(fname);
-        amrex::Gpu::HostVector<amrex::Real> m_xterrain,m_yterrain,m_zterrain;
-        amrex::Real value1,value2,value3;
-        while(file>>value1>>value2>>value3){
-            m_xterrain.push_back(value1);
-            m_yterrain.push_back(value2);
-            m_zterrain.push_back(value3);
+        amrex::Vector<amrex::Real> m_xterrain,m_yterrain,m_zterrain;
+
+        int nx = 0; int ny = 0;
+
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            // Read terrain file
+            amrex::Print()<<"Reading terrain file: "<< fname<< std::endl;
+            std::ifstream file(fname);
+
+            if (!file.is_open()) {
+                amrex::Abort("Error: Could not open the file " + fname+ "\n");
+            }
+
+            // Check if file is empty
+            if (file.peek() == std::ifstream::traits_type::eof()) {
+                amrex::Abort("Error: The file  " + fname+ " is empty.\n");
+            }
+
+            amrex::Real value1,value2,value3;
+
+            if (is_usgs) {
+                amrex::Real lat_min, lon_min;
+
+                file >> lon_min >> lat_min;
+                 if(std::fabs(lon_min) > 180.0) {
+                    amrex::Error("The value of longitude for entry in the first line in " + fname
+                                 + " should not exceed 180. It is " + std::to_string(lon_min));
+                }
+                 if(std::fabs(lat_min) > 90.0) {
+                    amrex::Error("The value of latitude for entry in the first line in " + fname
+                                 + " should not exceed 90. It is " + std::to_string(lat_min));
+                }
+
+                file >> nx >> ny;
+
+                int counter = 0;
+                while (file >> value1 >> value2 >> value3) {
+                    m_xterrain.push_back(value1);
+                    if(counter%nx==0) {
+                        m_yterrain.push_back(value2);
+                    }
+                    m_zterrain.push_back(value3);
+                    counter += 1;
+                }
+                AMREX_ASSERT(m_xterrain.size() == static_cast<long int>(nx*ny));
+                AMREX_ASSERT(m_yterrain.size() == static_cast<long int>(ny));
+                AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
+
+        } else {
+            file >> nx; file >> ny;
+            AMREX_ALWAYS_ASSERT(nx > 0);
+            AMREX_ALWAYS_ASSERT(ny > 0);
+            m_xterrain.resize(nx);
+            m_yterrain.resize(ny);
+            m_zterrain.resize(nx * ny);
+            for (int n = 0; n < nx; n++) {
+                file >> m_xterrain[n];
+            }
+            for (int n = 0; n < ny; n++) {
+                file >> m_yterrain[n];
+            }
+            for (int n = 0; n < nx * ny; n++) {
+                file >> m_zterrain[n];
+            }
         }
-        file.close();
+
+        amrex::Print() << "NX " << nx << " " << ny << std::endl;
+
+            // Close the file after reading
+            file.close();
+        }
+
+        amrex::ParallelDescriptor::Bcast(&nx,1,amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(&ny,1,amrex::ParallelDescriptor::IOProcessorNumber());
+
+        int nz = nx * ny;
+
+        m_xterrain.resize(nx);
+        m_yterrain.resize(ny);
+        m_zterrain.resize(nz);
+
+        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx,amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(m_yterrain.data(),ny,amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(m_zterrain.data(),nz,amrex::ParallelDescriptor::IOProcessorNumber());
 
         // Copy data to the GPU
-        int nnode = m_xterrain.size();
-        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nnode),d_yterrain(nnode),d_zterrain(nnode);
+        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx),d_yterrain(ny),d_zterrain(nz);
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_xterrain.begin(), m_xterrain.end(), d_xterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_yterrain.begin(), m_yterrain.end(), d_yterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_zterrain.begin(), m_zterrain.end(), d_zterrain.begin());
+
         amrex::Real* d_xt = d_xterrain.data();
         amrex::Real* d_yt = d_yterrain.data();
         amrex::Real* d_zt = d_zterrain.data();
 
-        // Populate z_phys data
-        amrex::Real tol = 1.0e-4;
-        int ngrow = z_phys_nd.nGrow();
         auto dx = geom.CellSizeArray();
         auto ProbLoArr = geom.ProbLoArray();
+
         int ilo = geom.Domain().smallEnd(0);
         int jlo = geom.Domain().smallEnd(1);
         int klo = geom.Domain().smallEnd(2);
         int ihi = geom.Domain().bigEnd(0) + 1;
         int jhi = geom.Domain().bigEnd(1) + 1;
-        for (amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+
+        amrex::Box zbx = terrain_fab.box();
+        amrex::Array4<amrex::Real> const& z_arr = terrain_fab.array();
+
+        amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
         {
-            // Grown box with no z range
-            amrex::Box xybx = mfi.growntilebox(ngrow);
-            xybx.setRange(2,0);
+            // Clip indices for ghost cells
+            int ii = amrex::min(amrex::max(i,ilo),ihi);
+            int jj = amrex::min(amrex::max(j,jlo),jhi);
 
-            amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
-            amrex::ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
-            {
-                // Clip indices for ghost-cells
-                int ii = amrex::min(amrex::max(i,ilo),ihi);
-                int jj = amrex::min(amrex::max(j,jlo),jhi);
+            // Location of nodes
+            amrex::Real x = ProbLoArr[0] + ii * dx[0] + 1e-3;
+            amrex::Real y = ProbLoArr[1] + jj * dx[1] + 1e-3;
 
-                // Location of nodes
-                amrex::Real x = ProbLoArr[0]  + ii  * dx[0];
-                amrex::Real y = ProbLoArr[1]  + jj  * dx[1];
-                int inode = ii + jj * (ihi-ilo+2); // stride is Nx+1
-                if (std::sqrt(std::pow(x-d_xt[inode],2)+std::pow(y-d_yt[inode],2)) < tol) {
-                    z_arr(i,j,klo) = d_zt[inode];
-                } else {
-                    // Unexpected list order, do brute force search
-                    amrex::Real zloc = 0.0;
-                    bool found = false;
-                    for (int n=0; n<nnode; ++n)
-                    {
-                        amrex::Real delta=std::sqrt(std::pow(x-d_xt[n],2)+std::pow(y-d_yt[n],2));
-                        if (delta < tol) {
-                            found = true;
-                            zloc = d_zt[n];
-                            break;
-                        }
-                    }
-                    AMREX_ASSERT_WITH_MESSAGE(found, "Location read from terrain file does not match the grid!");
-                    amrex::ignore_unused(found);
-                    z_arr(i,j,klo) = zloc;
+            int jindex_terrain = -1;
+            for (int it = 0; it < ny && jindex_terrain == -1; it++) {
+                if (d_yt[it] > y) {
+                    jindex_terrain = it-1;
                 }
-            });
-        }
+            }
+            if (jindex_terrain == -1) {
+                jindex_terrain = ny-1;
+            }
+
+            int ind11, ind12, ind21, ind22;
+            amrex::Real x1, x2, y1, y2;
+
+            int iindex_terrain=-1;
+            if (is_usgs) {
+                int gstart = (jindex_terrain  )*nx;
+                int gend   = (jindex_terrain+1)*nx-1;
+                for (int it = gstart; it <= gend && iindex_terrain == -1; it++) {
+                    if (d_xt[it] > x) {
+                        iindex_terrain = it-gstart;
+                    }
+                }
+
+                // Define the four values to interpolate between
+                ind11 = jindex_terrain*nx + iindex_terrain;
+                ind12 = ind11+nx;
+                ind21 = ind11+1;
+                ind22 = ind12+1;
+                x1 = d_xt[ind11];
+                x2 = d_xt[ind21];
+                y1 = d_yt[jindex_terrain];
+                y2 = d_yt[jindex_terrain+1];
+
+            } else {
+                for (int it = 0; it < nx && iindex_terrain == -1; it++) {
+                    if (d_xt[it] > x) {
+                        iindex_terrain = it-1;
+                    }
+                }
+                if (iindex_terrain == -1) {
+                    iindex_terrain = nx-1;
+                }
+
+                // Define the four values to interpolate between
+                x1 = d_xt[iindex_terrain];
+                x2 = d_xt[iindex_terrain+1];
+                y1 = d_yt[jindex_terrain];
+                y2 = d_yt[jindex_terrain+1];
+
+                ind11 =           jindex_terrain         * nx + iindex_terrain;
+                ind21 =  std::min(jindex_terrain+1,ny-1) * nx + iindex_terrain;
+
+                ind12 =           jindex_terrain         * nx + std::min(iindex_terrain+1,nx-1);
+                ind22  = std::min(jindex_terrain+1,ny-1) * nx + std::min(iindex_terrain+1,nx-1);
+            }
+
+            // Do bilinear interpolation
+            amrex::Real denom = (x2-x1)*(y2-y1);
+            amrex::Real  w_11 = (x2-x)*(y2-y)/denom;
+            amrex::Real  w_12 = (x2-x)*(y-y1)/denom;
+            amrex::Real  w_21 = (x-x1)*(y2-y)/denom;
+            amrex::Real  w_22 = (x-x1)*(y-y1)/denom;
+
+            z_arr(i,j,klo) = w_11*d_zt[ind11] + w_12*d_zt[ind12] + w_21*d_zt[ind21] + w_22*d_zt[ind22];
+        });
+    }
+
+    /**
+     * Function to perform custom initialization of terrain
+     *
+     * Note: Terrain functionality can also be used to provide grid stretching.
+     *
+     * @param[in] geom container for geometric information
+     * @param[out] terrain_mf height coordinate at nodes
+     * @param[in] time current time
+    */
+    virtual void
+    init_custom_terrain (const amrex::Geometry& /*geom*/,
+                         amrex::FArrayBox& terrain_fab,
+                         const amrex::Real& /*time*/)
+    {
+        amrex::Print() << "Initializing flat terrain" << std::endl;
+
+        terrain_fab.template setVal<amrex::RunOn::Device>(0.0);
+
+        SolverChoice::set_flat_terrain_flag();
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY

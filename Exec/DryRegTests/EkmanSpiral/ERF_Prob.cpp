@@ -72,7 +72,7 @@ Problem::init_custom_pert(
         Real coriolis_factor = 4.0 * PI / rot_time_period;
 
         Real Az;
-        pp.get("dynamicViscosity", Az); // dynamic viscosity [kg-m/s]
+        pp.get("dynamic_viscosity", Az); // dynamic viscosity [kg-m/s]
         Az = Az / parms.rho_0; // kinematic viscosity [m^2/s]
 
         Vector<Real> abl_geo_wind(3);

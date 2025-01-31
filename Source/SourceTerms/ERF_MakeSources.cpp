@@ -38,6 +38,7 @@ void make_sources (int level,
 #ifdef ERF_USE_RRTMGP
                    const MultiFab* qheating_rates,
 #endif
+                          MultiFab* terrain_blank,
                    const Geometry geom,
                    const SolverChoice& solverChoice,
                    std::unique_ptr<MultiFab>& /*mapfac_u*/,
@@ -57,12 +58,12 @@ void make_sources (int level,
     // *****************************************************************************
     source.setVal(0.0);
 
-    const bool l_use_ndiff      = solverChoice.use_NumDiff;
-    const bool use_terrain      = solverChoice.terrain_type != TerrainType::None;
+    const bool l_use_ndiff      = solverChoice.use_num_diff;
 
     TurbChoice tc = solverChoice.turbChoice[level];
-    const bool l_use_KE  =  ( (tc.les_type == LESType::Deardorff) ||
-                              (tc.pbl_type == PBLType::MYNN25) );
+    const bool l_use_KE  =  ( (tc.les_type  == LESType::Deardorff) ||
+                              (tc.rans_type == RANSType::kEqn) ||
+                              (tc.pbl_type  == PBLType::MYNN25) );
     const bool l_diff_KE = tc.diffuse_KE_3D;
 
     const Box& domain = geom.Domain();
@@ -76,7 +77,7 @@ void make_sources (int level,
     // *****************************************************************************
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
-    if (dptr_wbar_sub || solverChoice.nudging_from_input_sounding)
+    if (dptr_wbar_sub || solverChoice.nudging_from_input_sounding || solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
         // Rho
         PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
@@ -168,6 +169,7 @@ void make_sources (int level,
     //    7. sponging
     //    8. turbulent perturbation
     //    9. nudging towards input sounding values (only for theta)
+    //    10. Immersed forcing
     // *****************************************************************************
 
     // ***********************************************************************************************
@@ -185,7 +187,10 @@ void make_sources (int level,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_src   = source.array(mfi);
 
-        const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& z_cc_arr = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+
+        const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
+                                                               Array4<const Real>{};
 
 #ifdef ERF_USE_RRTMGP
         // *************************************************************************************
@@ -369,20 +374,20 @@ void make_sources (int level,
             const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
 
             // Rho is a special case
-            NumericalDiffusion_Scal(bx, sc=0, nc=1, dt, solverChoice.NumDiffCoeff,
+            NumericalDiffusion_Scal(bx, sc=0, nc=1, dt, solverChoice.num_diff_coeff,
                                     cell_data, cell_data, cell_src, mf_m);
 
             // Other scalars proceed as normal
-            NumericalDiffusion_Scal(bx, sc=1, nc=1, dt, solverChoice.NumDiffCoeff,
+            NumericalDiffusion_Scal(bx, sc=1, nc=1, dt, solverChoice.num_diff_coeff,
                                     cell_prim, cell_data, cell_src, mf_m);
 
 
             if (l_use_KE && l_diff_KE) {
-                NumericalDiffusion_Scal(bx, sc=RhoKE_comp, nc=1, dt, solverChoice.NumDiffCoeff,
+                NumericalDiffusion_Scal(bx, sc=RhoKE_comp, nc=1, dt, solverChoice.num_diff_coeff,
                                         cell_prim, cell_data, cell_src, mf_m);
             }
 
-            NumericalDiffusion_Scal(bx, sc=RhoScalar_comp, nc=NSCALARS, dt, solverChoice.NumDiffCoeff,
+            NumericalDiffusion_Scal(bx, sc=RhoScalar_comp, nc=NSCALARS, dt, solverChoice.num_diff_coeff,
                                     cell_prim, cell_data, cell_src, mf_m);
         }
 
@@ -441,6 +446,23 @@ void make_sources (int level,
                 cell_src(i, j, k, n) += cell_data(i, j, k, nr) * nudge;
             });
         }
+
+        // *************************************************************************************
+        // 10. Add Immersed source terms
+        // *************************************************************************************
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            const Real drag_coefficient = 10.0/dz;
+            const Real CdT = drag_coefficient;
+            const Real U_s  = 1.0;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real t_blank = t_blank_arr(i, j, k);
+                cell_src(i, j, k, RhoTheta_comp) -= t_blank * CdT * U_s * (cell_data(i,j,k,RhoTheta_comp) - dptr_t_plane(k));
+                cell_src(i, j, k, Rho_comp)      -= t_blank * CdT * U_s * (cell_data(i,j,k,Rho_comp) - dptr_r_plane(k));
+            });
+        }
+
+
     } // mfi
     } // OMP
 }

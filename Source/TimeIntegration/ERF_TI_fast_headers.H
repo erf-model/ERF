@@ -4,16 +4,13 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_YAFluxRegister.H>
+#include <AMReX_EBMultiFabUtil.H>
+
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 #include <ERF_TerrainMetrics.H>
-
 #include <ERF_TileNoZ.H>
 #include <ERF_ProbCommon.H>
-
-#ifdef ERF_USE_EB
-#include <AMReX_EBMultiFabUtil.H>
-#endif
 
 /**
  * Function for computing the fast RHS with no terrain

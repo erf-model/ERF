@@ -16,8 +16,8 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 3.0      # fixed time step [s] -- Straka et al 1993
-erf.fixed_fast_dt  = 0.75     # fixed time step [s] -- Straka et al 1993
+erf.fixed_dt       = 3.0      # fixed time step [s]
+erf.fixed_fast_dt  = 0.75     # fixed time step [s]
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -48,16 +48,14 @@ erf.pbl_type        = "None"
 erf.moisture_model  = "SAM"
 erf.buoyancy_type   = 1
 
-erf.molec_diff_type = "Constant"
-erf.rho0_trans      = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity= 0.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
-erf.alpha_T         = 0.0 # [m^2/s]
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
+erf.alpha_T           = 0.0 # [m^2/s]
 
 # INITIAL CONDITIONS
 erf.init_type           = "input_sounding"
 erf.input_sounding_file = "input_sounding_squall2d"
 erf.init_sounding_ideal = 1
-erf.KE_0 = 0.1 # for Deardorff
 
 # PROBLEM PARAMETERS (optional)
 # warm bubble input
@@ -67,3 +65,4 @@ prob.z_c    = 1500.0
 prob.x_r    = 4000.0
 prob.z_r    = 1500.0
 prob.T_0    = 0.0
+prob.KE_0   = 0.1

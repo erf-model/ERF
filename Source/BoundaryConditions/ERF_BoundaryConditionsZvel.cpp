@@ -156,7 +156,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
  * @param[in] bccomp_u  index into m_domain_bcs_type corresponding to u
  * @param[in] bccomp_v  index into m_domain_bcs_type corresponding to v
  * @param[in] bccomp_w  index into m_domain_bcs_type corresponding to w
- * @param[in] terrain_type if Moving then the terrain is moving; otherwise fixed
+ * @param[in] terrain_type if MovingFittedMesh then the terrain is moving; otherwise fixed
  */
 
 void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
@@ -193,7 +193,7 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     const BCRec* bc_ptr_w_h = bcrs_w.data();
 
     bool l_use_terrain = (m_z_phys_nd != nullptr);
-    bool l_moving_terrain = (terrain_type == TerrainType::Moving);
+    bool l_moving_terrain = (terrain_type == TerrainType::MovingFittedMesh);
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,1> l_bc_extdir_vals_d;
 

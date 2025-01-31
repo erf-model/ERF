@@ -83,18 +83,18 @@ void ERF::advance_dycore(int level,
         d_sponge_ptrs_at_lev[Sponge::vbar_sponge]  =  d_sponge_ptrs[level][Sponge::vbar_sponge].data();
     }
 
-    bool l_use_terrain = (SolverChoice::terrain_type != TerrainType::None);
+    bool l_use_terrain_fitted_coords = (z_phys_nd[level] != nullptr);
+    bool l_use_kturb   = ( (tc.les_type  != LESType::None)   ||
+                           (tc.rans_type != RANSType::None)  ||
+                           (tc.pbl_type  != PBLType::None) );
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
-                           (tc.les_type        !=       LESType::None) ||
-                           (tc.pbl_type        !=       PBLType::None) );
-    bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
-                           (tc.pbl_type != PBLType::None) );
+                           l_use_kturb );
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
     const bool use_most = (m_most != nullptr);
     const bool exp_most = (solverChoice.use_explicit_most);
-    amrex::ignore_unused(use_most);
+    const FArrayBox* z_0 = (use_most) ? m_most->get_z0(level) : nullptr;
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -153,16 +153,16 @@ void ERF::advance_dycore(int level,
             Array4<Real> tau13 = Tau13_lev[level].get()->array(mfi);
             Array4<Real> tau23 = Tau23_lev[level].get()->array(mfi);
 
-            Array4<Real> tau21  = l_use_terrain ? Tau21_lev[level].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau31  = l_use_terrain ? Tau31_lev[level].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32  = l_use_terrain ? Tau32_lev[level].get()->array(mfi) : Array4<Real>{};
-            const Array4<const Real>& z_nd = l_use_terrain ? z_phys_nd[level]->const_array(mfi) : Array4<const Real>{};
+            Array4<Real> tau21  = l_use_terrain_fitted_coords ? Tau21_lev[level].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31  = l_use_terrain_fitted_coords ? Tau31_lev[level].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau32_lev[level].get()->array(mfi) : Array4<Real>{};
+            const Array4<const Real>& z_nd = l_use_terrain_fitted_coords ? z_phys_nd[level]->const_array(mfi) : Array4<const Real>{};
 
             const Array4<const Real> mf_m = mapfac_m[level]->array(mfi);
             const Array4<const Real> mf_u = mapfac_u[level]->array(mfi);
             const Array4<const Real> mf_v = mapfac_v[level]->array(mfi);
 
-            if (l_use_terrain) {
+            if (l_use_terrain_fitted_coords) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
@@ -214,10 +214,12 @@ void ERF::advance_dycore(int level,
                                   *Tau11_lev[level].get(), *Tau22_lev[level].get(), *Tau33_lev[level].get(),
                                   *Tau12_lev[level].get(), *Tau13_lev[level].get(), *Tau23_lev[level].get(),
                                   state_old[IntVars::cons],
+                                  *walldist[level].get(),
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], solverChoice,
-                                  m_most, exp_most, l_use_moisture, level, bc_ptr_h);
+                                  m_most, z_0, exp_most,
+                                  l_use_moisture, level, bc_ptr_h);
     }
 
     // ***********************************************************************************************
@@ -255,11 +257,11 @@ void ERF::advance_dycore(int level,
 
     //
     // This is an optimization since we won't need more than one ghost
-    // cell of momentum in the integrator if not using NumDiff
+    // cell of momentum in the integrator if not using numerical diffusion
     //
-    IntVect ngu = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
-    IntVect ngv = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
-    IntVect ngw = (!solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+    IntVect ngu = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
+    IntVect ngv = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
+    IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
 
     VelocityToMomentum(xvel_old, ngu, yvel_old, ngv, zvel_old, ngw, density,
                        state_old[IntVars::xmom],

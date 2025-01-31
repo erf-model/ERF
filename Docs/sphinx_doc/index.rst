@@ -88,6 +88,7 @@ In addition to this documentation, there is API documentation for ERF generated 
 
    CouplingToAMRWind.rst
    CouplingToWW3.rst
+   CouplingToNoahMP.rst
 
 .. toctree::
    :caption: ERF vs WRF

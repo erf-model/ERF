@@ -41,7 +41,7 @@ public:
 
     void init_custom_terrain (
         const amrex::Geometry& geom,
-        amrex::MultiFab& z_phys_nd,
+        amrex::FArrayBox& terrain_fab,
         const amrex::Real& time) override;
 
     void erf_init_rayleigh (

@@ -115,9 +115,9 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
  */
 
 void
-init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
-                   Vector<Real> const& z_levels_h,
-                   GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
+make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
+                            Vector<Real> const& z_levels_h,
+                            GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
 {
     const Box& domain = geom.Domain();
 
@@ -223,29 +223,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
             });
         }
     }
-
-    /*
-    // Debug
-    for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        Box gbx = mfi.growntilebox(ngrow);
-        gbx.setRange(2,domlo_z,domhi_z+1);
-
-        Array4<Real> z_arr = z_phys_nd.array(mfi);
-
-        int rank = 0;
-        Print(rank) << "Debugging init_terrain_grid" << "\n";
-        Print(rank) << gbx << "\n";
-
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            Print(rank) << IntVect(i,j,k) << "\n";
-            Print(rank) << z_arr(i,j,k) << "\n";
-            Print(rank) << "\n";
-        });
-        Print(rank) << "Cleared..." << "\n";
-    }
-   */
-} // init_terrain_grid
+} // make_terrain_fitted_coords
 
 void
 init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,

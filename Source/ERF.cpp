@@ -26,8 +26,11 @@ SolverChoice ERF::solverChoice;
 
 // Time step control
 Real ERF::cfl           =  0.8;
+Real ERF::sub_cfl       =  1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
+Real ERF::dt_max_initial = 1.0;
+Real ERF:: dt_max = 1e9;
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
@@ -144,18 +147,18 @@ ERF::ERF_shared ()
 
     // NOTE: size canopy model before readparams (if file exists, we construct)
     m_forest_drag.resize(nlevs_max);
-    for (int lev = 0; lev < max_level; ++lev) { m_forest_drag[lev] = nullptr;}
-
-    // Immersed Forcing Representation of Terrain
-    m_terrain_drag.resize(nlevs_max);
-    for (int lev = 0; lev < max_level; ++lev) { m_terrain_drag[lev] = nullptr;}
-
+    for (int lev = 0; lev <= max_level; ++lev) { m_forest_drag[lev] = nullptr;}
 
     ReadParameters();
     initializeMicrophysics(nlevs_max);
 
 #ifdef ERF_USE_WINDFARM
     initializeWindFarm(nlevs_max);
+#endif
+
+#ifdef ERF_USE_RRTMGP
+    rad.resize(nlevs_max);
+    for (int lev = 0; lev <= max_level; ++lev) { rad[lev] = std::make_unique<Radiation>(lev,solverChoice); }
 #endif
 
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
@@ -290,6 +293,11 @@ ERF::ERF_shared ()
 
     z_t_rk.resize(nlevs_max);
 
+    terrain_blanking.resize(nlevs_max);
+
+    // Wall distance
+    walldist.resize(nlevs_max);
+
     // Mapfactors
     mapfac_m.resize(nlevs_max);
     mapfac_u.resize(nlevs_max);
@@ -360,10 +368,22 @@ ERF::ERF_shared ()
     // We will create each of these in MakeNewLevel.../RemakeLevel
     m_factory.resize(max_level+1);
 
-#ifdef ERF_USE_EB
+    //
+    // Construct the EB data structures and store in a separate class
+    //
     // This is needed before initializing level MultiFabs
-    MakeEBGeometry();
-#endif
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+    {
+        int lev = 0; Real dummy_time = 0.0;
+        Box terrain_bx(surroundingNodes(geom[lev].Domain())); terrain_bx.grow(3);
+        FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
+        prob->init_terrain_surface(geom[lev], terrain_fab, dummy_time);
+
+        amrex::Print() << "MAKING EB GEOMETRY " << std::endl;
+        eb_ eb(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
+        // MakeEBGeometry();
+    }
 }
 
 ERF::~ERF () = default;
@@ -477,7 +497,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
                 const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-                if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                if (SolverChoice::mesh_type == MeshType::ConstantDz) {
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
                         cons_arr(i,j,k,n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
@@ -500,7 +520,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
                 const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
-                if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                if (SolverChoice::mesh_type == MeshType::ConstantDz) {
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
                         cons_arr(i,j,k,n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
@@ -586,7 +606,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     // Moving terrain
-    if ( solverChoice.terrain_type == TerrainType::Moving )
+    if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
     {
       for (int lev = finest_level; lev >= 0; lev--)
       {
@@ -644,6 +664,15 @@ ERF::InitData_pre ()
             phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
             Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
         }
+
+        if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
+             (solverChoice.turbChoice[lev].Ce_wall > 0) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::slip_wall) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) ) {
+            Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
+        }
+
     }
 }
 
@@ -667,58 +696,11 @@ ERF::InitData_post ()
             }
         }
 
-        // If using the Deardoff LES model,
-        // we initialize rho_KE to be nonzero (and positive) so that we end up
-        // with reasonable values for the eddy diffusivity and the MOST fluxes
-        // (~ 1/diffusivity) do not blow up
-        Real RhoKE_0;
-        ParmParse pp(pp_prefix);
-        if (pp.query("RhoKE_0", RhoKE_0)) {
-            // Uniform initial rho*e field
-            for (int lev = 0; lev <= finest_level; lev++) {
-                if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
-                    Print() << "Initializing uniform rhoKE=" << RhoKE_0
-                        << " on level " << lev
-                        << std::endl;
-                    vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
-                } else {
-                    vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
-                }
-            }
-        }
-
-        Real KE_0;
-        if (pp.query("KE_0", KE_0)) {
-            // Uniform initial e field
-            for (int lev = 0; lev <= finest_level; lev++) {
-                auto& lev_new = vars_new[lev];
-                if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
-                    Print() << "Initializing uniform KE=" << KE_0
-                        << " on level " << lev
-                        << std::endl;
-                    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const Box &bx = mfi.tilebox();
-                        const auto &cons_arr = lev_new[Vars::cons].array(mfi);
-                        // We want to set the lateral BC values, too
-                        Box gbx = bx; // Copy constructor
-                        gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
-                        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            cons_arr(i,j,k,RhoKE_comp) = cons_arr(i,j,k,Rho_comp) * KE_0;
-                        });
-                    } // mfi
-                } else {
-                    lev_new[Vars::cons].setVal(0.0,RhoKE_comp,1,0);
-                }
-            } // lev
-        }
-
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
             AverageDown();
         }
 
-        if ((solverChoice.advChoice.zero_xflux.size() > 0) ||
-            (solverChoice.advChoice.zero_yflux.size() > 0) ||
-            (solverChoice.advChoice.zero_zflux.size() > 0))
+        if (solverChoice.advChoice.have_zero_flux_faces)
         {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
                 "Thin immersed body with refinement not currently supported.");
@@ -741,7 +723,7 @@ ERF::InitData_post ()
 
         // Create the physbc objects for {cons, u, v, w, base state}
         // We fill the additional base state ghost cells just in case we have read the old format
-        for (int lev(0); lev <= max_level; ++lev) {
+        for (int lev(0); lev <= finest_level; ++lev) {
             make_physbcs(lev);
             (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
         }
@@ -925,24 +907,41 @@ ERF::InitData_post ()
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
-        int ncomp = lev_new[Vars::cons].nComp();
-
         // ***************************************************************************
         // Physical bc's at domain boundary
         // ***************************************************************************
         IntVect ngvect_cons = vars_new[lev][Vars::cons].nGrowVect();
         IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
 
-        (*physbcs_cons[lev])(lev_new[Vars::cons],0,ncomp,ngvect_cons,t_new[lev],BCVars::cons_bc,true);
-        (   *physbcs_u[lev])(lev_new[Vars::xvel],0,1    ,ngvect_vels,t_new[lev],BCVars::xvel_bc,true);
-        (   *physbcs_v[lev])(lev_new[Vars::yvel],0,1    ,ngvect_vels,t_new[lev],BCVars::yvel_bc,true);
-        (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
-                             ngvect_vels,t_new[lev],BCVars::zvel_bc,true);
+        int ncomp_cons = lev_new[Vars::cons].nComp();
+        bool do_fb     = true;
 
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp,lev_new[Vars::cons].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,    1,lev_new[Vars::xvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,    1,lev_new[Vars::yvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,    1,lev_new[Vars::zvel].nGrowVect());
+#ifdef ERF_USE_NETCDF
+        // We call this here because it is an ERF routine
+        if (use_real_bcs && (lev==0)) {
+            int icomp_cons = 0;
+            bool cons_only = false;
+            Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
+                                         &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
+            fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                              ncomp_cons,ngvect_cons,ngvect_vels);
+            do_fb = false;
+    }
+#endif
+
+        (*physbcs_cons[lev])(lev_new[Vars::cons],0,ncomp_cons,
+                             ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
+        (   *physbcs_u[lev])(lev_new[Vars::xvel],0,1         ,
+                             ngvect_vels,t_new[lev],BCVars::xvel_bc,do_fb);
+        (   *physbcs_v[lev])(lev_new[Vars::yvel],0,1         ,
+                             ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
+        (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
+                             ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
+
+        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp_cons,lev_new[Vars::cons].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,         1,lev_new[Vars::xvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,         1,lev_new[Vars::yvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,         1,lev_new[Vars::zvel].nGrowVect());
     }
 
     // Compute the minimum dz in the domain at each level (to be used for setting the timestep)
@@ -999,7 +998,7 @@ ERF::InitData_post ()
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         // For moving terrain only
-        if (solverChoice.terrain_type == TerrainType::Moving) {
+        if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
@@ -1239,11 +1238,13 @@ ERF::InitData_post ()
     pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
     if (do_line || do_plane) { data_sampler = std::make_unique<SampleData>(do_line, do_plane); }
 
-#ifdef ERF_USE_EB
-    bool write_eb_surface = false;
-    pp.query("write_eb_surface", write_eb_surface);
-    if (write_eb_surface) WriteMyEBSurface();
-#endif
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+    {
+        bool write_eb_surface = false;
+        pp.query("write_eb_surface", write_eb_surface);
+        if (write_eb_surface) WriteMyEBSurface();
+    }
 
 }
 
@@ -1275,7 +1276,6 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
     return;
 }
 
-
 #ifdef ERF_USE_WINDFARM
 void
 ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
@@ -1287,17 +1287,6 @@ ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
 void
 ERF::restart ()
 {
-    // TODO: This could be deleted since ba/dm are not created yet?
-    for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        auto& lev_new = vars_new[lev];
-        auto& lev_old = vars_old[lev];
-        lev_new[Vars::cons].setVal(0.); lev_old[Vars::cons].setVal(0.);
-        lev_new[Vars::xvel].setVal(0.); lev_old[Vars::xvel].setVal(0.);
-        lev_new[Vars::yvel].setVal(0.); lev_old[Vars::yvel].setVal(0.);
-        lev_new[Vars::zvel].setVal(0.); lev_old[Vars::zvel].setVal(0.);
-    }
-
 #ifdef ERF_USE_NETCDF
     if (restart_type == "netcdf") {
        ReadNCCheckpointFile();
@@ -1477,8 +1466,11 @@ ERF::ReadParameters ()
 
         // Time step controls
         pp.query("cfl", cfl);
+        pp.query("substepping_cfl", sub_cfl);
         pp.query("init_shrink", init_shrink);
         pp.query("change_max", change_max);
+        pp.query("dt_max_initial", dt_max_initial);
+        pp.query("dt_max", dt_max);
 
         fixed_dt.resize(max_level+1,-1.);
         fixed_fast_dt.resize(max_level+1,-1.);
@@ -1488,7 +1480,7 @@ ERF::ReadParameters ()
 
         for (int lev = 1; lev <= max_level; lev++)
         {
-            fixed_dt[lev]      = fixed_dt[lev-1]     / static_cast<Real>(MaxRefRatio(lev-1));
+            fixed_dt[lev]      = fixed_dt[lev-1]      / static_cast<Real>(MaxRefRatio(lev-1));
             fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(MaxRefRatio(lev-1));
         }
 
@@ -1648,24 +1640,6 @@ ERF::ReadParameters ()
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
 
-        // Query the canopy model file name
-        std::string forestfile;
-        solverChoice.do_forest_drag = pp.query("forest_file", forestfile);
-        if (solverChoice.do_forest_drag) {
-            for (int lev = 0; lev <= max_level; ++lev) {
-                m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
-            }
-        }
-
-        //Query the terrain file name
-        std::string terrainfile;
-        solverChoice.do_terrain_drag = pp.query("terrain_file", terrainfile);
-        if (solverChoice.do_terrain_drag) {
-            for (int lev = 0; lev <= max_level; ++lev) {
-                m_terrain_drag[lev] = std::make_unique<TerrainDrag>(terrainfile);
-            }
-        }
-
         // AmrMesh iterate on grids?
         bool iterate(true);
         pp_amr.query("iterate_grids",iterate);
@@ -1682,9 +1656,18 @@ ERF::ReadParameters ()
 
     solverChoice.init_params(max_level);
 
+    // Query the canopy model file name
+    std::string forestfile;
+    solverChoice.do_forest_drag = pp.query("forest_file", forestfile);
+    if (solverChoice.do_forest_drag) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
+        }
+    }
+
     // No moving terrain with init real (we must do this after init_params
     //    because that is where we set terrain_type
-    if (init_type == InitType::Real && solverChoice.terrain_type == TerrainType::Moving) {
+    if (init_type == InitType::Real && solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
         Abort("Moving terrain is not supported with init real");
     }
 

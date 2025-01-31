@@ -222,7 +222,8 @@ void ERF::init_bcs ()
             domain_bc_type[ori] = "SlipWall";
 
             Real rho_in;
-            if (pp.query("density", rho_in))
+            rho_read = pp.query("density", rho_in);
+            if (rho_read)
             {
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
             }

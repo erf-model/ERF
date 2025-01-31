@@ -17,6 +17,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("T_0", parms.T_0);
   pp.query("A_0", parms.A_0);
   pp.query("KE_0", parms.KE_0);
+  pp.query("rhoKE_0", parms.rhoKE_0);
   pp.query("KE_decay_height", parms.KE_decay_height);
   pp.query("KE_decay_order", parms.KE_decay_order);
 
@@ -65,8 +66,6 @@ Problem::init_custom_pert(
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-    const bool use_terrain = SolverChoice::terrain_type != TerrainType::None;
-
     if (parms.KE_decay_height > 0) {
         amrex::Print() << "Initial KE profile (order " << parms.KE_decay_order
                        << ") will extend up to " << parms.KE_decay_height
@@ -101,7 +100,7 @@ Problem::init_custom_pert(
     const Real* dx = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = use_terrain ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
+    const Real z = (z_cc) ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
 
     // Define a point (xc,yc,zc) at the center of the domain
     const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
@@ -126,7 +125,11 @@ Problem::init_custom_pert(
     // Set an initial value for SGS KE
     if (state_pert.nComp() > RhoKE_comp) {
         // Deardorff
-        state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * parms_d.KE_0;
+        if (parms_d.rhoKE_0 > 0) {
+            state_pert(i, j, k, RhoKE_comp) = parms_d.rhoKE_0;
+        } else {
+            state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * parms_d.KE_0;
+        }
         if (parms_d.KE_decay_height > 0) {
             // scale initial SGS kinetic energy with height
             state_pert(i, j, k, RhoKE_comp) *= max(
@@ -146,7 +149,7 @@ Problem::init_custom_pert(
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = use_terrain ? 0.25*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
+    const Real z = (z_nd) ? 0.25*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
                                       + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
                                : prob_lo[2] + (k + 0.5) * dx[2];
 
@@ -172,7 +175,7 @@ Problem::init_custom_pert(
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const Real z = use_terrain ? 0.25*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
+    const Real z = (z_nd) ? 0.25*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
                                       + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) )
                                : prob_lo[2] + (k + 0.5) * dx[2];
 

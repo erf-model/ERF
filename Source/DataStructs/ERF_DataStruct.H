@@ -34,7 +34,7 @@ AMREX_ENUM(MeshType,
 );
 
 AMREX_ENUM(TerrainType,
-    None, Static, Moving
+    None, StaticFittedMesh, MovingFittedMesh, EB, ImmersedForcing
 );
 
 AMREX_ENUM(MoistureModelType,
@@ -94,9 +94,9 @@ struct SolverChoice {
             if (mesh_type == MeshType::ConstantDz) {
                 mesh_type    = MeshType::StretchedDz;
             }
-            if (terrain_type != TerrainType::Static) {
+            if (terrain_type != TerrainType::StaticFittedMesh) {
                 amrex::Print() << "Turning terrain on to enable grid stretching" << std::endl;
-                terrain_type = TerrainType::Static;
+                terrain_type = TerrainType::StaticFittedMesh;
             }
             pp.query("zsurface", zsurf);
             if (zsurf != 0.0) {
@@ -162,9 +162,20 @@ struct SolverChoice {
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
 
         // Is the terrain none, static or moving?
-        pp.query_enum_case_insensitive("terrain_type",terrain_type);
+        std::string terrain_type_temp = "";
+        pp.query("terrain_type", terrain_type_temp);
+        if (terrain_type_temp == "Moving") {
+            amrex::Warning("erf.terrain_type = Moving is deprecated; please replace Moving by MovingFittedMesh");
+            terrain_type = TerrainType::MovingFittedMesh;
+        } else if (terrain_type_temp == "Static") {
+            amrex::Warning("erf.terrain_type = Static is deprecated; please replace Static by StaticFittedMesh");
+            terrain_type = TerrainType::StaticFittedMesh;
+        } else {
+            pp.query_enum_case_insensitive("terrain_type",terrain_type);
+        }
 
-        if (terrain_type != TerrainType::None) {
+        if (terrain_type == TerrainType::StaticFittedMesh ||
+            terrain_type == TerrainType::MovingFittedMesh) {
             mesh_type = MeshType::VariableDz;
         }
 
@@ -172,7 +183,7 @@ struct SolverChoice {
         if (n_zlevels > 0)
         {
             if (terrain_type == TerrainType::None) {
-                terrain_type = TerrainType::Static;
+                terrain_type = TerrainType::StaticFittedMesh;
             }
             if (mesh_type == MeshType::ConstantDz) {
                 mesh_type    = MeshType::StretchedDz;
@@ -324,12 +335,14 @@ struct SolverChoice {
         pp.query("use_moist_background", use_moist_background);
 
         // Use numerical diffusion?
-        pp.query("use_NumDiff",use_NumDiff);
-        if(use_NumDiff) {
-            pp.query("NumDiffCoeff",NumDiffCoeff);
-            AMREX_ASSERT_WITH_MESSAGE(( (NumDiffCoeff >= 0.) && (NumDiffCoeff <= 1.) ),
-                                      "Numerical diffusion coefficient must be between 0 & 1.");
-            NumDiffCoeff *= std::pow(2.0,-6);
+        pp.query("num_diff_coeff",num_diff_coeff);
+        AMREX_ASSERT_WITH_MESSAGE(( (num_diff_coeff >= 0.) && (num_diff_coeff <= 1.) ),
+                                  "Numerical diffusion coefficient must be between 0 & 1.");
+        use_num_diff = (num_diff_coeff > 0);
+        if (use_num_diff) {
+            amrex::Print() << "6th-order numerical diffusion turned on with coefficient = "
+                << num_diff_coeff << std::endl;
+            num_diff_coeff *= std::pow(2.0,-6);
         }
 
         // Use monotonic advection?
@@ -407,7 +420,7 @@ struct SolverChoice {
             amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
         }
 
-        if (!use_lagged_delta_rt && !(terrain_type == TerrainType::Moving)) {
+        if (!use_lagged_delta_rt && !(terrain_type == TerrainType::MovingFittedMesh)) {
             amrex::Error("Can't turn off lagged_delta_rt when terrain not moving");
         }
 
@@ -452,22 +465,24 @@ struct SolverChoice {
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
-        amrex::Print() << "Terrain Type: " << std::endl;
-        if (terrain_type == TerrainType::Static) {
-            amrex::Print() << "    Static" << std::endl;
-        } else if (terrain_type == TerrainType::Moving) {
-            amrex::Print() << "    Moving" << std::endl;
+        if (terrain_type == TerrainType::StaticFittedMesh) {
+            amrex::Print() << "Terrain Type: StaticFittedMesh" << std::endl;
+        } else if (terrain_type == TerrainType::MovingFittedMesh) {
+            amrex::Print() << "Terrain Type: MovingFittedMesh" << std::endl;
+        } else if (terrain_type == TerrainType::EB) {
+            amrex::Print() << "Terrain Type: EB" << std::endl;
+        } else if (terrain_type == TerrainType::ImmersedForcing) {
+            amrex::Print() << "Terrain Type: ImmersedForcing" << std::endl;
         } else {
-            amrex::Print() << "    None" << std::endl;
+            amrex::Print() << "Terrain Type: None" << std::endl;
         }
 
-        amrex::Print() << "   Mesh Type: " << std::endl;
         if (mesh_type == MeshType::ConstantDz) {
-            amrex::Print() << "    ConstantDz" << std::endl;
+            amrex::Print() << "   Mesh Type: ConstantDz" << std::endl;
         } else if (mesh_type == MeshType::StretchedDz) {
-            amrex::Print() << "    StretchedDz" << std::endl;
+            amrex::Print() << "   Mesh Type: StretchedDz" << std::endl;
         } else if (mesh_type == MeshType::VariableDz) {
-            amrex::Print() << "    VariableDz" << std::endl;
+            amrex::Print() << "   Mesh Type: VariableDz" << std::endl;
         } else {
             amrex::Abort("No mesh_type set!");
         }
@@ -514,7 +529,6 @@ struct SolverChoice {
         pp.query("rotational_time_period", rot_time_period);
 
         coriolis_factor = 2.0 * 2.0 * PI / rot_time_period;
-        amrex::Print() << "Coriolis factor = " << coriolis_factor << std::endl;
 
         amrex::Real latitude = 90.0;
         pp.query("latitude", latitude);
@@ -661,8 +675,8 @@ struct SolverChoice {
     PerturbationType pert_type;
 
     // Numerical diffusion
-    bool use_NumDiff{false};
-    amrex::Real NumDiffCoeff{0.};
+    bool use_num_diff{false};
+    amrex::Real num_diff_coeff{0.};
 
     // Monotonic advection limiter
     bool use_mono_adv{false};
@@ -702,8 +716,5 @@ struct SolverChoice {
 
     // Use forest canopy model?
     bool do_forest_drag {false};
-
-    // Use immersed forcing representation of terrain?
-    bool do_terrain_drag {false};
 };
 #endif
