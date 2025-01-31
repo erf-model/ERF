@@ -224,6 +224,10 @@ void SuperDropletPC::massFlux ( MultiFab&  a_mf,  /*!< Mass flux multifab */
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto par_mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
                     auto par_velocity = ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i];
+                    if (a_dim == 2) {
+                        auto term_vel = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
+                        par_velocity -= term_vel;
+                    }
                     return num_par * par_mass * par_velocity * inv_cell_volume;
                 });
         });
@@ -265,6 +269,10 @@ void SuperDropletPC::massFluxCondensate ( MultiFab&  a_mf,  /*!< Condensate Mass
                         solute_mass += (ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::ncomps+ai][i]);
                     }
                     auto par_velocity = ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i];
+                    if (a_dim == 2) {
+                        auto term_vel = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
+                        par_velocity -= term_vel;
+                    }
                     ParticleReal condensate_mass = std::max(0.0, par_mass-solute_mass);
                     return num_par * condensate_mass * par_velocity * inv_cell_volume;
                 });
@@ -340,6 +348,10 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab&  a_mf,  /*!< Aerosol mass densi
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto aero_mass = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::ncomps+a_idx][i];
                     auto par_velocity = ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i];
+                    if (a_dim == 2) {
+                        auto term_vel = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
+                        par_velocity -= term_vel;
+                    }
                     return num_par*aero_mass*par_velocity*inv_cell_volume;
                 });
         });
