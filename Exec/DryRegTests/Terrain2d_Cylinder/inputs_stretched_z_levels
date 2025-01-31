@@ -9,7 +9,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     =  0   0.  0. 
 geometry.prob_hi     =  30.0   1. 10.0
 
-amr.n_cell           = 512  4 64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+amr.n_cell           = 512  4 64
 
 geometry.is_periodic = 0 1 0
 
@@ -86,11 +86,10 @@ erf.terrain_z_levels = 0 0.0236057 0.0486738 0.0752909 0.103548 0.133541 0.16537
 #erf.all_use_WENO = true
 #erf.spatial_order_WENO = 5
 
-# Diffusion coefficient from Straka, K = 75 m^2/s
-erf.molec_diff_type = "ConstantAlpha"
-erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 0.01 # [kg/(m-s)] ==> nu = 75.0 m^2/s
-erf.alpha_T = 0.0 # [m^2/s]
+# Constant diffusion coefficient
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 0.01 # [kg/(m-s)]
+erf.alpha_T           = 0.0 # [m^2/s]
 
 #erf.abl_driver_type = "PressureGradient"
 #erf.abl_pressure_grad = -0.2 0. 0.

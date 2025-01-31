@@ -7,6 +7,7 @@
 #ifdef ERF_USE_PARTICLES
 
 #include <AMReX_AmrParGDB.H>
+#include "ERF_IndexDefines.H"
 #include "ERF_NullMoist.H"
 
 /* forward declaration */
@@ -53,7 +54,8 @@ public:
              const int&, /* iter */
              const amrex::Real&, /* time */
              amrex::Vector<amrex::Vector<amrex::MultiFab>>&, /* state variables */
-             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /* terrain */) { }
+             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&, /* terrain */
+             const amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& ) { }
 
 protected:
 

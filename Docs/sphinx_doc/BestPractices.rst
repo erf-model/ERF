@@ -45,41 +45,61 @@ Large-Eddy Simulations
 * Time Integration
 
   - Split timestepping offers some computational cost savings but still does
-    not allow you to run with an incompressible/anelastic time-step size.
-  - The acoustic CFL should be less than 0.5, with 4--6 fast timesteps
-    (substeps) according to WRF best practices.
+    not allow you to run with an incompressible/anelastic time-step size in
+    general.
+  - The acoustic CFL should conservatively be less than or equal to 0.5, with
+    4--6 fast timesteps (substeps) according to WRF best practices. If not
+    explicitly specified (through ``erf.fixed_mri_dt_ratio`` or
+    ``erf.fixed_fast_dt``, the number of substeps in ERF is chosen based on the
+    same algorithm as WRF. If the user follows the recommendation that
+    dt [s] ~ 6 dx [km],
+    then 4 substeps will be used, giving an effective CFL of approximately 0.5.
+    This meets the stability criteria from Wicker & Skamarock 2002 that, for a
+    5th-order scheme, the CFL be less than 1.42/sqrt(3) = 0.820.
 
     .. code-block:: python
 
        erf.fixed_dt           = 0.06  # slow timestep
 
        # These are equivalent and result in a fixed fast timestep size
-       #   if dx=10, speed of sound ~ 350 m/s
-       erf.fixed_fast_dt      = 0.01  # ==> CFL~0.35
-       #erf.fixed_mri_dt_ratio = 6
+       #   if dx=10, speed of sound ~ 300 m/s
+       erf.fixed_mri_dt_ratio = 4
+       #   or
+       #erf.fixed_fast_dt      = 0.015  # ==> CFL~0.45
+       #   or, let ERF chose the fast timestep
+       #erf.substepping_cfl    = 0.5
 
-       # Alternatively, let ERF chose the fast timestep
-       #erf.cfl                = 0.5
-
-  - We note that ERF LESs with up to 10 fast timesteps have successfully been
+  - Following the WRF guidelines for dt is conservative. More aggressive time
+    integration--i.e., larger time steps with more substeps--is possible. We
+    note that ERF LESs with 10 or more fast timesteps have successfully been
     run but your mileage may vary.
 
 
 Single-Column Model
 -------------------
 
-* Currently, ERF does not have the ability to run a true single-column model
-  (SCM). The grid size in the lateral directions must have a minimum number of
-  cells. This will give comparable results, e.g.:
+* An SCM is set up with a single cell in the lateral directions:
 
   .. code-block:: python
 
      geometry.prob_extent = 400  400  400
-     amr.n_cell           =   2    2   64
+     amr.n_cell           =   1    1   64
      geometry.is_periodic =   1    1    0
-
-  When set up this way, the solution is not sensitive to horizontal problem
-  extent.
 
 * An SCM was successfully run with third-order advection in the horizontal and
   vertical.
+
+
+2-D Cases
+---------
+
+* A 2-D planar domain can be configured as follows:
+
+  .. code-block:: python
+
+     geometry.prob_extent = 10000  100  1000
+     amr.n_cell           =   100    1    20
+     geometry.is_periodic =     0    0     0
+
+     ylo.type = "SlipWall"
+     yhi.type = "SlipWall"

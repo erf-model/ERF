@@ -1,0 +1,196 @@
+#ifndef ERF_EB_POLYGON_H_
+#define ERF_EB_POLYGON_H_
+
+#include <AMReX_REAL.H>
+#include <AMReX_RealVect.H>
+
+#include "ERF_Constants.H"
+
+class polygon_ {
+
+  public:
+
+    AMREX_GPU_HOST_DEVICE
+    polygon_ ( amrex::RealVect a_point,
+               amrex::RealVect a_normal )
+      : m_cell_face(1)
+      , m_eb_point(a_point)
+      , m_eb_normal(a_normal)
+      , m_defined(0)
+      , m_vertices(0)
+      , m_area(0.)
+      , m_sorted(0)
+      , m_vertex({amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.),
+                  amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.)})
+      , m_zdir(0.)
+    {}
+
+    AMREX_GPU_HOST_DEVICE
+    polygon_ ( )
+      : m_cell_face(0)
+      , m_eb_point(0.)
+      , m_eb_normal(0.)
+      , m_defined(0)
+      , m_vertices(0)
+      , m_area(0.)
+      , m_sorted(0)
+      , m_vertex({amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.),
+                  amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.)})
+      , m_zdir(0.)
+    {}
+
+    AMREX_GPU_HOST_DEVICE
+    void add_vertex ( amrex::RealVect const& a_v ) {
+      AMREX_ASSERT( m_vertices < m_max_vertices );
+      m_vertex[m_vertices] = a_v;
+      m_vertices++;
+    }
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    void set_area ( amrex::Real const& a_area ) { m_area = a_area; }
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    void define () {
+
+      AMREX_ALWAYS_ASSERT( m_defined == 0 );  // TODO ---------------------------- remove ALWAYS
+
+      m_defined = 1;
+
+      // We need at least 3 faces.
+      if (m_vertices < 3) { return; }
+
+      // Check to see if the vertices of the face are inside or outside of the plane.
+      // If they are outside, this face doesn't belong to the volume.
+      if ( m_cell_face ) {
+        for ( int i(0); i<m_vertices; ++i) {
+          if ((m_eb_normal.dotProduct(m_vertex[i] - m_eb_point)) >= 0.) {
+          } else {
+          }
+        }
+      }
+
+      // Calculate the centroid of the polygon.
+      amrex::RealVect centroid = get_centroid();
+
+      // Shift the vertices relative to the centroid
+      amrex::Array<amrex::RealVect,m_max_vertices> vertex_cent;
+      for ( int i(0); i<m_vertices; ++i) { vertex_cent[i] = m_vertex[i] - centroid; }
+
+      // Find a vertex that isn't inline with v[0] and the centroid so we can
+      // compute a vector normal to the face.
+      for ( int i(1); i<m_vertices; ++i ) {
+        m_zdir = vertex_cent[0].crossProduct(vertex_cent[i]);
+        if ( !amrex::almostEqual(m_zdir.vectorLength(),0.) ) { break; }
+      }
+      AMREX_ALWAYS_ASSERT(!amrex::almostEqual(m_zdir.vectorLength(), 0.));
+      m_zdir /= m_zdir.vectorLength();
+
+      m_theta[0] = 0.0;
+      for ( int i(1); i<m_vertices; ++i) {
+
+        m_theta[i] = std::atan2(m_zdir.dotProduct( vertex_cent[0].crossProduct(vertex_cent[i]) ),
+                              vertex_cent[0].dotProduct(vertex_cent[i]));
+
+        m_theta[i] += ((m_theta[i] >= 0.) ? 0.0 : 2.0*PI);
+      }
+
+      // Sort counter clockwise based on theta.
+      for (int i(0); i<m_vertices; ++i) {
+        for (int j(0); j < m_vertices-i-1; ++j) {
+          if ( m_theta[j] > m_theta[j+1] ) {
+            amrex::Swap(m_theta[j], m_theta[j+1]);
+            amrex::Swap(m_vertex[j], m_vertex[j+1]);
+            amrex::Swap(vertex_cent[j], vertex_cent[j+1]);
+          }
+        } // j-loop
+      } // i-loop
+      m_sorted = 1;
+
+      // Compute areas of triangles
+      for (int i(0); i<m_vertices; ++i) {
+        int const j( (i+1 == m_vertices) ? 0 : i+1 );
+        amrex::RealVect vi_cross_vj = vertex_cent[i].crossProduct(vertex_cent[j]);
+        m_area += 0.5*vi_cross_vj.vectorLength();
+      }
+      AMREX_ALWAYS_ASSERT( m_area > 0. ); // <------------------------------- TODO remove ALWAYS
+    }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int ok ( ) const noexcept
+    { return ((m_area > 0. || (m_area == 0. && m_defined == 1)) ? 1 : 0); }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real area ( ) const noexcept {
+      AMREX_ALWAYS_ASSERT( ok() ); // <-------------------------------------- TODO remove ALWAYS
+      return m_area;
+    }
+
+    // Distance from polygon to a_point
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real distance ( amrex::RealVect const& a_point ) const noexcept {
+      AMREX_ALWAYS_ASSERT( m_defined == 1 );  // <--------------------------- TODO remove ALWAYS
+      amrex::RealVect x0 = a_point - m_vertex[0];
+      return amrex::Math::abs(x0.dotProduct(m_zdir));
+    }
+
+    // Calculate the centroid of the polygon.
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::RealVect get_centroid ( ) const noexcept {
+      amrex::RealVect cent(0.);
+      for ( int i(0); i<m_vertices; ++i) { cent += m_vertex[i]; }
+      return cent / static_cast<amrex::Real>(m_vertices);
+    }
+
+#ifndef AMREX_USE_GPU
+    void report ( int const a_id, amrex::RealVect a_v0 )
+#else
+    void report ( int const /*a_id*/, amrex::RealVect /*a_v0*/ )
+#endif
+    {
+
+#ifndef AMREX_USE_GPU
+      amrex::RealVect centroid = get_centroid();
+      amrex::Print() << "Face " << a_id
+        << " -------------------------------------------\n"
+        << "\nok? " << (ok() ? "yes" : "no") << "\n\n";
+      for (int i(0); i<m_vertices; ++i) {
+        amrex::Print() << "v" << i << ":  " << m_vertex[i] << '\n';
+      }
+      amrex::Print() << "\nvc: " << "  " << centroid << "\n";
+
+      amrex::Real const dist = distance( a_v0 );
+      // amrex::Real const vol  = ok() ? m_area * dist : 0.;
+
+      amrex::Print() << "\narea:     " << m_area
+                     << "\ndistance: " << dist
+                     << "\nvolume:   " << dist*m_area
+      << "\n==================================================\n\n";
+#endif
+    }
+
+  private:
+
+    static int constexpr m_max_vertices = 6;
+
+    int const m_cell_face;
+
+    amrex::RealVect const m_eb_point;
+    amrex::RealVect const m_eb_normal;
+
+    int m_defined;
+
+    int m_vertices;
+
+    amrex::Real m_area;
+
+    int m_sorted;
+
+    amrex::Array<amrex::RealVect,m_max_vertices> m_vertex;
+
+    amrex::GpuArray<amrex::Real,m_max_vertices> m_theta;
+
+    amrex::RealVect m_zdir;
+};
+
+
+#endif

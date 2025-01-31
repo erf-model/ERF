@@ -345,9 +345,9 @@ ERF::FillIntermediatePatch (int lev, Real time,
     // how velocity from fine-fine copies (as well as physical and interpolated bcs) will be filled
     if (!cons_only)
     {
-        IntVect ngu = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : mfs_vel[Vars::xvel]->nGrowVect();
-        IntVect ngv = (!solverChoice.use_NumDiff) ? IntVect(1,1,1) : mfs_vel[Vars::yvel]->nGrowVect();
-        IntVect ngw = (!solverChoice.use_NumDiff) ? IntVect(1,1,0) : mfs_vel[Vars::zvel]->nGrowVect();
+        IntVect ngu = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : mfs_vel[Vars::xvel]->nGrowVect();
+        IntVect ngv = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : mfs_vel[Vars::yvel]->nGrowVect();
+        IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : mfs_vel[Vars::zvel]->nGrowVect();
 
         VelocityToMomentum(*mfs_vel[Vars::xvel], ngu,
                            *mfs_vel[Vars::yvel], ngv,

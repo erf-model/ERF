@@ -78,7 +78,7 @@ Problem::init_custom_pert (
                                           + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
             : prob_lo[2] + (k + 0.5) * dx[2];
 
-        x_vel(i, j, k) = 10.0;
+        x_vel_pert(i, j, k) = 10.0;
         if ((z <= parms_d.pert_ref_height) && (parms_d.U_0_Pert_Mag != 0.0))
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
@@ -145,66 +145,52 @@ Problem::init_custom_pert (
 void
 Problem::init_custom_terrain (
     const Geometry& geom,
-    MultiFab& z_phys_nd,
+    FArrayBox& terrain_fab,
     const Real& time)
 {
-    // Check if a valid text file exists for the terrain
-    std::string fname;
-    ParmParse pp("erf");
-    auto valid_fname = pp.query("terrain_file_name",fname);
-    if (valid_fname) {
-        this->read_custom_terrain(fname,geom,z_phys_nd,time);
-    } else {
+    // Domain cell size and real bounds
+    auto dx = geom.CellSizeArray();
+    auto ProbLoArr = geom.ProbLoArray();
+    auto ProbHiArr = geom.ProbHiArray();
 
-        // Domain cell size and real bounds
-        auto dx = geom.CellSizeArray();
-        auto ProbLoArr = geom.ProbLoArray();
-        auto ProbHiArr = geom.ProbHiArray();
+    // Domain valid box (z_nd is nodal)
+    const amrex::Box& domain = geom.Domain();
+    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+    int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
+    int domlo_z = domain.smallEnd(2);
 
-        // Domain valid box (z_nd is nodal)
-        const amrex::Box& domain = geom.Domain();
-        int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-        int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
-        int domlo_z = domain.smallEnd(2);
+    // User function parameters
+    Real a    = 0.5;
+    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
+    Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
 
-        // User function parameters
-        Real a    = 0.5;
-        Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-        Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
+    // Populate bottom plane
+    int k0 = domlo_z;
 
-        // Number of ghost cells
-        int ngrow = z_phys_nd.nGrow();
+    Box zbx = terrain_fab.box();
 
-        // Populate bottom plane
-        int k0 = domlo_z;
+    if (zbx.smallEnd(2) <= k0)
+    {
+        amrex::Array4<Real> const& z_arr = terrain_fab.array();
 
-        for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            // Grown box with no z range
-            amrex::Box xybx = mfi.growntilebox(ngrow);
-            xybx.setRange(2,0);
 
-            amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+            // Clip indices for ghost-cells
+            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+            int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int)
-            {
+            // Location of nodes
+            Real x = (ii  * dx[0] - xcen);
+            Real y = (jj  * dx[1] - ycen);
 
-                // Clip indices for ghost-cells
-                int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-                int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
+            if(std::pow(x*x + y*y, 0.5) < a){
+                z_arr(i,j,k0) = std::pow(a*a - x*x - y*y , 0.5);
+            }
+            else{
+                z_arr(i,j,k0) = 0.0;
+            }
 
-                // Location of nodes
-                Real x = (ii  * dx[0] - xcen);
-                Real y = (jj  * dx[1] - ycen);
-
-                if(std::pow(x*x + y*y, 0.5) < a){
-                    z_arr(i,j,k0) = std::pow(a*a - x*x - y*y , 0.5);
-                }
-                else{
-                    z_arr(i,j,k0) = 0.0;
-                }
-
-            });
-        }
+        });
     }
 }

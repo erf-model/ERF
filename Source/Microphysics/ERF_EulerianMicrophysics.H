@@ -71,7 +71,8 @@ public:
                   const amrex::Real&, /*!< current time */
                   const SolverChoice &solverChoice, /*!< Solver choice object */
                   amrex::Vector<amrex::Vector<amrex::MultiFab>>&, /*!< Dycore state variables */
-                  const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*!< terrain */) override
+                  const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&, /*!< terrain */
+                  const amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& ) override
     {
         m_moist_model[lev]->Advance(dt_advance, solverChoice);
     }

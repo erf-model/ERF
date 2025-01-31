@@ -2,13 +2,11 @@
 #define ERF_INTEGRATION_H_
 
 #include <AMReX_MultiFab.H>
+#include <AMReX_EBMultiFabUtil.H>
+
 #include "ERF_DataStruct.H"
 #include "ERF_InputSoundingData.H"
 #include "ERF_TurbPertStruct.H"
-
-#ifdef ERF_USE_EB
-#include <AMReX_EBMultiFabUtil.H>
-#endif
 
 /**
  * Function for computing the buoyancy term to be used in the evolution
@@ -33,6 +31,7 @@ void make_sources (int level, int nrk,
 #if defined(ERF_USE_RRTMGP)
                    const amrex::MultiFab* qheating_rates,
 #endif
+                   amrex::MultiFab* terrain_blank,
                    const amrex::Geometry geom,
                    const SolverChoice& solverChoice,
                    std::unique_ptr<amrex::MultiFab>& mapfac_u,

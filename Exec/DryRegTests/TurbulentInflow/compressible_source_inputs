@@ -35,7 +35,7 @@ xlo.dirichlet_file = "input_ReTau395Ana_inflow.txt"
 # TIME STEP CONTROL
 erf.fixed_dt = 0.0002
 erf.fixed_mri_dt_ratio = 4
-erf.dynamicViscosity = 0.001
+
 erf.fix_random_seed  = 1
 
 # DIAGNOSTICS & VERBOSITY
@@ -57,8 +57,6 @@ erf.check_file      = chk    # root name of checkpoint file
 erf.check_per       = 1.0
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1

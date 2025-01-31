@@ -49,7 +49,7 @@ void ERF::solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& 
     // Multigrid solve
     // ****************************************************************************
 
-    MLEBABecLap mleb (geom_tmp, ba_tmp, dm_tmp, info, {m_factory[lev].get()});
+    MLEBABecLap mleb (geom_tmp, ba_tmp, dm_tmp, info, {&EBFactory(lev)});
 
     mleb.setMaxOrder(2);
     mleb.setDomainBC(bclo, bchi);

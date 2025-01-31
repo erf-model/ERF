@@ -41,10 +41,9 @@ erf2.use_coriolis         = false
 erf2.les_type             = "None"
 
 # DIFFUSION COEFF
-erf2.molec_diff_type  = "ConstantAlpha"
-erf2.rho0_trans       = 1.0 
-erf2.dynamicViscosity = 75.0 
-erf2.alpha_T          = 75.0
+erf2.molec_diff_type   = "ConstantAlpha"
+erf2.dynamic_viscosity = 75.0
+erf2.alpha_T           = 75.0
 
 # PROBLEM PARAMETERS (optional)
 prob.T_0 = 300.0

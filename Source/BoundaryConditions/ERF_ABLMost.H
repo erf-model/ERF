@@ -87,7 +87,7 @@ public:
         pp.query("most.pblh_calc", pblh_string);
         if (pblh_string == "none") {
             pblh_type = PBLHeightCalcType::None;
-        } else if (pblh_string == "MYNN2.5") {
+        } else if (pblh_string == "MYNN25") {
             pblh_type = PBLHeightCalcType::MYNN25;
         } else if (pblh_string == "YSU") {
             pblh_type = PBLHeightCalcType::YSU;
@@ -151,16 +151,22 @@ public:
             pp.query("most.charnock_constant",cnk_a);
             pp.query("most.charnock_viscosity",cnk_visc);
             if (cnk_a > 0) {
-                amrex::Print() << "Using Charnock relation with C_a=" << cnk_a
+                amrex::Print() << "If there is water, Charnock relation with C_a=" << cnk_a
                     << (cnk_visc? " and viscosity" : "")
+                    << " will be used"
                     << std::endl;
             } else {
-                amrex::Print() << "Using Charnock relation with variable Charnock parameter (COARE3.0)"
+                amrex::Print() << "If there is water, Charnock relation with variable Charnock parameter (COARE3.0)"
                     << (cnk_visc? " and viscosity" : "")
+                    << " will be used"
                     << std::endl;
             }
         } else if (rough_sea_string == "coare3.0") {
             rough_type_sea = RoughCalcType::CHARNOCK;
+            amrex::Print() << "If there is water, Charnock relation with variable Charnock parameter (COARE3.0)"
+                << (cnk_visc? " and viscosity" : "")
+                << " will be used"
+                << std::endl;
             cnk_a = -1;
         } else if (rough_sea_string == "donelan") {
             rough_type_sea = RoughCalcType::DONELAN;

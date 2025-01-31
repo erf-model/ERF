@@ -293,7 +293,7 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
         reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
-    // Only apply temperature source below nominal inversion height
+    // Only apply moisture source below nominal inversion height
     for (int k = 0; k <= khi; k++) {
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
         if (z_cc < parms.moisture_cutoff) {
@@ -386,7 +386,7 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
 
     // const Real coriolis = 2.0 * 2.0 * PI / 86400.0; // 0.376E-4;
 
-    // Only apply temperature source below nominal inversion height
+    // Only apply momentum source below nominal inversion height
     for (int k = 0; k <= khi; k++) {
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
         const Real u_geo_wind = -10.0 + z_cc * 0.0018;

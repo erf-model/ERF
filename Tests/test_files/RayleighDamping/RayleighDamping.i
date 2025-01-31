@@ -37,9 +37,6 @@ erf.plot_int_1      = 100     # number of timesteps between plotfiles
 erf.plot_vars_1     = x_velocity y_velocity z_velocity theta
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
-
 erf.use_gravity = false
 erf.use_coriolis = false
 
@@ -52,7 +49,6 @@ erf.rayleigh_dampcoef = 1.0  # tau==1
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
-erf.dynamicViscosity = 0.0
 
 erf.init_type = "uniform"
 

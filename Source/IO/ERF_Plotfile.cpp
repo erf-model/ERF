@@ -501,68 +501,32 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
         if (containerHasElement(plot_var_names, "terrain_IB_mask"))
         {
-            MultiFab* terrain_blank = m_terrain_drag[lev]->get_terrain_blank_field();
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat  = mf[lev].array(mfi);
-                const Array4<Real const>& src = terrain_blank->const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = src(i,j,k);
-                });
-            }
+            MultiFab* terrain_blank = terrain_blanking[lev].get();
+            MultiFab::Copy(mf[lev],*terrain_blank,0,mf_comp,1,0);
             mf_comp ++;
         }
 
 #ifdef ERF_USE_WINDFARM
-        if (containerHasElement(plot_var_names, "num_turb") and
-            (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
-            solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD))
+        if ( containerHasElement(plot_var_names, "num_turb") and
+             (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
+              solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) )
         {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat  = mf[lev].array(mfi);
-                const Array4<Real const>& Nturb_array = Nturb[lev].const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = Nturb_array(i,j,k,0);
-                });
-            }
+            MultiFab::Copy(mf[lev],Nturb[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
 
-        if( containerHasElement(plot_var_names, "SMark0") and
-           (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
-            solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) ) {
-             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat  = mf[lev].array(mfi);
-                const Array4<Real const>& SMark_array = SMark[lev].const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = SMark_array(i,j,k,0);
-                });
-            }
+        if ( containerHasElement(plot_var_names, "SMark0") and
+             (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
+              solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD) )
+        {
+            MultiFab::Copy(mf[lev],SMark[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
 
-         if(containerHasElement(plot_var_names, "SMark1") and
-           (solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD)) {
-             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat  = mf[lev].array(mfi);
-                const Array4<Real const>& SMark_array = SMark[lev].const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = SMark_array(i,j,k,1);
-                });
-            }
+        if (containerHasElement(plot_var_names, "SMark1") and
+           (solverChoice.windfarm_type == WindFarmType::SimpleAD or solverChoice.windfarm_type == WindFarmType::GeneralAD))
+        {
+            MultiFab::Copy(mf[lev],SMark[lev],1,mf_comp,1,0);
             mf_comp ++;
         }
 
@@ -1012,6 +976,29 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             }
         }
 
+        if (containerHasElement(plot_var_names, "nut")) {
+            MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
+            MultiFab cmf(vars_new[lev][Vars::cons], make_alias, 0, 1); // to provide rho only
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                auto       prim = dmf[mfi].array();
+                auto const cons = cmf[mfi].const_array();
+                auto const diff = (*eddyDiffs_lev[lev])[mfi].const_array();
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    const Real rho = cons(i, j, k, Rho_comp);
+                    const Real Kmv = diff(i, j, k, EddyDiff::Mom_v);
+                    prim(i,j,k) = Kmv / rho;
+                });
+            }
+
+            mf_comp++;
+        }
+
         if (containerHasElement(plot_var_names, "Kmv")) {
             MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Mom_v,mf_comp,1,0);
             mf_comp ++;
@@ -1030,6 +1017,14 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
         if (containerHasElement(plot_var_names, "Lturb")) {
             MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Turb_lengthscale,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "walldist")) {
+            MultiFab::Copy(mf[lev],*walldist[lev],0,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "diss")) {
+            MultiFab::Copy(mf[lev],*SFS_diss_lev[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
 
@@ -1190,12 +1185,16 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
 #endif
 
-#ifdef ERF_USE_EB
         if (containerHasElement(plot_var_names, "volfrac")) {
-            MultiFab::Copy(mf[lev], EBFactory(lev).getVolFrac(), 0, mf_comp, 1, 0);
+            if ( solverChoice.terrain_type == TerrainType::EB ||
+                 solverChoice.terrain_type == TerrainType::ImmersedForcing)
+            {
+                MultiFab::Copy(mf[lev], EBFactory(lev).getVolFrac(), 0, mf_comp, 1, 0);
+            } else {
+                mf[lev].setVal(1.0, mf_comp, 1, 0);
+            }
             mf_comp += 1;
         }
-#endif
 
 #ifdef ERF_COMPUTE_ERROR
         // Next, check for error in velocities and if desired, output them -- note we output none or all, not just some
@@ -1372,11 +1371,12 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 #endif
     }
 
-#ifdef ERF_USE_EB
-    for (int lev = 0; lev <= finest_level; ++lev) {
-        EB_set_covered(mf[lev], 0.0);
+    if (solverChoice.terrain_type == TerrainType::EB)
+    {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            EB_set_covered(mf[lev], 0.0);
+        }
     }
-#endif
 
     // Fill terrain distortion MF
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
@@ -1385,7 +1385,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             Real dz = Geom()[lev].CellSizeArray()[2];
             for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
-                Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
+                Array4<Real> mf_arr = mf_nd[lev].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     mf_arr(i,j,k,2) -= k * dz;
                 });
@@ -1415,11 +1415,13 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     }
 
 #ifdef ERF_USE_RRTMGP
+    /*
     // write additional RRTMGP data
     // TODO: currently single level only
     if (which==1 && plot_rad) {
-        rad.writePlotfile(plot_file_1, t_new[0], istep[0]);
+        rad[0]->writePlotfile(plot_file_1, t_new[0], istep[0]);
     }
+    */
 #endif
 
     // Single level
@@ -1522,14 +1524,24 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     g2[lev].define(d2,&(Geom()[lev].ProbDomain()),0,periodicity.data());
                 }
 
-                // Do piecewise interpolation of mf into mf2
+                //
+                // We need to make a temporary that is the size of ncomp_mf
+                // in order to not get an out of bounds error
+                // even though the values will not be used
+                //
+                Vector<BCRec> temp_domain_bcs_type;
+                temp_domain_bcs_type.resize(ncomp_mf);
+
+                //
+                // Do piecewise constant interpolation of mf into mf2
+                //
                 for (int lev = 1; lev <= finest_level; ++lev) {
                     Interpolater* mapper_c = &pc_interp;
                     InterpFromCoarseLevel(mf2[lev], t_new[lev], mf[lev],
                                           0, 0, ncomp_mf,
                                           geom[lev], g2[lev],
                                           null_bc_for_fill, 0, null_bc_for_fill, 0,
-                                          r2[lev-1], mapper_c, domain_bcs_type, 0);
+                                          r2[lev-1], mapper_c, temp_domain_bcs_type, 0);
                 }
 
                 // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile

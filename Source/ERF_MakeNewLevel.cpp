@@ -53,15 +53,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     if (lev == 0) init_bcs();
 
-#ifdef ERF_USE_EB
-    m_factory[lev] = makeEBFabFactory(geom[lev], grids[lev], dmap[lev],
-                                      {nghost_eb_basic(),
-                                       nghost_eb_volume(),
-                                       nghost_eb_full()},
-                                       EBSupport::full);
-#else
-    m_factory[lev] = std::make_unique<FArrayBoxFactory>();
-#endif
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+    {
+        m_factory[lev] = makeEBFabFactory(geom[lev], grids[lev], dmap[lev],
+                                          {nghost_eb_basic(),
+                                           nghost_eb_volume(),
+                                           nghost_eb_full()},
+                                           EBSupport::full);
+    } else {
+        // m_factory[lev] = std::make_unique<FabFactory<FArrayBox>>();
+    }
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
@@ -101,7 +103,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // ********************************************************************************************
     // Thin immersed body
     // *******************************************************************************************
-    init_immersed_body(lev, ba, dm);
+    init_thin_body(lev, ba, dm);
 
     // ********************************************************************************************
     // Initialize the integrator class
@@ -138,12 +140,32 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     #ifdef ERF_USE_WINDFARM
         init_windfarm(lev);
     #endif
+
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
-    if (solverChoice.do_forest_drag) { m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_forest_drag) {
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+    }
 
-    if (solverChoice.do_terrain_drag) { m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    //********************************************************************************************
+    // Create wall distance field for RANS model (depends upon z_phys)
+    // *******************************************************************************************
+    if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
+        // Handle bottom boundary
+        poisson_wall_dist(lev);
+
+        // Correct the wall distance for immersed bodies
+        if (solverChoice.advChoice.have_zero_flux_faces) {
+            thinbody_wall_dist(walldist[lev],
+                               solverChoice.advChoice.zero_xflux,
+                               solverChoice.advChoice.zero_yflux,
+                               solverChoice.advChoice.zero_zflux,
+                               geom[lev],
+                               z_phys_cc[lev]);
+        }
+    }
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -203,7 +225,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     t_old[lev] = time - 1.e200;
 
     // ********************************************************************************************
-    // Build the data structures for terrain-related quantities
+    // Build the data structures for metric quantities used with terrain-fitted coordinates
     // ********************************************************************************************
     init_zphys(lev, time);
     update_terrain_arrays(lev);
@@ -221,9 +243,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
-    if (solverChoice.do_forest_drag) { m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_forest_drag) {
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+    }
 
-    if (solverChoice.do_terrain_drag) { m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -240,32 +263,21 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
-    // ********************************************************************************************
-    // Update the base state at this level by interpolation from coarser level
-    // ********************************************************************************************
-    //
-    // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-    //       have been pre-filled - this includes ghost cells both inside and outside
-    //       the domain
-    //
-    InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
-                          IntVect(0,0,0), // do not fill ghost cells outside the domain
-                          base_state[lev-1], 0, 0, base_state[lev].nComp(),
-                          geom[lev-1], geom[lev],
-                          refRatio(lev-1), &cell_cons_interp,
-                          domain_bcs_type, BCVars::cons_bc);
+    // *****************************************************************************************************
+    // Initialize the boundary conditions (after initializing the terrain but before calling
+    //     initHSE or FillCoarsePatch)
+    // *****************************************************************************************************
+    make_physbcs(lev);
 
+    // ********************************************************************************************
+    // Update the base state at this level by interpolation from coarser level (inside initHSE)
+    // ********************************************************************************************
     initHSE(lev);
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
-
-    // *****************************************************************************************************
-    // Initialize the boundary conditions (after initializing the terrain but before calling FillCoarsePatch
-    // *****************************************************************************************************
-    make_physbcs(lev);
 
     // ********************************************************************************************
     // Fill data at the new level by interpolation from the coarser level
@@ -306,7 +318,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
 
     AMREX_ALWAYS_ASSERT(lev > 0);
-    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::Moving);
+    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::MovingFittedMesh);
 
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
     DistributionMapping dm_old(vars_new[lev][Vars::cons].DistributionMap());
@@ -318,7 +330,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
 
-    int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
+    int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff);
 
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
@@ -335,7 +347,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Build the data structures for terrain-related quantities
     // ********************************************************************************************
-    remake_zphys(lev, temp_zphys_nd);
+    remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
 
     //
@@ -351,9 +363,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
-    if (solverChoice.do_forest_drag) { m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
+    if (solverChoice.do_forest_drag) {
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+    }
 
-    if (solverChoice.do_terrain_drag) { m_terrain_drag[lev]->define_terrain_blank_field(ba, dm, geom[lev], z_phys_nd[lev].get()); }
     // *****************************************************************************************************
     // Create the physbcs objects (after initializing the terrain but before calling FillCoarsePatch
     // *****************************************************************************************************
@@ -496,7 +509,7 @@ ERF::ClearLevel (int lev)
 }
 
 void
-ERF::init_immersed_body (int lev, const BoxArray& ba, const DistributionMapping& dm)
+ERF::init_thin_body (int lev, const BoxArray& ba, const DistributionMapping& dm)
 {
     //********************************************************************************************
     // Thin immersed body
@@ -544,7 +557,7 @@ ERF::init_immersed_body (int lev, const BoxArray& ba, const DistributionMapping&
     }
 
     if (solverChoice.advChoice.zero_yflux.size() > 0) {
-        amrex::Print() << "Setting up thin interface boundary for "
+        amrex::Print() << "Setting up thin immersed body for "
             << solverChoice.advChoice.zero_yflux.size() << " yfaces" << std::endl;
         BoxArray ba_yf(ba);
         ba_yf.surroundingNodes(1);
@@ -576,7 +589,7 @@ ERF::init_immersed_body (int lev, const BoxArray& ba, const DistributionMapping&
     }
 
     if (solverChoice.advChoice.zero_zflux.size() > 0) {
-        amrex::Print() << "Setting up thin interface boundary for "
+        amrex::Print() << "Setting up thin immersed body for "
             << solverChoice.advChoice.zero_zflux.size() << " zfaces" << std::endl;
         BoxArray ba_zf(ba);
         ba_zf.surroundingNodes(2);

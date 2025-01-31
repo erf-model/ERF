@@ -192,7 +192,7 @@ Examples of Usage
 Grid Stretching
 ===============
 
-This automatically activates **erf.use_terrain**. By default, the
+This automatically activates **erf.terrain_type = StaticFittedMesh**. By default, the
 problem-specific terrain is initialized to be flat at an elevation of z=0.
 These inputs are used to automatically generate the staggered z levels used to
 calculate the grid metric transformation. Alternatively, arbitrary z levels may
@@ -432,10 +432,12 @@ List of Parameters
 | **erf.no_substepping**     | Should we turn off   | int (0 or 1)   | 0                 |
 |                            | substepping in time? |                |                   |
 +----------------------------+----------------------+----------------+-------------------+
-| **erf.cfl**                | CFL number for       | Real > 0 and   | 0.8               |
-|                            | hydro                | <= 1           |                   |
-|                            |                      |                |                   |
-|                            |                      |                |                   |
+| **erf.cfl**                | CFL number used to   | Real > 0 and   | 0.8               |
+|                            | compute level 0 dt   | <= 1           |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.substepping_cfl**    | CFL number used to   | Real > 0 and   | 1.0               |
+|                            | compute the number   | <= 1           |                   |
+|                            | of substeps          |                |                   |
 +----------------------------+----------------------+----------------+-------------------+
 | **erf.fixed_dt**           | set level 0 dt       | Real > 0       | unused if not     |
 |                            | as this value        |                | set               |
@@ -458,6 +460,14 @@ List of Parameters
 |                            | dt can grow          |                |                   |
 |                            | in subsequent        |                |                   |
 |                            | steps                |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.dt_max**             | maximum adaptive     | Real > 0       | 1e9               |
+|                            | timestep             |                |                   |
+|                            | allowed by time     |                |                   |
+|                            | stepping             |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.dt_max_initial**     | maximum initial      | Real > 0       | 1.0               |
+|                            | timestep             |                |                   |
 +----------------------------+----------------------+----------------+-------------------+
 
 Notes
@@ -502,7 +512,7 @@ Notes
      * | If neither **erf.fixed_mri_dt_ratio** nor **erf.fixed_fast_dt** is specified, then the fast timestep
          will be computed using the CFL condition for compressible flow, then adjusted (reduced if necessary)
          as above so that the ratio of slow timestep to fine timestep is an even integer.
-         If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
+         If **erf.substepping_cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
 .. _examples-of-usage-5:
 
@@ -904,11 +914,35 @@ List of Parameters
 |                                  | viscosity and      | "Constant", or      |              |
 |                                  | diffusivity?       | "ConstantAlpha"     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dynamicViscosity**         | Viscous coeff. if  | Real                | 0.0          |
+| **erf.dynamic_viscosity**        | Viscous coeff. if  | Real                | 0.0          |
 |                                  | DNS                |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.Cs**                       | Constant           | Real                | 0.0          |
 |                                  | Smagorinsky coeff. |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.Ck**                       | Constant           | Real                | 0.1          |
+|                                  | Deardorff k coeff. |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.Ce**                       | Constant           | Real                | 0.93         |
+|                                  | Deardorff epsilon  |                     |              |
+|                                  | coeff.             |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.Ce_wall**                  | Constant           | Real                | 0.0          |
+|                                  | Deardorff epsilon  |                     |              |
+|                                  | coeff. at the wall;|                     |              |
+|                                  | if > 0, then set   |                     |              |
+|                                  | Ce to this at k=0  |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.sigma_k**                  | Constant Deardorff | Real                | 0.5          |
+|                                  | coeff. in          |                     |              |
+|                                  | downgradient       |                     |              |
+|                                  | diffusion term     |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.theta_ref**                | Reference potential| Real                | 300.0        |
+|                                  | temperature used   |                     |              |
+|                                  | to characterize    |                     |              |
+|                                  | stable             |                     |              |
+|                                  | stratficiation     |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.Pr_t**                     | Turbulent Prandtl  | Real                | 1.0          |
 |                                  | Number             |                     |              |
@@ -916,13 +950,11 @@ List of Parameters
 | **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0          |
 |                                  | Number             |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_NumDiff**              | Use 6th order      | "true",             | "false"      |
-|                                  | numerical diffusion| "false"             |              |
-|                                  |                    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.NumDiffCoeff**             | Coefficient for    | Real                | 0.0          |
-|                                  | 6th order          | [0.0,  1.0]         |              |
-|                                  | numerical diffusion|                     |              |
+| **erf.num_diff_coeff**           | Coefficient for    | Real                | 0.0          |
+|                                  | 6th-order          | [0.0,  1.0]         |              |
+|                                  | numerical          |                     |              |
+|                                  | diffusion, set to 0|                     |              |
+|                                  | to disable         |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
@@ -962,7 +994,7 @@ List of Parameters
 | Parameter                               | Definition         | Acceptable          | Default     |
 |                                         |                    | Values              |             |
 +=========================================+====================+=====================+=============+
-| **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN2.5",  | "None"      |
+| **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN25",   | "None"      |
 |                                         | to be used         | "YSU"               |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_A1**                     | MYNN Constant A1   | Real                | 1.18        |
@@ -1087,11 +1119,35 @@ List of Parameters
 | **erf.coriolis_3d**                 | Include z component in | true / false      | true                |
 |                                     | the Coriolis forcing   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.use_rayleigh_damping**        | Include explicit       | true / false      | false               |
-|                                     | Rayleigh damping       |                   |                     |
+| **erf.rayleigh_damp_U**             | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping in    |                   |                     |
+|                                     | the x-momentum equation|                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.nudging_from_input_sounding** | Include explicit       | true / false      | false               |
-|                                     | Rayleigh damping       |                   |                     |
+| **erf.rayleigh_damp_V**             | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping in    |                   |                     |
+|                                     | the y-momentum equation|                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_damp_W**             | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping in    |                   |                     |
+|                                     | the z-momentum equation|                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_damp_T**             | Include explicit       | true / false      | false               |
+|                                     | Rayleigh damping in    |                   |                     |
+|                                     | the potential          |                   |                     |
+|                                     | temperature equation   |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_dampcoef**           | Rayleigh damping       | Real              | 0.2                 |
+|                                     | coefficient, an inverse|                   |                     |
+|                                     | timescale              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_zdamp**              | Rayleigh damping       | Real              | 500.0               |
+|                                     | layer depth            |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_from_input_sounding** | Add momentum source    | true / false      | false               |
+|                                     | terms to nudge the     |                   |                     |
+|                                     | solution towards the   |                   |                     |
+|                                     | initial sounding       |                   |                     |
+|                                     | profile                |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding_file |
 |                                     | input sounding file(s) |                   |                     |
@@ -1373,10 +1429,9 @@ Terrain
 =======
 
 ERF allows the use to specify whether terrain-fitted coordinates should be used by
-setting **erf.use_terrain** (default false).
-If terrain-fitted coordinates are chosen, they are defined to be static (default)
-or moving by setting **erf.terrain_type.**
-If using terrain, the user also has the option to specify one of three
+setting **erf.terrain_type = StaticFittedMesh** (static mesh) or
+**erf.terrain_type = MovingFittedMesh** (time-dependent mesh).
+If using terrain-fitted coordinates, the user also has the option to specify one of three
 methods for defining how the terrain-fitted coordinates given the topography:
 
 - Basic Terrain Following (BTF):
@@ -1386,10 +1441,18 @@ methods for defining how the terrain-fitted coordinates given the topography:
 - Sullivan Terrain Following (name TBD):
     The influence of the terrain decreases with the cube of height.
 
-A custom surface definition may be provided through the ``erf.terrain_file_name`` parameter.
-The specified input text file should have three space-delimited columns for x, y, and z coordinates,
-which will dictate the location of surface *nodes*. All surface nodes within the computational
-domain must be specified within the text file, but may be specified in any order.
+The user can also specify that terrain should be represented with an immersed forcing method, or
+with an embedded boundary / cut cell representation.
+
+.. note:: The embedded boundary / cut cell representation is a work in progress and not ready for use!
+
+The height at the surface nodes can be defined analytically or read from a text file
+specified by ``erf.terrain_file_name``.  The ordering of data in the file is first
+nx, ny (where nx is the number of values specified in the x-direction and
+ny is the number of values specified in the y-direction; note that these need not match
+the resolution of the problem).  Then nx x-values are read followed by ny y-values.   Finally,
+the z-coordinates are read in the order z(x1,y1), z(x1,y2), z(x1,y3), ... z(x2,y1), ... z(nx,ny).
+An example is given in Exec/ABL/erf_terrain_def.
 
 List of Parameters
 ------------------
@@ -1398,10 +1461,11 @@ List of Parameters
 | Parameter                   | Definition         | Acceptable         | Default    |
 |                             |                    | Values             |            |
 +=============================+====================+====================+============+
-| **erf.use_terrain**         | use terrain-fitted |  true / false      | false      |
-|                             | coordinates?       |                    |            |
-+-----------------------------+--------------------+--------------------+------------+
-| **erf.terrain_type**        | static or moving?  |  Static / Moving   | Static     |
+| **erf.terrain_type**        | Is there terrain   | None               | None       |
+|                             | and if so, how is  | StaticFittedMesh   |            |
+|                             | it represented?    | MovingFittedMesh   |            |
+|                             |                    | ImmersedForcing    |            |
+|                             |                    | EB                 |            |
 +-----------------------------+--------------------+--------------------+------------+
 | **erf.terrain_smoothing**   | specify terrain    | 0,                 | 0          |
 |                             | following          | 1,                 |            |
@@ -1417,7 +1481,7 @@ Examples of Usage
     BTF is used when generating the terrain following coordinate.
 
 -  **erf.terrain_smoothing**  = 1
-    STF is used when generating the terrain following coordinate. Additionally,
+    STF is used when generating the terrain-fitted coordinate. Additionally,
     ``erf.terrain_gamma_m`` (default=0.5) may be used to set the minimum
     allowable fractional grid spacing. From Klemp 2011, MWR: "Values of 0.5-0.6
     seem to work best in 2D applications, while values about half this
@@ -1450,6 +1514,60 @@ List of Parameters
 | **erf.do_precip**           | include precipitation    |  true / false      | true       |
 |                             | in treatment of moisture |                    |            |
 +-----------------------------+--------------------------+--------------------+------------+
+
+
+Radiation
+=========
+
+ERF allows for radiative heating computations with the RRTMGP library. Source code must be compiled with CMAKE and the following flags enabled: ``-DERF_ENABLE_RRTMGP:BOOL=ON``, ``-DERF_ENABLE_NETCDF:BOOL=ON``, and ``-DERF_ENABLE_HDF5:BOOL=ON``; see **ERF/Build/cmake_with_radiation.sh**.
+
+List of Parameters
+------------------
+
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| Parameter                      | Definition               | Acceptable         | Default                           |
+|                                |                          | Values             |                                   |
++================================+==========================+====================+===================================+
+| **erf.rad_freq_in_steps**      | Number of steps between  |  int               |    1                              |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.rad_write_fluxes**       | Flag to write fluxes     |  Bool              |    false                          |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.rad_cons_lat**           | Constant latitude        |  Real              |    39.8                           |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.rad_cons_lon**           | Constant longitude       |  Real              |    -98.5                          |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.nswbands**               | Number sw bands          |  int               |    14                             |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.nlwbands**               | Number lw bands          |  int               |    16                             |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.nswgpts**                | Number sw gauss pts      |  int               |    112                            |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.nlwgpts**                | Number lw gaiss pts      |  int               |    128                            |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.co2vmr**                 | CO2 volume mixing ratio  |  Real              | 388.717e-6                        |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.o3 vmr**                 | O3 volume mixing ratio   |  Real              |   1.887e-7                        |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.n2ovmr**                 | N2O volume mixing ratio  |  Real              | 323.141e-9                        |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.covmr**                  | CO volume mixing ratio   |  Real              |   1.000e-7                        |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.ch4vmr**                 | CH4 volume mixing ratio  |  Real              |   1.807e-6                        |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.o2vmr**                  | O2 volume mixing ratio   |  Real              |   0.209                           |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.n2vmr**                  | N2 volume mixing ratio   |  Real              |   0.791                           |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.rrtmgp_file_path**       | path to NC files         |  String            |   "./"                            |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.rrtmgp_coeffs_sw**       | path to NC files         |  String            | rrtmgp-data-sw-g224-2018-12-04.nc |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.rrtmgp_coeffs_lw**       | path to NC files         |  String            | rrtmgp-data-lw-g224-2018-12-04.nc |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.rrtmgp_cloud_optics_sw** | path to NC files         |  String            | rrtmgp-cloud-optics-coeffs-sw.nc  |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
+| **erf.rrtmgp_cloud_optics_lw** | path to NC files         |  String            | rrtmgp-cloud-optics-coeffs-lw.nc  |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
 
 Runtime Error Checking
 ======================

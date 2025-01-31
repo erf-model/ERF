@@ -11,10 +11,8 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 {
     BL_PROFILE("ERF::project_velocities()");
 
-#ifndef ERF_USE_EB
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
-#endif
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
@@ -26,13 +24,14 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     Vector<MultiFab> rhs;
     Vector<MultiFab> phi;
 
-#ifdef ERF_USE_EB
-    rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
-    phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1, MFInfo(), Factory(lev));
-#else
-    rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
-    phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
-#endif
+    if (solverChoice.terrain_type == TerrainType::EB)
+    {
+        rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
+        phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1, MFInfo(), Factory(lev));
+    } else {
+        rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
+        phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
+    }
 
     auto dxInv = geom[lev].InvCellSizeArray();
 
@@ -41,7 +40,6 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // Now convert the rho0w MultiFab to hold Omega rather than rhow
     // ****************************************************************************
     //
-#ifndef ERF_USE_EB
     if (solverChoice.mesh_type == MeshType::VariableDz)
     {
         for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -65,7 +63,6 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             });
         } // mfi
     }
-#endif
 
     // ****************************************************************************
     // Compute divergence which will form RHS
@@ -106,11 +103,11 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes;
     fluxes.resize(1);
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-#ifdef ERF_USE_EB
-        fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
-#else
-        fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
-#endif
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
+        } else {
+            fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
+        }
     }
 
     // ****************************************************************************
@@ -120,9 +117,9 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // ****************************************************************************
     // EB
     // ****************************************************************************
-#ifdef ERF_USE_EB
-    solve_with_EB_mlmg(lev, rhs, phi, fluxes);
-#else
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        solve_with_EB_mlmg(lev, rhs, phi, fluxes);
+    } else {
 
 #ifdef ERF_USE_FFT
         Box my_region(ba_tmp[0].minimalBox());
@@ -189,7 +186,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 #endif
     } // general terrain
 
-#endif // not EB
+    } // not EB
 
     // ****************************************************************************
     // Print time in solve

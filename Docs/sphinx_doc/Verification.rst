@@ -112,7 +112,7 @@ The steady solution is shown below, as well as a log-log plot showing the error 
 
 Potential flow over a semi-cylinder
 ----------------------------------------
-The potential flow over a semi-cylinder problem tests the terrain feature in two dimensions and the
+The potential flow over a semi-cylinder problem tests terrain-fitted coordinates in two dimensions and the
 effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which
 has an `exact result`_. The density is constant and the streamwise velocity is 10 m/s, and sponge zones
 are used on both the streamwise boundaries as well as the top boundary. The bottom wall is an inviscid,
@@ -127,7 +127,7 @@ without any diffusion.
 
 Potential flow over a hemisphere
 ----------------------------------------
-The potential flow over a hemisphere problem tests the terrain feature in three dimensions and the
+The potential flow over a hemisphere problem tests terrain-fitted coordinates in three dimensions and the
 effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which
 has an `exact solution`_. The density is constant and the streamwise velocity is 10 m/s, and sponge zones
 are used on both the streamwise boundaries as well as the top boundary. The bottom wall is an inviscid,
@@ -144,8 +144,9 @@ exactly to the inviscid solution. But away from the walls, excellent quantitativ
 Stokes second problem - viscous flow over an oscillating flat plate
 --------------------------------------------------------------------------
 The Stokes second problem - viscous flow over an oscillating flat plate in quiescent initial conditions,
-tests the viscous terms in the governing equations with terrain and the feature for specifying a custom terrain velocity.
-This is a classic text book problem which has an `analytical solution`_. The bottom wall is specified as a flat terrain and all
+tests the viscous terms in the governing equations with terrain-fitted coordinates
+and the feature for specifying a custom terrain velocity.
+This is a classic text book problem which has an `analytical solution`_. The bottom wall is specified as flat and all
 other boundaries are outflow. The contours of horizontal velocity and the comparison of the numerical and exact solutions
 at a given time are shown in the figure below.
 

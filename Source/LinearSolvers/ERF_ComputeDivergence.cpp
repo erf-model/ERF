@@ -17,11 +17,12 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMRE
     // Compute divergence which will form RHS
     // Note that we replace "rho0w" with the contravariant momentum, Omega
     // ****************************************************************************
-#ifdef ERF_USE_EB
-    bool already_on_centroids = true;
-    EB_computeDivergence(rhs, rho0_u_const, geom_at_lev, already_on_centroids);
-#else
-    if (SolverChoice::mesh_type == MeshType::ConstantDz)
+    if (solverChoice.terrain_type == TerrainType::EB)
+    {
+        bool already_on_centroids = true;
+        EB_computeDivergence(rhs, rho0_u_const, geom_at_lev, already_on_centroids);
+    }
+    else if (SolverChoice::mesh_type == MeshType::ConstantDz)
     {
         computeDivergence(rhs, rho0_u_const, geom_at_lev);
     }
@@ -63,5 +64,4 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMRE
             }
         } // mfi
     }
-#endif
 }
