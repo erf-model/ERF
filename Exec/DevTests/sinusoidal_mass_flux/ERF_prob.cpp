@@ -376,7 +376,7 @@ Problem::update_w_subsidence (const Real& time,
 //        Real rho_s       = state(0,0,k,Rho_comp);
         if (time < 600) {
         wbar[k] = 2*sin(PI*time/600);}
-        else{ 
+        else{
         wbar[k] = 0.0;}
 
 //        wbar[k] = 2;
