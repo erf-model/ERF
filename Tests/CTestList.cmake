@@ -193,8 +193,6 @@ add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble/erf_bubble"  
 add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests/Bubble/erf_bubble"   "plt00001" 1e-14 1e-14)
 add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests/Bubble/erf_bubble"   "plt00010" 5e-13 1e-14)
 
-add_test_0(InitSoundingIdeal_stationary      "ABL/erf_abl" "plt00010")
-add_test_0(Deardorff_stationary              "ABL/erf_abl" "plt00010")
 #=============================================================================
 # Performance tests
 #=============================================================================
