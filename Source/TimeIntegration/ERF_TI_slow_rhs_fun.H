@@ -49,17 +49,6 @@
         Real* dptr_u_geos = solverChoice.have_geo_wind_profile ? d_u_geos[level].data(): nullptr;
         Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
 
-        // Construct the source terms for the cell-centered (conserved) variables
-        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
-#if defined(ERF_USE_RRTMGP)
-                     qheating_rates[level].get(),
-#endif
-                     fine_geom, solverChoice,
-                     mapfac_u[level], mapfac_v[level], mapfac_m[level],
-                     rhotheta_src[level].get(), rhoqt_src[level].get(),
-                     dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     input_sounding_data, turbPert);
-
         // Canopy data for mom sources
         MultiFab* forest_drag = nullptr;
         if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
@@ -76,7 +65,7 @@
 #endif
                      terrain_blank, fine_geom, solverChoice,
                      mapfac_u[level], mapfac_v[level], mapfac_m[level],
-                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert);
 
