@@ -463,7 +463,7 @@ List of Parameters
 +----------------------------+----------------------+----------------+-------------------+
 | **erf.dt_max**             | maximum adaptive     | Real > 0       | 1e9               |
 |                            | timestep             |                |                   |
-|                            | allowed by time     |                |                   |
+|                            | allowed by time      |                |                   |
 |                            | stepping             |                |                   |
 +----------------------------+----------------------+----------------+-------------------+
 | **erf.dt_max_initial**     | maximum initial      | Real > 0       | 1.0               |
