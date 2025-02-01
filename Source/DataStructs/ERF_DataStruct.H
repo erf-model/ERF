@@ -574,18 +574,15 @@ struct SolverChoice {
     }
 
     inline static
-    bool terrain_is_flat = false;
-
-    inline static
     TerrainType terrain_type = TerrainType::None;
 
     inline static
     MeshType mesh_type = MeshType::ConstantDz;
 
     static
-    void set_flat_terrain_flag ()
+    void set_mesh_type (MeshType new_mesh_type)
     {
-        terrain_is_flat = true;
+        mesh_type = new_mesh_type;
     }
 
     AdvChoice    advChoice;

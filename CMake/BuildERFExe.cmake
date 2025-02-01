@@ -106,6 +106,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_ReadWaves.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom.cpp
+       ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_ConstantDz.cpp
+       ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_StretchedDz.cpp
+       ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_EB.cpp
+       ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_TF.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForState.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForOpenBC.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_ABLMost.cpp

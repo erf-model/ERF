@@ -105,6 +105,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<MultiFab>& ay,
                        std::unique_ptr<MultiFab>& az,
                        std::unique_ptr<MultiFab>& detJ,
+                       Gpu::DeviceVector<Real>& stretched_dz_d,
                        const MultiFab* p0,
                        const MultiFab& pp_inc,
                        std::unique_ptr<MultiFab>& mapfac_m,
@@ -575,11 +576,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            cell_data, u, v, w,
                            rho_u, rho_v, omega_arr,
                            z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
+                           stretched_dz_d,
                            dxInv, mf_m, mf_u, mf_v,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
-                           solverChoice.terrain_type, lo_z_face, hi_z_face,
-                           domain, bc_ptr_h);
+                           solverChoice.mesh_type, solverChoice.terrain_type,
+                           lo_z_face, hi_z_face, domain, bc_ptr_h);
 
         if (l_use_diff) {
             // Note: tau** were calculated with calls to
