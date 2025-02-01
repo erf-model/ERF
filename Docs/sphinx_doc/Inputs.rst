@@ -425,60 +425,61 @@ which means it is determined by the fluid speed rather than the sound speed and 
 List of Parameters
 ------------------
 
-+----------------------------+----------------------+----------------+-------------------+
-| Parameter                  | Definition           | Acceptable     | Default           |
-|                            |                      | Values         |                   |
-+============================+======================+================+===================+
-| **erf.no_substepping**     | Should we turn off   | int (0 or 1)   | 0                 |
-|                            | substepping in time? |                |                   |
-+----------------------------+----------------------+----------------+-------------------+
-| **erf.cfl**                | CFL number used to   | Real > 0 and   | 0.8               |
-|                            | compute level 0 dt   | <= 1           |                   |
-+----------------------------+----------------------+----------------+-------------------+
-| **erf.substepping_cfl**    | CFL number used to   | Real > 0 and   | 1.0               |
-|                            | compute the number   | <= 1           |                   |
-|                            | of substeps          |                |                   |
-+----------------------------+----------------------+----------------+-------------------+
-| **erf.fixed_dt**           | set level 0 dt       | Real > 0       | unused if not     |
-|                            | as this value        |                | set               |
-|                            | regardless of        |                |                   |
-|                            | cfl or other         |                |                   |
-|                            | settings             |                |                   |
-+----------------------------+----------------------+----------------+-------------------+
-| **erf.fixed_fast_dt**      | set fast dt          | Real > 0       |                   |
-|                            | as this value        |                |                   |
-+----------------------------+----------------------+----------------+-------------------+
-| **erf.fixed_mri_dt_ratio** | set fast dt          | even int > 0   | only relevant     |
-|                            | as slow dt /         |                | if no_substepping |
-|                            | this ratio           |                | is 0              |
-+----------------------------+----------------------+----------------+-------------------+
-| **erf.init_shrink**        | factor by which      | Real > 0 and   | 1.0               |
-|                            | to shrink the        | <= 1           |                   |
-|                            | initial dt           |                |                   |
-+----------------------------+----------------------+----------------+-------------------+
-| **erf.change_max**         | factor by which      | Real >= 1      | 1.1               |
-|                            | dt can grow          |                |                   |
-|                            | in subsequent        |                |                   |
-|                            | steps                |                |                   |
-+----------------------------+----------------------+----------------+-------------------+
-| **erf.dt_max**             | maximum adaptive     | Real > 0       | 1e9               |
-|                            | timestep             |                |                   |
-|                            | allowed by time      |                |                   |
-|                            | stepping             |                |                   |
-+----------------------------+----------------------+----------------+-------------------+
-| **erf.dt_max_initial**     | maximum initial      | Real > 0       | 1.0               |
-|                            | timestep             |                |                   |
-+----------------------------+----------------------+----------------+-------------------+
++----------------------------+----------------------+----------------+---------------------+
+| Parameter                  | Definition           | Acceptable     | Default             |
+|                            |                      | Values         |                     |
++============================+======================+================+=====================+
+| **erf.substepping_type**   | Should we substep in | "Implicit",    | "Implicit" if       |
+|                            | each RK stage?       | "Explicit",    | compressible,       |
+|                            |                      | "None"         | "None" if anelastic |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.cfl**                | CFL number used to   | Real > 0 and   | 0.8                 |
+|                            | compute level 0 dt   | <= 1           |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.substepping_cfl**    | CFL number used to   | Real > 0 and   | 1.0                 |
+|                            | compute the number   | <= 1           |                     |
+|                            | of substeps          |                |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.fixed_dt**           | set level 0 dt       | Real > 0       | unused if not       |
+|                            | as this value        |                | set                 |
+|                            | regardless of        |                |                     |
+|                            | cfl or other         |                |                     |
+|                            | settings             |                |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.fixed_fast_dt**      | set fast dt          | Real > 0       |                     |
+|                            | as this value        |                |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.fixed_mri_dt_ratio** | set fast dt          | even int > 0   | only relevant if    |
+|                            | as slow dt /         |                | substepping_type    |
+|                            | this ratio           |                | is not None         |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.init_shrink**        | factor by which      | Real > 0 and   | 1.0                 |
+|                            | to shrink the        | <= 1           |                     |
+|                            | initial dt           |                |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.change_max**         | factor by which      | Real >= 1      | 1.1                 |
+|                            | dt can grow          |                |                     |
+|                            | in subsequent        |                |                     |
+|                            | steps                |                |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.dt_max**             | maximum adaptive     | Real > 0       | 1e9                 |
+|                            | timestep             |                |                     |
+|                            | allowed by time      |                |                     |
+|                            | stepping             |                |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.dt_max_initial**     | maximum initial      | Real > 0       | 1.0                 |
+|                            | timestep             |                |                     |
++----------------------------+----------------------+----------------+---------------------+
 
 Notes
 -----------------
 
--  | If **erf.anelastic** is true then **no_substepping** is internally set to 1.
+-  | If **erf.anelastic** is true then **substepping_type** is internally set to "None".
 
 -  | The time step controls work somewhat differently depending on whether one is using
-     acoustic substepping in time; this is determined by the value of **no_substepping**.
+     acoustic substepping in time; this is determined by the value of **substepping_type**.
 
--  | If **erf.no_substepping = 1** there is only one time step to be calculated,
+-  | If **erf.substepping_type = None** there is only one time step to be calculated,
      and **fixed_fast_dt** and **fixed_mri_dt_ratio** are not used.
 
    * | If **erf.fixed_dt** is also specified, the timestep will be set to **fixed_dt**.
@@ -486,7 +487,7 @@ Notes
    * | If **erf.fixed_dt** is not specified, the timestep will be computed using the CFL condition for compressible flow.
        If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
--  | If **erf.no_substepping = 0** we must determine both the slow and fast timesteps.
+-  | If **erf.substepping_type** is not **None** we must determine both the slow and fast timesteps.
    * | If **erf.fixed_dt** is specified, the slow timestep will be set to **fixed_dt**.
 
    * | If **erf.fixed_dt** is not set, the slow timestep will be computed using the CFL
