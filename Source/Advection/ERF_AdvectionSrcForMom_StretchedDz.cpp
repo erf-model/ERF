@@ -74,6 +74,8 @@ AdvectionSrcForMom_StretchedDz (const Box& bxx, const Box& bxy, const Box& bxz,
         mf_v_inv(i,j,0) = 1. / mf_v(i,j,0);
     });
 
+    auto dz_ptr = stretched_dz_d.data();
+
     // Inline with 2nd order for efficiency
     if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
     {
@@ -91,7 +93,7 @@ AdvectionSrcForMom_StretchedDz (const Box& bxx, const Box& bxy, const Box& bxz,
 
                 Real mfsq = mf_u(i,j,0) * mf_u(i,j,0);
 
-                Real dzInv = 1.0/stretched_dz_d[k];
+                Real dzInv = 1.0/dz_ptr[k];
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
@@ -111,7 +113,7 @@ AdvectionSrcForMom_StretchedDz (const Box& bxx, const Box& bxy, const Box& bxz,
 
                 Real mfsq = mf_v(i,j,0) * mf_v(i,j,0);
 
-                Real dzInv = 1.0/stretched_dz_d[k];
+                Real dzInv = 1.0/dz_ptr[k];
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
@@ -133,7 +135,7 @@ AdvectionSrcForMom_StretchedDz (const Box& bxx, const Box& bxy, const Box& bxz,
 
                 Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 
-                Real dzInv = 2.0 / (stretched_dz_d[k] + stretched_dz_d[k-1]);
+                Real dzInv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq

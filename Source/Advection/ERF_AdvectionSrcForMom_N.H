@@ -304,10 +304,12 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     auto dxInv = cellSizeInv[0];
     auto dyInv = cellSizeInv[1];
 
+    auto dz_ptr = stretched_dz_d.data();
+
     amrex::ParallelFor(bxx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = 1.0/stretched_dz_d[k];
+        auto dzInv = 1.0/dz_ptr[k];
         rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_N(i, j, k, rho_u, rho_v, rho_w,
                                                     interp_u_h, interp_u_v,
                                                     upw_frac_h, upw_frac_v,
@@ -318,7 +320,7 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     amrex::ParallelFor(bxy,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = 1.0/stretched_dz_d[k];
+        auto dzInv = 1.0/dz_ptr[k];
         rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_N(i, j, k, rho_u, rho_v, rho_w,
                                                     interp_v_h, interp_v_v,
                                                     upw_frac_h, upw_frac_v,
@@ -329,7 +331,7 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     amrex::ParallelFor(bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = 2.0 / (stretched_dz_d[k] + stretched_dz_d[k-1]);
+        auto dzInv = 2.0/(dz_ptr[k] + dz_ptr[k-1]);
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, rho_w, w,
                                                     interp_w_h, interp_w_v, interp_w_wall,
                                                     upw_frac_h, upw_frac_v,
