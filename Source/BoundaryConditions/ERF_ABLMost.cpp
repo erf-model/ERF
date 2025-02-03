@@ -23,6 +23,9 @@ ABLMost::update_fluxes (const int& lev,
     // Fill interior ghost cells
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 
+    if (lev > 0) {
+    }
+
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
 
@@ -182,6 +185,11 @@ ABLMost::compute_fluxes (const int& lev,
         // Land mask array if it exists
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
                                                        Array4<int> {};
+
+        amrex::Print() << "AT LEV " << lev << std::endl;
+        amrex::Print() << "LMASK " << m_lmask_lev[lev][0]->boxArray() << " " <<  m_lmask_lev[lev][0]->nGrowVect() << std::endl;
+
+        amrex::Print() << "CALLING ITERATE FLUX " << gtbx << std::endl;
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {

@@ -1,3 +1,5 @@
+#include <AMReX_Interpolater.H>
+#include <AMReX_MultiFabUtil.H>
 #include <ERF_MOSTAverage.H>
 #include <utility>
 #include <ERF_TileNoZ.H>
@@ -102,6 +104,7 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
       }
       { // CC vars
         auto& mf  = *Theta_prim[lev];
+        amrex::Print() << "BOX ARRAY OF THETA PRIM AT LEVEL " << lev << " " << Theta_prim[lev]->boxArray() << std::endl;
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba = mf.boxArray();
         BoxList bl2d = ba.boxList();
@@ -689,6 +692,24 @@ MOSTAverage::compute_averages (int lev)
 void
 MOSTAverage::compute_plane_averages (int lev)
 {
+    // In the event we have fine grid ghost cells that overlie coarse data,
+    //    we need to fill those by interpolation from the coarser level.
+    //    This will fill each fine patch with interpolated coarse data,
+    //    but that will be over-written everywhere appropriate by values
+    //    computed at this level
+#if 0
+    if (lev > 0) {
+        Interpolater* mapper_c = &cell_cons_interp;
+        IntVect ngvect = m_averages[lev].nGrowVect();
+        for (int iavg(0); iavg < m_navg; ++iavg) {
+            InterpFromCoarseLevel(m_averages[lev  ], IntVect(3,3,0), IntVect(3,3,0),
+                                  m_averages[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), mapper_c, domain_bcs_type, BCVars::cons_bc);
+        }
+    }
+#endif
+
     // Peel back the level
     auto& fields      = m_fields[lev];
     auto& rot_fields  = m_rot_fields[lev];
@@ -961,7 +982,13 @@ MOSTAverage::compute_plane_averages (int lev)
     for (int iavg(0); iavg < m_navg; ++iavg){
         plane_average[iavg] *= denom[iavg]*d_fact_new;
         plane_average[iavg] += val_old[iavg];
+        amrex::Print() <<" DOING SETVAL " << iavg << " " << plane_average[iavg] << std::endl;
+        amrex::Print() <<" AVERAGES BA  " << averages[iavg]->boxArray() << std::endl;
         averages[iavg]->setVal(plane_average[iavg]);
+        if (lev == 2) {
+            amrex::Print() << "AFTER SETVAL " << iavg << std::endl;
+            amrex::print_state(*averages[iavg],IntVect(199,303,0),0,averages[iavg]->nGrowVect());
+        }
     }
 }
 

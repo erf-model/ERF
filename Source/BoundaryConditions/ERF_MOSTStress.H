@@ -436,6 +436,12 @@ struct surface_flux
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+
+        if (i == 201 and j == 299 and k == 0) amrex::Print() <<" GOOD MEANS " << qvm_arr(i,j,k) << " " << tm_arr(i,j,k) << " " << umm_arr(i,j,k) << " " <<
+               z0_arr(i,j,k) << " " << std::endl;
+        if (i == 199 and j == 303 and k == 0) amrex::Print() <<"  BAD MEANS " << qvm_arr(i,j,k) << " " << tm_arr(i,j,k) << " " << umm_arr(i,j,k) << " " <<
+               z0_arr(i,j,k) << " " << std::endl;
+
         u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
@@ -453,6 +459,9 @@ struct surface_flux
             psi_h = sfuns.calc_psi_h(zeta);
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
             ++iter;
+            // if (i == 201 and j == 299 and k == 0) amrex::Print() <<" GOOD DOING " << amrex::IntVect(i,j,k) << u_star_arr(i,j,k) << " " << ustar << std::endl;
+            // if (i == 199 and j == 303 and k == 0) amrex::Print() <<"  BAD DOING " << amrex::IntVect(i,j,k) << u_star_arr(i,j,k) << " " << ustar << std::endl;
+            if (iter >= max_iters) amrex::Print() <<" DOING " << amrex::IntVect(i,j,k) << u_star_arr(i,j,k) << " " << ustar << std::endl;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
         AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 

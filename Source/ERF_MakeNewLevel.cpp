@@ -301,6 +301,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
            Define_ERFFillPatchers(lev);
     }
 
+    // ********************************************************************************************
+    // Create the MOST arrays at this (new) level
+    // ********************************************************************************************
+    int nlevs = finest_level+1;
+    m_most->make_MOST_at_level(lev,nlevs,
+                               vars_old[lev][Vars::cons],
+                               Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                               lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+
 #ifdef ERF_USE_PARTICLES
     // particleData.Redistribute();
 #endif
@@ -461,6 +470,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         }
     }
 
+    // ********************************************************************************************
+    // Update the MOST arrays at this level
+    // ********************************************************************************************
+    int nlevs = finest_level+1;
+    m_most->make_MOST_at_level(lev,nlevs,
+                               vars_old[lev][Vars::cons],
+                               Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                               lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+
 #ifdef ERF_USE_PARTICLES
     particleData.Redistribute();
 #endif
@@ -506,6 +524,8 @@ ERF::ClearLevel (int lev)
 
     // Clears the flux register array
     advflux_reg[lev]->reset();
+
+    m_most->clear_level(lev);
 }
 
 void

@@ -40,13 +40,6 @@ public:
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
-                      amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_lev,
-                      amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev,
-                      amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data,
-                      amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux,
-                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Hwave,
-                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Lwave,
-                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& eddyDiffs,
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
     : m_exp_most(use_exp_most),
@@ -189,129 +182,159 @@ public:
             read_z0 = pp.query("most.roughness_file_name", fname);
         }
 
-        // Do we have a time-varying surface roughness that needs to be saved?
-        const int nghost = 0; // ghost cells not included
-        const int level  = 0;
-        int lmask_min = lmask_min_reduce(*lmask_lev[level][0].get(), nghost);
-        amrex::ParallelDescriptor::ReduceIntMin(lmask_min);
+    } // constructor
 
-        m_var_z0 = (lmask_min < 1) & (rough_type_sea != RoughCalcType::CONSTANT);
-        if (m_var_z0) {
-            amrex::Print() << "Variable sea roughness (type " << rough_sea_string << ")" << std::endl;
+    void
+    make_MOST_at_level (const int& lev, int nlevs, amrex::MultiFab& mf,
+                        amrex::MultiFab* Hwave,
+                        amrex::MultiFab* Lwave,
+                        amrex::MultiFab* eddyDiffs,
+                        amrex::Vector<amrex::MultiFab*> lsm_data,
+                        amrex::Vector<amrex::MultiFab*> lsm_flux,
+                        amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
+                        amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
+    {
+        amrex::Print() << "HERE LEV IS " << lev << " AND NLEVS IS  " << nlevs << std::endl;
+
+        // Get surface temperature
+        amrex::ParmParse pp("erf");
+        auto erf_st = pp.query("most.surf_temp", surf_temp);
+
+        // Do we have a time-varying surface roughness that needs to be saved?
+        if (lev == 0)
+        {
+            const int nghost = 0; // ghost cells not included
+            int lmask_min = lmask_min_reduce(*lmask_lev[0].get(), nghost);
+            amrex::ParallelDescriptor::ReduceIntMin(lmask_min);
+
+            m_var_z0 = (lmask_min < 1) & (rough_type_sea != RoughCalcType::CONSTANT);
+            if (m_var_z0) {
+                std::string rough_sea_string{"charnock"};
+                pp.query("most.roughness_type_sea", rough_sea_string);
+                amrex::Print() << "Variable sea roughness (type " << rough_sea_string << ")" << std::endl;
+            }
         }
 
-        // Size the MOST params for all levels
-        int nlevs = m_geom.size();
-        z_0.resize(nlevs);
-        u_star.resize(nlevs);
-        w_star.resize(nlevs);
-        t_star.resize(nlevs);
-        q_star.resize(nlevs);
-        t_surf.resize(nlevs);
-        olen.resize(nlevs);
-        pblh.resize(nlevs);
+        if ( (lev == 0) || (lev > nlevs-1) ) {
+            m_Hwave_lev.resize(nlevs);
+            m_Lwave_lev.resize(nlevs);
+            m_eddyDiffs_lev.resize(nlevs);
+
+            m_lsm_data_lev.resize(nlevs);
+            m_lsm_flux_lev.resize(nlevs);
+
+            m_sst_lev.resize(nlevs);
+            m_lmask_lev.resize(nlevs);
+
+            // Size the MOST params for all levels
+            z_0.resize(nlevs);
+            u_star.resize(nlevs);
+            w_star.resize(nlevs);
+            t_star.resize(nlevs);
+            q_star.resize(nlevs);
+            t_surf.resize(nlevs);
+            olen.resize(nlevs);
+            pblh.resize(nlevs);
+        }
+
 
         // Get pointers to SST and LANDMASK data
-        m_sst_lev.resize(nlevs);
-        m_lmask_lev.resize(nlevs);
-
-        for (int lev(0); lev<nlevs; ++lev) {
-            int nt_tot_sst = sst_lev[lev].size();
-            m_sst_lev[lev].resize(nt_tot_sst);
-            for (int nt(0); nt<nt_tot_sst; ++nt) {
-                m_sst_lev[lev][nt]   = sst_lev[lev][nt].get();
-            }
-            int nt_tot_lmask = lmask_lev[lev].size();
-            m_lmask_lev[lev].resize(nt_tot_lmask);
-            for (int nt(0); nt<nt_tot_lmask; ++nt) {
-                m_lmask_lev[lev][nt] = lmask_lev[lev][nt].get();
-            }
-        } // lev
-
-        // Get pointers to LSM data and Fluxes
-        m_lsm_data_lev.resize(nlevs);
-        m_lsm_flux_lev.resize(nlevs);
-        for (int lev(0); lev<nlevs; ++lev) {
-            int nvar = lsm_data[lev].size();
-            m_lsm_data_lev[lev].resize(nvar);
-            m_lsm_flux_lev[lev].resize(nvar);
-            for (int n(0); n<nvar; ++n) {
-                m_lsm_data_lev[lev][n] = lsm_data[lev][n];
-                m_lsm_flux_lev[lev][n] = lsm_flux[lev][n];
-            }
-        } // lev
-
-        // Get pointers to wave data
-        m_Hwave_lev.resize(nlevs);
-        m_Lwave_lev.resize(nlevs);
-        m_eddyDiffs_lev.resize(nlevs);
-        for (int lev(0); lev<nlevs; ++lev) {
-            m_Hwave_lev[lev] = Hwave[lev].get();
-            m_Lwave_lev[lev] = Lwave[lev].get();
-            m_eddyDiffs_lev[lev] = eddyDiffs[lev].get();
+        int nt_tot_sst = sst_lev.size();
+        m_sst_lev[lev].resize(nt_tot_sst);
+        for (int nt(0); nt<nt_tot_sst; ++nt) {
+            m_sst_lev[lev][nt] = sst_lev[nt].get();
+        }
+        int nt_tot_lmask = lmask_lev.size();
+        m_lmask_lev[lev].resize(nt_tot_lmask);
+        for (int nt(0); nt<nt_tot_lmask; ++nt) {
+            m_lmask_lev[lev][nt] = lmask_lev[nt].get();
         }
 
-        for (int lev = 0; lev < nlevs; lev++) {
-            // Attributes for MFs and FABs
-            //--------------------------------------------------------
-            auto& mf = vars_old[lev][Vars::cons];
-            // Create a 2D ba, dm, & ghost cells
-            amrex::BoxArray ba  = mf.boxArray();
-            amrex::BoxList bl2d = ba.boxList();
-            for (auto& b : bl2d) {
-                b.setRange(2,0);
-            }
-            amrex::BoxArray ba2d(std::move(bl2d));
-            const amrex::DistributionMapping& dm = mf.DistributionMap();
-            const int ncomp   = 1;
-            amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
+        // Get pointers to wave data
+        m_Hwave_lev[lev] = Hwave;
+        m_Lwave_lev[lev] = Lwave;
+        m_eddyDiffs_lev[lev] = eddyDiffs;
 
-            // Z0 heights FAB
-            //--------------------------------------------------------
-            amrex::Arena* Arena_Used = amrex::The_Arena();
+        // Get pointers to LSM data and Fluxes
+        int nvar = lsm_data.size();
+        m_lsm_data_lev[lev].resize(nvar);
+        m_lsm_flux_lev[lev].resize(nvar);
+        for (int n(0); n<nvar; ++n) {
+            m_lsm_data_lev[lev][n] = lsm_data[n];
+            m_lsm_flux_lev[lev][n] = lsm_flux[n];
+        }
+
+        // Check if there is a user-specified roughness file to be read
+        std::string fname;
+        bool read_z0 = false;
+        if ( (flux_type == FluxCalcType::MOENG) ||
+             (flux_type == FluxCalcType::ROTATE) ) {
+            read_z0 = pp.query("most.roughness_file_name", fname);
+        }
+
+        // Attributes for MFs and FABs
+        //--------------------------------------------------------
+        // Create a 2D ba, dm, & ghost cells
+        amrex::BoxArray ba  = mf.boxArray();
+        amrex::BoxList bl2d = ba.boxList();
+        for (auto& b : bl2d) {
+            b.setRange(2,0);
+        }
+        amrex::BoxArray ba2d(std::move(bl2d));
+        const amrex::DistributionMapping& dm = mf.DistributionMap();
+        const int ncomp   = 1;
+        amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
+
+        // Z0 heights FAB
+        //--------------------------------------------------------
+        amrex::Arena* Arena_Used = amrex::The_Arena();
 #ifdef AMREX_USE_GPU
-            Arena_Used = amrex::The_Pinned_Arena();
+        Arena_Used = amrex::The_Pinned_Arena();
 #endif
-            amrex::Box bx = amrex::grow(m_geom[lev].Domain(),ng);
-            bx.setSmall(2,0);
-            bx.setBig(2,0);
-            z_0[lev].resize(bx,1,Arena_Used);
-            z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
-            if (read_z0) read_custom_roughness(lev,fname);
+        amrex::Box bx = amrex::grow(m_geom[lev].Domain(),ng);
+        bx.setSmall(2,0);
+        bx.setBig(2,0);
+        z_0[lev].resize(bx,1,Arena_Used);
+        z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
+        if (read_z0) read_custom_roughness(lev,fname);
 
-            // 2D MFs for U*, T*, T_surf
-            //--------------------------------------------------------
-            u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-            u_star[lev]->setVal(1.E34);
+        // 2D MFs for U*, T*, T_surf
+        //--------------------------------------------------------
+        u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+        u_star[lev]->setVal(1.E34);
 
-            w_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-            w_star[lev]->setVal(1.E34);
+        w_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+        w_star[lev]->setVal(1.E34);
 
-            t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-            t_star[lev]->setVal(0.0); // default to neutral
+        t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+        t_star[lev]->setVal(0.0); // default to neutral
 
-            q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-            q_star[lev]->setVal(0.0); // default to dry
+        q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+        q_star[lev]->setVal(0.0); // default to dry
 
-            olen[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-            olen[lev]->setVal(1.E34);
+        olen[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+        olen[lev]->setVal(1.E34);
 
-            pblh[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-            pblh[lev]->setVal(1.E34);
+        pblh[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+        pblh[lev]->setVal(1.E34);
 
-            t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+        t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
 
-            // TODO: Do we want lsm_data to have theta at 0 index always?
-            //       Do we want an external enum struct for indexing?
-            if (m_sst_lev[lev][0] || m_lsm_data_lev[lev][0]) {
-                // Valid SST or LSM data; t_surf set before computing fluxes (avoids extended lambda capture)
-                theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-            } else if (erf_st) {
-                t_surf[lev]->setVal(surf_temp);
-            } else {
-                t_surf[lev]->setVal(0.0);
-            }
-        }// lev
+        // TODO: Do we want lsm_data to have theta at 0 index always?
+        //       Do we want an external enum struct for indexing?
+        if (m_sst_lev[lev][0] || m_lsm_data_lev[lev][0]) {
+            // Valid SST or LSM data; t_surf set before computing fluxes (avoids extended lambda capture)
+            theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+        } else if (erf_st) {
+            t_surf[lev]->setVal(surf_temp);
+        } else {
+            t_surf[lev]->setVal(0.0);
+        }
+    }
+
+    void
+    clear_level (const int& lev)
+    {
     }
 
     void
