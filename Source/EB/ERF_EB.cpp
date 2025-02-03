@@ -40,8 +40,13 @@ eb_:: eb_ ( Geometry const& a_geom, amrex::FArrayBox const& terrain_fab,
 
         auto gshop = EB2::makeShop(ebterrain);
 
-        EB2::Build(gshop, a_geom, max_level_here, max_level_here+max_coarsening_level);
+        // EB2::Build(gshop, a_geom, max_level_here, max_level_here+max_coarsening_level);
+        build_level(a_geom, gshop); // This calls EB2::Build
+        
+        m_write_eb_surface = 1;
 
+        make_factory(a_geom, m_eb_level->DistributionMap(), m_eb_level->boxArray());
+        
         m_has_eb = 1;
 
     } else if (m_type == "box") {
