@@ -858,4 +858,84 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                               geom, turbChoice, most, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd);
     }
+
+    //
+    // If at level > 0, we want to fill fine ghost cell values that overlie coarse grid cells
+    // (and that are not in another fine valid region) with extrapolated values from the interior,
+    // rather than interpolating from the coarser level, since we may be using a different
+    // turbulence model there
+    //
+    // Note: here "covered" refers to "covered by valid region of another grid at this level"
+    // Note: here "physbnd" refers to "cells outside the domain if not periodic"
+    // Note: here "interior" refers to "valid cells, i.e. inside 'my' grid"
+    //
+    if (level > 0)
+    {
+        int ncomp  = eddyViscosity.nComp();
+        IntVect ng = eddyViscosity.nGrowVect();
+
+        int i_covered    = 0;
+        int i_notcovered = 1;
+        int i_physbnd    = 2;
+        int i_interior   = 3;
+        iMultiFab cc_mask(eddyViscosity.boxArray(),eddyViscosity.DistributionMap(),1,ng);
+        cc_mask.BuildMask(geom.Domain(), geom.periodicity(), i_covered, i_notcovered, i_physbnd, i_interior);
+
+        Box domain = geom.Domain();
+        for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+            if (geom.isPeriodic(i)) {
+                domain.grow(i,1);
+            }
+        }
+
+        for (MFIter mfi(eddyViscosity); mfi.isValid(); ++mfi)
+        {
+            Box bxcc   = mfi.tilebox();
+
+            Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ng[0]); planex.grow(1,ng[1]); planex.grow(2,ng[2]);
+            Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ng[1]); planey.grow(0,ng[0]); planey.grow(2,ng[2]);
+            Box planez = bxcc; planez.setSmall(2, 1); planez.setBig(2, ng[2]); planez.grow(0,ng[0]); planez.grow(1,ng[1]);
+
+            int i_lo   = bxcc.smallEnd(0); int i_hi = bxcc.bigEnd(0);
+            int j_lo   = bxcc.smallEnd(1); int j_hi = bxcc.bigEnd(1);
+            int k_lo   = bxcc.smallEnd(2); int k_hi = bxcc.bigEnd(2);
+
+            const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
+            const Array4<int>& mask_arr = cc_mask.array(mfi);
+
+            ParallelFor(planex, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
+                int lk = amrex::min(amrex::max(k, domain.smallEnd(2)), domain.bigEnd(2));
+                if (mask_arr(i_lo-i,j,k) == i_notcovered) {
+                    mu_turb(i_lo-i,j,k,n) = mu_turb(i_lo,lj,lk,n);
+                }
+                if (mask_arr(i_hi+i,j,k) == i_notcovered) {
+                    mu_turb(i_hi+i,j,k,n) = mu_turb(i_hi,lj,lk,n);
+                }
+            });
+            ParallelFor(planey, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
+                int lk = amrex::min(amrex::max(k, domain.smallEnd(2)), domain.bigEnd(2));
+                if (mask_arr(i,j_lo-j,k) == i_notcovered) {
+                    mu_turb(i,j_lo-j, k, n) = mu_turb(li,j_lo,lk,n);
+                }
+                if (mask_arr(i,j_hi+j,k) == i_notcovered) {
+                    mu_turb(i,j_hi+j,k,n) = mu_turb(li,j_hi,lk,n);
+                }
+            });
+            ParallelFor(planez, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
+                int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
+                if (mask_arr(i,j,k_lo-k) == i_notcovered) {
+                    mu_turb(i,j,k_lo-k,n) = mu_turb(li,lj,k_lo,n);
+                }
+                if (mask_arr(i,j,k_hi+k) == i_notcovered) {
+                    mu_turb(i,j,k_hi+k,n) = mu_turb(li,lj,k_hi,n);
+                }
+            });
+        } // mfi
+    } // level
 }
