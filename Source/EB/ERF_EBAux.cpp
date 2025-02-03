@@ -59,6 +59,8 @@ define( int const& a_idim,
 
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
 
+      GpuArray<Real, AMREX_SPACEDIM> dx = a_geom.CellSizeArray();
+
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
 
       Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
@@ -77,7 +79,7 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
-                  a_geom, bx, vfrac, afrac, bnorm, bcent, flag,
+                  a_geom, dx, bx, vfrac, afrac, bnorm, bcent, flag,
                   aux_flag, aux_vfrac, vdim, idim=a_idim ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
@@ -115,9 +117,32 @@ define( int const& a_idim,
           Array<Real,AMREX_SPACEDIM> lo_arr = {-0.5,-0.5,-0.5};
           Array<Real,AMREX_SPACEDIM> hi_arr = { 0.5, 0.5, 0.5};
 
+          //-----------------------
+          // Low EB cut cell
+          //-----------------------
+
+          // Map bcent and bnorm to the isoparametric space for anisotropic grids.
+          // (This step is needed because bcent in AMReX is isotropically normalized.)
+          Real norm = ( (bnorm(iv_lo,0)*dx[0])*(bnorm(iv_lo,0)*dx[0]) 
+                      + (bnorm(iv_lo,1)*dx[1])*(bnorm(iv_lo,1)*dx[1]) 
+                      + (bnorm(iv_lo,2)*dx[2])*(bnorm(iv_lo,2)*dx[2]) );
+          Real bcent_isoparam_x = bcent(iv_lo,0) / norm * dx[1] * dx[2];
+          Real bcent_isoparam_y = bcent(iv_lo,1) / norm * dx[0] * dx[2];
+          Real bcent_isoparam_z = bcent(iv_lo,2) / norm * dx[0] * dx[1];
+
+          Real bnorm_x = bnorm(iv_lo,0) / dx[0];
+          Real bnorm_y = bnorm(iv_lo,1) / dx[1];
+          Real bnorm_z = bnorm(iv_lo,2) / dx[2];
+
+          norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+
+          Real bnorm_isoparam_x = bnorm_x / norm;
+          Real bnorm_isoparam_y = bnorm_y / norm;
+          Real bnorm_isoparam_z = bnorm_z / norm;
+
           // plane point and normal
-          RealVect lo_point(bcent(iv_lo,0), bcent(iv_lo,1), bcent(iv_lo,2));
-          RealVect lo_normal(bnorm(iv_lo,0), bnorm(iv_lo,1), bnorm(iv_lo,2));
+          RealVect lo_point (bcent_isoparam_x, bcent_isoparam_y, bcent_isoparam_z);
+          RealVect lo_normal(bnorm_isoparam_x, bnorm_isoparam_y, bnorm_isoparam_z);
 
           // High side of low cell
           lo_arr[idim] = 0.0;
@@ -131,9 +156,30 @@ define( int const& a_idim,
           AMREX_ASSERT( !flag(iv_lo).isCovered() || lo_eb_cc.isCovered() );
           AMREX_ASSERT( !flag(iv_lo).isRegular() || lo_eb_cc.isRegular() );
 
+          //-----------------------
+          // High EB cut cell
+          //-----------------------
+
+          norm = ( (bnorm(iv_hi,0)*dx[0])*(bnorm(iv_hi,0)*dx[0]) 
+                 + (bnorm(iv_hi,1)*dx[1])*(bnorm(iv_hi,1)*dx[1]) 
+                 + (bnorm(iv_hi,2)*dx[2])*(bnorm(iv_hi,2)*dx[2]) );
+          bcent_isoparam_x = bcent(iv_hi,0) / norm * dx[1] * dx[2];
+          bcent_isoparam_y = bcent(iv_hi,1) / norm * dx[0] * dx[2];
+          bcent_isoparam_z = bcent(iv_hi,2) / norm * dx[0] * dx[1];
+
+          bnorm_x = bnorm(iv_hi,0) / dx[0];
+          bnorm_y = bnorm(iv_hi,1) / dx[1];
+          bnorm_z = bnorm(iv_hi,2) / dx[2];
+
+          norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+
+          bnorm_isoparam_x = bnorm_x / norm;
+          bnorm_isoparam_y = bnorm_y / norm;
+          bnorm_isoparam_z = bnorm_z / norm;
+
           // plane point and normal
-          RealVect hi_point(bcent(iv_hi,0), bcent(iv_hi,1), bcent(iv_hi,2));
-          RealVect hi_normal(bnorm(iv_hi,0), bnorm(iv_hi,1), bnorm(iv_hi,2));
+          RealVect hi_point (bcent_isoparam_x, bcent_isoparam_y, bcent_isoparam_z);
+          RealVect hi_normal(bnorm_isoparam_x, bnorm_isoparam_y, bnorm_isoparam_z);
 
           // Low side of high cell
           lo_arr[idim] = -0.5;
@@ -181,8 +227,6 @@ define( int const& a_idim,
             // that the area fractions computed here will give back the same
             // normal we used to compute them.
             if ( flag(iv_hi).isSingleValued() ) {
-
-              GpuArray<Real, AMREX_SPACEDIM> dx = a_geom.CellSizeArray();
 
               Real const adx = (idim == 0)
                              ? (hi_eb_cc.areaLo(0) - hi_hi_eb_cc.areaHi(0)) * dx[1] * dx[2]
