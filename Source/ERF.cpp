@@ -1031,8 +1031,7 @@ ERF::InitData_post ()
         //
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
-        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most,
-                                           vars_old, Theta_prim, Qv_prim, Qr_prim, z_phys_nd
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, Qv_prim, z_phys_nd
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
@@ -1043,8 +1042,11 @@ ERF::InitData_post ()
         int nlevs = geom.size();
         for (int lev = 0; lev < nlevs; lev++)
         {
+            Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
+                                         &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
             m_most->make_MOST_at_level(lev,nlevs,
-                                       vars_old[lev][Vars::cons],
+                                       mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                       Qr_prim[lev], z_phys_nd[lev],
                                        Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
                                        lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
         }

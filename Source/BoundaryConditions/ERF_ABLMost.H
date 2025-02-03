@@ -35,10 +35,7 @@ public:
     explicit ABLMost (const amrex::Vector<amrex::Geometry>& geom,
                       bool& use_exp_most,
                       bool& use_rot_most,
-                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
-                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
-                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
@@ -47,7 +44,7 @@ public:
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_geom(geom),
-      m_ma(geom,vars_old,Theta_prim,Qv_prim,Qr_prim,z_phys_nd)
+      m_ma(geom,(z_phys_nd[0]!=nullptr))
     {
         // We have a moisture model if Qv_prim is a valid pointer
         use_moisture = (Qv_prim[0].get());
@@ -173,19 +170,16 @@ public:
         } else {
             amrex::Abort("Undefined MOST roughness type for sea!");
         }
-
-        // Check if there is a user-specified roughness file to be read
-        std::string fname;
-        bool read_z0 = false;
-        if ( (flux_type == FluxCalcType::MOENG) ||
-             (flux_type == FluxCalcType::ROTATE) ) {
-            read_z0 = pp.query("most.roughness_file_name", fname);
-        }
-
     } // constructor
 
     void
-    make_MOST_at_level (const int& lev, int nlevs, amrex::MultiFab& mf,
+    make_MOST_at_level (const int& lev,
+                        int nlevs,
+                        const amrex::Vector<amrex::MultiFab*>& mfv,
+                        std::unique_ptr<amrex::MultiFab>& Theta_prim,
+                        std::unique_ptr<amrex::MultiFab>& Qv_prim,
+                        std::unique_ptr<amrex::MultiFab>& Qr_prim,
+                        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                         amrex::MultiFab* Hwave,
                         amrex::MultiFab* Lwave,
                         amrex::MultiFab* eddyDiffs,
@@ -194,7 +188,11 @@ public:
                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
                         amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
     {
-        amrex::Print() << "HERE LEV IS " << lev << " AND NLEVS IS  " << nlevs << std::endl;
+        // Update MOST Average
+        m_ma.make_MOSTAverage_at_level(lev, mfv, Theta_prim, Qv_prim, Qr_prim, z_phys_nd);
+
+        // Get CC vars
+        amrex::MultiFab& mf = *(mfv[0]);
 
         // Get surface temperature
         amrex::ParmParse pp("erf");
@@ -330,11 +328,6 @@ public:
         } else {
             t_surf[lev]->setVal(0.0);
         }
-    }
-
-    void
-    clear_level (const int& lev)
-    {
     }
 
     void

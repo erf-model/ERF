@@ -12,11 +12,8 @@
 class MOSTAverage {
 public:
     explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
-                          amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
-                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
-                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
-                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim,
-                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
+                          const bool& has_zphys);
+
 
     // MOSTAverage() = default;
     ~MOSTAverage ()
@@ -35,61 +32,70 @@ public:
     // Delete the copy assignment operator
     MOSTAverage& operator=(const MOSTAverage& other) = delete;
 
+    // Make data structures at level
+    void make_MOSTAverage_at_level (const int& lev,
+                                    const amrex::Vector<amrex::MultiFab*>& vars_old,
+                                    std::unique_ptr<amrex::MultiFab>& Theta_prim,
+                                    std::unique_ptr<amrex::MultiFab>& Qv_prim,
+                                    std::unique_ptr<amrex::MultiFab>& Qr_prim,
+                                    std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
     // Reset the pointers to field MFs
-    void update_field_ptrs (int lev,
+    void update_field_ptrs (const int& lev,
                             amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim);
 
     // Update the rotated fields
-    void set_rotated_fields (int lev);
+    void set_rotated_fields (const int& lev);
 
     // Compute ncells per plane
-    void set_plane_normalization ();
+    void set_plane_normalization (const int& lev);
 
     // Compute ncells per plane
-    void set_region_normalization ()
+    void set_region_normalization (const int& /*lev*/)
     {m_ncell_region = (2 * m_radius + 1) * (2 * m_radius + 1) * (2 * m_radius + 1);}
 
     // Populate a 2D iMF k_indx (w/o terrain)
-    void set_k_indices_N ();
+    void set_k_indices_N (const int& lev);
 
     // Populate a 2D iMF k_indx (w/ terrain)
-    void set_k_indices_T ();
+    void set_k_indices_T (const int& lev);
 
     // Populate all 2D iMFs ijk_indx (w/ terrain)
-    void set_norm_indices_T ();
+    void set_norm_indices_T (const int& lev);
 
     // Populate positions (w/ terrain & norm vector & interpolation)
-    void set_z_positions_T ();
+    void set_z_positions_T (const int& lev);
 
     // Populate positions (w/ terrain & norm vector & interpolation)
-    void set_norm_positions_T ();
+    void set_norm_positions_T (const int& lev);
 
     // Driver for the different average policies
-    void compute_averages (int lev);
+    void compute_averages (const int& lev);
 
     // Fill averages for policy::plane
-    void compute_plane_averages (int lev);
+    void compute_plane_averages (const int& lev);
 
     // Fill averages for policy::point
-    void compute_region_averages (int lev);
+    void compute_region_averages (const int& lev);
 
     // Write k indices
-    void write_k_indices (int lev);
+    void write_k_indices (const int& lev);
 
     // Write ijk indices
-    void write_norm_indices (int lev);
+    void write_norm_indices (const int& lev);
 
     // Write XZ planar positions
-    void write_xz_positions (int lev, int j);
+    void write_xz_positions (const int& lev,
+                             const int& j);
 
     // Write averages on 2D mf
-    void write_averages (int lev);
+    void write_averages (const int& lev);
 
     // Get pointer to the 2D mf of averages
-    [[nodiscard]] const amrex::MultiFab* get_average (int lev, int comp) const { return m_averages[lev][comp].get(); }
+    [[nodiscard]] const amrex::MultiFab* get_average (const int& lev, const int& comp) const { return m_averages[lev][comp].get(); }
 
     // Get z_ref (may be computed from specified k_indx)
     [[nodiscard]] amrex::Real get_zref () const { return m_zref; }
