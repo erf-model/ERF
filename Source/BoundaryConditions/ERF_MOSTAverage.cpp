@@ -26,6 +26,9 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     pp.query("most.use_interpolation",m_interp);
     pp.query("most.use_normal_vector",m_norm_vec);
 
+    // For SYCL
+    amrex::ignore_unused(has_zphys);
+
     AMREX_ASSERT_WITH_MESSAGE(m_radius<=2, "Radius must be less than nGhost=3!");
     if (m_interp) AMREX_ASSERT_WITH_MESSAGE(has_zphys, "Interpolation only implemented with terrain!");
     if (m_rotate) AMREX_ASSERT_WITH_MESSAGE(has_zphys, "Stress rotations are only valid with terrain!");
