@@ -182,6 +182,8 @@ define( int const& a_idim,
             // normal we used to compute them.
             if ( flag(iv_hi).isSingleValued() ) {
 
+              GpuArray<Real, AMREX_SPACEDIM> dx = a_geom.CellSizeArray();
+
               Real const adx = (idim == 0)
                              ? (hi_eb_cc.areaLo(0) - hi_hi_eb_cc.areaHi(0)) * dx[1] * dx[2]
                              : (hi_eb_cc.areaLo(0) + hi_hi_eb_cc.areaLo(0)) * dx[1] * dx[2]
