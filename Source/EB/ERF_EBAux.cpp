@@ -17,7 +17,7 @@ eb_aux_ ()
 void
 eb_aux_::
 define( int const& a_idim,
-        Geometry            const& /*a_geom*/,
+        Geometry            const& a_geom,
         BoxArray            const& a_grids,
         DistributionMapping const& a_dmap,
         Vector<int>         const& a_ngrow,
@@ -77,7 +77,7 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
-                  vfrac, afrac, bnorm, bcent, flag,
+                  a_geom, bx, vfrac, afrac, bnorm, bcent, flag,
                   aux_flag, aux_vfrac, vdim, idim=a_idim ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
@@ -86,8 +86,14 @@ define( int const& a_idim,
 
         aux_vfrac(i,j,k) = 0.0;
 
-        IntVect const iv_hi(i,j,k);
-        IntVect const iv_lo(iv_hi - vdim);
+        IntVect iv_hi(i,j,k);
+        IntVect iv_lo(iv_hi - vdim);
+        if (!a_geom.isPeriodic(idim) && iv_hi[idim]==bx.bigEnd(idim)){
+          iv_hi = iv_lo; // At the upper boundary, hi cell takes the values of the low cell.
+        }          
+        if (!a_geom.isPeriodic(idim) && iv_hi[idim]==bx.smallEnd(idim)){
+          iv_lo = iv_hi; // At the lower boundary, low cell takes the values of the high cell.
+        }
 
         if ( flag(iv_lo).isRegular() && flag(iv_hi).isRegular()) {
 
@@ -177,19 +183,19 @@ define( int const& a_idim,
             if ( flag(iv_hi).isSingleValued() ) {
 
               Real const adx = (idim == 0)
-                             ? (hi_eb_cc.areaLo(0) - hi_hi_eb_cc.areaHi(0))
-                             : (hi_eb_cc.areaLo(0) + hi_hi_eb_cc.areaLo(0))
-                             - (hi_eb_cc.areaHi(0) + hi_hi_eb_cc.areaHi(0));
+                             ? (hi_eb_cc.areaLo(0) - hi_hi_eb_cc.areaHi(0)) * dx[1] * dx[2]
+                             : (hi_eb_cc.areaLo(0) + hi_hi_eb_cc.areaLo(0)) * dx[1] * dx[2]
+                             - (hi_eb_cc.areaHi(0) + hi_hi_eb_cc.areaHi(0)) * dx[1] * dx[2];
 
               Real const ady = (idim == 1)
-                             ? (hi_eb_cc.areaLo(1) - hi_hi_eb_cc.areaHi(1))
-                             : (hi_eb_cc.areaLo(1) + hi_hi_eb_cc.areaLo(1))
-                             - (hi_eb_cc.areaHi(1) + hi_hi_eb_cc.areaHi(1));
+                             ? (hi_eb_cc.areaLo(1) - hi_hi_eb_cc.areaHi(1)) * dx[0] * dx[2]
+                             : (hi_eb_cc.areaLo(1) + hi_hi_eb_cc.areaLo(1)) * dx[0] * dx[2]
+                             - (hi_eb_cc.areaHi(1) + hi_hi_eb_cc.areaHi(1)) * dx[0] * dx[2];
 
               Real const adz = (idim == 2)
-                             ? (hi_eb_cc.areaLo(2) - hi_hi_eb_cc.areaHi(2))
-                             : (hi_eb_cc.areaLo(2) + hi_hi_eb_cc.areaLo(2))
-                             - (hi_eb_cc.areaHi(2) + hi_hi_eb_cc.areaHi(2));
+                             ? (hi_eb_cc.areaLo(2) - hi_hi_eb_cc.areaHi(2)) * dx[0] * dx[1]
+                             : (hi_eb_cc.areaLo(2) + hi_hi_eb_cc.areaLo(2)) * dx[0] * dx[1]
+                             - (hi_eb_cc.areaHi(2) + hi_hi_eb_cc.areaHi(2)) * dx[0] * dx[1];
 
               Real const apnorm = std::sqrt(adx*adx + ady*ady + adz*adz);
 
@@ -220,7 +226,7 @@ define( int const& a_idim,
             Real const abs_err = std::abs( hi_eb_cc.areaHi(idim) - hi_hi_eb_cc.areaLo(idim) );
             Real machine_tol = 10.0*std::numeric_limits<amrex::Real>::epsilon();
             if ( abs_err >= machine_tol ) {
-                Print() << "\nFail: check-4 area abs_err: " << abs_err
+                Print() << "\nFail: check-2 area abs_err: " << abs_err
                         << "\n  hi_eb_cc.areaHi " << hi_eb_cc.areaHi(idim)
                         << "\n  hi_hi_eb_cc.areaLo " << hi_hi_eb_cc.areaLo(idim)
                         << '\n';
@@ -239,7 +245,7 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
               if ( abs_err >= compare_tol ) {
                 //hi_eb_cc.debug();
-                Print() << "\nFail: check-2 area abs_err " << abs_err
+                Print() << "\nFail: check-3 area abs_err " << abs_err
                         << "\n  hi_eb_cc.areaLo(" << idim << ") = " << hi_eb_cc.areaLo(idim)
                         << "\n  lo_eb_cc.areaHi(" << idim << ") = " << lo_eb_cc.areaHi(idim)
                         << "\n  afrac" << iv_hi << " =  " << afrac(iv_hi)
