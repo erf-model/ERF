@@ -55,10 +55,6 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
 
             if(flag(i,j,k).isSingleValued()) {
 
-                // SK *******************************************
-                Print() << "SK: ERF_EBToPVD.cpp/ " << i << " " << j << " "<< k << std::endl;
-                // SK *******************************************
-
                // Boundary normal vector
 
                Real axm = apx(i  ,j  ,k  );
@@ -75,20 +71,12 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
                Real apnorm = std::sqrt(adx*adx + ady*ady + adz*adz);
                Real apnorminv = Real(1.0)/apnorm;
 
-                // SK *******************************************
-                Print() << "SK: ERF_EBToPVD.cpp/ apnorm " << apnorm << std::endl;
-                // SK *******************************************
-
                std::array<Real,3> normal, centroid;
                std::array<std::array<Real,3>,8> vertex;
 
                normal[0] = adx * apnorminv;
                normal[1] = ady * apnorminv;
                normal[2] = adz * apnorminv;
-
-                // SK *******************************************
-                Print() << "SK: ERF_EBToPVD.cpp/ normal " << normal << std::endl;
-                // SK *******************************************
 
                // convert bcent to global coordinate system centered at plo
 
@@ -107,13 +95,6 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
                centroid[0] = problo[0] + bcent_isoparam_x*dx[0] + (static_cast<Real>(i) + Real(0.5))*dx[0];
                centroid[1] = problo[1] + bcent_isoparam_y*dx[1] + (static_cast<Real>(j) + Real(0.5))*dx[1];
                centroid[2] = problo[2] + bcent_isoparam_z*dx[2] + (static_cast<Real>(k) + Real(0.5))*dx[2];
-
-                // SK *******************************************
-                Print() << "SK: ERF_EBToPVD.cpp/ bcent_isoparam_x " << bcent_isoparam_x << std::endl;
-                Print() << "SK: ERF_EBToPVD.cpp/ bcent_isoparam_y " << bcent_isoparam_y << std::endl;
-                Print() << "SK: ERF_EBToPVD.cpp/ bcent_isoparam_z " << bcent_isoparam_z << std::endl;
-                Print() << "SK: ERF_EBToPVD.cpp/ centroid " << centroid << std::endl;
-                // SK *******************************************
 
                // vertices of bounding cell (i,j,k)
                vertex[0] = {problo[0] + static_cast<Real>(i  )*dx[0], problo[1] + static_cast<Real>(j  )*dx[1], problo[2] + static_cast<Real>(k  )*dx[2]};
@@ -140,27 +121,9 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
                std::array<Real,12> alpha;
                std::array<bool,12> alpha_intersect;
 
-                // SK *******************************************
-                Print() << "SK: ERF_EBToPVD.cpp/ A " << std::endl;
-                // SK *******************************************
-
-               calc_hesse(distance, n0, p, normal, centroid);\
-
-                // SK *******************************************
-                Print() << "SK: ERF_EBToPVD.cpp/ B " << std::endl;
-                // SK *******************************************
-
+               calc_hesse(distance, n0, p, normal, centroid);
                calc_alpha(alpha, n0, p, vertex, dx);
-
-                // SK *******************************************
-                Print() << "SK: ERF_EBToPVD.cpp/ C " << std::endl;
-                // SK *******************************************
-
                calc_intersects(count, alpha_intersect, alpha);
-
-               // SK *******************************************
-                Print() << "SK: ERF_EBToPVD.cpp/ D " << std::endl;
-                // SK *******************************************
 
                // If the number of facet "contained" in does not describe a facet:
                // ... I.e. there's less than 3 (not even a triangle) or more than 6
@@ -391,16 +354,8 @@ void eb_::EBToPVD::calc_hesse(Real& distance, std::array<Real,3>& n0, Real& p,
    // here D := distance
    distance = -dot_product(normal, centroid);
 
-    // SK *******************************************
-    Print() << "SK: eb_::EBToPVD::calc_hesse/ distance " << distance <<  std::endl;
-    // SK *******************************************
-
    // Get the sign of the distance
    sign_of_dist = -distance / std::abs(distance);
-
-    // SK *******************************************
-    Print() << "SK: eb_::EBToPVD::calc_hesse/ sign_of_dist " << sign_of_dist <<  std::endl;
-    // SK *******************************************
 
    // Get the Hessian form
    Real fac = sign_of_dist/dot_product(normal, normal);
