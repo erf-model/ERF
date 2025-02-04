@@ -363,6 +363,10 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             const auto& dom_hi = ubound(domain);
             const auto& dom_lo = lbound(domain);
 
+            // CC set must be one less than velocity
+            int set_width_tmp = set_width;
+            if (ivar == ivarT) set_width_tmp -= 1;
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -396,7 +400,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 }
 
                 realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
-                                               width, set_width, dom_lo, dom_hi,
+                                               width, set_width_tmp, dom_lo, dom_hi,
                                                tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                                arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                                data_arr, rhs_arr);
@@ -420,6 +424,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             const auto& dom_hi = ubound(domain);
             const auto& dom_lo = lbound(domain);
 
+            // CC nudging must be one less than velocity
             int width2 = width;
             if (ivar_idx == IntVars::cons) width2 -= 1;
 

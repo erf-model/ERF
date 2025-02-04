@@ -54,6 +54,18 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
         interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i  ,j  ,k  ),vert_upw_frac);
 
         (flx_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * interpz;
+
+        /*
+        if (i<=3 && j==2 && k==61 && cons_index==1) {
+            amrex::Print() << "Interp Z " << amrex::IntVect(i,j,k) << ' '
+                           << interpz << ' '
+                           << avg_zmom(i,j,k) << ' '
+                           << cell_prim(i,j,k  ,prim_index) << ' '
+                           << cell_prim(i,j,k-1,prim_index) << ' '
+                           << cell_prim(i,j,k-2,prim_index) << ' '
+                           << cell_prim(i,j,k-3,prim_index) << "\n";
+        }
+        */
     });
 }
 

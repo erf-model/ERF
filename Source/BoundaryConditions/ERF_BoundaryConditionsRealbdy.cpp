@@ -79,15 +79,16 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         // Offset only applies to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
 
-
         // Ghost cells to be filled
         IntVect ng_vect = (var_idx == Vars::cons) ? ngvect_cons : ngvect_vels;
+
+        // CC set must be one less than velocity
+        int width = real_set_width;
+        if (var_idx == Vars::cons) width -= 1;
 
         // Loop over each component
         for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
         {
-            int width = real_set_width;
-
             // Variable can be read from wrf bdy
             //------------------------------------
             if (is_read[var_idx][comp_idx])
@@ -129,6 +130,16 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             jj = std::min(jj, dom_hi.y);
                         dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                  + alpha * bdatxlo_np1(ii,jj,k,0);
+                        /*
+                        if (i==-1 && j==2 && k==61 && var_idx==Vars::cons) {
+                            Print() << "Real BC: " << comp_idx << ' '
+                                    << dest_arr(i,j,k,comp_idx) << ' '
+                                    << bdatxlo_n  (ii,jj,k,0) << ' '
+                                    << bdatxlo_np1(ii,jj,k,0) << ' '
+                                    << dest_arr(i,j,k,Rho_comp) << ' '
+                                    << dest_arr(i,j,k,Rho_comp)*dest_arr(i,j,k,comp_idx) << "\n";
+                        }
+                        */
                         if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)

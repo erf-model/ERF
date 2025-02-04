@@ -474,6 +474,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            dxInv, mf_m, mf_u, mf_v,
                            flx_arr, l_const_rho);
 
+        /*
+        Print() << "Start T: " << cell_rhs(0,2,61,1) << ' '
+                << cell_rhs(1,2,61,1) << ' '
+                << cell_rhs(2,2,61,1) << ' '
+                << cell_prim(0,2,61,1) << ' '
+                << cell_prim(1,2,61,1) << ' '
+                << cell_prim(2,2,61,1) << "\n";
+        */
+
         int icomp = RhoTheta_comp; int ncomp = 1;
         if (solverChoice.terrain_type != TerrainType::EB){
             AdvectionSrcForScalars(dt, bx, icomp, ncomp,
@@ -493,6 +502,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 l_horiz_upw_frac, l_vert_upw_frac,
                                 flx_arr, domain, bc_ptr_h);
         }
+
+        /*
+        Print() << "Adv T: " << cell_rhs(0,2,61,1) << ' '
+                << cell_rhs(1,2,61,1) << ' '
+                << cell_rhs(2,2,61,1) << ' '
+                << cell_prim(0,2,61) << ' '
+                << cell_prim(1,2,61) << ' '
+                << cell_prim(2,2,61) << "\n";
+        */
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -536,6 +554,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         }
 
+        /*
+        Print() << "Diff T: " << cell_rhs(0,2,61,1) << ' '
+                << cell_rhs(1,2,61,1) << ' '
+                << cell_rhs(2,2,61,1) << ' '
+                << cell_prim(0,2,61) << ' '
+                << cell_prim(1,2,61) << ' '
+                << cell_prim(2,2,61) << "\n";
+        */
+
         const Array4<Real const>& source_arr   = cc_src.const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -551,6 +578,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 cell_rhs(i,j,k,RhoTheta_comp) *= detJ_arr(i,j,k);
             });
         }
+
+        /*
+        Print() << "Src T: " << cell_rhs(0,2,61,1) << ' '
+                << cell_rhs(1,2,61,1) << ' '
+                << cell_rhs(2,2,61,1) << ' '
+                << cell_prim(0,2,61) << ' '
+                << cell_prim(1,2,61) << ' '
+                << cell_prim(2,2,61) << "\n";
+        */
 
         // If anelastic and in second RK stage, take average of old-time and new-time source
         if ( l_anelastic && (nrk == 1) )

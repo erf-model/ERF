@@ -368,6 +368,16 @@ AdvectionSrcForScalars (const Real& dt,
               ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
               ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
               ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
+
+            /*
+            if (i<=3 && j==2 && k==61 && cons_index==1) {
+                Print() << "Adv T flx: " << IntVect(i,j,k) << ' '
+                        << advectionSrc(i,j,k,cons_index) << ' '
+                        << ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv << ' '
+                        << ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv << ' '
+                        << ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv << "\n";
+            }
+            */
         } else {
             advectionSrc(i,j,k,cons_index) = 0.;
         }

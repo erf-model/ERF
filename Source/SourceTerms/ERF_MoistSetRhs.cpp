@@ -161,7 +161,7 @@ moist_set_rhs (const Box& tbx,
                                       tbx_ylo, tbx_yhi,
                                       ng_vect, true);
         realbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
-                                       width, set_width, dom_lo, dom_hi,
+                                       width, set_width-1, dom_lo, dom_hi,
                                        tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                        arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                        old_cons, cell_rhs);
