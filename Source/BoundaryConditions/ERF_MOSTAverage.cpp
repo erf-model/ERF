@@ -210,8 +210,8 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     }
 
     // Corrections to the mean surface velocity
+    m_Vsg = Vector<Real>(m_maxlev, 0.0);
     if (include_subgrid_vel) {
-        m_Vsg = Vector<Real>(m_maxlev, 0.0);
         if (include_subgrid_vel) {
             Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
             const auto dxArr = m_geom[lev].CellSizeArray();
