@@ -17,8 +17,8 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
                                const amrex::Real vert_upw_frac)
 {
     // Instantiate structs for vert/horiz interp
-    InterpType_H interp_prim_h(cell_prim);
-    InterpType_V interp_prim_v(cell_prim);
+    InterpType_H interp_prim_h(cell_prim, horiz_upw_frac);
+    InterpType_V interp_prim_v(cell_prim, vert_upw_frac);
 
     const amrex::Box xbx = amrex::surroundingNodes(bx,0);
     const amrex::Box ybx = amrex::surroundingNodes(bx,1);
@@ -31,7 +31,7 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
         amrex::Real interpx(0.);
 
-        interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i  ,j  ,k  ),horiz_upw_frac);
+        interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i  ,j  ,k  ));
         (flx_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * interpx;
     });
     amrex::ParallelFor(ybx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -40,7 +40,7 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
         const int prim_index = cons_index - 1;
 
         amrex::Real interpy(0.);
-        interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i  ,j  ,k  ),horiz_upw_frac);
+        interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i  ,j  ,k  ));
 
         (flx_arr[1])(i,j,k,cons_index) = avg_ymom(i,j,k) * interpy;
     });
@@ -51,7 +51,7 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
         amrex::Real interpz(0.);
 
-        interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i  ,j  ,k  ),vert_upw_frac);
+        interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i  ,j  ,k  ));
 
         (flx_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * interpz;
     });
