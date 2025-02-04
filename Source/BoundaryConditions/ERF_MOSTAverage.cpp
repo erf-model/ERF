@@ -26,6 +26,12 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     pp.query("most.use_interpolation",m_interp);
     pp.query("most.use_normal_vector",m_norm_vec);
 
+    // m_time_window is normalized by the time-step "dt"
+    pp.query("most.time_window", m_time_window);
+
+    // Corrections to the mean surface velocity
+    pp.query("most.include_subgrid_vel", include_subgrid_vel);
+
     // For SYCL
     amrex::ignore_unused(has_zphys);
 
@@ -62,7 +68,6 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
                                         std::unique_ptr<MultiFab>& Qr_prim,
                                         std::unique_ptr<MultiFab>& z_phys_nd)
 {
-    ParmParse pp(m_pp_prefix);
     m_fields[lev].resize(m_nvar);
     m_rot_fields[lev].resize(m_nvar-1);
     m_averages[lev].resize(m_navg);
@@ -194,9 +199,6 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     // Set up the exponential time filtering
     //--------------------------------------------------------
     if (m_t_avg) {
-        // m_time_window is normalized by the time-step "dt"
-        pp.query("most.time_window", m_time_window);
-
         // Exponential filter function
         m_fact_old = std::exp(-1.0 / m_time_window);
 
@@ -208,16 +210,17 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     }
 
     // Corrections to the mean surface velocity
-    pp.query("most.include_subgrid_vel", include_subgrid_vel);
-    m_Vsg = Vector<Real>(m_maxlev, 0.0);
     if (include_subgrid_vel) {
-        Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
-        const auto dxArr = m_geom[lev].CellSizeArray();
-        Real dx = std::sqrt(dxArr[0]*dxArr[1]);
-        if (dx > 5000.) {
-            m_Vsg[lev] = 0.32 * std::pow(dx/5000.-1, 0.33);
+        m_Vsg = Vector<Real>(m_maxlev, 0.0);
+        if (include_subgrid_vel) {
+            Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
+            const auto dxArr = m_geom[lev].CellSizeArray();
+            Real dx = std::sqrt(dxArr[0]*dxArr[1]);
+            if (dx > 5000.) {
+                m_Vsg[lev] = 0.32 * std::pow(dx/5000.-1, 0.33);
+            }
+            Print() << m_Vsg[lev] << std::endl;
         }
-        Print() << m_Vsg[lev] << std::endl;
     }
 }
 
