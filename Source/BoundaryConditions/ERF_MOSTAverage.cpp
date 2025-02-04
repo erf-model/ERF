@@ -13,11 +13,7 @@ using namespace amrex;
  * @param[in] z_phys_nd Physical heights at each level
  */
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
-                          Vector<Vector<MultiFab>>& vars_old,
-                          Vector<std::unique_ptr<MultiFab>>& Theta_prim,
-                          Vector<std::unique_ptr<MultiFab>>& Qv_prim,
-                          Vector<std::unique_ptr<MultiFab>>& Qr_prim,
-                          Vector<std::unique_ptr<MultiFab>>& z_phys_nd)
+                          const bool& has_zphys)
   : m_geom(std::move(geom))
 {
     // Get basic info
@@ -30,9 +26,13 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     pp.query("most.use_interpolation",m_interp);
     pp.query("most.use_normal_vector",m_norm_vec);
 
+    // For SYCL
+    amrex::ignore_unused(has_zphys);
+
     AMREX_ASSERT_WITH_MESSAGE(m_radius<=2, "Radius must be less than nGhost=3!");
-    if (m_interp) AMREX_ASSERT_WITH_MESSAGE((z_phys_nd[0].get()), "Interpolation only implemented with terrain!");
-    if (m_rotate) AMREX_ASSERT_WITH_MESSAGE((z_phys_nd[0].get()), "Stress rotations are only valid with terrain!");
+    if (m_interp) AMREX_ASSERT_WITH_MESSAGE(has_zphys, "Interpolation only implemented with terrain!");
+    if (m_rotate) AMREX_ASSERT_WITH_MESSAGE(has_zphys, "Stress rotations are only valid with terrain!");
+    if (m_norm_vec) AMREX_ASSERT_WITH_MESSAGE(has_zphys, "Normal vector is only valid with terrain!");
 
     // Set up fields and 2D MF/iMFs for averages
     //--------------------------------------------------------
@@ -52,56 +52,65 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     m_i_indx.resize(m_maxlev);
     m_j_indx.resize(m_maxlev);
     m_k_indx.resize(m_maxlev);
+}
 
-    for (int lev(0); lev < m_maxlev; lev++) {
-      m_fields[lev].resize(m_nvar);
-      m_rot_fields[lev].resize(m_nvar-1);
-      m_averages[lev].resize(m_navg);
-      m_z_phys_nd[lev] = z_phys_nd[lev].get();
-      { // Nodal in x
-          auto& mf = vars_old[lev][Vars::xvel];
-          // Create a 2D ba, dm, & ghost cells
-          const BoxArray& ba = mf.boxArray();
-          BoxList bl2d = ba.boxList();
-          for (auto& b : bl2d) b.setRange(2,0);
-          BoxArray ba2d(std::move(bl2d));
-          const DistributionMapping& dm = mf.DistributionMap();
-          const int ncomp = 1;
-          IntVect ng = mf.nGrowVect(); ng[2]=0;
+void
+MOSTAverage::make_MOSTAverage_at_level (const int& lev,
+                                        const Vector<MultiFab*>& vars_old,
+                                        std::unique_ptr<MultiFab>& Theta_prim,
+                                        std::unique_ptr<MultiFab>& Qv_prim,
+                                        std::unique_ptr<MultiFab>& Qr_prim,
+                                        std::unique_ptr<MultiFab>& z_phys_nd)
+{
+    ParmParse pp(m_pp_prefix);
+    m_fields[lev].resize(m_nvar);
+    m_rot_fields[lev].resize(m_nvar-1);
+    m_averages[lev].resize(m_navg);
+    m_z_phys_nd[lev] = z_phys_nd.get();
+    { // Nodal in x
+        auto& mf = *vars_old[Vars::xvel];
+        // Create a 2D ba, dm, & ghost cells
+        const BoxArray& ba = mf.boxArray();
+        BoxList bl2d = ba.boxList();
+        for (auto& b : bl2d) b.setRange(2,0);
+        BoxArray ba2d(std::move(bl2d));
+        const DistributionMapping& dm = mf.DistributionMap();
+        const int ncomp = 1;
+        IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-            m_fields[lev][0] = &vars_old[lev][Vars::xvel];
-          m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-          m_averages[lev][0]->setVal(1.E34);
-          if (m_rotate) {
-              m_rot_fields[lev][0] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
-              MultiFab::Copy(*m_rot_fields[lev][0],vars_old[lev][Vars::xvel],0,0,1,ng);
-          } else {
-              m_rot_fields[lev][0] = nullptr;
-          }
-      }
-      { // Nodal in y
-          auto& mf  = vars_old[lev][Vars::yvel];
-          // Create a 2D ba, dm, & ghost cells
-          const BoxArray& ba = mf.boxArray();
-          BoxList bl2d = ba.boxList();
-          for (auto& b : bl2d) b.setRange(2,0);
-          BoxArray ba2d(std::move(bl2d));
-          const DistributionMapping& dm = mf.DistributionMap();
-          const int ncomp = 1;
-          IntVect ng = mf.nGrowVect(); ng[2]=0;
+        m_fields[lev][0] = vars_old[Vars::xvel];
+        m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
+        m_averages[lev][0]->setVal(1.E34);
+        if (m_rotate) {
+            m_rot_fields[lev][0] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
+            MultiFab::Copy(*m_rot_fields[lev][0],mf,0,0,1,ng);
+        } else {
+            m_rot_fields[lev][0] = nullptr;
+        }
+    }
+    { // Nodal in y
+        auto& mf  = *vars_old[Vars::yvel];
+        // Create a 2D ba, dm, & ghost cells
+        const BoxArray& ba = mf.boxArray();
+        BoxList bl2d = ba.boxList();
+        for (auto& b : bl2d) b.setRange(2,0);
+        BoxArray ba2d(std::move(bl2d));
+        const DistributionMapping& dm = mf.DistributionMap();
+        const int ncomp = 1;
+        IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-            m_fields[lev][1] = &vars_old[lev][Vars::yvel];
-          m_averages[lev][1] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-          m_averages[lev][1]->setVal(1.E34);
-          if (m_rotate) {
-              m_rot_fields[lev][1] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
-              MultiFab::Copy(*m_rot_fields[lev][1],vars_old[lev][Vars::yvel],0,0,1,ng);
-          } else {
-              m_rot_fields[lev][1] = nullptr;
-          }
-      }
-      { // CC vars
-        auto& mf  = *Theta_prim[lev];
+        m_fields[lev][1] = vars_old[Vars::yvel];
+        m_averages[lev][1] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
+        m_averages[lev][1]->setVal(1.E34);
+        if (m_rotate) {
+            m_rot_fields[lev][1] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
+            MultiFab::Copy(*m_rot_fields[lev][1],mf,0,0,1,ng);
+        } else {
+            m_rot_fields[lev][1] = nullptr;
+        }
+    }
+    { // CC vars
+        auto& mf  = *Theta_prim;
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba = mf.boxArray();
         BoxList bl2d = ba.boxList();
@@ -113,9 +122,9 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         IntVect ng = mf.nGrowVect(); ng[2]=0;
 
         // Get field pointers
-        m_fields[lev][2] = Theta_prim[lev].get();
-        m_fields[lev][3] = Qv_prim[lev].get();
-        m_fields[lev][4] = Qr_prim[lev].get();
+        m_fields[lev][2] = Theta_prim.get();
+        m_fields[lev][3] = Qv_prim.get();
+        m_fields[lev][4] = Qr_prim.get();
 
         // Initialize remaining multifabs
         for (int iavg(2); iavg < m_navg; ++iavg) {
@@ -129,8 +138,8 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         if (m_rotate) {
             m_rot_fields[lev][2] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
             m_rot_fields[lev][3] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
-            MultiFab::Copy(*m_rot_fields[lev][2],*Theta_prim[lev],0,0,1,ng);
-            if (Qv_prim[lev]) MultiFab::Copy(*m_rot_fields[lev][3],   *Qv_prim[lev],0,0,1,ng);
+            MultiFab::Copy(*m_rot_fields[lev][2],*Theta_prim,0,0,1,ng);
+            if (Qv_prim) MultiFab::Copy(*m_rot_fields[lev][3],*Qv_prim,0,0,1,ng);
         } else {
             m_rot_fields[lev][2] = nullptr;
             m_rot_fields[lev][3] = nullptr;
@@ -151,33 +160,32 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         } else {
             m_k_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
         }
-      }
-      // Nodal in z (only used with terrain stress rotations)
-      m_fields[lev][4] = &vars_old[lev][Vars::zvel];
-    } // lev
+    }
+    // Nodal in z (only used with terrain stress rotations)
+    m_fields[lev][4] = vars_old[Vars::zvel];
 
     // Setup auxiliary data for spatial configuration & policy
     //--------------------------------------------------------
     if (m_z_phys_nd[0] && m_norm_vec && m_interp) { // Terrain w/ norm & w/ interpolation
-        set_norm_positions_T();
+        set_norm_positions_T(lev);
     } else if (m_z_phys_nd[0] && m_interp) {        // Terrain w/ interpolation
-        set_z_positions_T();
+        set_z_positions_T(lev);
     } else if (m_z_phys_nd[0] && m_norm_vec) {      // Terrain w/ norm & w/o interpolation
-        set_norm_indices_T();
+        set_norm_indices_T(lev);
     } else if (m_z_phys_nd[0]) {                    // Terrain
-        set_k_indices_T();
+        set_k_indices_T(lev);
     } else {                                        // No Terrain
-        set_k_indices_N();
+        set_k_indices_N(lev);
     }
 
     // Setup normalization data for the chosen policy
     //--------------------------------------------------------
     switch(m_policy) {
     case 0: // Plane average
-        set_plane_normalization();
+        set_plane_normalization(lev);
         break;
     case 1: // Local region/point
-        set_region_normalization();
+        set_region_normalization(lev);
         break;
     default:
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
@@ -203,16 +211,13 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     pp.query("most.include_subgrid_vel", include_subgrid_vel);
     m_Vsg = Vector<Real>(m_maxlev, 0.0);
     if (include_subgrid_vel) {
-        amrex::Print() << "Subgrid velocity scale correction (by level) : ";
-        for (int lev(0); lev < m_maxlev; lev++) {
-            const auto dxArr = m_geom[lev].CellSizeArray();
-            Real dx = std::sqrt(dxArr[0]*dxArr[1]);
-            if (dx > 5000.) {
-                m_Vsg[lev] = 0.32 * std::pow(dx/5000.-1, 0.33);
-            }
-            amrex::Print() << m_Vsg[lev];
+        Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
+        const auto dxArr = m_geom[lev].CellSizeArray();
+        Real dx = std::sqrt(dxArr[0]*dxArr[1]);
+        if (dx > 5000.) {
+            m_Vsg[lev] = 0.32 * std::pow(dx/5000.-1, 0.33);
         }
-        amrex::Print() << std::endl;
+        Print() << m_Vsg[lev] << std::endl;
     }
 }
 
@@ -225,7 +230,7 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
  * @param[in] Theta_prim Primitive theta component at each level
  */
 void
-MOSTAverage::update_field_ptrs (int lev,
+MOSTAverage::update_field_ptrs (const int& lev,
                                 Vector<Vector<MultiFab>>& vars_old,
                                 Vector<std::unique_ptr<MultiFab>>& Theta_prim,
                                 Vector<std::unique_ptr<MultiFab>>& Qv_prim,
@@ -244,7 +249,7 @@ MOSTAverage::update_field_ptrs (int lev,
  *
  */
 void
-MOSTAverage::set_rotated_fields (int lev)
+MOSTAverage::set_rotated_fields (const int& lev)
 {
     // Peel back the level
     auto& fields     = m_fields[lev];
@@ -303,59 +308,56 @@ MOSTAverage::set_rotated_fields (int lev)
  *
  */
 void
-MOSTAverage::set_plane_normalization ()
+MOSTAverage::set_plane_normalization (const int& lev)
 {
     // Cells per plane and temp avg storage
     m_ncell_plane.resize(m_maxlev);
     m_plane_average.resize(m_maxlev);
 
-    for (int lev(0); lev < m_maxlev; lev++) {
-        // True domain not used for normalization
-        Box domain = m_geom[lev].Domain();
+    // True domain not used for normalization
+    Box domain = m_geom[lev].Domain();
 
-        // NOTE: Level 0 spans the whole domain, but finer
-        //       levels do not have such a restriction.
-        //       For now, use the bounding box of the boxArray
-        //       for normalization, consistent with avg routine.
+    // NOTE: Level 0 spans the whole domain, but finer
+    //       levels do not have such a restriction.
+    //       For now, use the bounding box of the boxArray
+    //       for normalization, consistent with avg routine.
 
-        // Bounded box of CC data used for normalization
-        Box bnd_bx = (m_fields[lev][2]->boxArray()).minimalBox();
+    // Bounded box of CC data used for normalization
+    Box bnd_bx = (m_fields[lev][2]->boxArray()).minimalBox();
 
-        // NOTE: Bounding box must lie on the periodic boundaries
-        //       in order to trip the is_per flag
+    // NOTE: Bounding box must lie on the periodic boundaries
+    //       in order to trip the is_per flag
 
-        // Num components, plane avg, cells per plane
-        Array<int,AMREX_SPACEDIM> is_per = {0,0,0};
-        for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
-            if ( m_geom[lev].isPeriodic(idim) &&
-                 bnd_bx.bigEnd(idim)==domain.bigEnd(idim) &&
-                 bnd_bx.smallEnd(idim)==domain.smallEnd(idim) ) { is_per[idim] = 1; }
-        }
+    // Num components, plane avg, cells per plane
+    Array<int,AMREX_SPACEDIM> is_per = {0,0,0};
+    for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
+        if ( m_geom[lev].isPeriodic(idim) &&
+             bnd_bx.bigEnd(idim)==domain.bigEnd(idim) &&
+             bnd_bx.smallEnd(idim)==domain.smallEnd(idim) ) { is_per[idim] = 1; }
+    }
 
-        m_ncell_plane[lev].resize(m_navg);
-        m_plane_average[lev].resize(m_navg);
-        for (int iavg(0); iavg < m_navg; ++iavg) {
-            // Convert bnd_bx to current index type
-            IndexType ixt = m_averages[lev][iavg]->boxArray().ixType();
-            bnd_bx.convert(ixt);
-            IntVect bnd_bx_lo(bnd_bx.loVect());
-            IntVect bnd_bx_hi(bnd_bx.hiVect());
+    m_ncell_plane[lev].resize(m_navg);
+    m_plane_average[lev].resize(m_navg);
+    for (int iavg(0); iavg < m_navg; ++iavg) {
+        // Convert bnd_bx to current index type
+        IndexType ixt = m_averages[lev][iavg]->boxArray().ixType();
+        bnd_bx.convert(ixt);
+        IntVect bnd_bx_lo(bnd_bx.loVect());
+        IntVect bnd_bx_hi(bnd_bx.hiVect());
 
-            m_plane_average[lev][iavg] = 0.0;
+        m_plane_average[lev][iavg] = 0.0;
 
-            m_ncell_plane[lev][iavg] = 1;
-            for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
-                if (idim != 2) {
-                    if (ixt.nodeCentered(idim) && is_per[idim]) {
-                        m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim]);
-                    } else {
-                        m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim] + 1);
-                    }
+        m_ncell_plane[lev][iavg] = 1;
+        for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
+            if (idim != 2) {
+                if (ixt.nodeCentered(idim) && is_per[idim]) {
+                    m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim]);
+                } else {
+                    m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim] + 1);
                 }
-            } // idim
-        } // iavg
-    } // lev
-
+            }
+        } // idim
+    } // iavg
 }
 
 
@@ -364,7 +366,7 @@ MOSTAverage::set_plane_normalization ()
  *
  */
 void
-MOSTAverage::set_k_indices_N ()
+MOSTAverage::set_k_indices_N (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
     auto read_z = pp.query("most.zref",m_zref);
@@ -381,34 +383,30 @@ MOSTAverage::set_k_indices_N ()
 
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
-        for (int lev(0); lev < m_maxlev; lev++) {
-            Real m_zlo = m_geom[lev].ProbLo(2);
-            Real m_zhi = m_geom[lev].ProbHi(2);
-            Real m_dz  = m_geom[lev].CellSize(2);
+        Real m_zlo = m_geom[lev].ProbLo(2);
+        Real m_zhi = m_geom[lev].ProbHi(2);
+        Real m_dz  = m_geom[lev].CellSize(2);
 
-            amrex::ignore_unused(m_zhi);
+        amrex::ignore_unused(m_zhi);
 
-            AMREX_ASSERT_WITH_MESSAGE(m_zref >= m_zlo + 0.5 * m_dz,
-                                      "Query point must be past first z-cell!");
+        AMREX_ASSERT_WITH_MESSAGE(m_zref >= m_zlo + 0.5 * m_dz,
+                                  "Query point must be past first z-cell!");
 
-            AMREX_ASSERT_WITH_MESSAGE(m_zref <= m_zhi - 0.5 * m_dz,
-                                      "Query point must be below the last z-cell!");
+        AMREX_ASSERT_WITH_MESSAGE(m_zref <= m_zhi - 0.5 * m_dz,
+                                  "Query point must be below the last z-cell!");
 
-            int lk = static_cast<int>(floor((m_zref - m_zlo) / m_dz - 0.5));
+        int lk = static_cast<int>(floor((m_zref - m_zlo) / m_dz - 0.5));
 
-            m_zref = (lk + 0.5) * m_dz + m_zlo;
+        m_zref = (lk + 0.5) * m_dz + m_zlo;
 
-            AMREX_ALWAYS_ASSERT(lk >= m_radius);
+        AMREX_ALWAYS_ASSERT(lk >= m_radius);
 
-            m_k_indx[lev]->setVal(lk);
-        }
+        m_k_indx[lev]->setVal(lk);
     // Specified k_indx & compute z_ref
     } else if (read_k) {
-        for (int lev(0); lev < m_maxlev; lev++){
-            AMREX_ASSERT_WITH_MESSAGE(m_k_in[lev] >= m_radius,
-                                      "K index must be larger than averaging radius!");
-            m_k_indx[lev]->setVal(m_k_in[lev]);
-        }
+        AMREX_ASSERT_WITH_MESSAGE(m_k_in[lev] >= m_radius,
+                                  "K index must be larger than averaging radius!");
+        m_k_indx[lev]->setVal(m_k_in[lev]);
 
         // TODO: check that z_ref is constant across levels
         Real m_zlo = m_geom[0].ProbLo(2);
@@ -423,7 +421,7 @@ MOSTAverage::set_k_indices_N ()
  *
  */
 void
-MOSTAverage::set_k_indices_T ()
+MOSTAverage::set_k_indices_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
     auto read_z = pp.query("most.zref",m_zref);
@@ -441,32 +439,30 @@ MOSTAverage::set_k_indices_T ()
 
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
-        for (int lev(0); lev < m_maxlev; lev++) {
-            int kmax = m_geom[lev].Domain().bigEnd(2);
-            for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-                Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
-                const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
-                auto k_arr = m_k_indx[lev]->array(mfi);
-                ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    k_arr(i,j,k) = 0;
-                    Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                              + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
-                    Real z_target    = z_bot_face + d_zref;
-                    for (int lk(0); lk<=kmax; ++lk) {
-                        Real z_lo = 0.25 * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
-                                           + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
-                        Real z_hi = 0.25 * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
-                                           + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
-                        if (z_target > z_lo && z_target < z_hi){
-                            AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
-                                                      "K index must be larger than averaging radius!");
-                            k_arr(i,j,k) = lk;
-                            break;
-                        }
+        int kmax = m_geom[lev].Domain().bigEnd(2);
+        for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+            Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+            const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
+            auto k_arr = m_k_indx[lev]->array(mfi);
+            ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                k_arr(i,j,k) = 0;
+                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                Real z_target    = z_bot_face + d_zref;
+                for (int lk(0); lk<=kmax; ++lk) {
+                    Real z_lo = 0.25 * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
+                                       + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
+                    Real z_hi = 0.25 * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
+                                       + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
+                    if (z_target > z_lo && z_target < z_hi){
+                        AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
+                                                  "K index must be larger than averaging radius!");
+                        k_arr(i,j,k) = lk;
+                        break;
                     }
-                });
-            }
+                }
+            });
         }
     // Specified k_indx & compute z_ref
     } else if (read_k) {
@@ -480,7 +476,7 @@ MOSTAverage::set_k_indices_T ()
  *
  */
 void
-MOSTAverage::set_norm_indices_T ()
+MOSTAverage::set_norm_indices_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
     pp.get("most.zref",m_zref);
@@ -489,61 +485,59 @@ MOSTAverage::set_norm_indices_T ()
     Real d_zref   = m_zref;
     Real d_radius = m_radius;
 
-    for (int lev(0); lev < m_maxlev; lev++) {
-        int kmax = m_geom[lev].Domain().bigEnd(2);
-        const auto dxInv  = m_geom[lev].InvCellSizeArray();
-        IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
-        for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
-            Box gpbx  = mfi.growntilebox(ng);
-            const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
-            auto i_arr = m_i_indx[lev]->array(mfi);
-            auto j_arr = m_j_indx[lev]->array(mfi);
-            auto k_arr = m_k_indx[lev]->array(mfi);
-            ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                // Elements of normal vector
-                Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
-                Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
-                Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1.0);
+    int kmax = m_geom[lev].Domain().bigEnd(2);
+    const auto dxInv  = m_geom[lev].InvCellSizeArray();
+    IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
+    for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        Box gpbx  = mfi.growntilebox(ng);
+        const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
+        auto i_arr = m_i_indx[lev]->array(mfi);
+        auto j_arr = m_j_indx[lev]->array(mfi);
+        auto k_arr = m_k_indx[lev]->array(mfi);
+        ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Elements of normal vector
+            Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
+            Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
+            Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1.0);
 
-                // Unit-normal vector scaled by z_ref
-                Real delta_x = -met_h_xi/mag  * d_zref;
-                Real delta_y = -met_h_eta/mag * d_zref;
-                Real delta_z = 1.0/mag * d_zref;
+            // Unit-normal vector scaled by z_ref
+            Real delta_x = -met_h_xi/mag  * d_zref;
+            Real delta_y = -met_h_eta/mag * d_zref;
+            Real delta_z = 1.0/mag * d_zref;
 
-                // Compute i & j as displacements (no grid stretching)
-                int delta_i  = static_cast<int>(std::round(delta_x*dxInv[0]));
-                int delta_j  = static_cast<int>(std::round(delta_y*dxInv[1]));
-                int i_new    = i + delta_i;
-                int j_new    = j + delta_j;
-                i_arr(i,j,k) = i_new;
-                j_arr(i,j,k) = j_new;
+            // Compute i & j as displacements (no grid stretching)
+            int delta_i  = static_cast<int>(std::round(delta_x*dxInv[0]));
+            int delta_j  = static_cast<int>(std::round(delta_y*dxInv[1]));
+            int i_new    = i + delta_i;
+            int j_new    = j + delta_j;
+            i_arr(i,j,k) = i_new;
+            j_arr(i,j,k) = j_new;
 
-                // Search for k (grid is stretched in z)
-                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
-                Real z_target    = z_bot_face + delta_z;
-                for (int lk(0); lk<=kmax; ++lk) {
-                    Real z_lo = 0.25 * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
-                                       + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
-                    Real z_hi = 0.25 * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
-                                       + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
-                    if (z_target > z_lo && z_target < z_hi){
-                        AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
-                                                  "K index must be larger than averaging radius!");
-                        amrex::ignore_unused(d_radius);
-                        k_arr(i,j,k) = lk;
-                        break;
-                    }
+            // Search for k (grid is stretched in z)
+            Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+            Real z_target    = z_bot_face + delta_z;
+            for (int lk(0); lk<=kmax; ++lk) {
+                Real z_lo = 0.25 * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
+                                   + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
+                Real z_hi = 0.25 * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
+                                   + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
+                if (z_target > z_lo && z_target < z_hi){
+                    AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
+                                              "K index must be larger than averaging radius!");
+                    amrex::ignore_unused(d_radius);
+                    k_arr(i,j,k) = lk;
+                    break;
                 }
+            }
 
-                // Destination cell must be contained on the current process!
-                amrex::ignore_unused(gpbx);
-                AMREX_ASSERT_WITH_MESSAGE(gpbx.contains(i_arr(i,j,k),j_arr(i,j,k),k_arr(i,j,k)),
-                                          "Query index outside of proc domain!");
-            });
-        }
+            // Destination cell must be contained on the current process!
+            amrex::ignore_unused(gpbx);
+            AMREX_ASSERT_WITH_MESSAGE(gpbx.contains(i_arr(i,j,k),j_arr(i,j,k),k_arr(i,j,k)),
+                                      "Query index outside of proc domain!");
+        });
     }
 }
 
@@ -553,7 +547,7 @@ MOSTAverage::set_norm_indices_T ()
  *
  */
 void
-MOSTAverage::set_z_positions_T ()
+MOSTAverage::set_z_positions_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
     pp.get("most.zref",m_zref);
@@ -561,35 +555,33 @@ MOSTAverage::set_z_positions_T ()
     // Capture for device
     Real d_zref = m_zref;
 
-    for (int lev(0); lev < m_maxlev; lev++) {
-        RealVect base;
-        const auto dx = m_geom[lev].CellSizeArray();
-        IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
-        for (MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
-            Box gpbx  = mfi.growntilebox(ng);
-            RealBox grb{gpbx,dx.data(),base.dataPtr()};
+    RealVect base;
+    const auto dx = m_geom[lev].CellSizeArray();
+    IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
+    for (MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        Box gpbx  = mfi.growntilebox(ng);
+        RealBox grb{gpbx,dx.data(),base.dataPtr()};
 
-            const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
-            auto x_pos_arr = m_x_pos[lev]->array(mfi);
-            auto y_pos_arr = m_y_pos[lev]->array(mfi);
-            auto z_pos_arr = m_z_pos[lev]->array(mfi);
-            ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                // Final position at end of vector
-                x_pos_arr(i,j,k) = ((Real) i + 0.5) * dx[0];
-                y_pos_arr(i,j,k) = ((Real) j + 0.5) * dx[1];
-                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
-                z_pos_arr(i,j,k) = z_bot_face + d_zref;
+        const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
+        auto x_pos_arr = m_x_pos[lev]->array(mfi);
+        auto y_pos_arr = m_y_pos[lev]->array(mfi);
+        auto z_pos_arr = m_z_pos[lev]->array(mfi);
+        ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Final position at end of vector
+            x_pos_arr(i,j,k) = ((Real) i + 0.5) * dx[0];
+            y_pos_arr(i,j,k) = ((Real) j + 0.5) * dx[1];
+            Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+            z_pos_arr(i,j,k) = z_bot_face + d_zref;
 
-                // Destination position must be contained on the current process!
-                Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
-                amrex::ignore_unused(pos);
-                AMREX_ASSERT_WITH_MESSAGE( grb.contains(&pos[0]),
-                                           "Query point outside of proc domain!");
-            });
-        }
+            // Destination position must be contained on the current process!
+            Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
+            amrex::ignore_unused(pos);
+            AMREX_ASSERT_WITH_MESSAGE( grb.contains(&pos[0]),
+                                       "Query point outside of proc domain!");
+        });
     }
 }
 
@@ -599,7 +591,7 @@ MOSTAverage::set_z_positions_T ()
  *
  */
 void
-MOSTAverage::set_norm_positions_T ()
+MOSTAverage::set_norm_positions_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
     pp.get("most.zref",m_zref);
@@ -607,50 +599,48 @@ MOSTAverage::set_norm_positions_T ()
     // Capture for device
     Real d_zref = m_zref;
 
-    for (int lev(0); lev < m_maxlev; lev++) {
-        RealVect base;
-        const auto dx = m_geom[lev].CellSizeArray();
-        const auto dxInv  = m_geom[lev].InvCellSizeArray();
-        IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
-        for (MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
-            Box gpbx  = mfi.growntilebox(ng);
-            RealBox grb{gpbx,dx.data(),base.dataPtr()};
+    RealVect base;
+    const auto dx = m_geom[lev].CellSizeArray();
+    const auto dxInv  = m_geom[lev].InvCellSizeArray();
+    IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
+    for (MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        Box gpbx  = mfi.growntilebox(ng);
+        RealBox grb{gpbx,dx.data(),base.dataPtr()};
 
-            const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
-            auto x_pos_arr   = m_x_pos[lev]->array(mfi);
-            auto y_pos_arr   = m_y_pos[lev]->array(mfi);
-            auto z_pos_arr   = m_z_pos[lev]->array(mfi);
-            ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                // Elements of normal vector
-                Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
-                Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
-                Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1.0);
+        const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
+        auto x_pos_arr   = m_x_pos[lev]->array(mfi);
+        auto y_pos_arr   = m_y_pos[lev]->array(mfi);
+        auto z_pos_arr   = m_z_pos[lev]->array(mfi);
+        ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Elements of normal vector
+            Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
+            Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
+            Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1.0);
 
-                // Unit-normal vector scaled by z_ref
-                Real delta_x = -met_h_xi/mag  * d_zref;
-                Real delta_y = -met_h_eta/mag * d_zref;
-                Real delta_z = 1.0/mag * d_zref;
+            // Unit-normal vector scaled by z_ref
+            Real delta_x = -met_h_xi/mag  * d_zref;
+            Real delta_y = -met_h_eta/mag * d_zref;
+            Real delta_z = 1.0/mag * d_zref;
 
-                // Position of the current node (indx:0,0,1)
-                Real x0 = ((Real) i + 0.5) * dx[0];
-                Real y0 = ((Real) j + 0.5) * dx[1];
+            // Position of the current node (indx:0,0,1)
+            Real x0 = ((Real) i + 0.5) * dx[0];
+            Real y0 = ((Real) j + 0.5) * dx[1];
 
-                // Final position at end of vector
-                x_pos_arr(i,j,k) = x0 + delta_x;
-                y_pos_arr(i,j,k) = y0 + delta_y;
-                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
-                z_pos_arr(i,j,k) = z_bot_face + delta_z;
+            // Final position at end of vector
+            x_pos_arr(i,j,k) = x0 + delta_x;
+            y_pos_arr(i,j,k) = y0 + delta_y;
+            Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+            z_pos_arr(i,j,k) = z_bot_face + delta_z;
 
-                // Destination position must be contained on the current process!
-                Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
-                amrex::ignore_unused(pos);
-                AMREX_ASSERT_WITH_MESSAGE( grb.contains(&pos[0]),
-                                           "Query point outside of proc domain!");
-            });
-        }
+            // Destination position must be contained on the current process!
+            Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
+            amrex::ignore_unused(pos);
+            AMREX_ASSERT_WITH_MESSAGE( grb.contains(&pos[0]),
+                                       "Query point outside of proc domain!");
+        });
     }
 }
 
@@ -661,7 +651,7 @@ MOSTAverage::set_norm_positions_T ()
  * @param[in] lev Current level
  */
 void
-MOSTAverage::compute_averages (int lev)
+MOSTAverage::compute_averages (const int& lev)
 {
     if (m_rotate) set_rotated_fields(lev);
 
@@ -687,7 +677,7 @@ MOSTAverage::compute_averages (int lev)
  * @param[in] lev Current level
  */
 void
-MOSTAverage::compute_plane_averages (int lev)
+MOSTAverage::compute_plane_averages (const int& lev)
 {
     // Peel back the level
     auto& fields      = m_fields[lev];
@@ -972,7 +962,7 @@ MOSTAverage::compute_plane_averages (int lev)
  * @param[in] lev Current level
  */
 void
-MOSTAverage::compute_region_averages (int lev)
+MOSTAverage::compute_region_averages (const int& lev)
 {
     // Peel back the level
     auto& fields      = m_fields[lev];
@@ -1310,7 +1300,7 @@ MOSTAverage::compute_region_averages (int lev)
  * @param[in] lev Current level
  */
 void
-MOSTAverage::write_k_indices (int lev)
+MOSTAverage::write_k_indices (const int& lev)
 {
     // Peel back the level
     auto& averages = m_averages[lev];
@@ -1349,7 +1339,7 @@ MOSTAverage::write_k_indices (int lev)
  * @param[in] lev Current level
  */
 void
-MOSTAverage::write_norm_indices (int lev)
+MOSTAverage::write_norm_indices (const int& lev)
 {
     // Peel back the level
     auto& averages = m_averages[lev];
@@ -1398,7 +1388,8 @@ MOSTAverage::write_norm_indices (int lev)
  * @param[in] j Index in y-dir
  */
 void
-MOSTAverage::write_xz_positions (int lev, int j)
+MOSTAverage::write_xz_positions (const int& lev,
+                                 const int& j)
 {
     // Peel back the level
     auto& x_pos_mf  = m_x_pos[lev];
@@ -1428,7 +1419,7 @@ MOSTAverage::write_xz_positions (int lev, int j)
  * @param[in] lev Current level
  */
 void
-MOSTAverage::write_averages (int lev)
+MOSTAverage::write_averages (const int& lev)
 {
     // Peel back the level
     auto& averages = m_averages[lev];
