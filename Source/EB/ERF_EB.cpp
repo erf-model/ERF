@@ -14,7 +14,6 @@
 #include <AMReX_MultiCutFab.H>
 #include <AMReX_EBFArrayBox.H>
 #include <AMReX_EB2.H>
-#include <AMReX_EBToPVD.H>
 
 using namespace amrex;
 
