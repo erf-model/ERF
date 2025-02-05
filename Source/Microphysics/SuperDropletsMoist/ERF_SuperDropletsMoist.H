@@ -196,6 +196,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! number of substeps for phase change */
         int m_num_substeps_phase_change;
 
+        /*! kinematic mode? */
+        bool m_kinematic_mode;
+
+        /*! update qv from dycore */
+        bool m_update_qv;
+
         /*! \brief read inputs */
         virtual void readInputs();
 

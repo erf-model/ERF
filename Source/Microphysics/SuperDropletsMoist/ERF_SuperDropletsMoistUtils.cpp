@@ -28,9 +28,16 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
         {
             rho_arr(i,j,k) = states_arr(i,j,k,Rho_comp);
             theta_arr(i,j,k) = states_arr(i,j,k,RhoTheta_comp)/states_arr(i,j,k,Rho_comp);
-            q_v_arr(i,j,k) = states_arr(i,j,k,RhoQ1_comp) / states_arr(i,j,k,Rho_comp);
-            q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k) + q_r_arr(i,j,k);
         });
+
+        if (m_update_qv) {
+            ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            { q_v_arr(i,j,k) = states_arr(i,j,k,RhoQ1_comp) / states_arr(i,j,k,Rho_comp); });
+        }
+
+        ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        { q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k) + q_r_arr(i,j,k); });
+
     }
 
     // Compute pressure and temperature
@@ -124,7 +131,7 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
     computeQcQr();
     computeQt();
     rainAccumulation();
-    Copy_Micro_to_State(a_cons_vars);
+    if (!m_kinematic_mode) { Copy_Micro_to_State(a_cons_vars); }
 }
 
 /*! Convert a multifab containing density of something to its mixing ratio */

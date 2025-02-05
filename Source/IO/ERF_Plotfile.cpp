@@ -1179,6 +1179,18 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     MultiFab::Copy(mf[lev],*(qmoist[lev][3]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
+                if (containerHasElement(plot_var_names, "qv_sdm")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][1]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "qc_sdm")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][2]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "qrain_sdm")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][4]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
             }
         }
 

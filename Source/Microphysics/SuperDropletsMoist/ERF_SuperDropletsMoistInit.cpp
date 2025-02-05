@@ -35,6 +35,11 @@ void SuperDropletsMoist::readInputs ()
     m_r_rain = 4.0e-5; // 40 micrometers
     pp.query("radius_raindrop", m_r_rain);
 
+    // whether to run in kinematic mode
+    m_update_qv = true;
+    m_kinematic_mode = false;
+    pp.query("kinematic_mode", m_kinematic_mode);
+
     // get aerosol names
     m_aerosols.clear();
     std::string aerosol_input = "aerosols";
@@ -107,6 +112,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
                    << "    cloud/rain radius: " << m_r_rain << " [m]\n"
+                   << "    kinematic mode: " << (m_kinematic_mode?"true":"false") << "\n"
                    << "    include phase change: "
                    << (m_flag_phase_change ? "true" : "false") << "\n"
                    << "    include particle advection: "
@@ -222,6 +228,8 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
     }
 
     m_super_droplets->Diagnostics(-1, true);
+
+    if (m_kinematic_mode) { m_update_qv = false; }
 
     return;
 }
