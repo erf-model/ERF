@@ -232,6 +232,28 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
         avg_cond_t /= num_total_particles;
 #endif
     } else {
+        min_par_mass = 0;
+        min_par_radius = 0;
+        min_multiplic = 0;
+        min_par_vx = 0;
+        min_par_vy = 0;
+        min_par_vz = 0;
+        min_term_v = 0;
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        min_cond_t = 0;
+#endif
+
+        max_par_mass = 0;
+        max_par_radius = 0;
+        max_multiplic = 0;
+        max_par_vx = 0;
+        max_par_vy = 0;
+        max_par_vz = 0;
+        max_term_v = 0;
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        max_cond_t = 0;
+#endif
+
         avg_par_mass = 0;
         avg_par_radius = 0;
         avg_multiplic = 0;
@@ -270,36 +292,40 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
         if (num_total_particles > 0) {
             avg_mass_aerosols[ia] /= num_total_particles;
         } else {
+            min_mass_aerosols[ia] = 0.0;
+            max_mass_aerosols[ia] = 0.0;
             avg_mass_aerosols[ia] = 0.0;
         }
     }
 
-    Print() << "SuperDropletPC(" << m_name << ") attributes (min, max, avg):\n"
-            << "    mass [kg]: "
-            << min_par_mass << ", " << max_par_mass << ", " << avg_par_mass << "\n"
-            << "    radius [m]: "
-            << min_par_radius << ", " << max_par_radius << ", " << avg_par_radius << "\n"
-            << "    multiplicity: "
-            << min_multiplic << ", " << max_multiplic << ", " << avg_multiplic << "\n"
-            << "    velocity components [m/s]:\n"
-            << "        x: "
-            << min_par_vx << ", " << max_par_vx << ", " << avg_par_vx << "\n"
-            << "        y: "
-            << min_par_vy << ", " << max_par_vy << ", " << avg_par_vy << "\n"
-            << "        z: "
-            << min_par_vz << ", " << max_par_vz << ", " << avg_par_vz << "\n"
+    if (num_total_particles > 0) {
+        Print() << "SuperDropletPC(" << m_name << ") attributes (min, max, avg):\n"
+                << "    mass [kg]: "
+                << min_par_mass << ", " << max_par_mass << ", " << avg_par_mass << "\n"
+                << "    radius [m]: "
+                << min_par_radius << ", " << max_par_radius << ", " << avg_par_radius << "\n"
+                << "    multiplicity: "
+                << min_multiplic << ", " << max_multiplic << ", " << avg_multiplic << "\n"
+                << "    velocity components [m/s]:\n"
+                << "        x: "
+                << min_par_vx << ", " << max_par_vx << ", " << avg_par_vx << "\n"
+                << "        y: "
+                << min_par_vy << ", " << max_par_vy << ", " << avg_par_vy << "\n"
+                << "        z: "
+                << min_par_vz << ", " << max_par_vz << ", " << avg_par_vz << "\n"
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-            << "    condensation/evaporation tendency [m/s]: "
-            << min_cond_t << ", " << max_cond_t << ", " << avg_cond_t << "\n"
+                << "    condensation/evaporation tendency [m/s]: "
+                << min_cond_t << ", " << max_cond_t << ", " << avg_cond_t << "\n"
 #endif
-            << "    terminal velocity [m/s]: "
-            << min_term_v << ", " << max_term_v << ", " << avg_term_v << "\n";
+                << "    terminal velocity [m/s]: "
+                << min_term_v << ", " << max_term_v << ", " << avg_term_v << "\n";
 
-    Print() << "    aerosol masses [kg]:\n";
-    for (int ia = 0; ia < m_num_aerosols; ia++) {
-        Print() << "        " << m_aerosol_mat[ia]->name()
-                << ": "
-                << min_mass_aerosols[ia] << ", " << max_mass_aerosols[ia] << ", " << avg_mass_aerosols[ia] << "\n";
+        Print() << "    aerosol masses [kg]:\n";
+        for (int ia = 0; ia < m_num_aerosols; ia++) {
+            Print() << "        " << m_aerosol_mat[ia]->name()
+                    << ": "
+                    << min_mass_aerosols[ia] << ", " << max_mass_aerosols[ia] << ", " << avg_mass_aerosols[ia] << "\n";
+        }
     }
 
 
@@ -313,7 +339,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                 << " particles did not converge.\n";
     }
 
-    if (a_flag) {
+    if (a_flag && (num_total_particles > 0)) {
         auto density = m_vapour_mat->density();
         auto r_eff_min = std::cbrt( min_par_mass / ((4.0/3.0)*PI*density) );
         auto r_eff_max = std::cbrt( max_par_mass / ((4.0/3.0)*PI*density) );
