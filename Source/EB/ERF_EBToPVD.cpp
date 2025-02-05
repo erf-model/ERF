@@ -168,31 +168,31 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
                   m_connectivity.push_back({0,0,0,0,0,0,0});
 
                   // calculate intersection points.
-                  std::array<std::array<Real,3>,12> apoints;
+                  std::array<std::array<Real,3>,12> a_points;
 
                   std::array<Real,3> ihat = {1, 0, 0};
                   std::array<Real,3> jhat = {0, 1, 0};
                   std::array<Real,3> khat = {0, 0, 1};
 
                   for(int idim = 0; idim < 3; ++idim) {
-                     apoints[ 0][idim] = vertex[0][idim] + ihat[idim]*dx[0]*alpha[ 0];
-                     apoints[ 1][idim] = vertex[1][idim] + jhat[idim]*dx[1]*alpha[ 1];
-                     apoints[ 2][idim] = vertex[2][idim] + ihat[idim]*dx[0]*alpha[ 2];
-                     apoints[ 3][idim] = vertex[0][idim] + jhat[idim]*dx[1]*alpha[ 3];
-                     apoints[ 4][idim] = vertex[0][idim] + khat[idim]*dx[2]*alpha[ 4];
-                     apoints[ 5][idim] = vertex[1][idim] + khat[idim]*dx[2]*alpha[ 5];
-                     apoints[ 6][idim] = vertex[3][idim] + khat[idim]*dx[2]*alpha[ 6];
-                     apoints[ 7][idim] = vertex[2][idim] + khat[idim]*dx[2]*alpha[ 7];
-                     apoints[ 8][idim] = vertex[4][idim] + ihat[idim]*dx[0]*alpha[ 8];
-                     apoints[ 9][idim] = vertex[5][idim] + jhat[idim]*dx[1]*alpha[ 9];
-                     apoints[10][idim] = vertex[6][idim] + ihat[idim]*dx[0]*alpha[10];
-                     apoints[11][idim] = vertex[4][idim] + jhat[idim]*dx[1]*alpha[11];
+                     a_points[ 0][idim] = vertex[0][idim] + ihat[idim]*dx[0]*alpha[ 0];
+                     a_points[ 1][idim] = vertex[1][idim] + jhat[idim]*dx[1]*alpha[ 1];
+                     a_points[ 2][idim] = vertex[2][idim] + ihat[idim]*dx[0]*alpha[ 2];
+                     a_points[ 3][idim] = vertex[0][idim] + jhat[idim]*dx[1]*alpha[ 3];
+                     a_points[ 4][idim] = vertex[0][idim] + khat[idim]*dx[2]*alpha[ 4];
+                     a_points[ 5][idim] = vertex[1][idim] + khat[idim]*dx[2]*alpha[ 5];
+                     a_points[ 6][idim] = vertex[3][idim] + khat[idim]*dx[2]*alpha[ 6];
+                     a_points[ 7][idim] = vertex[2][idim] + khat[idim]*dx[2]*alpha[ 7];
+                     a_points[ 8][idim] = vertex[4][idim] + ihat[idim]*dx[0]*alpha[ 8];
+                     a_points[ 9][idim] = vertex[5][idim] + jhat[idim]*dx[1]*alpha[ 9];
+                     a_points[10][idim] = vertex[6][idim] + ihat[idim]*dx[0]*alpha[10];
+                     a_points[11][idim] = vertex[4][idim] + jhat[idim]*dx[1]*alpha[11];
                   }
 
                   // store intersections with grid cell alpha in [0,1]
                   for(int lc1 = 0; lc1 < 12; ++lc1) {
                      if(alpha_intersect[lc1]) {
-                        m_points.push_back(apoints[lc1]);
+                        m_points.push_back(a_points[lc1]);
                         int lc2 = m_connectivity.back()[0]+1;
                         m_connectivity.back()[0] = lc2;
                         m_connectivity.back()[lc2] = static_cast<int>(m_points.size()-1);
