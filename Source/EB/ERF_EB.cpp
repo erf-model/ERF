@@ -31,12 +31,12 @@ eb_:: eb_ ( Geometry const& a_geom, amrex::FArrayBox const& terrain_fab,
 {
     m_type = "terrain";
 
-    int max_coarsening_level;
-    if (is_anelastic) {
-        max_coarsening_level = 100;
-    } else {
-        max_coarsening_level = 0;
-    }
+    // int max_coarsening_level;
+    // if (is_anelastic) {
+    //     max_coarsening_level = 100;
+    // } else {
+    //     max_coarsening_level = 0;
+    // }
 
     int max_level_here = 0;
 
