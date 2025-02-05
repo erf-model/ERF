@@ -69,16 +69,98 @@ void AdvectionSrcForMom (const amrex::Box& bx,
                          const amrex::Array4<const amrex::Real>& ay,
                          const amrex::Array4<const amrex::Real>& az,
                          const amrex::Array4<const amrex::Real>& detJ,
+                               amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
                          const AdvType horiz_adv_type, const AdvType vert_adv_type,
                          const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
-                         TerrainType& terrain_type,
+                         MeshType& mesh_type, TerrainType& terrain_type,
                          const int lo_z_face, const int hi_z_face,
                          const amrex::Box& domain,
                          const amrex::BCRec* bc_ptr_h);
+
+/** Compute advection tendencies for all components of momentum when dz is constant */
+void AdvectionSrcForMom_ConstantDz (
+                            const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                            const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
+                            const amrex::Array4<      amrex::Real>& rho_w_rhs,
+                            const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
+                            const amrex::Array4<const amrex::Real>& w        ,
+                            const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
+                            const amrex::Array4<const amrex::Real>& Omega    ,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
+                            const amrex::Array4<const amrex::Real>& mf_m,
+                            const amrex::Array4<const amrex::Real>& mf_u,
+                            const amrex::Array4<const amrex::Real>& mf_v,
+                            const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                            const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
+                            TerrainType& terrain_type,
+                            const int lo_z_face, const int hi_z_face);
+
+/** Compute advection tendencies for all components of momentum when dz is stretched */
+void AdvectionSrcForMom_StretchedDz (
+                            const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                            const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
+                            const amrex::Array4<      amrex::Real>& rho_w_rhs,
+                            const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
+                            const amrex::Array4<const amrex::Real>& w        ,
+                            const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
+                            const amrex::Array4<const amrex::Real>& Omega    ,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
+                            const amrex::Array4<const amrex::Real>& mf_m,
+                            const amrex::Array4<const amrex::Real>& mf_u,
+                            const amrex::Array4<const amrex::Real>& mf_v,
+                            const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                            const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
+                            const int lo_z_face, const int hi_z_face);
+
+/** Compute advection tendencies for all components of momentum for TERRAIN-FITTED COORDS only */
+void AdvectionSrcForMom_TF (
+                            const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                            const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
+                            const amrex::Array4<      amrex::Real>& rho_w_rhs,
+                            const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
+                            const amrex::Array4<const amrex::Real>& w        ,
+                            const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
+                            const amrex::Array4<const amrex::Real>& Omega    ,
+                            const amrex::Array4<const amrex::Real>& z_nd,
+                            const amrex::Array4<const amrex::Real>& ax,
+                            const amrex::Array4<const amrex::Real>& ay,
+                            const amrex::Array4<const amrex::Real>& az,
+                            const amrex::Array4<const amrex::Real>& detJ,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Array4<const amrex::Real>& mf_m,
+                            const amrex::Array4<const amrex::Real>& mf_u,
+                            const amrex::Array4<const amrex::Real>& mf_v,
+                            const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                            const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
+                            const int lo_z_face, const int hi_z_face);
+
+/** Compute advection tendencies for all components of momentum when using EB for terrain */
+void AdvectionSrcForMom_EB (
+                            const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                            const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
+                            const amrex::Array4<      amrex::Real>& rho_w_rhs,
+                            const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
+                            const amrex::Array4<const amrex::Real>& w        ,
+                            const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
+                            const amrex::Array4<const amrex::Real>& Omega    ,
+                            const amrex::Array4<const amrex::Real>& ax,
+                            const amrex::Array4<const amrex::Real>& ay,
+                            const amrex::Array4<const amrex::Real>& az,
+                            const amrex::Array4<const amrex::Real>& detJ,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Array4<const amrex::Real>& mf_m,
+                            const amrex::Array4<const amrex::Real>& mf_u,
+                            const amrex::Array4<const amrex::Real>& mf_v,
+                            const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                            const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
+                            const int lo_z_face, const int hi_z_face,
+                            const amrex::Box& domain);
 
 /** Compute advection tendencies for all normal components of momentum */
 void

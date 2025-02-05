@@ -436,6 +436,7 @@ struct surface_flux
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+
         u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);

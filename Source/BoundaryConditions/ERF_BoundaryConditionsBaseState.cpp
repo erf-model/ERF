@@ -253,7 +253,7 @@ void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& des
 
     const Real hz = Real(0.5) * m_geom.CellSize(2);
 
-    Box bx_zlo1(bx);  bx_zlo1.setBig(2,dom_lo.z-1);  if (bx_zlo1.ok()) bx_zlo1.setSmall(2,dom_lo.z-1);
+    Box bx_zlo1(bx); bx_zlo1.setBig(2,dom_lo.z-1); if (bx_zlo1.ok()) bx_zlo1.setSmall(2,dom_lo.z-1);
     ParallelFor(
         bx_zlo1, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -265,8 +265,8 @@ void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& des
         }
     );
 
-    Box bx_zlo(bx);  bx_zlo.setBig(2,dom_lo.z-2);
-    Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+1);
+    Box bx_zlo(bx); bx_zlo.setBig(2,dom_lo.z-2);
+    Box bx_zhi(bx); bx_zhi.setSmall(2,dom_hi.z+1);
     ParallelFor(
         bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
         {

@@ -241,6 +241,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
     const bool use_KE = ( turbChoice.les_type == LESType::Deardorff );
 
+#if 1
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -321,6 +322,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 });
             }
         }
+#endif
 
         for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
             int offset = (EddyDiff::NumDiffs-1)/2;
@@ -858,4 +860,111 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                               geom, turbChoice, most, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd);
     }
+
+    //
+    // If at level > 0, we want to fill fine ghost cell values that overlie coarse grid cells
+    // (and that are not in another fine valid region) with extrapolated values from the interior,
+    // rather than interpolating from the coarser level, since we may be using a different
+    // turbulence model there
+    //
+    // Note: here "covered" refers to "covered by valid region of another grid at this level"
+    // Note: here "physbnd" refers to "cells outside the domain if not periodic"
+    // Note: here "interior" refers to "valid cells, i.e. inside 'my' grid"
+    //
+    if (level > 0)
+    {
+        int ncomp  = eddyViscosity.nComp();
+        IntVect ng = eddyViscosity.nGrowVect();
+
+        int is_covered    = 0;
+        int is_notcovered = 1;
+        int is_physbnd    = 2;
+        int is_interior   = 3;
+        iMultiFab cc_mask(eddyViscosity.boxArray(),eddyViscosity.DistributionMap(),1,ng);
+        cc_mask.BuildMask(geom.Domain(), geom.periodicity(), is_covered, is_notcovered, is_physbnd, is_interior);
+
+        Box domain = geom.Domain();
+        for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+            if (geom.isPeriodic(i)) {
+                domain.grow(i,1);
+            }
+        }
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(eddyViscosity); mfi.isValid(); ++mfi)
+        {
+            Box vbx = mfi.validbox();
+
+            Box planex_lo = mfi.growntilebox(); planex_lo.setBig(0, vbx.smallEnd(0)-1);
+            Box planey_lo = mfi.growntilebox(); planey_lo.setBig(1, vbx.smallEnd(1)-1);
+            Box planez_lo = mfi.growntilebox(); planez_lo.setBig(2, vbx.smallEnd(2)-1);
+
+            Box planex_hi = mfi.growntilebox(); planex_hi.setSmall(0, vbx.bigEnd(0)+1);
+            Box planey_hi = mfi.growntilebox(); planey_hi.setSmall(1, vbx.bigEnd(1)+1);
+            Box planez_hi = mfi.growntilebox(); planez_hi.setSmall(2, vbx.bigEnd(1)+1);
+
+            int i_lo   = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
+            int j_lo   = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
+            int k_lo   = vbx.smallEnd(2); int k_hi = vbx.bigEnd(2);
+
+            const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
+            const Array4<int>& mask_arr = cc_mask.array(mfi);
+
+            auto domlo = lbound(domain);
+            auto domhi = ubound(domain);
+
+            ParallelFor(planex_lo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
+                int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
+                if (mask_arr(i,j,k) == is_notcovered) {
+                    mu_turb(i,j,k,n) = mu_turb(i_lo,lj,lk,n);
+                }
+            });
+            ParallelFor(planex_hi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
+                int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
+                if (mask_arr(i,j,k) == is_notcovered) {
+                    mu_turb(i,j,k,n) = mu_turb(i_hi,lj,lk,n);
+                }
+            });
+            ParallelFor(planey_lo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
+                int lk = amrex::min(amrex::max(k, domain.smallEnd(2)), domain.bigEnd(2));
+                if (mask_arr(i,j,k) == is_notcovered) {
+                    mu_turb(i,j,k,n) = mu_turb(li,j_lo,lk,n);
+                }
+            });
+            ParallelFor(planey_lo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
+                int lk = amrex::min(amrex::max(k, domain.smallEnd(2)), domain.bigEnd(2));
+                if (mask_arr(i,j,k) == is_notcovered) {
+                    mu_turb(i,j,k,n) = mu_turb(li,j_hi,lk,n);
+                }
+            });
+            ParallelFor(planez_lo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
+                int li = amrex::min(amrex::max(i, domlo.x), domhi.x);
+                if (mask_arr(i,j,k) == is_notcovered) {
+                    mu_turb(i,j,k,n) = mu_turb(li,lj,k_lo,n);
+                }
+            });
+            ParallelFor(planez_hi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
+                int li = amrex::min(amrex::max(i, domlo.x), domhi.x);
+                if (mask_arr(i,j,k) == is_notcovered) {
+                    mu_turb(i,j,k,n) = mu_turb(li,lj,k_hi,n);
+                }
+            });
+        } // mfi
+
+        eddyViscosity.FillBoundary(geom.periodicity());
+    } // level
 }

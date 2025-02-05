@@ -499,9 +499,12 @@ public:
     {
         amrex::Print() << "Initializing flat terrain" << std::endl;
 
-        terrain_fab.template setVal<amrex::RunOn::Device>(0.0);
+        if (SolverChoice::mesh_type == MeshType::VariableDz) {
+            SolverChoice::set_mesh_type(MeshType::StretchedDz);
+            amrex::Print() << "Resetting mesh type to StretchedDz" << std::endl;
+        }
 
-        SolverChoice::set_flat_terrain_flag();
+        terrain_fab.template setVal<amrex::RunOn::Device>(0.0);
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
@@ -570,5 +573,4 @@ protected:
 */
 extern std::unique_ptr<ProblemBase> amrex_probinit (const amrex_real* problo,
                                                     const amrex_real* probhi) AMREX_ATTRIBUTE_WEAK;
-
 #endif
