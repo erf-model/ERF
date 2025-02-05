@@ -50,7 +50,7 @@ eb_:: eb_ ( Geometry const& a_geom, amrex::FArrayBox const& terrain_fab,
 
         // EB2::Build(gshop, a_geom, max_level_here, max_level_here+max_coarsening_level);
         build_level(a_geom, gshop); // This calls EB2::Build
-        
+
         m_write_eb_surface = 1;
 
         make_factory(a_geom, m_eb_level->DistributionMap(), m_eb_level->boxArray());
@@ -117,7 +117,7 @@ make_factory ( Geometry            const& a_geom,
 void
 eb_::
 WriteEBSurface (const BoxArray & ba, const DistributionMapping & dmap, const Geometry & geom,
-                     const EBFArrayBoxFactory * ebf) 
+                     const EBFArrayBoxFactory * ebf)
 {
 
     EBToPVD eb_to_pvd;
@@ -226,7 +226,7 @@ WriteEBSurface (const BoxArray & ba, const DistributionMapping & dmap, const Geo
 }
 
 
-// void 
+// void
 // eb_::
 // map_eb_data(Geometry const& a_geom)
 // {
@@ -250,7 +250,7 @@ WriteEBSurface (const BoxArray & ba, const DistributionMapping & dmap, const Geo
 //       // EB normal and face centroid
 //       Array4<Real> const& bcent_arr = bcent.array(mfi);
 //       Array4<Real> const& bnorm_arr = bnorm.array(mfi);
-      
+
 //       ParallelFor(bx, [&] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
 //       {
 //         // Map bcent and bnorm to the isoparametric space for anisotropic grids.
@@ -258,8 +258,8 @@ WriteEBSurface (const BoxArray & ba, const DistributionMapping & dmap, const Geo
 
 //         // Boundary centroid
 
-//         Real const norm_bcent = ( (bnorm_arr(i,j,k,0)*dx[0])*(bnorm_arr(i,j,k,0)*dx[0]) 
-//                                 + (bnorm_arr(i,j,k,1)*dx[1])*(bnorm_arr(i,j,k,1)*dx[1]) 
+//         Real const norm_bcent = ( (bnorm_arr(i,j,k,0)*dx[0])*(bnorm_arr(i,j,k,0)*dx[0])
+//                                 + (bnorm_arr(i,j,k,1)*dx[1])*(bnorm_arr(i,j,k,1)*dx[1])
 //                                 + (bnorm_arr(i,j,k,2)*dx[2])*(bnorm_arr(i,j,k,2)*dx[2]) );
 
 //         bnorm_arr(i,j,k,0) = bnorm_arr(i,j,k,0) / norm_bcent * dx[1] * dx[2];

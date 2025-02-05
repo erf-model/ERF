@@ -92,7 +92,7 @@ define( int const& a_idim,
         IntVect iv_lo(iv_hi - vdim);
         if (!a_geom.isPeriodic(idim) && iv_hi[idim]==bx.bigEnd(idim)){
           iv_hi = iv_lo; // At the upper boundary, hi cell takes the values of the low cell.
-        }          
+        }
         if (!a_geom.isPeriodic(idim) && iv_hi[idim]==bx.smallEnd(idim)){
           iv_lo = iv_hi; // At the lower boundary, low cell takes the values of the high cell.
         }
@@ -123,8 +123,8 @@ define( int const& a_idim,
 
           // Map bcent and bnorm to the isoparametric space for anisotropic grids.
           // (This step is needed because bcent in AMReX is isotropically normalized.)
-          Real norm = ( (bnorm(iv_lo,0)*dx[0])*(bnorm(iv_lo,0)*dx[0]) 
-                      + (bnorm(iv_lo,1)*dx[1])*(bnorm(iv_lo,1)*dx[1]) 
+          Real norm = ( (bnorm(iv_lo,0)*dx[0])*(bnorm(iv_lo,0)*dx[0])
+                      + (bnorm(iv_lo,1)*dx[1])*(bnorm(iv_lo,1)*dx[1])
                       + (bnorm(iv_lo,2)*dx[2])*(bnorm(iv_lo,2)*dx[2]) );
           Real bcent_isoparam_x = bcent(iv_lo,0) / norm * dx[1] * dx[2];
           Real bcent_isoparam_y = bcent(iv_lo,1) / norm * dx[0] * dx[2];
@@ -160,8 +160,8 @@ define( int const& a_idim,
           // High EB cut cell
           //-----------------------
 
-          norm = ( (bnorm(iv_hi,0)*dx[0])*(bnorm(iv_hi,0)*dx[0]) 
-                 + (bnorm(iv_hi,1)*dx[1])*(bnorm(iv_hi,1)*dx[1]) 
+          norm = ( (bnorm(iv_hi,0)*dx[0])*(bnorm(iv_hi,0)*dx[0])
+                 + (bnorm(iv_hi,1)*dx[1])*(bnorm(iv_hi,1)*dx[1])
                  + (bnorm(iv_hi,2)*dx[2])*(bnorm(iv_hi,2)*dx[2]) );
           bcent_isoparam_x = bcent(iv_hi,0) / norm * dx[1] * dx[2];
           bcent_isoparam_y = bcent(iv_hi,1) / norm * dx[0] * dx[2];

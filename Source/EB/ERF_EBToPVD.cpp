@@ -35,10 +35,6 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
    const auto lo = lbound(bx);
    const auto hi = ubound(bx);
 
-    // // SK ***********************************
-    // amrex::Print() << "SK: ERF_EBToPVD.cpp/ " << std::endl;
-    // // SK ***********************************
-
    for(int k = lo.z; k <= hi.z; ++k) {
       for(int j = lo.y; j <= hi.y; ++j) {
          for(int i = lo.x; i <= hi.x; ++i) {
@@ -84,8 +80,8 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
             //    centroid[1] = problo[1] + bcent(i,j,k,1)*dx[1] + (static_cast<Real>(j) + Real(0.5))*dx[1];
             //    centroid[2] = problo[2] + bcent(i,j,k,2)*dx[2] + (static_cast<Real>(k) + Real(0.5))*dx[2];
 
-               Real norm = ( (normal[0]*dx[0])*(normal[0]*dx[0]) 
-                           + (normal[1]*dx[1])*(normal[1]*dx[1]) 
+               Real norm = ( (normal[0]*dx[0])*(normal[0]*dx[0])
+                           + (normal[1]*dx[1])*(normal[1]*dx[1])
                            + (normal[2]*dx[2])*(normal[2]*dx[2]) );
 
                Real bcent_isoparam_x = bcent(i,j,k,0) / norm * dx[1] * dx[2];

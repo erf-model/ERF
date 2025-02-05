@@ -35,8 +35,8 @@ class eb_ {
     amrex::EB2::Level const* get_level () const noexcept
     { return m_eb_level; }
 
-    void WriteEBSurface (const amrex::BoxArray & ba, 
-                            const amrex::DistributionMapping & dmap, 
+    void WriteEBSurface (const amrex::BoxArray & ba,
+                            const amrex::DistributionMapping & dmap,
                             const amrex::Geometry & geom,
                             const amrex::EBFArrayBoxFactory * ebf);
 
