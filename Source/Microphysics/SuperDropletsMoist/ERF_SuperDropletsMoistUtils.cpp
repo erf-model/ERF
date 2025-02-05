@@ -181,6 +181,23 @@ void SuperDropletsMoist::computeQcQr ()
 {
     m_super_droplets->massDensityCondensate(*(m_mic_fab_vars[MicVar_SD::q_c]), 0, m_r_rain);
     m_super_droplets->massDensityCondensate(*(m_mic_fab_vars[MicVar_SD::q_r]), m_r_rain, 1.0);
+
+    if (m_dimensionality == SDMSimulationDim::one_d_z) {
+        for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_t]); mfi.isValid(); ++mfi) {
+            Box bx = mfi.tilebox();
+            int imin = bx.smallEnd(0);
+            int jmin = bx.smallEnd(1);
+            auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
+            auto q_r_arr = m_mic_fab_vars[MicVar_SD::q_r]->array(mfi);
+
+            ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                q_c_arr(i,j,k) = q_c_arr(imin,jmin,k);
+                q_r_arr(i,j,k) = q_r_arr(imin,jmin,k);
+            });
+        }
+    }
+
     densityToRatio(*(m_mic_fab_vars[MicVar_SD::q_c]));
     densityToRatio(*(m_mic_fab_vars[MicVar_SD::q_r]));
 }

@@ -5,6 +5,7 @@
 
 #include <limits>
 #include <string>
+#include <AMReX_Enum.H>
 #include <AMReX_Geometry.H>
 #include "ERF_NullMoistLagrangian.H"
 #include "ERF_SuperDropletPC.H"
@@ -33,6 +34,10 @@ namespace SuperDropletsMoistInitializations
     const std::string init_rhoc = "condensate_density";
 
 }
+
+AMREX_ENUM(SDMSimulationDim,
+    one_d_z, two_d_xz, two_d_yz, three_d
+);
 
 using namespace amrex;
 
@@ -201,6 +206,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! update qv from dycore */
         bool m_update_qv;
+
+        /*! Dimensionality of simulation*/
+        SDMSimulationDim m_dimensionality;
 
         /*! \brief read inputs */
         virtual void readInputs();

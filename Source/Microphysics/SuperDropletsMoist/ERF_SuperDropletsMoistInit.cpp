@@ -40,6 +40,10 @@ void SuperDropletsMoist::readInputs ()
     m_kinematic_mode = false;
     pp.query("kinematic_mode", m_kinematic_mode);
 
+    // simulation dimensionality
+    m_dimensionality = SDMSimulationDim::three_d;
+    pp.query("dimensionality", m_dimensionality);
+
     // get aerosol names
     m_aerosols.clear();
     std::string aerosol_input = "aerosols";
@@ -113,6 +117,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
                    << "    cloud/rain radius: " << m_r_rain << " [m]\n"
                    << "    kinematic mode: " << (m_kinematic_mode?"true":"false") << "\n"
+                   << "    dimensionality: " << amrex::getEnumNameString(m_dimensionality)  << "\n"
                    << "    include phase change: "
                    << (m_flag_phase_change ? "true" : "false") << "\n"
                    << "    include particle advection: "
