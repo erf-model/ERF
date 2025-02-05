@@ -75,12 +75,14 @@ define( int const& a_idim,
       Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
       Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
 
+      bool is_per = a_geom.isPeriodic(a_idim);
+
       ParallelFor(bx, [
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
                   a_geom, dx, bx, vfrac, afrac, bnorm, bcent, flag,
-                  aux_flag, aux_vfrac, vdim, idim=a_idim ]
+                  aux_flag, aux_vfrac, vdim, idim=a_idim, is_per ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         aux_flag(i,j,k).setCovered();
@@ -90,10 +92,10 @@ define( int const& a_idim,
 
         IntVect iv_hi(i,j,k);
         IntVect iv_lo(iv_hi - vdim);
-        if (!a_geom.isPeriodic(idim) && iv_hi[idim]==bx.bigEnd(idim)){
+        if (!is_per && iv_hi[idim]==bx.bigEnd(idim)){
           iv_hi = iv_lo; // At the upper boundary, hi cell takes the values of the low cell.
         }
-        if (!a_geom.isPeriodic(idim) && iv_hi[idim]==bx.smallEnd(idim)){
+        if (!is_per && iv_hi[idim]==bx.smallEnd(idim)){
           iv_lo = iv_hi; // At the lower boundary, low cell takes the values of the high cell.
         }
 
