@@ -24,7 +24,7 @@ eb_::~eb_()
 
 eb_:: eb_ ( Geometry const& a_geom, amrex::FArrayBox const& terrain_fab,
             amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
-            bool is_anelastic)
+            bool /*is_anelastic*/)
     : m_has_eb(0),
       m_support_level(EBSupport::full),
       m_write_eb_surface(0)
@@ -38,7 +38,7 @@ eb_:: eb_ ( Geometry const& a_geom, amrex::FArrayBox const& terrain_fab,
     //     max_coarsening_level = 0;
     // }
 
-    int max_level_here = 0;
+    // int max_level_here = 0;
 
     if (m_type == "terrain")
     {

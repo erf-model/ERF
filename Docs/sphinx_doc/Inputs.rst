@@ -866,6 +866,10 @@ The allowed advection types for the dry and moist scalars are
 "Centered_6th" and in addition,
 "WENO3", "WENOZ3", "WENOMZQ3", "WENO5", "WENOZ5", "WENO7", and "WENOZ7."
 
+To use the blended schemes, ``erf.[vartype]_[horiz|vert]_upw_frac`` for the corresponding
+``erf.[vartype]_[horiz|vert]_adv_type`` should be set to a scalar between 0 and 1, where 1 is fully
+upwind and 0 is fully central.
+
 Note: if using WENO schemes, the horizontal and vertical advection types must be set to
 the same string.
 
