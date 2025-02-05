@@ -89,6 +89,22 @@ void make_buoyancy (Vector<MultiFab>& S_data,
         }
         else if ( anelastic && (solverChoice.moisture_type != MoistureType::None) )
         {
+            /*
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                if (i==0 && j==0) {
+                    Print() << "Check: " << IntVect(i,j,k) << ' '
+                            << cell_data(i,j,k,Rho_comp) << ' '
+                            << r0_arr(i,j,k) << ' '
+                            << cell_data(i,j,k,RhoTheta_comp) << ' '
+                            << cell_data(i,j,k,RhoTheta_comp)/cell_data(i,j,k,Rho_comp) << ' '
+                            << th0_arr(i,j,k) << ' '
+                            << cell_data(i,j,k,RhoQ1_comp) << ' '
+                            << cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) << "\n";
+                        }
+            });
+            exit(0);
+            */
             // ******************************************************************************************
             // Moist anelastic
             // ******************************************************************************************
@@ -100,6 +116,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],rv_over_rd,
                                                                  r0_arr,th0_arr,cell_data);
             });
+            //exit(0);
         }
         else if ( !anelastic && (solverChoice.moisture_type == MoistureType::None) )
         {

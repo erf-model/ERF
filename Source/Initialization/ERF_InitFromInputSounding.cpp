@@ -275,7 +275,19 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         r_hse_arr (i,j,k) = rho_k * (1.0 + qv_k);
         p_hse_arr (i,j,k) = getPgivenRTh(rhoTh_k, qv_k);
         pi_hse_arr(i,j,k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
-        th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k)) / r_hse_arr(i,j,k);
+        th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), qv_k) / rho_k;
+
+        /*
+        if (i==0 && j==0) {
+            Print() << "INIT: " << IntVect(i,j,k) << ' '
+                    << rho_k << ' '
+                    << r_hse_arr(i,j,k) << ' '
+                    << rhoTh_k << ' '
+                    << rhoTh_k/rho_k << ' '
+                    << qv_k << ' '
+                    << th_hse_arr(i,j,k) << "\n";
+        }
+        */
 
         // TODO: we should be setting this to the number of ghost cells of base_state[lev]
         //       instead of hard-wiring it here!

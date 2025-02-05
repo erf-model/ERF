@@ -1,0 +1,108 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 24000 #144000 #300000
+#erf.restart = chk_cloudchamber_LES_Cs017_analestic_dt0025_SDM_InitDen126_10000 
+#erf.restart = chk_cloudchamber_LES_Cs025_analestic_dt0025_RH95_B05_SatAdj_noCCN_initQV11.8_24000
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  2    2    1
+amr.n_cell           =  64   64   32
+
+geometry.is_periodic = 0 0 0
+
+zlo.type = "NoSlipWall"
+zhi.type = "NoSlipWall"
+xlo.type = "NoSlipWall"
+xhi.type = "NoSlipWall"
+ylo.type = "NoSlipWall"
+yhi.type = "NoSlipWall"
+
+zlo.theta = 299
+zhi.theta = 280
+xlo.theta = 289.5
+xhi.theta = 289.5
+ylo.theta = 289.5
+yhi.theta = 289.5
+
+zlo.qv = 0.02036 #0.02139
+zhi.qv = 0.00591 #0.00623
+xlo.qv = 0.01119 #0.01177
+xhi.qv = 0.01119 #0.01177
+ylo.qv = 0.01119 #0.01177
+yhi.qv = 0.01119 #0.01177
+
+# TIME STEP CONTROL
+erf.anelastic = 1 
+erf.fixed_dt           = 0.025 #0.005 #0.0001  # fixed time step depending on grid resolution
+#erf.fixed_mri_dt_ratio = 6 #100
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 0       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_cloudchamber_LES_Cs025_analestic_dt0025_RH95_B05_SatAdj_noCCN_initQV12.13_B1_ #chk_pertTallLevel_noGravity_sameT_        # root name of checkpoint file
+erf.check_int       = 2400 #10000        # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt_cloudchamber_LES_Cs025_analestic_dt0025_RH95_B05_SatAdj_noCCN_initQV12.13_B1_ #plt_pertTallLevel_noGravity_sameT_        # prefix of plotfile name
+erf.plot_int_1      = 800 #10000         # number of timesteps between plotfiles
+erf.plot_vars_1     = Kmh Kmv Khh Khv density rhoadv_0 x_velocity y_velocity z_velocity scalar pressure temp theta qt qv qsat #qc qrain rain_accum rel_humidity super_droplets_moisture_number_density super_droplets_moisture_radius super_droplets_moisture_aerosol_mass_density_NaCl super_droplets_moisture_mass_density 
+
+# SOLVER CHOICE
+erf.alpha_T = 0
+erf.alpha_C = 0
+erf.use_gravity = true 
+
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.25 #0.17
+erf.buoyancy_type = 1
+
+#erf.les_type = "Deardorff"
+#erf.Ck       = 0.1
+#erf.sigma_k  = 1.0
+#erf.Ce       = 0.1
+
+#erf.les_type = "None"
+#erf.molec_diff_type = "ConstantAlpha"
+#erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
+#erf.dynamicViscosity = 0.00099 # [kg/(m-s)] ==> nu = 75.0 m^2/s
+#erf.alpha_T = 0.00099 # [m^2/s]
+#erf.alpha_C = 0.00099 
+
+# Initialization
+erf.init_type           = "input_sounding"
+erf.init_sounding_ideal = true
+erf.input_sounding_file = "input_sounding_cloud_chamber_moisture"
+#erf.init_type = "uniform"
+
+# moisture model
+erf.moisture_model = "SatAdj" #"SuperDroplets" #"None" # default value
+erf.use_moist_background = true 
+# Super droplet parameters
+super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.diagnostics_interval = 50
+super_droplets_moisture.coalescence_kernel = "Halls"
+super_droplets_moisture.aerosols = NaCl
+super_droplets_moisture.multiplicity_type = "constant"
+super_droplets_moisture.initial_aerosol_distribution_type_NaCl = "mass_constant"
+super_droplets_moisture.initial_aerosol_mean_mass_NaCl = 1.14e-18 # with 50nm radius and 2.17g/cm3 density
+super_droplets_moisture.initial_number_density = 1e8 #2.5e6 #m^{-3}
+super_droplets_moisture.initial_particles_per_cell = 40
+
+
+
+#PROBLEM PARAMETERS
+prob.rho_0 = 1.2
+
+# Higher values of perturbations lead to instability
+# Instability seems to be coming from BC
+prob.T_0_Pert_Mag = 0.1
+prob.pert_rhotheta = false
