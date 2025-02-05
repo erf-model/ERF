@@ -1,4 +1,8 @@
 CEXE_sources += ERF_AdvectionSrcForMom.cpp
+CEXE_sources += ERF_AdvectionSrcForMom_ConstantDz.cpp
+CEXE_sources += ERF_AdvectionSrcForMom_StretchedDz.cpp
+CEXE_sources += ERF_AdvectionSrcForMom_EB.cpp
+CEXE_sources += ERF_AdvectionSrcForMom_TF.cpp
 CEXE_sources += ERF_AdvectionSrcForState.cpp
 CEXE_sources += ERF_AdvectionSrcForOpenBC.cpp
 

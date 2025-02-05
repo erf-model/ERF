@@ -26,15 +26,15 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
                                 const amrex::Real vert_upw_frac)
 {
     // Instantiate structs for vert/horiz interp
-    InterpType_H interp_prim_h(cell_prim);
-    InterpType_V interp_prim_v(cell_prim);
+    InterpType_H interp_prim_h(cell_prim, horiz_upw_frac);
+    InterpType_V interp_prim_v(cell_prim, vert_upw_frac);
 
     const int ncells_h = interp_prim_h.GetUpwindCellNumber();
     const int ncells_v = interp_prim_v.GetUpwindCellNumber();
 
     // Instantiate structs for lower-order vert/horiz interp
-    CENTERED2 interp_prim_CEN2(cell_prim);
-    UPWIND3   interp_prim_UPW3(cell_prim);
+    CENTERED2 interp_prim_CEN2(cell_prim, 0);
+    UPWIND3   interp_prim_UPW3(cell_prim, horiz_upw_frac);
 
     const amrex::Box xbx = amrex::surroundingNodes(bx,0);
     const amrex::Box ybx = amrex::surroundingNodes(bx,1);
@@ -73,12 +73,12 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             amrex::Real interpx(0.);
 
             if (icell==ncells_h-1) {
-                interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i,j,k),horiz_upw_frac);
+                interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i,j,k));
             } else {
                 if (icell==1) {
-                    interp_prim_CEN2.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i,j,k),horiz_upw_frac);
+                    interp_prim_CEN2.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i,j,k));
                 } else if (icell==2) {
-                    interp_prim_UPW3.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i,j,k),horiz_upw_frac);
+                    interp_prim_UPW3.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i,j,k));
                 }
             }
             (flx_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * interpx;
@@ -122,12 +122,12 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             amrex::Real interpy(0.);
 
             if (jcell==ncells_h-1) {
-                interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i,j,k),horiz_upw_frac);
+                interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i,j,k));
             } else {
                 if (jcell==1) {
-                    interp_prim_CEN2.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i,j,k),horiz_upw_frac);
+                    interp_prim_CEN2.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i,j,k));
                 } else if (jcell==2) {
-                    interp_prim_UPW3.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i,j,k),horiz_upw_frac);
+                    interp_prim_UPW3.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i,j,k));
                 }
             }
             (flx_arr[1])(i,j,k,cons_index) = avg_ymom(i,j,k) * interpy;
@@ -137,6 +137,8 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             (flx_arr[1])(i,j,k,cons_index) = 0.;
         }
     });
+
+    interp_prim_UPW3.SetUpwinding(vert_upw_frac);
 
     amrex::ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -171,12 +173,12 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             amrex::Real interpz(0.);
 
             if (kcell==ncells_v-1) {
-                interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i,j,k),vert_upw_frac);
+                interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i,j,k));
             } else {
                 if (kcell==1) {
-                    interp_prim_CEN2.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i,j,k),vert_upw_frac);
+                    interp_prim_CEN2.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i,j,k));
                 } else if (kcell==2) {
-                    interp_prim_UPW3.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i,j,k),vert_upw_frac);
+                    interp_prim_UPW3.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i,j,k));
                 }
             }
             (flx_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * interpz;

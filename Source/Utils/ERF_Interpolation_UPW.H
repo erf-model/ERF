@@ -8,7 +8,8 @@
  */
 struct CENTERED2
 {
-    CENTERED2 (const amrex::Array4<const amrex::Real>& phi)
+    CENTERED2 (const amrex::Array4<const amrex::Real>& phi,
+               const amrex::Real /*upw_frac*/)
         : m_phi(phi) {}
 
     AMREX_GPU_DEVICE
@@ -19,8 +20,7 @@ struct CENTERED2
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/,
-                    const amrex::Real /*upw_frac*/) const
+                    amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
@@ -38,8 +38,7 @@ struct CENTERED2
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/,
-                    const amrex::Real /*upw_frac*/) const
+                    amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
@@ -57,8 +56,7 @@ struct CENTERED2
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/,
-                    const amrex::Real /*upw_frac*/) const
+                    amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
@@ -93,8 +91,11 @@ private:
  */
 struct UPWIND3
 {
-    UPWIND3 (const amrex::Array4<const amrex::Real>& phi)
-        : m_phi(phi) {}
+    UPWIND3 (const amrex::Array4<const amrex::Real>& phi,
+             const amrex::Real upw_frac)
+        : m_phi(phi)
+        , m_upw_frac(upw_frac)
+    {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -104,8 +105,7 @@ struct UPWIND3
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo,
-                    const amrex::Real upw_frac) const
+                    amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
@@ -117,7 +117,7 @@ struct UPWIND3
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
         // Add blending
-        upw_lo *= upw_frac;
+        upw_lo *= m_upw_frac;
 
         // Interpolate lo
         val_lo = Evaluate(sp1,s,sm1,sm2,upw_lo);
@@ -131,8 +131,7 @@ struct UPWIND3
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo,
-                    const amrex::Real upw_frac) const
+                    amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
@@ -144,7 +143,7 @@ struct UPWIND3
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
         // Add blending
-        upw_lo *= upw_frac;
+        upw_lo *= m_upw_frac;
 
         // Interpolate lo
         val_lo = Evaluate(sp1,s,sm1,sm2,upw_lo);
@@ -158,8 +157,7 @@ struct UPWIND3
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo,
-                    const amrex::Real upw_frac) const
+                    amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -171,7 +169,7 @@ struct UPWIND3
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
         // Add blending
-        upw_lo *= upw_frac;
+        upw_lo *= m_upw_frac;
 
         // Interpolate lo
         val_lo = Evaluate(sp1,s,sm1,sm2,upw_lo);
@@ -198,8 +196,11 @@ struct UPWIND3
 
     int GetUpwindCellNumber() const {return 2;}
 
+    void SetUpwinding(amrex::Real upw_frac) {m_upw_frac = upw_frac;}
+
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
+    amrex::Real m_upw_frac; // Upwinding fraction
     static constexpr amrex::Real g1=(7.0/12.0);
     static constexpr amrex::Real g2=(1.0/12.0);
 };
@@ -210,7 +211,8 @@ private:
  */
 struct CENTERED4
 {
-    CENTERED4 (const amrex::Array4<const amrex::Real>& phi)
+    CENTERED4 (const amrex::Array4<const amrex::Real>& phi,
+               const amrex::Real /*upw_frac*/)
         : m_phi(phi) {}
 
     AMREX_GPU_DEVICE
@@ -221,8 +223,7 @@ struct CENTERED4
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/,
-                    const amrex::Real /*upw_frac*/) const
+                    amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
@@ -242,8 +243,7 @@ struct CENTERED4
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/,
-                    const amrex::Real /*upw_frac*/) const
+                    amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
@@ -263,8 +263,7 @@ struct CENTERED4
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/,
-                    const amrex::Real /*upw_frac*/) const
+                    amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -305,8 +304,11 @@ private:
  */
 struct UPWIND5
 {
-    UPWIND5 (const amrex::Array4<const amrex::Real>& phi)
-        : m_phi(phi) {}
+    UPWIND5 (const amrex::Array4<const amrex::Real>& phi,
+             const amrex::Real upw_frac)
+        : m_phi(phi)
+        , m_upw_frac(upw_frac)
+    {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -316,8 +318,7 @@ struct UPWIND5
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo,
-                    const amrex::Real upw_frac) const
+                    amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
@@ -331,7 +332,7 @@ struct UPWIND5
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
         // Add blending
-        upw_lo *= upw_frac;
+        upw_lo *= m_upw_frac;
 
         // Interpolate lo
         val_lo = Evaluate(sp2,sp1,s,sm1,sm2,sm3,upw_lo);
@@ -345,8 +346,7 @@ struct UPWIND5
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo,
-                    const amrex::Real upw_frac) const
+                    amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
@@ -360,7 +360,7 @@ struct UPWIND5
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
         // Add blending
-        upw_lo *= upw_frac;
+        upw_lo *= m_upw_frac;
 
         // Interpolate lo
         val_lo = Evaluate(sp2,sp1,s,sm1,sm2,sm3,upw_lo);
@@ -374,8 +374,7 @@ struct UPWIND5
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo,
-                    const amrex::Real upw_frac) const
+                    amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
@@ -389,7 +388,7 @@ struct UPWIND5
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
         // Add blending
-        upw_lo *= upw_frac;
+        upw_lo *= m_upw_frac;
 
         // Interpolate lo
         val_lo = Evaluate(sp2,sp1,s,sm1,sm2,sm3,upw_lo);
@@ -420,8 +419,11 @@ struct UPWIND5
 
     int GetUpwindCellNumber() const {return 3;}
 
+    void SetUpwinding(amrex::Real upw_frac) {m_upw_frac = upw_frac;}
+
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
+    amrex::Real m_upw_frac; // Upwinding fraction
     static constexpr amrex::Real g1=(37.0/60.0);
     static constexpr amrex::Real g2=(2.0/15.0);
     static constexpr amrex::Real g3=(1.0/60.0);
@@ -432,7 +434,8 @@ private:
  */
 struct CENTERED6
 {
-    CENTERED6 (const amrex::Array4<const amrex::Real>& phi)
+    CENTERED6 (const amrex::Array4<const amrex::Real>& phi,
+               const amrex::Real /*upw_frac*/)
         : m_phi(phi) {}
 
     AMREX_GPU_DEVICE
@@ -443,8 +446,7 @@ struct CENTERED6
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/,
-                    const amrex::Real /*upw_frac*/) const
+                    amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
@@ -466,8 +468,7 @@ struct CENTERED6
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/,
-                    const amrex::Real /*upw_frac*/) const
+                    amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
@@ -489,8 +490,7 @@ struct CENTERED6
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/,
-                    const amrex::Real /*upw_frac*/) const
+                    amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
@@ -537,8 +537,11 @@ private:
  */
 struct UPWINDALL
 {
-    UPWINDALL (const amrex::Array4<const amrex::Real>& phi)
-        : m_phi(phi) {}
+    UPWINDALL (const amrex::Array4<const amrex::Real>& phi,
+               const amrex::Real upw_frac)
+        : m_phi(phi)
+        , m_upw_frac(upw_frac)
+    {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -549,7 +552,6 @@ struct UPWINDALL
                     const int& qty_index,
                     amrex::Real& val_lo,
                     amrex::Real upw_lo,
-                    const amrex::Real upw_frac,
                     const AdvType adv_type) const
     {
         if (adv_type == AdvType::Centered_2nd) {
@@ -568,7 +570,7 @@ struct UPWINDALL
             if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
             // Add blending
-            upw_lo *= upw_frac;
+            upw_lo *= m_upw_frac;
 
             // Interpolate lo
             val_lo = Evaluate(sp2,sp1,s,sm1,sm2,sm3,upw_lo,adv_type);
@@ -613,6 +615,7 @@ struct UPWINDALL
 
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
+    amrex::Real m_upw_frac; // Upwinding fraction
     static constexpr amrex::Real g1_3_4=( 7.0/12.0);
     static constexpr amrex::Real g2_3_4=( 1.0/12.0);
     static constexpr amrex::Real g1_5_6=(37.0/60.0);

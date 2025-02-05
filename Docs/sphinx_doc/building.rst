@@ -202,6 +202,8 @@ Mac with CMake
 ~~~~~~~~~~~~~~
 Tested with macOS 12.7 (Monterey) using cmake (3.27.8), open-mpi (5.0.0), and
 pkg-config (0.29.2) installed with the homebrew package manager.
+(Note: The homebrew openmpi library was "poured from bottle," not installed
+with the ``--build-from-source`` option.)
 NetCDF will be compiled from source. The instructions below should be version
 agnostic.
 
