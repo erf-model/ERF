@@ -34,18 +34,22 @@ buoyancy_moist_anelastic (int& i, int& j, int& k,
                           const amrex::Array4<const amrex::Real>& th0_arr,
                           const amrex::Array4<const amrex::Real>& cell_data)
 {
-    amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/r0_arr(i,j,k-1);
-    amrex::Real qv_lo      = cell_data(i,j,k-1,RhoQ1_comp)   /r0_arr(i,j,k-1);
-    amrex::Real qc_lo      = cell_data(i,j,k-1,RhoQ2_comp)   /r0_arr(i,j,k-1);
+    amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+    amrex::Real qv_lo      = cell_data(i,j,k-1,RhoQ1_comp)   /cell_data(i,j,k-1,Rho_comp);
+    amrex::Real qc_lo      = cell_data(i,j,k-1,RhoQ2_comp)   /cell_data(i,j,k-1,Rho_comp);
     amrex::Real qt_lo      = qv_lo + qc_lo;
     amrex::Real theta_v_lo = theta_d_lo * (1.0 - (1.0 - rv_over_rd)*qt_lo - rv_over_rd*qc_lo);
 
-    amrex::Real theta_d_hi = cell_data(i,j,k,RhoTheta_comp)/r0_arr(i,j,k);
-    amrex::Real qv_hi      = cell_data(i,j,k,RhoQ1_comp)   /r0_arr(i,j,k);
-    amrex::Real qc_hi      = cell_data(i,j,k,RhoQ2_comp)   /r0_arr(i,j,k);
+    amrex::Real theta_d_hi = cell_data(i,j,k,RhoTheta_comp)/cell_data(i,j,k,Rho_comp);
+    amrex::Real qv_hi      = cell_data(i,j,k,RhoQ1_comp)   /cell_data(i,j,k,Rho_comp);
+    amrex::Real qc_hi      = cell_data(i,j,k,RhoQ2_comp)   /cell_data(i,j,k,Rho_comp);
     amrex::Real qt_hi      = qv_hi + qc_hi;
     amrex::Real theta_v_hi = theta_d_hi * (1.0 - (1.0 - rv_over_rd)*qt_hi - rv_over_rd*qc_hi);
 
+    // NOTE: The following has three errors that depend upon storing a qv0 base state
+    //       1. theta_v0_wface needs to incorporate qv0
+    //       2. rho0_wface should be rhod0_wface (rho0 includes (1 + qv0) from balance w/ moisture)
+    //       3. another term with qv' = (qv - qv0) should be included
     amrex::Real  theta_v_wface = amrex::Real(0.5) * (theta_v_lo + theta_v_hi);
     amrex::Real theta_v0_wface = amrex::Real(0.5) * (th0_arr(i,j,k) + th0_arr(i,j,k-1));
     amrex::Real     rho0_wface = amrex::Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));

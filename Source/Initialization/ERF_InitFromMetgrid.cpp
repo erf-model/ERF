@@ -1162,7 +1162,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             r_hse_arr(i,j,k) *= (1.0 + Qv);
 
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-            th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k)) / r_hse_arr(i,j,k);
+            th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), Qv) / new_data(i,j,k,Rho_comp);
         });
 
         // FOEXTRAP hse arrays to fill ghost cells. FillBoundary is

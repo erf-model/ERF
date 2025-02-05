@@ -218,7 +218,7 @@ ERF::erf_enforce_hse (int lev,
 
                 pres_arr(i,j,klo) = p_0 - hz * rho_arr(i,j,klo) * l_gravity;
                   pi_arr(i,j,klo) = getExnergivenP(pres_arr(i,j,klo), rdOcp);
-                  th_arr(i,j,klo) =getRhoThetagivenP(pres_arr(i,j,klo)) / rho_arr(i,j,klo);
+                  th_arr(i,j,klo) = getRhoThetagivenP(pres_arr(i,j,klo)) / rho_arr(i,j,klo);
 
                 //
                 // Set ghost cell with dz and rho at boundary
