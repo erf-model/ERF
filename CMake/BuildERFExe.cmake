@@ -142,6 +142,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/EB/ERF_EB.cpp
        ${SRC_DIR}/EB/ERF_EBCutCell.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
+       ${SRC_DIR}/EB/ERF_EBToPVD.cpp
        ${SRC_DIR}/EB/ERF_EBWriteSurface.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
        ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
