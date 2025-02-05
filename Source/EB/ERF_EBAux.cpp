@@ -81,7 +81,7 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
-                  a_geom, dx, bx, vfrac, afrac, bnorm, bcent, flag,
+                  dx, bx, vfrac, afrac, bnorm, bcent, flag,
                   aux_flag, aux_vfrac, vdim, idim=a_idim, is_per ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
@@ -111,7 +111,6 @@ define( int const& a_idim,
           // defaults to covered and disconnected.
 
         } else {
-
 
 #ifndef AMREX_USE_GPU
           if (verbose) { Print() << "\ncell: " << amrex::IntVect(i,j,k) << "\n"; }
