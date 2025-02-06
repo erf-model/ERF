@@ -9,6 +9,7 @@ CEXE_sources += ERF_SuperDropletPCCoalescence.cpp
 CEXE_sources += ERF_SuperDropletPCDiagnostics.cpp
 CEXE_sources += ERF_SuperDropletPCInitializations.cpp
 CEXE_sources += ERF_SuperDropletPCMassChange.cpp
+CEXE_sources += ERF_SuperDropletPCRecycle.cpp
 CEXE_sources += ERF_SuperDropletPCUtils.cpp
 
 CEXE_headers += ERF_ParticleData.H

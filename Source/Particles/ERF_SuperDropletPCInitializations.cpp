@@ -188,6 +188,11 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
 void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
 {
     Print() << "SuperDropletPC(" << m_name << "):\n"
+            << "    Density scaling: " << (m_density_scaling ? "true" : "false") << "\n"
+            << "    Nucleate particles: " << (m_nucleate_particles ? "true" : "false") << "\n"
+            << "    Advect with flow: " << (m_advect_w_flow ? "true" : "false") << "\n"
+            << "    Advect with gravity: " << (m_advect_w_gravity ? "true" : "false") << "\n"
+            << "    Random initial placement: " << (m_place_randomly_in_cells ? "true" : "false") << "\n"
             << "    Coalescence bin size: " << m_coalescence_bin_size << "\n"
             << "    Include Brownian coaslescence: "
             << (m_include_brownian_coalescence ? "true" : "false") << "\n";
@@ -559,6 +564,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                     mult_ptr[n] = num_to_add;
                 }
                 num_to_add -= mult_ptr[n];
+                if (mult_ptr[n] == 0) { mult_ptr[n] = 1; }
 
                 ParticleReal aerosol_mass_total = 0.0;
                 for (int ctr = 0; ctr < n_aerosols; ctr++) {

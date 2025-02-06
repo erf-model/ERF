@@ -40,6 +40,8 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     }
     auto multiplicity = num_par_per_cell / num_sd_per_cell;
 
+    Long num_deactivated_particles = 0;
+
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -72,6 +74,9 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                                     + i ).data();
         }
 
+        Gpu::Buffer<Long> deactivated_particles({0});
+        auto* deactivated_particles_ptr = deactivated_particles.data();
+
         ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
@@ -89,6 +94,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     p.pos(2) = z_ground + 0.01*dx[2];
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                     mult_ptr[i] = 0.0;
+                    Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
                 }
             }
 
@@ -103,6 +109,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     p.pos(2) = z_roof - dx[2];
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                     mult_ptr[i] = 0.0;
+                    Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
                 }
             }
 
@@ -123,6 +130,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         p.pos(d) = x_min + 0.01*dx[d];
                         v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                         mult_ptr[i] = 0.0;
+                        Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
 
                     } else {
 
@@ -153,6 +161,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         p.pos(d) = x_max - 0.01*dx[d];
                         v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                         mult_ptr[i] = 0.0;
+                        Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
 
                     } else {
 
@@ -182,8 +191,12 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
         });
         Gpu::synchronize();
+        num_deactivated_particles += *(deactivated_particles.copyToHost());
     }
 
+    ParallelDescriptor::ReduceLongSum( &num_deactivated_particles, 1 );
+    Print() << "SuperDropletPC(" << m_name << "): "
+            << "deactivated " << num_deactivated_particles << " super-droplets at boundaries.\n";
 }
 
 #endif

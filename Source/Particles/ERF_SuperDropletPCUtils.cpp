@@ -78,6 +78,22 @@ Real SuperDropletPC::TotalNumberOfParticles ()
     return count;
 }
 
+/*! This returns the total number of deactivated superdroplets (multiplicity zero) */
+Long SuperDropletPC::NumSDDeactivated ()
+{
+    BL_PROFILE("SuperDropletPC::NumSDDeactivated()");
+    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
+    auto count = ReduceSum( *this,
+                            [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Long
+                            {
+                                auto mult = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                if (mult == 0) { return Long(1); }
+                                else           { return Long(0); }
+                            } );
+    ParallelDescriptor::ReduceLongSum(&count, 1, ParallelDescriptor::IOProcessorNumber());
+    return count;
+}
+
 /*! Computes the number density of the particles over a mesh */
 void SuperDropletPC::numberDensity ( MultiFab&  a_mf,  /*!< Number density multifab */
                                      const int& a_comp /*!< Multifab component to fill with number density */) const

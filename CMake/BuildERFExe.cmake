@@ -42,6 +42,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCDiagnostics.cpp
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCInitializations.cpp
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCMassChange.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCRecycle.cpp
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCUtils.cpp)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Particles>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
@@ -154,6 +155,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/EB/ERF_EB.cpp
        ${SRC_DIR}/EB/ERF_EBCutCell.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
+       ${SRC_DIR}/EB/ERF_EBToPVD.cpp
        ${SRC_DIR}/EB/ERF_EBWriteSurface.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
        ${SRC_DIR}/Initialization/ERF_InitCustom.cpp

@@ -190,6 +190,9 @@ class SuperDropletPC : public ERFPC
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab& );
 
+        /*! \brief Recycle super-droplets */
+        virtual void Recycle ( const int, const amrex::Vector<MFPtr>& );
+
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */
         [[nodiscard]] inline virtual amrex::Long NumSuperDroplets ()
@@ -199,6 +202,9 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Return the total number of physical particles */
         [[nodiscard]] virtual amrex::Real TotalNumberOfParticles ();
+
+        /*! \brief Return the number of deactivated super-droplets */
+        [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
         /*! \brief Compute and print diagnostics */
         virtual void Diagnostics (const int&, const bool);

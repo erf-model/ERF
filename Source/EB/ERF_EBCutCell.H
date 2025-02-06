@@ -72,7 +72,7 @@ class eb_cut_cell_ {
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real areaLo ( int const a_idim ) const noexcept {
-      AMREX_ASSERT( a_idim >0 && a_idim < AMREX_SPACEDIM );
+      AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
       if (m_flag.isCovered() ) { return 0.; }
       if (m_flag.isRegular() ) { return 1.; }
       amrex::Real const area(m_lo_faces[a_idim]->area());
@@ -81,7 +81,7 @@ class eb_cut_cell_ {
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real areaHi ( int const a_idim ) const noexcept {
-      AMREX_ASSERT( a_idim > 0 && a_idim < AMREX_SPACEDIM );
+      AMREX_ASSERT( a_idim >= 0 && a_idim < AMREX_SPACEDIM );
       if (m_flag.isCovered() ) { return 0.; }
       if (m_flag.isRegular() ) { return 1.; }
       amrex::Real const area(m_hi_faces[a_idim]->area());
