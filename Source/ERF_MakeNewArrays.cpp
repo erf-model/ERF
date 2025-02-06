@@ -511,7 +511,9 @@ ERF::init_zphys (int lev, Real time)
             for (MFIter mfi(*z_phys_nd[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box isect = terrain_fab.box() & (*z_phys_nd[lev])[mfi].box();
-                (*z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
+                if (!isect.isEmpty()) {
+                    (*z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
+                }
             }
             make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
         }
