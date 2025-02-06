@@ -622,7 +622,7 @@ init_base_state_from_wrfinput (const Box& domain,
             r_hse_arr(i,j,k)  = Rhse_Sum;
             p_hse_arr(i,j,k)  = Ptot;
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-            th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k)) / r_hse_arr(i,j,k);
+            th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), Qv) / cons_arr(ii,jj,kk,Rho_comp);
         });
     }
 }
