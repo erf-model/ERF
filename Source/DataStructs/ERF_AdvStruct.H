@@ -18,7 +18,7 @@
 
 struct AdvChoice {
   public:
-    void init_params()
+    void init_params(std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -272,9 +272,6 @@ struct AdvChoice {
             return AdvType::Unknown;
         }
     }
-
-    // Default prefix
-    std::string pp_prefix {"erf"};
 
     // Order and type of spatial discretizations used in advection
     // Defaults given below but these can be over-written at run-time

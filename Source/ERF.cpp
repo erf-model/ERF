@@ -1031,7 +1031,7 @@ ERF::InitData_post ()
         //
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
-        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, Qv_prim, z_phys_nd
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, pp_prefix, Qv_prim, z_phys_nd
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
@@ -1646,7 +1646,7 @@ ERF::ReadParameters ()
     solverChoice.pp_prefix = pp_prefix;
 #endif
 
-    solverChoice.init_params(max_level);
+    solverChoice.init_params(max_level,pp_prefix);
 
     // Query the canopy model file name
     std::string forestfile;

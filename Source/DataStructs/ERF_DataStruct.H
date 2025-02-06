@@ -81,7 +81,7 @@ enum Sponge {
 
 struct SolverChoice {
   public:
-    void init_params(int max_level)
+    void init_params(int max_level, std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -307,7 +307,7 @@ struct SolverChoice {
 
         if (use_coriolis)
         {
-            build_coriolis_forcings();
+            build_coriolis_forcings(pp_prefix);
         }
 
         pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
@@ -342,13 +342,13 @@ struct SolverChoice {
         // Use monotonic advection?
         pp.query("use_mono_adv",use_mono_adv);
 
-           advChoice.init_params();
-          diffChoice.init_params();
-        spongeChoice.init_params();
+           advChoice.init_params(pp_prefix);
+          diffChoice.init_params(pp_prefix);
+        spongeChoice.init_params(pp_prefix);
 
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
-            turbChoice[lev].init_params(lev,max_level);
+            turbChoice[lev].init_params(lev,max_level,pp_prefix);
         }
 
         // YSU PBL: use consistent coriolis frequency
@@ -514,7 +514,7 @@ struct SolverChoice {
         }
     }
 
-    void build_coriolis_forcings()
+    void build_coriolis_forcings(std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -589,9 +589,6 @@ struct SolverChoice {
     DiffChoice   diffChoice;
     SpongeChoice spongeChoice;
     amrex::Vector<TurbChoice>  turbChoice;
-
-    // Default prefix
-    std::string pp_prefix {"erf"};
 
     int         force_stage1_single_substep = 1;
 
