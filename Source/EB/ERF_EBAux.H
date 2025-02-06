@@ -24,6 +24,8 @@ class eb_aux_
 
     void set_verbose ( ) { m_verbose = 1; }
 
+    [[nodiscard]] const amrex::MultiFab& getVolFrac () const;
+
   private:
 
     int m_verbose;

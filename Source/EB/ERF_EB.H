@@ -40,7 +40,9 @@ class eb_ {
                             const amrex::Geometry & geom,
                             const amrex::EBFArrayBoxFactory * ebf);
 
-    // void map_eb_data( amrex::Geometry          const& a_geom);
+    eb_aux_ const* get_u_factory() { return &m_u_factory; }
+    eb_aux_ const* get_v_factory() { return &m_v_factory; }
+    eb_aux_ const* get_w_factory() { return &m_w_factory; }
 
     class EBToPVD;
 

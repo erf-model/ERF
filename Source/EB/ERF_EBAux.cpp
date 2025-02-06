@@ -1,6 +1,9 @@
 #include <ERF_EBAux.H>
 #include <ERF_EBCutCell.H>
 
+#include <iostream>
+#include <fstream>
+
 using namespace amrex;
 
 eb_aux_::
@@ -53,6 +56,7 @@ define( int const& a_idim,
 
   const auto& FlagFab = a_factory->getMultiEBCellFlagFab();
 
+
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
     const Box& bx = mfi.validbox();
@@ -77,12 +81,29 @@ define( int const& a_idim,
 
       bool is_per = a_geom.isPeriodic(a_idim);
 
+  // SK *******************************************************
+  Print()<<"SK: EBAux.cpp/ bx = " << bx << std::endl;
+  std::vector<std::string> filenames = {
+    "output.hi_eb_cc_areaLo0", "output.hi_eb_cc_areaHi0"
+  };
+
+  std::vector<std::ofstream> outfiles(filenames.size());
+
+  for (size_t i = 0; i < filenames.size(); ++i) {
+    outfiles[i].open(filenames[i]);
+    outfiles[i] << std::fixed << std::setprecision(12);
+    if (!outfiles[i].is_open()) {
+        std::cerr << "Error opening file: " << filenames[i] << std::endl;
+    }
+  }
+  // SK *******************************************************
+
       ParallelFor(bx, [
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
                   dx, bx, vfrac, afrac, bnorm, bcent, flag,
-                  aux_flag, aux_vfrac, vdim, idim=a_idim, is_per ]
+                  aux_flag, aux_vfrac, vdim, idim=a_idim, is_per, &outfiles ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         aux_flag(i,j,k).setCovered();
@@ -106,9 +127,19 @@ define( int const& a_idim,
 
           aux_vfrac(i,j,k) = 1.0;
 
+          // SK *******************************************************
+          outfiles[0] << 0. << std::endl;
+          outfiles[1] << 0. << std::endl;
+          // SK ******************************************************* 
+
         } else if ( flag(iv_lo).isCovered() && flag(iv_hi).isCovered()) {
 
           // defaults to covered and disconnected.
+
+          // SK *******************************************************
+          outfiles[0] << 0. << std::endl;
+          outfiles[1] << 0. << std::endl;
+          // SK ******************************************************* 
 
         } else {
 
@@ -177,11 +208,6 @@ define( int const& a_idim,
                         + (bnorm(iv_hi,1)*dx[1])*(bnorm(iv_hi,1)*dx[1])
                         + (bnorm(iv_hi,2)*dx[2])*(bnorm(iv_hi,2)*dx[2]) );
 
-            // // SK ********************************************************
-            // Print()<<"SK: EBAux.cpp/ norm (1) = "<< iv_hi << " " << flag(iv_hi).isSingleValued () << " "
-            // << bnorm(iv_hi,0) << " " << bnorm(iv_hi,0) << " " << bnorm(iv_hi,0) << " "<< norm << std::endl;
-            // // SK ********************************************************
-
             RealVect bcent_isoparam ( bcent(iv_hi,0) / norm * dx[1] * dx[2],
                                       bcent(iv_hi,1) / norm * dx[0] * dx[2],
                                       bcent(iv_hi,2) / norm * dx[0] * dx[1] );
@@ -211,6 +237,11 @@ define( int const& a_idim,
           // The inverse is not always true.
           AMREX_ASSERT( !flag(iv_hi).isCovered() || hi_eb_cc.isCovered() );
           AMREX_ASSERT( !flag(iv_hi).isRegular() || hi_eb_cc.isRegular() );
+
+        // SK *******************************************************
+        outfiles[0] << hi_eb_cc.areaLo(0) << std::endl;
+        outfiles[1] << hi_eb_cc.areaHi(0) << std::endl;
+        // SK ******************************************************* 
 
 #if defined(AMREX_DEBUG) || defined(AMREX_TESTING) || 1
 
@@ -368,6 +399,13 @@ define( int const& a_idim,
           }
         }
       });
+
+    // SK ******************************************************* 
+    for (auto& file : outfiles) {
+      file.close();
+    }
+    exit(0);
+    // SK ******************************************************* 
 
     }
 
