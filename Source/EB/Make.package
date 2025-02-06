@@ -20,3 +20,6 @@ CEXE_headers += ERF_EBAdvectionSrcForScalars.H
 CEXE_sources += ERF_EBBox.cpp
 CEXE_sources += ERF_EBRedistribute.cpp
 CEXE_sources += ERF_EBWriteSurface.cpp
+
+CEXE_headers += ERF_EBToPVD.H
+CEXE_sources += ERF_EBToPVD.cpp

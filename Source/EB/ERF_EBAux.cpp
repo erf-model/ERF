@@ -17,7 +17,7 @@ eb_aux_ ()
 void
 eb_aux_::
 define( int const& a_idim,
-        Geometry            const& /*a_geom*/,
+        Geometry            const& a_geom,
         BoxArray            const& a_grids,
         DistributionMapping const& a_dmap,
         Vector<int>         const& a_ngrow,
@@ -59,6 +59,8 @@ define( int const& a_idim,
 
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
 
+      GpuArray<Real, AMREX_SPACEDIM> dx = a_geom.CellSizeArray();
+
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
 
       Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
@@ -73,12 +75,14 @@ define( int const& a_idim,
       Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
       Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
 
+      bool is_per = a_geom.isPeriodic(a_idim);
+
       ParallelFor(bx, [
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
-                  vfrac, afrac, bnorm, bcent, flag,
-                  aux_flag, aux_vfrac, vdim, idim=a_idim ]
+                  dx, bx, vfrac, afrac, bnorm, bcent, flag,
+                  aux_flag, aux_vfrac, vdim, idim=a_idim, is_per ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         aux_flag(i,j,k).setCovered();
@@ -86,8 +90,14 @@ define( int const& a_idim,
 
         aux_vfrac(i,j,k) = 0.0;
 
-        IntVect const iv_hi(i,j,k);
-        IntVect const iv_lo(iv_hi - vdim);
+        IntVect iv_hi(i,j,k);
+        IntVect iv_lo(iv_hi - vdim);
+        if (!is_per && iv_hi[idim]==bx.bigEnd(idim)){
+          iv_hi = iv_lo; // At the upper boundary, hi cell takes the values of the low cell.
+        }
+        if (!is_per && iv_hi[idim]==bx.smallEnd(idim)){
+          iv_lo = iv_hi; // At the lower boundary, low cell takes the values of the high cell.
+        }
 
         if ( flag(iv_lo).isRegular() && flag(iv_hi).isRegular()) {
 
@@ -102,16 +112,38 @@ define( int const& a_idim,
 
         } else {
 
-
 #ifndef AMREX_USE_GPU
           if (verbose) { Print() << "\ncell: " << amrex::IntVect(i,j,k) << "\n"; }
 #endif
           Array<Real,AMREX_SPACEDIM> lo_arr = {-0.5,-0.5,-0.5};
           Array<Real,AMREX_SPACEDIM> hi_arr = { 0.5, 0.5, 0.5};
 
+          //-----------------------
+          // Low EB cut cell
+          //-----------------------
+
+          // Map bcent and bnorm to the isoparametric space for anisotropic grids.
+          // (This step is needed because bcent in AMReX is isotropically normalized.)
+          Real norm = ( (bnorm(iv_lo,0)*dx[0])*(bnorm(iv_lo,0)*dx[0])
+                      + (bnorm(iv_lo,1)*dx[1])*(bnorm(iv_lo,1)*dx[1])
+                      + (bnorm(iv_lo,2)*dx[2])*(bnorm(iv_lo,2)*dx[2]) );
+          Real bcent_isoparam_x = bcent(iv_lo,0) / norm * dx[1] * dx[2];
+          Real bcent_isoparam_y = bcent(iv_lo,1) / norm * dx[0] * dx[2];
+          Real bcent_isoparam_z = bcent(iv_lo,2) / norm * dx[0] * dx[1];
+
+          Real bnorm_x = bnorm(iv_lo,0) / dx[0];
+          Real bnorm_y = bnorm(iv_lo,1) / dx[1];
+          Real bnorm_z = bnorm(iv_lo,2) / dx[2];
+
+          norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+
+          Real bnorm_isoparam_x = bnorm_x / norm;
+          Real bnorm_isoparam_y = bnorm_y / norm;
+          Real bnorm_isoparam_z = bnorm_z / norm;
+
           // plane point and normal
-          RealVect lo_point(bcent(iv_lo,0), bcent(iv_lo,1), bcent(iv_lo,2));
-          RealVect lo_normal(bnorm(iv_lo,0), bnorm(iv_lo,1), bnorm(iv_lo,2));
+          RealVect lo_point (bcent_isoparam_x, bcent_isoparam_y, bcent_isoparam_z);
+          RealVect lo_normal(bnorm_isoparam_x, bnorm_isoparam_y, bnorm_isoparam_z);
 
           // High side of low cell
           lo_arr[idim] = 0.0;
@@ -125,9 +157,30 @@ define( int const& a_idim,
           AMREX_ASSERT( !flag(iv_lo).isCovered() || lo_eb_cc.isCovered() );
           AMREX_ASSERT( !flag(iv_lo).isRegular() || lo_eb_cc.isRegular() );
 
+          //-----------------------
+          // High EB cut cell
+          //-----------------------
+
+          norm = ( (bnorm(iv_hi,0)*dx[0])*(bnorm(iv_hi,0)*dx[0])
+                 + (bnorm(iv_hi,1)*dx[1])*(bnorm(iv_hi,1)*dx[1])
+                 + (bnorm(iv_hi,2)*dx[2])*(bnorm(iv_hi,2)*dx[2]) );
+          bcent_isoparam_x = bcent(iv_hi,0) / norm * dx[1] * dx[2];
+          bcent_isoparam_y = bcent(iv_hi,1) / norm * dx[0] * dx[2];
+          bcent_isoparam_z = bcent(iv_hi,2) / norm * dx[0] * dx[1];
+
+          bnorm_x = bnorm(iv_hi,0) / dx[0];
+          bnorm_y = bnorm(iv_hi,1) / dx[1];
+          bnorm_z = bnorm(iv_hi,2) / dx[2];
+
+          norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+
+          bnorm_isoparam_x = bnorm_x / norm;
+          bnorm_isoparam_y = bnorm_y / norm;
+          bnorm_isoparam_z = bnorm_z / norm;
+
           // plane point and normal
-          RealVect hi_point(bcent(iv_hi,0), bcent(iv_hi,1), bcent(iv_hi,2));
-          RealVect hi_normal(bnorm(iv_hi,0), bnorm(iv_hi,1), bnorm(iv_hi,2));
+          RealVect hi_point (bcent_isoparam_x, bcent_isoparam_y, bcent_isoparam_z);
+          RealVect hi_normal(bnorm_isoparam_x, bnorm_isoparam_y, bnorm_isoparam_z);
 
           // Low side of high cell
           lo_arr[idim] = -0.5;
@@ -177,19 +230,19 @@ define( int const& a_idim,
             if ( flag(iv_hi).isSingleValued() ) {
 
               Real const adx = (idim == 0)
-                             ? (hi_eb_cc.areaLo(0) - hi_hi_eb_cc.areaHi(0))
-                             : (hi_eb_cc.areaLo(0) + hi_hi_eb_cc.areaLo(0))
-                             - (hi_eb_cc.areaHi(0) + hi_hi_eb_cc.areaHi(0));
+                             ? (hi_eb_cc.areaLo(0) - hi_hi_eb_cc.areaHi(0)) * dx[1] * dx[2]
+                             : (hi_eb_cc.areaLo(0) + hi_hi_eb_cc.areaLo(0)) * dx[1] * dx[2]
+                             - (hi_eb_cc.areaHi(0) + hi_hi_eb_cc.areaHi(0)) * dx[1] * dx[2];
 
               Real const ady = (idim == 1)
-                             ? (hi_eb_cc.areaLo(1) - hi_hi_eb_cc.areaHi(1))
-                             : (hi_eb_cc.areaLo(1) + hi_hi_eb_cc.areaLo(1))
-                             - (hi_eb_cc.areaHi(1) + hi_hi_eb_cc.areaHi(1));
+                             ? (hi_eb_cc.areaLo(1) - hi_hi_eb_cc.areaHi(1)) * dx[0] * dx[2]
+                             : (hi_eb_cc.areaLo(1) + hi_hi_eb_cc.areaLo(1)) * dx[0] * dx[2]
+                             - (hi_eb_cc.areaHi(1) + hi_hi_eb_cc.areaHi(1)) * dx[0] * dx[2];
 
               Real const adz = (idim == 2)
-                             ? (hi_eb_cc.areaLo(2) - hi_hi_eb_cc.areaHi(2))
-                             : (hi_eb_cc.areaLo(2) + hi_hi_eb_cc.areaLo(2))
-                             - (hi_eb_cc.areaHi(2) + hi_hi_eb_cc.areaHi(2));
+                             ? (hi_eb_cc.areaLo(2) - hi_hi_eb_cc.areaHi(2)) * dx[0] * dx[1]
+                             : (hi_eb_cc.areaLo(2) + hi_hi_eb_cc.areaLo(2)) * dx[0] * dx[1]
+                             - (hi_eb_cc.areaHi(2) + hi_hi_eb_cc.areaHi(2)) * dx[0] * dx[1];
 
               Real const apnorm = std::sqrt(adx*adx + ady*ady + adz*adz);
 
@@ -220,7 +273,7 @@ define( int const& a_idim,
             Real const abs_err = std::abs( hi_eb_cc.areaHi(idim) - hi_hi_eb_cc.areaLo(idim) );
             Real machine_tol = 10.0*std::numeric_limits<amrex::Real>::epsilon();
             if ( abs_err >= machine_tol ) {
-                Print() << "\nFail: check-4 area abs_err: " << abs_err
+                Print() << "\nFail: check-2 area abs_err: " << abs_err
                         << "\n  hi_eb_cc.areaHi " << hi_eb_cc.areaHi(idim)
                         << "\n  hi_hi_eb_cc.areaLo " << hi_hi_eb_cc.areaLo(idim)
                         << '\n';
@@ -239,7 +292,7 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
               if ( abs_err >= compare_tol ) {
                 //hi_eb_cc.debug();
-                Print() << "\nFail: check-2 area abs_err " << abs_err
+                Print() << "\nFail: check-3 area abs_err " << abs_err
                         << "\n  hi_eb_cc.areaLo(" << idim << ") = " << hi_eb_cc.areaLo(idim)
                         << "\n  lo_eb_cc.areaHi(" << idim << ") = " << lo_eb_cc.areaHi(idim)
                         << "\n  afrac" << iv_hi << " =  " << afrac(iv_hi)

@@ -60,7 +60,8 @@ void ERF::init_bcs ()
         m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
 
         std::string pp_text;
-        if (pp_prefix == "erf") {
+        std::string first3 = pp_prefix.substr(0,3);
+        if (first3 == "erf") {
           pp_text = bcid;
         } else {
           pp_text = pp_prefix + "." + bcid;
