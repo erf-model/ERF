@@ -210,6 +210,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! Dimensionality of simulation*/
         SDMSimulationDim m_dimensionality;
 
+        /*! recycle particles */
+        bool m_recycle_particles;
+
         /*! \brief read inputs */
         virtual void readInputs();
 

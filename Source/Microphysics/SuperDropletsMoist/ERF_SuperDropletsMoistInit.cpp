@@ -44,6 +44,10 @@ void SuperDropletsMoist::readInputs ()
     m_dimensionality = SDMSimulationDim::three_d;
     pp.query("dimensionality", m_dimensionality);
 
+    // recycle super-droplets
+    m_recycle_particles = false;
+    pp.query("recycle_particles", m_recycle_particles);
+
     // get aerosol names
     m_aerosols.clear();
     std::string aerosol_input = "aerosols";
@@ -124,6 +128,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                    << (m_flag_advection ? "true" : "false") << "\n"
                    << "    include coalescence: "
                    << (m_flag_coalescence ? "true" : "false") << "\n"
+                   << "    Recycle particles: " << (m_recycle_particles ? "true" : "false") << "\n"
                    << "    number of substeps (phase change): " << m_diagnostics_iter << "\n"
                    << "    initial phase change relaxation: "
                    << (m_init_phase_change ? "true" : "false") << "\n";

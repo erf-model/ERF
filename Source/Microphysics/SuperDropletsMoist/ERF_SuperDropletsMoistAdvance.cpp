@@ -12,12 +12,22 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                    const Vector<MFPtr>& a_z, /*!< terrain */
                                    const BCTypeArr& a_bc /*! Boundary types */)
 {
+    auto num_particles = m_super_droplets->TotalNumberOfParticles();
+    auto num_SD = m_super_droplets->NumSuperDroplets();
+    auto num_SD_inactive = m_super_droplets->NumSDDeactivated();
+
     amrex::Print() << "SuperDropletsMoist: iteration=" << a_iter+1
                    << ", dt=" << a_dt <<", evolving "
-                   << m_super_droplets->NumSuperDroplets()
+                   << num_SD
                    << " super-droplets representing "
-                   << m_super_droplets->TotalNumberOfParticles()
+                   << num_particles
                    << " particles.\n";
+
+    amrex::Print() << "    Number of deactivated super-droplets: "
+                   << num_SD_inactive
+                   << " ("
+                   << amrex::Real(num_SD_inactive)/amrex::Real(num_SD)*100
+                   << "%).\n";
 
     // update dt
     m_dt = a_dt;
@@ -45,6 +55,11 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                         a_dt,
                                         *m_mic_fab_vars[MicVar_SD::pressure],
                                         *m_mic_fab_vars[MicVar_SD::temperature] );
+    }
+
+    // Recycle super-droplets
+    if (m_recycle_particles) {
+        m_super_droplets->Recycle( 0, a_z );
     }
 
     m_super_droplets->Diagnostics(a_iter, ((a_iter+1)%m_diagnostics_iter == 0));
