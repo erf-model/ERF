@@ -488,7 +488,7 @@ ERF::init_zphys (int lev, Real time)
         }
 
         int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff) + 2;
-        Box bx(surroundingNodes(Geom(0).Domain())); bx.grow(ngrow);
+        Box bx(surroundingNodes(Geom(lev).Domain())); bx.grow(ngrow);
         FArrayBox terrain_fab(makeSlab(bx,2,0),1);
 
         //
