@@ -249,8 +249,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
         Box bxcc   = mfi.tilebox();
         Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc); planex.grow(1,1);
         Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc); planey.grow(0,1);
-        int i_lo   = bxcc.smallEnd(0); int i_hi = bxcc.bigEnd(0);
-        int j_lo   = bxcc.smallEnd(1); int j_hi = bxcc.bigEnd(1);
         bxcc.growLo(0,ngc); bxcc.growHi(0,ngc);
         bxcc.growLo(1,ngc); bxcc.growHi(1,ngc);
 
@@ -480,8 +478,6 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /
         Box bxcc   = mfi.tilebox();
         Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc); planex.grow(1,1);
         Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc); planey.grow(0,1);
-        int i_lo   = bxcc.smallEnd(0); int i_hi = bxcc.bigEnd(0);
-        int j_lo   = bxcc.smallEnd(1); int j_hi = bxcc.bigEnd(1);
         bxcc.growLo(0,ngc); bxcc.growHi(0,ngc);
         bxcc.growLo(1,ngc); bxcc.growHi(1,ngc);
 
