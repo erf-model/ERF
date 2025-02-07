@@ -516,6 +516,7 @@ ERF::init_zphys (int lev, Real time)
                 }
             }
             make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
+            z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
         }
 
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
@@ -533,10 +534,6 @@ ERF::init_zphys (int lev, Real time)
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < 1.e-8, "Terrain is taller than domain top!");
             }
         } // lev == 0
-
-        if (z_phys_nd[lev]) {
-            z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
-        }
 
     } // init_type
 }
@@ -561,7 +558,7 @@ ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys
 
         // This recomputes the fine values using the bottom terrain at the fine resolution,
         //    and also fills values of z_phys_nd outside the domain
-        make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
+        make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type);
 
         std::swap(temp_zphys_nd, z_phys_nd[lev]);
 
@@ -575,7 +572,6 @@ ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, 0);
     }
 }
-
 void
 ERF::update_terrain_arrays (int lev)
 {
