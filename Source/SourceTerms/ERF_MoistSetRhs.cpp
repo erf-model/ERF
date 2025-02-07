@@ -32,7 +32,8 @@ moist_set_rhs (const Box& tbx,
     //       cell for the Laplacian. We remove that cell here if it is present.
 
     // The width to do RHS augmentation
-    if (width > set_width+1) width -= 2;
+    //if (width > set_width+1) width -= 2;
+    if (width > set_width+1) width -= 1;
 
     // Relaxation constants
     Real F1 = 1./(10.*dt);

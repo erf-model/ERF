@@ -33,19 +33,28 @@ compute_interior_ghost_bxs_xy (const Box& bx,
 {
     AMREX_ALWAYS_ASSERT(bx.ixType() == domain.ixType());
 
-    //
+    //==================================================================
     // NOTE: X-face boxes take ownership of the overlapping region.
     //       With exterior ghost cells (ng_vect != 0), the x-face
     //       boxes will have exterior ghost cells in both x & y.
-    //
+    //==================================================================
 
     // Domain bounds without ghost cells
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    // The four boxes surrounding the domain
+    // Four boxes matching the domain
     Box gdom_xlo(domain); Box gdom_xhi(domain);
     Box gdom_ylo(domain); Box gdom_yhi(domain);
+
+    // Get offsets from box index type
+    IntVect btype = bx.ixType().toIntVect();
+    int offx = (btype[0]==1) ? 0 : -1;
+    int offy = (btype[1]==1) ? 0 : -1;
+
+    // Stagger the boxes based upon index type
+    gdom_xlo += IntVect(offx,0,0); gdom_xhi += IntVect(-offx,0,0);
+    gdom_ylo += IntVect(0,offy,0); gdom_xhi += IntVect(0,-offy,0);
 
     // Trim the boxes to only include internal ghost cells
     gdom_xlo.setBig(0,dom_lo.x+width-1); gdom_xhi.setSmall(0,dom_hi.x-width+1);
@@ -64,19 +73,19 @@ compute_interior_ghost_bxs_xy (const Box& bx,
     gdom_ylo.growLo(1,-set_width); gdom_yhi.growHi(1,-set_width);
 
     //==================================================================
-    // NOTE: 4 boxes now exclude the regions being set by bndry
+    // NOTE: 4 boxes now exclude the set region
     //==================================================================
 
     // Grow boxes to get external ghost cells only
-    gdom_xlo.growLo(0,ng_vect[0]); gdom_xhi.growHi(0,ng_vect[0]);
-    gdom_xlo.grow  (1,ng_vect[1]); gdom_xhi.grow  (1,ng_vect[1]);
-    gdom_ylo.growLo(1,ng_vect[1]); gdom_yhi.growHi(1,ng_vect[1]);
+    gdom_xlo.growLo(0,ng_vect[0]+offx); gdom_xhi.growHi(0,ng_vect[0]+offx);
+    gdom_xlo.grow  (1,ng_vect[1]+offy); gdom_xhi.grow  (1,ng_vect[1]+offy);
+    gdom_ylo.growLo(1,ng_vect[1]+offy); gdom_yhi.growHi(1,ng_vect[1]+offy);
 
     // Grow boxes to get internal ghost cells
     if (get_int_ng) {
-        gdom_xlo.growHi(0,ng_vect[0]); gdom_xhi.growLo(0,ng_vect[0]);
-        gdom_ylo.grow  (0,ng_vect[0]); gdom_yhi.grow  (0,ng_vect[0]);
-        gdom_ylo.growHi(1,ng_vect[1]); gdom_yhi.growLo(1,ng_vect[1]);
+        gdom_xlo.growHi(0,ng_vect[0]+offx); gdom_xhi.growLo(0,ng_vect[0]+offx);
+        gdom_ylo.grow  (0,ng_vect[0]+offy); gdom_yhi.grow  (0,ng_vect[0]+offx);
+        gdom_ylo.growHi(1,ng_vect[1]+offy); gdom_yhi.growLo(1,ng_vect[1]+offy);
     }
 
     // Populate everything
@@ -420,8 +429,10 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             const auto& dom_hi = ubound(domain);
             const auto& dom_lo = lbound(domain);
 
+
             int width2 = width;
-            if (ivar_idx == IntVars::cons) width2 -= 1;
+            //if (ivar_idx == IntVars::cons) width2 -= 1;
+
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
