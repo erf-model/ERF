@@ -54,7 +54,7 @@ compute_interior_ghost_bxs_xy (const Box& bx,
 
     // Stagger the boxes based upon index type
     gdom_xlo += IntVect(offx,0,0); gdom_xhi += IntVect(-offx,0,0);
-    gdom_ylo += IntVect(0,offy,0); gdom_xhi += IntVect(0,-offy,0);
+    gdom_ylo += IntVect(0,offy,0); gdom_yhi += IntVect(0,-offy,0);
 
     // Trim the boxes to only include internal ghost cells
     gdom_xlo.setBig(0,dom_lo.x+width-1); gdom_xhi.setSmall(0,dom_hi.x-width+1);
@@ -78,13 +78,13 @@ compute_interior_ghost_bxs_xy (const Box& bx,
 
     // Grow boxes to get external ghost cells only
     gdom_xlo.growLo(0,ng_vect[0]+offx); gdom_xhi.growHi(0,ng_vect[0]+offx);
-    gdom_xlo.grow  (1,ng_vect[1]+offy); gdom_xhi.grow  (1,ng_vect[1]+offy);
+    gdom_xlo.grow  (1,ng_vect[1]     ); gdom_xhi.grow  (1,ng_vect[1]     );
     gdom_ylo.growLo(1,ng_vect[1]+offy); gdom_yhi.growHi(1,ng_vect[1]+offy);
 
     // Grow boxes to get internal ghost cells
     if (get_int_ng) {
         gdom_xlo.growHi(0,ng_vect[0]+offx); gdom_xhi.growLo(0,ng_vect[0]+offx);
-        gdom_ylo.grow  (0,ng_vect[0]+offy); gdom_yhi.grow  (0,ng_vect[0]+offx);
+        gdom_ylo.grow  (0,ng_vect[0]     ); gdom_yhi.grow  (0,ng_vect[0]     );
         gdom_ylo.growHi(1,ng_vect[1]+offy); gdom_yhi.growLo(1,ng_vect[1]+offy);
     }
 

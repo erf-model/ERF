@@ -83,10 +83,13 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         // Ghost cells to be filled
         IntVect ng_vect = (var_idx == Vars::cons) ? ngvect_cons : ngvect_vels;
 
+        // CC set must be one less than velocity
+        int width = real_set_width;
+        if (var_idx == Vars::cons) width -= 1;
+
         // Loop over each component
         for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
         {
-            int width = real_set_width;
 
             // Variable can be read from wrf bdy
             //------------------------------------
