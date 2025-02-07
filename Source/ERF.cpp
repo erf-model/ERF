@@ -1642,10 +1642,6 @@ ERF::ReadParameters ()
     readTracersParams();
 #endif
 
-#ifdef ERF_USE_MULTIBLOCK
-    solverChoice.pp_prefix = pp_prefix;
-#endif
-
     solverChoice.init_params(max_level,pp_prefix);
 
     // Query the canopy model file name
