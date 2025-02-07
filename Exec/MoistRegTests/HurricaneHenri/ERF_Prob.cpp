@@ -84,6 +84,68 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
     } // no terrain
 }
 
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+int get_single_index(int i, int j, int k, 
+					 int nx, int ny)
+{
+
+	int si = k*nx*ny + j*nx + i;
+	return si;
+}
+
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+void bilinear_interpolation(const Real* xvec, const Real* yvec, const Real* zvec,
+							const Real dxvec, const Real dyvec,
+							const int nx, const int ny, const int nz,
+							const Real x, const Real y, const Real z,
+							const Real* varvec,
+							Real& tmp_var)
+{
+	int iloc=-1, jloc=-1, kloc=-1;
+	for(int k=0;k<nz;k++){
+		if(zvec[k] >= z){
+			kloc = k-1;
+			break;
+		}
+	}
+		iloc = std::floor((x-xvec[0])/dxvec);	
+		jloc = std::floor((y-yvec[0])/dyvec);
+	
+		Real xlo = xvec[0] + iloc*dxvec;	
+		Real ylo = yvec[0] + jloc*dyvec;
+		Real zlo = zvec[kloc];
+	
+		/*std::cout << "dxvec and dyvec are " << dxvec << " " << dyvec << "\n";
+		std::cout << "The value of xvec0, yvec0 is " << xvec[0] << " " << yvec[0] <<  "\n";
+		std::cout << "The value of x-xvec0/dxvec, y-yvec0/dyvec is " << x-xvec[0] << " " << y-yvec[0] <<  "\n";
+		std::cout << "The value of x-xvec0/dxvec, y-yvec0/dyvec is " << (x-xvec[0])/dxvec << " " << (y-yvec[0])/dyvec <<  "\n";
+		std::cout << "The value of xlo, ylo, zlo is " << xlo << " " << ylo << " " <<  zlo << "\n";
+		std::cout << "The value of x, y, z is " << x << " " << y << " " <<  z << "\n";
+		std::cout << "iloc, jloc, kloc = " << iloc << " " << jloc << " " << kloc << "\n";*/
+
+		Real w_x = (x - xlo)/dxvec;	
+		Real w_y = (y - ylo)/dyvec;	
+		Real w_z = (z - zlo)/(zvec[kloc+1] - zvec[kloc]);
+
+		int ind0 = get_single_index(iloc,jloc,kloc,nx,ny);
+		int ind1 = get_single_index(iloc+1,jloc,kloc,nx,ny);
+		int ind2 = get_single_index(iloc+1,jloc+1,kloc,nx,ny);
+		int ind3 = get_single_index(iloc,jloc+1,kloc,nx,ny);
+		int ind4 = get_single_index(iloc,jloc,kloc+1,nx,ny);
+		int ind5 = get_single_index(iloc+1,jloc,kloc+1,nx,ny);
+		int ind6 = get_single_index(iloc+1,jloc+1,kloc+1,nx,ny);
+		int ind7 = get_single_index(iloc,jloc+1,kloc+1,nx,ny);
+
+		tmp_var = (1-w_x)*(1-w_y)*(1-w_z)*varvec[ind0] + w_x*(1-w_y)*(1-w_z)*varvec[ind1] + 
+				  w_x*w_y*(1-w_z)*varvec[ind2] + (1-w_x)*w_y*(1-w_z)*varvec[ind3] + 
+				  (1-w_x)*(1-w_y)*w_z*varvec[ind4] + w_x*(1-w_y)*w_z*varvec[ind5] + 
+                  w_x*w_y*w_z*varvec[ind6] + (1-w_x)*w_y*w_z*varvec[ind7];
+
+		std::cout << "Variable value is " << tmp_var << "\n";
+}
+
 void
 Problem::init_custom_pert (
     const Box& bx,
@@ -147,35 +209,69 @@ Problem::init_custom_pert (
 
 	int nx, ny, nz, ndata;
     float value;
+	
+    Vector<Real> xvec_h, yvec_h, zvec_h;
 
     // Read the four integers
     infile.read(reinterpret_cast<char*>(&nx), sizeof(int));
     infile.read(reinterpret_cast<char*>(&ny), sizeof(int));
     infile.read(reinterpret_cast<char*>(&nz), sizeof(int));
     infile.read(reinterpret_cast<char*>(&ndata), sizeof(int));
-
 	
+	amrex::Gpu::DeviceVector<Real> xvec_d(nx*ny*nz), yvec_d(nx*ny*nz), zvec_d(nx*ny*nz);
 	for(int i=0; i<nx; i++) {
 		infile.read(reinterpret_cast<char*>(&value), sizeof(float));
+		xvec_h.emplace_back(value);
 	}
+	amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xvec_h.begin(), xvec_h.end(), xvec_d.begin());
 	
 	for(int j=0; j<ny; j++) {
 		infile.read(reinterpret_cast<char*>(&value), sizeof(float));
+		yvec_h.emplace_back(value);
 	}
+	amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yvec_h.begin(), yvec_h.end(), yvec_d.begin());
 
 	for(int k=0; k<nz; k++) {
 		infile.read(reinterpret_cast<char*>(&value), sizeof(float));
+		zvec_h.emplace_back(value);
 	}
+	amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
 
     // Vector to store the data
-    std::vector<float> data;
+    Vector<Real> rho_h, uvel_h, vvel_h, theta_h, qv_h;
+
+	Vector<Real>* data_h = nullptr; // Declare pointer outside the loop
+	
+	Real* xvec_d_ptr = xvec_d.data();
+	Real* yvec_d_ptr = yvec_d.data();
+	Real* zvec_d_ptr = zvec_d.data();
+
+	std::cout << "Value of nx, ny are" << nx << " " << ny << "\n";
+
+	Real dxvec = (xvec_h[nx-1]-xvec_h[0])/(nx-1);
+	Real dyvec = (yvec_h[ny-1]-yvec_h[0])/(ny-1);
 
     // Read the file
-	for(int idx=0; idx<ndata; idata++){
+	for(int idx=0; idx<ndata; idx++){
+		if(idx == 0){
+			data_h = &rho_h;
+		} else if(idx==1) {
+			data_h = &uvel_h;
+		} else if(idx==2) {
+            data_h = &vvel_h;
+        } else if(idx==3) {
+            data_h = &theta_h;
+        } else if(idx==4) {
+            data_h = &qv_h;
+        }	
 		for(int k=0; k<nz; k++) {
 			for(int j=0; j<ny; j++) {
 				for(int i=0; i<nx; i++) {
 					infile.read(reinterpret_cast<char*>(&value), sizeof(float));
+					//if(idx == 3) { 
+						//printf("theta is %0.15g, %0.15g, %0.15g %0.15g\n", xvec_h[i], yvec_h[j], zvec_h[k], value); 
+					//}
+					data_h->emplace_back(value);		
 				}
 			}
 		}
@@ -183,12 +279,44 @@ Problem::init_custom_pert (
 
     infile.close();
 
-    // Output the data
-    std::cout << "Read " << data.size() << " elements from the file." << std::endl;
-    for (size_t i = 0; i < data.size(); ++i) {
-        std::cout << "Element " << i << ": " << data[i] << std::endl;
-    }	
-	
+	amrex::Gpu::DeviceVector<Real> rho_d(nx*ny*nz), theta_d(nx*ny*nz);
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
+	Real* rho_d_ptr  = rho_d.data();
+	Real* theta_d_ptr  = theta_d.data();
+
+	// Interpolate the data on to the ERF mesh
+
+	 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    	// Geometry (note we must include these here to get the data on device)
+    	const auto prob_lo  = geomdata.ProbLo();
+    	const auto dx       = geomdata.CellSize();
+    	const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
+    	const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
+    	const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
+
+		// First interpolate where the weather data is available from
+		Real tmp_rho, tmp_theta;
+		if(z >= zvec_h[0]) {
+			bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr, 
+								   dxvec, dyvec, 
+								   nx, ny, nz, 
+								   x, y, z,
+								   rho_d_ptr, tmp_rho);
+			bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr, 
+								   dxvec, dyvec, 
+								   nx, ny, nz, 
+								   x, y, z,
+								   theta_d_ptr, tmp_theta);
+
+			state_pert(i, j, k, Rho_comp)      = 0.0;
+			state_pert(i, j, k, RhoTheta_comp) = 0.0;
+
+		} 
+	});
+			
+	exit(0);
+		
   ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
