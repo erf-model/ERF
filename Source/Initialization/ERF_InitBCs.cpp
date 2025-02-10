@@ -62,9 +62,9 @@ void ERF::init_bcs ()
         std::string pp_text;
         std::string first3 = pp_prefix.substr(0,3);
         if (first3 == "erf") {
-          pp_text = bcid;
-        } else {
           pp_text = pp_prefix + "." + bcid;
+        } else {
+          pp_text = bcid;
         }
         ParmParse pp(pp_text);
         std::string bc_type_in = "null";
