@@ -189,7 +189,7 @@ class polygon_ {
 
     amrex::GpuArray<amrex::Real,m_max_vertices> m_theta;
 
-    amrex::RealVect m_zdir;
+    amrex::RealVect m_zdir; // normal to polygon
 };
 
 

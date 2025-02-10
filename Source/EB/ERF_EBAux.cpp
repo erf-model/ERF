@@ -35,10 +35,22 @@ define( int const& a_idim,
   m_cellflags = new FabArray<EBCellFlagFab>(grids, a_dmap, 1, a_ngrow[0], MFInfo(),
                                             DefaultFabFactory<EBCellFlagFab>());
 
+  // Set m_cellflags type to singlevalued
   m_cellflags->setVal(EBCellFlag::TheDefaultCell());
+  for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
+    auto& fab = (*m_cellflags)[mfi];
+    fab.setType(FabType::singlevalued);
+  }
 
   m_volfrac = new MultiFab(grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
 
+  for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+    m_areafrac[idim] = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
+    m_areafrac[idim]->setVal(1.0);
+  }
+  // m_areafrac[0] = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
+  // m_areafrac[1] = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
+  // m_areafrac[2] = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
 
 #if 0
   m_centroid = new MultiCutFab(a_ba, a_dm, AMREX_SPACEDIM, m_ngrow[1], *m_cellflags);
@@ -54,8 +66,7 @@ define( int const& a_idim,
   }
 #endif
 
-  const auto& FlagFab = a_factory->getMultiEBCellFlagFab();
-
+  const auto& FlagFab = a_factory->getMultiEBCellFlagFab(); // EBFArrayBoxFactory, EBDataCollection 
 
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
@@ -76,40 +87,50 @@ define( int const& a_idim,
       Array4<Real const> const& bnorm = a_factory->getBndryNormal()[mfi].const_array();
       Array4<Real const> const& bcent = a_factory->getBndryCent()[mfi].const_array();
 
+      // aux quantities
       Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
       Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
 
+      Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
+      Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
+      Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
+
       bool is_per = a_geom.isPeriodic(a_idim);
 
-  // SK *******************************************************
-  Print()<<"SK: EBAux.cpp/ bx = " << bx << std::endl;
-  std::vector<std::string> filenames = {
-    "output.hi_eb_cc_areaLo0", "output.hi_eb_cc_areaHi0"
-  };
+  // // SK *******************************************************
+  // Print()<<"SK: EBAux.cpp/ bx = " << bx << std::endl;
+  // std::vector<std::string> filenames = {
+  //   "output.hi_eb_cc_areaLo0", "output.hi_eb_cc_areaHi0"
+  // };
 
-  std::vector<std::ofstream> outfiles(filenames.size());
+  // std::vector<std::ofstream> outfiles(filenames.size());
 
-  for (size_t i = 0; i < filenames.size(); ++i) {
-    outfiles[i].open(filenames[i]);
-    outfiles[i] << std::fixed << std::setprecision(12);
-    if (!outfiles[i].is_open()) {
-        std::cerr << "Error opening file: " << filenames[i] << std::endl;
-    }
-  }
-  // SK *******************************************************
+  // for (size_t i = 0; i < filenames.size(); ++i) {
+  //   outfiles[i].open(filenames[i]);
+  //   outfiles[i] << std::fixed << std::setprecision(12);
+  //   if (!outfiles[i].is_open()) {
+  //       std::cerr << "Error opening file: " << filenames[i] << std::endl;
+  //   }
+  // }
+  // // SK *******************************************************
 
       ParallelFor(bx, [
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
                   dx, bx, vfrac, afrac, bnorm, bcent, flag,
-                  aux_flag, aux_vfrac, vdim, idim=a_idim, is_per, &outfiles ]
+                  aux_flag, aux_vfrac, aux_afrac_x, aux_afrac_y, aux_afrac_z,
+                  vdim, idim=a_idim, is_per ]
+                  // aux_flag, aux_vfrac, vdim, idim=a_idim, is_per, &outfiles ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         aux_flag(i,j,k).setCovered();
         aux_flag(i,j,k).setDisconnected();
 
-        aux_vfrac(i,j,k) = 0.0;
+        aux_vfrac  (i,j,k) = 0.0_rt;
+        aux_afrac_x(i,j,k) = 1.0_rt;
+        aux_afrac_y(i,j,k) = 1.0_rt;
+        aux_afrac_z(i,j,k) = 1.0_rt;
 
         IntVect iv_hi(i,j,k);
         IntVect iv_lo(iv_hi - vdim);
@@ -127,19 +148,19 @@ define( int const& a_idim,
 
           aux_vfrac(i,j,k) = 1.0;
 
-          // SK *******************************************************
-          outfiles[0] << 0. << std::endl;
-          outfiles[1] << 0. << std::endl;
-          // SK ******************************************************* 
+          // // SK *******************************************************
+          // outfiles[0] << 0. << std::endl;
+          // outfiles[1] << 0. << std::endl;
+          // // SK ******************************************************* 
 
         } else if ( flag(iv_lo).isCovered() && flag(iv_hi).isCovered()) {
 
           // defaults to covered and disconnected.
 
-          // SK *******************************************************
-          outfiles[0] << 0. << std::endl;
-          outfiles[1] << 0. << std::endl;
-          // SK ******************************************************* 
+          // // SK *******************************************************
+          // outfiles[0] << 0. << std::endl;
+          // outfiles[1] << 0. << std::endl;
+          // // SK ******************************************************* 
 
         } else {
 
@@ -238,10 +259,10 @@ define( int const& a_idim,
           AMREX_ASSERT( !flag(iv_hi).isCovered() || hi_eb_cc.isCovered() );
           AMREX_ASSERT( !flag(iv_hi).isRegular() || hi_eb_cc.isRegular() );
 
-        // SK *******************************************************
-        outfiles[0] << hi_eb_cc.areaLo(0) << std::endl;
-        outfiles[1] << hi_eb_cc.areaHi(0) << std::endl;
-        // SK ******************************************************* 
+        // // SK *******************************************************
+        // outfiles[0] << hi_eb_cc.areaLo(0) << std::endl;
+        // outfiles[1] << hi_eb_cc.areaHi(0) << std::endl;
+        // // SK ******************************************************* 
 
 #if defined(AMREX_DEBUG) || defined(AMREX_TESTING) || 1
 
@@ -335,7 +356,7 @@ define( int const& a_idim,
             }
 
             // The low-side area of hi_eb_cc should equal idim afrac.
-            { Real const abs_err = amrex::min(std::abs(lo_eb_cc.areaHi(idim) - afrac(iv_hi)),
+            { Real const abs_err = amrex::max(std::abs(lo_eb_cc.areaHi(idim) - afrac(iv_hi)),
                                               std::abs(hi_eb_cc.areaLo(idim) - afrac(iv_hi)));
               Real compare_tol = 5.0e-6;
 #ifndef AMREX_USE_GPU
@@ -391,23 +412,52 @@ define( int const& a_idim,
 
             aux_vfrac(i,j,k) = 1.0;
 
+          } else if ( (lo_eb_cc.isRegular() && hi_eb_cc.isCovered()) 
+                   || (lo_eb_cc.isCovered() && hi_eb_cc.isRegular()) ) {
+
+            // This is a problematic situation.
+            Print()<< "eb_aux_ / Check: Regular and Covered cut cells are facing each other." << std::endl;
+
           } else {
 
-            if (lo_eb_cc.isCovered()) { }
-            if (hi_eb_cc.isCovered()) { }
+            // if (lo_eb_cc.isCovered()) { }
+            // if (hi_eb_cc.isCovered()) { }
+
+            aux_flag(i,j,k).setSingleValued();
+            aux_flag(i,j,k).setConnected(vdim);
+
+            aux_vfrac(i,j,k) = lo_eb_cc.volume() + hi_eb_cc.volume();
+            
+            aux_afrac_x(i  ,j  ,k  ) = (idim == 0) ? lo_eb_cc.areaLo(0) : lo_eb_cc.areaLo(0) + hi_eb_cc.areaLo(0);
+            aux_afrac_y(i  ,j  ,k  ) = (idim == 1) ? lo_eb_cc.areaLo(1) : lo_eb_cc.areaLo(1) + hi_eb_cc.areaLo(1);
+            aux_afrac_z(i  ,j  ,k  ) = (idim == 2) ? lo_eb_cc.areaLo(2) : lo_eb_cc.areaLo(2) + hi_eb_cc.areaLo(2);
 
           }
         }
       });
 
-    // SK ******************************************************* 
-    for (auto& file : outfiles) {
-      file.close();
-    }
-    exit(0);
-    // SK ******************************************************* 
+    // // SK ******************************************************* 
+    // for (auto& file : outfiles) {
+    //   file.close();
+    // }
+    // exit(0);
+    // // SK ******************************************************* 
 
     }
 
   }
+}
+
+const MultiFab& 
+eb_aux_::getVolFrac () const
+{
+    AMREX_ASSERT(m_volfrac != nullptr);
+    return *m_volfrac;
+}
+
+Array<const MultiCutFab*, AMREX_SPACEDIM>
+eb_aux_::getAreaFrac () const
+{
+    AMREX_ASSERT(m_areafrac[0] != nullptr);
+    return {AMREX_D_DECL(m_areafrac[0], m_areafrac[1], m_areafrac[2])};
 }
