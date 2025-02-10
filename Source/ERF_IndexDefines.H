@@ -64,6 +64,7 @@ namespace BaseState {
         p0_comp,
         pi0_comp,
         th0_comp,
+        qv0_comp,
         num_comps
     };
 }

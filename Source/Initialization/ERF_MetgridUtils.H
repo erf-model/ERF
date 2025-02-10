@@ -104,6 +104,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               amrex::FArrayBox& p_hse_fab,
                               amrex::FArrayBox& pi_hse_fab,
                               amrex::FArrayBox& th_hse_fab,
+                              amrex::FArrayBox& qv_hse_fab,
                               amrex::FArrayBox& z_phys_cc_fab,
                               const amrex::Vector<amrex::FArrayBox>& NC_psfc_fab);
 

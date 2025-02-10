@@ -65,6 +65,7 @@ init_base_state_from_wrfinput (const Box& domain,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
+                               MultiFab& qv_hse,
                                MultiFab& r_hse,
                                const MultiFab& mf_PB,
                                const MultiFab& mf_P);
@@ -486,12 +487,14 @@ ERF::init_from_wrfinput (int lev)
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+    MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
+
     if (init_type == InitType::Real) {
 
         int n_qstate = micro->Get_Qstate_Size();
 
         init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
-                                      lev_new[Vars::cons], p_hse, pi_hse, th_hse, r_hse,
+                                      lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
                                       mf_PB, mf_P);
 
         // FillBoundary to populate the internal ghost cells (no averaging in above call)
@@ -499,7 +502,7 @@ ERF::init_from_wrfinput (int lev)
          p_hse.FillBoundary(geom[lev].periodicity());
         pi_hse.FillBoundary(geom[lev].periodicity());
         th_hse.FillBoundary(geom[lev].periodicity());
-
+        qv_hse.FillBoundary(geom[lev].periodicity());
     }
 
     // Initialize the bdy data
@@ -554,6 +557,7 @@ ERF::init_from_wrfinput (int lev)
  * @param p_hse FArrayBox specifying the hydrostatic base state pressure we initialize
  * @param pi_hse FArrayBox specifying the hydrostatic base state Exner pressure we initialize
  * @param th_hse FArrayBox specifying the hydrostatic base state potential temperature
+ * @param qv_hse FArrayBox specifying the hydrostatic base state qv
  * @param r_hse FArrayBox specifying the hydrostatic base state density we initialize
  * @param NC_ALB_fab Vector of FArrayBox objects containing WRF data specifying 1/density
  * @param NC_PB_fab Vector of FArrayBox objects containing WRF data specifying pressure
@@ -567,6 +571,7 @@ init_base_state_from_wrfinput (const Box& domain,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
+                               MultiFab& qv_hse,
                                MultiFab& r_hse,
                                const MultiFab& mf_PB,
                                const MultiFab& mf_P)
@@ -623,6 +628,7 @@ init_base_state_from_wrfinput (const Box& domain,
             p_hse_arr(i,j,k)  = Ptot;
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
             th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), Qv) / cons_arr(ii,jj,kk,Rho_comp);
+            qv_hse_arr(i,j,k) = Qv;
         });
     }
 }
