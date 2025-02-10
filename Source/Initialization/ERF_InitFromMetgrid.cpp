@@ -437,7 +437,7 @@ ERF::init_from_metgrid (int lev)
         init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc, l_rdOcp,
                                      valid_bx, flag_psfc,
                                      cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
-                                     qv_hse, z_phys_nd_fab, NC_psfc_fab);
+                                     qv_hse_fab, z_phys_nd_fab, NC_psfc_fab);
     } // mf
 
     // FillBoundary to populate the internal halo cells
@@ -1054,6 +1054,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();
         const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
         const Array4<Real>& th_hse_arr = th_hse_fab.array();
+        const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
         auto psfc_flag = flag_psfc_vec[0];
 
         // ********************************************************
