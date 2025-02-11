@@ -61,13 +61,12 @@ void ERF::init_bcs ()
 
         std::string pp_text = pp_prefix + "." + bcid;
         ParmParse pp(pp_text);
-        std::string bc_type_in = "null";
-        pp.query("type", bc_type_in);
 
-        if (bc_type_in == "null")
+        std::string bc_type_in;
+        if (pp.query("type", bc_type_in) <= 0)
         {
             pp_text = bcid;
-            ParmParse pp(pp_text);
+            pp = ParmParse(pp_text);
             pp.query("type", bc_type_in);
         }
 
