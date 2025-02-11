@@ -415,14 +415,14 @@ ERF::ERF_shared ()
         } // MFIter
 
 
-        for (MFIter mfi(eb.get_u_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(eb.get_u_const_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
 
             const Box& bx = mfi.validbox();
 
-            Array4<Real const> const& vfrac =(eb.get_u_factory()->getVolFrac()).const_array(mfi);
-            Array4<Real const> const& afrac_x =(eb.get_u_factory()->getAreaFrac()[0])->const_array(mfi);
-            Array4<Real const> const& afrac_y =(eb.get_u_factory()->getAreaFrac()[1])->const_array(mfi);
-            Array4<Real const> const& afrac_z =(eb.get_u_factory()->getAreaFrac()[2])->const_array(mfi);
+            Array4<Real const> const& vfrac =(eb.get_u_const_factory()->getVolFrac()).const_array(mfi);
+            Array4<Real const> const& afrac_x =(eb.get_u_const_factory()->getAreaFrac()[0])->const_array(mfi);
+            Array4<Real const> const& afrac_y =(eb.get_u_const_factory()->getAreaFrac()[1])->const_array(mfi);
+            Array4<Real const> const& afrac_z =(eb.get_u_const_factory()->getAreaFrac()[2])->const_array(mfi);
 
             Print()<<"SK: ERF.cpp/ bx = " << bx << std::endl;
             std::vector<std::string> filenames = {
@@ -453,11 +453,11 @@ ERF::ERF_shared ()
 
         } // MFIter
 
-        for (MFIter mfi(eb.get_v_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(eb.get_v_const_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
 
             const Box& bx = mfi.validbox();
 
-            Array4<Real const> const& vfrac =(eb.get_v_factory()->getVolFrac()).const_array(mfi);
+            Array4<Real const> const& vfrac =(eb.get_v_const_factory()->getVolFrac()).const_array(mfi);
 
             Print()<<"SK: ERF.cpp/ bx = " << bx << std::endl;
             std::vector<std::string> filenames = {
@@ -485,11 +485,11 @@ ERF::ERF_shared ()
 
         } // MFIter
 
-        for (MFIter mfi(eb.get_w_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(eb.get_w_const_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
 
             const Box& bx = mfi.validbox();
 
-            Array4<Real const> const& vfrac =(eb.get_w_factory()->getVolFrac()).const_array(mfi);
+            Array4<Real const> const& vfrac =(eb.get_w_const_factory()->getVolFrac()).const_array(mfi);
 
             Print()<<"SK: ERF.cpp/ bx = " << bx << std::endl;
             std::vector<std::string> filenames = {
