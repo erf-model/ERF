@@ -60,12 +60,11 @@ void ERF::init_bcs ()
         m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
 
         std::string pp_text;
-        std::string first3 = pp_prefix.substr(0,3);
-        if (first3 == "erf") {
-          pp_text = pp_prefix + "." + bcid;
-        } else {
-          pp_text = bcid;
-        }
+#ifdef ERF_USE_MULTIBLOCK
+        pp_text = pp_prefix + "." + bcid;
+#else
+        pp_text = bcid;
+#endif
         ParmParse pp(pp_text);
         std::string bc_type_in = "null";
         pp.query("type", bc_type_in);
