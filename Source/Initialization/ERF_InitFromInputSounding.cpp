@@ -24,6 +24,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          Array4<Real> const &p_hse_arr,
                                          Array4<Real> const &pi_hse_arr,
                                          Array4<Real> const &th_hse_arr,
+                                         Array4<Real> const &qv_hse_arr,
                                          GeometryData const &geomdata,
                                          Array4<const Real> const &z_cc_arr,
                                          const Real& l_gravity,
@@ -98,6 +99,7 @@ ERF::init_from_input_sounding (int lev)
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+    MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
     const Real l_gravity = solverChoice.gravity;
     const Real l_rdOcp   = solverChoice.rdOcp;
@@ -116,6 +118,7 @@ ERF::init_from_input_sounding (int lev)
         Array4<Real>  p_hse_arr =  p_hse.array(mfi);
         Array4<Real> pi_hse_arr = pi_hse.array(mfi);
         Array4<Real> th_hse_arr = th_hse.array(mfi);
+        Array4<Real> qv_hse_arr = qv_hse.array(mfi);
 
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
@@ -126,7 +129,7 @@ ERF::init_from_input_sounding (int lev)
             // calculated by calc_rho_p()
             init_bx_scalars_from_input_sounding_hse(
                 bx, cons_arr,
-                r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr,
+                r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr, qv_hse_arr,
                 geom[lev].data(), z_cc_arr,
                 l_gravity, l_rdOcp, l_moist, input_sounding_data);
         }
@@ -225,6 +228,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          Array4<Real> const &p_hse_arr,
                                          Array4<Real> const &pi_hse_arr,
                                          Array4<Real> const &th_hse_arr,
+                                         Array4<Real> const &qv_hse_arr,
                                          GeometryData const &geomdata,
                                          Array4<const Real> const &z_cc_arr,
                                          const Real& /*l_gravity*/,
@@ -272,6 +276,8 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
         qv_k = (l_moist) ? interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size) : 0.0;
+
+        qv_hse_arr(i,j,k) = qv_k;
         r_hse_arr (i,j,k) = rho_k * (1.0 + qv_k);
         p_hse_arr (i,j,k) = getPgivenRTh(rhoTh_k, qv_k);
         pi_hse_arr(i,j,k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
@@ -289,6 +295,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                  p_hse_arr(i, j, k-kk) =  p_hse_arr(i,j,k);
                 pi_hse_arr(i, j, k-kk) = pi_hse_arr(i,j,k);
                 th_hse_arr(i, j, k-kk) = th_hse_arr(i,j,k);
+                qv_hse_arr(i, j, k-kk) = qv_hse_arr(i,j,k);
             }
         }
         else if (k==ktop)
@@ -297,7 +304,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                  r_hse_arr(i, j, k+kk) =  r_hse_arr(i,j,k);
                  p_hse_arr(i, j, k+kk) =  p_hse_arr(i,j,k);
                 pi_hse_arr(i, j, k+kk) = pi_hse_arr(i,j,k);
-                th_hse_arr(i, j, k+kk) = th_hse_arr(i,j,k);
+                qv_hse_arr(i, j, k+kk) = qv_hse_arr(i,j,k);
             }
         }
 

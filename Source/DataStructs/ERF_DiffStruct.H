@@ -18,7 +18,7 @@ enum struct MolecDiffType {
 
 struct DiffChoice {
   public:
-    void init_params()
+    void init_params(std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -76,9 +76,6 @@ struct DiffChoice {
             << std::endl;
         }
     }
-
-    // Default prefix
-    std::string pp_prefix {"erf"};
 
     // Molecular transport model
     MolecDiffType molec_diff_type = MolecDiffType::Constant;
