@@ -97,23 +97,6 @@ define( int const& a_idim,
 
       bool is_per = a_geom.isPeriodic(a_idim);
 
-  // // SK *******************************************************
-  // Print()<<"SK: EBAux.cpp/ bx = " << bx << std::endl;
-  // std::vector<std::string> filenames = {
-  //   "output.hi_eb_cc_areaLo0", "output.hi_eb_cc_areaHi0"
-  // };
-
-  // std::vector<std::ofstream> outfiles(filenames.size());
-
-  // for (size_t i = 0; i < filenames.size(); ++i) {
-  //   outfiles[i].open(filenames[i]);
-  //   outfiles[i] << std::fixed << std::setprecision(12);
-  //   if (!outfiles[i].is_open()) {
-  //       std::cerr << "Error opening file: " << filenames[i] << std::endl;
-  //   }
-  // }
-  // // SK *******************************************************
-
       ParallelFor(bx, [
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
@@ -128,9 +111,10 @@ define( int const& a_idim,
         aux_flag(i,j,k).setDisconnected();
 
         aux_vfrac  (i,j,k) = 0.0_rt;
-        aux_afrac_x(i,j,k) = 1.0_rt;
-        aux_afrac_y(i,j,k) = 1.0_rt;
-        aux_afrac_z(i,j,k) = 1.0_rt;
+
+        aux_afrac_x(i,j,k) = 0.0_rt;
+        aux_afrac_y(i,j,k) = 0.0_rt;
+        aux_afrac_z(i,j,k) = 0.0_rt;
 
         IntVect iv_hi(i,j,k);
         IntVect iv_lo(iv_hi - vdim);
@@ -141,26 +125,20 @@ define( int const& a_idim,
           iv_lo = iv_hi; // At the lower boundary, low cell takes the values of the high cell.
         }
 
-        if ( flag(iv_lo).isRegular() && flag(iv_hi).isRegular()) {
+        if ( flag(iv_lo).isCovered() && flag(iv_hi).isCovered()) {
+
+          // defaults to covered and disconnected.
+
+        } else if ( flag(iv_lo).isRegular() && flag(iv_hi).isRegular()) {
 
           aux_flag(i,j,k).setRegular();
           aux_flag(i,j,k).setConnected(vdim);
 
-          aux_vfrac(i,j,k) = 1.0;
+          aux_vfrac(i,j,k) = 1.0_rt;
 
-          // // SK *******************************************************
-          // outfiles[0] << 0. << std::endl;
-          // outfiles[1] << 0. << std::endl;
-          // // SK ******************************************************* 
-
-        } else if ( flag(iv_lo).isCovered() && flag(iv_hi).isCovered()) {
-
-          // defaults to covered and disconnected.
-
-          // // SK *******************************************************
-          // outfiles[0] << 0. << std::endl;
-          // outfiles[1] << 0. << std::endl;
-          // // SK ******************************************************* 
+          aux_afrac_x(i,j,k) = 1.0_rt;
+          aux_afrac_y(i,j,k) = 1.0_rt;
+          aux_afrac_z(i,j,k) = 1.0_rt;
 
         } else {
 
@@ -258,11 +236,6 @@ define( int const& a_idim,
           // The inverse is not always true.
           AMREX_ASSERT( !flag(iv_hi).isCovered() || hi_eb_cc.isCovered() );
           AMREX_ASSERT( !flag(iv_hi).isRegular() || hi_eb_cc.isRegular() );
-
-        // // SK *******************************************************
-        // outfiles[0] << hi_eb_cc.areaLo(0) << std::endl;
-        // outfiles[1] << hi_eb_cc.areaHi(0) << std::endl;
-        // // SK ******************************************************* 
 
 #if defined(AMREX_DEBUG) || defined(AMREX_TESTING) || 1
 
@@ -398,8 +371,12 @@ define( int const& a_idim,
 #endif
               AMREX_ALWAYS_ASSERT( abs_err < compare_tol );
             }
-          }
+          } // 
 #endif
+
+          //-----------------------
+          // Fill out Arrays
+          //-----------------------
 
           if (lo_eb_cc.isCovered() && hi_eb_cc.isCovered()) {
 
@@ -412,6 +389,10 @@ define( int const& a_idim,
 
             aux_vfrac(i,j,k) = 1.0;
 
+            aux_afrac_x(i,j,k) = 1.0;
+            aux_afrac_y(i,j,k) = 1.0;
+            aux_afrac_z(i,j,k) = 1.0;
+
           } else if ( (lo_eb_cc.isRegular() && hi_eb_cc.isCovered()) 
                    || (lo_eb_cc.isCovered() && hi_eb_cc.isRegular()) ) {
 
@@ -420,28 +401,20 @@ define( int const& a_idim,
 
           } else {
 
-            // if (lo_eb_cc.isCovered()) { }
-            // if (hi_eb_cc.isCovered()) { }
-
             aux_flag(i,j,k).setSingleValued();
             aux_flag(i,j,k).setConnected(vdim);
 
             aux_vfrac(i,j,k) = lo_eb_cc.volume() + hi_eb_cc.volume();
-            
+
             aux_afrac_x(i  ,j  ,k  ) = (idim == 0) ? lo_eb_cc.areaLo(0) : lo_eb_cc.areaLo(0) + hi_eb_cc.areaLo(0);
             aux_afrac_y(i  ,j  ,k  ) = (idim == 1) ? lo_eb_cc.areaLo(1) : lo_eb_cc.areaLo(1) + hi_eb_cc.areaLo(1);
             aux_afrac_z(i  ,j  ,k  ) = (idim == 2) ? lo_eb_cc.areaLo(2) : lo_eb_cc.areaLo(2) + hi_eb_cc.areaLo(2);
 
-          }
-        }
-      });
+          }     
 
-    // // SK ******************************************************* 
-    // for (auto& file : outfiles) {
-    //   file.close();
-    // }
-    // exit(0);
-    // // SK ******************************************************* 
+        } // flag(iv_lo) and flag(iv_hi)
+
+      });
 
     }
 

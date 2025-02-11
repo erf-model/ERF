@@ -29,7 +29,9 @@ class eb_cut_cell_ {
     bool isSingleValued () const noexcept { return m_flag.isSingleValued(); }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    void set_covered () { m_flag.setCovered(); }
+    void set_covered () { 
+      m_flag.setCovered();
+    }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     void set_regular () {
@@ -74,7 +76,8 @@ class eb_cut_cell_ {
     amrex::Real areaLo ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
       if (m_flag.isCovered() ) { return 0.; }
-      if (m_flag.isRegular() ) { return 1.; }
+      // if (m_flag.isRegular() ) { return 1.; }
+      if (m_flag.isRegular() ) { return m_lo_faces[a_idim]->area(); }
       amrex::Real const area(m_lo_faces[a_idim]->area());
       return m_invert*area + (1.-m_invert)*(m_rbox_area[a_idim] - area);
     }
@@ -83,7 +86,8 @@ class eb_cut_cell_ {
     amrex::Real areaHi ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >= 0 && a_idim < AMREX_SPACEDIM );
       if (m_flag.isCovered() ) { return 0.; }
-      if (m_flag.isRegular() ) { return 1.; }
+      // if (m_flag.isRegular() ) { return 1.; }
+      if (m_flag.isRegular() ) { return m_hi_faces[a_idim]->area(); }
       amrex::Real const area(m_hi_faces[a_idim]->area());
       return m_invert*area + (1.-m_invert)*(m_rbox_area[a_idim] - area);
     }

@@ -381,104 +381,143 @@ ERF::ERF_shared ()
         eb_ eb(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
         // MakeEBGeometry();
 
-        // // SK *******************************************************
-        // for (MFIter mfi(eb.get_u_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
+        // SK *******************************************************
 
-        //     const Box& bx = mfi.validbox();
+        for (MFIter mfi((eb.get_const_factory())->getMultiEBCellFlagFab(), false); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
 
-        //     Array4<Real const> const& vfrac =(eb.get_u_factory()->getVolFrac()).const_array(mfi);
+            Array4<EBCellFlag const> const& cflag = (eb.get_const_factory()->getMultiEBCellFlagFab()).const_array(mfi);
 
-        //     Print()<<"SK: ERF.cpp/ bx = " << bx << std::endl;
-        //     std::vector<std::string> filenames = {
-        //         "output.u_vfrac"
-        //     };
+            Print()<<"SK: ERF.cpp/ bx = " << bx << std::endl;
+            std::vector<std::string> filenames = {
+                "output.cfrac"
+            };
 
-        //     std::vector<std::ofstream> outfiles(filenames.size());
+            std::vector<std::ofstream> outfiles(filenames.size());
 
-        //     for (size_t i = 0; i < filenames.size(); ++i) {
-        //         outfiles[i].open(filenames[i]);
-        //         outfiles[i] << std::fixed << std::setprecision(12);
-        //         if (!outfiles[i].is_open()) {
-        //             std::cerr << "Error opening file: " << filenames[i] << std::endl;
-        //         }
-        //     }
+            for (size_t i = 0; i < filenames.size(); ++i) {
+                outfiles[i].open(filenames[i]);
+                outfiles[i] << std::fixed << std::setprecision(12);
+                if (!outfiles[i].is_open()) {
+                    std::cerr << "Error opening file: " << filenames[i] << std::endl;
+                }
+            }
 
-        //     ParallelFor(bx, [ vfrac, &outfiles ] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        //     {
-        //         outfiles[0] << vfrac(i,j,k) << std::endl;
-        //     });
+            ParallelFor(bx, [ cflag, &outfiles ] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                outfiles[0] << cflag(i,j,k).isRegular() << std::endl;
+            });
 
-        //     for (auto& file : outfiles) {
-        //         file.close();
-        //     }
+            for (auto& file : outfiles) {
+                file.close();
+            }
 
-        // } // MFIter
+        } // MFIter
 
-        // for (MFIter mfi(eb.get_v_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
 
-        //     const Box& bx = mfi.validbox();
+        for (MFIter mfi(eb.get_u_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
 
-        //     Array4<Real const> const& vfrac =(eb.get_v_factory()->getVolFrac()).const_array(mfi);
+            const Box& bx = mfi.validbox();
 
-        //     Print()<<"SK: ERF.cpp/ bx = " << bx << std::endl;
-        //     std::vector<std::string> filenames = {
-        //         "output.v_vfrac"
-        //     };
+            Array4<Real const> const& vfrac =(eb.get_u_factory()->getVolFrac()).const_array(mfi);
+            Array4<Real const> const& afrac_x =(eb.get_u_factory()->getAreaFrac()[0])->const_array(mfi);
+            Array4<Real const> const& afrac_y =(eb.get_u_factory()->getAreaFrac()[1])->const_array(mfi);
+            Array4<Real const> const& afrac_z =(eb.get_u_factory()->getAreaFrac()[2])->const_array(mfi);
 
-        //     std::vector<std::ofstream> outfiles(filenames.size());
+            Print()<<"SK: ERF.cpp/ bx = " << bx << std::endl;
+            std::vector<std::string> filenames = {
+                "output.u_vfrac", "output.u_afrac_x", "output.u_afrac_y", "output.u_afrac_z"
+            };
 
-        //     for (size_t i = 0; i < filenames.size(); ++i) {
-        //         outfiles[i].open(filenames[i]);
-        //         outfiles[i] << std::fixed << std::setprecision(12);
-        //         if (!outfiles[i].is_open()) {
-        //             std::cerr << "Error opening file: " << filenames[i] << std::endl;
-        //         }
-        //     }
+            std::vector<std::ofstream> outfiles(filenames.size());
 
-        //     ParallelFor(bx, [ vfrac, &outfiles ] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        //     {
-        //         outfiles[0] << vfrac(i,j,k) << std::endl;
-        //     });
+            for (size_t i = 0; i < filenames.size(); ++i) {
+                outfiles[i].open(filenames[i]);
+                outfiles[i] << std::fixed << std::setprecision(12);
+                if (!outfiles[i].is_open()) {
+                    std::cerr << "Error opening file: " << filenames[i] << std::endl;
+                }
+            }
 
-        //     for (auto& file : outfiles) {
-        //         file.close();
-        //     }
+            ParallelFor(bx, [ vfrac, afrac_x, afrac_y, afrac_z, &outfiles ] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                outfiles[0] << vfrac(i,j,k) << std::endl;
+                outfiles[1] << afrac_x(i,j,k) << std::endl;
+                outfiles[2] << afrac_y(i,j,k) << std::endl;
+                outfiles[3] << afrac_z(i,j,k) << std::endl;
+            });
 
-        // } // MFIter
+            for (auto& file : outfiles) {
+                file.close();
+            }
 
-        // for (MFIter mfi(eb.get_w_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
+        } // MFIter
 
-        //     const Box& bx = mfi.validbox();
+        for (MFIter mfi(eb.get_v_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
 
-        //     Array4<Real const> const& vfrac =(eb.get_w_factory()->getVolFrac()).const_array(mfi);
+            const Box& bx = mfi.validbox();
 
-        //     Print()<<"SK: ERF.cpp/ bx = " << bx << std::endl;
-        //     std::vector<std::string> filenames = {
-        //         "output.w_vfrac"
-        //     };
+            Array4<Real const> const& vfrac =(eb.get_v_factory()->getVolFrac()).const_array(mfi);
 
-        //     std::vector<std::ofstream> outfiles(filenames.size());
+            Print()<<"SK: ERF.cpp/ bx = " << bx << std::endl;
+            std::vector<std::string> filenames = {
+                "output.v_vfrac"
+            };
 
-        //     for (size_t i = 0; i < filenames.size(); ++i) {
-        //         outfiles[i].open(filenames[i]);
-        //         outfiles[i] << std::fixed << std::setprecision(12);
-        //         if (!outfiles[i].is_open()) {
-        //             std::cerr << "Error opening file: " << filenames[i] << std::endl;
-        //         }
-        //     }
+            std::vector<std::ofstream> outfiles(filenames.size());
 
-        //     ParallelFor(bx, [ vfrac, &outfiles ] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        //     {
-        //         outfiles[0] << vfrac(i,j,k) << std::endl;
-        //     });
+            for (size_t i = 0; i < filenames.size(); ++i) {
+                outfiles[i].open(filenames[i]);
+                outfiles[i] << std::fixed << std::setprecision(12);
+                if (!outfiles[i].is_open()) {
+                    std::cerr << "Error opening file: " << filenames[i] << std::endl;
+                }
+            }
 
-        //     for (auto& file : outfiles) {
-        //         file.close();
-        //     }
+            ParallelFor(bx, [ vfrac, &outfiles ] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                outfiles[0] << vfrac(i,j,k) << std::endl;
+            });
 
-        // } // MFIter
+            for (auto& file : outfiles) {
+                file.close();
+            }
 
-        // // SK *******************************************************
+        } // MFIter
+
+        for (MFIter mfi(eb.get_w_factory()->getVolFrac(), false); mfi.isValid(); ++mfi) {
+
+            const Box& bx = mfi.validbox();
+
+            Array4<Real const> const& vfrac =(eb.get_w_factory()->getVolFrac()).const_array(mfi);
+
+            Print()<<"SK: ERF.cpp/ bx = " << bx << std::endl;
+            std::vector<std::string> filenames = {
+                "output.w_vfrac"
+            };
+
+            std::vector<std::ofstream> outfiles(filenames.size());
+
+            for (size_t i = 0; i < filenames.size(); ++i) {
+                outfiles[i].open(filenames[i]);
+                outfiles[i] << std::fixed << std::setprecision(12);
+                if (!outfiles[i].is_open()) {
+                    std::cerr << "Error opening file: " << filenames[i] << std::endl;
+                }
+            }
+
+            ParallelFor(bx, [ vfrac, &outfiles ] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                outfiles[0] << vfrac(i,j,k) << std::endl;
+            });
+
+            for (auto& file : outfiles) {
+                file.close();
+            }
+
+        } // MFIter
+
+        // SK *******************************************************
         
     }
 }
