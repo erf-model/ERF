@@ -45,9 +45,11 @@ define( int const& a_idim,
   m_volfrac = new MultiFab(grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-    m_areafrac[idim] = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
-    m_areafrac[idim]->setVal(1.0);
+      const BoxArray& faceba = amrex::convert(a_grids, IntVect::TheDimensionVector(idim));
+      m_areafrac[idim] = new MultiCutFab(faceba, a_dmap, 1, a_ngrow[2], *m_cellflags);
+      m_facecent[idim] = new MultiCutFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], *m_cellflags);
   }
+
   // m_areafrac[0] = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
   // m_areafrac[1] = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
   // m_areafrac[2] = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
@@ -58,12 +60,6 @@ define( int const& a_idim,
 
   m_bndryarea = new MultiCutFab(a_ba, a_dm, 1, m_grow[2], *m_cellflags);
   m_bndrynorm = new MultiCutFab(a_ba, a_dm, AMREX_SPACEDIM, m_grow[2], *m_cellflags);
-
-  for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-      const BoxArray& faceba = amrex::convert(a_ba, IntVect::TheDimensionVector(idim));
-      m_areafrac[idim] = new MultiCutFab(faceba, a_dm, 1, m_grow[2], *m_cellflags);
-      m_facecent[idim] = new MultiCutFab(faceba, a_dm, AMREX_SPACEDIM-1, m_grow[2], *m_cellflags);
-  }
 #endif
 
   const auto& FlagFab = a_factory->getMultiEBCellFlagFab(); // EBFArrayBoxFactory, EBDataCollection 
@@ -406,9 +402,23 @@ define( int const& a_idim,
 
             aux_vfrac(i,j,k) = lo_eb_cc.volume() + hi_eb_cc.volume();
 
-            aux_afrac_x(i  ,j  ,k  ) = (idim == 0) ? lo_eb_cc.areaLo(0) : lo_eb_cc.areaLo(0) + hi_eb_cc.areaLo(0);
-            aux_afrac_y(i  ,j  ,k  ) = (idim == 1) ? lo_eb_cc.areaLo(1) : lo_eb_cc.areaLo(1) + hi_eb_cc.areaLo(1);
-            aux_afrac_z(i  ,j  ,k  ) = (idim == 2) ? lo_eb_cc.areaLo(2) : lo_eb_cc.areaLo(2) + hi_eb_cc.areaLo(2);
+            if (i==bx.bigEnd(0)) {
+              aux_afrac_x(i+1,j,k) = (idim == 0) ? hi_eb_cc.areaHi(0) : lo_eb_cc.areaHi(0) + hi_eb_cc.areaHi(0);
+            } else {
+              aux_afrac_x(i  ,j,k) = (idim == 0) ? lo_eb_cc.areaLo(0) : lo_eb_cc.areaLo(0) + hi_eb_cc.areaLo(0);
+            }
+
+            if (i==bx.bigEnd(1)) {
+              aux_afrac_y(i,j+1,k) = (idim == 1) ? lo_eb_cc.areaHi(1) : lo_eb_cc.areaHi(1) + hi_eb_cc.areaHi(1);
+            } else {
+              aux_afrac_y(i,j  ,k) = (idim == 1) ? lo_eb_cc.areaLo(1) : lo_eb_cc.areaLo(1) + hi_eb_cc.areaLo(1);
+            }
+            
+            if (i==bx.bigEnd(2)) {
+              aux_afrac_z(i,j,k+1) = (idim == 2) ? lo_eb_cc.areaHi(2) : lo_eb_cc.areaHi(2) + hi_eb_cc.areaHi(2);
+            } else {
+              aux_afrac_z(i,j,k  ) = (idim == 2) ? lo_eb_cc.areaLo(2) : lo_eb_cc.areaLo(2) + hi_eb_cc.areaLo(2);
+            }
 
           }     
 
@@ -433,4 +443,25 @@ eb_aux_::getAreaFrac () const
 {
     AMREX_ASSERT(m_areafrac[0] != nullptr);
     return {AMREX_D_DECL(m_areafrac[0], m_areafrac[1], m_areafrac[2])};
+}
+
+const MultiCutFab&
+eb_aux_::getBndryArea () const
+{
+    AMREX_ASSERT(m_bndryarea != nullptr);
+    return *m_bndryarea;
+}
+
+const MultiCutFab&
+eb_aux_::getBndryCent () const
+{
+    AMREX_ASSERT(m_bndrycent != nullptr);
+    return *m_bndrycent;
+}
+
+const MultiCutFab&
+eb_aux_::getBndryNorm () const
+{
+    AMREX_ASSERT(m_bndrynorm != nullptr);
+    return *m_bndrynorm;
 }

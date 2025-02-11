@@ -27,6 +27,10 @@ class eb_aux_
     [[nodiscard]] const amrex::MultiFab& getVolFrac () const;
     [[nodiscard]] amrex::Array<const amrex::MultiCutFab*, AMREX_SPACEDIM> getAreaFrac () const;
 
+    [[nodiscard]] const amrex::MultiCutFab& getBndryArea () const;
+    [[nodiscard]] const amrex::MultiCutFab& getBndryCent () const;
+    [[nodiscard]] const amrex::MultiCutFab& getBndryNorm () const;
+
   private:
 
     int m_verbose;
@@ -38,9 +42,9 @@ class eb_aux_
     amrex::MultiFab* m_volfrac = nullptr;
 
     // amrex::MultiCutFab* m_centroid = nullptr;
-    // amrex::MultiCutFab* m_bndrycent = nullptr;
-    // amrex::MultiCutFab* m_bndryarea = nullptr;
-    // amrex::MultiCutFab* m_bndrynorm = nullptr;
+    amrex::MultiCutFab* m_bndryarea = nullptr;
+    amrex::MultiCutFab* m_bndrycent = nullptr;
+    amrex::MultiCutFab* m_bndrynorm = nullptr;
 
     amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_areafrac {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
     amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_facecent {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
