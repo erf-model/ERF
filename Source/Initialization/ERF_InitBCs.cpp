@@ -59,15 +59,18 @@ void ERF::init_bcs ()
         m_bc_neumann_vals[BCVars::yvel_bc][ori] = 0.0;
         m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
 
-        std::string pp_text;
-#ifdef ERF_USE_MULTIBLOCK
-        pp_text = pp_prefix + "." + bcid;
-#else
-        pp_text = bcid;
-#endif
+        std::string pp_text = pp_prefix + "." + bcid;
         ParmParse pp(pp_text);
         std::string bc_type_in = "null";
         pp.query("type", bc_type_in);
+
+        if (bc_type_in == "null")
+        {
+            pp_text = bcid;
+            ParmParse pp(pp_text);
+            pp.query("type", bc_type_in);
+        }
+
         std::string bc_type = amrex::toLower(bc_type_in);
 
         if (bc_type == "symmetry")
