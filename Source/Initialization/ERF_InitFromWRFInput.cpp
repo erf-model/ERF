@@ -542,9 +542,20 @@ ERF::init_from_wrfinput (int lev)
                             geom[lev], use_moist);
     } // init_type == Real && lev == 0
 
-    // Start at the earliest time (read_from_wrfbdy)
-    t_new[lev] = start_bdy_time;
-    t_old[lev] = start_bdy_time - 1.e200;
+    if (init_type == InitType::Real)
+    {
+        //
+        // Start at the earliest time (read_from_wrfbdy)
+        // Note we only have start_bdy_time if at level 0 and init_type == InitType::Real
+        //
+        if (lev == 0) {
+            t_new[lev] = start_bdy_time;
+            t_old[lev] = start_bdy_time - 1.e200;
+        } else {
+            t_new[lev] = t_new[0];
+            t_old[lev] = t_old[0];
+        }
+    }
 }
 
 
