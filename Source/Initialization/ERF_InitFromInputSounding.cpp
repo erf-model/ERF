@@ -84,7 +84,7 @@ ERF::init_from_input_sounding (int lev)
                               base_state[lev-1], 0, 0, base_state[lev].nComp(),
                               geom[lev-1], geom[lev],
                               refRatio(lev-1), &cell_cons_interp,
-                              domain_bcs_type, BCVars::base_bc);
+                              domain_bcs_type, BaseBCVars::rho0_bc_comp);
 
          // We need to do this here because the interpolation above may leave corners unfilled
          //    when the corners need to be filled by, for example, reflection of the fine ghost

@@ -588,7 +588,7 @@ init_base_state_from_wrfinput (const Box& domain,
         const Array4<Real      >&  p_hse_arr = p_hse.array(mfi);
         const Array4<Real      >& pi_hse_arr = pi_hse.array(mfi);
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
-        const Array4<Real      >& qv_hse_arr = th_hse.array(mfi);
+        const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
         const Array4<Real      >&  r_hse_arr = r_hse.array(mfi);
         const Array4<Real const>&  nc_pb_arr = mf_PB.const_array(mfi);
         const Array4<Real const>&   nc_p_arr = mf_P.const_array(mfi);
