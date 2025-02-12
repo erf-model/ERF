@@ -30,7 +30,7 @@ class eb_cut_cell_ {
     bool isSingleValued () const noexcept { return m_flag.isSingleValued(); }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    void set_covered () { 
+    void set_covered () {
       m_flag.setCovered();
     }
 
@@ -762,7 +762,7 @@ set_covered_regular_cell_vertices ()
   RealVect v5(m_rbox.hi(0), m_rbox.hi(1), m_rbox.lo(2));
   RealVect v6(m_rbox.lo(0), m_rbox.hi(1), m_rbox.hi(2));
   RealVect v7(m_rbox.hi(0), m_rbox.hi(1), m_rbox.hi(2));
-    
+
   // Add vertices in the order of outward normal vector
 
   m_F1.add_vertex(v0);
@@ -790,7 +790,7 @@ set_covered_regular_cell_vertices ()
   m_F5.add_vertex(v4);
   m_F5.add_vertex(v3);
 
-  m_F6.add_vertex(v2);  
+  m_F6.add_vertex(v2);
   m_F6.add_vertex(v5);
   m_F6.add_vertex(v7);
   m_F6.add_vertex(v6);

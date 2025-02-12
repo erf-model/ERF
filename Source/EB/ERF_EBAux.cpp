@@ -55,7 +55,7 @@ define( int const& a_idim,
   m_bndrynorm = new MultiCutFab(a_ba, a_dm, AMREX_SPACEDIM, m_grow[2], *m_cellflags);
 #endif
 
-  const auto& FlagFab = a_factory->getMultiEBCellFlagFab(); // EBFArrayBoxFactory, EBDataCollection 
+  const auto& FlagFab = a_factory->getMultiEBCellFlagFab(); // EBFArrayBoxFactory, EBDataCollection
 
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
@@ -95,7 +95,7 @@ define( int const& a_idim,
                   verbose=m_verbose,
 #endif
                   dx, bx, vfrac, afrac, bnorm, bcent, flag,
-                  aux_flag, aux_vfrac, 
+                  aux_flag, aux_vfrac,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
                   vdim, idim=a_idim, is_per ]
@@ -406,7 +406,7 @@ define( int const& a_idim,
 #endif
               AMREX_ALWAYS_ASSERT( abs_err < compare_tol );
             }
-          } // 
+          } //
 #endif
 
           //-----------------------
@@ -445,7 +445,7 @@ define( int const& a_idim,
               aux_fcent_z(i,j,k+1,0) = 0.0; aux_fcent_z(i,j,k+1,1) = 0.0;
             }
 
-          } else if ( (lo_eb_cc.isRegular() && hi_eb_cc.isCovered()) 
+          } else if ( (lo_eb_cc.isRegular() && hi_eb_cc.isCovered())
                    || (lo_eb_cc.isCovered() && hi_eb_cc.isRegular()) ) {
 
             // This is a problematic situation.
@@ -474,19 +474,19 @@ define( int const& a_idim,
               aux_fcent_x(i,j,k,0) = lo_eb_cc.fcentLo(0)[1];      // y
               aux_fcent_x(i,j,k,1) = lo_eb_cc.fcentLo(0)[2];      // z
               aux_fcent_y(i,j,k,0) = (aux_afrac_y(i,j,k) > 0.0)   // x (mapped)
-                                    ? ( lo_eb_cc.areaLo(1) * (lo_eb_cc.fcentLo(1)[0] - 0.5) 
+                                    ? ( lo_eb_cc.areaLo(1) * (lo_eb_cc.fcentLo(1)[0] - 0.5)
                                       + hi_eb_cc.areaLo(1) * (hi_eb_cc.fcentLo(1)[0] + 0.5) ) / aux_afrac_y(i,j,k)
                                     : 0.0;
               aux_fcent_y(i,j,k,1) = (aux_afrac_y(i,j,k) > 0.0)   // z
-                                    ? ( lo_eb_cc.areaLo(1) * lo_eb_cc.fcentLo(1)[2] 
+                                    ? ( lo_eb_cc.areaLo(1) * lo_eb_cc.fcentLo(1)[2]
                                       + hi_eb_cc.areaLo(1) * hi_eb_cc.fcentLo(1)[2] ) / aux_afrac_y(i,j,k)
                                     : 0.0;
               aux_fcent_z(i,j,k,0) = (aux_afrac_z(i,j,k) > 0.0)   // x (mapped)
-                                    ? ( lo_eb_cc.areaLo(2) * (lo_eb_cc.fcentLo(2)[0] - 0.5) 
+                                    ? ( lo_eb_cc.areaLo(2) * (lo_eb_cc.fcentLo(2)[0] - 0.5)
                                       + hi_eb_cc.areaLo(2) * (hi_eb_cc.fcentLo(2)[0] + 0.5) ) / aux_afrac_z(i,j,k)
                                     : 0.0;
               aux_fcent_z(i,j,k,1) = (aux_afrac_z(i,j,k) > 0.0)   // y
-                                    ? ( lo_eb_cc.areaLo(2) * lo_eb_cc.fcentLo(2)[1] 
+                                    ? ( lo_eb_cc.areaLo(2) * lo_eb_cc.fcentLo(2)[1]
                                       + hi_eb_cc.areaLo(2) * hi_eb_cc.fcentLo(2)[1] ) / aux_afrac_z(i,j,k)
                                     : 0.0;
             }
@@ -497,19 +497,19 @@ define( int const& a_idim,
                                       + hi_eb_cc.areaLo(0) * (hi_eb_cc.fcentLo(0)[1] + 0.5) ) / aux_afrac_x(i,j,k)
                                     : 0.0;
               aux_fcent_x(i,j,k,1) = (aux_afrac_x(i,j,k) > 0.0)   // z
-                                    ? ( lo_eb_cc.areaLo(0) * lo_eb_cc.fcentLo(0)[2] 
+                                    ? ( lo_eb_cc.areaLo(0) * lo_eb_cc.fcentLo(0)[2]
                                       + hi_eb_cc.areaLo(0) * hi_eb_cc.fcentLo(0)[2] ) / aux_afrac_x(i,j,k)
                                     : 0.0;
-              aux_fcent_y(i,j,k,0) = lo_eb_cc.fcentLo(1)[0];      // x 
+              aux_fcent_y(i,j,k,0) = lo_eb_cc.fcentLo(1)[0];      // x
               aux_fcent_y(i,j,k,1) = lo_eb_cc.fcentLo(1)[2];      // z
               aux_fcent_z(i,j,k,0) = (aux_afrac_z(i,j,k) > 0.0)   // x
-                                    ? ( lo_eb_cc.areaLo(2) * lo_eb_cc.fcentLo(2)[0] 
+                                    ? ( lo_eb_cc.areaLo(2) * lo_eb_cc.fcentLo(2)[0]
                                       + hi_eb_cc.areaLo(2) * hi_eb_cc.fcentLo(2)[0] ) / aux_afrac_z(i,j,k)
                                     : 0.0;
               aux_fcent_z(i,j,k,1) = (aux_afrac_z(i,j,k) > 0.0)   // y (mapped)
                                     ? ( lo_eb_cc.areaLo(2) * (lo_eb_cc.fcentLo(2)[1] - 0.5)
                                       + hi_eb_cc.areaLo(2) * (hi_eb_cc.fcentLo(2)[1] + 0.5) ) / aux_afrac_z(i,j,k)
-                                    : 0.0; 
+                                    : 0.0;
             }
 
             if (idim == 2) {
@@ -546,7 +546,7 @@ define( int const& a_idim,
   }
 }
 
-const MultiFab& 
+const MultiFab&
 eb_aux_::getVolFrac () const
 {
     AMREX_ASSERT(m_volfrac != nullptr);
