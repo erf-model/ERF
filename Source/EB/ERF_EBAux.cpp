@@ -1,9 +1,6 @@
 #include <ERF_EBAux.H>
 #include <ERF_EBCutCell.H>
 
-#include <iostream>
-#include <fstream>
-
 using namespace amrex;
 
 eb_aux_::
@@ -117,21 +114,21 @@ define( int const& a_idim,
         aux_afrac_y(i,j,k) = 0.0;
         aux_afrac_z(i,j,k) = 0.0;
 
-        aux_fcent_x(i,j,k) = 0.0;
-        aux_fcent_y(i,j,k) = 0.0;
-        aux_fcent_z(i,j,k) = 0.0;
+        aux_fcent_x(i,j,k,0) = 0.0; aux_fcent_x(i,j,k,1) = 0.0;
+        aux_fcent_y(i,j,k,0) = 0.0; aux_fcent_y(i,j,k,1) = 0.0;
+        aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
 
         if (i==bx.bigEnd(0)) {
           aux_afrac_x(i+1,j,k) = 0.0;
-          aux_fcent_x(i+1,j,k) = 0.0;
+          aux_fcent_x(i+1,j,k,0) = 0.0; aux_fcent_x(i+1,j,k,1) = 0.0;
         }
         if (j==bx.bigEnd(1)) {
           aux_afrac_y(i,j+1,k) = 0.0;
-          aux_fcent_y(i,j+1,k) = 0.0;
+          aux_fcent_y(i,j+1,k,0) = 0.0; aux_fcent_y(i,j+1,k,1) = 0.0;
         }
         if (k==bx.bigEnd(2)) {
           aux_afrac_z(i,j,k+1) = 0.0;
-          aux_fcent_z(i,j,k+1) = 0.0;
+          aux_fcent_z(i,j,k+1,0) = 0.0; aux_fcent_z(i,j,k+1,1) = 0.0;
         }
 
         // Index for low and hi cells
@@ -143,6 +140,8 @@ define( int const& a_idim,
         if (!is_per && iv_hi[idim]==bx.smallEnd(idim)){
           iv_lo = iv_hi; // At the lower boundary, low cell takes the values of the high cell.
         }
+
+        //
 
         if ( flag(iv_lo).isCovered() && flag(iv_hi).isCovered()) {
 
@@ -159,21 +158,21 @@ define( int const& a_idim,
           aux_afrac_y(i,j,k) = 1.0;
           aux_afrac_z(i,j,k) = 1.0;
 
-          aux_fcent_x(i,j,k) = 0.0;
-          aux_fcent_y(i,j,k) = 0.0;
-          aux_fcent_z(i,j,k) = 0.0;
+          aux_fcent_x(i,j,k,0) = 0.0; aux_fcent_x(i,j,k,1) = 0.0;
+          aux_fcent_y(i,j,k,0) = 0.0; aux_fcent_y(i,j,k,1) = 0.0;
+          aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
 
           if (i==bx.bigEnd(0)) {
             aux_afrac_x(i+1,j,k) = 1.0;
-            aux_fcent_x(i+1,j,k) = 0.0;
+            aux_fcent_x(i+1,j,k,0) = 0.0; aux_fcent_x(i+1,j,k,1) = 0.0;
           }
           if (j==bx.bigEnd(1)) {
             aux_afrac_y(i,j+1,k) = 1.0;
-            aux_fcent_y(i,j+1,k) = 0.0;
+            aux_fcent_y(i,j+1,k,0) = 0.0; aux_fcent_y(i,j+1,k,1) = 0.0;
           }
           if (k==bx.bigEnd(2)) {
             aux_afrac_z(i,j,k+1) = 1.0;
-            aux_fcent_z(i,j,k+1) = 0.0;
+            aux_fcent_z(i,j,k+1,0) = 0.0; aux_fcent_z(i,j,k+1,1) = 0.0;
           }
 
         } else {
@@ -411,7 +410,7 @@ define( int const& a_idim,
 #endif
 
           //-----------------------
-          // Fill out Arrays
+          // Fill out aux_ arrays
           //-----------------------
 
           if (lo_eb_cc.isCovered() && hi_eb_cc.isCovered()) {
@@ -429,21 +428,21 @@ define( int const& a_idim,
             aux_afrac_y(i,j,k) = 1.0;
             aux_afrac_z(i,j,k) = 1.0;
 
-            aux_fcent_x(i,j,k) = 0.0;
-            aux_fcent_y(i,j,k) = 0.0;
-            aux_fcent_z(i,j,k) = 0.0;
+            aux_fcent_x(i,j,k,0) = 0.0; aux_fcent_x(i,j,k,1) = 0.0;
+            aux_fcent_y(i,j,k,0) = 0.0; aux_fcent_y(i,j,k,1) = 0.0;
+            aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
 
             if (i==bx.bigEnd(0)) {
               aux_afrac_x(i+1,j,k) = 1.0;
-              aux_fcent_x(i+1,j,k) = 0.0;
+              aux_fcent_x(i+1,j,k,0) = 0.0; aux_fcent_x(i+1,j,k,1) = 0.0;
             }
             if (j==bx.bigEnd(1)) {
               aux_afrac_y(i,j+1,k) = 1.0;
-              aux_fcent_y(i,j+1,k) = 0.0;
+              aux_fcent_y(i,j+1,k,0) = 0.0; aux_fcent_y(i,j+1,k,1) = 0.0;
             }
             if (k==bx.bigEnd(2)) {
               aux_afrac_z(i,j,k+1) = 1.0;
-              aux_fcent_z(i,j,k+1) = 0.0;
+              aux_fcent_z(i,j,k+1,0) = 0.0; aux_fcent_z(i,j,k+1,1) = 0.0;
             }
 
           } else if ( (lo_eb_cc.isRegular() && hi_eb_cc.isCovered()) 
@@ -460,19 +459,81 @@ define( int const& a_idim,
             aux_vfrac(i,j,k) = lo_eb_cc.volume() + hi_eb_cc.volume();
 
             aux_afrac_x(i,j,k) = (idim == 0) ? lo_eb_cc.areaLo(0) : lo_eb_cc.areaLo(0) + hi_eb_cc.areaLo(0);
-            if (i==bx.bigEnd(0)) {
-              aux_afrac_x(i+1,j,k) = (idim == 0) ? hi_eb_cc.areaHi(0) : lo_eb_cc.areaHi(0) + hi_eb_cc.areaHi(0);
+            aux_afrac_y(i,j,k) = (idim == 1) ? lo_eb_cc.areaLo(1) : lo_eb_cc.areaLo(1) + hi_eb_cc.areaLo(1);
+            aux_afrac_z(i,j,k) = (idim == 2) ? lo_eb_cc.areaLo(2) : lo_eb_cc.areaLo(2) + hi_eb_cc.areaLo(2);
+
+            /* fcentLo returns the coordinates based on m_rbx.
+              The coordinates in the idim direction are in [0.0,0.5] for the low cell and in [-0.5,0.0] for the hi cell.
+              Therefore, they need to be mapped to the eb_aux space, by shifting:
+              x' = x - 0.5 (low cell), x + 0.5 (hi cell) if idim = 0
+              y' = y - 0.5 (low cell), y + 0.5 (hi cell) if idim = 1
+              z' = z - 0.5 (low cell), z + 0.5 (hi cell) if idim = 2
+            */
+
+            if (idim == 0) {
+              aux_fcent_x(i,j,k,0) = lo_eb_cc.fcentLo(0)[1];      // y
+              aux_fcent_x(i,j,k,1) = lo_eb_cc.fcentLo(0)[2];      // z
+              aux_fcent_y(i,j,k,0) = (aux_afrac_y(i,j,k) > 0.0)   // x (mapped)
+                                    ? ( lo_eb_cc.areaLo(1) * (lo_eb_cc.fcentLo(1)[0] - 0.5) 
+                                      + hi_eb_cc.areaLo(1) * (hi_eb_cc.fcentLo(1)[0] + 0.5) ) / aux_afrac_y(i,j,k)
+                                    : 0.0;
+              aux_fcent_y(i,j,k,1) = (aux_afrac_y(i,j,k) > 0.0)   // z
+                                    ? ( lo_eb_cc.areaLo(1) * lo_eb_cc.fcentLo(1)[2] 
+                                      + hi_eb_cc.areaLo(1) * hi_eb_cc.fcentLo(1)[2] ) / aux_afrac_y(i,j,k)
+                                    : 0.0;
+              aux_fcent_z(i,j,k,0) = (aux_afrac_z(i,j,k) > 0.0)   // x (mapped)
+                                    ? ( lo_eb_cc.areaLo(2) * (lo_eb_cc.fcentLo(2)[0] - 0.5) 
+                                      + hi_eb_cc.areaLo(2) * (hi_eb_cc.fcentLo(2)[0] + 0.5) ) / aux_afrac_z(i,j,k)
+                                    : 0.0;
+              aux_fcent_z(i,j,k,1) = (aux_afrac_z(i,j,k) > 0.0)   // y
+                                    ? ( lo_eb_cc.areaLo(2) * lo_eb_cc.fcentLo(2)[1] 
+                                      + hi_eb_cc.areaLo(2) * hi_eb_cc.fcentLo(2)[1] ) / aux_afrac_z(i,j,k)
+                                    : 0.0;
             }
 
-            aux_afrac_y(i,j,k) = (idim == 1) ? lo_eb_cc.areaLo(1) : lo_eb_cc.areaLo(1) + hi_eb_cc.areaLo(1);
-            if (j==bx.bigEnd(1)) {
-              aux_afrac_y(i,j+1,k) = (idim == 1) ? lo_eb_cc.areaHi(1) : lo_eb_cc.areaHi(1) + hi_eb_cc.areaHi(1);
+            if (idim == 1) {
+              aux_fcent_x(i,j,k,0) = (aux_afrac_x(i,j,k) > 0.0)   // y (mapped)
+                                    ? ( lo_eb_cc.areaLo(0) * (lo_eb_cc.fcentLo(0)[1] - 0.5)
+                                      + hi_eb_cc.areaLo(0) * (hi_eb_cc.fcentLo(0)[1] + 0.5) ) / aux_afrac_x(i,j,k)
+                                    : 0.0;
+              aux_fcent_x(i,j,k,1) = (aux_afrac_x(i,j,k) > 0.0)   // z
+                                    ? ( lo_eb_cc.areaLo(0) * lo_eb_cc.fcentLo(0)[2] 
+                                      + hi_eb_cc.areaLo(0) * hi_eb_cc.fcentLo(0)[2] ) / aux_afrac_x(i,j,k)
+                                    : 0.0;
+              aux_fcent_y(i,j,k,0) = lo_eb_cc.fcentLo(1)[0];      // x 
+              aux_fcent_y(i,j,k,1) = lo_eb_cc.fcentLo(1)[2];      // z
+              aux_fcent_z(i,j,k,0) = (aux_afrac_z(i,j,k) > 0.0)   // x
+                                    ? ( lo_eb_cc.areaLo(2) * lo_eb_cc.fcentLo(2)[0] 
+                                      + hi_eb_cc.areaLo(2) * hi_eb_cc.fcentLo(2)[0] ) / aux_afrac_z(i,j,k)
+                                    : 0.0;
+              aux_fcent_z(i,j,k,1) = (aux_afrac_z(i,j,k) > 0.0)   // y (mapped)
+                                    ? ( lo_eb_cc.areaLo(2) * (lo_eb_cc.fcentLo(2)[1] - 0.5)
+                                      + hi_eb_cc.areaLo(2) * (hi_eb_cc.fcentLo(2)[1] + 0.5) ) / aux_afrac_z(i,j,k)
+                                    : 0.0; 
             }
-            
-            aux_afrac_z(i,j,k) = (idim == 2) ? lo_eb_cc.areaLo(2) : lo_eb_cc.areaLo(2) + hi_eb_cc.areaLo(2);
-            if (k==bx.bigEnd(2)) {
-              aux_afrac_z(i,j,k+1) = (idim == 2) ? lo_eb_cc.areaHi(2) : lo_eb_cc.areaHi(2) + hi_eb_cc.areaHi(2);
+
+            if (idim == 2) {
+              aux_fcent_x(i,j,k,0) = (aux_afrac_x(i,j,k) > 0.0)   // y
+                                    ? ( lo_eb_cc.areaLo(0) * lo_eb_cc.fcentLo(0)[1]
+                                      + hi_eb_cc.areaLo(0) * hi_eb_cc.fcentLo(0)[1] ) / aux_afrac_x(i,j,k)
+                                    : 0.0;
+              aux_fcent_x(i,j,k,1) = (aux_afrac_x(i,j,k) > 0.0)   // z (mapped)
+                                    ? ( lo_eb_cc.areaLo(0) * (lo_eb_cc.fcentLo(0)[2] - 0.5)
+                                      + hi_eb_cc.areaLo(0) * (hi_eb_cc.fcentLo(0)[2] + 0.5) ) / aux_afrac_x(i,j,k)
+                                    : 0.0;
+              aux_fcent_y(i,j,k,0) = (aux_afrac_y(i,j,k) > 0.0)   // x
+                                    ? ( lo_eb_cc.areaLo(1) * lo_eb_cc.fcentLo(1)[0]
+                                      + hi_eb_cc.areaLo(1) * hi_eb_cc.fcentLo(1)[0] ) / aux_afrac_y(i,j,k)
+                                    : 0.0;
+              aux_fcent_y(i,j,k,1) = (aux_afrac_y(i,j,k) > 0.0)   // z (mapped)
+                                    ? ( lo_eb_cc.areaLo(1) * (lo_eb_cc.fcentLo(1)[2] - 0.5)
+                                      + hi_eb_cc.areaLo(1) * (hi_eb_cc.fcentLo(1)[2] + 0.5) ) / aux_afrac_y(i,j,k)
+                                    : 0.0;
+              aux_fcent_z(i,j,k,0) = lo_eb_cc.fcentLo(2)[0];      // x
+              aux_fcent_z(i,j,k,1) = lo_eb_cc.fcentLo(2)[1];      // y
             }
+
+            // Need to fill the nodes the big ends?
 
           }
 

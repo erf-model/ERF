@@ -2,6 +2,7 @@
 #define ERF_EB_CUT_CELL_H_
 
 #include <AMReX_REAL.H>
+#include <AMReX_Array.H>
 #include <AMReX_RealBox.H>
 #include <AMReX_RealVect.H>
 #include <AMReX_EBCellFlag.H>
@@ -49,6 +50,8 @@ class eb_cut_cell_ {
 
       m_F7.set_area(0.);
 
+      amrex::Print()<<"SK: set_regular/ "<< m_F2.area() << " "<< m_F3.area() << " "<< m_F6.area() << std::endl;
+
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -76,7 +79,6 @@ class eb_cut_cell_ {
     amrex::Real areaLo ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
       if (m_flag.isCovered() ) { return 0.; }
-      // if (m_flag.isRegular() ) { return 1.; }
       if (m_flag.isRegular() ) { return m_lo_faces[a_idim]->area(); }
       amrex::Real const area(m_lo_faces[a_idim]->area());
       return m_invert*area + (1.-m_invert)*(m_rbox_area[a_idim] - area);
@@ -86,10 +88,23 @@ class eb_cut_cell_ {
     amrex::Real areaHi ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >= 0 && a_idim < AMREX_SPACEDIM );
       if (m_flag.isCovered() ) { return 0.; }
-      // if (m_flag.isRegular() ) { return 1.; }
       if (m_flag.isRegular() ) { return m_hi_faces[a_idim]->area(); }
       amrex::Real const area(m_hi_faces[a_idim]->area());
       return m_invert*area + (1.-m_invert)*(m_rbox_area[a_idim] - area);
+    }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Array<amrex::Real,AMREX_SPACEDIM> fcentLo ( int const a_idim ) const noexcept {
+      AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
+      amrex::RealVect cent = m_lo_faces[a_idim]->get_centroid();
+      return {AMREX_D_DECL(cent[0],cent[1],cent[2])};
+    }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::RealArray fcentHi ( int const a_idim ) const noexcept {
+      AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
+      amrex::RealVect cent = m_hi_faces[a_idim]->get_centroid();
+      return {AMREX_D_DECL(cent[0],cent[1],cent[2])};
     }
 
     void debug ( int const a_face = -1 );
@@ -124,6 +139,9 @@ class eb_cut_cell_ {
     AMREX_GPU_HOST_DEVICE
     void calc_edge_intersections ( int const a_dry_run = 0 );
 
+    AMREX_GPU_HOST_DEVICE
+    void set_covered_regular_cell_vertices ();
+
 };
 
 AMREX_GPU_HOST_DEVICE
@@ -156,10 +174,12 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   if (a_flag.isCovered() ) {
 
     set_covered();
+    set_covered_regular_cell_vertices();
 
   } else if (a_flag.isRegular() ) {
 
     set_regular();
+    set_covered_regular_cell_vertices();
 
   } else { // Check that the box and plane intersect.
 
@@ -723,5 +743,60 @@ calc_edge_intersections ( int const a_dry_run )
     }
   }
 }
+
+
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+void
+eb_cut_cell_::
+set_covered_regular_cell_vertices ()
+{
+  using namespace amrex;
+
+  RealVect v0(m_rbox.lo(0), m_rbox.lo(1), m_rbox.lo(2));
+  RealVect v1(m_rbox.hi(0), m_rbox.lo(1), m_rbox.lo(2));
+  RealVect v2(m_rbox.lo(0), m_rbox.hi(1), m_rbox.lo(2));
+  RealVect v3(m_rbox.lo(0), m_rbox.lo(1), m_rbox.hi(2));
+  RealVect v4(m_rbox.hi(0), m_rbox.lo(1), m_rbox.hi(2));
+  RealVect v5(m_rbox.hi(0), m_rbox.hi(1), m_rbox.lo(2));
+  RealVect v6(m_rbox.lo(0), m_rbox.hi(1), m_rbox.hi(2));
+  RealVect v7(m_rbox.hi(0), m_rbox.hi(1), m_rbox.hi(2));
+    
+  // Add vertices in the order of outward normal vector
+
+  m_F1.add_vertex(v0);
+  m_F1.add_vertex(v2);
+  m_F1.add_vertex(v5);
+  m_F1.add_vertex(v1);
+
+  m_F2.add_vertex(v1);
+  m_F2.add_vertex(v5);
+  m_F2.add_vertex(v7);
+  m_F2.add_vertex(v4);
+
+  m_F3.add_vertex(v3);
+  m_F3.add_vertex(v4);
+  m_F3.add_vertex(v7);
+  m_F3.add_vertex(v6);
+
+  m_F4.add_vertex(v0);
+  m_F4.add_vertex(v3);
+  m_F4.add_vertex(v6);
+  m_F4.add_vertex(v2);
+
+  m_F5.add_vertex(v0);
+  m_F5.add_vertex(v1);
+  m_F5.add_vertex(v4);
+  m_F5.add_vertex(v3);
+
+  m_F6.add_vertex(v2);  
+  m_F6.add_vertex(v5);
+  m_F6.add_vertex(v7);
+  m_F6.add_vertex(v6);
+
+}
+
+
 
 #endif
