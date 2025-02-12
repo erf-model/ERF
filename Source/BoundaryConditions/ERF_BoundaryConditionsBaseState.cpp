@@ -41,7 +41,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
     //      0 is used as starting index for bcrs
     Vector<BCRec> bcrs(ncomp);
 
-    int bc_comp = BCVars::base_bc;
+    int bc_comp = BaseBCVars::rho0_bc_comp;
 
     for (int nc = 0; nc < ncomp; nc++)
     {

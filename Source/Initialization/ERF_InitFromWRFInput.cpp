@@ -542,9 +542,20 @@ ERF::init_from_wrfinput (int lev)
                             geom[lev], use_moist);
     } // init_type == Real && lev == 0
 
-    // Start at the earliest time (read_from_wrfbdy)
-    t_new[lev] = start_bdy_time;
-    t_old[lev] = start_bdy_time - 1.e200;
+    if (init_type == InitType::Real)
+    {
+        //
+        // Start at the earliest time (read_from_wrfbdy)
+        // Note we only have start_bdy_time if at level 0 and init_type == InitType::Real
+        //
+        if (lev == 0) {
+            t_new[lev] = start_bdy_time;
+            t_old[lev] = start_bdy_time - 1.e200;
+        } else {
+            t_new[lev] = t_new[0];
+            t_old[lev] = t_old[0];
+        }
+    }
 }
 
 
@@ -588,7 +599,7 @@ init_base_state_from_wrfinput (const Box& domain,
         const Array4<Real      >&  p_hse_arr = p_hse.array(mfi);
         const Array4<Real      >& pi_hse_arr = pi_hse.array(mfi);
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
-        const Array4<Real      >& qv_hse_arr = th_hse.array(mfi);
+        const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
         const Array4<Real      >&  r_hse_arr = r_hse.array(mfi);
         const Array4<Real const>&  nc_pb_arr = mf_PB.const_array(mfi);
         const Array4<Real const>&   nc_p_arr = mf_P.const_array(mfi);
