@@ -50,8 +50,6 @@ class eb_cut_cell_ {
 
       m_F7.set_area(0.);
 
-      amrex::Print()<<"SK: set_regular/ "<< m_F2.area() << " "<< m_F3.area() << " "<< m_F6.area() << std::endl;
-
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -174,12 +172,12 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   if (a_flag.isCovered() ) {
 
     set_covered();
-    set_covered_regular_cell_vertices();
+
+    // set_covered_regular_cell_vertices();
 
   } else if (a_flag.isRegular() ) {
 
     set_regular();
-    set_covered_regular_cell_vertices();
 
   } else { // Check that the box and plane intersect.
 
@@ -214,6 +212,10 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   m_F5.define();
   m_F6.define();
   m_F7.define();
+
+  if ( !m_flag.isSingleValued() ) {
+    set_covered_regular_cell_vertices();
+  }
 
 }
 

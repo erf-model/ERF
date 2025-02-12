@@ -99,7 +99,6 @@ define( int const& a_idim,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
                   vdim, idim=a_idim, is_per ]
-                  // aux_flag, aux_vfrac, vdim, idim=a_idim, is_per, &outfiles ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
 
@@ -449,7 +448,7 @@ define( int const& a_idim,
                    || (lo_eb_cc.isCovered() && hi_eb_cc.isRegular()) ) {
 
             // This is a problematic situation.
-#ifndef AMREX_USE_GPU            
+#ifndef AMREX_USE_GPU
             Print()<< "eb_aux_ / Check: Regular and Covered cut cells are facing each other." << std::endl;
 #endif
 
