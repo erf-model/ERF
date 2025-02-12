@@ -21,7 +21,7 @@ jobs:
   # https://github.com/ROCm-Developer-Tools/HIP/issues/2246
   Build-And-Test-HIP:
     name: HIP ROCm GFortran@9.3 C++17 [tests]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     # Have to have -Wno-deprecated-declarations due to deprecated atomicAddNoRet
     # Have to have -Wno-gnu-zero-variadic-macro-arguments to avoid
     #    amrex/Src/Base/AMReX_GpuLaunchGlobal.H:15:5: error: must specify at least one argument for '...' parameter of variadic macro [-Werror,-Wgnu-zero-variadic-macro-arguments]
@@ -64,11 +64,6 @@ jobs:
         hipcc --version
         which clang
         which clang++
-
-        # "mpic++ --showme" forgets open-pal in Ubuntu 20.04 + OpenMPI 4.0.3
-        #   https://bugs.launchpad.net/ubuntu/+source/openmpi/+bug/1941786
-        #   https://github.com/open-mpi/ompi/issues/9317
-        export LDFLAGS="-lopen-pal"
 
         cmake \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
