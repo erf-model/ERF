@@ -398,7 +398,7 @@ public:
                        amrex::Vector<amrex::Geometry>& geom)
     {
         if (m_ls) m_ls->write_line_mfs(time, level_steps, ref_ratio, geom);
-        if (m_ls) m_ps->write_plane_mfs(time, level_steps, ref_ratio, geom);
+        if (m_ps) m_ps->write_plane_mfs(time, level_steps, ref_ratio, geom);
     }
 
 private:
