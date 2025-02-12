@@ -50,8 +50,6 @@ class eb_cut_cell_ {
 
       m_F7.set_area(0.);
 
-      amrex::Print()<<"SK: set_regular/ "<< m_F2.area() << " "<< m_F3.area() << " "<< m_F6.area() << std::endl;
-
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
