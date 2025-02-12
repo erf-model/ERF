@@ -58,6 +58,19 @@ struct LineSampler
             m_dir.resize(n_line_dir);
             pp.queryarr("sample_line_dir",m_dir,0,n_line_dir);
 
+            // Parse names
+            std::string name_base = "plt_line_";
+            m_name.resize(n_line_lo);
+            int n_names = pp.countval("sample_line_name");
+            if (n_names > 0) {
+                AMREX_ALWAYS_ASSERT( n_names==n_line_lo );
+                pp.queryarr("sample_line_name",m_name,0,n_names);
+            } else {
+                for (int iline(0); iline<n_line_lo; ++iline) {
+                    m_name[iline] = amrex::Concatenate(name_base, iline , 5);
+                }
+            }
+
             // Allocate space for level indicator
             m_lev.resize(n_line_dir,0);
 
@@ -130,7 +143,6 @@ struct LineSampler
                     amrex::Vector<amrex::IntVect>& ref_ratio,
                     amrex::Vector<amrex::Geometry>& geom)
     {
-        std::string name_base = "plt_line_";
         amrex::Vector<std::string> varnames = {"T", "Wsp"};
 
         int nline = m_ls_mf.size();
@@ -162,7 +174,7 @@ struct LineSampler
             m_geom[0].define(m_dom, &m_rb, geom[lev].Coord(), is_per.data());
 
             // Create plotfile name
-            std::string name_line    = amrex::Concatenate(name_base, iline           , 5);
+            std::string name_line = m_name[iline];
             name_line += "_step_";
             std::string plotfilename = amrex::Concatenate(name_line, m_level_steps[0], 5);
 
@@ -180,6 +192,7 @@ struct LineSampler
     amrex::Vector<int> m_lev;
     amrex::Vector<amrex::Box> m_bnd_bx;
     amrex::Vector<amrex::MultiFab> m_ls_mf;
+    amrex::Vector<std::string> m_name;
 };
 
 
@@ -230,6 +243,19 @@ struct PlaneSampler
             // Parse directionality
             m_dir.resize(n_plane_dir);
             pp.queryarr("sample_plane_dir",m_dir,0,n_plane_dir);
+
+            // Parse names
+            std::string name_base = "plt_plane_";
+            m_name.resize(n_plane_lo);
+            int n_names = pp.countval("sample_plane_name");
+            if (n_names > 0) {
+                AMREX_ALWAYS_ASSERT( n_names==n_plane_lo );
+                pp.queryarr("sample_plane_name",m_name,0,n_names);
+            } else {
+                for (int iplane(0); iplane<n_plane_lo; ++iplane) {
+                    m_name[iplane] = amrex::Concatenate(name_base, iplane , 5);
+                }
+            }
 
             // Allocate space for level indicator
             m_lev.resize(n_plane_dir,0);
@@ -324,7 +350,6 @@ struct PlaneSampler
                      amrex::Vector<amrex::IntVect>& ref_ratio,
                      amrex::Vector<amrex::Geometry>& geom)
     {
-        std::string name_base = "plt_plane_";
         amrex::Vector<std::string> varnames = {"T", "Wsp"};
 
         int nplane = m_ps_mf.size();
@@ -352,7 +377,7 @@ struct PlaneSampler
             m_geom[0].define(m_dom, &m_rb, geom[lev].Coord(), is_per.data());
 
             // Create plotfile name
-            std::string name_plane   = amrex::Concatenate(name_base, iplane           , 5);
+            std::string name_plane = m_name[iplane];
             name_plane += "_step_";
             std::string plotfilename = amrex::Concatenate(name_plane, m_level_steps[0], 5);
 
@@ -370,6 +395,7 @@ struct PlaneSampler
     amrex::Vector<int> m_lev;
     amrex::Vector<amrex::RealBox> m_bnd_rbx;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_ps_mf;
+    amrex::Vector<std::string> m_name;
 };
 
 

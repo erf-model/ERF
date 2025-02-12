@@ -756,7 +756,10 @@ values corresponding to the (i,j,k) indices at the beginning and end of the line
 Additionally, users must specify ``sample_line_dir`` to prescribed the direction of
 the line. The same inputs are used for the plane sampling except that ``sample_plane_lo/hi``
 must be the physical locations of the plane corners. This output functionality has
-not been implemented for terrain.
+not been implemented for terrain. By default, sampled line and plane data will have the
+prefixes "plt_line" and "plt_plane", respectively. Names for sampled data may optionally
+be provided with ``sample_line_name`` and/or ``sample_plane_name`` -- if provided, each
+line and/or plane must be named.
 
 .. _list-of-parameters-10b:
 
@@ -790,6 +793,12 @@ List of Parameters
 +-------------------------------+------------------+----------------+----------------+
 | **erf.sample_plane_lo/hi**    | Bounding point   | 3 Reals per    | None           |
 |                               | on the plane(s)  | plane          |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.sample_line_name**      | Output prefix of | One string per | None           |
+|                               | each line        | sample line    |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.sample_plane_name**     | Output prefix of | One string per | None           |
+|                               | each plane       | sample plane   |                |
 +-------------------------------+------------------+----------------+----------------+
 
 .. _examples-of-usage-10b:
