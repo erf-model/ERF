@@ -449,7 +449,7 @@ define( int const& a_idim,
                    || (lo_eb_cc.isCovered() && hi_eb_cc.isRegular()) ) {
 
             // This is a problematic situation.
-#ifndef AMREX_USE_GPU            
+#ifndef AMREX_USE_GPU
             Print()<< "eb_aux_ / Check: Regular and Covered cut cells are facing each other." << std::endl;
 #endif
 
