@@ -129,7 +129,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                    << "    include coalescence: "
                    << (m_flag_coalescence ? "true" : "false") << "\n"
                    << "    Recycle particles: " << (m_recycle_particles ? "true" : "false") << "\n"
-                   << "    number of substeps (phase change): " << m_diagnostics_iter << "\n"
+                   << "    number of substeps (phase change): " << m_num_substeps_phase_change << "\n"
                    << "    initial phase change relaxation: "
                    << (m_init_phase_change ? "true" : "false") << "\n";
     if (m_init_phase_change) {
