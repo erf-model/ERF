@@ -4,6 +4,7 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+
 #include "ERF_ABLMost.H"
 #include "ERF_DirectionSelector.H"
 #include "ERF_Diffusion.H"
@@ -12,7 +13,6 @@
 #include "ERF_PBLModels.H"
 
 using namespace amrex;
-
 
 extern "C" void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
 				   /*in*/ const Real* dz,
@@ -46,7 +46,7 @@ skipping problem, kproblem
 looks like constants from common that are passed in: Real r_d, Real p608, Real ep_2,Real ep_3,Real tv0,Real xlv,Real xlvcp
 should these also be intent(in) and therefore const &?
  */
-extern "C" void mym_predict_cc(int& kts, int& kte, Real& closure, Real& delt, Real* dz, Real* ust, Real& flt, Real& flq, Real& pmz, Real& phh, Real* el, Real* dfq, Real* rho, Real* pdk, Real* pdt, Real* pdq, Real* pdc, Real* qke, Real* tsq, Real* qsq, Real* cov, Real* s_aw, Real* s_awqke, int& bl_mynn_edmf_tke, Real* qwt1d, Real* qdiss1d, int& tke_budget, Real& xlvcp, Real& xlscp, Real& karman);
+extern "C" void mym_predict_cc(int& kts, int& kte, Real& closure, Real& delt, Real* dz, Real& ust, Real& flt, Real& flq, Real& pmz, Real& phh, Real* el, Real* dfq, Real* rho, Real* pdk, Real* pdt, Real* pdq, Real* pdc, Real* qke, Real* tsq, Real* qsq, Real* cov, Real* s_aw, Real* s_awqke, int& bl_mynn_edmf_tke, Real* qwt1d, Real* qdiss1d, int& tke_budget, Real& xlvcp, Real& xlscp, Real& karman);
 
 extern "C" void mynn_mix_chem_cc(int kts, int kte, int i,Real delt, Real* dz, Real pblh, int nchem, int kdvel, int ndvel,Real** chem1, Real* vd1, Real* rho,Real flt, Real* tcd, Real* qcd, Real* dfh,Real* s_aw, Real** s_awchem, Real emis_ant_no, Real frp, int rrfs_sd, int enh_mix); 
 
@@ -84,7 +84,7 @@ extern "C" void retrieve_exchange_coeffs_cc(int& kts, int& kte, Real* dfm, Real*
 
 extern "C" void dmp_mf_cc(const int& kts, const int& kte, Real& dt, Real* zw, Real* dz, Real* p, Real* rho, int& momentum_opt, int& tke_opt, int& scalar_opt, Real* u, Real* v, Real* w, Real* th, Real* thl, Real* thv, Real* tk, Real* qt, Real* qv, Real* qc, Real* qke, Real* qnc, Real* qni, Real* qnwfa, Real* qnifa, Real* qnbca, Real& ust, Real& flt, Real& fltv, Real& flq, Real& flqv, Real& pblh, int& kpbl, Real& dx, Real& landsea, Real& ts, Real* edmf_a, Real* edmf_w, Real* edmf_qt, Real* edmf_thl, Real* edmf_ent, Real* edmf_qc, Real* s_aw, Real* s_awthl, Real* s_awqt, Real* s_awqv, Real* s_awqc, Real* s_awu, Real* s_awv, Real* s_awqke, Real* s_awqnc, Real* s_awqni, Real* s_awqnwfa, Real* s_awqnifa, Real* s_awqnbca, int& nchem, Real** chem1, Real** s_awchem, bool& mix_chem, Real* qc_bl1d, Real* cldfra_bl1d, Real* qc_bl1d_old, Real* cldfra_bl1d_old, Real& psig_shcu, Real& maxwidth, int& ktop, Real& maxmf, Real& ztop, Real* rstoch_col, Real grav, Real gtr, Real p608);
 
-extern "C" void mym_turbulence_cc(int& kts, int& kte, Real& xland, Real& closure, Real* dz, Real* dx, Real* zw, Real* u, Real* v, Real* thl, Real* thetav, Real* ql, Real* qw, Real* qke, Real* tsq, Real* qsq, Real* cov, Real* vt, Real* vq, Real& rmo, Real& flt, Real& fltv, Real& flq, Real& zi, Real* theta, Real* sh, Real* sm, Real* el, Real* dfm, Real* dfh, Real* dfq, Real* tcd, Real* qcd, Real* pdk, Real* pdt, Real* pdq, Real* pdc, Real* qWT1D, Real* qSHEAR1D, Real* qBUOY1D, Real* qDISS1D, int& tke_budget, Real& Psig_bl, Real& Psig_shcu, Real* cldfra_bl1D, int& bl_mynn_mixlength, Real* edmf_w1, Real* edmf_a1, Real* TKEprodTD, int& spp_pbl, Real* rstoch_col, int& debug_code, Real& gtr, Real& tv0);
+extern "C" void mym_turbulence_cc(int& kts, int& kte, Real& xland, Real& closure, Real* dz, Real& dx, Real* zw, Real* u, Real* v, Real* thl, Real* thetav, Real* ql, Real* qw, Real* qke, Real* tsq, Real* qsq, Real* cov, Real* vt, Real* vq, Real& rmo, Real& flt, Real& fltv, Real& flq, Real& zi, Real* theta, Real* sh, Real* sm, Real* el, Real* dfm, Real* dfh, Real* dfq, Real* tcd, Real* qcd, Real* pdk, Real* pdt, Real* pdq, Real* pdc, Real* qWT1D, Real* qSHEAR1D, Real* qBUOY1D, Real* qDISS1D, int& tke_budget, Real& Psig_bl, Real& Psig_shcu, Real* cldfra_bl1D, int& bl_mynn_mixlength, Real* edmf_w1, Real* edmf_a1, Real* TKEprodTD, int& spp_pbl, Real* rstoch_col, int& debug_code, Real& gtr, Real& tv0);
 
 extern "C" void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz, Real &dx, Real *zw, Real *u, Real *v, Real *thl, Real *qw,const Real &zi, Real *theta, Real *thetav, Real *sh, Real *sm,const Real& ust, const Real &rmo, Real* el, Real *qke, Real* tsq, Real* qsa, Real* cov, const Real& Psig_bl, Real *cldfra_bl1D, int &bl_mynn_mixlength, Real *edmf_w1, Real *edmf_a1, int &INITIALIZE_QKE, int &spp_pbl, Real *rstoch_col,const Real& karman,const Real& tv0,const Real& gtr);
 //----------------------------------------contstants-------------------------------------------
@@ -212,7 +212,7 @@ Real qsat_blend_cc(Real t, Real p) {
     
     // temperature thresholds
     const Real t0c = 273.15; // assuming 0 for t0c (temperature in celsius)
-    const Real tice = 240.00; // assuming -273.15_rt for tice (absolute zero, could be different)
+    const Real tice = 240.00; // assuming -273.15_rt for tice (std::absolute zero, could be different)
     Real xc = std::max(-80.0_rt, t - t0c);
     Real qsat_blend_cc, esl, esi, rslf, rsif, chi;
 
@@ -296,7 +296,7 @@ void tridiag_cc(int n, const Real* a, const Real* b, Real* c, Real* d) {
     }
 }
 
-void tridiag2_cc(int n, Real* a, Real* b, Real* c, Real* d, Real* x) {
+void tridiag2_cc(int n, const Real* a, const Real* b, const Real* c, const Real* d, Real* x) {
     Real cp[n];
     Real dp[n];
     Real m;
@@ -353,7 +353,11 @@ void tridiag3_cc(int kte, Real* a, Real* b, Real* c, Real* d, Real* x) {
 // and then computes the min, average of the up/down
 // length scales, and also considers the distance to the
 // surface.
-void boulac_length_cc(int& kts, int& kte, const Real* zw, const Real* dz, const Real* qtke, const Real* theta, Real* lb1, Real* lb2, Real& gtr) {
+void boulac_length_cc(int kts, int kte,
+                      const Real* zw, const Real* dz, const Real* qtke, const Real* theta,
+                      Real* lb1, Real* lb2,
+                      // model constant
+                      Real gtr) {
 
 //      dlu = the distance a parcel can be lifted upwards give a finite
 //            amount of tke.
@@ -388,7 +392,7 @@ void boulac_length_cc(int& kts, int& kte, const Real* zw, const Real* dz, const 
                         bbb = (theta[izz + 1] - theta[izz]) / dzt;
                         
                         if (bbb != 0.0_rt) {
-                            tl = (-beta * (theta[izz] - theta[iz]) + sqrt(std::max(0.0_rt, ((beta * (theta[izz] - theta[iz])) * (beta * (theta[izz] - theta[iz]))) + 2.0_rt * bbb * beta * (qtke[iz] - zup_inf)))) / bbb / beta;
+                            tl = (-beta * (theta[izz] - theta[iz]) + Real(sqrt(std::max(0.0_rt, ((beta * (theta[izz] - theta[iz])) * (beta * (theta[izz] - theta[iz]))) + 2.0_rt * bbb * beta * (qtke[iz] - zup_inf))))) / bbb / beta;
                         } else {
                             if (theta[izz] != theta[iz]) {
                                 tl = (qtke[iz] - zup_inf) / (beta * (theta[izz] - theta[iz]));
@@ -428,7 +432,7 @@ void boulac_length_cc(int& kts, int& kte, const Real* zw, const Real* dz, const 
                         bbb = (theta[izz] - theta[izz - 1]) / dzt;
                         
                         if (bbb != 0.0_rt) {
-                            tl = (beta * (theta[izz] - theta[iz]) + sqrt(std::max(0.0_rt, ((beta * (theta[izz] - theta[iz])) * (beta * (theta[izz] - theta[iz]))) + 2.0_rt * bbb * beta * (qtke[iz] - zdo_sup)))) / bbb / beta;
+                            tl = (beta * (theta[izz] - theta[iz]) + Real(sqrt(std::max(0.0_rt, ((beta * (theta[izz] - theta[iz])) * (beta * (theta[izz] - theta[iz]))) + 2.0_rt * bbb * beta * (qtke[iz] - zdo_sup))))) / bbb / beta;
                         } else {
                             if (theta[izz] != theta[iz]) {
                                 tl = (qtke[iz] - zdo_sup) / (beta * (theta[izz] - theta[iz]));
@@ -505,11 +509,16 @@ void boulac_length_cc(int& kts, int& kte, const Real* zw, const Real* dz, const 
 //\param sh      stability function for heat, at level 2
 //\section gen_mym_level2 gsd mynn-edmf mym_level2 general algorithm
 // @ {
-void mym_level2_cc(int kts, int kte, Real* dz, Real* u, Real* v,
-                Real* thl, Real* thetav, Real* qw, Real* ql,
-                Real* vt, Real* vq, Real* dtl, Real* dqw,
-                Real* dtv, Real* gm, Real* gh, Real* sm, Real* sh, 
-		Real tv0, Real gtr) {
+void mym_level2_cc(
+    int kts, int kte,
+    const Real* dz,
+    const Real* u, const Real* v, const Real* thl, const Real* thetav, const Real* qw,
+    const Real* ql, const Real* vt, const Real* vq,
+    // intent(out):
+    Real* dtl, Real* dqw, Real* dtv, Real* gm, Real* gh, Real* sm, Real* sh,
+    // model constants:
+    Real tv0, Real gtr)
+{
     Real rfc, f1, f2, rf1, rf2, smc, shc, ri1, ri2, ri3, ri4, duz, dtz, dqz, vtt, vqq, dtq, dzk, afk, abk, ri, rf;
     Real a2fac;
 
@@ -536,8 +545,8 @@ void mym_level2_cc(int kts, int kte, Real* dz, Real* u, Real* v,
         dtz = (thl[k] - thl[k - 1]) / dzk;
         dqz = (qw[k] - qw[k - 1]) / dzk;
 
-        vtt = 1.0_rt + vt[k] * abk + vt[k - 1] * afk; // beta-theta in nn09, eq. 39
-        vqq = tv0 + vq[k] * abk + vq[k - 1] * afk; // beta-q
+        vtt = 1.0_rt + vt[k] * abk + vt[k - 1] * afk; // beta-theta in NN09, Eq. 39
+        vqq = tv0  + vq[k] * abk + vq[k - 1] * afk; // beta-q
         dtq = vtt * dtz + vqq * dqz;
         // alternatively, use theta-v without the sgs clouds
         // dtq = (thetav[k] - thetav[k - 1]) / dzk;
@@ -599,26 +608,44 @@ void mym_level2_cc(int kts, int kte, Real* dz, Real* u, Real* v,
 //
 //>\ingroup gsd_mynn_edmf
 // this subroutine calculates the mixing lengths.
-void mym_length_cc(int kts, int kte, Real xland, Real* dz, Real* zw, Real rmo, Real flt, Real fltv, Real flq, Real* vt, Real* vq, Real* u1, Real* v1, Real* qke, Real* dtv, Real* el, Real zi, Real* theta, Real* qkw, Real psig_bl, Real* cldfra_bl1d, int bl_mynn_mixlength, Real* edmf_w1, Real* edmf_a1, Real tv0, Real gtr) {
-    Real cns, alp1, alp2, alp3, alp4, alp5, alp6;
-    Real minzi = 300.0;
-    Real maxdz = 750.0;
-    Real mindz = 300.0;
-    Real zslh = 100.0;
-    Real csl = 2.0;
-    Real afk, abk, zwk, zwk1, dzk, qdz, vflx, bv, tau_cloud, wstar, elb, els, elf, el_stab, el_mf, el_stab_mf, elb_mf, pblh_plus_ent, uonset, ugrid, wt_u, el_les;
-    Real qke_elb_min = 0.018_rt;
-    const Real grav = 9.8100004196166992, karman = 0.4000000059604645;
-    const Real twothirds = 0.6666666865348816, onethird = 0.3333333432674408;
-    const Real qmin = 0.0_rt;
-    const Real ctau = 1000._rt;
-
+void mym_length_cc(
+    int kts, int kte, Real xland,
+    const Real* dz, /*Real dx,*/ const Real* zw,
+    Real rmo, Real flt, Real fltv, Real flq,
+    const Real* vt, const Real* vq,
+    const Real* u1, const Real* v1, const Real* qke,
+    const Real* dtv,
+    Real* el, // intent(out)
+    Real zi, const Real* theta,
+    Real* qkw, // intent(out)
+    Real psig_bl, const Real* cldfra_bl1d,
+    int bl_mynn_mixlength,
+    const Real* edmf_w1, const Real* edmf_a1,
+    // model constants:
+    Real tv0, // ==p608 * tref
+    Real gtr) // ==grav / tref
+{
     Real qtke[kte+1];
     Real thetaw[kte+1];
     Real elblmin[kte+1];
     Real elblavg[kte+1];
     Real zi2, h1, h2, hs, elblmin0, elblavg0, cldavg;
+
+    Real cns, alp1, alp2, alp3, alp4, alp5, alp6;
+    const Real minzi = 300.0_rt;
+    const Real maxdz = 750.0_rt;
+    const Real mindz = 300.0_rt;
+    //Real zslh = 100.0_rt;
+    //Real csl = 2.0_rt;
+    const Real qke_elb_min = 0.018_rt;
+
     int i, j, k;
+    Real afk, abk, zwk, zwk1, dzk, qdz, vflx, bv, tau_cloud, wstar, elb, els, elf, el_stab, el_mf, el_stab_mf, elb_mf, pblh_plus_ent, uonset, ugrid, wt_u, el_les;
+    const Real ctau = 1000._rt; // constant for tau_cloud
+
+    const Real grav = 9.8100004196166992, karman = 0.4000000059604645;
+    const Real twothirds = 0.6666666865348816, onethird = 0.3333333432674408;
+    const Real qmin = 0.0_rt;
 
     switch(bl_mynn_mixlength) {
 
@@ -730,7 +757,6 @@ void mym_length_cc(int kts, int kte, Real xland, Real* dz, Real* zw, Real rmo, R
             // ** Strictly, zwk*h[i,j] -> ( zwk*h[i,j]+z0 ) **
             k = kts + 1;
             zwk = zw[k];
-            printf("elt %d %15.25g %15.15g %15.15g %15.15g %15.15g\n",k,elt,vsc,zwk,zi2,h1);
             while (zwk <= zi2 + h1) {
                 dzk = 0.5_rt * (dz[k] + dz[k-1]);
                 qdz = std::min(std::max(Real(qkw[k] - qmin), 0.01_rt), 30.0_rt) * dzk;
@@ -738,11 +764,9 @@ void mym_length_cc(int kts, int kte, Real xland, Real* dz, Real* zw, Real rmo, R
                 vsc = vsc + qdz;
                 k = k + 1;
                 zwk = zw[k];
-		printf("dzk %d %15.15g %15.15g %15.15g %15.15g %15.15g\n",k,dzk,qdz,elt,vsc,zwk);
             }
 
             elt = std::min(std::max(Real(alp1 * elt / vsc), 8.0_rt), 400.0_rt);
-	    printf("elt %d %15.15g %15.15g %15.15g %15.15g %15.15g\n",elt,alp1,alp1*elt,alp1*elt/vsc,8.,400.);
             vflx = fltv;
             vsc = std::cbrt(gtr * elt * std::max(Real(vflx), 0.0_rt));
 
@@ -1022,7 +1046,27 @@ void moisture_check_cc(int kte, Real delt, Real* dp, const Real* exner,
 !>\ingroup gsd_mynn_edmf
 !! this subroutine predicts the turbulent quantities at the next step.
 */
-void mym_predict_cc(int& kts, int& kte, Real& closure, Real& delt, Real* dz, Real* ust, Real& flt, Real& flq, Real& pmz, Real& phh, Real* el, Real* dfq, Real* rho, Real* pdk, Real* pdt, Real* pdq, Real* pdc, Real* qke, Real* tsq, Real* qsq, Real* cov, Real* s_aw, Real* s_awqke, int& bl_mynn_edmf_tke, Real* qwt1d, Real* qdiss1d, int& tke_budget, Real& xlvcp, Real& xlscp, Real& karman) {
+void mym_predict_cc(
+    int& kts, int& kte,
+    Real& closure,
+    Real& delt,
+    Real* dz,
+    Real& ust, Real& flt, Real& flq, Real& pmz, Real& phh,
+    Real* el, Real* dfq, Real* rho,
+    /* begin intent(inout) */
+    Real* pdk, Real* pdt, Real* pdq, Real* pdc,
+    Real* qke, Real* tsq, Real* qsq, Real* cov,
+    Real* s_aw, Real* s_awqke,
+    /* end intent(inout) */
+    int& bl_mynn_edmf_tke,
+    /* begin if tke_budget==1, intent(out) */
+    Real* qwt1d, Real* qdiss1d, int& tke_budget,
+    /* end tke_budget */
+    // model constants:
+    Real& xlvcp,  // == xlv/cp       (kind_phys); xlv=2.5e6, cp=7.*287./2. (real)
+    Real& xlscp,  // == (xlv+xlf)/cp (kind_phys); xlf=3.50e5               (real)
+    Real& karman) // == 0.4          (real)
+{
     Real vkz, pdk1, phm, pdt1, pdq1, pdc1, b1l, b2l, onoff;
     Real dtz[kte-kts+1];
     Real a[kte-kts+1];
@@ -1073,10 +1117,18 @@ void mym_predict_cc(int& kts, int& kte, Real& closure, Real& delt, Real* dz, Rea
     rhoz[kte+1] = rhoz[kte];
     kqdz[kte+1] = rhoz[kte+1] * df3q[kte];
     kmdz[kte+1] = rhoz[kte+1] * dfq[kte];
+
+    // stability criteria for mf
+    for (int k = kts+1; k <= kte; k++) {
+       kqdz[k] = std::max(kqdz[k],  0.5_rt* s_aw[k]);
+       kqdz[k] = std::max(kqdz[k], -0.5_rt*(s_aw[k]-s_aw[k+1]));
+       kmdz[k] = std::max(kmdz[k],  0.5_rt* s_aw[k]);
+       kmdz[k] = std::max(kmdz[k], -0.5_rt*(s_aw[k]-s_aw[k+1]));
+    }
     
     // calculate pdk1, phm, pdt1, pdq1, pdc1
-    pdk1 = 2.0_rt * (ust[0]*ust[0]*ust[0]) * pmz / vkz;
-    phm = 2.0_rt / ust[0] * phh / vkz;
+    pdk1 = 2.0_rt * (ust*ust*ust) * pmz / vkz;
+    phm = 2.0_rt / ust * phh / vkz;
     pdt1 = phm * flt * flt;
     pdq1 = phm * flq * flq;
     pdc1 = phm * flt * flq;
@@ -1094,10 +1146,15 @@ void mym_predict_cc(int& kts, int& kte, Real& closure, Real& delt, Real* dz, Rea
         rp[k] = pdk[k+1] + pdk[k];
     }
     for (int k = kts; k <= kte-1; k++) {
-        a[k] = -dtz[k] * kqdz[k] * rhoinv[k] + 0.5_rt * dtz[k] * rhoinv[k] * s_aw[k] * onoff;
-        b[k] = 1.0_rt + dtz[k] * (kqdz[k] + kqdz[k+1]) * rhoinv[k] + 0.5_rt * dtz[k] * rhoinv[k] * (s_aw[k] - s_aw[k+1]) * onoff + bp[k] * delt;
-        c[k] = -dtz[k] * kqdz[k+1] * rhoinv[k] - 0.5_rt * dtz[k] * rhoinv[k] * s_aw[k+1] * onoff;
-        d[k] = rp[k] * delt + qke[k] + dtz[k] * rhoinv[k] * (s_awqke[k] - s_awqke[k+1]) * onoff;
+        a[k] = -dtz[k] * kqdz[k] * rhoinv[k]
+             + 0.5_rt * dtz[k] * rhoinv[k] * s_aw[k] * onoff;
+        b[k] = 1.0_rt + dtz[k] * (kqdz[k] + kqdz[k+1]) * rhoinv[k]
+             + 0.5_rt * dtz[k] * rhoinv[k] * (s_aw[k] - s_aw[k+1]) * onoff
+             + bp[k] * delt;
+        c[k] = -dtz[k] * kqdz[k+1] * rhoinv[k]
+             - 0.5_rt * dtz[k] * rhoinv[k] * s_aw[k+1] * onoff;
+        d[k] = rp[k] * delt + qke[k]
+             + dtz[k] * rhoinv[k] * (s_awqke[k] - s_awqke[k+1]) * onoff;
     }
     /*
       for (int k = kts; k <= kte-1; k++) {
@@ -1124,22 +1181,23 @@ void mym_predict_cc(int& kts, int& kte, Real& closure, Real& delt, Real* dz, Rea
         Real dzinv[kte-kts+1];
         
         // tke vertical transport
-	for (int k=kts; k <=kte; k++) 
-	{
-		tke_up[k] = 0.5_rt * qke[k];
-                dzinv[k] = 1.0_rt / dz[k];
-	}
+        for (int k=kts; k <=kte; k++)
+        {
+            tke_up[k] = 0.5_rt * qke[k];
+            dzinv[k] = 1.0_rt / dz[k];
+        }
+
         qwt1d[kts] = dzinv[kts] * ((kqdz[kts+1] * (tke_up[kts+1] - tke_up[kts]) - (kqdz[kts] * tke_up[kts])) + 0.5_rt * rhoinv[kts] * (s_aw[kts+1] * tke_up[kts+1] + ((s_aw[kts+1] - s_aw[kts]) * tke_up[kts]) + (s_awqke[kts] - s_awqke[kts+1])) * onoff);
         for (int k = kts+1; k <= kte-1; k++) {
-	  qwt1d[k] = dzinv[k] * ((kqdz[k+1] * (tke_up[k+1] - tke_up[k]) - (kqdz[k] * (tke_up[k] - tke_up[k-1]))) + 0.5_rt * rhoinv[k] * (s_aw[k+1] * tke_up[k+1] + ((s_aw[k+1] - s_aw[k]) * tke_up[k]) - (s_aw[k] * tke_up[k-1]) + (s_awqke[k] - s_awqke[k+1])) * onoff);
+            qwt1d[k] = dzinv[k] * ((kqdz[k+1] * (tke_up[k+1] - tke_up[k]) - (kqdz[k] * (tke_up[k] - tke_up[k-1]))) + 0.5_rt * rhoinv[k] * (s_aw[k+1] * tke_up[k+1] + ((s_aw[k+1] - s_aw[k]) * tke_up[k]) - (s_aw[k] * tke_up[k-1]) + (s_awqke[k] - s_awqke[k+1])) * onoff);
         }
-    qwt1d[kte] = dzinv[kte] * (-(kqdz[kte] * (tke_up[kte] - tke_up[kte-1])) + 0.5_rt * rhoinv[kte] * (-(s_aw[kte] * tke_up[kte]) - (s_aw[kte] * tke_up[kte-1]) + s_awqke[kte]) * onoff);
-        
+        qwt1d[kte] = dzinv[kte] * (-(kqdz[kte] * (tke_up[kte] - tke_up[kte-1])) + 0.5_rt * rhoinv[kte] * (-(s_aw[kte] * tke_up[kte]) - (s_aw[kte] * tke_up[kte-1]) + s_awqke[kte]) * onoff);
+
         // tke dissipation rate
-	for (int k=kts; k <=kte; k++) 
-	{
-		qdiss1d[k] = bp[k] * tke_up[k];
-	}
+        for (int k=kts; k <=kte; k++)
+        {
+            qdiss1d[k] = bp[k] * tke_up[k];
+        }
     }
     
     if (closure > 2.5) {
@@ -2090,11 +2148,12 @@ void mym_condensation_cc(
                 alp[k] = 1.0_rt / (1.0_rt + dqsl * xlvcp);
                 bet[k] = dqsl * exner[k];
 
-                rsl = xl * qsat_tk / (r_v * std::pow(t, 2.0_rt)); // slope of C-C curve at (= abs temperature) (CB02, Eqn. 4)
+                rsl = xl * qsat_tk / (r_v * std::pow(t, 2.0_rt)); // slope of C-C curve at (= std::abs temperature) (CB02, Eqn. 4)
                 cpm = cp + qw[k] * cpv;                 // CB02, sec. 2, para. 1
                 a[k] = 1.0_rt / (1.0_rt + xl * rsl / cpm);  // CB02 variable "a"
                 b[k] = a[k] * rsl;                      // CB02 variable "b"
 
+                // SPP
                 qw_pert = qw[k] + qw[k] * 0.5_rt * rstoch_col[k] * spp_pbl;
 
                 // This form of qmq (the numerator of Q1) no longer uses the a[k] factor
@@ -2374,13 +2433,13 @@ void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, c
     p700_ind = 0;
     Real min_value = p[0];
     for (int i = kts; i <= kte; ++i) {
-        Real pval=std::abs(p[i]-70000.0_rt);
+	Real pval=std::abs(p[i]-70000.0_rt);
         if (pval < min_value) {
             p700_ind = i;
         }
     }
 
-        //p700_ind = minloc(abs(p - 70000.0_rt), 1.0_rt);
+        //p700_ind = minloc(std::abs(p - 70000.0_rt), 1.0_rt);
         jump_thetav = thv[p700_ind] - thv[1] - (thv[p700_ind] - thv[qltop + 3]) / (zw[p700_ind] - zw[qltop + 3]) * (zw[p700_ind] - zw[qltop]);
         jump_qt = qc[p700_ind] + qv[p700_ind] - qc[1] - qv[1];
         jump_thetal = thl[p700_ind] - thl[1] - (thl[p700_ind] - thl[qltop + 3]) / (zw[p700_ind] - zw[qltop + 3]) * (zw[p700_ind] - zw[qltop]);
@@ -3613,7 +3672,33 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
 // - Eddy diffusivity \f$K_h\f$ and eddy viscosity \f$K_m\f$ are calculated.
 // - TKE budget terms are calculated (if the namelist parameter \p tke_budget
 // is set to True)
-void mym_turbulence_cc(int& kts, int& kte, Real& xland, Real& closure, Real* dz, Real* dx, Real* zw, Real* u, Real* v, Real* thl, Real* thetav, Real* ql, Real* qw, Real* qke, Real* tsq, Real* qsq, Real* cov, Real* vt, Real* vq, Real& rmo, Real& flt, Real& fltv, Real& flq, Real& zi, Real* theta, Real* sh, Real* sm, Real* el, Real* dfm, Real* dfh, Real* dfq, Real* tcd, Real* qcd, Real* pdk, Real* pdt, Real* pdq, Real* pdc, Real* qWT1D, Real* qSHEAR1D, Real* qBUOY1D, Real* qDISS1D, int& tke_budget, Real& Psig_bl, Real& Psig_shcu, Real* cldfra_bl1D, int& bl_mynn_mixlength, Real* edmf_w1, Real* edmf_a1, Real* TKEprodTD, int& spp_pbl, Real* rstoch_col, int& debug_code, Real& gtr, Real& tv0) {
+void mym_turbulence_cc(
+    int& kts, int& kte,
+    Real& xland, Real& closure,
+    Real* dz, Real& dx, Real* zw,
+    Real* u, Real* v, Real* thl, Real* thetav,
+    Real* ql, Real* qw,
+    Real* qke, Real* tsq, Real* qsq, Real* cov,
+    Real* vt, Real* vq,
+    Real& rmo, Real& flt, Real& fltv, Real& flq,
+    Real& zi, Real* theta,
+    /* begin intent(out) */
+    Real* sh, Real* sm, Real* el,
+    Real* dfm, Real* dfh, Real* dfq,
+    Real* tcd, Real* qcd, Real* pdk,
+    Real* pdt, Real* pdq, Real* pdc,
+    /* end intent(out) */
+    /* outputs if tke_budget==1, intent(inout) */
+    Real* qWT1D, Real* qSHEAR1D, Real* qBUOY1D, Real* qDISS1D,
+    /* end tke_budget */
+    int& tke_budget, Real& Psig_bl, Real& Psig_shcu,
+    Real* cldfra_bl1D, int& bl_mynn_mixlength,
+    Real* edmf_w1, Real* edmf_a1,
+    Real* TKEprodTD,
+    int& spp_pbl, Real* rstoch_col,
+    // additional params
+    int& debug_code, Real& gtr, Real& tv0)
+{
     Real q3sq_old, dlsq1, qWTP_old, qWTP_new;
     Real dudz, dvdz, dTdz, upwp, vpwp, Tpwp;
     Real e6c, dzk, afk, abk, vtt, vqq, cw25, clow, cupp, gamt, gamq, smd, gamv, elq, elh;
@@ -3623,16 +3708,36 @@ void mym_turbulence_cc(int& kts, int& kte, Real& xland, Real& closure, Real* dz,
     double q2sq, t2sq, r2sq, c2sq, elsq, gmel, ghel, q3sq, t3sq, r3sq, c3sq, dlsq, qdiv, e1, e2, e3, e4, enumc, eden, wden;
     Real Prnum, shb;
     const Real Prlimit = 5.0;
+    // outputs from mym_level2:
     Real dtv[kte-kts];
     Real gm[kte-kts];
     Real gh[kte-kts];
     Real dqw[kte-kts];
     Real dtl[kte-kts];
+    // output from mym_length:
     Real qkw[kte-kts];
 
-    mym_level2_cc(kts, kte, dz, u, v, thl, thetav, qw, ql, vt, vq, dtl, dqw, dtv, gm, gh, sm, sh, tv0, gtr);
+    mym_level2_cc(kts, kte, dz, u, v,
+                  thl, thetav, qw, ql,
+                  vt, vq, dtl, dqw,
+                  dtv, gm, gh, sm, sh,
+                  // model constants
+                  tv0, gtr);
 
-    mym_length_cc(kts, kte, xland, dz, zw, rmo, flt, fltv, flq, vt, vq, u, v, qke, dtv, el, zi, theta, qkw, Psig_bl, cldfra_bl1D, bl_mynn_mixlength, edmf_w1, edmf_a1, tv0, gtr);
+    // calculate el and qkw
+    mym_length_cc(kts, kte, xland,
+                  dz, /*dx,*/ zw,
+                  rmo, flt, fltv, flq,
+                  vt, vq,
+                  u, v, qke,
+                  dtv,
+                  el,
+                  zi, theta,
+                  qkw, Psig_bl, cldfra_bl1D,
+                  bl_mynn_mixlength,
+                  edmf_w1, edmf_a1,
+                  // model constants
+                  tv0, gtr);
 
     for (int k = kts + 1; k <= kte; k++) {
         dzk = 0.5_rt * (dz[k] + dz[k - 1]);
@@ -4064,7 +4169,6 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
     qsq[kte] = qsq[kte - 1];
     cov[kte] = cov[kte - 1];
 }
-
 
 
 
