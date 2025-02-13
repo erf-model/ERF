@@ -579,6 +579,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                             turbChoice.les_type  == LESType::Deardorff   ||
                             turbChoice.rans_type == RANSType::kEqn       ||
                             turbChoice.pbl_type  == PBLType::MYNN25      ||
+                            turbChoice.pbl_type  == PBLType::MYNNEDMF    ||		    
                             turbChoice.pbl_type  == PBLType::YSU );
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(l_use_turb,
           "A turbulence model must be utilized with MOST boundaries to compute the turbulent viscosity");
@@ -617,6 +618,12 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                  level, bc_ptr, vert_only, z_phys_nd,
                                  solverChoice.RhoQv_comp, solverChoice.RhoQc_comp,
                                  solverChoice.RhoQr_comp);
+    } else if (turbChoice.pbl_type == PBLType::MYNNEDMF) {
+        ComputeDiffusivityMYNNEDMF(xvel, yvel, cons_in, eddyViscosity,
+                                   geom, turbChoice, most, use_moisture,
+                                   level, bc_ptr, vert_only, z_phys_nd,
+                                   solverChoice.RhoQv_comp, solverChoice.RhoQc_comp,
+                                   solverChoice.RhoQr_comp);
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, most, use_moisture,

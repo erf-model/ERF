@@ -7,7 +7,7 @@ AMREX_ENUM(LESType, None, Smagorinsky, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYNN25, YSU);
+AMREX_ENUM(PBLType, None, MYNN25, MYNNEDMF, YSU);
 
 template <typename T>
 void query_one_or_per_level(const amrex::ParmParse& pp, const char* query_string, T& query_var, const int lev, const int maxlev)
@@ -60,7 +60,7 @@ struct TurbChoice {
                 amrex::Error("It is not recommended to use Deardorff LES and a PBL model");
             }
 
-            if (pbl_type == PBLType::MYNN25) {
+            if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
                 query_one_or_per_level(pp, "pbl_mynn_A1", pbl_mynn.A1, lev, max_level);
                 query_one_or_per_level(pp, "pbl_mynn_A2", pbl_mynn.A2, lev, max_level);
                 query_one_or_per_level(pp, "pbl_mynn_B1", pbl_mynn.B1, lev, max_level);
@@ -87,7 +87,7 @@ struct TurbChoice {
         }
 
         // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
-        if (pbl_type == PBLType::MYNN25) {
+        if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
             use_KE = true;
             query_one_or_per_level(pp, "advect_KE"    , advect_KE, lev, max_level);
             query_one_or_per_level(pp, "diffuse_KE_3D", diffuse_KE_3D, lev, max_level);
@@ -142,6 +142,8 @@ struct TurbChoice {
             amrex::Print() << "    Using Axell & Liungman one-equation RANS k model at level " << lev << std::endl;
         } else if  (pbl_type == PBLType::MYNN25) {
             amrex::Print() << "    Using MYNN2.5 PBL model at level " << lev << std::endl;
+        } else if  (pbl_type == PBLType::MYNNEDMF) {
+            amrex::Print() << "    Using MYNNEDMF PBL model at level " << lev << std::endl;
         } else if  (pbl_type == PBLType::YSU) {
             amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
         }
@@ -179,7 +181,7 @@ struct TurbChoice {
             amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
         }
 
-        if (pbl_type == PBLType::MYNN25) {
+        if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
             amrex::Print() << "    pbl_mynn_A1 : " << pbl_mynn.A1 << std::endl;
             amrex::Print() << "    pbl_mynn_A2 : " << pbl_mynn.A2 << std::endl;
             amrex::Print() << "    pbl_mynn_B1 : " << pbl_mynn.B1 << std::endl;

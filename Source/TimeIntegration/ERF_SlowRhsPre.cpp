@@ -149,6 +149,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                     tc.les_type  == LESType::Deardorff   ||
                                     tc.rans_type == RANSType::kEqn       ||
                                     tc.pbl_type  == PBLType::MYNN25      ||
+                                    tc.pbl_type  == PBLType::MYNNEDMF    ||
                                     tc.pbl_type  == PBLType::YSU );
     const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff   ||
                                     tc.rans_type == RANSType::kEqn);

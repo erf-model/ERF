@@ -657,9 +657,10 @@ ERF::InitData_pre ()
     // Verify BCs are compatible with solver choice
     for (int lev(0); lev <= max_level; ++lev) {
         if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+               (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
             phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
-            Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
+            Abort("MYNN2.5/MYNNEDMF/YSU PBL Model requires MOST at lower boundary");
         }
 
         if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&

@@ -166,6 +166,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNN25.cpp
+       ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp

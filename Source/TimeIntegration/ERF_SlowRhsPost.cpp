@@ -117,7 +117,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_use_KE         = ( (tc.les_type  == LESType::Deardorff) ||
                                     (tc.rans_type == RANSType::kEqn) ||
-                                    (tc.pbl_type  == PBLType::MYNN25) );
+                                    (tc.pbl_type  == PBLType::MYNN25) ||
+                                    (tc.pbl_type  == PBLType::MYNNEDMF) );
     const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff ||
                                     tc.rans_type == RANSType::kEqn );
     const bool l_advect_KE      = (tc.use_KE && tc.advect_KE);
@@ -129,6 +130,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.les_type  == LESType::Deardorff   ||
                                     tc.rans_type == RANSType::kEqn       ||
                                     tc.pbl_type  == PBLType::MYNN25      ||
+				    tc.pbl_type  == PBLType::MYNNEDMF    ||
                                     tc.pbl_type  == PBLType::YSU );
     const bool exp_most         = (solverChoice.use_explicit_most);
     const bool rot_most         = (solverChoice.use_rotate_most);

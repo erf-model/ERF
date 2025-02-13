@@ -79,6 +79,8 @@ public:
             pblh_type = PBLHeightCalcType::None;
         } else if (pblh_string == "MYNN25") {
             pblh_type = PBLHeightCalcType::MYNN25;
+        } else if (pblh_string == "MYNNEDMF") {
+            pblh_type = PBLHeightCalcType::MYNN25;
         } else if (pblh_string == "YSU") {
             pblh_type = PBLHeightCalcType::YSU;
         } else {
