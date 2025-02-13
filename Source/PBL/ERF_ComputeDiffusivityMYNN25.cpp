@@ -7,6 +7,32 @@
 
 using namespace amrex;
 
+void tridiag2_cc(int n, float* a, float* b, float* c, float* d, float* x) {
+    float cp[n];
+    float dp[n];
+    float m;
+
+    // initialize c-prime and d-prime
+    cp[0] = c[0] / b[0];
+    dp[0] = d[0] / b[0];
+
+    // solve for std::vectors c-prime and d-prime
+    for (int i = 1; i <= n; ++i) {
+        m = b[i] - cp[i - 1] * a[i];
+        cp[i] = c[i] / m;
+        dp[i] = (d[i] - dp[i - 1] * a[i]) / m;
+    }
+
+    // initialize x
+    x[n] = dp[n];
+
+    // solve for x from the std::vectors c-prime and d-prime
+    for (int i = n - 1; i >= 0; --i) {
+        x[i] = dp[i] - cp[i] * x[i + 1];
+    }
+
+}
+
 void
 ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const MultiFab& yvel,
@@ -24,6 +50,17 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const int RhoQc_comp,
                           const int RhoQr_comp)
 {
+    Print()<<"reached mynn25"<<std::endl;
+    {
+      int n=1;
+      float a=1;
+      float b=1;
+      float c=1;
+      float d=1;
+      float x=0;
+      tridiag2_cc(n,&a,&b,&c,&d,&x);
+      printf("ran tridiag2_cc with n=%d and got %g %g %g %g %g",n,a,b,c,d,x);
+    }
     const bool use_terrain = (z_phys_nd != nullptr);
     const bool use_most    = (most != nullptr);
 
