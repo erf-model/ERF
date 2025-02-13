@@ -597,7 +597,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     // Write plane/line sampler data
-    if (is_it_time_for_action(nstep, time, dt_lev0, sampler_interval, sampler_per) && (data_sampler) ) {
+    if (is_it_time_for_action(nstep+1, time, dt_lev0, sampler_interval, sampler_per) && (data_sampler) ) {
         data_sampler->get_sample_data(geom, vars_new);
         data_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
