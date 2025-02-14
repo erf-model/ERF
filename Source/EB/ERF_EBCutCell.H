@@ -246,8 +246,6 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
 
     set_covered();
 
-    // set_covered_regular_cell_vertices();
-
   } else if (a_flag.isRegular() ) {
 
     set_regular();
