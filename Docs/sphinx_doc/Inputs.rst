@@ -761,45 +761,56 @@ prefixes "plt_line" and "plt_plane", respectively. Names for sampled data may op
 be provided with ``sample_line_name`` and/or ``sample_plane_name`` -- if provided, each
 line and/or plane must be named.
 
+Line and plane samples will be default be written to plotfiles, one plotfile per output
+snapshot, with all output variables in the same file. Alternatively, line sampling has
+the ``erf.line_sampling_text_output`` option, which writes one text file per output
+variable, with all snapshots appended to the same file over time. This is similar to the
+tslist output from WRF but output is provided only from the finest domain that contains
+the entire requested sampling line; velocities are also destaggered.
+
 .. _list-of-parameters-10b:
 
 
 List of Parameters
 ------------------
 
-+-------------------------------+------------------+----------------+----------------+
-| Parameter                     | Definition       | Acceptable     | Default        |
-|                               |                  | Values         |                |
-+===============================+==================+================+================+
-| **erf.sampler_interval**      | Output           | Integer        | -1             |
-|                               | frequency        |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.do_line_sampling**      | Flag to do line  | Boolean        | false          |
-|                               | sampling         |                |                |
-|                               |                  |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.do_plane_sampling**     | Flag to do plane | Boolean        | false          |
-|                               | sampling         |                |                |
-|                               |                  |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.sample_line_dir**       | Directionality   | Integer        | None           |
-|                               | of the line      |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.sample_plane_dir**      | Directionality   | Integer        | None           |
-|                               | of the plane     |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.sample_line_lo/hi**     | Bounding (i,j,k) | 3 Integers per | None           |
-|                               | on the line(s)   | line           |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.sample_plane_lo/hi**    | Bounding point   | 3 Reals per    | None           |
-|                               | on the plane(s)  | plane          |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.sample_line_name**      | Output prefix of | One string per | None           |
-|                               | each line        | sample line    |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.sample_plane_name**     | Output prefix of | One string per | None           |
-|                               | each plane       | sample plane   |                |
-+-------------------------------+------------------+----------------+----------------+
++-----------------------------------+------------------+----------------+----------------+
+| Parameter                         | Definition       | Acceptable     | Default        |
+|                                   |                  | Values         |                |
++===================================+==================+================+================+
+| **erf.sampler_interval**          | Output           | Integer        | -1             |
+|                                   | frequency        |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.do_line_sampling**          | Flag to do line  | Boolean        | false          |
+|                                   | sampling         |                |                |
+|                                   |                  |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.do_plane_sampling**         | Flag to do plane | Boolean        | false          |
+|                                   | sampling         |                |                |
+|                                   |                  |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_line_dir**           | Directionality   | Integer        | None           |
+|                                   | of the line      |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_plane_dir**          | Directionality   | Integer        | None           |
+|                                   | of the plane     |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_line_lo/hi**         | Bounding (i,j,k) | 3 Integers per | None           |
+|                                   | on the line(s)   | line           |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_plane_lo/hi**        | Bounding point   | 3 Reals per    | None           |
+|                                   | on the plane(s)  | plane          |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_line_name**          | Output prefix of | One string per | None           |
+|                                   | each line        | sample line    |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_plane_name**         | Output prefix of | One string per | None           |
+|                                   | each plane       | sample plane   |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.line_sampling_text_output** | Write text files | Boolean        | false          |
+|                                   | instead of AMReX |                |                |
+|                                   | plotfiles        |                |                |
++-----------------------------------+------------------+----------------+----------------+
 
 .. _examples-of-usage-10b:
 
