@@ -486,74 +486,83 @@ define( int const& a_idim,
               z' = z - 0.5 (low cell), z + 0.5 (hi cell) if idim = 2
             */
 
+            RealVect lo_centLo_x {lo_eb_cc.centLo(0)};
+            RealVect lo_centLo_y {lo_eb_cc.centLo(1)};
+            RealVect lo_centLo_z {lo_eb_cc.centLo(2)};
+
+            RealVect hi_centLo_x {hi_eb_cc.centLo(0)};
+            RealVect hi_centLo_y {hi_eb_cc.centLo(1)};
+            RealVect hi_centLo_z {hi_eb_cc.centLo(2)};
+
+
             if (idim == 0) {
-              aux_fcent_x(i,j,k,0) = lo_eb_cc.fcentLo(0)[1];      // y
-              aux_fcent_x(i,j,k,1) = lo_eb_cc.fcentLo(0)[2];      // z
+              aux_fcent_x(i,j,k,0) = lo_centLo_x[1];      // y
+              aux_fcent_x(i,j,k,1) = lo_centLo_x[2];      // z
               aux_fcent_y(i,j,k,0) = (aux_afrac_y(i,j,k) > 0.0)   // x (mapped)
-                                    ? ( lo_eb_cc.areaLo(1) * (lo_eb_cc.fcentLo(1)[0] - 0.5)
-                                      + hi_eb_cc.areaLo(1) * (hi_eb_cc.fcentLo(1)[0] + 0.5) ) / aux_afrac_y(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(1) * (lo_centLo_y[0] - 0.5)
+                                      + hi_eb_cc.areaLo(1) * (hi_centLo_y[0] + 0.5) ) / aux_afrac_y(i,j,k)
                                     : 0.0;
               aux_fcent_y(i,j,k,1) = (aux_afrac_y(i,j,k) > 0.0)   // z
-                                    ? ( lo_eb_cc.areaLo(1) * lo_eb_cc.fcentLo(1)[2]
-                                      + hi_eb_cc.areaLo(1) * hi_eb_cc.fcentLo(1)[2] ) / aux_afrac_y(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(1) * lo_centLo_y[2]
+                                      + hi_eb_cc.areaLo(1) * hi_centLo_y[2] ) / aux_afrac_y(i,j,k)
                                     : 0.0;
               aux_fcent_z(i,j,k,0) = (aux_afrac_z(i,j,k) > 0.0)   // x (mapped)
-                                    ? ( lo_eb_cc.areaLo(2) * (lo_eb_cc.fcentLo(2)[0] - 0.5)
-                                      + hi_eb_cc.areaLo(2) * (hi_eb_cc.fcentLo(2)[0] + 0.5) ) / aux_afrac_z(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(2) * (lo_centLo_z[0] - 0.5)
+                                      + hi_eb_cc.areaLo(2) * (hi_centLo_z[0] + 0.5) ) / aux_afrac_z(i,j,k)
                                     : 0.0;
               aux_fcent_z(i,j,k,1) = (aux_afrac_z(i,j,k) > 0.0)   // y
-                                    ? ( lo_eb_cc.areaLo(2) * lo_eb_cc.fcentLo(2)[1]
-                                      + hi_eb_cc.areaLo(2) * hi_eb_cc.fcentLo(2)[1] ) / aux_afrac_z(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(2) * lo_centLo_z[1]
+                                      + hi_eb_cc.areaLo(2) * hi_centLo_z[1] ) / aux_afrac_z(i,j,k)
                                     : 0.0;                                   
             }
 
             if (idim == 1) {
               aux_fcent_x(i,j,k,0) = (aux_afrac_x(i,j,k) > 0.0)   // y (mapped)
-                                    ? ( lo_eb_cc.areaLo(0) * (lo_eb_cc.fcentLo(0)[1] - 0.5)
-                                      + hi_eb_cc.areaLo(0) * (hi_eb_cc.fcentLo(0)[1] + 0.5) ) / aux_afrac_x(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(0) * (lo_centLo_x[1] - 0.5)
+                                      + hi_eb_cc.areaLo(0) * (hi_centLo_x[1] + 0.5) ) / aux_afrac_x(i,j,k)
                                     : 0.0;
               aux_fcent_x(i,j,k,1) = (aux_afrac_x(i,j,k) > 0.0)   // z
-                                    ? ( lo_eb_cc.areaLo(0) * lo_eb_cc.fcentLo(0)[2]
-                                      + hi_eb_cc.areaLo(0) * hi_eb_cc.fcentLo(0)[2] ) / aux_afrac_x(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(0) * lo_centLo_x[2]
+                                      + hi_eb_cc.areaLo(0) * hi_centLo_x[2] ) / aux_afrac_x(i,j,k)
                                     : 0.0;
-              aux_fcent_y(i,j,k,0) = lo_eb_cc.fcentLo(1)[0];      // x
-              aux_fcent_y(i,j,k,1) = lo_eb_cc.fcentLo(1)[2];      // z
+              aux_fcent_y(i,j,k,0) = lo_centLo_y[0];      // x
+              aux_fcent_y(i,j,k,1) = lo_centLo_y[2];      // z
               aux_fcent_z(i,j,k,0) = (aux_afrac_z(i,j,k) > 0.0)   // x
-                                    ? ( lo_eb_cc.areaLo(2) * lo_eb_cc.fcentLo(2)[0]
-                                      + hi_eb_cc.areaLo(2) * hi_eb_cc.fcentLo(2)[0] ) / aux_afrac_z(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(2) * lo_centLo_z[0]
+                                      + hi_eb_cc.areaLo(2) * hi_centLo_z[0] ) / aux_afrac_z(i,j,k)
                                     : 0.0;
               aux_fcent_z(i,j,k,1) = (aux_afrac_z(i,j,k) > 0.0)   // y (mapped)
-                                    ? ( lo_eb_cc.areaLo(2) * (lo_eb_cc.fcentLo(2)[1] - 0.5)
-                                      + hi_eb_cc.areaLo(2) * (hi_eb_cc.fcentLo(2)[1] + 0.5) ) / aux_afrac_z(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(2) * (lo_centLo_z[1] - 0.5)
+                                      + hi_eb_cc.areaLo(2) * (hi_centLo_z[1] + 0.5) ) / aux_afrac_z(i,j,k)
                                     : 0.0;
             }
 
             if (idim == 2) {
               aux_fcent_x(i,j,k,0) = (aux_afrac_x(i,j,k) > 0.0)   // y
-                                    ? ( lo_eb_cc.areaLo(0) * lo_eb_cc.fcentLo(0)[1]
-                                      + hi_eb_cc.areaLo(0) * hi_eb_cc.fcentLo(0)[1] ) / aux_afrac_x(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(0) * lo_centLo_x[1]
+                                      + hi_eb_cc.areaLo(0) * hi_centLo_x[1] ) / aux_afrac_x(i,j,k)
                                     : 0.0;
               aux_fcent_x(i,j,k,1) = (aux_afrac_x(i,j,k) > 0.0)   // z (mapped)
-                                    ? ( lo_eb_cc.areaLo(0) * (lo_eb_cc.fcentLo(0)[2] - 0.5)
-                                      + hi_eb_cc.areaLo(0) * (hi_eb_cc.fcentLo(0)[2] + 0.5) ) / aux_afrac_x(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(0) * (lo_centLo_x[2] - 0.5)
+                                      + hi_eb_cc.areaLo(0) * (hi_centLo_x[2] + 0.5) ) / aux_afrac_x(i,j,k)
                                     : 0.0;
               aux_fcent_y(i,j,k,0) = (aux_afrac_y(i,j,k) > 0.0)   // x
-                                    ? ( lo_eb_cc.areaLo(1) * lo_eb_cc.fcentLo(1)[0]
-                                      + hi_eb_cc.areaLo(1) * hi_eb_cc.fcentLo(1)[0] ) / aux_afrac_y(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(1) * lo_centLo_y[0]
+                                      + hi_eb_cc.areaLo(1) * hi_centLo_y[0] ) / aux_afrac_y(i,j,k)
                                     : 0.0;
               aux_fcent_y(i,j,k,1) = (aux_afrac_y(i,j,k) > 0.0)   // z (mapped)
-                                    ? ( lo_eb_cc.areaLo(1) * (lo_eb_cc.fcentLo(1)[2] - 0.5)
-                                      + hi_eb_cc.areaLo(1) * (hi_eb_cc.fcentLo(1)[2] + 0.5) ) / aux_afrac_y(i,j,k)
+                                    ? ( lo_eb_cc.areaLo(1) * (lo_centLo_y[2] - 0.5)
+                                      + hi_eb_cc.areaLo(1) * (hi_centLo_y[2] + 0.5) ) / aux_afrac_y(i,j,k)
                                     : 0.0;
-              aux_fcent_z(i,j,k,0) = lo_eb_cc.fcentLo(2)[0];      // x
-              aux_fcent_z(i,j,k,1) = lo_eb_cc.fcentLo(2)[1];      // y
+              aux_fcent_z(i,j,k,0) = lo_centLo_z[0];      // x
+              aux_fcent_z(i,j,k,1) = lo_centLo_z[1];      // y
             }
 
             // Need to fill the nodes the big ends?
 
             aux_barea(i,j,k) = lo_eb_cc.areaBoun() + hi_eb_cc.areaBoun();
 
-            // aux_bcent(i,j,k)
+            // aux_bcent(i,j,k,0) = (lo_eb_cc.areaBoun()*lo_eb_cc.centBoun() + hi_eb_cc.areaBoun()*hi_eb_cc.centBoun()) / aux_barea(i,j,k);
             // aux_bnorm(i,j,k)
             
 
