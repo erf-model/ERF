@@ -213,6 +213,7 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   m_F6.define();
   m_F7.define();
 
+  // For covered and regular cut cells, add vertices to utilize e.g., get_centroid.
   if ( !m_flag.isSingleValued() ) {
     set_covered_regular_cell_vertices();
   }
