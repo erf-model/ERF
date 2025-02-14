@@ -10,6 +10,8 @@
 
 #include <ERF_IndexDefines.H>
 
+#include <iostream>
+
 struct LineSampler
 {
     LineSampler ()
@@ -76,6 +78,26 @@ struct LineSampler
 
             // Allocate space for MF pointers
             m_ls_mf.resize(n_line_lo);
+
+            // Write outputs to text files, one file per variable, with all
+            // times appended to the same file
+            pp.query("line_sampling_text_output",m_write_ascii);
+            if (m_write_ascii && amrex::ParallelDescriptor::IOProcessor()) {
+                int nvar = m_varnames.size();
+                m_datastream.resize(n_line_lo * nvar);
+                int i = 0;
+                for (int iline(0); iline<n_line_lo; ++iline) {
+                    for (int ivar(0); ivar<nvar; ++ivar) {
+                        std::string filename = m_name[iline] + "." + m_varnames[ivar];
+                        m_datastream[i] = std::make_unique<std::fstream>();
+                        m_datastream[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+                        if (!m_datastream[i]->good()) {
+                            amrex::FileOpenFailed(filename);
+                        }
+                        i++;
+                    }
+                }
+            }
         }
     }
 
@@ -143,8 +165,53 @@ struct LineSampler
                     amrex::Vector<amrex::IntVect>& ref_ratio,
                     amrex::Vector<amrex::Geometry>& geom)
     {
-        amrex::Vector<std::string> varnames = {"T", "Wsp"};
+        if (m_write_ascii) {
+            write_line_ascii(time);
+        } else {
+            write_line_plotfile(time, level_steps, ref_ratio, geom);
+        }
+    }
 
+    void
+    write_line_ascii (amrex::Vector<amrex::Real>& time)
+    {
+        // same as write_1D_profiles
+        constexpr int datwidth = 14;
+        constexpr int datprecision = 6;
+        constexpr int timeprecision = 13;
+
+        int nline = m_ls_mf.size();
+        int nvar = m_varnames.size();
+        for (int iline(0); iline<nline; ++iline) {
+            int dir = m_dir[iline];
+            int lev = m_lev[iline];
+            amrex::Real m_time = time[lev];
+            amrex::Box m_dom = m_bnd_bx[iline];
+
+            for (int ivar(0); ivar<nvar; ++ivar) {
+                // Convert multifab to vector
+                amrex::Gpu::HostVector<amrex::Real> vec = sumToLine(m_ls_mf[iline], ivar, 1, m_dom, dir);
+
+                if (amrex::ParallelDescriptor::IOProcessor()) {
+                    int ifile = iline*nvar + ivar;
+                    std::ostream& fs = *m_datastream[ifile];
+                    fs << std::setw(datwidth) << std::setprecision(timeprecision) << m_time
+                       << std::setw(datwidth) << std::setprecision(datprecision);
+                    for (int k=0; k<vec.size(); ++k) {
+                        fs << " " << vec[k];
+                    }
+                    fs << std::endl;
+                }
+            }
+        }
+    }
+
+    void
+    write_line_plotfile (amrex::Vector<amrex::Real>& time,
+                         amrex::Vector<int>& level_steps,
+                         amrex::Vector<amrex::IntVect>& ref_ratio,
+                         amrex::Vector<amrex::Geometry>& geom)
+    {
         int nline = m_ls_mf.size();
         for (int iline(0); iline<nline; ++iline) {
             // Data members that can be used as-is
@@ -183,7 +250,7 @@ struct LineSampler
 
             // Write each line
             WriteMultiLevelPlotfile(plotfilename, 1, mf,
-                                    varnames, m_geom, m_time,
+                                    m_varnames, m_geom, m_time,
                                     m_level_steps, m_ref_ratio);
         }
     }
@@ -193,6 +260,10 @@ struct LineSampler
     amrex::Vector<amrex::Box> m_bnd_bx;
     amrex::Vector<amrex::MultiFab> m_ls_mf;
     amrex::Vector<std::string> m_name;
+
+    bool m_write_ascii{false};
+    amrex::Vector<std::string> m_varnames {"theta","Umag"};
+    amrex::Vector<std::unique_ptr<std::fstream> > m_datastream;
 };
 
 
