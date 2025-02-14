@@ -102,7 +102,7 @@ class eb_cut_cell_ {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
       amrex::RealVect cent(0.,0.,0.);
       amrex::RealVect cent_O = m_cellface_cent[ m_lo_faces_id[a_idim] ];
-      if (m_flag.isCovered() || m_flag.isRegular() ) { 
+      if (m_flag.isCovered() || m_flag.isRegular() ) {
         cent = cent_O;
       } else {
         amrex::Real const area_R = m_lo_faces[a_idim]->area();
@@ -122,14 +122,14 @@ class eb_cut_cell_ {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
       amrex::RealVect cent(0.,0.,0.);
       amrex::RealVect cent_O = m_cellface_cent[ m_hi_faces_id[a_idim] ];
-      if (m_flag.isCovered() || m_flag.isRegular() ) { 
+      if (m_flag.isCovered() || m_flag.isRegular() ) {
         cent = cent_O;
       } else {
         amrex::Real const area_R = m_hi_faces[a_idim]->area();
         if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[a_idim]) ){
           // Default cent
         } else {
-          amrex::RealVect   cent_R = m_hi_faces[a_idim]->get_centroid();          
+          amrex::RealVect   cent_R = m_hi_faces[a_idim]->get_centroid();
           amrex::Real const area_C = m_rbox_area[a_idim] - area_R;
           cent = m_invert * cent_R + (1.-m_invert) * ((1.+area_R/area_C)*cent_O - area_R/area_C*cent_R);
         }
@@ -232,7 +232,7 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   RealVect v5(a_rbox.hi(0), a_rbox.hi(1), a_rbox.lo(2));
   RealVect v6(a_rbox.lo(0), a_rbox.hi(1), a_rbox.hi(2));
   RealVect v7(a_rbox.hi(0), a_rbox.hi(1), a_rbox.hi(2));
-  
+
   // Centoids of cell faces
 
   m_cellface_cent[0] = 0.25 * ( v0 + v2 + v5 + v1 ); // F1

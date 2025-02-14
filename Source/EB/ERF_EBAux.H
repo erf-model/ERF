@@ -42,7 +42,7 @@ class eb_aux_
 
     amrex::MultiFab* m_volfrac = nullptr;
 
-    // amrex::MultiCutFab* m_centroid = nullptr;
+    amrex::MultiCutFab* m_centroid = nullptr;
     amrex::MultiCutFab* m_bndryarea = nullptr;
     amrex::MultiCutFab* m_bndrycent = nullptr;
     amrex::MultiCutFab* m_bndrynorm = nullptr;
