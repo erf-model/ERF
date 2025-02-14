@@ -489,7 +489,7 @@ define( int const& a_idim,
               aux_fcent_z(i,j,k,1) = (aux_afrac_z(i,j,k) > 0.0)   // y
                                     ? ( lo_eb_cc.areaLo(2) * lo_eb_cc.fcentLo(2)[1]
                                       + hi_eb_cc.areaLo(2) * hi_eb_cc.fcentLo(2)[1] ) / aux_afrac_z(i,j,k)
-                                    : 0.0;
+                                    : 0.0;                                   
             }
 
             if (idim == 1) {

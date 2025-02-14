@@ -5,6 +5,7 @@
 #include <AMReX_Array.H>
 #include <AMReX_RealBox.H>
 #include <AMReX_RealVect.H>
+#include <AMReX_Algorithm.H>
 #include <AMReX_EBCellFlag.H>
 
 #include "ERF_EBPolygon.H"
@@ -94,14 +95,40 @@ class eb_cut_cell_ {
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Array<amrex::Real,AMREX_SPACEDIM> fcentLo ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
-      amrex::RealVect cent = m_lo_faces[a_idim]->get_centroid();
+      amrex::RealVect cent(0.,0.,0.);
+      amrex::RealVect cent_O = m_cellface_cent[ m_lo_faces_id[a_idim] ];
+      if (m_flag.isCovered() || m_flag.isRegular() ) { 
+        cent = cent_O;
+      } else {
+        amrex::Real const area_R = m_lo_faces[a_idim]->area();
+        if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[a_idim]) ){
+          // Default cent
+        } else {
+          amrex::RealVect   cent_R = m_lo_faces[a_idim]->get_centroid();
+          amrex::Real const area_C = m_rbox_area[a_idim] - area_R;
+          cent = m_invert * cent_R + (1.-m_invert) * ((1.+area_R/area_C)*cent_O - area_R/area_C*cent_R);
+        }
+      }
       return {AMREX_D_DECL(cent[0],cent[1],cent[2])};
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealArray fcentHi ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
-      amrex::RealVect cent = m_hi_faces[a_idim]->get_centroid();
+      amrex::RealVect cent(0.,0.,0.);
+      amrex::RealVect cent_O = m_cellface_cent[ m_hi_faces_id[a_idim] ];
+      if (m_flag.isCovered() || m_flag.isRegular() ) { 
+        cent = cent_O;
+      } else {
+        amrex::Real const area_R = m_hi_faces[a_idim]->area();
+        if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[a_idim]) ){
+          // Default cent
+        } else {
+          amrex::RealVect   cent_R = m_hi_faces[a_idim]->get_centroid();          
+          amrex::Real const area_C = m_rbox_area[a_idim] - area_R;
+          cent = m_invert * cent_R + (1.-m_invert) * ((1.+area_R/area_C)*cent_O - area_R/area_C*cent_R);
+        }
+      }
       return {AMREX_D_DECL(cent[0],cent[1],cent[2])};
     }
 
@@ -128,11 +155,17 @@ class eb_cut_cell_ {
     polygon_ m_F5;
     polygon_ m_F6;
 
+    static int constexpr m_max_faces = 6;
+    amrex::Array<amrex::RealVect,m_max_faces> m_cellface_cent; // Centroids of cell faces
+
     // cut face
     polygon_ m_F7;
 
     amrex::Array<polygon_ const* const,3> m_lo_faces {&m_F4, &m_F5, &m_F1};
     amrex::Array<polygon_ const* const,3> m_hi_faces {&m_F2, &m_F6, &m_F3};
+
+    amrex::Array<int const,3> m_lo_faces_id {3,4,0};
+    amrex::Array<int const,3> m_hi_faces_id {1,5,2};
 
     AMREX_GPU_HOST_DEVICE
     void calc_edge_intersections ( int const a_dry_run = 0 );
@@ -159,6 +192,8 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   , m_F4(a_point, a_normal)
   , m_F5(a_point, a_normal)
   , m_F6(a_point, a_normal)
+  , m_cellface_cent({amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.),
+                 amrex::RealVect(0.), amrex::RealVect(0.), amrex::RealVect(0.)})
 {
   using namespace amrex;
 
@@ -167,7 +202,22 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   m_rbox_area[2] = m_rbox.length(0)*m_rbox.length(1);
 
   RealVect v0(a_rbox.lo(0), a_rbox.lo(1), a_rbox.lo(2));
+  RealVect v1(a_rbox.hi(0), a_rbox.lo(1), a_rbox.lo(2));
+  RealVect v2(a_rbox.lo(0), a_rbox.hi(1), a_rbox.lo(2));
+  RealVect v3(a_rbox.lo(0), a_rbox.lo(1), a_rbox.hi(2));
+  RealVect v4(a_rbox.hi(0), a_rbox.lo(1), a_rbox.hi(2));
+  RealVect v5(a_rbox.hi(0), a_rbox.hi(1), a_rbox.lo(2));
+  RealVect v6(a_rbox.lo(0), a_rbox.hi(1), a_rbox.hi(2));
   RealVect v7(a_rbox.hi(0), a_rbox.hi(1), a_rbox.hi(2));
+  
+  // Centoids of cell faces
+
+  m_cellface_cent[0] = 0.25 * ( v0 + v2 + v5 + v1 ); // F1
+  m_cellface_cent[1] = 0.25 * ( v1 + v5 + v7 + v4 ); // F2
+  m_cellface_cent[2] = 0.25 * ( v3 + v4 + v7 + v6 ); // F3
+  m_cellface_cent[3] = 0.25 * ( v0 + v3 + v6 + v2 ); // F4
+  m_cellface_cent[4] = 0.25 * ( v0 + v1 + v4 + v3 ); // F5
+  m_cellface_cent[5] = 0.25 * ( v2 + v5 + v7 + v6 ); // F6
 
   if (a_flag.isCovered() ) {
 
