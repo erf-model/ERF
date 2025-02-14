@@ -3,15 +3,11 @@
 #include "AMReX_Interp_3D_C.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Constants.H"
+#include "ERF_Container.H"
 
 using namespace amrex;
 
 PhysBCFunctNoOp null_bc_for_fill;
-
-template<typename V, typename T>
-bool containerHasElement (const V& iterable, const T& query) {
-    return std::find(iterable.begin(), iterable.end(), query) != iterable.end();
-}
 
 void
 ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
