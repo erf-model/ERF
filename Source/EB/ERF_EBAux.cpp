@@ -47,12 +47,12 @@ define( int const& a_idim,
       m_facecent[idim] = new MultiCutFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], *m_cellflags);
   }
 
+  m_bndryarea = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
+  m_bndrycent = new MultiCutFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], *m_cellflags);
+  m_bndrynorm = new MultiCutFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], *m_cellflags);
+
 #if 0
   m_centroid = new MultiCutFab(a_ba, a_dm, AMREX_SPACEDIM, m_ngrow[1], *m_cellflags);
-  m_bndrycent = new MultiCutFab(a_ba, a_dm, AMREX_SPACEDIM, m_grow[2], *m_cellflags);
-
-  m_bndryarea = new MultiCutFab(a_ba, a_dm, 1, m_grow[2], *m_cellflags);
-  m_bndrynorm = new MultiCutFab(a_ba, a_dm, AMREX_SPACEDIM, m_grow[2], *m_cellflags);
 #endif
 
   const auto& FlagFab = a_factory->getMultiEBCellFlagFab(); // EBFArrayBoxFactory, EBDataCollection
@@ -88,6 +88,10 @@ define( int const& a_idim,
       Array4<Real>       const& aux_fcent_y = m_facecent[1]->array(mfi);
       Array4<Real>       const& aux_fcent_z = m_facecent[2]->array(mfi);
 
+      Array4<Real>       const& aux_barea = m_bndryarea->array(mfi);
+      Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
+      Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
+
       bool is_per = a_geom.isPeriodic(a_idim);
 
       ParallelFor(bx, [
@@ -98,6 +102,7 @@ define( int const& a_idim,
                   aux_flag, aux_vfrac,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
+                  aux_barea, aux_bcent, aux_bnorm,
                   vdim, idim=a_idim, is_per ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
@@ -129,6 +134,16 @@ define( int const& a_idim,
           aux_afrac_z(i,j,k+1) = 0.0;
           aux_fcent_z(i,j,k+1,0) = 0.0; aux_fcent_z(i,j,k+1,1) = 0.0;
         }
+
+        aux_barea(i,j,k) = 0.0;
+
+        aux_bcent(i,j,k,0) = 0.0;
+        aux_bcent(i,j,k,1) = 0.0;
+        aux_bcent(i,j,k,2) = 0.0;
+
+        aux_bnorm(i,j,k,0) = 0.0;
+        aux_bnorm(i,j,k,1) = 0.0;
+        aux_bnorm(i,j,k,2) = 0.0;
 
         // Index for low and hi cells
         IntVect iv_hi(i,j,k);
@@ -535,6 +550,12 @@ define( int const& a_idim,
             }
 
             // Need to fill the nodes the big ends?
+
+            aux_barea(i,j,k) = lo_eb_cc.areaBoun() + hi_eb_cc.areaBoun();
+
+            // aux_bcent(i,j,k)
+            // aux_bnorm(i,j,k)
+            
 
           }
 

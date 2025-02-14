@@ -93,6 +93,15 @@ class eb_cut_cell_ {
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real areaBoun () const noexcept {
+      // amrex::Real area(0.);
+      // if (m_flag.isSingleValued()) {
+      //   area = m_F7.area();
+      // }
+      return m_F7.area();
+    }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Array<amrex::Real,AMREX_SPACEDIM> fcentLo ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
       amrex::RealVect cent(0.,0.,0.);
