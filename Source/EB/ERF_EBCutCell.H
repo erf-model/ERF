@@ -146,6 +146,15 @@ class eb_cut_cell_ {
       return cent;
     }
 
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::RealVect normBoun () const noexcept {
+      amrex::RealVect normal{0.,0.,0.};
+      if (m_flag.isSingleValued()){
+        normal = m_eb_normal;
+      }
+      return normal;
+    }
+
     void debug ( int const a_face = -1 );
 
   private:

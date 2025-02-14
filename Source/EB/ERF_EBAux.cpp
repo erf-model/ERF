@@ -585,8 +585,11 @@ define( int const& a_idim,
               aux_bcent(i,j,k,2) = ( lo_areaBoun * (lo_centBoun[2]-0.5) + hi_areaBoun * (hi_centBoun[2]+0.5) ) / aux_barea(i,j,k);  // z (mapped)
             }
 
-            // aux_bnorm(i,j,k)
-            
+            RealVect eb_normal = ( lo_areaBoun * lo_normal + hi_areaBoun * hi_normal )/ aux_barea(i,j,k);
+
+            aux_bnorm(i,j,k,0) = eb_normal[0];
+            aux_bnorm(i,j,k,1) = eb_normal[1];
+            aux_bnorm(i,j,k,2) = eb_normal[2];
 
           }
 
