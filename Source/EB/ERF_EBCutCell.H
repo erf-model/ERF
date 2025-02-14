@@ -94,10 +94,6 @@ class eb_cut_cell_ {
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real areaBoun () const noexcept {
-      // amrex::Real area(0.);
-      // if (m_flag.isSingleValued()) {
-      //   area = m_F7.area();
-      // }
       return m_F7.area();
     }
 
@@ -143,7 +139,11 @@ class eb_cut_cell_ {
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect centBoun () const noexcept {
-      return m_F7.get_centroid();
+      amrex::RealVect cent{0.,0.,0.};
+      if (m_flag.isSingleValued()){
+        cent = m_F7.get_centroid();
+      }
+      return cent;
     }
 
     void debug ( int const a_face = -1 );
