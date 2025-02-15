@@ -13,6 +13,7 @@ runs:
       shell: bash
     - id: uninstall-packages
       run: |
+        sudo apt-get update
         sudo apt-get purge -y azure-cli --fix-missing
         sudo apt-get purge -y microsoft-edge-stable --fix-missing
         sudo apt-get purge -y google-cloud-sdk --fix-missing
@@ -25,7 +26,6 @@ runs:
         sudo apt-get purge -y '^mysql-.*' --fix-missing
         sudo apt-get purge -y powershell --fix-missing
         sudo apt-get autoremove -y
-        sudo apt-get update
         sudo apt-get clean
         sudo docker image prune --all --force || true
       shell: bash
