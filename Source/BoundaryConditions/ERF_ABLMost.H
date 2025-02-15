@@ -33,18 +33,18 @@ public:
 
     // Constructor
     explicit ABLMost (const amrex::Vector<amrex::Geometry>& geom,
-                      bool& use_exp_most,
-                      bool& use_rot_most,
+                      bool& use_exp_most, bool& use_rot_most,
+                      std::string a_pp_prefix,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
-    : m_exp_most(use_exp_most),
+    : m_geom(geom),
+      m_exp_most(use_exp_most),
       m_rotate(use_rot_most),
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
-      m_geom(geom),
-      m_ma(geom,(z_phys_nd[0]!=nullptr))
+      m_ma(geom,(z_phys_nd[0]!=nullptr),a_pp_prefix)
     {
         // We have a moisture model if Qv_prim is a valid pointer
         use_moisture = (Qv_prim[0].get());
@@ -519,9 +519,13 @@ public:
     PBLHeightCalcType pblh_type{PBLHeightCalcType::None};
 
 private:
-    bool use_moisture;
+    // Set in constructor
+    amrex::Vector<amrex::Geometry>  m_geom;
     bool m_exp_most = false;
     bool m_rotate   = false;
+    amrex::Real m_start_bdy_time;
+    amrex::Real m_bdy_time_interval;
+
     bool m_include_wstar = false;
     amrex::Real z0_const{0.1};
     amrex::Real surf_temp;
@@ -533,11 +537,10 @@ private:
     amrex::Real cnk_a{0.0185};
     bool        cnk_visc{false};
     amrex::Real depth{30.0};
-    amrex::Real m_start_bdy_time;
-    amrex::Real m_bdy_time_interval;
-    amrex::Vector<amrex::Geometry>  m_geom;
     amrex::Vector<amrex::FArrayBox> z_0;
     bool m_var_z0{false};
+
+    bool use_moisture;
 
     MOSTAverage m_ma;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;

@@ -241,7 +241,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
     const bool use_KE = ( turbChoice.les_type == LESType::Deardorff );
 
-#if 1
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -250,79 +249,10 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
         Box bxcc   = mfi.tilebox();
         Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc); planex.grow(1,1);
         Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc); planey.grow(0,1);
-        int i_lo   = bxcc.smallEnd(0); int i_hi = bxcc.bigEnd(0);
-        int j_lo   = bxcc.smallEnd(1); int j_hi = bxcc.bigEnd(1);
         bxcc.growLo(0,ngc); bxcc.growHi(0,ngc);
         bxcc.growLo(1,ngc); bxcc.growHi(1,ngc);
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-
-        // Extrapolate outside the domain in lateral directions (planex owns corner cells)
-        if (i_lo == domain.smallEnd(0)) {
-            ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
-                mu_turb(i_lo-i, j, k, EddyDiff::Mom_h) = mu_turb(i_lo, lj, k, EddyDiff::Mom_h);
-                mu_turb(i_lo-i, j, k, EddyDiff::Mom_v) = mu_turb(i_lo, lj, k, EddyDiff::Mom_v);
-            });
-        }
-        if (i_hi == domain.bigEnd(0)) {
-            ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
-                mu_turb(i_hi+i, j, k, EddyDiff::Mom_h) = mu_turb(i_hi, lj, k, EddyDiff::Mom_h);
-                mu_turb(i_hi+i, j, k, EddyDiff::Mom_v) = mu_turb(i_hi, lj, k, EddyDiff::Mom_v);
-            });
-        }
-        if (j_lo == domain.smallEnd(1)) {
-            ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
-                mu_turb(i, j_lo-j, k, EddyDiff::Mom_h) = mu_turb(li, j_lo, k, EddyDiff::Mom_h);
-                mu_turb(i, j_lo-j, k, EddyDiff::Mom_v) = mu_turb(li, j_lo, k, EddyDiff::Mom_v);
-            });
-        }
-        if (j_hi == domain.bigEnd(1)) {
-            ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
-                mu_turb(i, j_hi+j, k, EddyDiff::Mom_h) = mu_turb(li, j_hi, k, EddyDiff::Mom_h);
-                mu_turb(i, j_hi+j, k, EddyDiff::Mom_v) = mu_turb(li, j_hi, k, EddyDiff::Mom_v);
-            });
-        }
-
-        // Copy Theta_v component into lateral ghost cells if using Deardorff (populated above)
-        if (use_KE) {
-            if (i_lo == domain.smallEnd(0)) {
-                ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
-                    mu_turb(i_lo-i, j, k, EddyDiff::Theta_v) = mu_turb(i_lo, lj, k, EddyDiff::Theta_v);
-                });
-            }
-            if (i_hi == domain.bigEnd(0)) {
-                ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
-                    mu_turb(i_hi+i, j, k, EddyDiff::Theta_v) = mu_turb(i_hi, lj, k, EddyDiff::Theta_v);
-                });
-            }
-            if (j_lo == domain.smallEnd(1)) {
-                ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
-                    mu_turb(i, j_lo-j, k, EddyDiff::Theta_v) = mu_turb(li, j_lo, k, EddyDiff::Theta_v);
-                });
-            }
-            if (j_hi == domain.bigEnd(1)) {
-                ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
-                    mu_turb(i, j_hi+j, k, EddyDiff::Theta_v) = mu_turb(li, j_hi, k, EddyDiff::Theta_v);
-                });
-            }
-        }
-#endif
 
         for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
             int offset = (EddyDiff::NumDiffs-1)/2;
@@ -355,58 +285,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 break;
           }
        }
-    }
-
-    // Fill interior ghost cells and any ghost cells outside a periodic domain
-    //***********************************************************************************
-    eddyViscosity.FillBoundary(geom.periodicity());
-
-
-    // Extrapolate top & bottom
-    //***********************************************************************************
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi)
-    {
-        Box bxcc   = mfi.tilebox();
-        Box planez = bxcc; planez.setSmall(2, 1); planez.setBig(2, ngc);
-        int k_lo   = bxcc.smallEnd(2); int k_hi = bxcc.bigEnd(2);
-        planez.growLo(0,ngc); planez.growHi(0,ngc);
-        planez.growLo(1,ngc); planez.growHi(1,ngc);
-
-        const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-
-        for (auto n = 0; n < (EddyDiff::NumDiffs-1)/2; ++n) {
-            int offset = (EddyDiff::NumDiffs-1)/2;
-            switch (n)
-            {
-              case EddyDiff::KE_h:
-                 if (use_KE) {
-                    ParallelFor(planez, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        int indx   = n;
-                        int indx_v = indx + offset;
-                        mu_turb(i, j, k_lo-k, indx  ) = mu_turb(i, j, k_lo, indx  );
-                        mu_turb(i, j, k_hi+k, indx  ) = mu_turb(i, j, k_hi, indx  );
-                        mu_turb(i, j, k_lo-k, indx_v) = mu_turb(i, j, k_lo, indx_v);
-                        mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
-                    });
-                 }
-                 break;
-              default:
-                 ParallelFor(planez, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                 {
-                     int indx   = n;
-                     int indx_v = indx + offset;
-                     mu_turb(i, j, k_lo-k, indx  ) = mu_turb(i, j, k_lo, indx  );
-                     mu_turb(i, j, k_hi+k, indx  ) = mu_turb(i, j, k_hi, indx  );
-                     mu_turb(i, j, k_lo-k, indx_v) = mu_turb(i, j, k_lo, indx_v);
-                     mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
-                 });
-                 break;
-            }
-        }
     }
 }
 
@@ -600,78 +478,10 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /
         Box bxcc   = mfi.tilebox();
         Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc); planex.grow(1,1);
         Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc); planey.grow(0,1);
-        int i_lo   = bxcc.smallEnd(0); int i_hi = bxcc.bigEnd(0);
-        int j_lo   = bxcc.smallEnd(1); int j_hi = bxcc.bigEnd(1);
         bxcc.growLo(0,ngc); bxcc.growHi(0,ngc);
         bxcc.growLo(1,ngc); bxcc.growHi(1,ngc);
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-
-        // Extrapolate outside the domain in lateral directions (planex owns corner cells)
-        if (i_lo == domain.smallEnd(0)) {
-            ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
-                mu_turb(i_lo-i, j, k, EddyDiff::Mom_h) = mu_turb(i_lo, lj, k, EddyDiff::Mom_h);
-                mu_turb(i_lo-i, j, k, EddyDiff::Mom_v) = mu_turb(i_lo, lj, k, EddyDiff::Mom_v);
-            });
-        }
-        if (i_hi == domain.bigEnd(0)) {
-            ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
-                mu_turb(i_hi+i, j, k, EddyDiff::Mom_h) = mu_turb(i_hi, lj, k, EddyDiff::Mom_h);
-                mu_turb(i_hi+i, j, k, EddyDiff::Mom_v) = mu_turb(i_hi, lj, k, EddyDiff::Mom_v);
-            });
-        }
-        if (j_lo == domain.smallEnd(1)) {
-            ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
-                mu_turb(i, j_lo-j, k, EddyDiff::Mom_h) = mu_turb(li, j_lo, k, EddyDiff::Mom_h);
-                mu_turb(i, j_lo-j, k, EddyDiff::Mom_v) = mu_turb(li, j_lo, k, EddyDiff::Mom_v);
-            });
-        }
-        if (j_hi == domain.bigEnd(1)) {
-            ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
-                mu_turb(i, j_hi+j, k, EddyDiff::Mom_h) = mu_turb(li, j_hi, k, EddyDiff::Mom_h);
-                mu_turb(i, j_hi+j, k, EddyDiff::Mom_v) = mu_turb(li, j_hi, k, EddyDiff::Mom_v);
-            });
-        }
-
-        // Copy Theta_v component into lateral ghost cells if using Deardorff (populated above)
-        if (use_KE) {
-            if (i_lo == domain.smallEnd(0)) {
-                ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
-                    mu_turb(i_lo-i, j, k, EddyDiff::Theta_v) = mu_turb(i_lo, lj, k, EddyDiff::Theta_v);
-                });
-            }
-            if (i_hi == domain.bigEnd(0)) {
-                ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
-                    mu_turb(i_hi+i, j, k, EddyDiff::Theta_v) = mu_turb(i_hi, lj, k, EddyDiff::Theta_v);
-                });
-            }
-            if (j_lo == domain.smallEnd(1)) {
-                ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
-                    mu_turb(i, j_lo-j, k, EddyDiff::Theta_v) = mu_turb(li, j_lo, k, EddyDiff::Theta_v);
-                });
-            }
-            if (j_hi == domain.bigEnd(1)) {
-                ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
-                    mu_turb(i, j_hi+j, k, EddyDiff::Theta_v) = mu_turb(li, j_hi, k, EddyDiff::Theta_v);
-                });
-            }
-        }
 
         for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
             int offset = (EddyDiff::NumDiffs-1)/2;
@@ -704,58 +514,6 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /
                 break;
           }
        }
-    }
-
-    // Fill interior ghost cells and any ghost cells outside a periodic domain
-    //***********************************************************************************
-    eddyViscosity.FillBoundary(geom.periodicity());
-
-
-    // Extrapolate top & bottom
-    //***********************************************************************************
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi)
-    {
-        Box bxcc   = mfi.tilebox();
-        Box planez = bxcc; planez.setSmall(2, 1); planez.setBig(2, ngc);
-        int k_lo   = bxcc.smallEnd(2); int k_hi = bxcc.bigEnd(2);
-        planez.growLo(0,ngc); planez.growHi(0,ngc);
-        planez.growLo(1,ngc); planez.growHi(1,ngc);
-
-        const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-
-        for (auto n = 0; n < (EddyDiff::NumDiffs-1)/2; ++n) {
-            int offset = (EddyDiff::NumDiffs-1)/2;
-            switch (n)
-            {
-              case EddyDiff::KE_h:
-                 if (use_KE) {
-                    ParallelFor(planez, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        int indx   = n;
-                        int indx_v = indx + offset;
-                        mu_turb(i, j, k_lo-k, indx  ) = mu_turb(i, j, k_lo, indx  );
-                        mu_turb(i, j, k_hi+k, indx  ) = mu_turb(i, j, k_hi, indx  );
-                        mu_turb(i, j, k_lo-k, indx_v) = mu_turb(i, j, k_lo, indx_v);
-                        mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
-                    });
-                 }
-                 break;
-              default:
-                 ParallelFor(planez, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                 {
-                     int indx   = n;
-                     int indx_v = indx + offset;
-                     mu_turb(i, j, k_lo-k, indx  ) = mu_turb(i, j, k_lo, indx  );
-                     mu_turb(i, j, k_hi+k, indx  ) = mu_turb(i, j, k_hi, indx  );
-                     mu_turb(i, j, k_lo-k, indx_v) = mu_turb(i, j, k_lo, indx_v);
-                     mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
-                 });
-                 break;
-            }
-        }
     }
 }
 
@@ -828,7 +586,10 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
         AMREX_ALWAYS_ASSERT(!vert_only);
     }
 
+    bool impose_phys_bcs = false;
+
     if (turbChoice.les_type != LESType::None) {
+        impose_phys_bcs = true;
         ComputeTurbulentViscosityLES(Tau11, Tau22, Tau33,
                                      Tau12, Tau13, Tau23,
                                      cons_in, eddyViscosity,
@@ -839,6 +600,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     }
 
     if (turbChoice.rans_type != RANSType::None) {
+        impose_phys_bcs = true;
         ComputeTurbulentViscosityRANS(Tau11, Tau22, Tau33,
                                       Tau12, Tau13, Tau23,
                                       cons_in, wdist,
@@ -862,25 +624,22 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     }
 
     //
-    // If at level > 0, we want to fill fine ghost cell values that overlie coarse grid cells
-    // (and that are not in another fine valid region) with extrapolated values from the interior,
-    // rather than interpolating from the coarser level, since we may be using a different
-    // turbulence model there
+    // At all levels we need to fill values outside the physical boundary for the LES coeffs.
+    // In addition, for all cases, if at level > 0, we want to fill fine ghost cell values that
+    // overlie coarse grid cells (and that are not in another fine valid region) with
+    // extrapolated values from the interior, rather than interpolating from the coarser level,
+    // since we may be using a different turbulence model there.
     //
     // Note: here "covered" refers to "covered by valid region of another grid at this level"
     // Note: here "physbnd" refers to "cells outside the domain if not periodic"
     // Note: here "interior" refers to "valid cells, i.e. inside 'my' grid"
     //
-    if (level > 0)
     {
-        int ncomp  = eddyViscosity.nComp();
-        IntVect ng = eddyViscosity.nGrowVect();
-
         int is_covered    = 0;
         int is_notcovered = 1;
         int is_physbnd    = 2;
         int is_interior   = 3;
-        iMultiFab cc_mask(eddyViscosity.boxArray(),eddyViscosity.DistributionMap(),1,ng);
+        iMultiFab cc_mask(eddyViscosity.boxArray(),eddyViscosity.DistributionMap(),1,1);
         cc_mask.BuildMask(geom.Domain(), geom.periodicity(), is_covered, is_notcovered, is_physbnd, is_interior);
 
         Box domain = geom.Domain();
@@ -890,6 +649,10 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
             }
         }
 
+        eddyViscosity.FillBoundary(geom.periodicity());
+
+        int ncomp  = eddyViscosity.nComp();
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -897,13 +660,13 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
         {
             Box vbx = mfi.validbox();
 
-            Box planex_lo = mfi.growntilebox(); planex_lo.setBig(0, vbx.smallEnd(0)-1);
-            Box planey_lo = mfi.growntilebox(); planey_lo.setBig(1, vbx.smallEnd(1)-1);
-            Box planez_lo = mfi.growntilebox(); planez_lo.setBig(2, vbx.smallEnd(2)-1);
+            Box planex_lo = mfi.growntilebox(1); planex_lo.setBig(0, vbx.smallEnd(0)-1);
+            Box planey_lo = mfi.growntilebox(1); planey_lo.setBig(1, vbx.smallEnd(1)-1);
+            Box planez_lo = mfi.growntilebox(1); planez_lo.setBig(2, vbx.smallEnd(2)-1);
 
-            Box planex_hi = mfi.growntilebox(); planex_hi.setSmall(0, vbx.bigEnd(0)+1);
-            Box planey_hi = mfi.growntilebox(); planey_hi.setSmall(1, vbx.bigEnd(1)+1);
-            Box planez_hi = mfi.growntilebox(); planez_hi.setSmall(2, vbx.bigEnd(1)+1);
+            Box planex_hi = mfi.growntilebox(1); planex_hi.setSmall(0, vbx.bigEnd(0)+1);
+            Box planey_hi = mfi.growntilebox(1); planey_hi.setSmall(1, vbx.bigEnd(1)+1);
+            Box planez_hi = mfi.growntilebox(1); planez_hi.setSmall(2, vbx.bigEnd(2)+1);
 
             int i_lo   = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
             int j_lo   = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
@@ -915,56 +678,69 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
             auto domlo = lbound(domain);
             auto domhi = ubound(domain);
 
-            ParallelFor(planex_lo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            ParallelFor(planex_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if (mask_arr(i,j,k) == is_notcovered) {
-                    mu_turb(i,j,k,n) = mu_turb(i_lo,lj,lk,n);
+                if ((mask_arr(i,j,k) == is_notcovered) ||
+                    (mask_arr(i,j,k) == is_physbnd     && i < domlo.x && impose_phys_bcs)) {
+                    for (int n = 0; n < ncomp; n++) {
+                        mu_turb(i,j,k,n) = mu_turb(i_lo,lj,lk,n);
+                    }
                 }
             });
-            ParallelFor(planex_hi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            ParallelFor(planex_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if (mask_arr(i,j,k) == is_notcovered) {
-                    mu_turb(i,j,k,n) = mu_turb(i_hi,lj,lk,n);
+                if ((mask_arr(i,j,k) == is_notcovered) ||
+                    (mask_arr(i,j,k) == is_physbnd     && i > domhi.x && impose_phys_bcs)) {
+                    for (int n = 0; n < ncomp; n++) {
+                        mu_turb(i,j,k,n) = mu_turb(i_hi,lj,lk,n);
+                    }
                 }
             });
-            ParallelFor(planey_lo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            ParallelFor(planey_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
-                int lk = amrex::min(amrex::max(k, domain.smallEnd(2)), domain.bigEnd(2));
-                if (mask_arr(i,j,k) == is_notcovered) {
-                    mu_turb(i,j,k,n) = mu_turb(li,j_lo,lk,n);
+                int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
+                if ((mask_arr(i,j,k) == is_notcovered) ||
+                    (mask_arr(i,j,k) == is_physbnd     && j < domlo.y && impose_phys_bcs)) {
+                    for (int n = 0; n < ncomp; n++) {
+                        mu_turb(i,j,k,n) = mu_turb(i,j_lo,lk,n);
+                    }
                 }
             });
-            ParallelFor(planey_lo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            ParallelFor(planey_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
-                int lk = amrex::min(amrex::max(k, domain.smallEnd(2)), domain.bigEnd(2));
-                if (mask_arr(i,j,k) == is_notcovered) {
-                    mu_turb(i,j,k,n) = mu_turb(li,j_hi,lk,n);
+                int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
+                if ((mask_arr(i,j,k) == is_notcovered) ||
+                    (mask_arr(i,j,k) == is_physbnd     && j > domhi.y && impose_phys_bcs)) {
+                    for (int n = 0; n < ncomp; n++) {
+                        mu_turb(i,j,k,n) = mu_turb(i,j_hi,lk,n);
+                    }
                 }
             });
-            ParallelFor(planez_lo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            ParallelFor(planez_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
-                int li = amrex::min(amrex::max(i, domlo.x), domhi.x);
-                if (mask_arr(i,j,k) == is_notcovered) {
-                    mu_turb(i,j,k,n) = mu_turb(li,lj,k_lo,n);
+                if ((mask_arr(i,j,k) == is_notcovered) ||
+                    (mask_arr(i,j,k) == is_physbnd     && k < domlo.z && impose_phys_bcs)) {
+                    if (mask_arr(i,j,k) == is_physbnd) {
+                    }
+                    for (int n = 0; n < ncomp; n++) {
+                        mu_turb(i,j,k,n) = mu_turb(i,j,k_lo,n);
+                    }
                 }
             });
-            ParallelFor(planez_hi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            ParallelFor(planez_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
-                int li = amrex::min(amrex::max(i, domlo.x), domhi.x);
-                if (mask_arr(i,j,k) == is_notcovered) {
-                    mu_turb(i,j,k,n) = mu_turb(li,lj,k_hi,n);
+                if ((mask_arr(i,j,k) == is_notcovered) ||
+                    (mask_arr(i,j,k) == is_physbnd     && k > domhi.z && impose_phys_bcs)) {
+                    for (int n = 0; n < ncomp; n++) {
+                        mu_turb(i,j,k,n) = mu_turb(i,j,k_hi,n);
+                    }
                 }
             });
         } // mfi
-
         eddyViscosity.FillBoundary(geom.periodicity());
-    } // level
+    }
 }

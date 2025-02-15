@@ -31,7 +31,8 @@ struct TurbulentPerturbation {
                    const amrex::GpuArray<amrex::Real,3> dx,
                    const amrex::BoxArray& ba,
                    const amrex::DistributionMapping& dm,
-                   const int ngrow_state)
+                   const int ngrow_state,
+                   std::string pp_prefix)
 
     {
         // Initialization for some 0 dependent terms
@@ -522,8 +523,6 @@ struct TurbulentPerturbation {
         amrex::PrintToFile("BoxPerturbationOutput") << "\n";
         */
     }
-
-    std::string pp_prefix {"erf"};
 
     int pt_type; // TODO: May need to pass in solverChoice to replace this
 

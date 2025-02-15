@@ -1,4 +1,0 @@
-ifeq ($(USE_MULTIBLOCK),TRUE)
-CEXE_sources += ERF_MultiBlockContainer.cpp
-CEXE_headers += ERF_MultiBlockContainer.H
-endif
