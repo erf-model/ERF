@@ -255,6 +255,7 @@
             } // MFIter
             r0_new->FillBoundary(fine_geom.periodicity());
             p0_new->FillBoundary(fine_geom.periodicity());
+            th0_new->FillBoundary(fine_geom.periodicity());
 
         } else { // If not moving_terrain
 

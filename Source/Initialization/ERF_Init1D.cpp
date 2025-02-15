@@ -26,6 +26,7 @@ ERF::initHSE (int lev)
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+    MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
     bool all_boxes_touch_bottom = true;
     Box domain(geom[lev].Domain());
@@ -74,7 +75,7 @@ ERF::initHSE (int lev)
             prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
         }
 
-        erf_enforce_hse(lev, r_hse, p_hse, pi_hse, th_hse, z_phys_cc[lev]);
+        erf_enforce_hse(lev, r_hse, p_hse, pi_hse, th_hse, qv_hse, z_phys_cc[lev]);
 
         //
         // Impose physical bc's on the base state
@@ -97,6 +98,7 @@ ERF::initHSE (int lev)
         MultiFab new_p_hse (new_base_state, make_alias, BaseState::p0_comp, 1);
         MultiFab new_pi_hse(new_base_state, make_alias, BaseState::pi0_comp, 1);
         MultiFab new_th_hse(new_base_state, make_alias, BaseState::th0_comp, 1);
+        MultiFab new_qv_hse(new_base_state, make_alias, BaseState::qv0_comp, 1);
 
         std::unique_ptr<MultiFab> new_z_phys_cc;
         std::unique_ptr<MultiFab> new_z_phys_nd;
@@ -117,7 +119,7 @@ ERF::initHSE (int lev)
             prob->erf_init_dens_hse(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev]);
         }
 
-        erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_th_hse, new_z_phys_cc);
+        erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_th_hse, new_qv_hse, new_z_phys_cc);
 
         //
         // Impose physical bc's on the base state
@@ -157,7 +159,7 @@ ERF::initHSE ()
  */
 void
 ERF::erf_enforce_hse (int lev,
-                      MultiFab& dens, MultiFab& pres, MultiFab& pi, MultiFab& theta,
+                      MultiFab& dens, MultiFab& pres, MultiFab& pi, MultiFab& theta, MultiFab& qv,
                       std::unique_ptr<MultiFab>& z_cc)
 {
     Real l_gravity = solverChoice.gravity;
@@ -274,4 +276,5 @@ ERF::erf_enforce_hse (int lev,
      pres.FillBoundary(geom[lev].periodicity());
        pi.FillBoundary(geom[lev].periodicity());
     theta.FillBoundary(geom[lev].periodicity());
+       qv.FillBoundary(geom[lev].periodicity());
 }

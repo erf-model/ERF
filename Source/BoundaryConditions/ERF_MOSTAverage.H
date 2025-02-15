@@ -12,8 +12,8 @@
 class MOSTAverage {
 public:
     explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
-                          const bool& has_zphys);
-
+                          const bool& has_zphys,
+                          std::string a_pp_prefix);
 
     // MOSTAverage() = default;
     ~MOSTAverage ()
@@ -175,6 +175,7 @@ protected:
     const amrex::Vector<amrex::Geometry> m_geom;                     // Geometry at each level
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_fields;         // Ptr to fields to be averaged
     amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain height coords
+    std::string m_pp_prefix;                                         // ParmParse prefix
 
     // General vars for multiple or all policies
     //--------------------------------------------
@@ -184,7 +185,6 @@ protected:
     int  m_policy{0};                                                // Policy for type of averaging
     bool m_rotate{false};                                            // Do vector rotations for terrain?
     amrex::Real m_zref{10.0};                                        // Height above surface for MOST BC
-    std::string m_pp_prefix {"erf"};                                 // ParmParse prefix
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_x_pos;         // Ptr to 2D mf to hold x position (maxlev)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_y_pos;         // Ptr to 2D mf to hold y position (maxlev)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_z_pos;         // Ptr to 2D mf to hold z position (maxlev)
