@@ -66,7 +66,8 @@ jobs:
             -DERF_ENABLE_MPI:BOOL=ON \
             -DERF_ENABLE_CUDA:BOOL=ON \
             -DERF_ENABLE_REGRESSION_TESTS_ONLY:BOOL=ON .
-          cmake --build build-${{matrix.cuda_pkg}} -- -j $(nproc) \
+          echo "Building with $(nproc) processes"
+          cmake --build build-${{matrix.cuda_pkg}} --parallel $(nproc) \
           2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt;
 
           ccache -s
