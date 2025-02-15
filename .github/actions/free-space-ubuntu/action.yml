@@ -22,7 +22,6 @@ runs:
         sudo apt-get purge -y google-chrome-stable --fix-missing
         sudo apt-get purge -y '^mongodb-.*' --fix-missing
         sudo apt-get purge -y 'llvm-.*' --fix-missing
-        sudo apt-get purge -y esl-erlang --fix-missing
         sudo apt-get purge -y '^mysql-.*' --fix-missing
         sudo apt-get purge -y powershell --fix-missing
         sudo apt-get autoremove -y
