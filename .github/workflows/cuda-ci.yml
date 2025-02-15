@@ -46,6 +46,8 @@ jobs:
           key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
           restore-keys: |
                ccache-${{ github.workflow }}-${{ github.job }}-git-
+      - name: show-space
+        run: df -h
       - name: Configure and build
         run: |
           export CCACHE_COMPRESS=1
