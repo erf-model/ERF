@@ -159,7 +159,7 @@ struct SolverChoice {
 
         if (init_type_temp == InitType::Real) {
             if (moisture_type == MoistureType::None) {
-                amrex::Abort("Cant have moisture_type = None when using init_type = Real.");
+                amrex::Abort("Can't have moisture_type = None when using init_type = Real.");
             }
         }
 
