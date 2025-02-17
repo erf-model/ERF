@@ -226,6 +226,6 @@ Problem::init_custom_pert(
             Real height = num / (x*x + 4.0 * a * a);
 
             // Populate terrain height
-            z_arr(i,j,k0) = height - height_at_inflow;
+            z_arr(i,j,k0) = amrex::max( height - height_at_inflow + 1.e-4, 1.e-4 );
         });
     }

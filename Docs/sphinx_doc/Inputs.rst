@@ -866,6 +866,10 @@ The allowed advection types for the dry and moist scalars are
 "Centered_6th" and in addition,
 "WENO3", "WENOZ3", "WENOMZQ3", "WENO5", "WENOZ5", "WENO7", and "WENOZ7."
 
+To use the blended schemes, ``erf.[vartype]_[horiz|vert]_upw_frac`` for the corresponding
+``erf.[vartype]_[horiz|vert]_adv_type`` should be set to a scalar between 0 and 1, where 1 is fully
+upwind and 0 is fully central.
+
 Note: if using WENO schemes, the horizontal and vertical advection types must be set to
 the same string.
 
@@ -963,7 +967,7 @@ diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :ma
 
 If we set ``erf.molec_diff_type`` to ``Constant``, then
 
-- ``erf.dynamicViscosity`` is used as the value of :math:`\mu` in the momentum equation, and
+- ``erf.dynamic_viscosity`` is used as the value of :math:`\mu` in the momentum equation, and
 
 - ``erf.alpha_T`` is multiplied by ``erf.rho0_trans`` to form the coefficient for potential temperature, and
 
@@ -973,7 +977,7 @@ If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 
 - the dynamic viscosity in the momentum equation is assumed to have the form :math:`\mu = \rho \alpha_M`
   where :math:`\alpha_M` is a momentum diffusivity constant with units of kinematic viscosity, calculated as
-  ``erf.dynamicViscosity`` divided by ``erf.rho0_trans``;
+  ``erf.dynamic_viscosity`` divided by ``erf.rho0_trans``;
   this diffusivity is multiplied by the instantaneous local density :math:`\rho` to form the coefficient in the momentum equation; and
 
 - ``erf.alpha_T`` is multiplied by the instantaneous local density :math:`\rho` to form the coefficient for potential temperature, and

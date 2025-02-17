@@ -77,13 +77,6 @@ class MultiBlockContainer;
 #endif
 
 /**
- * Enum of possible initialization types
-*/
-AMREX_ENUM(InitType,
-    None, Input_Sounding, Ideal, Real, Metgrid, Uniform
-);
-
-/**
  * Enum of possible interpolation types between coarse/fine
 */
 AMREX_ENUM(StateInterpType,
@@ -390,7 +383,8 @@ public:
                                                 const std::string &mfPrefix) const;
 
     void erf_enforce_hse (int lev,
-                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi, amrex::MultiFab& th,
+                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
+                          amrex::MultiFab& th, amrex::MultiFab& qv,
                           std::unique_ptr<amrex::MultiFab>& z_cc);
 
 #ifdef ERF_USE_NETCDF

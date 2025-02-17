@@ -13,8 +13,10 @@ using namespace amrex;
  * @param[in] z_phys_nd Physical heights at each level
  */
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
-                          const bool& has_zphys)
-  : m_geom(std::move(geom))
+                          const bool& has_zphys,
+                          std::string a_pp_prefix)
+  : m_geom(std::move(geom)),
+    m_pp_prefix(a_pp_prefix)
 {
     // Get basic info
     //--------------------------------------------------------
@@ -210,8 +212,8 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     }
 
     // Corrections to the mean surface velocity
+    m_Vsg = Vector<Real>(m_maxlev, 0.0);
     if (include_subgrid_vel) {
-        m_Vsg = Vector<Real>(m_maxlev, 0.0);
         if (include_subgrid_vel) {
             Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
             const auto dxArr = m_geom[lev].CellSizeArray();

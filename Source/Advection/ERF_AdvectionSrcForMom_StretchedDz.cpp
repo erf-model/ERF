@@ -163,12 +163,12 @@ AdvectionSrcForMom_StretchedDz (const Box& bxx, const Box& bxy, const Box& bxz,
                                                   vert_adv_type, lo_z_face, hi_z_face);
         } else if (horiz_adv_type == AdvType::Centered_4th) {
                 AdvectionSrcForMomVert_N<CENTERED4>(bxx, bxy, bxz,
-                                                  rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                                  rho_u, rho_v, omega, u, v, w,
-                                                  cellSizeInv, stretched_dz_d, mf_m,
-                                                  mf_u_inv, mf_v_inv,
-                                                  horiz_upw_frac, vert_upw_frac,
-                                                  vert_adv_type, lo_z_face, hi_z_face);
+                                                    rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                    rho_u, rho_v, omega, u, v, w,
+                                                    cellSizeInv, stretched_dz_d, mf_m,
+                                                    mf_u_inv, mf_v_inv,
+                                                    horiz_upw_frac, vert_upw_frac,
+                                                    vert_adv_type, lo_z_face, hi_z_face);
         } else if (horiz_adv_type == AdvType::Upwind_5th) {
                 AdvectionSrcForMomVert_N<UPWIND5>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
@@ -179,12 +179,12 @@ AdvectionSrcForMom_StretchedDz (const Box& bxx, const Box& bxy, const Box& bxz,
                                                   vert_adv_type, lo_z_face, hi_z_face);
         } else if (horiz_adv_type == AdvType::Centered_6th) {
                 AdvectionSrcForMomVert_N<CENTERED6>(bxx, bxy, bxz,
-                                                  rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                                  rho_u, rho_v, omega, u, v, w,
-                                                  cellSizeInv, stretched_dz_d, mf_m,
-                                                  mf_u_inv, mf_v_inv,
-                                                  horiz_upw_frac, vert_upw_frac,
-                                                  vert_adv_type, lo_z_face, hi_z_face);
+                                                    rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                    rho_u, rho_v, omega, u, v, w,
+                                                    cellSizeInv, stretched_dz_d, mf_m,
+                                                    mf_u_inv, mf_v_inv,
+                                                    horiz_upw_frac, vert_upw_frac,
+                                                    vert_adv_type, lo_z_face, hi_z_face);
         } else {
             AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
         }

@@ -14,7 +14,7 @@
 
 struct SpongeChoice {
   public:
-    void init_params()
+    void init_params(std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -46,9 +46,6 @@ struct SpongeChoice {
     {
         amrex::Print() << "Sponge choices: " << std::endl;
     }
-
-    // Default prefix
-    std::string pp_prefix {"erf"};
 
     bool    use_xlo_sponge_damping     = false;
     bool    use_xhi_sponge_damping     = false;

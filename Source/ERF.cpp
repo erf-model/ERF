@@ -380,6 +380,7 @@ ERF::ERF_shared ()
         amrex::Print() << "MAKING EB GEOMETRY " << std::endl;
         eb_ eb(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
         // MakeEBGeometry();
+
     }
 }
 
@@ -1031,7 +1032,7 @@ ERF::InitData_post ()
         //
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
-        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, Qv_prim, z_phys_nd
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, pp_prefix, Qv_prim, z_phys_nd
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
@@ -1312,6 +1313,11 @@ ERF::init_only (int lev, Real time)
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
 
+#ifndef ERF_USE_NETCDF
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((init_type != InitType::Ideal && init_type != InitType::Real),
+                                     "init_type cannot be 'ideal' or 'real' if we don't build with netcdf!");
+#endif
+
     // Loop over grids at this level to initialize our grid data
     lev_new[Vars::cons].setVal(0.0); lev_old[Vars::cons].setVal(0.0);
     lev_new[Vars::xvel].setVal(0.0); lev_old[Vars::xvel].setVal(0.0);
@@ -1520,6 +1526,7 @@ ERF::ReadParameters ()
 
         // NetCDF wrfbdy lateral boundary file
         pp.query("nc_bdy_file", nc_bdy_file);
+        Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
 #endif
 
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
@@ -1642,11 +1649,7 @@ ERF::ReadParameters ()
     readTracersParams();
 #endif
 
-#ifdef ERF_USE_MULTIBLOCK
-    solverChoice.pp_prefix = pp_prefix;
-#endif
-
-    solverChoice.init_params(max_level);
+    solverChoice.init_params(max_level,pp_prefix);
 
     // Query the canopy model file name
     std::string forestfile;
