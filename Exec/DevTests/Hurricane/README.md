@@ -5,36 +5,23 @@ This folder contains examples for hurricane simulations from real weather data.
 
 ## Hurricane Henri
 
-1. Download the USGS terrain file for the region as a GeoTIFF (`.tif`) file from the USGS Earth Explorer.
-   The file for this example can be obtained by the following command
+1. Download the initial condition file 
+
 ```
-wget https://zenodo.org/record/14629890/files/n36_w098_1arc_v3.tif
+wget https://zenodo.org/record/14880478/files/ERF_IC_Henri_gdas1.fnl0p25.2021081906.f00.bin
 ```
 
-2. Read the USGS terrain file and write out an ERF-readable terrain file
+2. `make -j8`
+3. Run with `inputs_20210819_Henri`
+
+## Hurricane Laura
+
+1. Download the initial condition file 
+
 ```
-python3 ReadTerrainUSGS.py n36_w098_1arc_v3.tif domain_bounds.txt
-```
-the `domain_bounds.txt` contains the extents of the terrain domain as
-```
-min longitude
-max longitude
-min latitude
-max latitude
+wget https://zenodo.org/record/14880478/files/ERF_IC_Laura_2020082600.bin
 ```
 
-This reads in the `.tif` file and writes out `ERF_terrain_file.txt`.
-Note that python module `rasterio` is needed. Usually, it can be installed as
-    ```
-        pip install rasterio
-    ```
+2. `make -j8`.
+3. Run with `inputs_20200826_Laura`
 
-On supercomputer clusters, the following might be needed
-```
-module load python
-conda create -n raster_env -c conda-forge python=3.11 rasterio
-conda activate raster_env
-```
-
-3. `make -j8`
-4. `mpirun -np 4 <exe> inputs_AWAKEN_SimpleAD_KingPlains_WithTerrain`
