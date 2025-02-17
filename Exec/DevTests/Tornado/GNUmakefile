@@ -31,5 +31,5 @@ Bpack := ./Make.package
 Blocs := .
 
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/MoistRegTests/Tornado
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DevTests/Tornado
 include $(ERF_HOME)/Exec/Make.ERF
