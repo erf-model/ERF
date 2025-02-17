@@ -86,76 +86,76 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-int get_single_index(int i, int j, int k, 
-					 int nx, int ny)
+int get_single_index(int i, int j, int k,
+                     int nx, int ny)
 {
 
-	int si = k*nx*ny + j*nx + i;
-	return si;
+    int si = k*nx*ny + j*nx + i;
+    return si;
 }
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 void bilinear_interpolation(const Real* xvec, const Real* yvec, const Real* zvec,
-							const Real dxvec, const Real dyvec,
-							const int nx, const int ny, const int nz,
-							const Real x, const Real y, const Real z,
-							const Real* varvec,
-							Real& tmp_var)
+                            const Real dxvec, const Real dyvec,
+                            const int nx, const int ny, const int nz,
+                            const Real x, const Real y, const Real z,
+                            const Real* varvec,
+                            Real& tmp_var)
 {
-	int iloc=-1, jloc=-1, kloc=-1;
-	for(int k=0;k<nz;k++){
-		if(zvec[k] > z){
-			kloc = k-1;
-			break;
-		}
-		else if (zvec[k] == z) {
-			kloc = k;
-		}
-		
-	}
-		iloc = std::floor((x-xvec[0])/dxvec);	
-		jloc = std::floor((y-yvec[0])/dyvec);
+    int iloc=-1, jloc=-1, kloc=-1;
+    for(int k=0;k<nz;k++){
+        if(zvec[k] > z){
+            kloc = k-1;
+            break;
+        }
+        else if (zvec[k] == z) {
+            kloc = k;
+        }
 
-		if(iloc > nx-1 or iloc < 0 or 
-		   jloc > ny-1 or iloc < 0 or
-		   kloc > nz-1 or kloc < 0){
-			//std::cout << "The value of iloc, jloc, kloc is " << iloc << " " << jloc << 
-			//													kloc << "\n";
-			//exit(0);
-		}
+    }
+        iloc = std::floor((x-xvec[0])/dxvec);
+        jloc = std::floor((y-yvec[0])/dyvec);
 
-		Real xlo = xvec[0] + iloc*dxvec;	
-		Real ylo = yvec[0] + jloc*dyvec;
-		Real zlo = zvec[kloc];
-	
-		/*std::cout << "dxvec and dyvec are " << dxvec << " " << dyvec << "\n";
-		std::cout << "The value of xvec0, yvec0 is " << xvec[0] << " " << yvec[0] <<  "\n";
-		std::cout << "The value of x-xvec0/dxvec, y-yvec0/dyvec is " << x-xvec[0] << " " << y-yvec[0] <<  "\n";
-		std::cout << "The value of x-xvec0/dxvec, y-yvec0/dyvec is " << (x-xvec[0])/dxvec << " " << (y-yvec[0])/dyvec <<  "\n";
-		std::cout << "The value of xlo, ylo, zlo is " << xlo << " " << ylo << " " <<  zlo << "\n";
-		std::cout << "The value of x, y, z is " << x << " " << y << " " <<  z << "\n";
-		std::cout << "iloc, jloc, kloc = " << iloc << " " << jloc << " " << kloc << "\n";*/
+        if(iloc > nx-1 or iloc < 0 or
+           jloc > ny-1 or iloc < 0 or
+           kloc > nz-1 or kloc < 0){
+            //std::cout << "The value of iloc, jloc, kloc is " << iloc << " " << jloc <<
+            //                                                    kloc << "\n";
+            //exit(0);
+        }
 
-		Real w_x = (x - xlo)/dxvec;	
-		Real w_y = (y - ylo)/dyvec;	
-		Real w_z = (z - zlo)/(zvec[kloc+1] - zvec[kloc]);
+        Real xlo = xvec[0] + iloc*dxvec;
+        Real ylo = yvec[0] + jloc*dyvec;
+        Real zlo = zvec[kloc];
 
-		int ind0 = get_single_index(iloc,jloc,kloc,nx,ny);
-		int ind1 = get_single_index(iloc+1,jloc,kloc,nx,ny);
-		int ind2 = get_single_index(iloc+1,jloc+1,kloc,nx,ny);
-		int ind3 = get_single_index(iloc,jloc+1,kloc,nx,ny);
-		int ind4 = get_single_index(iloc,jloc,kloc+1,nx,ny);
-		int ind5 = get_single_index(iloc+1,jloc,kloc+1,nx,ny);
-		int ind6 = get_single_index(iloc+1,jloc+1,kloc+1,nx,ny);
-		int ind7 = get_single_index(iloc,jloc+1,kloc+1,nx,ny);
+        /*std::cout << "dxvec and dyvec are " << dxvec << " " << dyvec << "\n";
+        std::cout << "The value of xvec0, yvec0 is " << xvec[0] << " " << yvec[0] <<  "\n";
+        std::cout << "The value of x-xvec0/dxvec, y-yvec0/dyvec is " << x-xvec[0] << " " << y-yvec[0] <<  "\n";
+        std::cout << "The value of x-xvec0/dxvec, y-yvec0/dyvec is " << (x-xvec[0])/dxvec << " " << (y-yvec[0])/dyvec <<  "\n";
+        std::cout << "The value of xlo, ylo, zlo is " << xlo << " " << ylo << " " <<  zlo << "\n";
+        std::cout << "The value of x, y, z is " << x << " " << y << " " <<  z << "\n";
+        std::cout << "iloc, jloc, kloc = " << iloc << " " << jloc << " " << kloc << "\n";*/
 
-		tmp_var = (1-w_x)*(1-w_y)*(1-w_z)*varvec[ind0] + w_x*(1-w_y)*(1-w_z)*varvec[ind1] + 
-				  w_x*w_y*(1-w_z)*varvec[ind2] + (1-w_x)*w_y*(1-w_z)*varvec[ind3] + 
-				  (1-w_x)*(1-w_y)*w_z*varvec[ind4] + w_x*(1-w_y)*w_z*varvec[ind5] + 
+        Real w_x = (x - xlo)/dxvec;
+        Real w_y = (y - ylo)/dyvec;
+        Real w_z = (z - zlo)/(zvec[kloc+1] - zvec[kloc]);
+
+        int ind0 = get_single_index(iloc,jloc,kloc,nx,ny);
+        int ind1 = get_single_index(iloc+1,jloc,kloc,nx,ny);
+        int ind2 = get_single_index(iloc+1,jloc+1,kloc,nx,ny);
+        int ind3 = get_single_index(iloc,jloc+1,kloc,nx,ny);
+        int ind4 = get_single_index(iloc,jloc,kloc+1,nx,ny);
+        int ind5 = get_single_index(iloc+1,jloc,kloc+1,nx,ny);
+        int ind6 = get_single_index(iloc+1,jloc+1,kloc+1,nx,ny);
+        int ind7 = get_single_index(iloc,jloc+1,kloc+1,nx,ny);
+
+        tmp_var = (1-w_x)*(1-w_y)*(1-w_z)*varvec[ind0] + w_x*(1-w_y)*(1-w_z)*varvec[ind1] +
+                  w_x*w_y*(1-w_z)*varvec[ind2] + (1-w_x)*w_y*(1-w_z)*varvec[ind3] +
+                  (1-w_x)*(1-w_y)*w_z*varvec[ind4] + w_x*(1-w_y)*w_z*varvec[ind5] +
                   w_x*w_y*w_z*varvec[ind6] + (1-w_x)*w_y*w_z*varvec[ind7];
 
-		//std::cout << "Variable value is " << tmp_var << "\n";
+        //std::cout << "Variable value is " << tmp_var << "\n";
 }
 
 void
@@ -215,9 +215,9 @@ Problem::init_custom_pert (
     //const std::string filename = "ERF_IC_gdas1.fnl0p25.2021081906.f00.bin";
     std::string filename;
     ParmParse pp("erf");
-	pp.query("IC_file", filename);
-	
-	if (filename.empty()) { 
+    pp.query("IC_file", filename);
+
+    if (filename.empty()) {
         amrex::Abort("Error: IC_file is not specified in the input file.");
     }
 
@@ -228,9 +228,9 @@ Problem::init_custom_pert (
     }
 
 
-	int nx, ny, nz, ndata;
+    int nx, ny, nz, ndata;
     float value;
-	
+
     Vector<Real> xvec_h, yvec_h, zvec_h;
 
     // Read the four integers
@@ -238,47 +238,47 @@ Problem::init_custom_pert (
     infile.read(reinterpret_cast<char*>(&ny), sizeof(int));
     infile.read(reinterpret_cast<char*>(&nz), sizeof(int));
     infile.read(reinterpret_cast<char*>(&ndata), sizeof(int));
-	
-	amrex::Gpu::DeviceVector<Real> xvec_d(nx*ny*nz), yvec_d(nx*ny*nz), zvec_d(nx*ny*nz);
-	for(int i=0; i<nx; i++) {
-		infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-		xvec_h.emplace_back(value);
-	}
-	amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xvec_h.begin(), xvec_h.end(), xvec_d.begin());
-	
-	for(int j=0; j<ny; j++) {
-		infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-		yvec_h.emplace_back(value);
-	}
-	amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yvec_h.begin(), yvec_h.end(), yvec_d.begin());
 
-	for(int k=0; k<nz; k++) {
-		infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-		zvec_h.emplace_back(value);
-	}
-	amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
+    amrex::Gpu::DeviceVector<Real> xvec_d(nx*ny*nz), yvec_d(nx*ny*nz), zvec_d(nx*ny*nz);
+    for(int i=0; i<nx; i++) {
+        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
+        xvec_h.emplace_back(value);
+    }
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xvec_h.begin(), xvec_h.end(), xvec_d.begin());
+
+    for(int j=0; j<ny; j++) {
+        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
+        yvec_h.emplace_back(value);
+    }
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yvec_h.begin(), yvec_h.end(), yvec_d.begin());
+
+    for(int k=0; k<nz; k++) {
+        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
+        zvec_h.emplace_back(value);
+    }
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
 
     // Vector to store the data
     Vector<Real> rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h;
 
-	Vector<Real>* data_h = nullptr; // Declare pointer outside the loop
-	
-	Real* xvec_d_ptr = xvec_d.data();
-	Real* yvec_d_ptr = yvec_d.data();
-	Real* zvec_d_ptr = zvec_d.data();
+    Vector<Real>* data_h = nullptr; // Declare pointer outside the loop
 
-	Real dxvec = (xvec_h[nx-1]-xvec_h[0])/(nx-1);
-	Real dyvec = (yvec_h[ny-1]-yvec_h[0])/(ny-1);
+    Real* xvec_d_ptr = xvec_d.data();
+    Real* yvec_d_ptr = yvec_d.data();
+    Real* zvec_d_ptr = zvec_d.data();
+
+    Real dxvec = (xvec_h[nx-1]-xvec_h[0])/(nx-1);
+    Real dyvec = (yvec_h[ny-1]-yvec_h[0])/(ny-1);
 
     // Read the file
-	for(int idx=0; idx<ndata; idx++){
-		if(idx == 0){
-			data_h = &rho_h;
-		} else if (idx==1) {
-			data_h = &uvel_h;
-		} else if (idx==2) {
+    for(int idx=0; idx<ndata; idx++){
+        if(idx == 0){
+            data_h = &rho_h;
+        } else if (idx==1) {
+            data_h = &uvel_h;
+        } else if (idx==2) {
             data_h = &vvel_h;
-		} else if (idx==3) {
+        } else if (idx==3) {
             data_h = &wvel_h;
         } else if(idx==4) {
             data_h = &theta_h;
@@ -288,24 +288,24 @@ Problem::init_custom_pert (
             data_h = &qc_h;
         } else if(idx==7) {
             data_h = &qr_h;
-        }		
-		for(int k=0; k<nz; k++) {
-			for(int j=0; j<ny; j++) {
-				for(int i=0; i<nx; i++) {
-					infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-					//if(idx == 3) { 
-						//printf("theta is %0.15g, %0.15g, %0.15g %0.15g\n", xvec_h[i], yvec_h[j], zvec_h[k], value); 
-					//}
-					data_h->emplace_back(value);		
-				}
-			}
-		}
+        }
+        for(int k=0; k<nz; k++) {
+            for(int j=0; j<ny; j++) {
+                for(int i=0; i<nx; i++) {
+                    infile.read(reinterpret_cast<char*>(&value), sizeof(float));
+                    //if(idx == 3) {
+                        //printf("theta is %0.15g, %0.15g, %0.15g %0.15g\n", xvec_h[i], yvec_h[j], zvec_h[k], value);
+                    //}
+                    data_h->emplace_back(value);
+                }
+            }
+        }
     }
 
     infile.close();
 
-	amrex::Gpu::DeviceVector<Real> rho_d(nx*ny*nz), uvel_d(nx*ny*nz), vvel_d(nx*ny*nz), wvel_d(nx*ny*nz),
-								   theta_d(nx*ny*nz), qv_d(nx*ny*nz), qc_d(nx*ny*nz), qr_d(nx*ny*nz);
+    amrex::Gpu::DeviceVector<Real> rho_d(nx*ny*nz), uvel_d(nx*ny*nz), vvel_d(nx*ny*nz), wvel_d(nx*ny*nz),
+                                   theta_d(nx*ny*nz), qv_d(nx*ny*nz), qc_d(nx*ny*nz), qr_d(nx*ny*nz);
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, uvel_h.begin(), uvel_h.end(), uvel_d.begin());
@@ -314,120 +314,120 @@ Problem::init_custom_pert (
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qr_h.begin(), qr_h.end(), qr_d.begin());
-	
-	Real* rho_d_ptr   = rho_d.data();
-	Real* uvel_d_ptr  = uvel_d.data();
-	Real* vvel_d_ptr  = vvel_d.data();
-	Real* wvel_d_ptr  = wvel_d.data();
-	Real* theta_d_ptr = theta_d.data();
-	Real* qv_d_ptr = qv_d.data();
-	Real* qc_d_ptr = qc_d.data();
-	Real* qr_d_ptr = qr_d.data();
 
-	// Interpolate the data on to the ERF mesh
+    Real* rho_d_ptr   = rho_d.data();
+    Real* uvel_d_ptr  = uvel_d.data();
+    Real* vvel_d_ptr  = vvel_d.data();
+    Real* wvel_d_ptr  = wvel_d.data();
+    Real* theta_d_ptr = theta_d.data();
+    Real* qv_d_ptr = qv_d.data();
+    Real* qc_d_ptr = qc_d.data();
+    Real* qr_d_ptr = qr_d.data();
 
-	 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    	// Geometry (note we must include these here to get the data on device)
-    	const auto prob_lo  = geomdata.ProbLo();
-    	const auto dx       = geomdata.CellSize();
-    	const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
-    	const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
-    	const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
+    // Interpolate the data on to the ERF mesh
 
-		// First interpolate where the weather data is available from
-		Real tmp_rho, tmp_theta, tmp_qv, tmp_qc, tmp_qr;
-		bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr, 
-							   dxvec, dyvec, 
-							   nx, ny, nz, 
-							   x, y, z,
-							   rho_d_ptr, tmp_rho);
-		bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr, 
-							   dxvec, dyvec, 
-							   nx, ny, nz, 
-							   x, y, z,
-							   theta_d_ptr, tmp_theta);
+     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        // Geometry (note we must include these here to get the data on device)
+        const auto prob_lo  = geomdata.ProbLo();
+        const auto dx       = geomdata.CellSize();
+        const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
+        const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
-		bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr, 
-							   dxvec, dyvec, 
-							   nx, ny, nz, 
-							   x, y, z,
-							   qv_d_ptr, tmp_qv);
+        // First interpolate where the weather data is available from
+        Real tmp_rho, tmp_theta, tmp_qv, tmp_qc, tmp_qr;
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                               dxvec, dyvec,
+                               nx, ny, nz,
+                               x, y, z,
+                               rho_d_ptr, tmp_rho);
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                               dxvec, dyvec,
+                               nx, ny, nz,
+                               x, y, z,
+                               theta_d_ptr, tmp_theta);
 
-		bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr, 
-							   dxvec, dyvec, 
-							   nx, ny, nz, 
-							   x, y, z,
-							   qc_d_ptr, tmp_qc);
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                               dxvec, dyvec,
+                               nx, ny, nz,
+                               x, y, z,
+                               qv_d_ptr, tmp_qv);
 
-		bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr, 
-							   dxvec, dyvec, 
-							   nx, ny, nz, 
-							   x, y, z,
-							   qr_d_ptr, tmp_qr);
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                               dxvec, dyvec,
+                               nx, ny, nz,
+                               x, y, z,
+                               qc_d_ptr, tmp_qc);
 
-		state_pert(i, j, k, Rho_comp)      = tmp_rho;
-		state_pert(i, j, k, RhoTheta_comp) = tmp_rho*tmp_theta - 348.432055749129;
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                               dxvec, dyvec,
+                               nx, ny, nz,
+                               x, y, z,
+                               qr_d_ptr, tmp_qr);
 
-	    // Set scalar = 0 everywhere
-    	state_pert(i, j, k, RhoScalar_comp) = 0.0;//rho*scalar;
+        state_pert(i, j, k, Rho_comp)      = tmp_rho;
+        state_pert(i, j, k, RhoTheta_comp) = tmp_rho*tmp_theta - 348.432055749129;
 
-   		// mean states
-   		if (use_moisture) {
-       		state_pert(i, j, k, RhoQ1_comp) = tmp_rho*tmp_qv;
-       		state_pert(i, j, k, RhoQ2_comp) = tmp_rho*tmp_qc;
-       		state_pert(i, j, k, RhoQ3_comp) = tmp_rho*tmp_qr;
-   		}
-	});
-			
+        // Set scalar = 0 everywhere
+        state_pert(i, j, k, RhoScalar_comp) = 0.0;//rho*scalar;
+
+           // mean states
+           if (use_moisture) {
+               state_pert(i, j, k, RhoQ1_comp) = tmp_rho*tmp_qv;
+               state_pert(i, j, k, RhoQ2_comp) = tmp_rho*tmp_qc;
+               state_pert(i, j, k, RhoQ3_comp) = tmp_rho*tmp_qr;
+           }
+    });
+
   // Set the x-velocity
   ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  	const auto prob_lo  = geomdata.ProbLo();
+      const auto prob_lo  = geomdata.ProbLo();
     const auto dx       = geomdata.CellSize();
     const Real x        = prob_lo[0] + i * dx[0];
     const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
     const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
-	Real tmp_uvel;
-	bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+    Real tmp_uvel;
+    bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
                              dxvec, dyvec,
                              nx, ny, nz,
                              x, y, z,
-                             uvel_d_ptr, tmp_uvel);	
+                             uvel_d_ptr, tmp_uvel);
     x_vel_pert(i,j,k) = tmp_uvel;
   });
 
   // Set the y-velocity
   ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-	const auto prob_lo  = geomdata.ProbLo();
+    const auto prob_lo  = geomdata.ProbLo();
     const auto dx       = geomdata.CellSize();
     const Real x        = prob_lo[0] + (i+0.5) * dx[0];
     const Real y        = prob_lo[1] + j * dx[1];
     const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
-	Real tmp_vvel;
-	bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+    Real tmp_vvel;
+    bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
                            dxvec, dyvec,
                            nx, ny, nz,
                            x, y, z,
-                           vvel_d_ptr, tmp_vvel);	
+                           vvel_d_ptr, tmp_vvel);
 
       y_vel_pert(i, j, k) = tmp_vvel;
   });
 
   // Set the z-velocity
   ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-	const auto prob_lo  = geomdata.ProbLo();
+    const auto prob_lo  = geomdata.ProbLo();
     const auto dx       = geomdata.CellSize();
     const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
     const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
     const Real z        = prob_lo[2] + k * dx[2];
 
-	Real tmp_wvel;
-	bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+    Real tmp_wvel;
+    bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
                            dxvec, dyvec,
                            nx, ny, nz,
                            x, y, z,
-                           wvel_d_ptr, tmp_wvel);	
+                           wvel_d_ptr, tmp_wvel);
 
       z_vel_pert(i, j, k) = tmp_wvel;
   });
