@@ -636,7 +636,7 @@ struct SolverChoice {
     amrex::Vector<SubsteppingType> substepping_type;
     amrex::Vector<int> anelastic;
 
-    int         constant_density    = 0;
+    bool        constant_density    = false;
     int         ncorr               = 1;
     amrex::Real poisson_abstol      = 1e-10;
     amrex::Real poisson_reltol      = 1e-10;
