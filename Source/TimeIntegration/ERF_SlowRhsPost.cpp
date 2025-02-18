@@ -130,7 +130,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.les_type  == LESType::Deardorff   ||
                                     tc.rans_type == RANSType::kEqn       ||
                                     tc.pbl_type  == PBLType::MYNN25      ||
-				    tc.pbl_type  == PBLType::MYNNEDMF    ||
+                                    tc.pbl_type  == PBLType::MYNNEDMF    ||
                                     tc.pbl_type  == PBLType::YSU );
     const bool exp_most         = (solverChoice.use_explicit_most);
     const bool rot_most         = (solverChoice.use_rotate_most);

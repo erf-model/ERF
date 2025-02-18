@@ -579,7 +579,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                             turbChoice.les_type  == LESType::Deardorff   ||
                             turbChoice.rans_type == RANSType::kEqn       ||
                             turbChoice.pbl_type  == PBLType::MYNN25      ||
-                            turbChoice.pbl_type  == PBLType::MYNNEDMF    ||		    
+                            turbChoice.pbl_type  == PBLType::MYNNEDMF    ||
                             turbChoice.pbl_type  == PBLType::YSU );
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(l_use_turb,
           "A turbulence model must be utilized with MOST boundaries to compute the turbulent viscosity");
