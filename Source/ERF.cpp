@@ -1291,6 +1291,31 @@ ERF::restart ()
 
     // We set this here so that we don't over-write the checkpoint file we just started from
     last_check_file_step = istep[0];
+
+    if (regrid_level_0_on_restart) {
+        //
+        // Coarsening before we split the grids ensures that each resulting
+        // grid will have an even number of cells in each direction.
+        //
+        BoxArray new_ba(amrex::coarsen(Geom(0).Domain(),2));
+        //
+        // Now split up into list of grids within max_grid_size[0] limit.
+        //
+        new_ba.maxSize(max_grid_size[0]/2);
+        //
+        // Now refine these boxes back to level 0.
+        //
+        new_ba.refine(2);
+
+        if (refine_grid_layout) {
+            ChopGrids(0, new_ba, ParallelDescriptor::NProcs());
+        }
+
+        if (new_ba != grids[0]) {
+            DistributionMapping new_dm(new_ba);
+            RemakeLevel(0,t_new[0],new_ba,new_dm);
+        }
+    }
 }
 
 // This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)
@@ -1431,6 +1456,7 @@ ERF::ReadParameters ()
         // The type of the file we restart from
         pp.query("restart_type", restart_type);
 
+        pp.query("regrid_level_0_on_restart", regrid_level_0_on_restart);
         pp.query("regrid_int", regrid_int);
         pp.query("check_file", check_file);
         pp.query("check_type", check_type);

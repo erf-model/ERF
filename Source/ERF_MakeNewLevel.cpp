@@ -331,7 +331,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
     }
 
-    AMREX_ALWAYS_ASSERT(lev > 0);
     AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::MovingFittedMesh);
 
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
@@ -390,33 +389,45 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Update the base state at this level by interpolation from coarser level AND copy
     //    from previous (pre-regrid) base_state array
     // ********************************************************************************************
-    Interpolater* mapper = &cell_cons_interp;
+    if (lev > 0) {
+        Interpolater* mapper = &cell_cons_interp;
 
-    Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
-    Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
-    Vector<Real> ftime    = {time, time};
-    Vector<Real> ctime    = {time, time};
+        Vector<MultiFab*> fmf = {&base_state[lev  ], &base_state[lev  ]};
+        Vector<MultiFab*> cmf = {&base_state[lev-1], &base_state[lev-1]};
+        Vector<Real> ftime    = {time, time};
+        Vector<Real> ctime    = {time, time};
 
-    // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
-    FillPatchTwoLevels(temp_base_state, temp_base_state.nGrowVect(), IntVect(0,0,0),
-                       time, cmf, ctime, fmf, ftime,
-                       0, 0, temp_base_state.nComp(), geom[lev-1], geom[lev],
-                       refRatio(lev-1), mapper, domain_bcs_type,
-                       BaseBCVars::rho0_bc_comp);
+        // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
+        FillPatchTwoLevels(temp_base_state, temp_base_state.nGrowVect(), IntVect(0,0,0),
+                           time, cmf, ctime, fmf, ftime,
+                           0, 0, temp_base_state.nComp(), geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           BaseBCVars::rho0_bc_comp);
 
-    // Impose bc's outside the domain
-    (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
+        // Impose bc's outside the domain
+        (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
 
-    // *************************************************************************************************
-    // This will fill the temporary MultiFabs with data from vars_new
-    // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
-    // NOTE: we must create the new base state before calling FillPatch because we will
-    //       interpolate perturbational quantities
-    // *************************************************************************************************
-    FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
-                         {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                         base_state[lev], temp_base_state, false);
+        // *************************************************************************************************
+        // This will fill the temporary MultiFabs with data from vars_new
+        // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
+        // NOTE: we must create the new base state before calling FillPatch because we will
+        //       interpolate perturbational quantities
+        // *************************************************************************************************
+        FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
+                              &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
+                             {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                             base_state[lev], temp_base_state, false);
+    } else {
+        temp_base_state.ParallelCopy(base_state[lev],0,0,base_state[lev].nComp(),
+                                     base_state[lev].nGrowVect(),base_state[lev].nGrowVect());
+        temp_lev_new[Vars::cons].ParallelCopy(vars_new[lev][Vars::cons],0,0,ncomp_cons,ngrow_state,ngrow_state);
+        temp_lev_new[Vars::xvel].ParallelCopy(vars_new[lev][Vars::xvel],0,0,         1,ngrow_vels,ngrow_vels);
+        temp_lev_new[Vars::yvel].ParallelCopy(vars_new[lev][Vars::yvel],0,0,         1,ngrow_vels,ngrow_vels);
+
+        temp_lev_new[Vars::zvel].setVal(0.);
+        temp_lev_new[Vars::zvel].ParallelCopy(vars_new[lev][Vars::zvel],0,0,         1,
+                                              IntVect(ngrow_vels,ngrow_vels,0),IntVect(ngrow_vels,ngrow_vels,0));
+    }
 
     // Now swap the pointers since we needed both old and new in the FillPatch
     std::swap(temp_base_state, base_state[lev]);
@@ -425,9 +436,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Copy from new into old just in case
     // ********************************************************************************************
     MultiFab::Copy(temp_lev_old[Vars::cons],temp_lev_new[Vars::cons],0,0,ncomp_cons,ngrow_state);
-    MultiFab::Copy(temp_lev_old[Vars::xvel],temp_lev_new[Vars::xvel],0,0,    1,ngrow_vels);
-    MultiFab::Copy(temp_lev_old[Vars::yvel],temp_lev_new[Vars::yvel],0,0,    1,ngrow_vels);
-    MultiFab::Copy(temp_lev_old[Vars::zvel],temp_lev_new[Vars::zvel],0,0,    1,IntVect(ngrow_vels,ngrow_vels,0));
+    MultiFab::Copy(temp_lev_old[Vars::xvel],temp_lev_new[Vars::xvel],0,0,         1,ngrow_vels);
+    MultiFab::Copy(temp_lev_old[Vars::yvel],temp_lev_new[Vars::yvel],0,0,         1,ngrow_vels);
+    MultiFab::Copy(temp_lev_old[Vars::zvel],temp_lev_new[Vars::zvel],0,0,         1,IntVect(ngrow_vels,ngrow_vels,0));
 
     // ********************************************************************************************
     // Now swap the pointers
@@ -487,6 +498,16 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                    Qr_prim[lev], z_phys_nd[lev],
                                    Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
                                    lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+    }
+
+    // These calls are done in AmrCore::regrid if this is a regrid at lev > 0
+    // For a level 0 regrid we must explicitly do them here
+    if (lev == 0) {
+        // Define grids[lev] to be ba
+        SetBoxArray(lev, ba);
+
+        // Define dmap[lev] to be dm
+        SetDistributionMap(lev, dm);
     }
 
 #ifdef ERF_USE_PARTICLES

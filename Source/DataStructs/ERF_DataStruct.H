@@ -264,17 +264,15 @@ struct SolverChoice {
             if (anelastic[i] == 1) any_anelastic = true;
         }
 
-        // If anelastic at all, we do not advect rho -- it is always == rho0
         if (any_anelastic == 1) {
-            constant_density = true;
             project_initial_velocity = true;
             buoyancy_type = 3; // (This isn't actually used when anelastic is set)
         } else {
             pp.query("project_initial_velocity", project_initial_velocity);
-
-            constant_density = false;  // We default to false but allow the user to set it
-            pp.query("constant_density", constant_density);
         }
+
+        constant_density = false;  // We default to false but allow the user to set it
+        pp.query("constant_density", constant_density);
 
         // *******************************************************************************
 

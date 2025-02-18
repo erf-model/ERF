@@ -934,6 +934,10 @@ private:
     // (after a level advances that many time steps)
     int regrid_int = -1;
 
+    // Should we regrid level 0 after restart if Ngrids < Nprocs or
+    //    max_grid_size has changed?
+    bool regrid_level_0_on_restart = false;
+
     // plotfile prefix and frequency
     std::string plot_file_1 {"plt_1_"};
     std::string plot_file_2 {"plt_2_"};
