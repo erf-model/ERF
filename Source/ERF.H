@@ -77,13 +77,6 @@ class MultiBlockContainer;
 #endif
 
 /**
- * Enum of possible initialization types
-*/
-AMREX_ENUM(InitType,
-    None, Input_Sounding, Ideal, Real, Metgrid, Uniform
-);
-
-/**
  * Enum of possible interpolation types between coarse/fine
 */
 AMREX_ENUM(StateInterpType,

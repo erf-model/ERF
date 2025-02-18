@@ -380,6 +380,7 @@ ERF::ERF_shared ()
         amrex::Print() << "MAKING EB GEOMETRY " << std::endl;
         eb_ eb(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
         // MakeEBGeometry();
+
     }
 }
 
@@ -1312,6 +1313,11 @@ ERF::init_only (int lev, Real time)
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
 
+#ifndef ERF_USE_NETCDF
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((init_type != InitType::Ideal && init_type != InitType::Real),
+                                     "init_type cannot be 'ideal' or 'real' if we don't build with netcdf!");
+#endif
+
     // Loop over grids at this level to initialize our grid data
     lev_new[Vars::cons].setVal(0.0); lev_old[Vars::cons].setVal(0.0);
     lev_new[Vars::xvel].setVal(0.0); lev_old[Vars::xvel].setVal(0.0);
@@ -1520,6 +1526,7 @@ ERF::ReadParameters ()
 
         // NetCDF wrfbdy lateral boundary file
         pp.query("nc_bdy_file", nc_bdy_file);
+        Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
 #endif
 
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
