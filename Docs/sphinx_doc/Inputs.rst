@@ -1514,11 +1514,6 @@ List of Parameters
 | **erf.moisture_model**      | Name of moisture model   |  "SAM", "Kessler", | "Null"     |
 |                             |                          |  "SatAdj"          |            |
 +-----------------------------+--------------------------+--------------------+------------+
-| **erf.do_cloud**            | use basic moisture model |  true / false      | true       |
-+-----------------------------+--------------------------+--------------------+------------+
-| **erf.do_precip**           | include precipitation    |  true / false      | true       |
-|                             | in treatment of moisture |                    |            |
-+-----------------------------+--------------------------+--------------------+------------+
 
 
 Radiation
