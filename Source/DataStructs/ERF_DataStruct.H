@@ -115,16 +115,6 @@ struct SolverChoice {
             pp.get("initial_dz", dz0);
         }
 
-        //
-        // Read the init_type here to make sure we correctly set the mesh and terrain types
-        //
-        InitType init_type_temp = InitType::None;
-        pp.query_enum_case_insensitive("init_type",init_type_temp);
-        if (init_type_temp == InitType::Real) {
-            mesh_type    = MeshType::VariableDz;
-            terrain_type = TerrainType::StaticFittedMesh;
-        }
-
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
@@ -155,12 +145,6 @@ struct SolverChoice {
         } else if (moisture_type == MoistureType::SatAdj) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
-        }
-
-        if (init_type_temp == InitType::Real) {
-            if (moisture_type == MoistureType::None) {
-                amrex::Abort("Can't have moisture_type = None when using init_type = Real.");
-            }
         }
 
         // TODO: should we set default for dry??
@@ -196,6 +180,23 @@ struct SolverChoice {
             terrain_type = TerrainType::StaticFittedMesh;
         } else {
             pp.query_enum_case_insensitive("terrain_type",terrain_type);
+        }
+
+        //
+        // Read the init_type here to make sure we correctly set the mesh and terrain types
+        //
+        InitType init_type_temp = InitType::None;
+        pp.query_enum_case_insensitive("init_type",init_type_temp);
+
+        if (init_type_temp == InitType::Real) {
+            if ( (terrain_type != TerrainType::StaticFittedMesh) &&
+                 (terrain_type != TerrainType::None) ) {
+                amrex::Abort("Only terrain_type = None or StaticFittedMesh are allowed with init_type = real");
+            }
+
+            if (moisture_type == MoistureType::None) {
+                amrex::Abort("Can't have moisture_type = None with init_type = real");
+            }
         }
 
 

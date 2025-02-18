@@ -54,7 +54,7 @@ erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 #erf.pbl_type        = "MYNN25"
      
-erf.terrain_type = Static
+erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 2
 
 erf.moisture_model = "None"

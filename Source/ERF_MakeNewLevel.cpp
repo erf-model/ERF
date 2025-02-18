@@ -121,8 +121,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (restart_chkfile.empty()) {
         if ((init_type == InitType::Real) || (init_type == InitType::Metgrid)) {
             init_only(lev, start_time);
-            init_zphys(lev, time);
-            update_terrain_arrays(lev);
+            if (solverChoice.terrain_type == TerrainType::StaticFittedMesh) {
+                init_zphys(lev, time);
+                update_terrain_arrays(lev);
+            }
             make_physbcs(lev);
         } else {
             init_zphys(lev, time);

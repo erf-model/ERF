@@ -64,7 +64,7 @@ erf.les_type             = "Smagorinsky"
 erf.Cs                   = 0.1
 
 # TERRRAIN GRID TYPE
-erf.terrain_type = Static
+erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 0
 
 erf.molec_diff_type   = "Constant"

@@ -124,6 +124,12 @@ public:
             }
         }
 
+        // Make sure the inputs file doesn't try to use most.roughness_type
+        std::string bogus_input;
+        if (pp.query("most.roughness_type", bogus_input) > 0) {
+            amrex::Abort("most.roughness_type is deprecated; use most.roughness_type_land and/or most.roughness_type_sea");
+        }
+
         // Specify how to compute the surface flux over land (if there is any)
         std::string rough_land_string{"constant"};
         pp.query("most.roughness_type_land", rough_land_string);

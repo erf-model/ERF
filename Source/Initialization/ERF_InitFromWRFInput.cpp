@@ -627,7 +627,9 @@ init_base_state_from_wrfinput (const Box& domain,
             // NOTE: Ghost cells don't contain valid data
             //       We want domain GCs and FB picks up interior GCs
             if (tbx.contains(i,j,k)) {
-                AMREX_ASSERT_WITH_MESSAGE((DelP < 1.0 || DelP / Ptot < 1.e-4), "Initial state is inconsistent with EOS!");
+                if ( (DelP > 1.0) && (DelP / Ptot < 1.e-4) ) {
+                    amrex::Abort("Initial state is inconsistent with EOS!");
+                }
             }
 
             // Compute rhse
