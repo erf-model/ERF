@@ -322,8 +322,8 @@ struct LineSampler
                     std::ostream& fs = *m_datastream[ifile];
                     fs << std::setw(datwidth) << std::setprecision(timeprecision) << m_time
                        << std::setw(datwidth) << std::setprecision(datprecision);
-                    for (int k=0; k<vec.size(); ++k) {
-                        fs << " " << vec[k];
+                    for (const auto& val : vec) {
+                        fs << " " << val;
                     }
                     fs << std::endl;
                 }
