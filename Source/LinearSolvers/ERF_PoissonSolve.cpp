@@ -135,7 +135,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             if (boxes_make_rectangle) {
                 solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
             } else {
-                amrex::Warning("FFT won't work unless the boxArray covers the domain: defaulting to MLMG");
+                amrex::Warning("FFT won't work unless the union of boxes is rectangular: defaulting to MLMG");
                 solve_with_mlmg(lev, rhs, phi, fluxes);
             }
         } else {
@@ -157,7 +157,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
 #else
         if (!boxes_make_rectangle) {
-            amrex::Abort("FFT won't work unless the boxArray covers the domain");
+            amrex::Abort("FFT won't work unless the union of boxes is rectangular");
         } else {
             if (!use_fft) {
                 amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
@@ -177,7 +177,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             amrex::Warning("FFT solver does not work for general terrain: switching to FFT-preconditioned GMRES");
         }
         if (!boxes_make_rectangle) {
-            amrex::Abort("FFT preconditioner for GMRES won't work unless the boxArray covers the domain");
+            amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
         } else {
             solve_with_gmres(lev, rhs, phi, fluxes);
         }
