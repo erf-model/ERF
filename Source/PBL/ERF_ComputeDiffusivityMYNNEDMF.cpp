@@ -297,8 +297,8 @@ void tridiag_cc(int n, const Real* a, const Real* b, Real* c, Real* d) {
 }
 
 void tridiag2_cc(int n, const Real* a, const Real* b, const Real* c, const Real* d, Real* x) {
-    Real cp[n];
-    Real dp[n];
+    Real cp[n+1];
+    Real dp[n+1];
     Real m;
 
     // initialize c-prime and d-prime
