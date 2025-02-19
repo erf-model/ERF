@@ -718,7 +718,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     const Box& bx = mfi.tilebox();
                     const Array4<Real      >&  derdat = mf[lev].array(mfi);
                     const Array4<Real const>&   p_arr = p_hse.const_array(mfi);
-    
+
                     const Array4<Real const>& z_nd  = z_phys_nd[lev]->const_array(mfi);
 
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -759,7 +759,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                                                                  - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
                         }
                         Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
-    
+
                         derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
                     });
                 } // mfi
@@ -809,7 +809,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                                                                  - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
                         }
                         Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
-    
+
                         Real met_h_eta_hi  = Compute_h_eta_AtJface (i, j+1, k, dxInv, z_nd);
                         Real met_h_zeta_hi = Compute_h_zeta_AtJface(i, j+1, k, dxInv, z_nd);
                         Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
@@ -828,7 +828,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                                                                  - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
                         }
                         Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
-    
+
                         derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
                     });
                 } // mfi
