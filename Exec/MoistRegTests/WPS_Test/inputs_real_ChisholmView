@@ -46,7 +46,7 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
 
-erf.terrain_type = Static
+erf.terrain_type = StaticFittedMesh
 
 erf.moisture_model = "Kessler"
 

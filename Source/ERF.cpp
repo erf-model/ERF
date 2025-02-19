@@ -380,6 +380,7 @@ ERF::ERF_shared ()
         amrex::Print() << "MAKING EB GEOMETRY " << std::endl;
         eb_ eb(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
         // MakeEBGeometry();
+
     }
 }
 
@@ -597,7 +598,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     // Write plane/line sampler data
-    if (is_it_time_for_action(nstep, time, dt_lev0, sampler_interval, sampler_per) && (data_sampler) ) {
+    if (is_it_time_for_action(nstep+1, time, dt_lev0, sampler_interval, sampler_per) && (data_sampler) ) {
         data_sampler->get_sample_data(geom, vars_new);
         data_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
@@ -1290,6 +1291,31 @@ ERF::restart ()
 
     // We set this here so that we don't over-write the checkpoint file we just started from
     last_check_file_step = istep[0];
+
+    if (regrid_level_0_on_restart) {
+        //
+        // Coarsening before we split the grids ensures that each resulting
+        // grid will have an even number of cells in each direction.
+        //
+        BoxArray new_ba(amrex::coarsen(Geom(0).Domain(),2));
+        //
+        // Now split up into list of grids within max_grid_size[0] limit.
+        //
+        new_ba.maxSize(max_grid_size[0]/2);
+        //
+        // Now refine these boxes back to level 0.
+        //
+        new_ba.refine(2);
+
+        if (refine_grid_layout) {
+            ChopGrids(0, new_ba, ParallelDescriptor::NProcs());
+        }
+
+        if (new_ba != grids[0]) {
+            DistributionMapping new_dm(new_ba);
+            RemakeLevel(0,t_new[0],new_ba,new_dm);
+        }
+    }
 }
 
 // This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)
@@ -1311,6 +1337,11 @@ ERF::init_only (int lev, Real time)
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
+
+#ifndef ERF_USE_NETCDF
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((init_type != InitType::Ideal && init_type != InitType::Real),
+                                     "init_type cannot be 'ideal' or 'real' if we don't build with netcdf!");
+#endif
 
     // Loop over grids at this level to initialize our grid data
     lev_new[Vars::cons].setVal(0.0); lev_old[Vars::cons].setVal(0.0);
@@ -1425,6 +1456,7 @@ ERF::ReadParameters ()
         // The type of the file we restart from
         pp.query("restart_type", restart_type);
 
+        pp.query("regrid_level_0_on_restart", regrid_level_0_on_restart);
         pp.query("regrid_int", regrid_int);
         pp.query("check_file", check_file);
         pp.query("check_type", check_type);
@@ -1520,6 +1552,7 @@ ERF::ReadParameters ()
 
         // NetCDF wrfbdy lateral boundary file
         pp.query("nc_bdy_file", nc_bdy_file);
+        Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
 #endif
 
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe

@@ -58,7 +58,7 @@ ERF::WriteCheckpointFile () const
        HeaderFile.open(HeaderFileName.c_str(), std::ofstream::out   |
                                                std::ofstream::trunc |
                                                std::ofstream::binary);
-       if( ! HeaderFile.good()) {
+       if(! HeaderFile.good()) {
            FileOpenFailed(HeaderFileName);
        }
 
@@ -108,6 +108,20 @@ ERF::WriteCheckpointFile () const
            boxArray(lev).writeOn(HeaderFile);
            HeaderFile << '\n';
        }
+
+       // Write separate file that tells how many components we have of the base state
+       std::string BaseStateFileName(checkpointname + "/num_base_state_comps");
+       std::ofstream BaseStateFile;
+       BaseStateFile.open(BaseStateFileName.c_str(), std::ofstream::out   |
+                                                     std::ofstream::trunc |
+                                                     std::ofstream::binary);
+       if(! BaseStateFile.good()) {
+           FileOpenFailed(BaseStateFileName);
+       } else {
+           // write out number of components in base state
+           BaseStateFile << BaseState::num_comps      << "\n";
+           BaseStateFile << base_state[0].nGrowVect() << "\n";
+       }
    }
 
     // write the MultiFab data to, e.g., chk00010/Level_0/
@@ -131,16 +145,8 @@ ERF::WriteCheckpointFile () const
         VisMF::Write(zvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
         // Note that we write the ghost cells of the base state (unlike above)
-        // For backward compatibility we only write the first components and 1 ghost cell
-        IntVect ng_base; int ncomp_base;
-        bool write_old_base_state = true;
-        if (write_old_base_state) {
-            ng_base    = IntVect{1};
-            ncomp_base = 3;
-        } else {
-            ng_base    = base_state[lev].nGrowVect();
-            ncomp_base = base_state[lev].nComp();
-        }
+        IntVect ng_base = base_state[lev].nGrowVect();
+        int  ncomp_base = base_state[lev].nComp();
         MultiFab base(grids[lev],dmap[lev],ncomp_base,ng_base);
         MultiFab::Copy(base,base_state[lev],0,0,ncomp_base,ng_base);
         VisMF::Write(base, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
@@ -365,6 +371,29 @@ ERF::ReadCheckpointFile ()
 
     // NOTE: QKE was removed so this is for backward compatibility
     AMREX_ASSERT((chk_ncomp_cons==ncomp_cons) || ((chk_ncomp_cons-1)==ncomp_cons));
+    //
+    // See if we have a written separate file that tells how many components and how many ghost cells
+    // we have of the base state
+    //
+    // If we can't find the file, then set the number of components to the original number = 3
+    //
+    int ncomp_base_to_read = 3;
+    IntVect ng_base = IntVect{1};
+    {
+         std::string BaseStateFile(restart_chkfile + "/num_base_state_comps");
+
+         if (amrex::FileExists(BaseStateFile))
+         {
+             Vector<char> BaseStatefileCharPtr;
+             ParallelDescriptor::ReadAndBcastFile(BaseStateFile, BaseStatefileCharPtr);
+             std::string BaseStatefileCharPtrString(BaseStatefileCharPtr.dataPtr());
+
+             // We set this to the default value of 3 but allow it be larger if th0 and qv0 were written
+             std::istringstream isb(BaseStatefileCharPtrString, std::istringstream::in);
+             isb >> ncomp_base_to_read;
+             isb >> ng_base;
+         }
+    }
 
     // read in the MultiFab data
     for (int lev = 0; lev <= finest_level; ++lev)
@@ -414,21 +443,13 @@ ERF::ReadCheckpointFile ()
 
         // The original base state only had 3 components and 1 ghost cell -- we read this
         // here to be consistent with the old style
-        IntVect ng_base; int ncomp_base;
-        bool read_old_base_state = true;
-        if (read_old_base_state) {
-               ng_base = IntVect{1};
-            ncomp_base = 3;
-        } else {
-               ng_base = base_state[lev].nGrowVect();
-            ncomp_base = base_state[lev].nComp();
-        }
-        MultiFab base(grids[lev],dmap[lev],ncomp_base,ng_base);
+        MultiFab base(grids[lev],dmap[lev],ncomp_base_to_read,ng_base);
         VisMF::Read(base, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
 
-        MultiFab::Copy(base_state[lev],base,0,0,ncomp_base,ng_base);
+        MultiFab::Copy(base_state[lev],base,0,0,ncomp_base_to_read,ng_base);
 
-        if (read_old_base_state) {
+        // Create theta0 from p0, rh0
+        if (ncomp_base_to_read < 4) {
             for (MFIter mfi(base_state[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 // We only compute theta_0 on valid cells since we will impose domain BC's after restart
@@ -438,6 +459,19 @@ ERF::ReadCheckpointFile ()
                 {
                     fab(i,j,k,BaseState::th0_comp) = getRhoThetagivenP(fab(i,j,k,BaseState::p0_comp))
                                                      / fab(i,j,k,BaseState::r0_comp);
+                });
+            }
+        }
+        // Default theta0 to 0
+        if (ncomp_base_to_read < 5) {
+            for (MFIter mfi(base_state[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                // We only compute theta_0 on valid cells since we will impose domain BC's after restart
+                const Box& bx = mfi.tilebox();
+                Array4<Real> const& fab = base_state[lev].array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    fab(i,j,k,BaseState::qv0_comp) = 0.0;
                 });
             }
         }

@@ -36,11 +36,13 @@ class eb_ {
     { return m_eb_level; }
 
     void WriteEBSurface (const amrex::BoxArray & ba,
-                            const amrex::DistributionMapping & dmap,
-                            const amrex::Geometry & geom,
-                            const amrex::EBFArrayBoxFactory * ebf);
+                        const amrex::DistributionMapping & dmap,
+                        const amrex::Geometry & geom,
+                        const amrex::EBFArrayBoxFactory * ebf);
 
-    // void map_eb_data( amrex::Geometry          const& a_geom);
+    eb_aux_ const* get_u_const_factory() { return &m_u_factory; }
+    eb_aux_ const* get_v_const_factory() { return &m_v_factory; }
+    eb_aux_ const* get_w_const_factory() { return &m_w_factory; }
 
     class EBToPVD;
 

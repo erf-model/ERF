@@ -77,13 +77,6 @@ class MultiBlockContainer;
 #endif
 
 /**
- * Enum of possible initialization types
-*/
-AMREX_ENUM(InitType,
-    None, Input_Sounding, Ideal, Real, Metgrid, Uniform
-);
-
-/**
  * Enum of possible interpolation types between coarse/fine
 */
 AMREX_ENUM(StateInterpType,
@@ -390,7 +383,8 @@ public:
                                                 const std::string &mfPrefix) const;
 
     void erf_enforce_hse (int lev,
-                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi, amrex::MultiFab& th,
+                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
+                          amrex::MultiFab& th, amrex::MultiFab& qv,
                           std::unique_ptr<amrex::MultiFab>& z_cc);
 
 #ifdef ERF_USE_NETCDF
@@ -940,6 +934,10 @@ private:
     // (after a level advances that many time steps)
     int regrid_int = -1;
 
+    // Should we regrid level 0 after restart if Ngrids < Nprocs or
+    //    max_grid_size has changed?
+    bool regrid_level_0_on_restart = false;
+
     // plotfile prefix and frequency
     std::string plot_file_1 {"plt_1_"};
     std::string plot_file_2 {"plt_2_"};
@@ -992,7 +990,7 @@ private:
                                                     // dissipation
                                                     "diss",
                                                     // moisture vars
-                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
+                                                    "moist_density", "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",

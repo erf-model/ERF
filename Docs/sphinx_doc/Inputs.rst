@@ -108,48 +108,54 @@ Resolution
 List of Parameters
 ------------------
 
-+---------------------------+-----------------+-----------------+-------------+
-| Parameter                 | Definition      | Acceptable      | Default     |
-|                           |                 | Values          |             |
-+===========================+=================+=================+=============+
-| **amr.n_cell**            | number of cells | Integer > 0     | must be set |
-|                           | in each         |                 |             |
-|                           | direction at    |                 |             |
-|                           | the coarsest    |                 |             |
-|                           | level           |                 |             |
-+---------------------------+-----------------+-----------------+-------------+
-| **amr.max_level**         | number of       | Integer >= 0    | must be set |
-|                           | levels of       |                 |             |
-|                           | refinement      |                 |             |
-|                           | above the       |                 |             |
-|                           | coarsest level  |                 |             |
-+---------------------------+-----------------+-----------------+-------------+
-| **amr.ref_ratio**         | ratio of coarse | 2 / 3 / 4       | 2 for all   |
-|                           | to fine grid    | (one per level) | levels      |
-|                           | spacing between |                 |             |
-|                           | subsequent      |                 |             |
-|                           | levels          |                 |             |
-+---------------------------+-----------------+-----------------+-------------+
-| **amr.ref_ratio_vect**    | ratio of coarse | 3 integers      | 2 for all   |
-|                           | to fine grid    | (one per dir)   | directions  |
-|                           | spacing between | 2 / 3 / 4       |             |
-|                           | subsequent      |                 |             |
-|                           | levels          |                 |             |
-+---------------------------+-----------------+-----------------+-------------+
-| **amr.regrid_int**        | how often to    | Integer > 0     | -1          |
-|                           | regrid          | (if negative,   |             |
-|                           |                 | no regridding)  |             |
-+---------------------------+-----------------+-----------------+-------------+
-| **amr.regrid_on_restart** | should we       | 0 or 1          | 0           |
-|                           | regrid          |                 |             |
-|                           | immediately     |                 |             |
-|                           | after           |                 |             |
-|                           | restarting      |                 |             |
-+---------------------------+-----------------+-----------------+-------------+
-| **amr.iterate_grids**     | do we iterate   | true, false     | true        |
-|                           | on the grids?   |                 |             |
-|                           |                 |                 |             |
-+---------------------------+-----------------+-----------------+-------------+
++-----------------------------------+-----------------+-----------------+-------------+
+| Parameter                         | Definition      | Acceptable      | Default     |
+|                                   |                 | Values          |             |
++===================================+=================+=================+=============+
+| **amr.n_cell**                    | number of cells | Integer > 0     | must be set |
+|                                   | in each         |                 |             |
+        |                           | direction at    |                 |             |
+|                                   | the coarsest    |                 |             |
+|                                   | level           |                 |             |
++-----------------------------------+-----------------+-----------------+-------------+
+| **amr.max_level**                 | number of       | Integer >= 0    | must be set |
+|                                   | levels of       |                 |             |
+|                                   | refinement      |                 |             |
+|                                   | above the       |                 |             |
+|                                   | coarsest level  |                 |             |
++-----------------------------------+-----------------+-----------------+-------------+
+| **amr.ref_ratio**                 | ratio of coarse | 2 / 3 / 4       | 2 for all   |
+|                                   | to fine grid    | (one per level) | levels      |
+|                                   | spacing between |                 |             |
+|                                   | subsequent      |                 |             |
+|                                   | levels          |                 |             |
++-----------------------------------+-----------------+-----------------+-------------+
+| **amr.ref_ratio_vect**            | ratio of coarse | 3 integers      | 2 for all   |
+|                                   | to fine grid    | (one per dir)   | directions  |
+|                                   | spacing between | 2 / 3 / 4       |             |
+|                                   | subsequent      |                 |             |
+|                                   | levels          |                 |             |
++-----------------------------------+-----------------+-----------------+-------------+
+| **amr.regrid_int**                | how often to    | Integer > 0     | -1          |
+|                                   | regrid          | (if negative,   |             |
+|                                   |                 | no regridding)  |             |
++-----------------------------------+-----------------+-----------------+-------------+
+| **amr.regrid_on_restart**         | should we       | 0 or 1          | 0           |
+|                                   | regrid          |                 |             |
+|                                   | immediately     |                 |             |
+|                                   | after           |                 |             |
+|                                   | restarting      |                 |             |
++-----------------------------------+-----------------+-----------------+-------------+
+| **amr.regrid_level_0_on_restart** | should we       | true or false   | false       |
+|                                   | regrid level    |                 |             |
+|                                   | immediately     |                 |             |
+|                                   | after           |                 |             |
+|                                   | restarting      |                 |             |
++-----------------------------------+-----------------+-----------------+-------------+
+| **amr.iterate_grids**             | do we iterate   | true, false     | true        |
+|                                   | on the grids?   |                 |             |
+|                                   |                 |                 |             |
++-----------------------------------+-----------------+-----------------+-------------+
 
 Note: if **amr.max_level** = 0 then you do not need to set
 **amr.ref_ratio** or **amr.regrid_int**.
@@ -756,7 +762,23 @@ values corresponding to the (i,j,k) indices at the beginning and end of the line
 Additionally, users must specify ``sample_line_dir`` to prescribed the direction of
 the line. The same inputs are used for the plane sampling except that ``sample_plane_lo/hi``
 must be the physical locations of the plane corners. This output functionality has
-not been implemented for terrain.
+not been implemented for terrain. By default, sampled line and plane data will have the
+prefixes "plt_line" and "plt_plane", respectively. Names for sampled data may optionally
+be provided with ``sample_line_name`` and/or ``sample_plane_name`` -- if provided, each
+line and/or plane must be named.
+
+Line and plane samples will be default be written to plotfiles, one plotfile per output
+snapshot, with all output variables in the same file. Alternatively, line sampling has
+the ``erf.line_sampling_text_output`` option, which writes one text file per output
+variable, with all snapshots appended to the same file over time. This is similar to the
+tslist output from WRF but output is provided only from the finest domain that contains
+the entire requested sampling line; velocities are also destaggered.
+
+The sampled variables can be selected with the ``erf.line_sampling_vars`` option and
+includes a subset of the plotfile outputs: "x_velocity", "y_velocity", "z_velocity",
+"magvel", "theta", "qv", and "pressure". Velocities are output at cell centers only. The
+water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
+Pressure is calculated from rho*theta and will account for moisture if qv is requested.
 
 .. _list-of-parameters-10b:
 
@@ -764,33 +786,46 @@ not been implemented for terrain.
 List of Parameters
 ------------------
 
-+-------------------------------+------------------+----------------+----------------+
-| Parameter                     | Definition       | Acceptable     | Default        |
-|                               |                  | Values         |                |
-+===============================+==================+================+================+
-| **erf.sampler_interval**      | Output           | Integer        | -1             |
-|                               | frequency        |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.do_line_sampling**      | Flag to do line  | Boolean        | false          |
-|                               | sampling         |                |                |
-|                               |                  |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.do_plane_sampling**     | Flag to do plane | Boolean        | false          |
-|                               | sampling         |                |                |
-|                               |                  |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.sample_line_dir**       | Directionality   | Integer        | None           |
-|                               | of the line      |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.sample_plane_dir**      | Directionality   | Integer        | None           |
-|                               | of the plane     |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.sample_line_lo/hi**     | Bounding (i,j,k) | 3 Integers per | None           |
-|                               | on the line(s)   | line           |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.sample_plane_lo/hi**    | Bounding point   | 3 Reals per    | None           |
-|                               | on the plane(s)  | plane          |                |
-+-------------------------------+------------------+----------------+----------------+
++-----------------------------------+------------------+----------------+----------------+
+| Parameter                         | Definition       | Acceptable     | Default        |
+|                                   |                  | Values         |                |
++===================================+==================+================+================+
+| **erf.sampler_interval**          | Output           | Integer        | -1             |
+|                                   | frequency        |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.do_line_sampling**          | Flag to do line  | Boolean        | false          |
+|                                   | sampling         |                |                |
+|                                   |                  |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.do_plane_sampling**         | Flag to do plane | Boolean        | false          |
+|                                   | sampling         |                |                |
+|                                   |                  |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_line_dir**           | Directionality   | Integer        | None           |
+|                                   | of the line      |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_plane_dir**          | Directionality   | Integer        | None           |
+|                                   | of the plane     |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_line_lo/hi**         | Bounding (i,j,k) | 3 Integers per | None           |
+|                                   | on the line(s)   | line           |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_plane_lo/hi**        | Bounding point   | 3 Reals per    | None           |
+|                                   | on the plane(s)  | plane          |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_line_name**          | Output prefix of | One string per | None           |
+|                                   | each line        | sample line    |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.sample_plane_name**         | Output prefix of | One string per | None           |
+|                                   | each plane       | sample plane   |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.line_sampling_text_output** | Write text files | Boolean        | false          |
+|                                   | instead of AMReX |                |                |
+|                                   | plotfiles        |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.line_sampling_vars**        | Specify sampled  | List of strings| theta, magvel  |
+|                                   | variables        |                |                |
++-----------------------------------+------------------+----------------+----------------+
 
 .. _examples-of-usage-10b:
 
@@ -1513,11 +1548,6 @@ List of Parameters
 +=============================+==========================+====================+============+
 | **erf.moisture_model**      | Name of moisture model   |  "SAM", "Kessler", | "Null"     |
 |                             |                          |  "SatAdj"          |            |
-+-----------------------------+--------------------------+--------------------+------------+
-| **erf.do_cloud**            | use basic moisture model |  true / false      | true       |
-+-----------------------------+--------------------------+--------------------+------------+
-| **erf.do_precip**           | include precipitation    |  true / false      | true       |
-|                             | in treatment of moisture |                    |            |
 +-----------------------------+--------------------------+--------------------+------------+
 
 

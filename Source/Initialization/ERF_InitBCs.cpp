@@ -59,16 +59,17 @@ void ERF::init_bcs ()
         m_bc_neumann_vals[BCVars::yvel_bc][ori] = 0.0;
         m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
 
-        std::string pp_text;
-        std::string first3 = pp_prefix.substr(0,3);
-        if (first3 == "erf") {
-          pp_text = bcid;
-        } else {
-          pp_text = pp_prefix + "." + bcid;
-        }
+        std::string pp_text = pp_prefix + "." + bcid;
         ParmParse pp(pp_text);
-        std::string bc_type_in = "null";
-        pp.query("type", bc_type_in);
+
+        std::string bc_type_in;
+        if (pp.query("type", bc_type_in) <= 0)
+        {
+            pp_text = bcid;
+            pp = ParmParse(pp_text);
+            pp.query("type", bc_type_in);
+        }
+
         std::string bc_type = amrex::toLower(bc_type_in);
 
         if (bc_type == "symmetry")
