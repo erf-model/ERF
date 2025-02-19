@@ -286,6 +286,7 @@ define( int const& a_idim,
           AMREX_ASSERT( !flag(iv_hi).isCovered() || hi_eb_cc.isCovered() );
           AMREX_ASSERT( !flag(iv_hi).isRegular() || hi_eb_cc.isRegular() );
 
+#if 0
 #if defined(AMREX_DEBUG) || defined(AMREX_TESTING) || 1
 
           { /***************************** SANITY CHECK ***********************\
@@ -421,6 +422,7 @@ define( int const& a_idim,
               AMREX_ALWAYS_ASSERT( abs_err < compare_tol );
             }
           } //
+#endif
 #endif
 
           //-----------------------

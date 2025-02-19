@@ -22,12 +22,26 @@ eb_::~eb_()
   if (m_factory) { m_factory.reset(nullptr); }
 }
 
-eb_:: eb_ ( Geometry const& a_geom, amrex::FArrayBox const& terrain_fab,
-            amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
-            bool /*is_anelastic*/)
+eb_::eb_ ( )
     : m_has_eb(0),
       m_support_level(EBSupport::full),
       m_write_eb_surface(0)
+{ }
+
+//eb_::eb_ ( Geometry const& a_geom, amrex::FArrayBox const& terrain_fab,
+//           amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
+//           bool is_anelastic)
+//    : m_has_eb(0),
+//      m_support_level(EBSupport::full),
+//      m_write_eb_surface(0)
+//{
+//    define(a_geom,terrain_fab,a_dz_stretched,is_anelastic);
+//}
+
+void
+eb_::define (Geometry const& a_geom, amrex::FArrayBox const& terrain_fab,
+             amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
+             bool /*is_anelastic*/)
 {
     m_type = "terrain";
 

@@ -372,15 +372,17 @@ ERF::ERF_shared ()
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
-        int lev = 0; Real dummy_time = 0.0;
-        Box terrain_bx(surroundingNodes(geom[lev].Domain())); terrain_bx.grow(3);
-        FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
-        prob->init_terrain_surface(geom[lev], terrain_fab, dummy_time);
+        Real dummy_time = 0.0;
+        eb.resize(max_level+1);
+        for (int lev = 0; lev < max_level; ++lev)
+        {
+            Box terrain_bx(surroundingNodes(geom[lev].Domain())); terrain_bx.grow(3);
+            FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
+            prob->init_terrain_surface(geom[lev], terrain_fab, dummy_time);
 
-        amrex::Print() << "MAKING EB GEOMETRY " << std::endl;
-        eb_ eb(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
-        // MakeEBGeometry();
-
+            amrex::Print() << "MAKING EB GEOMETRY AT LEVEL " << lev << std::endl;
+            eb[lev]->define(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
+        } // lev
     }
 }
 

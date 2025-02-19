@@ -20,6 +20,12 @@ class eb_ {
          amrex::FArrayBox const& terrain_fab,
          amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
          bool is_anelastic);
+    eb_ ();
+
+    void define (amrex::Geometry const& a_geom,
+                 amrex::FArrayBox const& terrain_fab,
+                 amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
+                 bool is_anelastic);
 
     void make_factory ( amrex::Geometry            const& a_geom,
                         amrex::DistributionMapping const& a_dmap,
