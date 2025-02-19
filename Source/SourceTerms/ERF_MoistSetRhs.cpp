@@ -159,8 +159,7 @@ moist_set_rhs (const Box& tbx,
     if (set_width > 0) {
         realbdy_interior_bxs_xy(tbx, domain, width,
                                 tbx_xlo, tbx_xhi,
-                                tbx_ylo, tbx_yhi,
-                                0, ng_vect, true);
+                                tbx_ylo, tbx_yhi);
         realbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
                                        width, set_width-1, set_width-1,
                                        dom_lo, dom_hi,
@@ -180,7 +179,7 @@ moist_set_rhs (const Box& tbx,
         realbdy_interior_bxs_xy(tbx, domain, width,
                                 tbx_xlo, tbx_xhi,
                                 tbx_ylo, tbx_yhi,
-                                set_width);
+                                set_width, ng_vect);
         realbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
                                              width, set_width, dom_lo, dom_hi, F1, F2,
                                              tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,

@@ -185,8 +185,9 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         int j_lo  = std::min(j-dom_lo.y,width-1);
         int j_hi  = std::min(dom_hi.y-j,width-1);
         int jj    = std::min(j_lo,j_hi);
-        int n_ind = std::min(i-dom_lo.x,jj) + 1;
-        if (n_ind <= Spec_z_x) {
+        int n_ind_y = jj + 1;
+        int n_ind_x = i - dom_lo.x + 1;
+        if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
             amrex::Real tend = ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
             rhs_arr(i,j,k,n+icomp) = tend;
         }
@@ -197,8 +198,9 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         int j_lo  = std::min(j-dom_lo.y,width-1);
         int j_hi  = std::min(dom_hi.y-j,width-1);
         int jj    = std::min(j_lo,j_hi);
-        int n_ind = std::min(dom_hi.x-i,jj) + 1;
-        if (n_ind <= Spec_z_x) {
+        int n_ind_y = jj + 1;
+        int n_ind_x = dom_hi.x - i + 1;
+        if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
             amrex::Real tend = ( arr_xhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
             rhs_arr(i,j,k,n+icomp) = tend;
         }

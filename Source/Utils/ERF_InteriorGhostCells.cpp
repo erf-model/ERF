@@ -63,10 +63,6 @@ realbdy_interior_bxs_xy (const Box& bx,
                            sdom_xlo, sdom_xhi,
                            sdom_ylo, sdom_yhi,
                            ng_vect);
-        /*
-        Print() << sdom_xlo << ' ' << sdom_xhi << "\n";
-        Print() << sdom_ylo << ' ' << sdom_yhi << "\n";
-        */
         gdom_xlo.setSmall(0,sdom_xlo.bigEnd(0)+1); gdom_xhi.setBig(0,sdom_xhi.smallEnd(0)-1);
         gdom_ylo.setSmall(1,sdom_ylo.bigEnd(1)+1); gdom_yhi.setBig(1,sdom_yhi.smallEnd(1)-1);
         if (iv_type[1]==1) {
@@ -259,11 +255,6 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                 bx_ylo, bx_yhi,
                                 0, ng_vect, true);
 
-        Print() << "FAB Size: " << ivar << "\n";
-                    Print() << bx_xlo << ' ' << bx_xhi << "\n";
-                    Print() << bx_ylo << ' ' << bx_yhi << "\n";
-
-
         // Size the FABs
         if (ivar  == ivarU) {
             U_xlo.resize(bx_xlo,1,The_Async_Arena()); U_xhi.resize(bx_xhi,1,The_Async_Arena());
@@ -309,10 +300,6 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     tbx_xlo, tbx_xhi,
                                     tbx_ylo, tbx_yhi,
                                     0, ng_vect, true);
-
-             Print() << "C2P: " << ivar << "\n";
-             Print() << tbx_xlo << ' ' << tbx_xhi << "\n";
-             Print() << tbx_ylo << ' ' << tbx_yhi << "\n";
 
             Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
             Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
@@ -459,12 +446,6 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                         tbx_xlo, tbx_xhi,
                                         tbx_ylo, tbx_yhi);
 
-                /*
-                Print() << "RHS set: " << ivar << "\n";
-                Print() << tbx_xlo << ' ' << tbx_xhi << "\n";
-                Print() << tbx_ylo << ' ' << tbx_yhi << "\n";
-                */
-
                 Array4<Real> rhs_arr; Array4<Real> data_arr;
                 Array4<Real> arr_xlo; Array4<Real> arr_xhi;
                 Array4<Real> arr_ylo; Array4<Real> arr_yhi;
@@ -487,7 +468,6 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                     continue;
                 }
 
-
                 realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
                                                width, set_width_x, set_width_y,
                                                dom_lo, dom_hi,
@@ -498,7 +478,6 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             } // mfi
         } // ivar
     } // set_width
-
 
     // NOTE: These operations use current density, so they are
     //       LOCAL and occur over the data owned by a given rank
@@ -522,15 +501,10 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box tbx = mfi.tilebox();
                 Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-                Print() << "Relax rgn: " << ivar << ' ' << set_width << ' ' << ng_vect << "\n";
                 realbdy_interior_bxs_xy(tbx, domain, width,
                                         tbx_xlo, tbx_xhi,
                                         tbx_ylo, tbx_yhi,
                                         set_width, ng_vect);
-
-
-                Print() << tbx_xlo << ' ' << tbx_xhi << "\n";
-                Print() << tbx_ylo << ' ' << tbx_yhi << "\n";
 
                 Array4<Real> rhs_arr; Array4<Real> data_arr;
                 Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
@@ -601,8 +575,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             } // mfi
         } // ivar
     } // width
-    ParallelDescriptor::Barrier();
-    exit(0);
+    //ParallelDescriptor::Barrier();
+    //exit(0);
 }
 
 /**
