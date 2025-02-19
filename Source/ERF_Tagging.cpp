@@ -59,10 +59,20 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ2_comp, 0, 1, 0);
             MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 0);
 
+        // This allows dynamic refinement based on the value of the z-component of vorticity
+        } else if (ref_tags[j].Field() == "vorticity" ) {
+            MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
+            average_face_to_cellcenter(mf_cc_vel,0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
+            for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.growntilebox();
+                auto& dfab = (*mf)[mfi];
+                auto& sfab = mf_cc_vel[mfi];
+                derived::erf_dervortz(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+            }
 
-        // This allows dynamic refinement based on the value of the scalar/pressure/theta
+        // This allows dynamic refinement based on the value of the scalar/theta
         } else if ( (ref_tags[j].Field() == "scalar"  ) ||
-                    (ref_tags[j].Field() == "pressure") ||
                     (ref_tags[j].Field() == "theta"   ) )
         {
             for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
