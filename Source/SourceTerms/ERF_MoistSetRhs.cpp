@@ -12,7 +12,6 @@ using namespace amrex;
 
 void
 moist_set_rhs (const Box& tbx,
-               const Box& gtbx,
                const Array4<Real const>& old_cons,
                const Array4<Real const>& new_cons,
                const Array4<Real      >& cell_rhs,
@@ -32,7 +31,6 @@ moist_set_rhs (const Box& tbx,
     //       cell for the Laplacian. We remove that cell here if it is present.
 
     // The width to do RHS augmentation
-    //if (width > set_width+1) width -= 2;
     if (width > set_width+1) width -= 1;
 
     // Relaxation constants
@@ -95,6 +93,10 @@ moist_set_rhs (const Box& tbx,
     // Get Array4 of interpolated values
     Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
     Array4<Real> arr_ylo = QV_ylo.array();  Array4<Real> arr_yhi = QV_yhi.array();
+
+    // We need lateral ghost cells for the Laplacian
+    // NOTE: We don't write into the ghost cells
+    Box gtbx = grow(tbx,ng_vect);
 
     Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
     realbdy_interior_bxs_xy(gtbx, domain, width,

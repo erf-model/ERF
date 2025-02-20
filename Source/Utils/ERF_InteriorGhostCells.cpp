@@ -291,12 +291,12 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            // NOTE: 2 ghost cells needed here for Laplacian
-            //       halo cell.
+            // We need lateral ghost cells for the Laplacian
+            // NOTE: We don't write into the ghost cells
             IntVect ng_vect{2,2,0};
-            Box tbx = mfi.tilebox(ixtype.toIntVect(),ng_vect);
+            Box gtbx = grow(mfi.tilebox(ixtype.toIntVect()),ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-            realbdy_interior_bxs_xy(tbx, domain, width,
+            realbdy_interior_bxs_xy(gtbx, domain, width,
                                     tbx_xlo, tbx_xhi,
                                     tbx_ylo, tbx_yhi,
                                     0, ng_vect, true);
