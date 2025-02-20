@@ -98,7 +98,7 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
-                  dx, bx, vfrac, afrac, bnorm, bcent, flag,
+                  dx, bx, bnorm, bcent, flag,
                   aux_flag, aux_vfrac,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
@@ -217,9 +217,9 @@ define( int const& a_idim,
                                       bcent(iv_lo,1) / norm * dx[0] * dx[2],
                                       bcent(iv_lo,2) / norm * dx[0] * dx[1] );
 
-            Real bnorm_x = bnorm(iv_lo,0) / dx[0];
-            Real bnorm_y = bnorm(iv_lo,1) / dx[1];
-            Real bnorm_z = bnorm(iv_lo,2) / dx[2];
+            Real bnorm_x = bnorm(iv_lo,0) * dx[0];
+            Real bnorm_y = bnorm(iv_lo,1) * dx[1];
+            Real bnorm_z = bnorm(iv_lo,2) * dx[2];
 
             norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
 
@@ -260,9 +260,9 @@ define( int const& a_idim,
                                       bcent(iv_hi,1) / norm * dx[0] * dx[2],
                                       bcent(iv_hi,2) / norm * dx[0] * dx[1] );
 
-            Real bnorm_x = bnorm(iv_hi,0) / dx[0];
-            Real bnorm_y = bnorm(iv_hi,1) / dx[1];
-            Real bnorm_z = bnorm(iv_hi,2) / dx[2];
+            Real bnorm_x = bnorm(iv_hi,0) * dx[0];
+            Real bnorm_y = bnorm(iv_hi,1) * dx[1];
+            Real bnorm_z = bnorm(iv_hi,2) * dx[2];
 
             norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
 

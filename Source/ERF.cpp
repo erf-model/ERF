@@ -380,13 +380,20 @@ ERF::ERF_shared ()
             FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
             prob->init_terrain_surface(geom[lev], terrain_fab, dummy_time);
 
-            amrex::Print() << "MAKING EB GEOMETRY AT LEVEL " << lev << std::endl;
+            amrex::Print() << "MAKING EB GEOMETRY AT LEVEL " << lev << ", max_level = "<< max_level << std::endl;
+            eb[lev] = new eb_();
             eb[lev]->define(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
         } // lev
     }
 }
 
-ERF::~ERF () = default;
+// ERF::~ERF () = default;
+ERF::~ERF ()
+{
+    for (auto* p : eb) {
+        delete p;
+    }
+}
 
 // advance solution to final time
 void
