@@ -68,8 +68,9 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            if ( SolverChoice::terrain_type == TerrainType::StaticFittedMesh ||
-                (derived_names[i] != "z_phys" && derived_names[i] != "detJ") )
+            if ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
+                 (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
+                 (derived_names[i] != "z_phys" && derived_names[i] != "detJ") )
             {
                 if ( (solverChoice.moisture_type == MoistureType::SAM ||
                       solverChoice.moisture_type == MoistureType::SAM_NoIce) ||
