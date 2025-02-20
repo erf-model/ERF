@@ -133,12 +133,33 @@ class polygon_ {
       return amrex::Math::abs(x0.dotProduct(m_zdir));
     }
 
-    // Calculate the centroid of the polygon.
+    // Centroid of the polygon based on the sub-triangulation
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect get_centroid ( ) const noexcept {
       amrex::RealVect cent(0.);
-      for ( int i(0); i<m_vertices; ++i) { cent += m_vertex[i]; }
-      return cent / static_cast<amrex::Real>(m_vertices);
+      if (m_vertices==3) {
+        cent = (m_vertex[0] + m_vertex[1] + m_vertex[2]) / 3.0;
+      } else {
+        // Loop over sub-triangles
+        amrex::Real area(0.);
+        for ( int i(0); i<m_vertices-2; ++i) {
+          amrex::RealVect const v0 (m_vertex[i+1] - m_vertex[0]);
+          amrex::RealVect const v1 (m_vertex[i+2] - m_vertex[0]);
+          amrex::RealVect v0_cross_v1 = v0.crossProduct(v1);
+          amrex::Real area_tri = 0.5 * v0_cross_v1.vectorLength();
+          amrex::RealVect cent_tri = (m_vertex[0] + m_vertex[i+1] + m_vertex[i+2]) / 3.0;
+          area += area_tri;
+          cent += area_tri * cent_tri;
+        }
+        cent = cent / area;
+      }
+      return cent;
+    }
+
+    // Unit normal vector
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::RealVect normal () const noexcept {
+      return m_zdir;
     }
 
 #ifndef AMREX_USE_GPU
@@ -189,7 +210,7 @@ class polygon_ {
 
     amrex::GpuArray<amrex::Real,m_max_vertices> m_theta;
 
-    amrex::RealVect m_zdir;
+    amrex::RealVect m_zdir; // normal to polygon
 };
 
 

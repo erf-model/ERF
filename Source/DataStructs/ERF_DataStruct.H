@@ -17,6 +17,10 @@
 #include <ERF_TurbStruct.H>
 #include <ERF_TurbPertStruct.H>
 
+AMREX_ENUM(InitType,
+    None, Input_Sounding, Ideal, Real, Metgrid, Uniform
+);
+
 AMREX_ENUM(ABLDriverType,
     None, PressureGradient, GeostrophicWind
 );
@@ -85,6 +89,11 @@ struct SolverChoice {
     {
         amrex::ParmParse pp(pp_prefix);
 
+        bool bogus;
+        if (pp.query("use_terrain",bogus) > 0)  {
+            amrex::Abort("The input use_terrain is deprecated.  Set terrain_type instead.");
+        }
+
         pp.query("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
             AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
@@ -106,11 +115,24 @@ struct SolverChoice {
             pp.get("initial_dz", dz0);
         }
 
+        //
+        // Read the init_type here to make sure we correctly set the mesh and terrain types
+        //
+        InitType init_type_temp = InitType::None;
+        pp.query_enum_case_insensitive("init_type",init_type_temp);
+        if (init_type_temp == InitType::Real) {
+            mesh_type    = MeshType::VariableDz;
+            terrain_type = TerrainType::StaticFittedMesh;
+        }
+
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
+        if (pp.query("moisture_type",moisture_type) > 0) {
+            amrex::Abort("The input moisture_type is deprecated.  Set moisture_model instead.");
+        }
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
         if (moisture_type == MoistureType::SAM) {
             RhoQv_comp = RhoQ1_comp;
@@ -133,6 +155,12 @@ struct SolverChoice {
         } else if (moisture_type == MoistureType::SatAdj) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
+        }
+
+        if (init_type_temp == InitType::Real) {
+            if (moisture_type == MoistureType::None) {
+                amrex::Abort("Can't have moisture_type = None when using init_type = Real.");
+            }
         }
 
         // TODO: should we set default for dry??
@@ -169,6 +197,7 @@ struct SolverChoice {
         } else {
             pp.query_enum_case_insensitive("terrain_type",terrain_type);
         }
+
 
         if (terrain_type == TerrainType::StaticFittedMesh ||
             terrain_type == TerrainType::MovingFittedMesh) {
@@ -458,6 +487,20 @@ struct SolverChoice {
         }
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
+
+        if (moisture_type == MoistureType::SAM) {
+            amrex::Print() << "Moisture Model: SAM" << std::endl;
+        } else if (moisture_type == MoistureType::SAM_NoIce) {
+            amrex::Print() << "Moisture Model: SAM No Ice" << std::endl;
+        } else if (moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+            amrex::Print() << "Moisture Model: SAM No Precip No Ice" << std::endl;
+        } else if (moisture_type == MoistureType::Kessler) {
+            amrex::Print() << "Moisture Model: Kessler" << std::endl;
+        } else if (moisture_type == MoistureType::Kessler_NoRain) {
+            amrex::Print() << "Moisture Model: Kessler No Rain" << std::endl;
+        } else {
+            amrex::Print() << "Moisture Model: None" << std::endl;
+        }
 
         if (terrain_type == TerrainType::StaticFittedMesh) {
             amrex::Print() << "Terrain Type: StaticFittedMesh" << std::endl;
