@@ -19,9 +19,12 @@ Governing Equations
 | Parameter                | Definition                  | Acceptable    | Default     |
 |                          |                             | Values        |             |
 +==========================+=============================+===============+=============+
-| **erf.anelastic**        | solve the anelastic         | true / false  | false       |
+| **erf.anelastic**        | if 1, solve the anelastic   | 0, 1          | 0           |
 |                          | equations (instead of       |               |             |
-|                          | the compressible equations) |               |             |
+|                          | the compressible equations);|               |             |
+|                          | can be a single value (for  |               |             |
+|                          | all amr levels) or a list of|               |             |
+|                          | values (one per level)      |               |             |
 +--------------------------+-----------------------------+---------------+-------------+
 | **erf.use_fft**          | use FFT rather than         | true / false  | false       |
 |                          | multigrid to solve the      |               |             |
