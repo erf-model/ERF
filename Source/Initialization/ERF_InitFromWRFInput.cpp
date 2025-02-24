@@ -358,7 +358,7 @@ ERF::init_from_wrfinput (int lev)
           }
 
           // Initialize Longitude
-          if ( var_name == "XLON_U" ) {
+          if ( var_name == "XLONG_U" ) {
             lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
             for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
               Box gtbx = mfi.growntilebox();
