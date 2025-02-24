@@ -185,34 +185,35 @@ struct SolverChoice {
         //
         // Read the init_type here to make sure we correctly set the mesh and terrain types
         //
-        InitType init_type_temp = InitType::None;
-        pp.query("init_type",init_type_temp);
-        if (init_type_temp == "Real") {
+        std::string init_type_temp_string;
+        pp.query("init_type",init_type_temp_string);
+        if ( (init_type_temp_string == "Real") || (init_type_temp_string == "real") ) {
             amrex::Warning("erf.init_type = Real is deprecated; please replace Real by WRFInput");
             init_type = InitType::WRFInput;
             use_real_bcs = true;
-        } else if (init_type_temp == "Ideal") {
+        } else if ( (init_type_temp_string == "Ideal") || (init_type_temp_string == "ideal") ) {
             amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
             init_type = InitType::WRFInput;
             use_real_bcs = false;
         } else {
-            pp.query_enum_case_insensitive("init_type",init_type_temp);
+            pp.query_enum_case_insensitive("init_type",init_type);
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
         }
 
-        if ( (init_type_temp == InitType::WRFInput) || (init_type_temp == InitType::Metgrid) ) {
+        if ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) {
             if (terrain_type != TerrainType::StaticFittedMesh) {
                 amrex::Abort("Only terrain_type = StaticFittedMesh are allowed with init_type = WRFInput or Metgrid");
             }
         }
 
-        if (init_type_temp == InitType::WRFInput) {
+        if (init_type == InitType::WRFInput) {
             if (moisture_type == MoistureType::None) {
                 amrex::Abort("Can't have moisture_type = None with init_type = WRFInput");
             }
 
             // NetCDF wrfbdy lateral boundary file
-            bool has_bdy = pp.query("nc_bdy_file", nc_bdy_file);
+            std::string nc_bdy_file_temp_string;
+            bool has_bdy = pp.query("nc_bdy_file", nc_bdy_file_temp_string);
             if (!has_bdy) use_real_bcs = false;
 
             bool use_real_bcs_temp = use_real_bcs;
@@ -638,7 +639,13 @@ struct SolverChoice {
     }
 
     inline static
+    InitType init_type = InitType::None;
+
+    inline static
     TerrainType terrain_type = TerrainType::None;
+
+    inline static
+    bool use_real_bcs = false;
 
     inline static
     MeshType mesh_type = MeshType::ConstantDz;

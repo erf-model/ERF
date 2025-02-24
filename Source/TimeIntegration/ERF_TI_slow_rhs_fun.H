@@ -290,7 +290,7 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
-        if (use_real_bcs && (level == 0)) {
+        if (solverChoice.use_real_bcs && (level == 0)) {
             if (real_width>0) {
                 realbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                                    real_width, real_set_width, fine_geom,
@@ -342,7 +342,7 @@
 
 #if defined(ERF_USE_NETCDF)
         bool moist_set_rhs = false;
-        if ( use_real_bcs &&
+        if ( solverChoice.use_real_bcs &&
              (level==0)   &&
              (real_set_width > 0) &&
              (solverChoice.moisture_type != MoistureType::None) )
@@ -498,7 +498,7 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
-        if (use_real_bcs && (level == 0)) {
+        if (solverChoice.use_real_bcs && (level == 0)) {
             if (real_width>0) {
                     realbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                                        real_width, real_set_width, fine_geom,

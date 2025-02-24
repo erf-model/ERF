@@ -48,12 +48,7 @@ int  ERF::pert_interval = -1;
 PlotFileType ERF::plotfile_type_1  = PlotFileType::None;
 PlotFileType ERF::plotfile_type_2  = PlotFileType::None;
 
-InitType ERF::init_type;
 StateInterpType ERF::interpolation_type;
-
-// use_real_bcs: only true if 1) ( (init_type == InitType::WRFInput) or (init_type == InitGrid::Metgrid) )
-//                        AND 2) we want to use the bc's from the WRF bdy file or Metgrid file
-bool ERF::use_real_bcs;
 
 // NetCDF wrfinput (initialization) file(s)
 Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
@@ -818,7 +813,7 @@ ERF::InitData_post ()
         solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
     {
         initRayleigh();
-        if (init_type == InitType::Input_Sounding)
+        if (solverChoice.init_type == InitType::Input_Sounding)
         {
             // Overwrite ubar, vbar, and thetabar with input profiles;
             // wbar is assumed to be 0. Note: the tau coefficient set by
@@ -897,7 +892,7 @@ ERF::InitData_post ()
 
 #ifdef ERF_USE_NETCDF
         // We call this here because it is an ERF routine
-        if (use_real_bcs && (lev==0)) {
+        if (solverChoice.use_real_bcs && (lev==0)) {
             int icomp_cons = 0;
             bool cons_only = false;
             Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
@@ -1322,13 +1317,6 @@ ERF::restart ()
 void
 ERF::init_only (int lev, Real time)
 {
-    // Map the words in the inputs file to BC types, then translate
-    //     those types into what they mean for each variable
-    // This must be called before initHSE (where the base state is initialized)
-    if (lev == 0 && init_type != InitType::Ideal) {
-        init_bcs();
-    }
-
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
@@ -1347,7 +1335,7 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::zvel].setVal(0.0); lev_old[Vars::zvel].setVal(0.0);
 
     // Initialize background flow (optional)
-    if (init_type == InitType::Input_Sounding) {
+    if (solverChoice.init_type == InitType::Input_Sounding) {
         // The base state is initialized by integrating vertically through the
         // input sounding, if the init_sounding_ideal flag is set; otherwise
         // it is set by initHSE()
@@ -1369,19 +1357,24 @@ ERF::init_only (int lev, Real time)
 
 #ifdef ERF_USE_NETCDF
     }
-    else if (init_type == InitType::WRFInput)
+    else if (solverChoice.init_type == InitType::WRFInput)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
         init_from_wrfinput(lev);
+
+        // The physbc's need the terrain but are needed for initHSE
+        if (!solverChoice.use_real_bcs) {
+            make_physbcs(lev);
+        }
     }
-    else if (init_type == InitType::Metgrid)
+    else if (solverChoice.init_type == InitType::Metgrid)
     {
         // The base state is initialized from data output by WPS metgrid;
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    } else if (init_type == InitType::Uniform) {
+    } else if (solverChoice.init_type == InitType::Uniform) {
         // Initialize a uniform background field and base state based on the
         // problem-specified reference density and temperature
 
@@ -1671,7 +1664,7 @@ ERF::ReadParameters ()
         }
     }
 
-    if (init_type == InitType::WRFInput) {
+    if (solverChoice.init_type == InitType::WRFInput) {
         AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
     }
 
@@ -1709,7 +1702,7 @@ ERF::ParameterSanityChecks ()
     AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt[0] > 0.);
 
     // We don't allow use_real_bcs to be true if init_type is not either InitType::WRFInput or InitType::Metgrid
-    AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == InitType::WRFInput) || (init_type == InitType::Metgrid)) );
+    AMREX_ALWAYS_ASSERT(!solverChoice.use_real_bcs || ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
     AMREX_ALWAYS_ASSERT(real_set_width >= 0);

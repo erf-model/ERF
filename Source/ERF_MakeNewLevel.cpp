@@ -119,7 +119,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //                                      initial idealized data
     // ********************************************************************************************
     if (restart_chkfile.empty()) {
-        if ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) )
+        if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
         {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
             init_only(lev, start_time);

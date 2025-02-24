@@ -878,7 +878,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
 
 #ifdef ERF_USE_NETCDF
-        if (use_real_bcs) {
+        if (solverChoice.use_real_bcs) {
             if (containerHasElement(plot_var_names, "lat_m")) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
