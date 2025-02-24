@@ -470,7 +470,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 void
 ERF::init_zphys (int lev, Real time)
 {
-    if (init_type != InitType::Real && init_type != InitType::Metgrid)
+    if (init_type != InitType::WRFInput && init_type != InitType::Metgrid)
     {
         if (lev > 0 && z_phys_nd[lev]) {
             //
