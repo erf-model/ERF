@@ -506,7 +506,7 @@ ERF::init_from_wrfinput (int lev)
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-    if (init_type == InitType::Real) {
+    if (init_type == InitType::WRFInput) {
 
         int n_qstate = micro->Get_Qstate_Size();
 
@@ -523,7 +523,8 @@ ERF::init_from_wrfinput (int lev)
     }
 
     // Initialize the bdy data
-    if (init_type == InitType::Real && (lev == 0)) {
+    if (init_type == InitType::WRFInput && use_real_bcs && (lev == 0))
+    {
         if (nc_bdy_file.empty()) {
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
@@ -559,11 +560,11 @@ ERF::init_from_wrfinput (int lev)
                             geom[lev], use_moist);
     } // init_type == Real && lev == 0
 
-    if (init_type == InitType::Real)
+    if (init_type == InitType::WRFInput && use_real_bcs)
     {
         //
         // Start at the earliest time (read_from_wrfbdy)
-        // Note we only have start_bdy_time if at level 0 and init_type == InitType::Real
+        // Note we only have start_bdy_time if at level 0 and init_type == InitType:WRFInput
         //
         if (lev == 0) {
             t_new[lev] = start_bdy_time;

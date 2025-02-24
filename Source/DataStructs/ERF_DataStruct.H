@@ -200,7 +200,7 @@ struct SolverChoice {
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
         }
 
-        if ( (init_type_temp == InitType::WRFInput) || (init_type_temp == InitType::Metgrid) ) { 
+        if ( (init_type_temp == InitType::WRFInput) || (init_type_temp == InitType::Metgrid) ) {
             if (terrain_type != TerrainType::StaticFittedMesh) {
                 amrex::Abort("Only terrain_type = StaticFittedMesh are allowed with init_type = WRFInput or Metgrid");
             }
@@ -210,7 +210,7 @@ struct SolverChoice {
             if (moisture_type == MoistureType::None) {
                 amrex::Abort("Can't have moisture_type = None with init_type = WRFInput");
             }
-  
+
             // NetCDF wrfbdy lateral boundary file
             bool has_bdy = pp.query("nc_bdy_file", nc_bdy_file);
             if (!has_bdy) use_real_bcs = false;
