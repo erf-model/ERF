@@ -159,7 +159,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_rot_most     = (solverChoice.use_rotate_most);
 
     const bool l_anelastic = solverChoice.anelastic[level];
-    const bool l_const_rho = solverChoice.constant_density;
+    const bool l_fixed_rho = solverChoice.fixed_density;
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
@@ -472,7 +472,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
                            ax_arr, ay_arr, az_arr, detJ_arr,
                            dxInv, mf_m, mf_u, mf_v,
-                           flx_arr, l_const_rho);
+                           flx_arr, l_fixed_rho);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         if (solverChoice.terrain_type != TerrainType::EB){
@@ -793,7 +793,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // NOTE: for now we are only refluxing density not (rho theta) since the latter seems to introduce
         //       a problem at top and bottom boundaries
         if (l_reflux && nrk == 2) {
-            int strt_comp_reflux = (l_const_rho) ? 1 : 0;
+            int strt_comp_reflux = (l_fixed_rho) ? 1 : 0;
             int  num_comp_reflux = 1;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,

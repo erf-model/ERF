@@ -875,6 +875,9 @@ ERF::InitData_post ()
     {
         if (solverChoice.project_initial_velocity) {
             Real dummy_dt = 1.0;
+            if (verbose > 0) {
+                amrex::Print() << "Projecting initial velocity field" << std::endl;
+            }
             for (int lev = 0; lev <= finest_level; ++lev)
             {
                 project_velocities(lev, dummy_dt, vars_new[lev], pp_inc[lev]);

@@ -35,6 +35,17 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
     auto dxInv = geom[lev].InvCellSizeArray();
 
+    // If !fixed_density, we must convert (rho u) which came in
+    // to (rho0 u) which is what we will project
+    if (!solverChoice.fixed_density) {
+        ConvertForProjection(mom_mf[Vars::cons], r_hse,
+                             mom_mf[IntVars::xmom],
+                             mom_mf[IntVars::ymom],
+                             mom_mf[IntVars::zmom],
+                             Geom(lev).Domain(),
+                             domain_bcs_type);
+    }
+
     //
     // ****************************************************************************
     // Now convert the rho0w MultiFab to hold Omega rather than rhow
@@ -225,14 +236,14 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             Box bx = mfi.validbox();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 if (std::abs(rhs_arr(i,j,k)) > 1.e-10) {
-                    amrex::Print() << "RHS AT " << IntVect(i,j,k) << " " << rhs_arr(i,j,k) << std::endl;
+                    amrex::AllPrint() << "RHS AFTER SOLVE AT " <<
+                                          IntVect(i,j,k) << " " << rhs_arr(i,j,k) << std::endl;
                 }
             });
          } // mfi
 #endif
 
     } // mg_verbose
-
 
     //
     // ****************************************************************************
@@ -253,6 +264,17 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
                  rho0w_arr(i,j,k) = WFromOmega(i,j,k,omega,rho0u_arr,rho0v_arr,z_nd,dxInv);
              });
         } // mfi
+    }
+
+    // If !fixed_density, we must convert (rho0 u) back
+    // to (rho0 u) which is what we will pass back out
+    if (!solverChoice.fixed_density) {
+        ConvertForProjection(r_hse, mom_mf[Vars::cons],
+                             mom_mf[IntVars::xmom],
+                             mom_mf[IntVars::ymom],
+                             mom_mf[IntVars::zmom],
+                             Geom(lev).Domain(),
+                             domain_bcs_type);
     }
 
     // ****************************************************************************
