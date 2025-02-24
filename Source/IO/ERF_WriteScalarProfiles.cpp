@@ -20,6 +20,7 @@ ERF::sum_integrated_quantities (Real time)
 
     int datwidth = 14;
     int datprecision = 6;
+    int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
 
     // Single level sum
     Real mass_sl;
@@ -138,13 +139,10 @@ ERF::sum_integrated_quantities (Real time)
                 } // time = 0
 
               // Write the quantities at this time
-              data_log1 << std::setw(datwidth) << time;
-              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                        << h_avg_ustar[0];
-              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                        << h_avg_tstar[0];
-              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                        << h_avg_olen[0];
+              data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time;
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_ustar[0];
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_tstar[0];
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_olen[0];
               data_log1 << std::endl;
             } // if good
         } // loop over i
