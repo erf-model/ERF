@@ -71,6 +71,14 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
+ * Convert (den_div u) to (den_mlt u) by multiplying by (den_mlt/den_div)
+ */
+void
+ConvertForProjection (const amrex::MultiFab& den_div, const amrex::MultiFab& den_mlt,
+                      amrex::MultiFab& xmom, amrex::MultiFab& ymom, amrex::MultiFab& zmom,
+                      const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+
+/*
  * Compute boxes for looping over interior/exterior ghost cells
  * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post
  */

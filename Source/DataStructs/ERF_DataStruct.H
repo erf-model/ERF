@@ -267,13 +267,13 @@ struct SolverChoice {
 
         if (any_anelastic == 1) {
             project_initial_velocity = true;
-            buoyancy_type = 3; // (This isn't actually used when anelastic is set)
+            fixed_density            = true; // We default to true but are allowed to override below
+            buoyancy_type            = 3; // (This isn't actually used when anelastic is set)
         } else {
             pp.query("project_initial_velocity", project_initial_velocity);
         }
 
-        constant_density = false;  // We default to false but allow the user to set it
-        pp.query("constant_density", constant_density);
+        pp.query("fixed_density", fixed_density);
 
         // *******************************************************************************
 
@@ -482,6 +482,7 @@ struct SolverChoice {
                 amrex::Print() << "Implicit substepping at level " << lev << std::endl;
             }
         }
+        amrex::Print() << "fixed_density               : " << fixed_density << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
@@ -635,7 +636,7 @@ struct SolverChoice {
     amrex::Vector<SubsteppingType> substepping_type;
     amrex::Vector<int> anelastic;
 
-    bool        constant_density    = false;
+    bool        fixed_density       = false;
     int         ncorr               = 1;
     amrex::Real poisson_abstol      = 1e-10;
     amrex::Real poisson_reltol      = 1e-10;

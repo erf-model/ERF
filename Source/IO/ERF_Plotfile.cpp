@@ -68,8 +68,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            if ( SolverChoice::mesh_type != MeshType::ConstantDz ||
-                (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
+            if ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
+                 (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
+                 (derived_names[i] != "z_phys" && derived_names[i] != "detJ") )
+            {
                 if ( (solverChoice.moisture_type == MoistureType::SAM ||
                       solverChoice.moisture_type == MoistureType::SAM_NoIce) ||
                      (derived_names[i] != "qi" &&
@@ -708,59 +710,70 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         if (containerHasElement(plot_var_names, "pres_hse_x"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
+            if (z_phys_nd[lev]) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real      >&  derdat = mf[lev].array(mfi);
-                const Array4<Real const>&   p_arr = p_hse.const_array(mfi);
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real      >&  derdat = mf[lev].array(mfi);
+                    const Array4<Real const>&   p_arr = p_hse.const_array(mfi);
 
-                //USE_TERRAIN POSSIBLE ISSUE HERE
-                const Array4<Real const>& z_nd  = z_phys_nd[lev]->const_array(mfi);
+                    const Array4<Real const>& z_nd  = z_phys_nd[lev]->const_array(mfi);
 
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    Real met_h_xi_lo   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
-                    Real met_h_zeta_lo = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
-                    Real gp_xi_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
-                    Real gp_zeta_on_iface_lo;
-                    if (k == klo) {
-                      gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
-                                                              p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
-                                                            - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
-                    } else if (k == khi) {
-                      gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
-                                                              p_arr(i-1,j,k  ) + p_arr(i,j,k  )
-                                                            - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
-                    } else {
-                      gp_zeta_on_iface_lo = 0.25 * dxInv[2] * (
-                                                               p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
-                                                             - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
-                    }
-                    Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        Real met_h_xi_lo   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
+                        Real met_h_zeta_lo = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
+                        Real gp_xi_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+                        Real gp_zeta_on_iface_lo;
+                        if (k == klo) {
+                          gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
+                                                                  p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
+                                                                - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
+                        } else if (k == khi) {
+                          gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
+                                                                  p_arr(i-1,j,k  ) + p_arr(i,j,k  )
+                                                                - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                        } else {
+                          gp_zeta_on_iface_lo = 0.25 * dxInv[2] * (
+                                                                   p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
+                                                                 - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                        }
+                        Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
 
-                    Real met_h_xi_hi   = Compute_h_xi_AtIface  (i+1, j, k, dxInv, z_nd);
-                    Real met_h_zeta_hi = Compute_h_zeta_AtIface(i+1, j, k, dxInv, z_nd);
-                    Real gp_xi_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
-                    Real gp_zeta_on_iface_hi;
-                    if (k == klo) {
-                      gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
-                                                              p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
-                                                            - p_arr(i+1,j,k  ) - p_arr(i,j,k  ) );
-                    } else if (k == khi) {
-                      gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
-                                                              p_arr(i+1,j,k  ) + p_arr(i,j,k  )
-                                                            - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
-                    } else {
-                      gp_zeta_on_iface_hi = 0.25 * dxInv[2] * (
-                                                               p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
-                                                             - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
-                    }
-                    Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
+                        Real met_h_xi_hi   = Compute_h_xi_AtIface  (i+1, j, k, dxInv, z_nd);
+                        Real met_h_zeta_hi = Compute_h_zeta_AtIface(i+1, j, k, dxInv, z_nd);
+                        Real gp_xi_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
+                        Real gp_zeta_on_iface_hi;
+                        if (k == klo) {
+                          gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
+                                                                  p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
+                                                                - p_arr(i+1,j,k  ) - p_arr(i,j,k  ) );
+                        } else if (k == khi) {
+                          gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
+                                                                  p_arr(i+1,j,k  ) + p_arr(i,j,k  )
+                                                                - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
+                        } else {
+                          gp_zeta_on_iface_hi = 0.25 * dxInv[2] * (
+                                                                   p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
+                                                                 - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
+                        }
+                        Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
 
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
-                });
+                        derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
+                    });
+                } // mfi
+            } else {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real      >&  derdat = mf[lev].array(mfi);
+                    const Array4<Real const>&   p_arr = p_hse.const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i ,j ,k, mf_comp) = 0.5 * (p_arr(i+1,j,k) - p_arr(i-1,j,k)) * dxInv[0];
+                    });
+                } // mfi
             }
             mf_comp += 1;
         } // pres_hse_x
@@ -768,56 +781,68 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         if (containerHasElement(plot_var_names, "pres_hse_y"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
+            if (z_phys_nd[lev]) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real      >& derdat = mf[lev].array(mfi);
-                const Array4<Real const>&   p_arr = p_hse.const_array(mfi);
-                const Array4<Real const>& z_nd    = z_phys_nd[lev]->const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    Real met_h_eta_lo  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
-                    Real met_h_zeta_lo = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
-                    Real gp_eta_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
-                    Real gp_zeta_on_jface_lo;
-                    if (k == klo) {
-                      gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
-                                                              p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
-                                                            - p_arr(i,j,k  ) - p_arr(i,j-1,k  ) );
-                    } else if (k == khi) {
-                      gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
-                                                              p_arr(i,j,k  ) + p_arr(i,j-1,k  )
-                                                            - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
-                    } else {
-                      gp_zeta_on_jface_lo = 0.25 * dxInv[2] * (
-                                                               p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
-                                                             - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
-                    }
-                    Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real      >& derdat = mf[lev].array(mfi);
+                    const Array4<Real const>&   p_arr = p_hse.const_array(mfi);
+                    const Array4<Real const>& z_nd    = z_phys_nd[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        Real met_h_eta_lo  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
+                        Real met_h_zeta_lo = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
+                        Real gp_eta_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                        Real gp_zeta_on_jface_lo;
+                        if (k == klo) {
+                          gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
+                                                                  p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
+                                                                - p_arr(i,j,k  ) - p_arr(i,j-1,k  ) );
+                        } else if (k == khi) {
+                          gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
+                                                                  p_arr(i,j,k  ) + p_arr(i,j-1,k  )
+                                                                - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
+                        } else {
+                          gp_zeta_on_jface_lo = 0.25 * dxInv[2] * (
+                                                                   p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
+                                                                 - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
+                        }
+                        Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
 
-                    Real met_h_eta_hi  = Compute_h_eta_AtJface (i, j+1, k, dxInv, z_nd);
-                    Real met_h_zeta_hi = Compute_h_zeta_AtJface(i, j+1, k, dxInv, z_nd);
-                    Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
-                    Real gp_zeta_on_jface_hi;
-                    if (k == klo) {
-                      gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
-                                                              p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
-                                                            - p_arr(i,j+1,k  ) - p_arr(i,j,k  ) );
-                    } else if (k == khi) {
-                      gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
-                                                              p_arr(i,j+1,k  ) + p_arr(i,j,k  )
-                                                            - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
-                    } else {
-                      gp_zeta_on_jface_hi = 0.25 * dxInv[2] * (
-                                                               p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
-                                                             - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
-                    }
-                    Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
+                        Real met_h_eta_hi  = Compute_h_eta_AtJface (i, j+1, k, dxInv, z_nd);
+                        Real met_h_zeta_hi = Compute_h_zeta_AtJface(i, j+1, k, dxInv, z_nd);
+                        Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
+                        Real gp_zeta_on_jface_hi;
+                        if (k == klo) {
+                          gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
+                                                                  p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
+                                                                - p_arr(i,j+1,k  ) - p_arr(i,j,k  ) );
+                        } else if (k == khi) {
+                          gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
+                                                                  p_arr(i,j+1,k  ) + p_arr(i,j,k  )
+                                                                - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
+                        } else {
+                          gp_zeta_on_jface_hi = 0.25 * dxInv[2] * (
+                                                                   p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
+                                                                 - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
+                        }
+                        Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
 
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
-                });
+                        derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
+                    });
+                } // mfi
+            } else {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real      >&  derdat = mf[lev].array(mfi);
+                    const Array4<Real const>&   p_arr = p_hse.const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i ,j ,k, mf_comp) = 0.5 * (p_arr(i,j+1,k) - p_arr(i,j-1,k)) * dxInv[1];
+                    });
+                } // mfi
             }
             mf_comp += 1;
         } // pres_hse_y
