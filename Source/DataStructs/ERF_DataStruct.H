@@ -186,16 +186,39 @@ struct SolverChoice {
         // Read the init_type here to make sure we correctly set the mesh and terrain types
         //
         InitType init_type_temp = InitType::None;
-        pp.query_enum_case_insensitive("init_type",init_type_temp);
+        pp.query("init_type",init_type_temp);
+        if (init_type_temp == "Real") {
+            amrex::Warning("erf.init_type = Real is deprecated; please replace Real by WRFInput");
+            init_type = InitType::WRFInput;
+            use_real_bcs = true;
+        } else if (init_type_temp == "Ideal") {
+            amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
+            init_type = InitType::WRFInput;
+            use_real_bcs = false;
+        } else {
+            pp.query_enum_case_insensitive("init_type",init_type_temp);
+            use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
+        }
 
-        if (init_type_temp == InitType::Real) {
-            if ( (terrain_type != TerrainType::StaticFittedMesh) &&
-                 (terrain_type != TerrainType::None) ) {
-                amrex::Abort("Only terrain_type = None or StaticFittedMesh are allowed with init_type = real");
+        if ( (init_type_temp == InitType::WRFInput) || (init_type_temp == InitType::Metgrid) ) { 
+            if (terrain_type != TerrainType::StaticFittedMesh) {
+                amrex::Abort("Only terrain_type = StaticFittedMesh are allowed with init_type = WRFInput or Metgrid");
             }
+        }
 
+        if (init_type_temp == InitType::WRFInput) {
             if (moisture_type == MoistureType::None) {
-                amrex::Abort("Can't have moisture_type = None with init_type = real");
+                amrex::Abort("Can't have moisture_type = None with init_type = WRFInput");
+            }
+  
+            // NetCDF wrfbdy lateral boundary file
+            bool has_bdy = pp.query("nc_bdy_file", nc_bdy_file);
+            if (!has_bdy) use_real_bcs = false;
+
+            bool use_real_bcs_temp = use_real_bcs;
+            pp.query("use_real_bcs", use_real_bcs_temp);
+            if (use_real_bcs && !use_real_bcs_temp) {
+                use_real_bcs = false;
             }
         }
 

@@ -556,7 +556,8 @@ ERF::ReadCheckpointFile ()
 
 #ifdef ERF_USE_NETCDF
     // Read bdy_data files
-    if ((init_type==InitType::Real) || (init_type==InitType::Metgrid)) {
+    if ( (init_type==InitType::WRFInput || (init_type==InitType::Metgrid) )
+    {
         int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
         int num_time;
         int num_var;
@@ -648,7 +649,7 @@ ERF::ReadCheckpointFile ()
                 ParallelDescriptor::Bcast(bdy_data_yhi[itime][ivar].dataPtr(),bdy_data_yhi[itime][ivar].box().numPts(),ioproc);
             }
         }
-    } // init real
+    } // init_type == WRFInput or Metgrid
 #endif
 }
 

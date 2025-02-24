@@ -1504,15 +1504,6 @@ ERF::ReadParameters ()
 
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
-        // How to initialize
-        init_type = InitType::None;
-        pp.query_enum_case_insensitive("init_type",init_type);
-
-        // Should we use the bcs we've read in from wrfbdy or metgrid files?
-        // We default to yes if we have them, but the user can override that option
-        use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
-        pp.query("use_real_bcs",use_real_bcs);
-
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
 
