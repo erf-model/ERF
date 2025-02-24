@@ -1060,8 +1060,8 @@ private:
     // sponge_type:  "input_sponge"
     static std::string sponge_type;
 
-    // use_real_bcs: only true if 1) ( (init_type == InitType::Real) or (init_type == InitType::Metgrid) )
-    //                        AND 2) we want to use the bc's from the WRF bdy file
+    // use_real_bcs: only true if 1) ( (init_type == InitType::WRFInput) or (init_type == InitType::Metgrid) )
+    //                        AND 2) we want to use the bc's from the WRF bdy file or Metgrid file
     static bool use_real_bcs;
 
     // NetCDF initialization (wrfinput) file
