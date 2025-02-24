@@ -1716,7 +1716,7 @@ ERF::ReadParameters ()
     }
 
     if (verbose > 0) {
-        solverChoice.display(max_level);
+        solverChoice.display(max_level,pp_prefix);
     }
 
     ParameterSanityChecks();
