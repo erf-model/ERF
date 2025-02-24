@@ -468,7 +468,7 @@ struct SolverChoice {
         }
     }
 
-    void display(int max_level)
+    void display(int max_level, std::string pp_prefix)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
@@ -546,7 +546,7 @@ struct SolverChoice {
 
         amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;
 
-           advChoice.display();
+           advChoice.display(pp_prefix);
           diffChoice.display();
         spongeChoice.display();
 
