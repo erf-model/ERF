@@ -236,7 +236,7 @@ ERF::WriteCheckpointFile () const
 
 #ifdef ERF_USE_NETCDF
    // Write bdy_data files
-   if (ParallelDescriptor::IOProcessor() && ((init_type==InitType::Real) || (init_type==InitType::Metgrid))) {
+   if (ParallelDescriptor::IOProcessor() && ((init_type==InitType::WRFInput) || (init_type==InitType::Metgrid))) {
 
      // Vector dimensions
      int num_time = bdy_data_xlo.size();
