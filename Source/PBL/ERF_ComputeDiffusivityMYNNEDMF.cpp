@@ -14,6 +14,7 @@
 
 using namespace amrex;
 
+#if 0
 extern "C" void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
                                    /*in*/ const Real* dz,
                                    /*in*/ const Real* rho,
@@ -295,7 +296,7 @@ void tridiag_cc(int n, const Real* a, const Real* b, Real* c, Real* d) {
         d[i] = d[i] + q[i] * d[i + 1];
     }
 }
-
+#endif
 void tridiag2_cc(int n, const Real* a, const Real* b, const Real* c, const Real* d, Real* x) {
     Real cp[n+1];
     Real dp[n+1];
@@ -321,7 +322,7 @@ void tridiag2_cc(int n, const Real* a, const Real* b, const Real* c, const Real*
     }
 
 }
-
+#if 0
 // function to perform tridiagonal matrix algorithm
 void tridiag3_cc(int kte, Real* a, Real* b, Real* c, Real* d, Real* x) {
     // inversion and resolution of a tridiagonal matrix a x = d
@@ -4170,7 +4171,7 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
     cov[kte] = cov[kte - 1];
 }
 
-
+#endif
 
 void
 ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
