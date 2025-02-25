@@ -482,7 +482,9 @@ ERF::init_from_wrfinput (int lev)
 
     Real terrain_bottom_min, terrain_bottom_max;
     Real terrain_top_min, terrain_top_max;
-    compute_terrain_top_and_bottom(terrain_bottom_min, terrain_bottom_max, terrain_top_min, terrain_top_max, mf_PH, mf_PHB, domain);
+    compute_terrain_top_and_bottom(terrain_bottom_min, terrain_bottom_max,
+                                   terrain_top_min, terrain_top_max,
+                                   mf_PH, mf_PHB, domain);
 
     // **************************************************************************
     // Initialize the terrain itself and the metric quantities
@@ -688,21 +690,22 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
     //
     // For the bottom/top boundary (in that order)
     //
-    Gpu::HostVector  <Real> Max_h(2,-1.0e16);
-    Gpu::DeviceVector<Real> Max_d(2);
+    Gpu::HostVector  <Real> Max_h(3,-1.0e16);
+    Gpu::DeviceVector<Real> Max_d(3);
     Gpu::copy(Gpu::hostToDevice, Max_h.begin(), Max_h.end(), Max_d.begin());
 
-    Gpu::HostVector  <Real> Min_h(2, 1.0e16);
-    Gpu::DeviceVector<Real> Min_d(2);
+    Gpu::HostVector  <Real> Min_h(1, 1.0e16);
+    Gpu::DeviceVector<Real> Min_d(1);
     Gpu::copy(Gpu::hostToDevice, Min_h.begin(), Min_h.end(), Min_d.begin());
 
-    Real* min_dlo = Min_d.data();
-    Real* max_dlo = Max_d.data();
+    Real* min_d = Min_d.data();
+    Real* max_d = Max_d.data();
 
     //
     // ********************************************************************************
     //
 
+    // Index type of (0,0,1)
     int klo = domain.smallEnd()[2];
     int khi = domain.bigEnd()[2]+1;
 
@@ -720,64 +723,78 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
         int jhi = nodal_box.bigEnd()[1];
 
         // For the top boundary
-        Box Fab2dBox_hi (vbx); Fab2dBox_hi.makeSlab(2,Fab2dBox_hi.bigEnd(2));
-        Box Fab2dBox_hm1(vbx); Fab2dBox_hm1.makeSlab(2,Fab2dBox_hm1.bigEnd(2)-1);
+        Box Fab2dBox_hi, Fab2dBox_hi_m1;
+        if (vbx.bigEnd(2) == khi) {
+            Fab2dBox_hi    = makeSlab(vbx,2,khi  );
+            Fab2dBox_hi_m1 = makeSlab(vbx,2,khi-1);
+        }
 
         // For the bottom boundary
-        Box Fab2dBox_lo (vbx); Fab2dBox_lo.makeSlab(2,Fab2dBox_lo.smallEnd(2));
+        Box Fab2dBox_lo;
+        if (vbx.smallEnd(2) == klo) {
+            Fab2dBox_lo = makeSlab(vbx,2,klo);
+        }
 
         auto const& phb = mf_PHB.const_array(mfi);
         auto const& ph  = mf_PH.const_array(mfi);
 
         //
-        // This loop compute the min and max values of the bottom surface
+        // This loop computes the min and max values of the bottom surface
         //
-        if (klo >= vbx.smallEnd()[2]) {
-            ParallelFor(makeSlab(vbx,2,klo),
-            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                int ii = std::max(std::min(i,ihi-1),ilo+1);
-                int jj = std::max(std::min(j,jhi-1),jlo+1);
-                Real z_calc_lo = 0.25 * ( ph (ii,jj  ,klo) + ph (ii-1,jj  ,klo) +
-                                          ph (ii,jj-1,klo) + ph (ii-1,jj-1,klo) +
-                                          phb(ii,jj  ,klo) + phb(ii-1,jj  ,klo) +
-                                          phb(ii,jj-1,klo) + phb(ii-1,jj-1,klo) ) / CONST_GRAV;
-                amrex::Gpu::Atomic::Min(&(min_dlo[0]),z_calc_lo);
-                amrex::Gpu::Atomic::Max(&(max_dlo[0]),z_calc_lo);
-            });
-        }
+        ParallelFor(Fab2dBox_lo, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int ii = std::max(std::min(i,ihi-1),ilo+1);
+            int jj = std::max(std::min(j,jhi-1),jlo+1);
+            Real z_calc_lo = 0.25 * ( ph (ii,jj  ,klo) + ph (ii-1,jj  ,klo) +
+                                      ph (ii,jj-1,klo) + ph (ii-1,jj-1,klo) +
+                                      phb(ii,jj  ,klo) + phb(ii-1,jj  ,klo) +
+                                      phb(ii,jj-1,klo) + phb(ii-1,jj-1,klo) ) / CONST_GRAV;
+            amrex::Gpu::Atomic::Min(&(min_d[0]),z_calc_lo);
+            amrex::Gpu::Atomic::Max(&(max_d[0]),z_calc_lo);
+        });
 
         //
-        // This loop compute the min and max values of the top surface
+        // This loop computes the max value of the top surface
         //
-        if (khi <= vbx.bigEnd()[2]) {
-            ParallelFor(makeSlab(vbx,2,khi),
-            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                int ii = std::max(std::min(i,ihi-1),ilo+1);
-                int jj = std::max(std::min(j,jhi-1),jlo+1);
-                Real z_calc_hi = 0.25 * ( ph (ii,jj  ,khi) + ph (ii-1,jj  ,khi) +
-                                          ph (ii,jj-1,khi) + ph (ii-1,jj-1,khi) +
-                                          phb(ii,jj  ,khi) + phb(ii-1,jj  ,khi) +
-                                          phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV;
-                amrex::Gpu::Atomic::Min(&(min_dlo[1]),z_calc_hi);
-                amrex::Gpu::Atomic::Max(&(max_dlo[1]),z_calc_hi);
-            });
-        }
+        ParallelFor(Fab2dBox_hi, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int ii = std::max(std::min(i,ihi-1),ilo+1);
+            int jj = std::max(std::min(j,jhi-1),jlo+1);
+            Real z_calc_hi = 0.25 * ( ph (ii,jj  ,khi) + ph (ii-1,jj  ,khi) +
+                                      ph (ii,jj-1,khi) + ph (ii-1,jj-1,khi) +
+                                      phb(ii,jj  ,khi) + phb(ii-1,jj  ,khi) +
+                                      phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV;
+            amrex::Gpu::Atomic::Max(&(max_d[1]),z_calc_hi);
+        });
+
+        //
+        // This loop computes the max value of the layer just below the top surface
+        //
+        ParallelFor(Fab2dBox_hi_m1, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int ii = std::max(std::min(i,ihi-1),ilo+1);
+            int jj = std::max(std::min(j,jhi-1),jlo+1);
+            Real z_calc_hi = 0.25 * ( ph (ii,jj  ,khi-1) + ph (ii-1,jj  ,khi-1) +
+                                      ph (ii,jj-1,khi-1) + ph (ii-1,jj-1,khi-1) +
+                                      phb(ii,jj  ,khi-1) + phb(ii-1,jj  ,khi-1) +
+                                      phb(ii,jj-1,khi-1) + phb(ii-1,jj-1,khi-1) ) / CONST_GRAV;
+            amrex::Gpu::Atomic::Max(&(max_d[2]),z_calc_hi);
+        });
     } // mfi
 
     Gpu::copy(Gpu::deviceToHost, Min_d.begin(), Min_d.end(), Min_h.begin());
     Gpu::copy(Gpu::deviceToHost, Max_d.begin(), Max_d.end(), Max_h.begin());
 
+    ParallelDescriptor::ReduceRealMin(Min_h[0]);
+
     ParallelDescriptor::ReduceRealMax(Max_h[0]);
-    ParallelDescriptor::ReduceRealMax(Min_h[0]);
     ParallelDescriptor::ReduceRealMax(Max_h[1]);
-    ParallelDescriptor::ReduceRealMax(Min_h[1]);
+    ParallelDescriptor::ReduceRealMax(Max_h[2]);
 
     terrain_bottom_max = Max_h[0];
     terrain_bottom_min = Min_h[0];
     terrain_top_max    = Max_h[1];
-    terrain_top_min    = Min_h[1];
+    terrain_top_min    = Max_h[2];
 
     Print() << "Terrain     has min value = " << terrain_bottom_min << " and max value = " << terrain_bottom_max << std::endl;
     Print() << "Top of mesh has min value = " << terrain_top_min    << " and max value = " << terrain_top_max << std::endl;

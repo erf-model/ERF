@@ -119,7 +119,7 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
     if (ParallelDescriptor::IOProcessor())
     {
-        Vector<int> success(1);
+        Vector<int> success(nc_var_names.size());
         ReadNetCDFFile(nc_bdy_file, nc_var_names, arrays, success);
 
         // Assert that the data has the same number of time snapshots
