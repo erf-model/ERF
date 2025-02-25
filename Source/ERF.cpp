@@ -1324,7 +1324,7 @@ ERF::init_only (int lev, Real time)
     auto& lev_old = vars_old[lev];
 
 #ifndef ERF_USE_NETCDF
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((init_type != InitType::WRFInput && init_type != InitType::Metgrid),
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid),
                                      "init_type cannot be 'WRFInput' or 'MetGrid' if we don't build with netcdf!");
 #endif
 
