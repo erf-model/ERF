@@ -480,7 +480,7 @@ void boulac_length_cc(int kts, int kte,
 //>\ingroup gsd_mynn_edmf
 // this subroutine calculates the level 2, non-dimensional wind shear
 // \f$g_m\f$ and vertical temperature gradient \f$g_h\f$ as well as
-// the level 2 stability funcitons \f$s_h\f$ and \f$s_m\f$.
+// the level 2 stability functions \f$s_h\f$ and \f$s_m\f$.
 //\param kts    horizontal dimension
 //\param kte    vertical dimension
 //\param dz     vertical grid spacings (\f$m\f$)
@@ -595,7 +595,7 @@ void mym_level2_cc(
 //                         at first, used for computing elt
 //
 //     note: the mixing lengths are meant to be calculated at the full-
-//           sigmal levels (or interfaces beween the model layers).
+//           sigmal levels (or interfaces between the model layers).
 //
 //>\ingroup gsd_mynn_edmf
 // this subroutine calculates the mixing lengths.
@@ -874,7 +874,7 @@ void mym_length_cc(
                      * Cheinet and Teixeira (2003), Eq. 7.  The
                      * coefficient 0.5 is tuneable. Expression in
                      * denominator is identical to vsc (a convective
-                     * velocity scale), except that elt is relpaced
+                     * velocity scale), except that elt is replaced
                      * by zi, and zero is replaced by 1.0e-4 to
                      * prevent division by zero.
                      */
@@ -2306,9 +2306,9 @@ void mym_condensation_cc(
 
 //===============================================================
 // ===================================================================
-// this is the downdraft mass flux scheme - analogus to edmf_jpl but
+// this is the downdraft mass flux scheme - analogous to edmf_jpl but
 // flipped updraft to downdraft. this scheme is currently only tested
-// for stratocumulus cloud conditions. for a detailed desctiption of the
+// for stratocumulus cloud conditions. for a detailed description of the
 // model, see paper.
 void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, const Real* p,
               const Real* u, const Real* v, const Real* th, const Real* thl, const Real* thv,
@@ -2557,7 +2557,7 @@ void topdown_cloudrad_cc(int& kts, int& kte, const Real* dz1, const Real* zw, Re
     const Real grav = 9.81, cp = 1004.0, xlv = 2.5e6, xlvcp = xlv / cp, r_d = 287.0, ep_2 = 0.622, p608 = 0.608, karman = 0.4;
     const Real twothirds = 2.0_rt / 3.0, onethird = 1.0_rt / 3.0;
   */
-  //Main meaningfull difference is cp=1004.5 vs cp=1004
+  //Main meaningful difference is cp=1004.5 vs cp=1004
     const Real pfac = 2.0, zfmin = 0.0099999997764826, phifac = 8.0;
     const Real grav = 9.8100004196166992, cp = 1004.5, xlv = 2.5e6, xlvcp = 2488.8002929687500000, r_d = 287.0, ep_2 = 0.6217504143714905, p608 = 0.6083624362945557, karman = 0.4000000059604645;
     const Real twothirds = 0.6666666865348816, onethird = 0.3333333432674408;
@@ -2658,7 +2658,7 @@ void scale_aware_cc(Real& dx, Real& pbl1, Real& psig_bl, Real& psig_shcu) {
 
 // ==================================================================
 //>\ingroup gsd_mynn_edmf
-// this subroutine calculates hybrid diagnotic boundary-layer height (pblh).
+// this subroutine calculates hybrid diagnostic boundary-layer height (pblh).
 //
 // notes on the pblh formulation: the 1.5-theta-increase method defines
 //pbl heights as the level at.
@@ -2770,7 +2770,7 @@ void retrieve_exchange_coeffs_cc(int& kts, int& kte, Real* dfm, Real* dfh, const
 //                         at first, used for computing elt
 //
 //     note: the mixing lengths are meant to be calculated at the full-
-//           sigmal levels (or interfaces beween the model layers).
+//           sigmal levels (or interfaces between the model layers).
 //
 //>\ingroup gsd_mynn_edmf
 // this subroutine calculates the mixing lengths.
@@ -2992,7 +2992,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
 // dmp_mf() calculates the nonlocal turbulent transport from the dynamic
 // multiplume mass-flux scheme as well as the shallow-cumulus component of
 // the subgrid clouds. note that this mass-flux scheme is called when the
-// namelist paramter \p bl_mynn_edmf is set to 1 (recommended).
+// namelist parameter \p bl_mynn_edmf is set to 1 (recommended).
 //
 // much thanks to kay suslj of nasa-jpl for contributing the original version
 // of this mass-flux scheme. considerable changes have been made from it's
@@ -3950,7 +3950,7 @@ void mym_turbulence_cc(
             gamv = 0.0;
         }
 
-        // Add min background stability funciton (diffusivity) within model levels
+        // Add min background stability function (diffusivity) within model levels
         // with active plumes and clouds
         cldavg = 0.5_rt * (cldfra_bl1D[k - 1] + cldfra_bl1D[k]);
         if (edmf_a1[k] > 0.001 || cldavg > 0.02) {
