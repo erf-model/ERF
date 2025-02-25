@@ -77,13 +77,6 @@ class MultiBlockContainer;
 #endif
 
 /**
- * Enum of possible initialization types
-*/
-AMREX_ENUM(InitType,
-    None, Input_Sounding, Ideal, Real, Metgrid, Uniform
-);
-
-/**
  * Enum of possible interpolation types between coarse/fine
 */
 AMREX_ENUM(StateInterpType,
@@ -941,6 +934,10 @@ private:
     // (after a level advances that many time steps)
     int regrid_int = -1;
 
+    // Should we regrid level 0 after restart if Ngrids < Nprocs or
+    //    max_grid_size has changed?
+    bool regrid_level_0_on_restart = false;
+
     // plotfile prefix and frequency
     std::string plot_file_1 {"plt_1_"};
     std::string plot_file_2 {"plt_2_"};
@@ -993,7 +990,7 @@ private:
                                                     // dissipation
                                                     "diss",
                                                     // moisture vars
-                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
+                                                    "moist_density", "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
@@ -1057,15 +1054,10 @@ private:
     static PlotFileType plotfile_type_1;
     static PlotFileType plotfile_type_2;
 
-    static InitType init_type;
     static StateInterpType interpolation_type;
 
     // sponge_type:  "input_sponge"
     static std::string sponge_type;
-
-    // use_real_bcs: only true if 1) ( (init_type == InitType::Real) or (init_type == InitType::Metgrid) )
-    //                        AND 2) we want to use the bc's from the WRF bdy file
-    static bool use_real_bcs;
 
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;

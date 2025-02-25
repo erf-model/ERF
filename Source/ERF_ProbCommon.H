@@ -44,7 +44,7 @@ public:
     {
         amrex::Print() << "Hydrostatically balanced density was NOT set"
             << " -- an appropriate init_type should probably have been specified"
-            << " (e.g., input_sounding, ideal, real, or metgrid)"
+            << " (e.g., input_sounding, WRFInput, or Metgrid)"
             << std::endl;
         amrex::Error("Should never call erf_init_dens_hse for "+name()+" problem");
     }

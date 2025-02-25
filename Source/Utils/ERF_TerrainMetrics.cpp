@@ -563,7 +563,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                     int ii = amrex::max(amrex::min(i,imax),imin);
                     int jj = amrex::max(amrex::min(j,jmax),jmin);
 
-                    // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
+                    // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "WRFInput")
                     if (k == k0+1) {
                         z_arr(i,j,k) = z + z_arr(ii,jj,k0);
                     } else {

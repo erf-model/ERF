@@ -21,7 +21,7 @@ USE_SYCL = FALSE
 # Debugging
 DEBUG = FALSE
 
-TEST = TRUE
+TEST = FALSE
 USE_ASSERTION = TRUE
 
 USE_NETCDF  = TRUE
@@ -31,5 +31,5 @@ Bpack := ./Make.package
 Blocs := .
 
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DryRegTests/WPS_Test
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DevTests/Tornado
 include $(ERF_HOME)/Exec/Make.ERF
