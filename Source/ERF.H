@@ -1054,15 +1054,10 @@ private:
     static PlotFileType plotfile_type_1;
     static PlotFileType plotfile_type_2;
 
-    static InitType init_type;
     static StateInterpType interpolation_type;
 
     // sponge_type:  "input_sponge"
     static std::string sponge_type;
-
-    // use_real_bcs: only true if 1) ( (init_type == InitType::Real) or (init_type == InitType::Metgrid) )
-    //                        AND 2) we want to use the bc's from the WRF bdy file
-    static bool use_real_bcs;
 
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;

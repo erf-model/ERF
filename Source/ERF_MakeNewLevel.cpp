@@ -112,24 +112,24 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     // ********************************************************************************************
     // Initialize the data itself
-    // If (init_type == InitType::Real) then we are initializing terrain and the initial data in
-    //                                  the same call so we must call init_only before update_terrain_arrays
-    // If (init_type != InitType::Real) then we want to initialize the terrain before the initial data
-    //                                  since we may need to use the grid information before constructing
-    //                                  initial idealized data
+    // If (init_type == InitType::WRFInput) then we are initializing terrain and the initial data in
+    //                                      the same call so we must call init_only before update_terrain_arrays
+    // If (init_type != InitType::WRFInput) then we want to initialize the terrain before the initial data
+    //                                      since we may need to use the grid information before constructing
+    //                                      initial idealized data
     // ********************************************************************************************
     if (restart_chkfile.empty()) {
-        if ((init_type == InitType::Real) || (init_type == InitType::Metgrid)) {
+        if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
+        {
+            AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
             init_only(lev, start_time);
-            if (solverChoice.terrain_type == TerrainType::StaticFittedMesh) {
-                init_zphys(lev, time);
-                update_terrain_arrays(lev);
-            }
+            init_zphys(lev, time);
+            update_terrain_arrays(lev);
             make_physbcs(lev);
         } else {
             init_zphys(lev, time);
             update_terrain_arrays(lev);
-            // Note that for init_type != InitType::Real or InitType::Metgrid,
+            // Note that for init_type != InitType::WRFInput and != InitType::Metgrid,
             // make_physbcs is called inside init_only
             init_only(lev, start_time);
         }

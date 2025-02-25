@@ -2,6 +2,7 @@
 
 #include "ERF_NCInterface.H"
 #include <AMReX.H>
+#include <AMReX_Print.H>
 
 #define abort_func amrex::Abort
 
@@ -540,10 +541,26 @@ bool NCGroup::has_dim (const std::string& name) const
     return (ierr == NC_NOERR);
 }
 
+int NCGroup::get_id (const std::string& name) const
+{
+    int ierr1, temp_id;
+    ierr1 = nc_inq_varid (ncid, name.data(), &temp_id);
+    return temp_id;
+}
+
 bool NCGroup::has_var (const std::string& name) const
 {
-    int ierr = nc_inq_varid(ncid, name.data(), nullptr);
-    return (ierr == NC_NOERR);
+    int  rh_id;
+    int  ierr1, ierr2;
+    nc_type rh_type;
+    int rh_ndims;
+    int rh_dimids[NC_MAX_VAR_DIMS];
+    int rh_natts;
+
+    rh_id = get_id(name);
+    ierr2 = nc_inq_var   (ncid, rh_id, 0, &rh_type, &rh_ndims, rh_dimids, &rh_natts);
+
+    return (ierr2 == NC_NOERR);
 }
 
 bool NCGroup::has_attr (const std::string& name) const

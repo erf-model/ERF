@@ -155,7 +155,7 @@ getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
 
 template<typename DType>
 void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
-                     amrex::Vector<NDArray<DType> >& arrays)
+                     amrex::Vector<NDArray<DType> >& arrays, amrex::Vector<int>& success)
 {
     AMREX_ASSERT(arrays.size() == names.size());
 
@@ -177,10 +177,12 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
         */
 
         // amrex::Print() << "Reading the dimensions from the netcdf file " << "\n";
-        for (auto n=0; n<arrays.size(); ++n) {
-            // read the data from NetCDF file
+
+        for (auto n=0; n<arrays.size(); ++n)
+        {
             std::string vname_to_write = names[n];
             std::string vname_to_read  = names[n];
+
             if (vname_to_read.substr(0,2) == "R_") {
                 vname_to_read  = names[n+4]; // This allows us to read "T" instead -- we will over-write this later
             }
@@ -190,21 +192,28 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
                               << " while filling the array for " << vname_to_write << std::endl;
             */
 
-            std::vector<size_t> shape = ncf.var(vname_to_read).shape();
-            arrays[n]                 = NDArray<DType>(vname_to_read,shape);
-            DType* dataPtr            = arrays[n].get_data();
+            success[n] = ncf.has_var(vname_to_read);
+            // amrex::Print() << " HAS VAR " << vname_to_read << " " << success[n] << std::endl;
 
-            std::vector<size_t> start(shape.size(), 0);
+            if (success[n] == 1) {
 
-            // auto numPts               = arrays[n].ndim();
-            // amrex::Print() << "NetCDF Variable name = " << vname_to_read << std::endl;
-            // amrex::Print() << "numPts read from NetCDF file/var = " << numPts << std::endl;
-            // amrex::Print()  << "Dims of the variable = (";
-            // for (auto &dim:shape)
-            //     amrex::Print() << dim << ", " ;
-            // amrex::Print()  << ")" << std::endl;
+                std::vector<size_t> shape = ncf.var(vname_to_read).shape();
+                arrays[n]                 = NDArray<DType>(vname_to_read,shape);
+                DType* dataPtr            = arrays[n].get_data();
 
-            ncf.var(vname_to_read).get(dataPtr, start, shape);
+                std::vector<size_t> start(shape.size(), 0);
+
+                // auto numPts               = arrays[n].ndim();
+                // amrex::Print() << "NetCDF Variable name = " << vname_to_read << std::endl;
+                // amrex::Print() << "numPts read from NetCDF file/var = " << numPts << std::endl;
+                // amrex::Print()  << "Dims of the variable = (";
+                // for (auto &dim:shape)
+                //     amrex::Print() << dim << ", " ;
+                // amrex::Print()  << ")" << std::endl;
+
+                ncf.var(vname_to_read).get(dataPtr, start, shape);
+
+            } // has_var
         }
         ncf.close();
     }
@@ -300,7 +309,8 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
                          const std::string &fname,
                          amrex::Vector<std::string> nc_var_names,
                          amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types,
-                         amrex::Vector<FAB*> fab_vars)
+                         amrex::Vector<FAB*> fab_vars,
+                         amrex::Vector<int>& success)
 {
     int ioproc = amrex::ParallelDescriptor::IOProcessorNumber();  // I/O rank
 
@@ -308,47 +318,50 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
-        ReadNetCDFFile(fname, nc_var_names, nc_arrays);
+        ReadNetCDFFile(fname, nc_var_names, nc_arrays, success);
     }
+
+    amrex::ParallelDescriptor::Bcast(success.dataPtr(), success.size(), ioproc);
 
     for (int iv = 0; iv < nc_var_names.size(); iv++)
     {
-        FAB tmp;
-        if (amrex::ParallelDescriptor::IOProcessor()) {
-            fill_fab_from_arrays<FAB,DType>(iv, nc_arrays, nc_var_names[iv], NC_dim_types[iv], tmp);
-        }
+        if (success[iv] == 1) {
+            FAB tmp;
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                fill_fab_from_arrays<FAB,DType>(iv, nc_arrays, nc_var_names[iv], NC_dim_types[iv], tmp);
+            }
 
-        int ncomp = tmp.nComp();
-        amrex::Box box = tmp.box();
+            int ncomp = tmp.nComp();
+            amrex::Box box = tmp.box();
 
-        amrex::ParallelDescriptor::Bcast(&box,   1, ioproc);
-        amrex::ParallelDescriptor::Bcast(&ncomp, 1, ioproc);
+            amrex::ParallelDescriptor::Bcast(&box,   1, ioproc);
+            amrex::ParallelDescriptor::Bcast(&ncomp, 1, ioproc);
 
-        if (!amrex::ParallelDescriptor::IOProcessor()) {
+            if (!amrex::ParallelDescriptor::IOProcessor()) {
 #ifdef AMREX_USE_GPU
-            tmp.resize(box,ncomp,amrex::The_Pinned_Arena());
+                tmp.resize(box,ncomp,amrex::The_Pinned_Arena());
 #else
-            tmp.resize(box,ncomp);
+                tmp.resize(box,ncomp);
 #endif
-        }
+            }
 
-        amrex::ParallelDescriptor::Bcast(tmp.dataPtr(), tmp.size(), ioproc);
+            amrex::ParallelDescriptor::Bcast(tmp.dataPtr(), tmp.size(), ioproc);
 
-        // Shift box by the domain lower corner
-        amrex::Box  fab_bx = tmp.box();
-        amrex::Dim3 dom_lb = lbound(domain);
-        fab_bx += amrex::IntVect(dom_lb.x,dom_lb.y,dom_lb.z);
-        // fab_vars points to data on device
-        fab_vars[iv]->resize(fab_bx,1);
+            // Shift box by the domain lower corner
+            amrex::Box  fab_bx = tmp.box();
+            amrex::Dim3 dom_lb = lbound(domain);
+            fab_bx += amrex::IntVect(dom_lb.x,dom_lb.y,dom_lb.z);
+            // fab_vars points to data on device
+            fab_vars[iv]->resize(fab_bx,1);
 #ifdef AMREX_USE_GPU
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         tmp.dataPtr(), tmp.dataPtr() + tmp.size(),
-                         fab_vars[iv]->dataPtr());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             tmp.dataPtr(), tmp.dataPtr() + tmp.size(),
+                             fab_vars->dataPtr());
 #else
-        // Provided by BaseFab inheritance through FArrayBox
-        fab_vars[iv]->copy(tmp,tmp.box(),0,fab_bx,0,1);
+            // Provided by BaseFab inheritance through FArrayBox
+            fab_vars[iv]->copy(tmp,tmp.box(),0,fab_bx,0,1);
 #endif
-    }
+        } // success
+    } // iv
 }
-
 #endif

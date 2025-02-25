@@ -11,7 +11,8 @@ read_from_wrfinput (int lev,
                     const std::string& fname,
                     FArrayBox& NC_fab,
                     const std::string& NC_name,
-                    Geometry& geom)
+                    Geometry& geom,
+                    int& success)
 {
     if (ParallelDescriptor::IOProcessor()) {
         int  NC_nx, NC_ny;
@@ -59,6 +60,7 @@ read_from_wrfinput (int lev,
     Vector<FArrayBox*> NC_fabs; NC_fabs.push_back(&NC_fab);
     Vector<std::string> NC_names; NC_names.push_back(NC_name);
     Vector<enum NC_Data_Dims_Type> NC_dim_types;
+    Vector<int> successes; successes.resize(NC_names.size());
 
     if (NC_name == "ALB" || NC_name == "AL" || NC_name == "U" ||  NC_name == "V" ||  NC_name == "W" ||
         NC_name == "T"   || NC_name == "PH" || NC_name == "PHB" || NC_name == "PB" || NC_name == "P" ||
@@ -78,6 +80,8 @@ read_from_wrfinput (int lev,
     }
 
     // Read the netcdf file and fill these FABs
-    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs);
+    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs, successes);
+
+    success = successes[0];
 }
 #endif // ERF_USE_NETCDF

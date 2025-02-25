@@ -129,11 +129,12 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
 
     // Read the netcdf file and fill these FABs
     Print() << "Building initial FABS from file " << fname << std::endl;
-    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs);
+    Vector<int> success; success.resize(NC_fabs.size());
+    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs, success);
 
     // Read the netcdf file and fill these IABs
     Print() << "Building initial IABS from file " << fname << std::endl;
-    BuildFABsFromNetCDFFile<IArrayBox,int>(domain, fname, NC_inames, NC_idim_types, NC_iabs);
+    BuildFABsFromNetCDFFile<IArrayBox,int>(domain, fname, NC_inames, NC_idim_types, NC_iabs, success);
 
     // TODO: FIND OUT IF WE NEED TO DIVIDE VELS BY MAPFAC
     //

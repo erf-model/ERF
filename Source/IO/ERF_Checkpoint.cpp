@@ -236,37 +236,38 @@ ERF::WriteCheckpointFile () const
 
 #ifdef ERF_USE_NETCDF
    // Write bdy_data files
-   if (ParallelDescriptor::IOProcessor() && ((init_type==InitType::Real) || (init_type==InitType::Metgrid))) {
+   if ( ParallelDescriptor::IOProcessor() &&
+        ((solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid)) )
+   {
+       // Vector dimensions
+       int num_time = bdy_data_xlo.size();
+       int num_var  = bdy_data_xlo[0].size();
 
-     // Vector dimensions
-     int num_time = bdy_data_xlo.size();
-     int num_var  = bdy_data_xlo[0].size();
-
-     // Open header file and write to it
-     std::ofstream bdy_h_file(MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_H"));
-     bdy_h_file << std::setprecision(1) << std::fixed;
-     bdy_h_file << num_time << "\n";
-     bdy_h_file << num_var  << "\n";
-     bdy_h_file << start_bdy_time << "\n";
-     bdy_h_file << bdy_time_interval << "\n";
-     bdy_h_file << real_width << "\n";
-     for (int ivar(0); ivar<num_var; ++ivar) {
-       bdy_h_file << bdy_data_xlo[0][ivar].box() << "\n";
-       bdy_h_file << bdy_data_xhi[0][ivar].box() << "\n";
-       bdy_h_file << bdy_data_ylo[0][ivar].box() << "\n";
-       bdy_h_file << bdy_data_yhi[0][ivar].box() << "\n";
-     }
-
-     // Open data file and write to it
-     std::ofstream bdy_d_file(MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_D"));
-     for (int itime(0); itime<num_time; ++itime) {
+       // Open header file and write to it
+       std::ofstream bdy_h_file(MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_H"));
+       bdy_h_file << std::setprecision(1) << std::fixed;
+       bdy_h_file << num_time << "\n";
+       bdy_h_file << num_var  << "\n";
+       bdy_h_file << start_bdy_time << "\n";
+       bdy_h_file << bdy_time_interval << "\n";
+       bdy_h_file << real_width << "\n";
        for (int ivar(0); ivar<num_var; ++ivar) {
-         bdy_data_xlo[itime][ivar].writeOn(bdy_d_file,0,1);
-         bdy_data_xhi[itime][ivar].writeOn(bdy_d_file,0,1);
-         bdy_data_ylo[itime][ivar].writeOn(bdy_d_file,0,1);
-         bdy_data_yhi[itime][ivar].writeOn(bdy_d_file,0,1);
+           bdy_h_file << bdy_data_xlo[0][ivar].box() << "\n";
+           bdy_h_file << bdy_data_xhi[0][ivar].box() << "\n";
+           bdy_h_file << bdy_data_ylo[0][ivar].box() << "\n";
+           bdy_h_file << bdy_data_yhi[0][ivar].box() << "\n";
        }
-     }
+
+       // Open data file and write to it
+       std::ofstream bdy_d_file(MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_D"));
+       for (int itime(0); itime<num_time; ++itime) {
+           for (int ivar(0); ivar<num_var; ++ivar) {
+               bdy_data_xlo[itime][ivar].writeOn(bdy_d_file,0,1);
+               bdy_data_xhi[itime][ivar].writeOn(bdy_d_file,0,1);
+               bdy_data_ylo[itime][ivar].writeOn(bdy_d_file,0,1);
+               bdy_data_yhi[itime][ivar].writeOn(bdy_d_file,0,1);
+           }
+       }
    }
 #endif
 
@@ -556,7 +557,8 @@ ERF::ReadCheckpointFile ()
 
 #ifdef ERF_USE_NETCDF
     // Read bdy_data files
-    if ((init_type==InitType::Real) || (init_type==InitType::Metgrid)) {
+    if ( (solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid) )
+    {
         int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
         int num_time;
         int num_var;
@@ -648,7 +650,7 @@ ERF::ReadCheckpointFile ()
                 ParallelDescriptor::Bcast(bdy_data_yhi[itime][ivar].dataPtr(),bdy_data_yhi[itime][ivar].box().numPts(),ioproc);
             }
         }
-    } // init real
+    } // init_type == WRFInput or Metgrid
 #endif
 }
 
