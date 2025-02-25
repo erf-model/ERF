@@ -217,9 +217,6 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
         }
         ncf.close();
     }
-
-    int ioproc = amrex::ParallelDescriptor::IOProcessorNumber();  // I/O rank
-    amrex::ParallelDescriptor::Bcast(success.dataPtr(), success.size(), ioproc);
 }
 
 /**
@@ -323,6 +320,8 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
     {
         ReadNetCDFFile(fname, nc_var_names, nc_arrays, success);
     }
+
+    amrex::ParallelDescriptor::Bcast(success.dataPtr(), success.size(), ioproc);
 
     for (int iv = 0; iv < nc_var_names.size(); iv++)
     {

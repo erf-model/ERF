@@ -45,11 +45,13 @@ convert_wrfbdy_data (const Box& domain,
                      const bool& use_moist);
 
 void
-verify_terrain_top_and_bottom (const Real& z_top,
-                               Real& terrain_bottom_min,
-                               Real& terrain_bottom_max,
-                               const MultiFab& mf_PH,
-                               const MultiFab& mf_PHB);
+compute_terrain_top_and_bottom (Real& terrain_bottom_min,
+                                Real& terrain_bottom_max,
+                                Real& terrain_top_min,
+                                Real& terrain_top_max,
+                                const MultiFab& mf_PH,
+                                const MultiFab& mf_PHB,
+                                const Box& domain);
 
 void
 init_terrain_from_wrfinput (int lev,
@@ -478,39 +480,29 @@ ERF::init_from_wrfinput (int lev)
         });
     }
 
-    // Initialize terrain height
-    const Real& z_top = geom[lev].ProbHi(2);
     Real terrain_bottom_min, terrain_bottom_max;
-    if (solverChoice.terrain_type == TerrainType::None)
-    {
-        verify_terrain_top_and_bottom(z_top, terrain_bottom_min, terrain_bottom_max, mf_PH, mf_PHB);
+    Real terrain_top_min, terrain_top_max;
+    compute_terrain_top_and_bottom(terrain_bottom_min, terrain_bottom_max, terrain_top_min, terrain_top_max, mf_PH, mf_PHB, domain);
 
-        Print() << "Terrain has min value = " << terrain_bottom_min << " and max value = " << terrain_bottom_max << std::endl;
+    // **************************************************************************
+    // Initialize the terrain itself and the metric quantities
+    // **************************************************************************
+    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
 
-        if (terrain_bottom_min != terrain_bottom_max || terrain_bottom_min != 0.0) {
-            Print() << "Can only use terrain_type = None if the terrain in the wrfinput file is actually flat" << std::endl;
-            Abort("Set erf.terrain_type = StaticFittedMesh and try again.");
-        }
-    }
-    else if (solverChoice.terrain_type == TerrainType::StaticFittedMesh)
-    {
-        verify_terrain_top_and_bottom(z_top, terrain_bottom_min, terrain_bottom_max, mf_PH, mf_PHB);
+    // FillBoundary to populate the internal ghost cells (for averaging)
+     mf_PH.FillBoundary(geom[lev].periodicity());
+    mf_PHB.FillBoundary(geom[lev].periodicity());
+    Real z_top = 0.5 * (terrain_top_min + terrain_top_max);
+    amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
+    init_terrain_from_wrfinput(lev, z_top, domain, z_phys_nd[lev].get(), mf_PH, mf_PHB);
 
-        // FillBoundary to populate the internal ghost cells (for averaging)
-         mf_PH.FillBoundary(geom[lev].periodicity());
-        mf_PHB.FillBoundary(geom[lev].periodicity());
+    make_J  (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
+    make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
+    make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
 
-        init_terrain_from_wrfinput(lev, z_top, domain, z_phys_nd[lev].get(), mf_PH, mf_PHB);
-
-        make_J  (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
-        make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
-        make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
-
-    } else {
-        amrex::Abort("Only terrain_type = None or StaticFittedMesh allowed when reading wrfinput");
-    }
-
+    // **************************************************************************
     // Initialize the base state
+    // **************************************************************************
     const Real l_rdOcp = solverChoice.rdOcp;
     MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
@@ -680,43 +672,39 @@ init_base_state_from_wrfinput (const Box& domain,
 /**
  * Helper function for verifying the top boundary is valid and computing the bottom boundary.
  *
- * @param z_top Real user specified top boundary
- * @param NC_PH_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PH)
+ * @param z_top      Real imposed top boundary
+ * @param NC_PH_fab  Vector of FArrayBox objects storing WRF terrain coordinate data (PH)
  * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
  */
 void
-verify_terrain_top_and_bottom (const Real& z_top,
-                               Real& terrain_bottom_min,
-                               Real& terrain_bottom_max,
-                               const MultiFab& mf_PH,
-                               const MultiFab& mf_PHB)
+compute_terrain_top_and_bottom (Real& terrain_bottom_min,
+                                Real& terrain_bottom_max,
+                                Real& terrain_top_min,
+                                Real& terrain_top_max,
+                                const MultiFab& mf_PH,
+                                const MultiFab& mf_PHB,
+                                const Box& domain)
 {
     //
-    // For the top boundary
+    // For the bottom/top boundary (in that order)
     //
-    Gpu::HostVector  <Real> MaxMax_h(2,-1.0e16);
-    Gpu::DeviceVector<Real> MaxMax_d(2);
-    Gpu::copy(Gpu::hostToDevice, MaxMax_h.begin(), MaxMax_h.end(), MaxMax_d.begin());
+    Gpu::HostVector  <Real> Max_h(2,-1.0e16);
+    Gpu::DeviceVector<Real> Max_d(2);
+    Gpu::copy(Gpu::hostToDevice, Max_h.begin(), Max_h.end(), Max_d.begin());
 
-    Real* max_dhi = MaxMax_d.data();
+    Gpu::HostVector  <Real> Min_h(2, 1.0e16);
+    Gpu::DeviceVector<Real> Min_d(2);
+    Gpu::copy(Gpu::hostToDevice, Min_h.begin(), Min_h.end(), Min_d.begin());
 
-    //
-    // For the top boundary
-    //
-    Gpu::HostVector  <Real> BotMax_h(1,-1.0e16);
-    Gpu::DeviceVector<Real> BotMax_d(1);
-    Gpu::copy(Gpu::hostToDevice, BotMax_h.begin(), BotMax_h.end(), BotMax_d.begin());
-
-    Gpu::HostVector  <Real> BotMin_h(1, 1.0e16);
-    Gpu::DeviceVector<Real> BotMin_d(1);
-    Gpu::copy(Gpu::hostToDevice, BotMin_h.begin(), BotMin_h.end(), BotMin_d.begin());
-
-    Real* min_dlo = BotMin_d.data();
-    Real* max_dlo = BotMax_d.data();
+    Real* min_dlo = Min_d.data();
+    Real* max_dlo = Max_d.data();
 
     //
     // ********************************************************************************
     //
+
+    int klo = domain.smallEnd()[2];
+    int khi = domain.bigEnd()[2]+1;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -742,65 +730,57 @@ verify_terrain_top_and_bottom (const Real& z_top,
         auto const& ph  = mf_PH.const_array(mfi);
 
         //
-        // These loops compute the max values of the top row and second-to-top row of the terrain data
-        //
-        ParallelFor(Fab2dBox_hi, Fab2dBox_hm1,
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            int ii = std::max(std::min(i,ihi-1),ilo+1);
-            int jj = std::max(std::min(j,jhi-1),jlo+1);
-            Real z_calc = 0.25 * ( ph (ii,jj  ,k) + ph (ii-1,jj  ,k) +
-                                   ph (ii,jj-1,k) + ph (ii-1,jj-1,k) +
-                                   phb(ii,jj  ,k) + phb(ii-1,jj  ,k) +
-                                   phb(ii,jj-1,k) + phb(ii-1,jj-1,k) ) / CONST_GRAV;
-            amrex::Gpu::Atomic::Max(&(max_dhi[0]),z_calc);
-        },
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            int ii = std::max(std::min(i,ihi-1),ilo+1);
-            int jj = std::max(std::min(j,jhi-1),jlo+1);
-            Real z_calc = 0.25 * ( ph (ii,jj  ,k) + ph (ii-1,jj  ,k) +
-                                   ph (ii,jj-1,k) + ph (ii-1,jj-1,k) +
-                                   phb(ii,jj  ,k) + phb(ii-1,jj  ,k) +
-                                   phb(ii,jj-1,k) + phb(ii-1,jj-1,k) ) / CONST_GRAV;
-            amrex::Gpu::Atomic::Max(&(max_dhi[1]),z_calc);
-        });
-
-        //
         // This loop compute the min and max values of the bottom surface
         //
-        ParallelFor(Fab2dBox_lo,
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            int ii = std::max(std::min(i,ihi-1),ilo+1);
-            int jj = std::max(std::min(j,jhi-1),jlo+1);
-            Real z_calc = 0.25 * ( ph (ii,jj  ,k) + ph (ii-1,jj  ,k) +
-                                   ph (ii,jj-1,k) + ph (ii-1,jj-1,k) +
-                                   phb(ii,jj  ,k) + phb(ii-1,jj  ,k) +
-                                   phb(ii,jj-1,k) + phb(ii-1,jj-1,k) ) / CONST_GRAV;
-            amrex::Gpu::Atomic::Min(&(min_dlo[0]),z_calc);
-            amrex::Gpu::Atomic::Max(&(max_dlo[0]),z_calc);
-        });
+        if (klo >= vbx.smallEnd()[2]) {
+            ParallelFor(makeSlab(vbx,2,klo),
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                int ii = std::max(std::min(i,ihi-1),ilo+1);
+                int jj = std::max(std::min(j,jhi-1),jlo+1);
+                Real z_calc_lo = 0.25 * ( ph (ii,jj  ,klo) + ph (ii-1,jj  ,klo) +
+                                          ph (ii,jj-1,klo) + ph (ii-1,jj-1,klo) +
+                                          phb(ii,jj  ,klo) + phb(ii-1,jj  ,klo) +
+                                          phb(ii,jj-1,klo) + phb(ii-1,jj-1,klo) ) / CONST_GRAV;
+                amrex::Gpu::Atomic::Min(&(min_dlo[0]),z_calc_lo);
+                amrex::Gpu::Atomic::Max(&(max_dlo[0]),z_calc_lo);
+            });
+        }
+
+        //
+        // This loop compute the min and max values of the top surface
+        //
+        if (khi <= vbx.bigEnd()[2]) {
+            ParallelFor(makeSlab(vbx,2,khi),
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                int ii = std::max(std::min(i,ihi-1),ilo+1);
+                int jj = std::max(std::min(j,jhi-1),jlo+1);
+                Real z_calc_hi = 0.25 * ( ph (ii,jj  ,khi) + ph (ii-1,jj  ,khi) +
+                                          ph (ii,jj-1,khi) + ph (ii-1,jj-1,khi) +
+                                          phb(ii,jj  ,khi) + phb(ii-1,jj  ,khi) +
+                                          phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV;
+                amrex::Gpu::Atomic::Min(&(min_dlo[1]),z_calc_hi);
+                amrex::Gpu::Atomic::Max(&(max_dlo[1]),z_calc_hi);
+            });
+        }
     } // mfi
 
-    Gpu::copy(Gpu::deviceToHost, MaxMax_d.begin(), MaxMax_d.end(), MaxMax_h.begin());
-    Gpu::copy(Gpu::deviceToHost, BotMin_d.begin(), BotMin_d.end(), BotMin_h.begin());
-    Gpu::copy(Gpu::deviceToHost, BotMax_d.begin(), BotMax_d.end(), BotMax_h.begin());
+    Gpu::copy(Gpu::deviceToHost, Min_d.begin(), Min_d.end(), Min_h.begin());
+    Gpu::copy(Gpu::deviceToHost, Max_d.begin(), Max_d.end(), Max_h.begin());
 
-    ParallelDescriptor::ReduceRealMax(MaxMax_h[0]);
-    ParallelDescriptor::ReduceRealMax(MaxMax_h[1]);
-    ParallelDescriptor::ReduceRealMax(BotMax_h[0]);
-    ParallelDescriptor::ReduceRealMax(BotMin_h[0]);
+    ParallelDescriptor::ReduceRealMax(Max_h[0]);
+    ParallelDescriptor::ReduceRealMax(Min_h[0]);
+    ParallelDescriptor::ReduceRealMax(Max_h[1]);
+    ParallelDescriptor::ReduceRealMax(Min_h[1]);
 
-    terrain_bottom_max = BotMax_h[0];
-    terrain_bottom_min = BotMin_h[0];
+    terrain_bottom_max = Max_h[0];
+    terrain_bottom_min = Min_h[0];
+    terrain_top_max    = Max_h[1];
+    terrain_top_min    = Min_h[1];
 
-    if ((z_top > MaxMax_h[0]) || (z_top < MaxMax_h[1])) {
-      Print() << "Z problem extent " << z_top << " does not match NETCDF file min "
-              << MaxMax_h[1] << " and max " << MaxMax_h[0] << "!\n";
-      Print() << "To run you must set the z component of prob_hi or prob_extent to lie between the netcdf bounds" << std::endl;
-            Abort("Domain specification error");
-    }
+    Print() << "Terrain     has min value = " << terrain_bottom_min << " and max value = " << terrain_bottom_max << std::endl;
+    Print() << "Top of mesh has min value = " << terrain_top_min    << " and max value = " << terrain_top_max << std::endl;
 }
 
 /**
@@ -839,14 +819,15 @@ init_terrain_from_wrfinput (int /*lev*/,
         int ihi = z_face_box.bigEnd()[0];
         int jlo = z_face_box.smallEnd()[1] + 1;
         int jhi = z_face_box.bigEnd()[1];
-        int klo = z_face_box.smallEnd()[2];
-        int khi = z_face_box.bigEnd()[2];
+
+        int klo = domain.smallEnd()[2];
+        int khi = domain.bigEnd()[2]+1;
 
         ParallelFor(gnbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int ii = std::max(std::min(i,ihi),ilo);
             int jj = std::max(std::min(j,jhi),jlo);
-            if (k < 0) {
+            if (k < klo) {
                 Real z_klo   =  0.25 * ( nc_ph_arr (ii,jj  ,klo  ) + nc_ph_arr (ii-1,jj  ,klo  ) +
                                          nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
                                          nc_phb_arr(ii,jj  ,klo  ) + nc_phb_arr(ii-1,jj  ,klo  ) +
