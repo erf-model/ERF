@@ -17,6 +17,8 @@ using namespace amrex;
  * staggered quantities at the lower cell faces in the log file; these
  * quantities will have a zero value at the big end, corresponding to k=Nz+1.
  *
+ * The structure of file should follow ERF_Write1DProfiles.cpp
+ *
  * @param time Current time
  */
 void
