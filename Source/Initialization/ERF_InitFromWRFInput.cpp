@@ -19,7 +19,8 @@ read_from_wrfinput (int lev,
                     const std::string& fname,
                     FArrayBox& NC_fab,
                     const std::string& NC_name,
-                    Geometry& geom);
+                    Geometry& geom,
+                    int& success);
 
 Real
 read_from_wrfbdy (const std::string& nc_bdy_file,
@@ -158,44 +159,45 @@ ERF::init_from_wrfinput (int lev)
         for (int ivar = 0; ivar < nvar; ++ ivar) {
             Print() << "Reading variable " << NC_names[ivar] << " ...";
 
+            int success;
             read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
-                               NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev]);
+                               NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev], success);
 
             auto var_name = NC_names[ivar];
             auto& var_fab = NC_fab_var_file[idx][ivar];
 
-          // Initialize rho =  1/(ALB + AL)
-          if ( var_name == "ALB" ) {
+            // Initialize rho =  1/(ALB + AL)
+            if ( var_name == "ALB" ) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
-              {
-                  FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
-                  cons_fab.template copy<RunOn::Device>(var_fab, 0, Rho_comp, 1);
-              }
+                for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+                {
+                    FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
+                    cons_fab.template copy<RunOn::Device>(var_fab, 0, Rho_comp, 1);
+                }
 
-          } if ( var_name == "AL" ) {
+            } if ( var_name == "AL" ) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
-              {
-                  FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
-                  Box vbx = cons_fab.box(); vbx.grow(-ng);
-                  cons_fab.template   plus<RunOn::Device>(var_fab, 0, Rho_comp, 1);
-                  cons_fab.template invert<RunOn::Device>(1.0, vbx, Rho_comp, 1);
-              }
-          }
+                for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+                {
+                    FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
+                    Box vbx = cons_fab.box(); vbx.grow(-ng);
+                    cons_fab.template   plus<RunOn::Device>(var_fab, 0, Rho_comp, 1);
+                    cons_fab.template invert<RunOn::Device>(1.0, vbx, Rho_comp, 1);
+                }
+            }
 
-          // Initialize other vars (NOT rho)
-          if ( var_name == "U"      ||
-               var_name == "V"      ||
-               var_name == "W"      ||
-               var_name == "T"      ||
-               var_name == "QVAPOR" ||
-               var_name == "QCLOUD" ||
-               var_name == "QRAIN" ) {
+            // Initialize other vars (NOT rho)
+            if ( var_name == "U"      ||
+                 var_name == "V"      ||
+                 var_name == "W"      ||
+                 var_name == "T"      ||
+                 var_name == "QVAPOR" ||
+                 var_name == "QCLOUD" ||
+                 var_name == "QRAIN" ) {
 
               int n_qstate = micro->Get_Qstate_Size();
 #ifdef _OPENMP
@@ -237,13 +239,21 @@ ERF::init_from_wrfinput (int lev)
                     if (n_qstate > 3) { icomp = RhoQ4_comp; }
                   }
 
-                  cur_fab->template copy<RunOn::Device>(var_fab, 0, icomp, 1);
-                  if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
-                  var_fab.clear();
+                  if (success) {
+                      cur_fab->template copy<RunOn::Device>(var_fab, 0, icomp, 1);
+                      if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
+                      var_fab.clear();
+                  } else {
+                      if (icomp < cur_fab->nComp()) {
+                          amrex::Print() << "Setting " << NC_names[ivar] << " to 0 since we couldn't read it in ... DONE" << std::endl;
+                          cur_fab->template setVal<RunOn::Device>(0.0,cur_fab->box(),icomp,1);
+                          if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
+                      } else {
+                          amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                      }
+                  }
               } // mfi
           } // valid var (not rho)
-
-
 
           if ( var_name == "PH" ) {
               auto& ba_w = lev_new[Vars::zvel].boxArray();
@@ -428,8 +438,10 @@ ERF::init_from_wrfinput (int lev)
             }
           }
 
-          var_fab.clear();
-          Print() << " DONE\n";
+          if (success) {
+              var_fab.clear();
+              Print() << " DONE\n";
+          }
         } // ivar
       Print() << "\n";
     } // idx

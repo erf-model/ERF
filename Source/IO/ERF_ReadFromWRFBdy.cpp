@@ -52,7 +52,8 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
         // Read the time stamps
         using CharArray = NDArray<char>;
         Vector<CharArray> array_ts(1);
-        ReadNetCDFFile(nc_bdy_file, {"Times"}, array_ts);
+        Vector<int> success(1);
+        ReadNetCDFFile(nc_bdy_file, {"Times"}, array_ts, success);
 
         ntimes = array_ts[0].get_vshape()[0];
         auto dateStrLen = array_ts[0].get_vshape()[1];
@@ -118,7 +119,8 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
     if (ParallelDescriptor::IOProcessor())
     {
-        ReadNetCDFFile(nc_bdy_file, nc_var_names, arrays);
+        Vector<int> success(1);
+        ReadNetCDFFile(nc_bdy_file, nc_var_names, arrays, success);
 
         // Assert that the data has the same number of time snapshots
         int itimes = static_cast<int>(arrays[0].get_vshape()[0]);
