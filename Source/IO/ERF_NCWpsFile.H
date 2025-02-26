@@ -356,7 +356,7 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
 #ifdef AMREX_USE_GPU
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              tmp.dataPtr(), tmp.dataPtr() + tmp.size(),
-                             fab_vars->dataPtr());
+                             fab_vars[iv]->dataPtr());
 #else
             // Provided by BaseFab inheritance through FArrayBox
             fab_vars[iv]->copy(tmp,tmp.box(),0,fab_bx,0,1);
