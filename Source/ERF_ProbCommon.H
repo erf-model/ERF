@@ -195,11 +195,11 @@ public:
                          amrex::Vector<amrex::Real>& wbar,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
                          const amrex::Geometry& geom,
-                         std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+                         std::unique_ptr<amrex::MultiFab>& z_phys_nd)
     {
         if (wbar.empty()) return;
 
-        if (z_phys_cc) {
+        if (z_phys_nd) {
             // use_terrain=1
             amrex::Error("Moisture forcing not defined for "+name()+" problem with terrain");
         } else {

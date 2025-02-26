@@ -695,22 +695,12 @@ make_zcc (const Geometry& geom,
           MultiFab& z_phys_nd,
           MultiFab& z_phys_cc)
 {
-    // Domain valid box (z_nd is nodal)
-    const Box& domain = geom.Domain();
-    int domlo_z = domain.smallEnd(2);
-
-    // Number of ghost cells
-    int ngrow= z_phys_cc.nGrow();
-
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(z_phys_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        Box gbx = mfi.growntilebox(ngrow);
-        if (gbx.smallEnd(2) < domlo_z) {
-            gbx.setSmall(2,domlo_z);
-        }
+        Box gbx = mfi.growntilebox();
         Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
         Array4<Real      > z_cc = z_phys_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
