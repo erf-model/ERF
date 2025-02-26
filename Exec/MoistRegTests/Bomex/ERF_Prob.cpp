@@ -244,8 +244,7 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
-    if (z_phys_cc && zlevels.empty()) {
-        Print() << "Initializing z levels on stretched grid" << std::endl;
+    if (z_phys_cc) {
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);
     }
@@ -287,8 +286,7 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
-    if (z_phys_cc && zlevels.empty()) {
-        Print() << "Initializing z levels on stretched grid" << std::endl;
+    if (z_phys_cc) {
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);
     }
@@ -318,7 +316,7 @@ Problem::update_w_subsidence (const Real& /*time*/,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
                               const Geometry& geom,
-                              std::unique_ptr<MultiFab>& z_phys_cc)
+                              std::unique_ptr<MultiFab>& z_phys_nd)
 {
     if (wbar.empty()) return;
 
@@ -326,23 +324,22 @@ Problem::update_w_subsidence (const Real& /*time*/,
     const Real* prob_lo = geom.ProbLo();
     const auto dx       = geom.CellSize();
 
-    // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
+    // Note: If z_phys_nd, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
-    if (z_phys_cc && zlevels.empty()) {
-        Print() << "Initializing z levels on stretched grid" << std::endl;
+    if (z_phys_nd) {
         zlevels.resize(khi+1);
-        reduce_to_max_per_height(zlevels, z_phys_cc);
+        reduce_to_max_per_height(zlevels, z_phys_nd);
     }
 
     // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
-    Real z_0    = 0.0; // (z_phys_cc) ? zlevels[0] : prob_lo[2] + 0.5 * dx[2];
+    Real z_0    = (z_phys_nd) ? zlevels[0] : prob_lo[2];
     Real slope1 =  parms.wbar_sub_max / (parms.wbar_cutoff_max - z_0);
     Real slope2 = -parms.wbar_sub_max / (parms.wbar_cutoff_min - parms.wbar_cutoff_max);
     wbar[0]     = 0.0;
     for (int k = 1; k <= khi; k++) {
-        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + k*dx[2];
+        const Real z_cc = (z_phys_nd) ? zlevels[k] : prob_lo[2] + k*dx[2];
         if (z_cc <= parms.wbar_cutoff_max) {
             wbar[k] = slope1 * (z_cc - z_0);
         } else if (z_cc <= parms.wbar_cutoff_min) {
@@ -378,8 +375,7 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
-    if (z_phys_cc && zlevels.empty()) {
-        Print() << "Initializing z levels on stretched grid" << std::endl;
+    if (z_phys_cc) {
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);
     }
