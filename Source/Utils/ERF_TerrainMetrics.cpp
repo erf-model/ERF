@@ -12,7 +12,7 @@ using namespace amrex;
  * This will be over-written if we use z_levels, or grid stretching, or terrain-fitted grids
  */
 void
-init_default_zphys (int lev, const Geometry& geom, MultiFab& z_phys_nd, MultiFab& z_phys_cc)
+init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, MultiFab& z_phys_cc)
 {
     const auto& dx = geom.CellSize();
     Real dz = dx[2];

@@ -173,7 +173,7 @@ Problem::init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v
 
 void
 Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
-                                  std::unique_ptr<MultiFab>& z_phys_nd,
+                                  std::unique_ptr<MultiFab>& /*z_phys_nd*/,
                                   Geometry const& geom)
 {
 

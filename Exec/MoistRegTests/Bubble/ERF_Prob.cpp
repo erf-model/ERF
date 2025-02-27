@@ -194,7 +194,7 @@ Problem::init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v
 
 void
 Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
-                                  std::unique_ptr<MultiFab>& z_phys_nd,
+                                  std::unique_ptr<MultiFab>& /*z_phys_nd*/,
                                   Geometry const& geom)
 {
     const Real dz        = geom.CellSize()[2];
@@ -244,7 +244,7 @@ Problem::init_custom_pert(
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const& /*z_nd*/,
-    Array4<Real const> const& z_cc,
+    Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
