@@ -208,6 +208,12 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
        ${SRC_DIR}/Utils/ERF_ThinBodyWallDist.cpp
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Cloud.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_IceFall.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Precip.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_PrecipFall.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
@@ -265,6 +271,7 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SAM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Morrison>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SatAdj>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
