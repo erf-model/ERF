@@ -65,6 +65,7 @@ init_base_state_from_wrfinput (const Box& domain,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
+                               MultiFab& qv_hse,
                                MultiFab& r_hse,
                                const MultiFab& mf_PB,
                                const MultiFab& mf_P);
@@ -486,12 +487,14 @@ ERF::init_from_wrfinput (int lev)
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+    MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
+
     if (init_type == InitType::Real) {
 
         int n_qstate = micro->Get_Qstate_Size();
 
         init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
-                                      lev_new[Vars::cons], p_hse, pi_hse, th_hse, r_hse,
+                                      lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
                                       mf_PB, mf_P);
 
         // FillBoundary to populate the internal ghost cells (no averaging in above call)
@@ -499,7 +502,7 @@ ERF::init_from_wrfinput (int lev)
          p_hse.FillBoundary(geom[lev].periodicity());
         pi_hse.FillBoundary(geom[lev].periodicity());
         th_hse.FillBoundary(geom[lev].periodicity());
-
+        qv_hse.FillBoundary(geom[lev].periodicity());
     }
 
     // Initialize the bdy data
@@ -539,9 +542,20 @@ ERF::init_from_wrfinput (int lev)
                             geom[lev], use_moist);
     } // init_type == Real && lev == 0
 
-    // Start at the earliest time (read_from_wrfbdy)
-    t_new[lev] = start_bdy_time;
-    t_old[lev] = start_bdy_time - 1.e200;
+    if (init_type == InitType::Real)
+    {
+        //
+        // Start at the earliest time (read_from_wrfbdy)
+        // Note we only have start_bdy_time if at level 0 and init_type == InitType::Real
+        //
+        if (lev == 0) {
+            t_new[lev] = start_bdy_time;
+            t_old[lev] = start_bdy_time - 1.e200;
+        } else {
+            t_new[lev] = t_new[0];
+            t_old[lev] = t_old[0];
+        }
+    }
 }
 
 
@@ -554,6 +568,7 @@ ERF::init_from_wrfinput (int lev)
  * @param p_hse FArrayBox specifying the hydrostatic base state pressure we initialize
  * @param pi_hse FArrayBox specifying the hydrostatic base state Exner pressure we initialize
  * @param th_hse FArrayBox specifying the hydrostatic base state potential temperature
+ * @param qv_hse FArrayBox specifying the hydrostatic base state qv
  * @param r_hse FArrayBox specifying the hydrostatic base state density we initialize
  * @param NC_ALB_fab Vector of FArrayBox objects containing WRF data specifying 1/density
  * @param NC_PB_fab Vector of FArrayBox objects containing WRF data specifying pressure
@@ -567,6 +582,7 @@ init_base_state_from_wrfinput (const Box& domain,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
+                               MultiFab& qv_hse,
                                MultiFab& r_hse,
                                const MultiFab& mf_PB,
                                const MultiFab& mf_P)
@@ -583,6 +599,7 @@ init_base_state_from_wrfinput (const Box& domain,
         const Array4<Real      >&  p_hse_arr = p_hse.array(mfi);
         const Array4<Real      >& pi_hse_arr = pi_hse.array(mfi);
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
+        const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
         const Array4<Real      >&  r_hse_arr = r_hse.array(mfi);
         const Array4<Real const>&  nc_pb_arr = mf_PB.const_array(mfi);
         const Array4<Real const>&   nc_p_arr = mf_P.const_array(mfi);
@@ -610,7 +627,7 @@ init_base_state_from_wrfinput (const Box& domain,
             // NOTE: Ghost cells don't contain valid data
             //       We want domain GCs and FB picks up interior GCs
             if (tbx.contains(i,j,k)) {
-                AMREX_ASSERT_WITH_MESSAGE((DelP < 1.0), "Initial state is inconsistent with EOS!");
+                AMREX_ASSERT_WITH_MESSAGE((DelP < 1.0 || DelP / Ptot < 1.e-4), "Initial state is inconsistent with EOS!");
             }
 
             // Compute rhse
@@ -623,6 +640,7 @@ init_base_state_from_wrfinput (const Box& domain,
             p_hse_arr(i,j,k)  = Ptot;
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
             th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), Qv) / cons_arr(ii,jj,kk,Rho_comp);
+            qv_hse_arr(i,j,k) = Qv;
         });
     }
 }

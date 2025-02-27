@@ -13,8 +13,10 @@ using namespace amrex;
  * @param[in] z_phys_nd Physical heights at each level
  */
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
-                          const bool& has_zphys)
-  : m_geom(std::move(geom))
+                          const bool& has_zphys,
+                          std::string a_pp_prefix)
+  : m_geom(std::move(geom)),
+    m_pp_prefix(a_pp_prefix)
 {
     // Get basic info
     //--------------------------------------------------------

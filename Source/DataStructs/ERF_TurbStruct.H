@@ -30,7 +30,7 @@ void query_one_or_per_level(const amrex::ParmParse& pp, const char* query_string
  */
 struct TurbChoice {
   public:
-    void init_params(int lev, int max_level)
+    void init_params(int lev, int max_level, std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -197,9 +197,6 @@ struct TurbChoice {
             amrex::Print() << "    pbl_ysu_unst_Ribcr              : " << pbl_ysu_unst_Ribcr << std::endl;
         }
     }
-
-    // Default prefix
-    std::string pp_prefix {"erf"};
 
     // LES model
     LESType les_type;

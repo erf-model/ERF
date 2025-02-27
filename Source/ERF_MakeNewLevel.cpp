@@ -402,7 +402,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                        time, cmf, ctime, fmf, ftime,
                        0, 0, temp_base_state.nComp(), geom[lev-1], geom[lev],
                        refRatio(lev-1), mapper, domain_bcs_type,
-                       BCVars::base_bc);
+                       BaseBCVars::rho0_bc_comp);
 
     // Impose bc's outside the domain
     (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());

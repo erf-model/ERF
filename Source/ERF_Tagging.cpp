@@ -142,10 +142,15 @@ ERF::refinement_criteria_setup ()
 
             int num_real_lo = ppr.countval("in_box_lo");
             int num_indx_lo = ppr.countval("in_box_lo_indices");
+            int num_real_hi = ppr.countval("in_box_hi");
+            int num_indx_hi = ppr.countval("in_box_hi_indices");
 
-            if ( !((num_real_lo == AMREX_SPACEDIM && num_indx_lo == 0) ||
-                   (num_indx_lo == AMREX_SPACEDIM && num_real_lo == 0) ||
-                   (num_indx_lo ==              0 && num_real_lo == 0)) )
+            AMREX_ALWAYS_ASSERT(num_real_lo == num_real_hi);
+            AMREX_ALWAYS_ASSERT(num_indx_lo == num_indx_hi);
+
+            if ( !((num_real_lo >= AMREX_SPACEDIM-1 && num_indx_lo == 0) ||
+                   (num_indx_lo >= AMREX_SPACEDIM-1 && num_real_lo == 0) ||
+                   (num_indx_lo ==              0   && num_real_lo == 0)) )
             {
                 amrex::Abort("Must only specify box for refinement using real OR index space");
             }
@@ -162,13 +167,17 @@ ERF::refinement_criteria_setup ()
                     const Real* plo = geom[lev_for_box].ProbLo();
                     const Real* phi = geom[lev_for_box].ProbHi();
 
-                    ppr.getarr("in_box_lo",rbox_lo,0,AMREX_SPACEDIM);
-                    ppr.getarr("in_box_hi",rbox_hi,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_lo",rbox_lo,0,num_real_lo);
+                    ppr.getarr("in_box_hi",rbox_hi,0,num_real_hi);
 
                     if (rbox_lo[0] < plo[0]) rbox_lo[0] = plo[0];
                     if (rbox_lo[1] < plo[1]) rbox_lo[1] = plo[1];
                     if (rbox_hi[0] > phi[0]) rbox_hi[0] = phi[0];
                     if (rbox_hi[1] > phi[1]) rbox_hi[1] = phi[1];
+                    if (num_real_lo < AMREX_SPACEDIM) {
+                        rbox_lo[2] = plo[2];
+                        rbox_hi[2] = phi[2];
+                    }
 
                     realbox = RealBox(&(rbox_lo[0]),&(rbox_hi[0]));
 
@@ -190,7 +199,7 @@ ERF::refinement_criteria_setup ()
                         klo = domain.smallEnd(2) - 1;
                         khi = domain.smallEnd(2) - 1;
 
-                        if (rbox_lo[2] < zlevels_stag[lev_for_box][domain.smallEnd(2)])
+                        if (rbox_lo[2] <= zlevels_stag[lev_for_box][domain.smallEnd(2)])
                         {
                             klo = domain.smallEnd(2);
                         }
@@ -205,7 +214,7 @@ ERF::refinement_criteria_setup ()
                         }
                         AMREX_ASSERT(klo >= domain.smallEnd(2));
 
-                        if (rbox_hi[2] > zlevels_stag[lev_for_box][domain.bigEnd(2)+1])
+                        if (rbox_hi[2] >= zlevels_stag[lev_for_box][domain.bigEnd(2)+1])
                         {
                             khi = domain.bigEnd(2);
                         }
