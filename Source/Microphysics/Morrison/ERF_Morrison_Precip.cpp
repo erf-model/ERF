@@ -7,7 +7,7 @@ using namespace amrex;
  * Autoconversion (A30), Accretion (A28), Evaporation (A24)
  */
 void
-Morrison::Precip (const SolverChoice& sc)
+Morrison::Precip (const SolverChoice& /*sc*/)
 {
     Real powr1 = (3.0 + b_rain) / 4.0;
     Real powr2 = (5.0 + b_rain) / 8.0;

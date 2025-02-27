@@ -13,7 +13,7 @@ using namespace amrex;
  * @param[in] hydro_type Type selection for the precipitation advection hydrodynamics scheme (0-3)
  */
 void
-Morrison::PrecipFall (const SolverChoice& sc)
+Morrison::PrecipFall (const SolverChoice& /*sc*/)
 {
     Real rho_0 = 1.29;
 

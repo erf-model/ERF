@@ -9,7 +9,7 @@ using namespace amrex;
  * Split cloud components according to saturation pressures; source theta from latent heat.
  */
 void
-Morrison::Cloud (const SolverChoice& sc)
+Morrison::Cloud (const SolverChoice& /*sc*/)
 {
 
     constexpr Real an = 1.0/(tbgmax-tbgmin);

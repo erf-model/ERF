@@ -8,7 +8,7 @@ using namespace amrex;
 /**
  * Sedimentation of cloud ice (A32)
  */
-void Morrison::IceFall (const SolverChoice& sc)
+void Morrison::IceFall (const SolverChoice& /*sc*/)
 {
     Real dz   = m_geom.CellSize(2);
     Real dtn  = dt;
