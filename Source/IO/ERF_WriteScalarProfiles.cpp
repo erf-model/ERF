@@ -179,9 +179,6 @@ ERF::sum_derived_quantities (Real time)
     int datprecision = 6;
     int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
 
-    // Single level sum
-    Real mass_sl;
-
     AMREX_ALWAYS_ASSERT(lev == 0);
 
     // ************************************************************************
