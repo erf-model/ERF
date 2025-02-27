@@ -8,6 +8,7 @@
 #include "ERF_NullMoist.H"
 #include "ERF_SAM.H"
 #include "ERF_Kessler.H"
+#include "ERF_Morrison.H"
 #include "ERF_SatAdj.H"
 #include "ERF_Microphysics.H"
 
@@ -35,6 +36,8 @@ public:
         } else if (a_model_type == MoistureType::Kessler ||
                    a_model_type == MoistureType::Kessler_NoRain) {
             SetModel<Kessler>();
+        } else if (a_model_type == MoistureType::Morrison) {
+            SetModel<Morrison>();
         } else if (a_model_type == MoistureType::SatAdj) {
             SetModel<SatAdj>();
         } else if (a_model_type == MoistureType::None) {

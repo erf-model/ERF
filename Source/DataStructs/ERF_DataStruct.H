@@ -46,7 +46,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -135,6 +135,10 @@ struct SolverChoice {
         } else if (moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
+        } else if (moisture_type == MoistureType::Morrison) {
+            RhoQv_comp = RhoQ1_comp;
+            RhoQc_comp = RhoQ2_comp;
+            RhoQr_comp = RhoQ4_comp;
         } else if (moisture_type == MoistureType::Kessler) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
@@ -154,6 +158,7 @@ struct SolverChoice {
                 moisture_type == MoistureType::SAM                ||
                 moisture_type == MoistureType::SAM_NoIce          ||
                 moisture_type == MoistureType::SAM_NoPrecip_NoIce ||
+                moisture_type == MoistureType::Morrison ||
                 moisture_type == MoistureType::SatAdj)
             {
                 buoyancy_type = 1; // uses Rhoprime
@@ -516,6 +521,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: SAM No Ice" << std::endl;
         } else if (moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
             amrex::Print() << "Moisture Model: SAM No Precip No Ice" << std::endl;
+        } else if (moisture_type == MoistureType::Morrison) {
+            amrex::Print() << "Moisture Model: Morrison" << std::endl;
         } else if (moisture_type == MoistureType::Kessler) {
             amrex::Print() << "Moisture Model: Kessler" << std::endl;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {

@@ -213,8 +213,8 @@ ERF::derive_diag_profiles(Real /*time*/,
                         (solverChoice.turbChoice[lev].pbl_type  != PBLType::None));
     bool l_use_KE   = ( (solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
                         (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) ||
-                        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNN25) );
-
+                        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNN25) ||
+                        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNNEDMF) );
     // This will hold rho, theta, ksgs, Kmh, Kmv, uu, uv, uw, vv, vw, ww, uth, vth, wth,
     //                  0      1     2    3    4   5   6   7   8   9  10   11   12   13
     //                thth, uiuiu, uiuiv, uiuiw, p, pu, pv, pw, qv, qc, qr, wqv, wqc, wqr,

@@ -71,6 +71,6 @@ prob.T_0 = 300.0
 # INITIALIZATION WITH ATM DATA
 erf.real_width     = 0
 erf.real_set_width = 0
-erf.init_type      = "real"
+erf.init_type      = WRFInput
 erf.nc_init_file_0 = "wrfinput_tornado_d01"
 erf.nc_bdy_file    = "wrfbdy_tornado_d01"

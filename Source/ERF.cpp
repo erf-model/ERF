@@ -653,9 +653,10 @@ ERF::InitData_pre ()
     // Verify BCs are compatible with solver choice
     for (int lev(0); lev <= max_level; ++lev) {
         if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+               (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
             phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
-            Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
+            Abort("MYNN2.5/MYNNEDMF/YSU PBL Model requires MOST at lower boundary");
         }
 
         if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
@@ -805,7 +806,7 @@ ERF::InitData_post ()
             d_w_subsid[lev].resize(domlen, 0.0_rt);
             prob->update_w_subsidence(t_new[0],
                                       h_w_subsid[lev], d_w_subsid[lev],
-                                      geom[lev], z_phys_cc[lev]);
+                                      geom[lev], z_phys_nd[lev]);
         }
     }
 
@@ -1024,7 +1025,8 @@ ERF::InitData_post ()
         //
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
-        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, pp_prefix, Qv_prim, z_phys_nd
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, pp_prefix, Qv_prim,
+                                           z_phys_nd, solverChoice.terrain_type
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif

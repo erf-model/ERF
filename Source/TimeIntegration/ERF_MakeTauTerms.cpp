@@ -50,7 +50,9 @@ void erf_make_tau_terms (int level, int nrk,
                                     tc.les_type  == LESType::Deardorff   ||
                                     tc.rans_type == RANSType::kEqn       ||
                                     tc.pbl_type  == PBLType::MYNN25      ||
+                                    tc.pbl_type  == PBLType::MYNNEDMF    ||
                                     tc.pbl_type  == PBLType::YSU );
+
     const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
                                    tc.rans_type == RANSType::kEqn);
 
@@ -111,7 +113,7 @@ void erf_make_tau_terms (int level, int nrk,
             const Array4<Real const>& cell_data = l_use_constAlpha ? S_data[IntVars::cons].const_array(mfi) : Array4<const Real>{};
 
             // Terrain metrics
-            const Array4<const Real>& z_nd     = l_use_terrain_fitted_coords ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+            const Array4<const Real>& z_nd     = z_phys_nd->const_array(mfi);
             const Array4<const Real>& detJ_arr = detJ->const_array(mfi);
 
             //-------------------------------------------------------------------------------
