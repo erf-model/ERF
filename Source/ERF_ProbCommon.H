@@ -347,25 +347,25 @@ public:
                 AMREX_ASSERT(m_yterrain.size() == static_cast<long int>(ny));
                 AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
 
-        } else {
-            file >> nx; file >> ny;
-            AMREX_ALWAYS_ASSERT(nx > 0);
-            AMREX_ALWAYS_ASSERT(ny > 0);
-            m_xterrain.resize(nx);
-            m_yterrain.resize(ny);
-            m_zterrain.resize(nx * ny);
-            for (int n = 0; n < nx; n++) {
-                file >> m_xterrain[n];
+            } else {
+                file >> nx; file >> ny;
+                AMREX_ALWAYS_ASSERT(nx > 0);
+                AMREX_ALWAYS_ASSERT(ny > 0);
+                m_xterrain.resize(nx);
+                m_yterrain.resize(ny);
+                m_zterrain.resize(nx * ny);
+                for (int n = 0; n < nx; n++) {
+                    file >> m_xterrain[n];
+                }
+                for (int n = 0; n < ny; n++) {
+                    file >> m_yterrain[n];
+                }
+                for (int n = 0; n < nx * ny; n++) {
+                    file >> m_zterrain[n];
+                }
             }
-            for (int n = 0; n < ny; n++) {
-                file >> m_yterrain[n];
-            }
-            for (int n = 0; n < nx * ny; n++) {
-                file >> m_zterrain[n];
-            }
-        }
 
-        amrex::Print() << "NX " << nx << " " << ny << std::endl;
+            amrex::Print() << "NX " << nx << " " << ny << std::endl;
 
             // Close the file after reading
             file.close();
