@@ -155,6 +155,8 @@ ERF::init_from_wrfinput (int lev)
     }
     BoxArray ba1d(std::move(bl1d));
 
+    bool compute_terrain_here = true;
+
     Print() << "Loading initial data from NetCDF file at level " << lev << "\n";
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
         Print() << "Reading from file " << nc_init_file[lev][idx] << "\n";
@@ -258,29 +260,39 @@ ERF::init_from_wrfinput (int lev)
           } // valid var (not rho)
 
           if ( var_name == "PH" ) {
-              auto& ba_w = lev_new[Vars::zvel].boxArray();
-              mf_PH.define(ba_w, dm, 1, ngz);
+              if (success) {
+                  auto& ba_w = lev_new[Vars::zvel].boxArray();
+                  mf_PH.define(ba_w, dm, 1, ngz);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_PH, false); mfi.isValid(); ++mfi )
-              {
-                FArrayBox &cur_fab = mf_PH[mfi];
-                cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                  for ( MFIter mfi(mf_PH, false); mfi.isValid(); ++mfi )
+                  {
+                    FArrayBox &cur_fab = mf_PH[mfi];
+                    cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                  }
+                  var_fab.clear();
+              } else {
+                  amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                  compute_terrain_here = false;
               }
-              var_fab.clear();
           } else if ( var_name == "PHB" ) {
-              auto& ba_w = lev_new[Vars::zvel].boxArray();
-              mf_PHB.define(ba_w, dm, 1, ngz);
+              if (success) {
+                  auto& ba_w = lev_new[Vars::zvel].boxArray();
+                  mf_PHB.define(ba_w, dm, 1, ngz);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_PHB, false); mfi.isValid(); ++mfi )
-              {
-                FArrayBox &cur_fab = mf_PHB[mfi];
-                cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                  for ( MFIter mfi(mf_PHB, false); mfi.isValid(); ++mfi )
+                  {
+                    FArrayBox &cur_fab = mf_PHB[mfi];
+                    cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                  }
+                  var_fab.clear();
+              } else {
+                  amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                  compute_terrain_here = false;
               }
-              var_fab.clear();
           } else if ( var_name == "ALB" ) {
               mf_ALB.define(ba, dm, 1, ng);
 #ifdef _OPENMP
@@ -480,27 +492,29 @@ ERF::init_from_wrfinput (int lev)
         });
     }
 
-    Real terrain_bottom_min, terrain_bottom_max;
-    Real terrain_top_min, terrain_top_max;
-    compute_terrain_top_and_bottom(terrain_bottom_min, terrain_bottom_max,
-                                   terrain_top_min, terrain_top_max,
-                                   mf_PH, mf_PHB, domain);
+    if (compute_terrain_here) {
+        Real terrain_bottom_min, terrain_bottom_max;
+        Real terrain_top_min, terrain_top_max;
+        compute_terrain_top_and_bottom(terrain_bottom_min, terrain_bottom_max,
+                                       terrain_top_min, terrain_top_max,
+                                       mf_PH, mf_PHB, domain);
 
-    // **************************************************************************
-    // Initialize the terrain itself and the metric quantities
-    // **************************************************************************
-    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
+        // **************************************************************************
+        // Initialize the terrain itself and the metric quantities
+        // **************************************************************************
+        AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
 
-    // FillBoundary to populate the internal ghost cells (for averaging)
-     mf_PH.FillBoundary(geom[lev].periodicity());
-    mf_PHB.FillBoundary(geom[lev].periodicity());
-    Real z_top = 0.5 * (terrain_top_min + terrain_top_max);
-    amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
-    init_terrain_from_wrfinput(lev, z_top, domain, z_phys_nd[lev].get(), mf_PH, mf_PHB);
+        // FillBoundary to populate the internal ghost cells (for averaging)
+         mf_PH.FillBoundary(geom[lev].periodicity());
+        mf_PHB.FillBoundary(geom[lev].periodicity());
+        Real z_top = 0.5 * (terrain_top_min + terrain_top_max);
+        amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
+        init_terrain_from_wrfinput(lev, z_top, domain, z_phys_nd[lev].get(), mf_PH, mf_PHB);
 
-    make_J  (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
-    make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
-    make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+        make_J  (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
+        make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
+        make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+    }
 
     // **************************************************************************
     // Initialize the base state

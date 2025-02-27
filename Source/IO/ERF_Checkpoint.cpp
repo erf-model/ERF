@@ -408,7 +408,8 @@ ERF::ReadCheckpointFile ()
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,(RhoKE_comp+1),0);
 
             // Only if we have a PBL model do we need to copy QKE is src to KE in dst
-            if (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) {
+            if ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+                 (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ) {
                 MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+1),RhoKE_comp,1,0);
                 vars_new[lev][Vars::cons].mult(0.5,RhoKE_comp,1,0);
             }

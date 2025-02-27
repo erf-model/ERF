@@ -1,11 +1,3 @@
-/*
- * Implementation 1-moment microphysics model
- * NOTE: this model is based on the Kessler code, and the Klemp's paper
- * 1): Joseph, Klemp, the simulation of three-dimensional convective storm dynamics,
- * Journal of the atmospheric sciences, vol35, p1070
- * 2): Marat Khairoutdinov and David Randall, cloud resolving modeling of the ARM summer 1997 IOP:
- * model formulation, results, unvertainties, and sensitivities, Journal of the atmospheric sciences, vol60, p607
- */
 #ifndef ERF_Kessler_H
 #define ERF_Kessler_H
 

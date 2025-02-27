@@ -85,7 +85,8 @@ ERF::init_custom (int lev)
     // RhoKE is relevant if using Deardorff with LES, k-equation for RANS, or MYNN with PBL
     if ((solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
         (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) ||
-        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNN25)) {
+        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNN25) ||
+        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNNEDMF) ) {
         MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoKE_comp,    RhoKE_comp,    1, cons_pert.nGrow());
     }
 

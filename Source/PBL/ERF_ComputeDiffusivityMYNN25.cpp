@@ -15,6 +15,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const Geometry& geom,
                           const TurbChoice& turbChoice,
                           std::unique_ptr<ABLMost>& most,
+                          bool use_terrain_fitted_coords,
                           bool use_moisture,
                           int level,
                           const BCRec* bc_ptr,
@@ -24,7 +25,6 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const int RhoQc_comp,
                           const int RhoQr_comp)
 {
-    const bool use_terrain = (z_phys_nd != nullptr);
     const bool use_most    = (most != nullptr);
 
     auto mynn     = turbChoice.pbl_mynn;
@@ -72,7 +72,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         const Array4<Real> qvel = qturb.array();
 
         // vertical integrals to compute lengthscale
-        if (use_terrain) {
+        if (use_terrain_fitted_coords) {
             const Array4<Real const> &z_nd_arr = z_phys_nd->array(mfi);
             const auto invCellSize = geom.InvCellSizeArray();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -122,7 +122,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         const auto& t_star_arr = t_star_mf->const_array(mfi);
         const auto& q_star_arr = (use_moisture) ? q_star_mf->const_array(mfi) : Array4<Real>{};
 
-        const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+        const Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -133,7 +133,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Compute some partial derivatives that we will need (second order)
             // U and V derivatives are interpolated to account for staggered grid
-            const Real met_h_zeta = use_terrain ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : 1.0;
+            const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : 1.0;
             Real dthetadz, dudz, dvdz;
             ComputeVerticalDerivativesPBL(i, j, k,
                                           uvel, vvel, cell_data, izmin, izmax, dz_inv/met_h_zeta,
@@ -166,7 +166,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             // Surface-layer length scale (NN09, Eqn. 53)
             AMREX_ASSERT(l_obukhov != 0);
             int lk = amrex::max(k,0);
-            const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr)
+            const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr)
                                           : gdata.ProbLo(2) + (lk + 0.5)*gdata.CellSize(2);
             const Real zeta = zval/l_obukhov;
             Real l_S;

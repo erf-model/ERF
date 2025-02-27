@@ -297,7 +297,8 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 {
                     if (!gdomainz.contains(zbx))
                     {
-                        impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,bccomp_w);
+                        impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,
+                                                dxInv,m_terrain_type,bccomp_w);
                     }
                 }
 

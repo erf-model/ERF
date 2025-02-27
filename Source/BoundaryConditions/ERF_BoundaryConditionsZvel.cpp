@@ -19,7 +19,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                                                 const Box& bx, const Box& domain,
                                                 const Array4<Real const>& z_phys_nd,
                                                 const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                                int bccomp)
+                                                TerrainType terrain_type, int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_zvel_bcs()",impose_lateral_zvel_bcs);
     const auto& dom_lo = lbound(domain);
@@ -30,6 +30,9 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
     //      0 is used as starting index for bcrs
     Vector<BCRec> bcrs_w(1);
     setBC(enclosedCells(bx), domain, bccomp, 0, 1, m_domain_bcs_type, bcrs_w);
+
+    bool l_use_terrain_fitted_coords = ( (terrain_type == TerrainType::StaticFittedMesh) ||
+                                         (terrain_type == TerrainType::MovingFittedMesh) );
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -43,8 +46,6 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
     const BCRec* bc_ptr_w = bcrs_w_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,1> l_bc_extdir_vals_d;
-
-    bool l_use_terrain = (m_z_phys_nd != nullptr);
 
     for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
         l_bc_extdir_vals_d[0][ori] = m_bc_extdir_vals[bccomp][ori];
@@ -67,7 +68,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                 int iflip = dom_lo.x - 1 - i;
                 if (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
-                    if (l_use_terrain) {
+                    if (l_use_terrain_fitted_coords) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }
                 } else if (bc_ptr_w[0].lo(0) == ERFBCType::foextrap) {
@@ -84,7 +85,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                 int iflip = 2*dom_hi.x + 1 - i;
                 if (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
-                    if (l_use_terrain) {
+                    if (l_use_terrain_fitted_coords) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }
                 } else if (bc_ptr_w[0].hi(0) == ERFBCType::foextrap) {
@@ -111,7 +112,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                 int jflip = dom_lo.y - 1 - j;
                 if (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][1];
-                    if (l_use_terrain) {
+                    if (l_use_terrain_fitted_coords) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }
                 } else if (bc_ptr_w[0].lo(1) == ERFBCType::foextrap) {
@@ -128,7 +129,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                 int jflip =  2*dom_hi.y + 1 - j;
                 if (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][4];
-                    if (l_use_terrain) {
+                    if (l_use_terrain_fitted_coords) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }
                 } else if (bc_ptr_w[0].hi(1) == ERFBCType::foextrap) {
@@ -192,7 +193,8 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     const BCRec* bc_ptr_v_h = bcrs_v.data();
     const BCRec* bc_ptr_w_h = bcrs_w.data();
 
-    bool l_use_terrain = (m_z_phys_nd != nullptr);
+    bool l_use_terrain_fitted_coords = ( (terrain_type == TerrainType::StaticFittedMesh) ||
+                                         (terrain_type == TerrainType::MovingFittedMesh) );
     bool l_moving_terrain = (terrain_type == TerrainType::MovingFittedMesh);
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,1> l_bc_extdir_vals_d;
@@ -208,7 +210,7 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // *******************************************************
     // Moving terrain
     // *******************************************************
-    if (l_use_terrain && l_moving_terrain)
+    if (l_moving_terrain)
     {
         //************************************************************
         // NOTE: z_t depends on the time interval in which it is
@@ -217,7 +219,7 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
         //************************************************************
 
     // Static terrain
-    } else if (l_use_terrain) {
+    } else if (l_use_terrain_fitted_coords) {
 
         if (m_lev == 0) {
             AMREX_ALWAYS_ASSERT( (bc_ptr_u_h[0].lo(2) == ERFBCType::ext_dir && bc_ptr_v_h[0].lo(2) == ERFBCType::ext_dir) ||
@@ -251,7 +253,7 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
         if (bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir) {
             ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                if (l_use_terrain) {
+                if (l_use_terrain_fitted_coords) {
                     dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[0][5],xvel_arr,yvel_arr,z_phys_nd,dxInv);
                 } else {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[0][5];
