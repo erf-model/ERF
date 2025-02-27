@@ -198,6 +198,8 @@ public:
     update_w_subsidence (const amrex::Real& /*time*/,
                          amrex::Vector<amrex::Real>& wbar,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
+                         const amrex::MultiFab& state, 
+//                         amrex::Array4<amrex::Real const> const& /*state*/,
                          const amrex::Geometry& geom,
                          std::unique_ptr<amrex::MultiFab>& z_phys_cc)
     {

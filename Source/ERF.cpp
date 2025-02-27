@@ -833,7 +833,7 @@ ERF::InitData_post ()
             h_w_subsid[lev].resize(domlen, 0.0_rt);
             d_w_subsid[lev].resize(domlen, 0.0_rt);
             prob->update_w_subsidence(t_new[0],
-                                      h_w_subsid[lev], d_w_subsid[lev],
+                                      h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
                                       geom[lev], z_phys_cc[lev]);
         }
     }

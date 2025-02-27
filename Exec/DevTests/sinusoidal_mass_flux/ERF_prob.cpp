@@ -342,6 +342,7 @@ void
 Problem::update_w_subsidence (const Real& time,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
+                              const amrex::MultiFab& state,
                               const Geometry& geom,
                               std::unique_ptr<MultiFab>& z_phys_cc)
 {
@@ -360,13 +361,23 @@ Problem::update_w_subsidence (const Real& time,
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);
     }
-
+    Gpu::DeviceVector<Real> rho_d(khi,0.0);
+    auto rho_arr = rho_d.data();
+    for ( amrex::MFIter mfi(state, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {  
+         const auto &box = mfi.tilebox();
+         //const amrex::Array4<amrex::Real>& state_arr = state.array(mfi);
+         auto state_arr = state.const_array(mfi);
+         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+              rho_arr[k] = state_arr(i, j, k, Rho_comp); // rho at i,j,k
+    });
+    }   
     // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
     Real z_0    = 0.0; // (z_phys_cc) ? zlevels[0] : prob_lo[2] + 0.5 * dx[2];
     Real slope1 =  parms.wbar_sub_max / (parms.wbar_cutoff_max - z_0);
     Real slope2 = -parms.wbar_sub_max / (parms.wbar_cutoff_min - parms.wbar_cutoff_max);
     //Real rho_s       = state(0,0,0,Rho_comp);
-    wbar[0]     = 2*sin(PI*time/600);
+    wbar[0]     = 2*sin(PI*time/600)/rho_arr[0];
 //    wbar[0] = 2;
     amrex::Print() << "wbar values is "<< wbar[0] << std::endl;
 //    wbar[0]     = 5;
@@ -375,7 +386,7 @@ Problem::update_w_subsidence (const Real& time,
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + k*dx[2];
 //        Real rho_s       = state(0,0,k,Rho_comp);
         if (time < 600) {
-        wbar[k] = 2*sin(PI*time/600);}
+        wbar[k] = 2*sin(PI*time/600)/rho_arr[k-1];}
         else{
         wbar[k] = 0.0;}
 

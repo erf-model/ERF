@@ -239,7 +239,7 @@ void ERF::advance_dycore(int level,
 
     if (solverChoice.custom_w_subsidence) {
         prob->update_w_subsidence(old_time,
-                                  h_w_subsid[level], d_w_subsid[level],
+                                  h_w_subsid[level], d_w_subsid[level],base_state[level], 
                                   fine_geom, z_phys_cc[level]);
     }
 
