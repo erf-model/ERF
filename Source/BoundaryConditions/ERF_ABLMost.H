@@ -43,7 +43,6 @@ public:
     : m_geom(geom),
       m_exp_most(use_exp_most),
       m_rotate(use_rot_most),
-      m_terrain_type(a_terrain_type),
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_ma(geom,(z_phys_nd[0]!=nullptr),a_pp_prefix,a_terrain_type)
@@ -533,7 +532,6 @@ private:
     amrex::Vector<amrex::Geometry>  m_geom;
     bool m_exp_most = false;
     bool m_rotate   = false;
-    TerrainType m_terrain_type;
     amrex::Real m_start_bdy_time;
     amrex::Real m_bdy_time_interval;
 
