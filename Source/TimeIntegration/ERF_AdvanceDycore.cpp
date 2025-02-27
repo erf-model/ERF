@@ -83,7 +83,7 @@ void ERF::advance_dycore(int level,
         d_sponge_ptrs_at_lev[Sponge::vbar_sponge]  =  d_sponge_ptrs[level][Sponge::vbar_sponge].data();
     }
 
-    bool l_use_terrain_fitted_coords = (z_phys_nd[level] != nullptr);
+    bool l_use_terrain_fitted_coords = (solverChoice.mesh_type != MeshType::ConstantDz);
     bool l_use_kturb   = ( (tc.les_type  != LESType::None)   ||
                            (tc.rans_type != RANSType::None)  ||
                            (tc.pbl_type  != PBLType::None) );
@@ -156,7 +156,7 @@ void ERF::advance_dycore(int level,
             Array4<Real> tau21  = l_use_terrain_fitted_coords ? Tau21_lev[level].get()->array(mfi) : Array4<Real>{};
             Array4<Real> tau31  = l_use_terrain_fitted_coords ? Tau31_lev[level].get()->array(mfi) : Array4<Real>{};
             Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau32_lev[level].get()->array(mfi) : Array4<Real>{};
-            const Array4<const Real>& z_nd = l_use_terrain_fitted_coords ? z_phys_nd[level]->const_array(mfi) : Array4<const Real>{};
+            const Array4<const Real>& z_nd = z_phys_nd[level]->const_array(mfi);
 
             const Array4<const Real> mf_m = mapfac_m[level]->array(mfi);
             const Array4<const Real> mf_u = mapfac_u[level]->array(mfi);
@@ -219,7 +219,7 @@ void ERF::advance_dycore(int level,
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], solverChoice,
                                   m_most, z_0, exp_most,
-                                  l_use_moisture, level, bc_ptr_h);
+                                  l_use_terrain_fitted_coords, l_use_moisture, level, bc_ptr_h);
     }
 
     // ***********************************************************************************************

@@ -33,7 +33,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                                    const MultiFab& Tau12, const MultiFab& Tau13, const MultiFab& Tau23,
                                    const MultiFab& cons_in, MultiFab& eddyViscosity,
                                    MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
-                                   const Geometry& geom,
+                                   const Geometry& geom, bool use_terrain,
                                    const MultiFab& mapfac_u, const MultiFab& mapfac_v,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav,
@@ -43,7 +43,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     const Box& domain = geom.Domain();
     const int& klo    = domain.smallEnd(2);
     const bool use_most = (most != nullptr);
-    const bool use_terrain = (z_phys_nd != nullptr);
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
@@ -80,7 +79,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
           Array4<Real const> mf_u = mapfac_u.array(mfi);
           Array4<Real const> mf_v = mapfac_v.array(mfi);
 
-          Array4<Real const> z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real const>{};
+          Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
           ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
@@ -155,7 +154,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
             Array4<Real const> mf_u = mapfac_u.array(mfi);
             Array4<Real const> mf_v = mapfac_v.array(mfi);
 
-            Array4<Real const> z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real const>{};
+            Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -313,7 +312,7 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /
                                     const MultiFab& cons_in, const MultiFab& wdist,
                                     MultiFab& eddyViscosity,
                                     MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
-                                    const Geometry& geom,
+                                    const Geometry& geom, bool use_terrain,
                                     const MultiFab& /*mapfac_u*/, const MultiFab& /*mapfac_v*/,
                                     const std::unique_ptr<MultiFab>& z_phys_nd,
                                     const TurbChoice& turbChoice, const Real const_grav,
@@ -323,7 +322,6 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /
     const Box& domain = geom.Domain();
     const int& klo    = domain.smallEnd(2);
     const bool use_most = (most != nullptr);
-    const bool use_terrain = (z_phys_nd != nullptr);
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
@@ -361,7 +359,7 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /
 
             const Array4<Real const>& cell_data = cons_in.array(mfi);
 
-            const Array4<Real const>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real const>{};
+            const Array4<Real const>& z_nd_arr = z_phys_nd->const_array(mfi);
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -555,6 +553,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                 std::unique_ptr<ABLMost>& most,
                                 const amrex::FArrayBox* z_0,
                                 const bool& exp_most,
+                                const bool& use_terrain_fitted_coords,
                                 const bool& use_moisture,
                                 int level,
                                 const BCRec* bc_ptr,
@@ -577,8 +576,8 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     if (most) {
         bool l_use_turb = ( turbChoice.les_type  == LESType::Smagorinsky ||
                             turbChoice.les_type  == LESType::Deardorff   ||
-                            turbChoice.rans_type == RANSType::kEqn       ||
-                            turbChoice.pbl_type  == PBLType::MYNN25      ||
+		    turbChoice.rans_type == RANSType::kEqn       ||
+		    turbChoice.pbl_type  == PBLType::MYNN25      ||
                             turbChoice.pbl_type  == PBLType::YSU );
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(l_use_turb,
           "A turbulence model must be utilized with MOST boundaries to compute the turbulent viscosity");
@@ -594,7 +593,8 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                      Tau12, Tau13, Tau23,
                                      cons_in, eddyViscosity,
                                      Hfx1, Hfx2, Hfx3, Diss,
-                                     geom, mapfac_u, mapfac_v,
+                                     geom, use_terrain_fitted_coords,
+                                     mapfac_u, mapfac_v,
                                      z_phys_nd, turbChoice, const_grav,
                                      most, exp_most);
     }
@@ -606,20 +606,23 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                       cons_in, wdist,
                                       eddyViscosity,
                                       Hfx1, Hfx2, Hfx3, Diss,
-                                      geom, mapfac_u, mapfac_v,
+                                      geom, use_terrain_fitted_coords,
+                                      mapfac_u, mapfac_v,
                                       z_phys_nd, turbChoice, const_grav,
                                       most, z_0, exp_most);
     }
 
     if (turbChoice.pbl_type == PBLType::MYNN25) {
         ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
-                                 geom, turbChoice, most, use_moisture,
+                                 geom, turbChoice, most,
+                                 use_terrain_fitted_coords, use_moisture,
                                  level, bc_ptr, vert_only, z_phys_nd,
                                  solverChoice.RhoQv_comp, solverChoice.RhoQc_comp,
                                  solverChoice.RhoQr_comp);
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
-                              geom, turbChoice, most, use_moisture,
+                              geom, turbChoice, most,
+                              use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd);
     }
 

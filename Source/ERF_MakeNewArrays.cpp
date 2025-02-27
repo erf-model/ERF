@@ -42,42 +42,39 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Allocate terrain arrays
     // ********************************************************************************************
-    if (SolverChoice::mesh_type == MeshType::StretchedDz ||
-        SolverChoice::mesh_type == MeshType::VariableDz) {
-        z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
-        if (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
-        {
-            detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-            detJ_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+    BoxArray ba_nd(ba);
+    ba_nd.surroundingNodes();
 
-            ax_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,1);
-            ay_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
-            az_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
+    // NOTE: this is where we actually allocate z_phys_nd -- but here it's called "tmp_zphys_nd"
+    // We need this to be one greater than the ghost cells to handle levels > 0
 
-            ax_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,1);
-            ay_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
-            az_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
+    int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff) + 2;
+    tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
 
-            z_t_rk[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(0,0,1)), dm, 1, 1 );
-        }
+    z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+    init_default_zphys(lev, geom[lev], *tmp_zphys_nd, *z_phys_cc[lev]);
 
-        BoxArray ba_nd(ba);
-        ba_nd.surroundingNodes();
+    if (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
+    {
+        detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+        detJ_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
-        // We need this to be one greater than the ghost cells to handle levels > 0
-        int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff) + 2;
-        tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
+        ax_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,1);
+        ay_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
+        az_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
 
-        if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
-            z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
-            z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
-        }
+        ax_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,1);
+        ay_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
+        az_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
 
-    } else {
-            z_phys_nd[lev] = nullptr;
-            z_phys_cc[lev] = nullptr;
+        z_t_rk[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(0,0,1)), dm, 1, 1 );
 
+        z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
+        z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
+    }
+    else
+    {
         z_phys_nd_new[lev] = nullptr;
           detJ_cc_new[lev] = nullptr;
 
@@ -472,7 +469,7 @@ ERF::init_zphys (int lev, Real time)
 {
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
-        if (lev > 0 && z_phys_nd[lev]) {
+        if (lev > 0) {
             //
             // First interpolate from coarser level if there is one
             // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
@@ -507,17 +504,17 @@ ERF::init_zphys (int lev, Real time)
             prob->init_terrain_surface(geom[lev],terrain_fab,time);
         }
 
-        if (z_phys_nd[lev]) { // Has this been allocated?
-            for (MFIter mfi(*z_phys_nd[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                Box isect = terrain_fab.box() & (*z_phys_nd[lev])[mfi].box();
-                if (!isect.isEmpty()) {
-                    (*z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
-                }
+        for (MFIter mfi(*z_phys_nd[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box isect = terrain_fab.box() & (*z_phys_nd[lev])[mfi].box();
+            if (!isect.isEmpty()) {
+                (*z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
             }
-            make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
-            z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
         }
+
+        make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
+
+        z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
             terrain_blanking[lev]->setVal(1.0);
@@ -525,7 +522,7 @@ ERF::init_zphys (int lev, Real time)
             terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         }
 
-        if (lev == 0 && z_phys_nd[0]) {
+        if (lev == 0) {
             Real zmax = z_phys_nd[0]->max(0,0,false);
             Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
             if (rel_diff < 1.e-8) {
@@ -541,7 +538,7 @@ ERF::init_zphys (int lev, Real time)
 void
 ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
-    if (lev > 0 && SolverChoice::mesh_type == MeshType::VariableDz)
+    if (lev > 0)
     {
         //
         // First interpolate from coarser level
@@ -562,7 +559,7 @@ ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys
 
         std::swap(temp_zphys_nd, z_phys_nd[lev]);
 
-    } // use_terrain && lev > 0
+    } // lev > 0
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
         //
