@@ -184,71 +184,40 @@ Problem::init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v
 
 void
 Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
-                                  std::unique_ptr<MultiFab>& z_phys_nd,
+                                  std::unique_ptr<MultiFab>& /*z_phys_nd*/,
                                   Geometry const& geom)
 {
     const Real prob_lo_z = geom.ProbLo()[2];
     const Real dz        = geom.CellSize()[2];
     const int khi        = geom.Domain().bigEnd()[2];
 
-    // use_terrain = 1
-    if (z_phys_nd) {
+    // These are at cell centers (unstaggered)
+    Vector<Real> h_r(khi+2);
+    Vector<Real> h_p(khi+2);
+    Vector<Real> h_t(khi+2);
+    Vector<Real> h_q_v(khi+2);
 
-        if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
+    init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(), h_q_v.data(), dz,prob_lo_z,khi);
 
-        for ( MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
-        {
-            Array4<Real      > rho_arr  = rho_hse.array(mfi);
-            //Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
+    amrex::Gpu::DeviceVector<Real> d_r(khi+2);
 
-            // Create a flat box with same horizontal extent but only one cell in vertical
-            const Box& tbz = mfi.nodaltilebox(2);
-            Box b2d = tbz; // Copy constructor
-            b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
-            b2d.setRange(2,0);
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
 
-            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-              Array1D<Real,0,255> r;
-
-              //init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
-
-              for (int k = 0; k <= khi; k++) {
-                 rho_arr(i,j,k) = r(k);
-              }
-              rho_arr(i,j,   -1) = rho_arr(i,j,0);
-              rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
-            });
-        } // mfi
-    } else { // use_terrain = 0
-
-        // These are at cell centers (unstaggered)
-        Vector<Real> h_r(khi+2);
-        Vector<Real> h_p(khi+2);
-        Vector<Real> h_t(khi+2);
-        Vector<Real> h_q_v(khi+2);
-
-        init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(), h_q_v.data(), dz,prob_lo_z,khi);
-
-        amrex::Gpu::DeviceVector<Real> d_r(khi+2);
-
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-
-        Real* r     = d_r.data();
+    Real* r     = d_r.data();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-          for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      {
+          const Box& bx = mfi.growntilebox(1);
+          const Array4<Real> rho_hse_arr   = rho_hse[mfi].array();
+          ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
           {
-              const Box& bx = mfi.growntilebox(1);
-              const Array4<Real> rho_hse_arr   = rho_hse[mfi].array();
-              ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-              {
-                  int kk = std::max(k,0);
-                  rho_hse_arr(i,j,k) = r[kk];
-              });
-          } // mfi
-    } // no terrain
+              int kk = std::max(k,0);
+              rho_hse_arr(i,j,k) = r[kk];
+          });
+      } // mfi
 }
 
 void

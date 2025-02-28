@@ -46,7 +46,7 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
 
-erf.terrain_type = Static
+erf.terrain_type = StaticFittedMesh
 
 erf.moisture_model = "Kessler"
 
@@ -67,6 +67,6 @@ prob.T_0 = 300.0
 # INITIALIZATION WITH ATM DATA
 erf.real_width     = 1
 erf.real_set_width = 1
-erf.init_type      = "real"
+erf.init_type      = "WRFInput"
 erf.nc_init_file_0 = "wrfinput_chisholmview_d01"
 erf.nc_bdy_file    = "wrfbdy_chisholmview_d01_width1"

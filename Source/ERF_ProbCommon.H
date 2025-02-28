@@ -44,7 +44,7 @@ public:
     {
         amrex::Print() << "Hydrostatically balanced density was NOT set"
             << " -- an appropriate init_type should probably have been specified"
-            << " (e.g., input_sounding, ideal, real, or metgrid)"
+            << " (e.g., input_sounding, WRFInput, or Metgrid)"
             << std::endl;
         amrex::Error("Should never call erf_init_dens_hse for "+name()+" problem");
     }
@@ -200,11 +200,11 @@ public:
                          amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
                          const amrex::MultiFab& state,
                          const amrex::Geometry& geom,
-                         std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+                         std::unique_ptr<amrex::MultiFab>& z_phys_nd)
     {
         if (wbar.empty()) return;
 
-        if (z_phys_cc) {
+        if (z_phys_nd) {
             // use_terrain=1
             amrex::Error("Moisture forcing not defined for "+name()+" problem with terrain");
         } else {
@@ -352,25 +352,25 @@ public:
                 AMREX_ASSERT(m_yterrain.size() == static_cast<long int>(ny));
                 AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
 
-        } else {
-            file >> nx; file >> ny;
-            AMREX_ALWAYS_ASSERT(nx > 0);
-            AMREX_ALWAYS_ASSERT(ny > 0);
-            m_xterrain.resize(nx);
-            m_yterrain.resize(ny);
-            m_zterrain.resize(nx * ny);
-            for (int n = 0; n < nx; n++) {
-                file >> m_xterrain[n];
+            } else {
+                file >> nx; file >> ny;
+                AMREX_ALWAYS_ASSERT(nx > 0);
+                AMREX_ALWAYS_ASSERT(ny > 0);
+                m_xterrain.resize(nx);
+                m_yterrain.resize(ny);
+                m_zterrain.resize(nx * ny);
+                for (int n = 0; n < nx; n++) {
+                    file >> m_xterrain[n];
+                }
+                for (int n = 0; n < ny; n++) {
+                    file >> m_yterrain[n];
+                }
+                for (int n = 0; n < nx * ny; n++) {
+                    file >> m_zterrain[n];
+                }
             }
-            for (int n = 0; n < ny; n++) {
-                file >> m_yterrain[n];
-            }
-            for (int n = 0; n < nx * ny; n++) {
-                file >> m_zterrain[n];
-            }
-        }
 
-        amrex::Print() << "NX " << nx << " " << ny << std::endl;
+            amrex::Print() << "NX " << nx << " " << ny << std::endl;
 
             // Close the file after reading
             file.close();

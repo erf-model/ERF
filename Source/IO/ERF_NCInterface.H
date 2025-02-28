@@ -214,6 +214,9 @@ public:
     [[nodiscard]] bool has_dim (const std::string&) const;
 
     //! Check if a variable exists by name
+    [[nodiscard]] int get_id (const std::string&) const;
+
+    //! Check if a variable exists by name
     [[nodiscard]] bool has_var (const std::string&) const;
 
     //! Check if an attribute exists

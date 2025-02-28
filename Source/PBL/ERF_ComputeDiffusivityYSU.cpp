@@ -15,14 +15,13 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                        const Geometry& geom,
                        const TurbChoice& turbChoice,
                        std::unique_ptr<ABLMost>& most,
+                       bool use_terrain_fitted_coords,
                        bool /*use_moisture*/,
                        int level,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd)
 {
-    const bool use_terrain = (z_phys_nd != nullptr);
-
     {
         /*
           YSU PBL initially introduced by S.-Y. Hong, Y. Noh, and J. Dudhia, MWR, 2006 [HND06]
@@ -54,12 +53,12 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             const auto& t10av_arr  = most->get_mac_avg(level,2)->const_array(mfi);
             const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
             const auto& over_land_arr = (most->get_lmask(level)) ? most->get_lmask(level)->const_array(mfi) : Array4<int> {};
-            const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};
+            const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
             const Real most_zref = most->get_zref();
 
             // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
             bool invalid_zref = false;
-            if (use_terrain) {
+            if (use_terrain_fitted_coords) {
                 invalid_zref = most_zref != 10.0;
             } else {
                 // zref gets reset to nearest cell center, so assert that zref is in the same cell as the 10m point
@@ -120,7 +119,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 const Real base_theta = cell_data(i,j,0,RhoTheta_comp) / cell_data(i,j,0,Rho_comp);
                 while (!above_critical and bx.contains(i,j,kpbl+1)) {
                     kpbl += 1;
-                    const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + 0.5)*gdata.CellSize(2);
+                    const Real zval = use_terrain_fitted_coords ?
+                                      Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + 0.5)*gdata.CellSize(2);
                     const Real ws2_level = 0.25*( (uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))*(uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))
                                                 + (vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl))*(vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl)) );
                     const Real theta = cell_data(i,j,kpbl,RhoTheta_comp) / cell_data(i,j,kpbl,Rho_comp);
@@ -138,12 +138,16 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                     interp_fact = (Rib_cr - Rib_dn) / (Rib_up - Rib_dn);
                 }
 
-                const Real zval_up = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + 0.5)*gdata.CellSize(2);
-                const Real zval_dn = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_nd_arr) : gdata.ProbLo(2) + (kpbl-1 + 0.5)*gdata.CellSize(2);
+                const Real zval_up = use_terrain_fitted_coords ?
+                                     Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + 0.5)*gdata.CellSize(2);
+                const Real zval_dn = use_terrain_fitted_coords ?
+                                     Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_nd_arr) : gdata.ProbLo(2) + (kpbl-1 + 0.5)*gdata.CellSize(2);
                 pblh_arr(i,j,0) = zval_dn + interp_fact*(zval_up-zval_dn);
 
-                const Real zval_0 = use_terrain ? Compute_Zrel_AtCellCenter(i,j,0,z_nd_arr) : gdata.ProbLo(2) + (0.5)*gdata.CellSize(2);
-                const Real zval_1 = use_terrain ? Compute_Zrel_AtCellCenter(i,j,1,z_nd_arr) : gdata.ProbLo(2) + (1.5)*gdata.CellSize(2);
+                const Real zval_0 = use_terrain_fitted_coords ?
+                                     Compute_Zrel_AtCellCenter(i,j,0,z_nd_arr) : gdata.ProbLo(2) + (0.5)*gdata.CellSize(2);
+                const Real zval_1 = use_terrain_fitted_coords ?
+                                     Compute_Zrel_AtCellCenter(i,j,1,z_nd_arr) : gdata.ProbLo(2) + (1.5)*gdata.CellSize(2);
                 if (pblh_arr(i,j,0) < 0.5*(zval_0+zval_1) ) {
                     kpbl = 0;
                 }
@@ -177,9 +181,10 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) : gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
+                const Real zval = use_terrain_fitted_coords ?
+                                  Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) : gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
                 const Real rho = cell_data(i,j,k,Rho_comp);
-                const Real met_h_zeta = use_terrain ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : 1.0;
+                const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : 1.0;
                 const Real dz_terrain = met_h_zeta/dz_inv;
                 if (k < pbli_arr(i,j,0)) {
                     // -- Compute diffusion coefficients within PBL

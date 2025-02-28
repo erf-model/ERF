@@ -21,6 +21,7 @@ ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& 
                            std::unique_ptr<ABLMost>& most,
                            const amrex::FArrayBox* z_0,
                            const bool& exp_most,
+                           const bool& use_terrain_fitted_coords,
                            const bool& use_moisture,
                            int level,
                            const amrex::BCRec* bc_ptr,

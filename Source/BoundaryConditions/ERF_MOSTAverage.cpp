@@ -14,9 +14,11 @@ using namespace amrex;
  */
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           const bool& has_zphys,
-                          std::string a_pp_prefix)
+                          std::string a_pp_prefix,
+                          const TerrainType& terrain_type)
   : m_geom(std::move(geom)),
-    m_pp_prefix(a_pp_prefix)
+    m_pp_prefix(a_pp_prefix),
+    m_terrain_type(terrain_type)
 {
     // Get basic info
     //--------------------------------------------------------
@@ -74,6 +76,10 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     m_rot_fields[lev].resize(m_nvar-1);
     m_averages[lev].resize(m_navg);
     m_z_phys_nd[lev] = z_phys_nd.get();
+
+    bool use_terrain_fitted_coords = ( (m_terrain_type == TerrainType::StaticFittedMesh) ||
+                                       (m_terrain_type == TerrainType::MovingFittedMesh) );
+
     { // Nodal in x
         auto& mf = *vars_old[Vars::xvel];
         // Create a 2D ba, dm, & ghost cells
@@ -152,15 +158,15 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
             m_rot_fields[lev][3] = nullptr;
         }
 
-        if (m_z_phys_nd[0] && m_norm_vec && m_interp) {
+        if (use_terrain_fitted_coords && m_norm_vec && m_interp) {
             m_x_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
             m_y_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
             m_z_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-        } else if (m_z_phys_nd[0] && m_interp) {
+        } else if (use_terrain_fitted_coords && m_interp) {
             m_x_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
             m_y_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
             m_z_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-        } else if (m_z_phys_nd[0] && m_norm_vec) {
+        } else if (use_terrain_fitted_coords && m_norm_vec) {
             m_i_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
             m_j_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
             m_k_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
@@ -173,13 +179,13 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
 
     // Setup auxiliary data for spatial configuration & policy
     //--------------------------------------------------------
-    if (m_z_phys_nd[0] && m_norm_vec && m_interp) { // Terrain w/ norm & w/ interpolation
+    if (use_terrain_fitted_coords && m_norm_vec && m_interp) { // Terrain w/ norm & w/ interpolation
         set_norm_positions_T(lev);
-    } else if (m_z_phys_nd[0] && m_interp) {        // Terrain w/ interpolation
+    } else if (use_terrain_fitted_coords && m_interp) {        // Terrain w/ interpolation
         set_z_positions_T(lev);
-    } else if (m_z_phys_nd[0] && m_norm_vec) {      // Terrain w/ norm & w/o interpolation
+    } else if (use_terrain_fitted_coords && m_norm_vec) {      // Terrain w/ norm & w/o interpolation
         set_norm_indices_T(lev);
-    } else if (m_z_phys_nd[0]) {                    // Terrain
+    } else if (use_terrain_fitted_coords) {                    // Terrain
         set_k_indices_T(lev);
     } else {                                        // No Terrain
         set_k_indices_N(lev);

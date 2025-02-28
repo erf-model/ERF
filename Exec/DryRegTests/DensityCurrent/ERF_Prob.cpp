@@ -48,7 +48,7 @@ Problem::init_custom_pert(
     const SolverChoice& sc)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
-    const bool is_anelastic = (sc.anelastic[0] == 1);
+    const bool const_rho    =  sc.fixed_density;
 
     const Real l_x_r = parms.x_r;
     //const Real l_x_r = parms.x_r * mf_u(0,0,0); //used to validate constant msf
@@ -81,7 +81,7 @@ Problem::init_custom_pert(
             Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
             Real theta_0         = (Tbar_hse   )*std::pow(p_0/p_hse(i,j,k), rdOcp);
 
-            if (is_anelastic) {
+            if (const_rho) {
                 state_pert(i, j, k, RhoTheta_comp) = r_hse(i,j,k) * (theta_perturbed  - theta_0);
             } else {
                 state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
@@ -118,7 +118,7 @@ Problem::init_custom_pert(
             Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
             Real theta_0         = (Tbar_hse   )*std::pow(p_0/p_hse(i,j,k), rdOcp);
 
-            if (is_anelastic) {
+            if (const_rho) {
                 state_pert(i, j, k, RhoTheta_comp) = r_hse(i,j,k) * (theta_perturbed  - theta_0);
             } else {
                 state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);

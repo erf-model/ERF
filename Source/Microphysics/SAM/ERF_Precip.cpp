@@ -46,7 +46,7 @@ SAM::Precip (const SolverChoice& sc)
         SAM_moisture_type = 2;
     }
 
-    // get the temperature, dentisy, theta, qt and qp from input
+    // get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);

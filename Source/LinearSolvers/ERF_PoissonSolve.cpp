@@ -35,6 +35,17 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
     auto dxInv = geom[lev].InvCellSizeArray();
 
+    // If !fixed_density, we must convert (rho u) which came in
+    // to (rho0 u) which is what we will project
+    if (!solverChoice.fixed_density) {
+        ConvertForProjection(mom_mf[Vars::cons], r_hse,
+                             mom_mf[IntVars::xmom],
+                             mom_mf[IntVars::ymom],
+                             mom_mf[IntVars::zmom],
+                             Geom(lev).Domain(),
+                             domain_bcs_type);
+    }
+
     //
     // ****************************************************************************
     // Now convert the rho0w MultiFab to hold Omega rather than rhow
@@ -135,7 +146,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             if (boxes_make_rectangle) {
                 solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
             } else {
-                amrex::Warning("FFT won't work unless the boxArray covers the domain: defaulting to MLMG");
+                amrex::Warning("FFT won't work unless the union of boxes is rectangular: defaulting to MLMG");
                 solve_with_mlmg(lev, rhs, phi, fluxes);
             }
         } else {
@@ -157,7 +168,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
 #else
         if (!boxes_make_rectangle) {
-            amrex::Abort("FFT won't work unless the boxArray covers the domain");
+            amrex::Abort("FFT won't work unless the union of boxes is rectangular");
         } else {
             if (!use_fft) {
                 amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
@@ -177,7 +188,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             amrex::Warning("FFT solver does not work for general terrain: switching to FFT-preconditioned GMRES");
         }
         if (!boxes_make_rectangle) {
-            amrex::Abort("FFT preconditioner for GMRES won't work unless the boxArray covers the domain");
+            amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
         } else {
             solve_with_gmres(lev, rhs, phi, fluxes);
         }
@@ -225,14 +236,14 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             Box bx = mfi.validbox();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 if (std::abs(rhs_arr(i,j,k)) > 1.e-10) {
-                    amrex::Print() << "RHS AT " << IntVect(i,j,k) << " " << rhs_arr(i,j,k) << std::endl;
+                    amrex::AllPrint() << "RHS AFTER SOLVE AT " <<
+                                          IntVect(i,j,k) << " " << rhs_arr(i,j,k) << std::endl;
                 }
             });
          } // mfi
 #endif
 
     } // mg_verbose
-
 
     //
     // ****************************************************************************
@@ -253,6 +264,17 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
                  rho0w_arr(i,j,k) = WFromOmega(i,j,k,omega,rho0u_arr,rho0v_arr,z_nd,dxInv);
              });
         } // mfi
+    }
+
+    // If !fixed_density, we must convert (rho0 u) back
+    // to (rho0 u) which is what we will pass back out
+    if (!solverChoice.fixed_density) {
+        ConvertForProjection(r_hse, mom_mf[Vars::cons],
+                             mom_mf[IntVars::xmom],
+                             mom_mf[IntVars::ymom],
+                             mom_mf[IntVars::zmom],
+                             Geom(lev).Domain(),
+                             domain_bcs_type);
     }
 
     // ****************************************************************************

@@ -178,7 +178,39 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Plotfile.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp 
+       ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Cloud.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_IceFall.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Precip.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_PrecipFall.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_Precip.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_PrecipFall.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_UpdateSAM.cpp
+       ${SRC_DIR}/Microphysics/Kessler/ERF_InitKessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/ERF_Kessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/ERF_UpdateKessler.cpp
+       ${SRC_DIR}/Microphysics/SatAdj/ERF_InitSatAdj.cpp
+       ${SRC_DIR}/Microphysics/SatAdj/ERF_SatAdj.cpp
+       ${SRC_DIR}/Microphysics/SatAdj/ERF_UpdateSatAdj.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistUtils.cpp
+       ${SRC_DIR}/MaterialProperties/ERF_MaterialProperties.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNN25.cpp
+       ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
@@ -205,41 +237,18 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_FastRhs_MT.cpp
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
+       ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
+       ${SRC_DIR}/Utils/ERF_InitZLevels.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp 
-       ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
        ${SRC_DIR}/Utils/ERF_ThinBodyWallDist.cpp
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_Precip.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_PrecipFall.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_UpdateSAM.cpp
-       ${SRC_DIR}/Microphysics/Kessler/ERF_InitKessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/ERF_Kessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/ERF_UpdateKessler.cpp
-       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
-       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
-       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp
-       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistUtils.cpp
-       ${SRC_DIR}/Microphysics/SatAdj/ERF_InitSatAdj.cpp
-       ${SRC_DIR}/Microphysics/SatAdj/ERF_SatAdj.cpp
-       ${SRC_DIR}/Microphysics/SatAdj/ERF_UpdateSatAdj.cpp
-       ${SRC_DIR}/MaterialProperties/ERF_MaterialProperties.cpp
-	   ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
-	   ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
-	   ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
-	   ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
+       ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
+       ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
+       ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
+       ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/ERF_MM5.cpp
   )
@@ -282,8 +291,9 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SAM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>)
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>) 
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Morrison>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SatAdj>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>) 
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Fitch>)

@@ -104,7 +104,7 @@ public:
         amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
         const amrex::MultiFab& state,
         const amrex::Geometry& geom,
-        std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
+        std::unique_ptr<amrex::MultiFab>& z_phys_nd) override;
 
     void update_geostrophic_profile (
         const amrex::Real& /*time*/,
