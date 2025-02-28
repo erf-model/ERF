@@ -17,6 +17,8 @@ using namespace amrex;
  * staggered quantities at the lower cell faces in the log file; these
  * quantities will have a zero value at the big end, corresponding to k=Nz+1.
  *
+ * The structure of file should follow ERF_Write1DProfiles.cpp
+ *
  * @param time Current time
  */
 void
@@ -87,7 +89,7 @@ ERF::write_1D_profiles_stag (Real time)
                   Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
                   data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                            << 0 << " " << 0 << " " << h_avg_w[unstag_size+1] << " "
+                            << 0 << " " << 0 << " " << h_avg_w[unstag_size] << " "
                             << 0 << " " << 0 << " " << 0 << " " // rho, theta, ksgs
                             << 0 << " " << 0 << " "             // Kmv, Khv
                             << 0 << " " << 0 << " " << 0 << " " // qv, qc, qr
@@ -319,8 +321,8 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
                         (solverChoice.turbChoice[lev].pbl_type  != PBLType::None));
     bool l_use_KE   = ( (solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
                         (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) ||
-                        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNN25) );
-
+                        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNN25) ||
+                        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNNEDMF) );
     // Note: "uiui" == u_i*u_i = u*u + v*v + w*w
     // This will hold rho, theta, ksgs, Kmh, Kmv, uu, uv, vv, uth, vth,
     //       indices:   0      1     2    3    4   5   6   7    8    9

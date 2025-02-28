@@ -78,8 +78,6 @@ public:
     void
     Define (SolverChoice& sc) override
     {
-        docloud    = sc.do_cloud;
-        doprecip   = sc.do_precip;
         m_fac_cond = lcond / sc.c_p;
         m_fac_fus  = lfus / sc.c_p;
         m_fac_sub  = lsub / sc.c_p;
@@ -306,9 +304,6 @@ private:
 
     // plane average axis
     int m_axis;
-
-    // model options
-    bool docloud, doprecip;
 
     // constants
     amrex::Real m_fac_cond;

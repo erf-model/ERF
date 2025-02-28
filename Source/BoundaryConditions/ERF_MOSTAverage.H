@@ -8,12 +8,14 @@
 #include <AMReX_ParmParse.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_TerrainMetrics.H>
+#include <ERF_DataStruct.H>
 
 class MOSTAverage {
 public:
     explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
                           const bool& has_zphys,
-                          std::string a_pp_prefix);
+                          std::string a_pp_prefix,
+                          const TerrainType& m_terrain_type);
 
     // MOSTAverage() = default;
     ~MOSTAverage ()
@@ -176,6 +178,7 @@ protected:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_fields;         // Ptr to fields to be averaged
     amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain height coords
     std::string m_pp_prefix;                                         // ParmParse prefix
+    TerrainType m_terrain_type;                                      // Terrain type
 
     // General vars for multiple or all policies
     //--------------------------------------------

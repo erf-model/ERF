@@ -143,7 +143,7 @@ Radiation::set_grids (int& level,
 
     // Update the day and month
     time_t timestamp = time_t(int(time));
-    struct tm *timeinfo = localtime(&timestamp);
+    struct tm *timeinfo = gmtime(&timestamp);
     if (m_fixed_orbital_year) {
         m_orbital_mon  = timeinfo->tm_mon + 1;
         m_orbital_day  = timeinfo->tm_mday;
