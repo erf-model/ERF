@@ -234,7 +234,7 @@ void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
         if (m_num_initializations > 1) { Print() << " " << i; }
         Print() << ":\n";
         m_initializations[i]->printParameters(m_aerosol_mat);
-        initializeParticles( a_ptr, *(m_initializations[i]) );
+        initializeParticles( nullptr /*a_ptr*/, *(m_initializations[i]) );
         Print() << "    Particle container size: " << NumSuperDroplets() << "\n";
     }
 }
