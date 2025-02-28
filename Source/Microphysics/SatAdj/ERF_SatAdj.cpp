@@ -13,7 +13,7 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
     Real d_fac_cond = m_fac_cond;
     Real rdOcp      = m_rdOcp;
 
-    // get the temperature, dentisy, theta, qt and qc from input
+    // get the temperature, density, theta, qt and qc from input
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const auto& tbx = mfi.tilebox();

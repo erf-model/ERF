@@ -1533,6 +1533,12 @@ Examples of Usage
 -  **erf.terrain_smoothing**  = 2
     Sullivan TF is used when generating the terrain following coordinate.
 
+-  When setting **erf.terrain_file_name**, the format of the file is expected to
+    be (in raw text): first the nx values of the x-coordinate, then the ny values of
+    the y-coordinate, then the (nx times ny) values of the z-coordinate associated
+    with the (x,y) values we have just read in.  Note that the z-values are in the
+    order z(x1,y1), z(x1,y2), z(x1,y3), ... which is contrary to standard Fortran ordering
+
 Moisture
 ========
 
@@ -1545,14 +1551,16 @@ The following run-time options control how the full moisture model is used.
 List of Parameters
 ------------------
 
-+-----------------------------+--------------------------+--------------------+------------+
-| Parameter                   | Definition               | Acceptable         | Default    |
-|                             |                          | Values             |            |
-+=============================+==========================+====================+============+
-| **erf.moisture_model**      | Name of moisture model   |  "SAM", "Kessler", | "Null"     |
-|                             |                          |  "SatAdj"          |            |
-+-----------------------------+--------------------------+--------------------+------------+
-
++-----------------------------+--------------------------+-----------------------+------------+
+| Parameter                   | Definition               | Acceptable            | Default    |
+|                             |                          | Values                |            |
++=============================+==========================+=======================+============+
+| **erf.moisture_model**      | Name of moisture model   |  "None", "SAM",       | "None"     |
+|                             |                          |  "Kessler", "SatAdj"  |            |
+|                             |                          |  "Kessler_NoRain",    |            |
+|                             |                          |  "SAM_NoPrecip_NoIce",|            |
+|                             |                          |  "SAM_NoIce"          |            |
++-----------------------------+--------------------------+-----------------------+------------+
 
 Radiation
 =========

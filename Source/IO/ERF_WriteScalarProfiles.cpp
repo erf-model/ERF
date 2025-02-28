@@ -1,6 +1,7 @@
 #include <iomanip>
 
 #include "ERF.H"
+#include "ERF_Derive.H"
 
 using namespace amrex;
 
@@ -165,6 +166,91 @@ ERF::sum_integrated_quantities (Real time)
             sample_lines(lev, time, SampleLine(i), vars_new[lev][Vars::cons]);
         }
     }
+}
+
+void
+ERF::sum_derived_quantities (Real time)
+{
+    if (verbose <= 0 || NumDerDataLogs() <= 0) return;
+
+    int lev = 0;
+
+    int datwidth = 14;
+    int datprecision = 6;
+    int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
+
+    AMREX_ALWAYS_ASSERT(lev == 0);
+
+    // ************************************************************************
+    // WARNING: we are not filling ghost cells other than periodic outside the domain
+    // ************************************************************************
+
+    MultiFab mf_cc_vel(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
+    mf_cc_vel.setVal(0.); // We just do this to avoid uninitialized values
+
+    // Average all three components of velocity (on faces) to the cell center
+    average_face_to_cellcenter(mf_cc_vel,0,
+                               Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],
+                                                        &vars_new[lev][Vars::yvel],
+                                                        &vars_new[lev][Vars::zvel]});
+    mf_cc_vel.FillBoundary(geom[lev].periodicity());
+
+    if (!geom[lev].isPeriodic(0) || !geom[lev].isPeriodic(1) || !geom[lev].isPeriodic(2)) {
+        amrex::Warning("Ghost cells outside non-periodic physical boundaries are not filled -- vel set to 0 there");
+    }
+
+    MultiFab r_wted_magvelsq(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
+    MultiFab unwted_magvelsq(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
+    MultiFab     enstrophysq(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(unwted_magvelsq, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        auto& src_fab = mf_cc_vel[mfi];
+
+        auto& dest1_fab = unwted_magvelsq[mfi];
+        derived::erf_dermagvelsq(bx, dest1_fab, 0, 1, src_fab, Geom(lev), t_new[0], nullptr, lev);
+
+        auto& dest2_fab = enstrophysq[mfi];
+        derived::erf_derenstrophysq(bx, dest2_fab, 0, 1, src_fab, Geom(lev), t_new[0], nullptr, lev);
+    }
+
+    // Copy the MF holding 1/2(u^2 + v^2 + w^2) into the MF that will hold 1/2 rho (u^2 + v^2 + w^2)d
+    MultiFab::Copy(r_wted_magvelsq, unwted_magvelsq, 0, 0, 1, 0);
+
+    // Multiply the MF holding 1/2(u^2 + v^2 + w^2) by rho to get  1/2 rho (u^2 + v^2 + w^2)
+    MultiFab::Multiply(r_wted_magvelsq, vars_new[lev][Vars::cons], 0, 0, 1, 0);
+
+    Real  unwted_avg = volWgtSumMF(lev, unwted_magvelsq, 0, *mapfac_m[lev],true,false);
+    Real  r_wted_avg = volWgtSumMF(lev, r_wted_magvelsq, 0, *mapfac_m[lev],true,false);
+    Real enstrsq_avg = volWgtSumMF(lev, enstrophysq,     0, *mapfac_m[lev],true,false);
+
+    Real vol = geom[lev].ProbDomain().volume(); // Volume of the domain;
+     unwted_avg /= vol;
+     r_wted_avg /= vol;
+    enstrsq_avg /= vol;
+
+    if (ParallelDescriptor::IOProcessor()) {
+
+        std::ostream& data_log_der = DerDataLog(0);
+
+        if (time == 0.0) {
+            data_log_der << std::setw(datwidth) << "          time";
+            data_log_der << std::setw(datwidth) << "        ke_den";
+            data_log_der << std::setw(datwidth) << "         velsq";
+            data_log_der << std::setw(datwidth) << "     enstrophy";
+            data_log_der << std::endl;
+        }
+        data_log_der << std::setw(datwidth) << std::setprecision(timeprecision) << time;
+        data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  <<  unwted_avg;
+        data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  <<  r_wted_avg;
+        data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  << enstrsq_avg;
+        data_log_der << std::endl;
+
+    } // if IOProcessor
 }
 
 Real

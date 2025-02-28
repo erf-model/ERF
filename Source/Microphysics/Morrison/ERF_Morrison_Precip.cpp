@@ -38,7 +38,7 @@ Morrison::Precip (const SolverChoice& /*sc*/)
 
     Real dtn = dt;
 
-    // get the temperature, dentisy, theta, qt and qp from input
+    // get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar_Morr::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto theta_array = mic_fab_vars[MicVar_Morr::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
