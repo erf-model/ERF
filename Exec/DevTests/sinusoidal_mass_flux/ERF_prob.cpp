@@ -363,42 +363,42 @@ Problem::update_w_subsidence (const Real& time,
     }
     Gpu::DeviceVector<Real> rho_d(khi,0.0);
     auto rho_arr = rho_d.data();
-    for ( amrex::MFIter mfi(state, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {  
-         const auto &box = mfi.tilebox();
-         //const amrex::Array4<amrex::Real>& state_arr = state.array(mfi);
-         auto state_arr = state.const_array(mfi);
-         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-              rho_arr[k] = state_arr(i, j, k, Rho_comp); // rho at i,j,k
-    });
-    }   
+    for ( amrex::MFIter mfi(state, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        const auto &box = mfi.tilebox();
+        auto state_arr = state.const_array(mfi);
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+             rho_arr[k] = state_arr(i, j, k, Rho_comp); // rho at i,j,k
+        });
+    }
+
+    Vector<Real> rho_h(khi,0.0);
+    Gpu::copy( Gpu::deviceToHost,
+               rho_d.begin(),
+               rho_d.end(),
+               rho_h.begin() );
+
     // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
     Real z_0    = 0.0; // (z_phys_cc) ? zlevels[0] : prob_lo[2] + 0.5 * dx[2];
     Real slope1 =  parms.wbar_sub_max / (parms.wbar_cutoff_max - z_0);
     Real slope2 = -parms.wbar_sub_max / (parms.wbar_cutoff_min - parms.wbar_cutoff_max);
-    //Real rho_s       = state(0,0,0,Rho_comp);
-    wbar[0]     = 2*sin(PI*time/600)/rho_arr[0];
-//    wbar[0] = 2;
-    amrex::Print() << "wbar values is "<< wbar[0] << std::endl;
-//    wbar[0]     = 5;
 
-    for (int k = 1; k <= khi; k++) {
-        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + k*dx[2];
-//        Real rho_s       = state(0,0,k,Rho_comp);
-        if (time < 600) {
-        wbar[k] = 2*sin(PI*time/600)/rho_arr[k-1];}
-        else{
-        wbar[k] = 0.0;}
-
-//        wbar[k] = 2;
-//        if (z_cc <= parms.wbar_cutoff_max) {
-//            wbar[k] = slope1 * (z_cc - z_0);
-//        } else if (z_cc <= parms.wbar_cutoff_min) {
-//            wbar[k] = slope2 * (z_cc - parms.wbar_cutoff_max) + parms.wbar_sub_max;
-//        } else {
-//            wbar[k] = 0.0;
-//        }
+    // Create staggered rho array corresponding to wbar and use linear interpolation
+    // to compute it
+    Vector<Real> rho_stag(khi+1,0.0);
+    rho_stag[0] = 1.5*rho_h[0] - 0.5*rho_h[1];
+    rho_stag[khi] = 1.5*rho_h[khi-1] - 0.5*rho_h[khi-2];
+    for (int k = 1; k < khi; k++) {
+        rho_stag[k] = 0.5*(rho_h[k-1]+rho_h[k]);
     }
+
+    for (int k = 0; k <= khi; k++) {
+        if (time < 600) {
+            wbar[k] = 2*sin(PI*time/600)/rho_stag[k];
+        } else {
+            wbar[k] = 0.0;
+        }
+    }
+    amrex::Print() << "wbar values is "<< wbar[0] << std::endl;
 
     // Copy from host version to device version
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, wbar.begin(), wbar.end(), d_wbar.begin());
