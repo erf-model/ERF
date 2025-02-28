@@ -235,9 +235,9 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
 {
     if (src->empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2];
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
+    const int khi      = geom.Domain().bigEnd()[2];
+    const auto prob_lo = geom.ProbLoArray();
+    const auto dx      = geom.CellSizeArray();
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
@@ -291,9 +291,9 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
 {
     if (qsrc->empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2];
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
+    const int khi      = geom.Domain().bigEnd()[2];
+    const auto prob_lo = geom.ProbLoArray();
+    const auto dx      = geom.CellSizeArray();
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
@@ -348,9 +348,9 @@ Problem::update_w_subsidence (const Real& time,
 {
     if (wbar.empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
+    const int khi      = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
+    const auto prob_lo = geom.ProbLo();
+    const auto dx      = geom.CellSize();
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
