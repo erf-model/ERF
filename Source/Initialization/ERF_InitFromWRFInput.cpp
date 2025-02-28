@@ -672,12 +672,12 @@ init_base_state_from_wrfinput (const Box& domain,
             // NOTE: Ghost cells don't contain valid data
             //       We want domain GCs and FB picks up interior GCs
             if (tbx.contains(i,j,k)) {
-                if ( (DelP > 1.0) && (DelP / Ptot < 1.e-4) ) {
+                if ( (DelP > 1.0) || (DelP/Ptot > 1e-6) ) {
                     AllPrint() << "p" << IntVect(i,j,k) << " : "
                         << Ptot << " (WRF P+PB) "
                         << P_eos << " (qv="<<Qv<<", rho="<<cons_arr(ii,jj,kk,Rho_comp)<<", rhotheta="<<RT<<")"
                         << std::endl;
-                    amrex::Abort("Initial state is inconsistent with EOS!");
+                    amrex::Abort("Initial state is inconsistent with EOS!?");
                 }
             }
 
