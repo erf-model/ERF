@@ -12,6 +12,7 @@ read_from_wrfinput (int lev,
                     FArrayBox& NC_fab,
                     const std::string& NC_name,
                     Geometry& geom,
+                    int& use_theta_m,
                     int& success)
 {
     if (ParallelDescriptor::IOProcessor()) {
@@ -24,6 +25,7 @@ read_from_wrfinput (int lev,
             std::vector<int> attr;
             ncf.get_attr("WEST-EAST_GRID_DIMENSION", attr);   NC_nx = attr[0];
             ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); NC_ny = attr[0];
+            ncf.get_attr("USE_THETA_M", attr);                use_theta_m = attr[0];
         }
         { // Global Attributes (Real)
             std::vector<Real> attr;

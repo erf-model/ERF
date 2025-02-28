@@ -20,6 +20,7 @@ read_from_wrfinput (int lev,
                     FArrayBox& NC_fab,
                     const std::string& NC_name,
                     Geometry& geom,
+                    int& use_theta_m,
                     int& success);
 
 Real
@@ -163,9 +164,10 @@ ERF::init_from_wrfinput (int lev)
         for (int ivar = 0; ivar < nvar; ++ ivar) {
             Print() << "Reading variable " << NC_names[ivar] << " ...";
 
-            int success;
+            int success, use_theta_m;
             read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
-                               NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev], success);
+                               NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev],
+                               use_theta_m, success);
 
             auto var_name = NC_names[ivar];
             auto& var_fab = NC_fab_var_file[idx][ivar];
@@ -246,7 +248,7 @@ ERF::init_from_wrfinput (int lev)
                   if (success) {
                       cur_fab->template copy<RunOn::Device>(var_fab, 0, icomp, 1);
                       if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
-                      if (NC_names[ivar] == "QVAPOR") {
+                      if (use_theta_m && (NC_names[ivar] == "QVAPOR")) {
                           // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
                           var_fab.template mult<RunOn::Device>(R_v/R_d);
                           var_fab.template plus<RunOn::Device>(1.0);
