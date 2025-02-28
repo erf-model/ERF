@@ -543,6 +543,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
         sum_integrated_quantities(time);
+        sum_derived_quantities(time);
     }
 
     if (solverChoice.pert_type == PerturbationType::Source ||
@@ -830,10 +831,6 @@ ERF::InitData_post ()
         initSponge();
         bool restarting = (!restart_chkfile.empty());
         setSpongeRefFromSounding(restarting);
-    }
-
-    if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
-        sum_integrated_quantities(t_new[0]);
     }
 
     if (solverChoice.pert_type == PerturbationType::Source ||
@@ -1150,6 +1147,17 @@ ERF::InitData_post ()
             setRecordDataInfo(i,datalogname[i]);
     }
 
+    if (pp.contains("der_data_log"))
+    {
+        int num_der_datalogs = pp.countval("der_data_log");
+        der_datalog.resize(num_der_datalogs);
+        der_datalogname.resize(num_der_datalogs);
+        pp.queryarr("der_data_log",der_datalogname,0,num_der_datalogs);
+        for (int i = 0; i < num_der_datalogs; i++)
+            setRecordDerDataInfo(i,der_datalogname[i]);
+    }
+
+
     if (restart_chkfile.empty() && profile_int > 0) {
         if (destag_profiles) {
             // all variables cell-centered
@@ -1218,6 +1226,11 @@ ERF::InitData_post ()
             }
         }
 
+    }
+
+    if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
+        sum_integrated_quantities(t_new[0]);
+        sum_derived_quantities(t_new[0]);
     }
 
     // Create object to do line and plane sampling if needed
