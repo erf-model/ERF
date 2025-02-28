@@ -87,7 +87,11 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                     auto qw = qc_arr(i,j,k) + qr_arr(i,j,k);
                     if (qw > qt_arr(i,j,k)) {
                         qv_arr(i,j,k) = 0.0;
-                        qc_arr(i,j,k) = qt_arr(i,j,k) - qr_arr(i,j,k);
+                        if (qr_arr(i,j,k) > qt_arr(i,j,k)) {
+                            qc_arr(i,j,k) = 0.0;
+                        } else {
+                            qc_arr(i,j,k) = qt_arr(i,j,k) - qr_arr(i,j,k);
+                        }
                     } else {
                         qv_arr(i,j,k) = qt_arr(i,j,k) - (qc_arr(i,j,k) + qr_arr(i,j,k));
                     }
