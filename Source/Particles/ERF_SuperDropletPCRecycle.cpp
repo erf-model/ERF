@@ -57,7 +57,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
 
-        bool use_terrain = (z_height != nullptr);
+        bool use_terrain = false; //(z_height != nullptr);
         auto zheight = use_terrain ? (*z_height)[grid].array() : Array4<Real>{};
 
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;

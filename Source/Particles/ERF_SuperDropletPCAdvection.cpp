@@ -69,7 +69,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         const auto& temperature_arr = a_temperature[grid].array();
         const auto& pressure_arr = a_pressure[grid].array();
 
-        bool use_terrain = (z_height != nullptr);
+        bool use_terrain = false; //(z_height != nullptr);
         auto zheight = use_terrain ? (*z_height)[grid].array() : Array4<Real>{};
 
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
