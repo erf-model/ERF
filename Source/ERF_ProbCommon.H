@@ -369,7 +369,7 @@ public:
                 AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
 
             } else {
-                int cnt = 1;  
+                int cnt = 1;
                 nx = erf_get_single_value<int>(file,cnt); cnt++;
                 ny = erf_get_single_value<int>(file,cnt); cnt++;
                 amrex::Print()<<"Expecting " << nx << " values of x,    " <<
