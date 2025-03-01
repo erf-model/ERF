@@ -62,6 +62,7 @@ jobs:
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          -DERF_ENABLE_PARTICLES:BOOL=ON \
           -DCMAKE_C_COMPILER=$(which icx) \
           -DCMAKE_CXX_COMPILER=$(which icpx) \
           -DCMAKE_CXX_STANDARD=17

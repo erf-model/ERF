@@ -70,6 +70,7 @@ jobs:
             -DERF_DIM:STRING=3 \
             -DERF_ENABLE_MPI:BOOL=ON \
             -DERF_ENABLE_CUDA:BOOL=ON \
+            -DERF_ENABLE_PARTICLES:BOOL=ON \
             -DERF_ENABLE_REGRESSION_TESTS_ONLY:BOOL=ON .
           echo "Building with $(nproc) processes"
           cmake --build build-${{matrix.cuda_pkg}} --parallel $(nproc) \
