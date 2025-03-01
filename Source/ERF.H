@@ -915,6 +915,8 @@ private:
     int max_step = std::numeric_limits<int>::max();
     amrex::Real start_time = 0.0;
     amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
+    bool use_datetime = false;
+    const std::string datetime_format = "%Y-%m-%d %H:%M:%S";
 
     // if >= 0 we restart from a checkpoint
     std::string restart_chkfile = "";

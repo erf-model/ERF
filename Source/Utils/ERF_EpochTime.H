@@ -29,4 +29,17 @@ getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
     return epoch;
 }
 
+AMREX_FORCE_INLINE
+std::string
+getTimestamp (const std::time_t epoch, const std::string& datetime_format)
+{
+    std::tm *time_info = std::gmtime(&epoch);
+
+    char buffer[80];
+    std::strftime(buffer, sizeof(buffer), datetime_format.c_str(), time_info);
+
+    return std::string(buffer);
+}
+
+
 #endif
