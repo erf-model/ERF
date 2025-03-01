@@ -28,7 +28,7 @@ erf.use_tracer_particles = 1
 tracer_particles.initial_distribution_type = box
 tracer_particles.particle_box_lo = 3.95 -1.0 -1.0
 tracer_particles.particle_box_hi = 4.00  2.0  3.0
-tracer_particles.place_randomly_in_cells = true
+tracer_particles.place_randomly_in_cells = false
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 1E-3
