@@ -1534,7 +1534,8 @@ Examples of Usage
     Sullivan TF is used when generating the terrain following coordinate.
 
 -  When setting **erf.terrain_file_name**, the format of the file is expected to
-    be (in raw text): first the nx values of the x-coordinate, then the ny values of
+    be (in raw text): the integer nx on the first line, the integer ny on the second line,
+    then the nx values of the x-coordinate, then the ny values of
     the y-coordinate, then the (nx times ny) values of the z-coordinate associated
     with the (x,y) values we have just read in.  Note that the z-values are in the
     order z(x1,y1), z(x1,y2), z(x1,y3), ... which is contrary to standard Fortran ordering
