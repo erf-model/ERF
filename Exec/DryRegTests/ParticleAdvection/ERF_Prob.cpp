@@ -55,9 +55,6 @@ Problem::init_custom_pert(
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-  const Real rho_sfc   = p_0 / (R_d*parms.T_0);
-  //const Real thetabar  = parms.T_0;
-
   ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
