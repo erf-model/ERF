@@ -47,8 +47,6 @@ ApplySpongeZoneBCsForCC (
     int domhi_x = domain.bigEnd(0) + 1;
     int domlo_y = domain.smallEnd(1);
     int domhi_y = domain.bigEnd(1) + 1;
-    int domlo_z = domain.smallEnd(2);
-    int domhi_z = domain.bigEnd(2) + 1;
 
     if(use_xlo_sponge_damping)AMREX_ALWAYS_ASSERT(xlo_sponge_end   > ProbLoArr[0]);
     if(use_xhi_sponge_damping)AMREX_ALWAYS_ASSERT(xhi_sponge_start < ProbHiArr[0]);
@@ -167,8 +165,6 @@ ApplySpongeZoneBCsForMom (
     int domhi_x = domain.bigEnd(0) + 1;
     int domlo_y = domain.smallEnd(1);
     int domhi_y = domain.bigEnd(1) + 1;
-    int domlo_z = domain.smallEnd(2);
-    int domhi_z = domain.bigEnd(2) + 1;
 
     if(use_xlo_sponge_damping)AMREX_ALWAYS_ASSERT(xlo_sponge_end   > ProbLoArr[0]);
     if(use_xhi_sponge_damping)AMREX_ALWAYS_ASSERT(xhi_sponge_start < ProbHiArr[0]);

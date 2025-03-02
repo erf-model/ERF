@@ -44,8 +44,6 @@ ApplySpongeZoneBCsForMom_ReadFromFile (
     int domhi_x = domain.bigEnd(0) + 1;
     int domlo_y = domain.smallEnd(1);
     int domhi_y = domain.bigEnd(1) + 1;
-    int domlo_z = domain.smallEnd(2);
-    int domhi_z = domain.bigEnd(2) + 1;
 
     Real*     ubar_sponge = d_sponge_ptrs_at_lev[Sponge::ubar_sponge];
     Real*     vbar_sponge = d_sponge_ptrs_at_lev[Sponge::vbar_sponge];

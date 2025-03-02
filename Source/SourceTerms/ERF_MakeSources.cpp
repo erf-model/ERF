@@ -211,8 +211,6 @@ void make_sources (int level,
         // *************************************************************************************
         // 3. Add Rayleigh damping for (rho theta)
         // *************************************************************************************
-        Real zlo      = geom.ProbLo(2);
-        Real dz       = geom.CellSize(2);
         Real ztop     = solverChoice.rayleigh_ztop;
         Real zdamp    = solverChoice.rayleigh_zdamp;
         Real dampcoef = solverChoice.rayleigh_dampcoef;
@@ -417,7 +415,9 @@ void make_sources (int level,
         // *************************************************************************************
         // 10. Add Immersed source terms
         // *************************************************************************************
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing)
+        {
+            Real dz                     = geom.CellSize(2);
             const Real drag_coefficient = 10.0/dz;
             const Real CdT = drag_coefficient;
             const Real U_s  = 1.0;
