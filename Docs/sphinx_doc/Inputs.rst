@@ -381,31 +381,41 @@ Simulation Time
 List of Parameters
 ------------------
 
-+-----------------+---------------------------+--------------+---------+
-| Parameter       | Definition                | Acceptable   | Default |
-|                 |                           | Values       |         |
-+=================+===========================+==============+=========+
-| **max_step**    | maximum number of level 0 | Integer >= 0 | -1      |
-|                 | time steps                |              |         |
-+-----------------+---------------------------+--------------+---------+
-| **start_time**  | starting simulation       | Real >= 0    |  0.0    |
-|                 | time                      |              |         |
-+-----------------+---------------------------+--------------+---------+
-| **stop_time**   | final simulation          | Real >= 0    | Very    |
-|                 | time                      |              | Large   |
-+-----------------+---------------------------+--------------+---------+
++---------------------+---------------------------+--------------+---------+
+| Parameter           | Definition                | Acceptable   | Default |
+|                     |                           | Values       |         |
++=====================+===========================+==============+=========+
+| **max_step**        | maximum number of level 0 | Integer >= 0 | -1      |
+|                     | time steps                |              |         |
++---------------------+---------------------------+--------------+---------+
+| **start_time**      | starting simulation       | Real >= 0    |  0.0    |
+|                     | time                      |              |         |
++---------------------+---------------------------+--------------+---------+
+| **stop_time**       | final simulation          | Real >= 0    | Very    |
+|                     | time                      |              | Large   |
++---------------------+---------------------------+--------------+---------+
+| **start_datetime**  | starting simulation       | String       | None    |
+|                     | date/time                 | (see notes)  |         |
++---------------------+---------------------------+--------------+---------+
+| **stop_datetime**   | final simulation          | String       | None    |
+|                     | date/time                 | (see notes)  |         |
++---------------------+---------------------------+--------------+---------+
 
 .. _notes-3:
 
 Notes
 -----
 
-To control the number of time steps, you can limit by the maximum number
-of level-0 time steps (**max_step**), or the final simulation time
-(**stop_time**), or both. The code will stop at whichever criterion
-comes first. Note that if the code reaches **stop_time** then the final
-time step will be shortened so as to end exactly at **stop_time**, not
-pass it.
+- To control the number of time steps, you can limit by the maximum number
+  of level-0 time steps (**max_step**), or the final simulation time
+  (**stop_time**), or both. The code will stop at whichever criterion
+  comes first. Note that if the code reaches **stop_time** then the final
+  time step will be shortened so as to end exactly at **stop_time**, not
+  pass it.
+- For real data cases, the start and stop times is the epoch time in seconds.
+- **start_datetime** and **stop_datetime** are in UTC and use the following
+  strftime format: "%Y-%m-%d %H:%M:%S", e.g., "2001-01-01 18:00:00".
+  The start/stop datetime inputs have precedence over the time inputs.
 
 .. _examples-of-usage-4:
 
