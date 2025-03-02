@@ -119,6 +119,7 @@ void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                                const amrex::Array4<const amrex::Real>& rho_u,
                                const amrex::Array4<const amrex::Real>& rho_v,
                                const amrex::Array4<const amrex::Real>& rho_w,
+                               const amrex::Array4<const amrex::Real>& z_phys_nd,
                                const amrex::Array4<const amrex::Real>& z_phys_cc);
 
 void ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,

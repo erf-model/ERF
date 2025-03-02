@@ -61,7 +61,6 @@ ApplySpongeZoneBCsForCC (
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
-        int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
         Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
         Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
@@ -127,6 +126,7 @@ ApplySpongeZoneBCsForMom (
   const Array4<const Real>& rho_u,
   const Array4<const Real>& rho_v,
   const Array4<const Real>& rho_w,
+  const Array4<const Real>& z_phys_nd,
   const Array4<const Real>& z_phys_cc)
 {
     // Domain cell size and real bounds
@@ -181,11 +181,10 @@ ApplySpongeZoneBCsForMom (
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
-        int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
         Real x = ProbLoArr[0] + ii * dx[0];
         Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
-        Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
+        Real z = z_phys_cc(i,j,k);
 
         // x lo sponge
         if(use_xlo_sponge_damping){
@@ -240,11 +239,10 @@ ApplySpongeZoneBCsForMom (
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
-        int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
         Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
         Real y = ProbLoArr[1] + jj * dx[1];
-        Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
+        Real z = z_phys_cc(i,j,k);
 
         // x lo sponge
         if(use_xlo_sponge_damping){
@@ -299,11 +297,10 @@ ApplySpongeZoneBCsForMom (
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
-        int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
         Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
         Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
-        Real z = ProbLoArr[2] + kk * dx[2];
+        Real z = z_phys_nd(i,j,k);
 
         // x left sponge
         if(use_xlo_sponge_damping){
