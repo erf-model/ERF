@@ -543,23 +543,18 @@ bool NCGroup::has_dim (const std::string& name) const
 
 int NCGroup::get_id (const std::string& name) const
 {
-    int temp_id;
+    int temp_id = 0;
     int ierr = nc_inq_varid (ncid, name.data(), &temp_id);
+    if (ierr == NC_ENOTVAR) {
+        amrex::Abort("NetCDF variable '" + name + "' does not exist");
+    }
     return temp_id;
 }
 
 bool NCGroup::has_var (const std::string& name) const
 {
-    int  rh_id;
-    int  ierr;
-    nc_type rh_type;
-    int rh_ndims;
-    int rh_dimids[NC_MAX_VAR_DIMS];
-    int rh_natts;
-
-    rh_id = get_id(name);
-    ierr  = nc_inq_var   (ncid, rh_id, 0, &rh_type, &rh_ndims, rh_dimids, &rh_natts);
-
+    int rh_id = 0;
+    int ierr = nc_inq_varid(ncid, name.data(), &rh_id);
     return (ierr  == NC_NOERR);
 }
 

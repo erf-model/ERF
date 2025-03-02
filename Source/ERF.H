@@ -206,6 +206,8 @@ public:
 
     // Diagnostics
     void sum_integrated_quantities (amrex::Real time);
+    void sum_derived_quantities (amrex::Real time);
+
     void write_1D_profiles (amrex::Real time);
     void write_1D_profiles_stag (amrex::Real time);
 
@@ -1238,11 +1240,26 @@ private:
     }
 
     AMREX_FORCE_INLINE
+    std::ostream&
+    DerDataLog (int i)
+    {
+        return *der_datalog[i];
+    }
+
+    AMREX_FORCE_INLINE
     int
     NumDataLogs () noexcept
     {
         return datalog.size();
     }
+
+    AMREX_FORCE_INLINE
+    int
+    NumDerDataLogs () noexcept
+    {
+        return der_datalog.size();
+    }
+
 
     AMREX_FORCE_INLINE
     std::ostream&
@@ -1329,6 +1346,19 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordDataInfo");
     }
 
+    void setRecordDerDataInfo (int i, const std::string& filename) // NOLINT
+    {
+        if (amrex::ParallelDescriptor::IOProcessor())
+        {
+            der_datalog[i] = std::make_unique<std::fstream>();
+            der_datalog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+            if (!der_datalog[i]->good()) {
+                amrex::FileOpenFailed(filename);
+            }
+        }
+        amrex::ParallelDescriptor::Barrier("ERF::setRecordDerDataInfo");
+    }
+
     void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename) // NOLINT
     {
         amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
@@ -1369,7 +1399,9 @@ private:
     std::unique_ptr<SampleData> data_sampler = nullptr;
 
     amrex::Vector<std::unique_ptr<std::fstream> > datalog;
-    amrex::Vector<std::string> datalogname;
+    amrex::Vector<std::unique_ptr<std::fstream> > der_datalog;
+    amrex::Vector<std::string>     datalogname;
+    amrex::Vector<std::string> der_datalogname;
 
     amrex::Vector<std::unique_ptr<std::fstream> > sampleptlog;
     amrex::Vector<std::string> sampleptlogname;
@@ -1381,6 +1413,7 @@ private:
 
     //! The filename of the ith datalog file.
     [[nodiscard]] std::string DataLogName (int i) const noexcept { return datalogname[i]; }
+    [[nodiscard]] std::string DerDataLogName (int i) const noexcept { return der_datalogname[i]; }
 
     //! The filename of the ith sampleptlog file.
     [[nodiscard]] std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
