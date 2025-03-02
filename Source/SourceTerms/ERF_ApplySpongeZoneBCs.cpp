@@ -9,7 +9,8 @@ ApplySpongeZoneBCsForCC (
   const Geometry geom,
   const Box& bx,
   const Array4<Real>& cell_rhs,
-  const Array4<const Real>& cell_data)
+  const Array4<const Real>& cell_data,
+  const Array4<const Real>& z_phys_cc)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
@@ -64,7 +65,7 @@ ApplySpongeZoneBCsForCC (
 
         Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
         Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
-        Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
+        Real z = z_phys_cc(i,j,k);
 
         // x left sponge
         if(use_xlo_sponge_damping){
@@ -125,7 +126,8 @@ ApplySpongeZoneBCsForMom (
   const Array4<Real>& rho_w_rhs,
   const Array4<const Real>& rho_u,
   const Array4<const Real>& rho_v,
-  const Array4<const Real>& rho_w)
+  const Array4<const Real>& rho_w,
+  const Array4<const Real>& z_phys_cc)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();

@@ -188,7 +188,7 @@ void make_sources (int level,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_src   = source.array(mfi);
 
-        const Array4<const Real>& z_cc_arr = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                Array4<const Real>{};
@@ -223,7 +223,7 @@ void make_sources (int level,
             int np = PrimTheta_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                Real zcc = z_cc_arr(i,j,k);
                 Real zfrac = 1 - (ztop - zcc) / zdamp;
                 if (zfrac > 0) {
                     Real theta = cell_prim(i,j,k,np);
@@ -362,7 +362,7 @@ void make_sources (int level,
         // 7. Add sponging
         // *************************************************************************************
         if(!(solverChoice.spongeChoice.sponge_type == "input_sponge")){
-            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
+            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, z_cc_arr);
         }
 
         // *************************************************************************************

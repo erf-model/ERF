@@ -11,6 +11,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (
   const Box& tbx,
   const Box& tby,
   const Array4<const Real>& cell_data,
+  const Array4<const Real>& z_phys_cc,
   const Array4<Real>& rho_u_rhs,
   const Array4<Real>& rho_v_rhs,
   const Array4<const Real>& rho_u,
@@ -64,7 +65,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (
 
         Real x = ProbLoArr[0] + ii * dx[0];
         Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
-        Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
+        Real z = z_phys_cc(i,j,k);
 
         // x lo sponge
         if(use_xlo_sponge_damping){

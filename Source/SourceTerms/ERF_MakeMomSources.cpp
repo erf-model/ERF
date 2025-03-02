@@ -493,12 +493,14 @@ void make_mom_sources (int level,
         if(solverChoice.spongeChoice.sponge_type == "input_sponge")
         {
              ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
-                                 xmom_src_arr, ymom_src_arr, rho_u, rho_v, d_sponge_ptrs_at_lev);
+                                                   z_cc_arr, xmom_src_arr, ymom_src_arr,
+                                                   rho_u, rho_v, d_sponge_ptrs_at_lev);
         }
         else
         {
             ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
-                                 xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w);
+                                     xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
+                                     z_cc_arr);
         }
 
         // *****************************************************************************
