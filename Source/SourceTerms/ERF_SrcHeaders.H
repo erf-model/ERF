@@ -105,7 +105,8 @@ void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
                               const amrex::Geometry geom,
                               const amrex::Box& bx,
                               const amrex::Array4<amrex::Real>& cell_rhs,
-                              const amrex::Array4<const amrex::Real>& cell_data);
+                              const amrex::Array4<const amrex::Real>& cell_data,
+                              const amrex::Array4<const amrex::Real>& z_phys_cc);
 
 void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                                const amrex::Geometry geom,
@@ -117,13 +118,16 @@ void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                                const amrex::Array4<amrex::Real>& rho_w_rhs,
                                const amrex::Array4<const amrex::Real>& rho_u,
                                const amrex::Array4<const amrex::Real>& rho_v,
-                               const amrex::Array4<const amrex::Real>& rho_w);
+                               const amrex::Array4<const amrex::Real>& rho_w,
+                               const amrex::Array4<const amrex::Real>& z_phys_nd,
+                               const amrex::Array4<const amrex::Real>& z_phys_cc);
 
 void ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
                                               const amrex::Geometry geom,
                                               const amrex::Box& tbx,
                                               const amrex::Box& tby,
                                               const amrex::Array4<const amrex::Real>& cell_data,
+                                              const amrex::Array4<const amrex::Real>& z_phys_cc,
                                               const amrex::Array4<amrex::Real>& rho_u_rhs,
                                               const amrex::Array4<amrex::Real>& rho_v_rhs,
                                               const amrex::Array4<const amrex::Real>& rho_u,
