@@ -384,7 +384,7 @@ ERF::ERF_shared ()
             amrex::Print() << "MAKING EB GEOMETRY AT LEVEL " << lev << ", max_level = "<< max_level << std::endl;
             eb[lev] = new eb_();
             amrex::EB2::Level const* eb_level = &(ebis.getLevel(geom[lev]));
-            eb[lev]->define(geom[lev], eb_level, solverChoice.anelastic[lev]);
+            eb[lev]->define(lev, geom[lev], eb_level, solverChoice.anelastic[lev]);
         }
     }
 }

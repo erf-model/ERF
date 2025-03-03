@@ -22,14 +22,13 @@ class eb_ {
          bool is_anelastic);
     eb_ ();
 
-    void define (amrex::Geometry const& a_geom,
+    void define (int level,
+                 amrex::Geometry const& a_geom,
                  amrex::EB2::Level const* a_eb_level,
                  bool is_anelastic);
 
-    // void make_factory ( amrex::Geometry            const& a_geom,
-    //                     amrex::DistributionMapping const& a_dmap,
-    //                     amrex::BoxArray            const& a_grids);
-    void make_factory ( amrex::Geometry   const& a_geom,
+    void make_factory ( int level,
+                        amrex::Geometry   const& a_geom,
                         amrex::EB2::Level const* a_eb_level);
 
     int nghost_basic () const  { return 5; } // nghost_eb_basic ()
@@ -45,7 +44,8 @@ class eb_ {
     void WriteEBSurface (const amrex::BoxArray & ba,
                         const amrex::DistributionMapping & dmap,
                         const amrex::Geometry & geom,
-                        const amrex::EBFArrayBoxFactory * ebf);
+                        const amrex::EBFArrayBoxFactory * ebf,
+                        const int level);
 
     eb_aux_ const* get_u_const_factory() { return &m_u_factory; }
     eb_aux_ const* get_v_const_factory() { return &m_v_factory; }

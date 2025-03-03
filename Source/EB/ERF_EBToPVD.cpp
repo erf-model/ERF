@@ -195,10 +195,10 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
    };
 }
 
-void eb_::EBToPVD::WriteEBVTP(const int myID) const
+void eb_::EBToPVD::WriteEBVTP(const int myID, const int level) const
 {
    std::stringstream ss;
-   ss << std::setw(8) << std::setfill('0') << myID;
+   ss << std::setw(8) << std::setfill('0') << myID << "_level_"<< level;
    std::string cID = "eb_" + ss.str() + ".vtp";
 
    std::ofstream myfile(cID);

@@ -31,7 +31,7 @@ eb_::eb_ ( )
 
 
 void
-eb_::define (Geometry const& a_geom, amrex::EB2::Level const* a_eb_level,
+eb_::define (int level, Geometry const& a_geom, amrex::EB2::Level const* a_eb_level,
              bool /*is_anelastic*/)
 {
 
@@ -39,13 +39,14 @@ eb_::define (Geometry const& a_geom, amrex::EB2::Level const* a_eb_level,
 
     m_write_eb_surface = 1;
 
-    make_factory(a_geom, a_eb_level);
+    make_factory(level, a_geom, a_eb_level);
 
 }
 
 void
 eb_::
-make_factory ( Geometry   const& a_geom,
+make_factory ( int level,
+               Geometry   const& a_geom,
                EB2::Level const* a_eb_level)
 {
 
@@ -57,7 +58,7 @@ make_factory ( Geometry   const& a_geom,
     Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
 
   if (m_write_eb_surface) {
-    eb_::WriteEBSurface(ba, dm, a_geom, m_factory.get());
+    eb_::WriteEBSurface(ba, dm, a_geom, m_factory.get(), level);
   }
 
   { int const idim(0);
@@ -94,7 +95,8 @@ eb_::
 WriteEBSurface (const BoxArray & ba, 
                 const DistributionMapping & dmap, 
                 const Geometry & geom,
-                const EBFArrayBoxFactory * ebf)
+                const EBFArrayBoxFactory * ebf,
+                const int level)
 {
 
     EBToPVD eb_to_pvd;
@@ -169,7 +171,7 @@ WriteEBSurface (const BoxArray & ba,
     int cpu = ParallelDescriptor::MyProc();
     int nProcs = ParallelDescriptor::NProcs();
 
-    eb_to_pvd.WriteEBVTP(cpu);
+    eb_to_pvd.WriteEBVTP(cpu, level);
 
     if(ParallelDescriptor::IOProcessor()) {
         EBToPVD::WritePVTP(nProcs);
