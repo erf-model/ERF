@@ -209,24 +209,24 @@ define( int const& a_idim,
 
           if (flag(iv_lo).isSingleValued() ) {
 
-            Real norm = ( (bnorm(iv_lo,0)*dx[0])*(bnorm(iv_lo,0)*dx[0])
-                        + (bnorm(iv_lo,1)*dx[1])*(bnorm(iv_lo,1)*dx[1])
-                        + (bnorm(iv_lo,2)*dx[2])*(bnorm(iv_lo,2)*dx[2]) );
+            // Real norm = ( (bnorm(iv_lo,0)*dx[0])*(bnorm(iv_lo,0)*dx[0])
+            //             + (bnorm(iv_lo,1)*dx[1])*(bnorm(iv_lo,1)*dx[1])
+            //             + (bnorm(iv_lo,2)*dx[2])*(bnorm(iv_lo,2)*dx[2]) );
 
-            RealVect bcent_isoparam ( bcent(iv_lo,0) / norm * dx[1] * dx[2],
-                                      bcent(iv_lo,1) / norm * dx[0] * dx[2],
-                                      bcent(iv_lo,2) / norm * dx[0] * dx[1] );
+            // RealVect bcent_isoparam ( bcent(iv_lo,0) / norm * dx[1] * dx[2],
+            //                           bcent(iv_lo,1) / norm * dx[0] * dx[2],
+            //                           bcent(iv_lo,2) / norm * dx[0] * dx[1] );
 
             Real bnorm_x = bnorm(iv_lo,0) * dx[0];
             Real bnorm_y = bnorm(iv_lo,1) * dx[1];
             Real bnorm_z = bnorm(iv_lo,2) * dx[2];
 
-            norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+            Real norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
 
             RealVect bnorm_isoparam ( bnorm_x / norm, bnorm_y / norm, bnorm_z / norm);
 
             // plane point and normal
-            lo_point  = bcent_isoparam;
+            // lo_point  = bcent_isoparam;
             lo_normal = bnorm_isoparam;
 
           }
@@ -252,24 +252,24 @@ define( int const& a_idim,
 
           if (flag(iv_hi).isSingleValued() ) {
 
-            Real norm = ( (bnorm(iv_hi,0)*dx[0])*(bnorm(iv_hi,0)*dx[0])
-                        + (bnorm(iv_hi,1)*dx[1])*(bnorm(iv_hi,1)*dx[1])
-                        + (bnorm(iv_hi,2)*dx[2])*(bnorm(iv_hi,2)*dx[2]) );
+            // Real norm = ( (bnorm(iv_hi,0)*dx[0])*(bnorm(iv_hi,0)*dx[0])
+            //             + (bnorm(iv_hi,1)*dx[1])*(bnorm(iv_hi,1)*dx[1])
+            //             + (bnorm(iv_hi,2)*dx[2])*(bnorm(iv_hi,2)*dx[2]) );
 
-            RealVect bcent_isoparam ( bcent(iv_hi,0) / norm * dx[1] * dx[2],
-                                      bcent(iv_hi,1) / norm * dx[0] * dx[2],
-                                      bcent(iv_hi,2) / norm * dx[0] * dx[1] );
+            // RealVect bcent_isoparam ( bcent(iv_hi,0) / norm * dx[1] * dx[2],
+            //                           bcent(iv_hi,1) / norm * dx[0] * dx[2],
+            //                           bcent(iv_hi,2) / norm * dx[0] * dx[1] );
 
             Real bnorm_x = bnorm(iv_hi,0) * dx[0];
             Real bnorm_y = bnorm(iv_hi,1) * dx[1];
             Real bnorm_z = bnorm(iv_hi,2) * dx[2];
 
-            norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+            Real norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
 
             RealVect bnorm_isoparam ( bnorm_x / norm, bnorm_y / norm, bnorm_z / norm);
 
             // plane point and normal
-            hi_point  = bcent_isoparam;
+            // hi_point  = bcent_isoparam;
             hi_normal = bnorm_isoparam;
 
           }

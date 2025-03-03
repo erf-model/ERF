@@ -13,6 +13,7 @@
 #include <AMReX_Random.H>
 #include <ERF_Utils.H>
 #include <ERF_TerrainMetrics.H>
+#include <ERF_EBIFTerrain.H>
 #include <memory>
 
 using namespace amrex;
@@ -372,18 +373,24 @@ ERF::ERF_shared ()
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
+        Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
+        FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
         Real dummy_time = 0.0;
-        eb.resize(max_level+1);
-        for (int lev = 0; lev < max_level; ++lev)
-        {
-            Box terrain_bx(surroundingNodes(geom[lev].Domain())); terrain_bx.grow(3);
-            FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
-            prob->init_terrain_surface(geom[lev], terrain_fab, dummy_time);
+        prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
+        TerrainIF ebterrain(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+        auto gshop = EB2::makeShop(ebterrain);
+        bool build_coarse_level_by_coarsening(false);
+        amrex::EB2::Build(gshop, geom[max_level], max_level, max_level, build_coarse_level_by_coarsening);
+        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
 
+        eb.resize(max_level+1);
+        for (int lev = 0; lev < max_level+1; ++lev)
+        {
             amrex::Print() << "MAKING EB GEOMETRY AT LEVEL " << lev << ", max_level = "<< max_level << std::endl;
             eb[lev] = new eb_();
-            eb[lev]->define(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
-        } // lev
+            amrex::EB2::Level const* eb_level = &(ebis.getLevel(geom[lev]));
+            eb[lev]->define(geom[lev], eb_level, solverChoice.anelastic[lev]);
+        }
     }
 }
 

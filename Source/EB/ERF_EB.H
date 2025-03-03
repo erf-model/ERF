@@ -23,17 +23,18 @@ class eb_ {
     eb_ ();
 
     void define (amrex::Geometry const& a_geom,
-                 amrex::FArrayBox const& terrain_fab,
-                 amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
+                 amrex::EB2::Level const* a_eb_level,
                  bool is_anelastic);
 
-    void make_factory ( amrex::Geometry            const& a_geom,
-                        amrex::DistributionMapping const& a_dmap,
-                        amrex::BoxArray            const& a_grids);
+    // void make_factory ( amrex::Geometry            const& a_geom,
+    //                     amrex::DistributionMapping const& a_dmap,
+    //                     amrex::BoxArray            const& a_grids);
+    void make_factory ( amrex::Geometry   const& a_geom,
+                        amrex::EB2::Level const* a_eb_level);
 
-    int nghost_basic () const  { return 2; }
-    int nghost_volume () const { return 2; }
-    int nghost_full () const   { return 2; }
+    int nghost_basic () const  { return 5; } // nghost_eb_basic ()
+    int nghost_volume () const { return 5; } // nghost_eb_volume ()
+    int nghost_full () const   { return 4; } // nghost_eb_full ()
 
     amrex::EBFArrayBoxFactory const* get_const_factory () noexcept
     { return m_factory.get(); }
