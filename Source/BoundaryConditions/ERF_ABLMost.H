@@ -37,6 +37,7 @@ public:
                       std::string a_pp_prefix,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                      const TerrainType& a_terrain_type,
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
     : m_geom(geom),
@@ -44,7 +45,7 @@ public:
       m_rotate(use_rot_most),
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
-      m_ma(geom,(z_phys_nd[0]!=nullptr),a_pp_prefix)
+      m_ma(geom,(z_phys_nd[0]!=nullptr),a_pp_prefix,a_terrain_type)
     {
         // We have a moisture model if Qv_prim is a valid pointer
         use_moisture = (Qv_prim[0].get());
@@ -78,6 +79,8 @@ public:
         if (pblh_string == "none") {
             pblh_type = PBLHeightCalcType::None;
         } else if (pblh_string == "MYNN25") {
+            pblh_type = PBLHeightCalcType::MYNN25;
+        } else if (pblh_string == "MYNNEDMF") {
             pblh_type = PBLHeightCalcType::MYNN25;
         } else if (pblh_string == "YSU") {
             pblh_type = PBLHeightCalcType::YSU;

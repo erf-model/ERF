@@ -249,7 +249,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
     if (solverChoice.moisture_type == MoistureType::Kessler_NoRain){
 
-        // get the temperature, dentisy, theta, qt and qc from input
+        // get the temperature, density, theta, qt and qc from input
         for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
             auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);

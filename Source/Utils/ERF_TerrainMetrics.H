@@ -7,6 +7,13 @@
 #include <ERF_IndexDefines.H>
 
 /**
+ * Routine to define default z_phys_nd and z_phys_cc
+ */
+void
+init_default_zphys (int lev, const amrex::Geometry& geom,
+                    amrex::MultiFab& z_phys_nd, amrex::MultiFab& z_phys_cc);
+
+/**
  * Utility routines for constructing terrain metric terms
  */
 

@@ -2,6 +2,7 @@
 
 #include "ERF_NCInterface.H"
 #include <AMReX.H>
+#include <AMReX_Print.H>
 
 #define abort_func amrex::Abort
 
@@ -540,10 +541,21 @@ bool NCGroup::has_dim (const std::string& name) const
     return (ierr == NC_NOERR);
 }
 
+int NCGroup::get_id (const std::string& name) const
+{
+    int temp_id = 0;
+    int ierr = nc_inq_varid (ncid, name.data(), &temp_id);
+    if (ierr == NC_ENOTVAR) {
+        amrex::Abort("NetCDF variable '" + name + "' does not exist");
+    }
+    return temp_id;
+}
+
 bool NCGroup::has_var (const std::string& name) const
 {
-    int ierr = nc_inq_varid(ncid, name.data(), nullptr);
-    return (ierr == NC_NOERR);
+    int rh_id = 0;
+    int ierr = nc_inq_varid(ncid, name.data(), &rh_id);
+    return (ierr  == NC_NOERR);
 }
 
 bool NCGroup::has_attr (const std::string& name) const

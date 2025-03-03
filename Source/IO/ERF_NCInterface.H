@@ -213,6 +213,12 @@ public:
     //! Check if a dimension exists by name
     [[nodiscard]] bool has_dim (const std::string&) const;
 
+    /** Return id of variable by name
+     *
+     * Throws error if variable does not exist, use 'has_var' to check
+     */
+    [[nodiscard]] int get_id (const std::string&) const;
+
     //! Check if a variable exists by name
     [[nodiscard]] bool has_var (const std::string&) const;
 

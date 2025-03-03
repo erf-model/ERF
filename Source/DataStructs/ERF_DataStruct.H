@@ -18,7 +18,7 @@
 #include <ERF_TurbPertStruct.H>
 
 AMREX_ENUM(InitType,
-    None, Input_Sounding, Ideal, Real, Metgrid, Uniform
+    None, Input_Sounding, WRFInput, Metgrid, Uniform
 );
 
 AMREX_ENUM(ABLDriverType,
@@ -46,7 +46,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -135,6 +135,10 @@ struct SolverChoice {
         } else if (moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
+        } else if (moisture_type == MoistureType::Morrison) {
+            RhoQv_comp = RhoQ1_comp;
+            RhoQc_comp = RhoQ2_comp;
+            RhoQr_comp = RhoQ4_comp;
         } else if (moisture_type == MoistureType::Kessler) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
@@ -154,6 +158,7 @@ struct SolverChoice {
                 moisture_type == MoistureType::SAM                ||
                 moisture_type == MoistureType::SAM_NoIce          ||
                 moisture_type == MoistureType::SAM_NoPrecip_NoIce ||
+                moisture_type == MoistureType::Morrison ||
                 moisture_type == MoistureType::SatAdj)
             {
                 buoyancy_type = 1; // uses Rhoprime
@@ -185,18 +190,47 @@ struct SolverChoice {
         //
         // Read the init_type here to make sure we correctly set the mesh and terrain types
         //
-        InitType init_type_temp = InitType::None;
-        pp.query_enum_case_insensitive("init_type",init_type_temp);
+        std::string init_type_temp_string;
+        pp.query("init_type",init_type_temp_string);
+        if ( (init_type_temp_string == "Real") || (init_type_temp_string == "real") ) {
+            amrex::Warning("erf.init_type = Real is deprecated; please replace Real by WRFInput");
+            init_type = InitType::WRFInput;
+            use_real_bcs = true;
+        } else if ( (init_type_temp_string == "Ideal") || (init_type_temp_string == "ideal") ) {
+            amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
+            init_type = InitType::WRFInput;
+            use_real_bcs = false;
+        } else {
+            pp.query_enum_case_insensitive("init_type",init_type);
+            use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
+        }
 
-        if (init_type_temp == InitType::Real) {
-            if ( (terrain_type != TerrainType::StaticFittedMesh) &&
-                 (terrain_type != TerrainType::None) ) {
-                amrex::Abort("Only terrain_type = None or StaticFittedMesh are allowed with init_type = real");
+        if ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) {
+            if (terrain_type != TerrainType::StaticFittedMesh) {
+                amrex::Abort("Only terrain_type = StaticFittedMesh are allowed with init_type = WRFInput or Metgrid");
             }
+        }
 
+        if (init_type == InitType::WRFInput) {
             if (moisture_type == MoistureType::None) {
-                amrex::Abort("Can't have moisture_type = None with init_type = real");
+                amrex::Abort("Can't have moisture_type = None with init_type = WRFInput");
             }
+
+            // NetCDF wrfbdy lateral boundary file
+            std::string nc_bdy_file_temp_string;
+            bool has_bdy = pp.query("nc_bdy_file", nc_bdy_file_temp_string);
+            if (!has_bdy) use_real_bcs = false;
+
+            bool use_real_bcs_temp = use_real_bcs;
+            pp.query("use_real_bcs", use_real_bcs_temp);
+            if (use_real_bcs && !use_real_bcs_temp) {
+                use_real_bcs = false;
+            }
+        }
+
+        // Check for rebalancing with wrfinput
+        if (init_type == InitType::WRFInput) {
+            pp.query("rebalance_wrfinput",rebalance_wrfinput);
         }
 
 
@@ -267,13 +301,13 @@ struct SolverChoice {
 
         if (any_anelastic == 1) {
             project_initial_velocity = true;
-            buoyancy_type = 3; // (This isn't actually used when anelastic is set)
+            fixed_density            = true; // We default to true but are allowed to override below
+            buoyancy_type            = 3; // (This isn't actually used when anelastic is set)
         } else {
             pp.query("project_initial_velocity", project_initial_velocity);
         }
 
-        constant_density = false;  // We default to false but allow the user to set it
-        pp.query("constant_density", constant_density);
+        pp.query("fixed_density", fixed_density);
 
         // *******************************************************************************
 
@@ -468,7 +502,7 @@ struct SolverChoice {
         }
     }
 
-    void display(int max_level)
+    void display(int max_level, std::string pp_prefix)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
@@ -482,6 +516,7 @@ struct SolverChoice {
                 amrex::Print() << "Implicit substepping at level " << lev << std::endl;
             }
         }
+        amrex::Print() << "fixed_density               : " << fixed_density << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
@@ -491,6 +526,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: SAM No Ice" << std::endl;
         } else if (moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
             amrex::Print() << "Moisture Model: SAM No Precip No Ice" << std::endl;
+        } else if (moisture_type == MoistureType::Morrison) {
+            amrex::Print() << "Moisture Model: Morrison" << std::endl;
         } else if (moisture_type == MoistureType::Kessler) {
             amrex::Print() << "Moisture Model: Kessler" << std::endl;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {
@@ -545,7 +582,7 @@ struct SolverChoice {
 
         amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;
 
-           advChoice.display();
+           advChoice.display(pp_prefix);
           diffChoice.display();
         spongeChoice.display();
 
@@ -614,7 +651,13 @@ struct SolverChoice {
     }
 
     inline static
+    InitType init_type = InitType::None;
+
+    inline static
     TerrainType terrain_type = TerrainType::None;
+
+    inline static
+    bool use_real_bcs = false;
 
     inline static
     MeshType mesh_type = MeshType::ConstantDz;
@@ -635,7 +678,7 @@ struct SolverChoice {
     amrex::Vector<SubsteppingType> substepping_type;
     amrex::Vector<int> anelastic;
 
-    bool        constant_density    = false;
+    bool        fixed_density       = false;
     int         ncorr               = 1;
     amrex::Real poisson_abstol      = 1e-10;
     amrex::Real poisson_reltol      = 1e-10;
@@ -706,6 +749,9 @@ struct SolverChoice {
 
     // Monotonic advection limiter
     bool use_mono_adv{false};
+
+    // Rebalance wrfinput
+    bool rebalance_wrfinput{false};
 
     CouplingType coupling_type;
     MoistureType moisture_type;

@@ -52,6 +52,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
     MultiFab r0 (base_state, make_alias, BaseState::r0_comp , 1);
     MultiFab p0 (base_state, make_alias, BaseState::p0_comp , 1);
     MultiFab th0(base_state, make_alias, BaseState::th0_comp, 1);
+    MultiFab qv0(base_state, make_alias, BaseState::qv0_comp, 1);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -72,6 +73,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
         const Array4<const Real>&  r0_arr =  r0.const_array(mfi);
         const Array4<const Real>&  p0_arr =  p0.const_array(mfi);
         const Array4<const Real>& th0_arr = th0.const_array(mfi);
+        const Array4<const Real>& qv0_arr = qv0.const_array(mfi);
 
         if ( anelastic && (solverChoice.moisture_type == MoistureType::None) )
         {
@@ -98,7 +100,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 // Return -rho0 g (thetaprime / theta0)
                 //
                 buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],rv_over_rd,
-                                                                 r0_arr,th0_arr,cell_data);
+                                                                 r0_arr,th0_arr,qv0_arr,cell_data);
             });
         }
         else if ( !anelastic && (solverChoice.moisture_type == MoistureType::None) )
@@ -168,7 +170,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],rd_over_cp,
-                                                                 r0_arr,th0_arr,p0_arr,
+                                                                 r0_arr,th0_arr,qv0_arr,p0_arr,
                                                                  cell_prim,cell_data);
                 });
             }
@@ -177,8 +179,8 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     buoyancy_fab(i, j, k) = buoyancy_moist_Thpert(i,j,k,n_qstate,grav_gpu[2],
-                                                                  r0_arr,th0_arr,cell_prim);
-                    });
+                                                                  r0_arr,th0_arr,qv0_arr,cell_prim);
+                });
             }
         } // moist compressible
     } // mfi

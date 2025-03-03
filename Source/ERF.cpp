@@ -49,12 +49,7 @@ int  ERF::pert_interval = -1;
 PlotFileType ERF::plotfile_type_1  = PlotFileType::None;
 PlotFileType ERF::plotfile_type_2  = PlotFileType::None;
 
-InitType ERF::init_type;
 StateInterpType ERF::interpolation_type;
-
-// use_real_bcs: only true if 1) ( (init_type == InitType::Real) or (init_type == InitGrid::Metgrid) )
-//                        AND 2) we want to use the bc's from the WRF bdy file
-bool ERF::use_real_bcs;
 
 // NetCDF wrfinput (initialization) file(s)
 Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
@@ -564,6 +559,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
         sum_integrated_quantities(time);
+        sum_derived_quantities(time);
     }
 
     if (solverChoice.pert_type == PerturbationType::Source ||
@@ -674,9 +670,10 @@ ERF::InitData_pre ()
     // Verify BCs are compatible with solver choice
     for (int lev(0); lev <= max_level; ++lev) {
         if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+               (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
             phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
-            Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
+            Abort("MYNN2.5/MYNNEDMF/YSU PBL Model requires MOST at lower boundary");
         }
 
         if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
@@ -694,12 +691,6 @@ void
 ERF::InitData_post ()
 {
     if (restart_chkfile.empty()) {
-        if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-            if (init_type == InitType::Ideal) {
-                Abort("We do not currently support init_type = ideal with non-constant dz");
-            }
-        }
-
         //
         // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
         //
@@ -832,7 +823,7 @@ ERF::InitData_post ()
             d_w_subsid[lev].resize(domlen, 0.0_rt);
             prob->update_w_subsidence(t_new[0],
                                       h_w_subsid[lev], d_w_subsid[lev],
-                                      geom[lev], z_phys_cc[lev]);
+                                      geom[lev], z_phys_nd[lev]);
         }
     }
 
@@ -840,7 +831,7 @@ ERF::InitData_post ()
         solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
     {
         initRayleigh();
-        if (init_type == InitType::Input_Sounding)
+        if (solverChoice.init_type == InitType::Input_Sounding)
         {
             // Overwrite ubar, vbar, and thetabar with input profiles;
             // wbar is assumed to be 0. Note: the tau coefficient set by
@@ -856,10 +847,6 @@ ERF::InitData_post ()
         initSponge();
         bool restarting = (!restart_chkfile.empty());
         setSpongeRefFromSounding(restarting);
-    }
-
-    if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
-        sum_integrated_quantities(t_new[0]);
     }
 
     if (solverChoice.pert_type == PerturbationType::Source ||
@@ -891,6 +878,9 @@ ERF::InitData_post ()
     {
         if (solverChoice.project_initial_velocity) {
             Real dummy_dt = 1.0;
+            if (verbose > 0) {
+                amrex::Print() << "Projecting initial velocity field" << std::endl;
+            }
             for (int lev = 0; lev <= finest_level; ++lev)
             {
                 project_velocities(lev, dummy_dt, vars_new[lev], pp_inc[lev]);
@@ -916,7 +906,7 @@ ERF::InitData_post ()
 
 #ifdef ERF_USE_NETCDF
         // We call this here because it is an ERF routine
-        if (use_real_bcs && (lev==0)) {
+        if (solverChoice.use_real_bcs && (lev==0)) {
             int icomp_cons = 0;
             bool cons_only = false;
             Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
@@ -1048,7 +1038,8 @@ ERF::InitData_post ()
         //
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
-        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, pp_prefix, Qv_prim, z_phys_nd
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, pp_prefix, Qv_prim,
+                                           z_phys_nd, solverChoice.terrain_type
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
@@ -1172,6 +1163,17 @@ ERF::InitData_post ()
             setRecordDataInfo(i,datalogname[i]);
     }
 
+    if (pp.contains("der_data_log"))
+    {
+        int num_der_datalogs = pp.countval("der_data_log");
+        der_datalog.resize(num_der_datalogs);
+        der_datalogname.resize(num_der_datalogs);
+        pp.queryarr("der_data_log",der_datalogname,0,num_der_datalogs);
+        for (int i = 0; i < num_der_datalogs; i++)
+            setRecordDerDataInfo(i,der_datalogname[i]);
+    }
+
+
     if (restart_chkfile.empty() && profile_int > 0) {
         if (destag_profiles) {
             // all variables cell-centered
@@ -1240,6 +1242,11 @@ ERF::InitData_post ()
             }
         }
 
+    }
+
+    if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
+        sum_integrated_quantities(t_new[0]);
+        sum_derived_quantities(t_new[0]);
     }
 
     // Create object to do line and plane sampling if needed
@@ -1341,13 +1348,6 @@ ERF::restart ()
 void
 ERF::init_only (int lev, Real time)
 {
-    // Map the words in the inputs file to BC types, then translate
-    //     those types into what they mean for each variable
-    // This must be called before initHSE (where the base state is initialized)
-    if (lev == 0 && init_type != InitType::Ideal) {
-        init_bcs();
-    }
-
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
@@ -1355,8 +1355,8 @@ ERF::init_only (int lev, Real time)
     auto& lev_old = vars_old[lev];
 
 #ifndef ERF_USE_NETCDF
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((init_type != InitType::Ideal && init_type != InitType::Real),
-                                     "init_type cannot be 'ideal' or 'real' if we don't build with netcdf!");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid),
+                                     "init_type cannot be 'WRFInput' or 'MetGrid' if we don't build with netcdf!");
 #endif
 
     // Loop over grids at this level to initialize our grid data
@@ -1366,7 +1366,7 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::zvel].setVal(0.0); lev_old[Vars::zvel].setVal(0.0);
 
     // Initialize background flow (optional)
-    if (init_type == InitType::Input_Sounding) {
+    if (solverChoice.init_type == InitType::Input_Sounding) {
         // The base state is initialized by integrating vertically through the
         // input sounding, if the init_sounding_ideal flag is set; otherwise
         // it is set by initHSE()
@@ -1387,23 +1387,25 @@ ERF::init_only (int lev, Real time)
         }
 
 #ifdef ERF_USE_NETCDF
-    } else if (init_type == InitType::Ideal || init_type == InitType::Real) {
+    }
+    else if (solverChoice.init_type == InitType::WRFInput)
+    {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
         init_from_wrfinput(lev);
 
         // The physbc's need the terrain but are needed for initHSE
-        if (init_type == InitType::Ideal) {
+        if (!solverChoice.use_real_bcs) {
             make_physbcs(lev);
-            initHSE(lev);
         }
-
-    } else if (init_type == InitType::Metgrid) {
+    }
+    else if (solverChoice.init_type == InitType::Metgrid)
+    {
         // The base state is initialized from data output by WPS metgrid;
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    } else if (init_type == InitType::Uniform) {
+    } else if (solverChoice.init_type == InitType::Uniform) {
         // Initialize a uniform background field and base state based on the
         // problem-specified reference density and temperature
 
@@ -1525,15 +1527,6 @@ ERF::ReadParameters ()
         }
 
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
-
-        // How to initialize
-        init_type = InitType::None;
-        pp.query_enum_case_insensitive("init_type",init_type);
-
-        // Should we use the bcs we've read in from wrfbdy or metgrid files?
-        // We default to yes if we have them, but the user can override that option
-        use_real_bcs = ( (init_type == InitType::Real) || (init_type == InitType::Metgrid) );
-        pp.query("use_real_bcs",use_real_bcs);
 
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
@@ -1702,10 +1695,8 @@ ERF::ReadParameters ()
         }
     }
 
-    // No moving terrain with init real (we must do this after init_params
-    //    because that is where we set terrain_type
-    if (init_type == InitType::Real && solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
-        Abort("Moving terrain is not supported with init real");
+    if (solverChoice.init_type == InitType::WRFInput) {
+        AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
     }
 
     // What type of land surface model to use
@@ -1729,7 +1720,7 @@ ERF::ReadParameters ()
     }
 
     if (verbose > 0) {
-        solverChoice.display(max_level);
+        solverChoice.display(max_level,pp_prefix);
     }
 
     ParameterSanityChecks();
@@ -1741,8 +1732,8 @@ ERF::ParameterSanityChecks ()
 {
     AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt[0] > 0.);
 
-    // We don't allow use_real_bcs to be true if init_type is not either InitType::Real or InitType::Metgrid
-    AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == InitType::Real) || (init_type == InitType::Metgrid)) );
+    // We don't allow use_real_bcs to be true if init_type is not either InitType::WRFInput or InitType::Metgrid
+    AMREX_ALWAYS_ASSERT(!solverChoice.use_real_bcs || ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
     AMREX_ALWAYS_ASSERT(real_set_width >= 0);

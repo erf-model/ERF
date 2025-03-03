@@ -44,7 +44,7 @@ AdvectionSrcForRho (const Box& bx,
                     const Array4<const Real>& mf_u,
                     const Array4<const Real>& mf_v,
                     const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
-                    const bool const_rho)
+                    const bool fixed_rho)
 {
     BL_PROFILE_VAR("AdvectionSrcForRho", AdvectionSrcForRho);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -70,7 +70,7 @@ AdvectionSrcForRho (const Box& bx,
         avg_zmom(i,j,k) = (flx_arr[2])(i,j,k,0);
     });
 
-    if (const_rho) {
+    if (fixed_rho) {
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             advectionSrc(i,j,k,0) = 0.0;

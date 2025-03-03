@@ -134,7 +134,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
     const Real    l_horiz_upw_frac = solverChoice.advChoice.dycore_horiz_upw_frac;
     const Real    l_vert_upw_frac  = solverChoice.advChoice.dycore_vert_upw_frac;
-    const bool    l_use_terrain_fitted_coords    = (z_phys_nd != nullptr);
+    const bool    l_use_terrain_fitted_coords    = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain_fitted_coords);
 
@@ -149,6 +149,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                     tc.les_type  == LESType::Deardorff   ||
                                     tc.rans_type == RANSType::kEqn       ||
                                     tc.pbl_type  == PBLType::MYNN25      ||
+                                    tc.pbl_type  == PBLType::MYNNEDMF    ||
                                     tc.pbl_type  == PBLType::YSU );
     const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff   ||
                                     tc.rans_type == RANSType::kEqn);
@@ -159,7 +160,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_rot_most     = (solverChoice.use_rotate_most);
 
     const bool l_anelastic = solverChoice.anelastic[level];
-    const bool l_const_rho = solverChoice.constant_density;
+    const bool l_fixed_rho = solverChoice.fixed_density;
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
@@ -307,7 +308,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Terrain metrics
-        const Array4<const Real>& z_nd     = l_use_terrain_fitted_coords ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& z_nd     = z_phys_nd->const_array(mfi);
 
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
@@ -472,7 +473,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
                            ax_arr, ay_arr, az_arr, detJ_arr,
                            dxInv, mf_m, mf_u, mf_v,
-                           flx_arr, l_const_rho);
+                           flx_arr, l_fixed_rho);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         if (solverChoice.terrain_type != TerrainType::EB){
@@ -793,7 +794,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // NOTE: for now we are only refluxing density not (rho theta) since the latter seems to introduce
         //       a problem at top and bottom boundaries
         if (l_reflux && nrk == 2) {
-            int strt_comp_reflux = (l_const_rho) ? 1 : 0;
+            int strt_comp_reflux = (l_fixed_rho) ? 1 : 0;
             int  num_comp_reflux = 1;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
