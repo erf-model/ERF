@@ -383,7 +383,7 @@ ERF::init_from_wrfinput (int lev)
           }
 
           // Initialize Longitude
-          if ( var_name == "XLON_U" ) {
+          if ( var_name == "XLONG_U" ) {
             lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
             for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
               Box gtbx = mfi.growntilebox();
@@ -776,7 +776,7 @@ init_base_state_from_wrfinput (const Box& domain,
             // NOTE: Ghost cells don't contain valid data
             //       We want domain GCs and FB picks up interior GCs
             if (tbx.contains(i,j,k)) {
-                if ( (DelP > 1.0) && (DelP / Ptot < 1.e-4) ) {
+                if ( (DelP > 2.0) && (DelP / Ptot < 1.e-4) ) {
                     amrex::Abort("Initial state is inconsistent with EOS!");
                 }
             }
