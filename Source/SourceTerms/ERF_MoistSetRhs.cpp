@@ -12,7 +12,6 @@ using namespace amrex;
 
 void
 moist_set_rhs (const Box& tbx,
-               const Box& gtbx,
                const Array4<Real const>& old_cons,
                const Array4<Real const>& new_cons,
                const Array4<Real      >& cell_rhs,
@@ -32,7 +31,7 @@ moist_set_rhs (const Box& tbx,
     //       cell for the Laplacian. We remove that cell here if it is present.
 
     // The width to do RHS augmentation
-    if (width > set_width+1) width -= 2;
+    if (width > set_width+1) width -= 1;
 
     // Relaxation constants
     Real F1 = 1./(10.*dt);
@@ -63,10 +62,10 @@ moist_set_rhs (const Box& tbx,
     IntVect ng_vect{2,2,0};
     Box gdom(domain); gdom.grow(ng_vect);
     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-    compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
-                                  bx_xlo, bx_xhi,
-                                  bx_ylo, bx_yhi,
-                                  ng_vect, true);
+    realbdy_interior_bxs_xy(gdom, domain, width,
+                            bx_xlo, bx_xhi,
+                            bx_ylo, bx_yhi,
+                            0, ng_vect, true);
 
     // Temporary FABs for storage (owned/filled on all ranks)
     FArrayBox QV_xlo, QV_xhi, QV_ylo, QV_yhi;
@@ -95,11 +94,15 @@ moist_set_rhs (const Box& tbx,
     Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
     Array4<Real> arr_ylo = QV_ylo.array();  Array4<Real> arr_yhi = QV_yhi.array();
 
+    // We need lateral ghost cells for the Laplacian
+    // NOTE: We don't write into the ghost cells
+    Box gtbx = grow(tbx,ng_vect);
+
     Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-    compute_interior_ghost_bxs_xy(gtbx, domain, width, 0,
-                                  tbx_xlo, tbx_xhi,
-                                  tbx_ylo, tbx_yhi,
-                                  ng_vect, true);
+    realbdy_interior_bxs_xy(gtbx, domain, width,
+                            tbx_xlo, tbx_xhi,
+                            tbx_ylo, tbx_yhi,
+                            0, ng_vect, true);
 
     // NOTE: width is now one less than the total bndy width
     //       if we have a relaxation zone; so we can access
@@ -156,12 +159,12 @@ moist_set_rhs (const Box& tbx,
     // Compute RHS in specified region
     //==========================================================
     if (set_width > 0) {
-        compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                      tbx_xlo, tbx_xhi,
-                                      tbx_ylo, tbx_yhi,
-                                      ng_vect, true);
+        realbdy_interior_bxs_xy(tbx, domain, width,
+                                tbx_xlo, tbx_xhi,
+                                tbx_ylo, tbx_yhi);
         realbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
-                                       width, set_width, dom_lo, dom_hi,
+                                       width, set_width-1, set_width-1,
+                                       dom_lo, dom_hi,
                                        tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                        arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                        old_cons, cell_rhs);
@@ -175,9 +178,10 @@ moist_set_rhs (const Box& tbx,
     // Compute RHS in relaxation region
     //==========================================================
     if (width > set_width) {
-        compute_interior_ghost_bxs_xy(tbx, domain, width, set_width,
-                                      tbx_xlo, tbx_xhi,
-                                      tbx_ylo, tbx_yhi);
+        realbdy_interior_bxs_xy(tbx, domain, width,
+                                tbx_xlo, tbx_xhi,
+                                tbx_ylo, tbx_yhi,
+                                set_width, ng_vect);
         realbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
                                              width, set_width, dom_lo, dom_hi, F1, F2,
                                              tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
