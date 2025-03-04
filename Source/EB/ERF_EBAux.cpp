@@ -67,10 +67,10 @@ define( int const& a_idim,
 
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
 
-      Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
+      // Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
       // Array4<Real const> const& ccent = (a_factory->getCentroid()).const_array(mfi);
 
-      Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
+      // Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
 
       // EB normal and face centroid
       Array4<Real const> const& bnorm = a_factory->getBndryNormal()[mfi].const_array();
