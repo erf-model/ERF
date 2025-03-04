@@ -119,20 +119,21 @@ void RadiationSimple::Run(int& level,
             // compute net upward longwave flux above inversion height
             // this includes correction for clearsky fluxes which balances
             // the prescribed subsidence heating above the inversion
-            Real z_itop = z_nd_arr(i, j, itop);
+            Real z_itop = (z_nd_arr) ? z_nd_arr(i, j, itop) : itop * fixed_dz;
             for (int k = itop + 1; k < nz; k++) {
                 Real rho_nd = 0.5 * (cons_arr(i, j, k - 1, Rho_comp) + cons_arr(i, j, k, Rho_comp)); // rho at interface
+                Real zi = (z_nd_arr) ? z_nd_arr(i, j, k) : k * fixed_dz;
                 flux_arr(i, j, k) = coef * exp(-qzinf) + coef1 * exp(-qzeroz)
-                                    + cp_spec * rho_nd * f0
-                                    * (0.25 * z_nd_arr(i, j, k) + 0.75 * z_itop)
-                                    * pow(z_nd_arr(i, j, k) - z_itop, 1.0 / 3.0);
+                                    + cp_spec * rho_nd * f0 * (0.25 * zi + 0.75 * z_itop)
+                                    * pow(zi - z_itop, 1.0 / 3.0);
                 qzinf = qzinf - deltaq_arr(i, j, k);
                 qzeroz = qzeroz + deltaq_arr(i, j, k);
             }
             Real rho_nd = 0.5 * (cons_arr(i, j, nz - 1, Rho_comp) + cons_arr(i, j, nz, Rho_comp));
+            Real zi = (z_nd_arr) ? z_nd_arr(i, j, nz) : nz * fixed_dz;
             flux_arr(i, j, nz) = coef * exp(-qzinf) + coef1 * exp(-qzeroz)
-                                 + cp_spec * rho_nd * f0
-                                 * (0.25 * z_nd_arr(i, j, nz) + 0.75 * z_itop)
+                                 + cp_spec * rho_nd * f0 * (0.25 * zi + 0.75 * z_itop)
+                                 * pow(zi - z_itop, 1.0 / 3.0);
                                  * pow(z_nd_arr(i, j, nz) - z_itop, 1.0 / 3.0);
 
             // note that our flux differs from the specification in that it
