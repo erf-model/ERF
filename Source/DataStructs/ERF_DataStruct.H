@@ -228,6 +228,11 @@ struct SolverChoice {
             }
         }
 
+        // Check for rebalancing with wrfinput
+        if (init_type == InitType::WRFInput) {
+            pp.query("rebalance_wrfinput",rebalance_wrfinput);
+        }
+
 
         if (terrain_type == TerrainType::StaticFittedMesh ||
             terrain_type == TerrainType::MovingFittedMesh) {
@@ -744,6 +749,9 @@ struct SolverChoice {
 
     // Monotonic advection limiter
     bool use_mono_adv{false};
+
+    // Rebalance wrfinput
+    bool rebalance_wrfinput{false};
 
     CouplingType coupling_type;
     MoistureType moisture_type;
