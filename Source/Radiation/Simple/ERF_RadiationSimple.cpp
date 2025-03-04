@@ -46,8 +46,6 @@ void RadiationSimple::Run(int& level,
     constexpr amrex::Real xk = 85.0;
 
     const int zlo = geom.Domain().smallEnd(2);
-    const int nz = geom.Domain().bigEnd(2);
-
     const Real fixed_dz = geom.CellSize(2);
 
     flux.setVal(0.0);
@@ -57,9 +55,7 @@ void RadiationSimple::Run(int& level,
     {
         Box box = mfi.validbox();
 
-        int bx_nz = box.bigEnd(2);
-
-        AMREX_ALWAYS_ASSERT(nz == bx_nz);
+        const int nz = box.bigEnd(2);
         box.makeSlab(2, 0);
 
         const Array4<const Real>& cons_arr = cons_in->const_array(mfi);
@@ -134,7 +130,6 @@ void RadiationSimple::Run(int& level,
             flux_arr(i, j, nz) = coef * exp(-qzinf) + coef1 * exp(-qzeroz)
                                  + cp_spec * rho_nd * f0 * (0.25 * zi + 0.75 * z_itop)
                                  * pow(zi - z_itop, 1.0 / 3.0);
-                                 * pow(z_nd_arr(i, j, nz) - z_itop, 1.0 / 3.0);
 
             // note that our flux differs from the specification in that it
             // uses the local density (rather than the interface density) in
@@ -157,5 +152,46 @@ void RadiationSimple::Run(int& level,
                 radqrlw_arr(i, j, k) = FTHRL;              // net lw heating
             }
         });
+    }
+}
+
+void RadiationSimple::WriteDataLog(const amrex::Real &time)
+{
+    constexpr int datwidth = 14;
+    constexpr int datprecision = 9;
+    constexpr int timeprecision = 13;
+
+    if (ParallelDescriptor::IOProcessor()) {
+        std::ostream& log = *datalog;
+
+        if (log.good()) {
+            Gpu::HostVector<Real> h_avg_radlwdn, h_avg_radqrlw;
+
+            auto domain = m_geom.Domain();
+            h_avg_radlwdn = sumToLine(*radlwdn, 0, 1, domain, 2);
+            h_avg_radqrlw = sumToLine(*radqrlw, 0, 1, domain, 2);
+
+            Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+            int nz = domain.length(2);
+            for (int k = 0; k < nz; k++) {
+                h_avg_radlwdn[k] /= area_z;
+                h_avg_radqrlw[k] /= area_z;
+            }
+
+            for (int k = 0; k < nz; k++)
+            {
+                Real z = k * m_geom.CellSize(2);
+                log << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
+                    << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                    << h_avg_radlwdn[k] << " "
+                    << h_avg_radqrlw[k] << std::endl;
+            }
+            // Write top face values
+            Real z = nz * m_geom.CellSize(2);
+            log << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
+                << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                << 0.0 << " "
+                << 0.0 << std::endl;
+        }
     }
 }

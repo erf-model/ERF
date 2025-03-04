@@ -42,6 +42,8 @@ public:
                      amrex::MultiFab* lat,
                      amrex::MultiFab* lon) override;
 
+    virtual void WriteDataLog(const amrex::Real &time) override;
+
     const amrex::MultiFab *get_radlwdn() { return radlwdn.get(); }
     const amrex::MultiFab *get_radqrlw() { return radqrlw.get(); }
 
