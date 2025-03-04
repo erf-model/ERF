@@ -354,7 +354,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation fluxes for coupling to LSM
     //*********************************************************
-
     // NOTE: Finer levels do not need to coincide with the bottom domain boundary
     //       at k=0. We make slabs here with the kmin for a given box. Therefore,
     //       care must be taken before applying these fluxes to an LSM model. For
@@ -376,7 +375,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         sw_lw_fluxes[lev]->setVal(0.);
         solar_zenith[lev]->setVal(0.);
     }
-
     //*********************************************************
     // Turbulent perturbation region initialization
     //*********************************************************

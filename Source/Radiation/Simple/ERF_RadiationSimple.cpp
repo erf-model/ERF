@@ -15,8 +15,8 @@ void RadiationSimple::Init(const amrex::Geometry& geom,
     DistributionMapping dm = cons_in->DistributionMap();
     deltaq.define(ba, dm, 1, 0);
     flux.define(ba, dm, 1, IntVect(0, 0, 1));
-    radlwdn->define(ba, dm, 1, 0);
-    radqrlw->define(ba, dm, 1, 0);
+    radlwdn = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
+    radqrlw = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
 
     deltaq.setVal(0.0);
     flux.setVal(0.0);
@@ -24,11 +24,19 @@ void RadiationSimple::Init(const amrex::Geometry& geom,
     radqrlw->setVal(0.0);
 }
 
-void RadiationSimple::Run(const amrex::Real &dt,
+void RadiationSimple::Run(int& level,
+                          int& step,
+                          amrex::Real& time,
+                          const amrex::Real& dt,
+                          const amrex::BoxArray& ba,
                           amrex::Geometry& geom,
                           amrex::MultiFab* cons_in,
+                          amrex::MultiFab* lsm_fluxes,
+                          amrex::MultiFab* lsm_zenith,
                           amrex::MultiFab* qheating_rates,
-                          amrex::MultiFab* z_nd)
+                          amrex::MultiFab* z_phys,
+                          amrex::MultiFab* lat,
+                          amrex::MultiFab* lon)
 {
 
     constexpr amrex::Real cp_spec = 1015.0;
@@ -55,7 +63,7 @@ void RadiationSimple::Run(const amrex::Real &dt,
         box.makeSlab(2, 0);
 
         const Array4<const Real>& cons_arr = cons_in->const_array(mfi);
-        const Array4<const Real>& z_nd_arr = (z_nd) ? z_nd->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& z_nd_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
         const Array4<Real>& deltaq_arr = deltaq.array(mfi);
         const Array4<Real>& flux_arr = flux.array(mfi);
         const Array4<Real>& radlwdn_arr = radlwdn->array(mfi);

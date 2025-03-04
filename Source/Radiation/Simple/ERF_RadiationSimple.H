@@ -1,13 +1,16 @@
 #ifndef ERF_RADIATION_SIMPLE_H
 #define ERF_RADIATION_SIMPLE_H
 
+#include <memory>
+
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFabUtil.H>
 
+#include <ERF_RadiationInterface.H>
 #include <ERF_DataStruct.H>
 
-class RadiationSimple
+class RadiationSimple : public IRadiation
 {
 public:
     RadiationSimple(const int& lev,
@@ -21,18 +24,26 @@ public:
 
     ~RadiationSimple() = default;
 
-    void Init(const amrex::Geometry& geom,
-              const amrex::BoxArray& ba,
-              amrex::MultiFab* cons_in);
+    virtual void Init(const amrex::Geometry& geom,
+                      const amrex::BoxArray& ba,
+                      amrex::MultiFab* cons_in) override;
 
-    void Run(const amrex::Real &dt,
-             amrex::Geometry& geom,
-             amrex::MultiFab* cons_in,
-             amrex::MultiFab* qheating_rates,
-             amrex::MultiFab* z_nd);
+    virtual void Run(int& level,
+                     int& step,
+                     amrex::Real& time,
+                     const amrex::Real& dt,
+                     const amrex::BoxArray& ba,
+                     amrex::Geometry& geom,
+                     amrex::MultiFab* cons_in,
+                     amrex::MultiFab* lsm_fluxes,
+                     amrex::MultiFab* lsm_zenith,
+                     amrex::MultiFab* qheating_rates,
+                     amrex::MultiFab* z_phys,
+                     amrex::MultiFab* lat,
+                     amrex::MultiFab* lon) override;
 
-    const amrex::MultiFab *get_radlwdn() { return radlwdn; }
-    const amrex::MultiFab *get_radqrlw() { return radqrlw; }
+    const amrex::MultiFab *get_radlwdn() { return radlwdn.get(); }
+    const amrex::MultiFab *get_radqrlw() { return radqrlw.get(); }
 
 private:
     bool moist = false;
@@ -42,7 +53,8 @@ private:
     amrex::BoxArray m_ba;
 
     amrex::MultiFab deltaq, flux;
-    amrex::MultiFab *radlwdn = nullptr, *radqrlw = nullptr;
+    std::unique_ptr<amrex::MultiFab> radlwdn;
+    std::unique_ptr<amrex::MultiFab> radqrlw;
 
 };
 
