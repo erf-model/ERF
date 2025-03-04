@@ -100,15 +100,15 @@ class eb_cut_cell_ {
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect centLo ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
-      amrex::RealVect cent(0.,0.,0.);
-      amrex::RealVect cent_O = m_cellface_cent[ m_lo_faces_id[a_idim] ];
+      amrex::RealVect cent = m_cellface_cent[ m_lo_faces_id[a_idim] ];
       if (m_flag.isCovered() || m_flag.isRegular() ) {
-        cent = cent_O;
+        // Default cent
       } else {
         amrex::Real const area_R = m_lo_faces[a_idim]->area();
         if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[a_idim]) ){
           // Default cent
         } else {
+          amrex::RealVect   cent_O = cent;
           amrex::RealVect   cent_R = m_lo_faces[a_idim]->get_centroid();
           amrex::Real const area_C = m_rbox_area[a_idim] - area_R;
           cent = m_invert * cent_R + (1.-m_invert) * ((1.+area_R/area_C)*cent_O - area_R/area_C*cent_R);
@@ -120,15 +120,15 @@ class eb_cut_cell_ {
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect centHi ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
-      amrex::RealVect cent(0.,0.,0.);
-      amrex::RealVect cent_O = m_cellface_cent[ m_hi_faces_id[a_idim] ];
+      amrex::RealVect cent = m_cellface_cent[ m_hi_faces_id[a_idim] ];
       if (m_flag.isCovered() || m_flag.isRegular() ) {
-        cent = cent_O;
+        // Default cent
       } else {
         amrex::Real const area_R = m_hi_faces[a_idim]->area();
         if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[a_idim]) ){
           // Default cent
         } else {
+          amrex::RealVect   cent_O = cent;
           amrex::RealVect   cent_R = m_hi_faces[a_idim]->get_centroid();
           amrex::Real const area_C = m_rbox_area[a_idim] - area_R;
           cent = m_invert * cent_R + (1.-m_invert) * ((1.+area_R/area_C)*cent_O - area_R/area_C*cent_R);
