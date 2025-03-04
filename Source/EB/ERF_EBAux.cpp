@@ -494,7 +494,7 @@ define( int const& a_idim,
 
             RealVect hi_centLo_x {hi_eb_cc.centLo(0)};
             RealVect hi_centLo_y {hi_eb_cc.centLo(1)};
-            RealVect hi_centLo_z {hi_eb_cc.centLo(2)};          
+            RealVect hi_centLo_z {hi_eb_cc.centLo(2)};
 
             if (idim == 0) {
               aux_fcent_x(i,j,k,0) = lo_centLo_x[1];      // y

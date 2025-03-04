@@ -92,8 +92,8 @@ make_factory ( int level,
 
 void
 eb_::
-WriteEBSurface (const BoxArray & ba, 
-                const DistributionMapping & dmap, 
+WriteEBSurface (const BoxArray & ba,
+                const DistributionMapping & dmap,
                 const Geometry & geom,
                 const EBFArrayBoxFactory * ebf,
                 const int level)
