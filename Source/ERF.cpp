@@ -1458,7 +1458,7 @@ ERF::ReadParameters ()
         if (pp.query("start_datetime", start_datetime)) {
             // Both start and stop datetimes must be provided
             start_time = getEpochTime(start_datetime, datetime_format);
-            if (pp.get("stop_datetime", stop_datetime)) {
+            if (pp.query("stop_datetime", stop_datetime)) {
                 stop_time = getEpochTime(stop_datetime, datetime_format);
             }
             use_datetime = true;
