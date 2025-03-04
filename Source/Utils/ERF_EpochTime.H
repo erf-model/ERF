@@ -2,23 +2,28 @@
 #define ERF_EPOCH_TIME_H_
 
 #include <string>
+#include <sstream>
+#include <iomanip>
 #include <ctime>
+
+#ifdef _WIN32
+#define timegm _mkgmtime
+#endif
 
 AMREX_FORCE_INLINE
 std::time_t
 getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
 {
+    // Create a tm object to store the parsed date and time.
+    std::tm tmTime;
+
     // Create a stream which we will use to parse the string,
     // which we provide to constructor of stream to fill the buffer.
     std::istringstream ss{ dateTime };
 
-    // Create a tm object to store the parsed date and time.
-    std::tm tmTime;
-    memset(&tmTime, 0, sizeof(tmTime));
-
     // Now we read from buffer using get_time manipulator
     // and formatting the input appropriately.
-    strptime(dateTime.c_str(), dateTimeFormat.c_str(), &tmTime);
+    ss >> std::get_time(&tmTime, dateTimeFormat.c_str());
 
     // Convert the tm structure to time_t value and return.
     // Here we use timegm since the output should be relative to UTC.
