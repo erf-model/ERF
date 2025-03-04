@@ -1,0 +1,2 @@
+CEXE_sources += ERF_RadiationSimple.cpp
+CEXE_headers += ERF_RadiationSimple.H

@@ -71,7 +71,7 @@ AMREX_ENUM(LandSurfaceType,
 );
 
 AMREX_ENUM(RadiationType,
-    None, RRTMGP
+    None, RRTMGP, Simple
 );
 
 enum struct Coord {
@@ -600,6 +600,8 @@ struct SolverChoice {
 
         if (rad_type == RadiationType::RRTMGP) {
             amrex::Print() << "Radiation Model: RRTMGP" << std::endl;
+        } else if (rad_type == RadiationType::Simple) {
+            amrex::Print() << "Radiation Model: Simple" << std::endl;
         } else {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }

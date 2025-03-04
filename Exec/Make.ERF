@@ -240,6 +240,11 @@ INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
 #    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
 #  endif
 #endif
+
+ERF_RAD_SIMPLE_DIR = $(ERF_SOURCE_DIR)/Radiation/Simple
+include $(ERF_RAD_SIMPLE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_SIMPLE_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_SIMPLE_DIR)
     
 include $(AMREX_HOME)/Src/Base/Make.package
 

@@ -1,0 +1,152 @@
+
+#include <ERF_RadiationSimple.H>
+
+#include <AMReX_MFIter.H>
+
+using namespace amrex;
+
+void RadiationSimple::Init(const amrex::Geometry& geom,
+                           const amrex::BoxArray &ba,
+                           amrex::MultiFab* cons_in)
+{
+    m_geom = geom;
+    m_ba = ba;
+
+    DistributionMapping dm = cons_in->DistributionMap();
+    deltaq.define(ba, dm, 1, 0);
+    flux.define(ba, dm, 1, IntVect(0, 0, 1));
+    radlwdn->define(ba, dm, 1, 0);
+    radqrlw->define(ba, dm, 1, 0);
+
+    deltaq.setVal(0.0);
+    flux.setVal(0.0);
+    radlwdn->setVal(0.0);
+    radqrlw->setVal(0.0);
+}
+
+void RadiationSimple::Run(const amrex::Real &dt,
+                          amrex::Geometry& geom,
+                          amrex::MultiFab* cons_in,
+                          amrex::MultiFab* qheating_rates,
+                          amrex::MultiFab* z_nd)
+{
+
+    constexpr amrex::Real cp_spec = 1015.0;
+    constexpr amrex::Real coef = 70.0;
+    constexpr amrex::Real coef1 = 22.0;
+    constexpr amrex::Real f0=3.75e-6;
+    constexpr amrex::Real xk = 85.0;
+
+    const int zlo = geom.Domain().smallEnd(2);
+    const int nz = geom.Domain().bigEnd(2);
+
+    const Real fixed_dz = geom.CellSize(2);
+
+    flux.setVal(0.0);
+    deltaq.setVal(0.0);
+
+    for (MFIter mfi(*cons_in, TileNoZ()); mfi.isValid(); ++mfi)
+    {
+        Box box = mfi.validbox();
+
+        int bx_nz = box.bigEnd(2);
+
+        AMREX_ALWAYS_ASSERT(nz == bx_nz);
+        box.makeSlab(2, 0);
+
+        const Array4<const Real>& cons_arr = cons_in->const_array(mfi);
+        const Array4<const Real>& z_nd_arr = (z_nd) ? z_nd->const_array(mfi) : Array4<const Real>{};
+        const Array4<Real>& deltaq_arr = deltaq.array(mfi);
+        const Array4<Real>& flux_arr = flux.array(mfi);
+        const Array4<Real>& radlwdn_arr = radlwdn->array(mfi);
+        const Array4<Real>& radqrlw_arr = radqrlw->array(mfi);
+        const Array4<Real>& qheating_arr = qheating_rates->array(mfi);
+
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
+            int itop = 0;
+            Real qzinf = 0.0;  // holds accumulated optical depth between z and domain top
+            Real qzeroz = 0.0; // holds accumulated optical depth between surface and z
+
+            for (int k = 0; k < nz; k++)
+            {
+                Real rho = cons_arr(i, j, k, Rho_comp);
+                Real qv = (moist) ? cons_arr(i, j, k, RhoQ1_comp) / rho : 0.0;
+                Real qc = (moist) ? cons_arr(i, j, k, RhoQ2_comp) / rho : 0.0;
+                Real qi = (ice)   ? cons_arr(i, j, k, RhoQ3_comp) / rho : 0.0;
+
+                Real dz = (z_nd_arr) ? 0.25 * ( (z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k))
+                                            + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k))
+                                            + (z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k))
+                                            + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k)) ) : fixed_dz;
+
+                // optical depth only includes that due to liquid water
+                if (qc + qi > 0.0)
+                {
+                    deltaq_arr(i, j, k) = xk * rho * (qc + qi) * dz;
+                }
+
+                // inversion height is top of highest layer w/q>8g/kg
+                // TODO: check units!
+                if (qv + qc + qi > 0.008)
+                {
+                    itop = max(itop, k+1); // note zi(k+1) is inversion height
+                }
+
+                // accumulate optical depth in qzinf
+                qzinf = qzinf + deltaq_arr(i, j, k);
+            }
+
+            // note: qzinf now holds total optical depth of column (due to cloud)
+            //       qzeroz is initialized to zero since first level is at surface
+
+            // compute net upward longwave flux up to inversion height
+            for (int k = 0; k < itop; k++) // TODO: check if includes itop?
+            {
+                flux_arr(i, j, k) = coef*exp(-qzinf) + coef1*exp(-qzeroz);
+                qzinf = qzinf - deltaq_arr(i, j, k);
+                qzeroz = qzeroz + deltaq_arr(i, j, k);
+            }
+
+            // compute net upward longwave flux above inversion height
+            // this includes correction for clearsky fluxes which balances
+            // the prescribed subsidence heating above the inversion
+            Real z_itop = z_nd_arr(i, j, itop);
+            for (int k = itop + 1; k < nz; k++) {
+                Real rho_nd = 0.5 * (cons_arr(i, j, k - 1, Rho_comp) + cons_arr(i, j, k, Rho_comp)); // rho at interface
+                flux_arr(i, j, k) = coef * exp(-qzinf) + coef1 * exp(-qzeroz)
+                                    + cp_spec * rho_nd * f0
+                                    * (0.25 * z_nd_arr(i, j, k) + 0.75 * z_itop)
+                                    * pow(z_nd_arr(i, j, k) - z_itop, 1.0 / 3.0);
+                qzinf = qzinf - deltaq_arr(i, j, k);
+                qzeroz = qzeroz + deltaq_arr(i, j, k);
+            }
+            Real rho_nd = 0.5 * (cons_arr(i, j, nz - 1, Rho_comp) + cons_arr(i, j, nz, Rho_comp));
+            flux_arr(i, j, nz) = coef * exp(-qzinf) + coef1 * exp(-qzeroz)
+                                 + cp_spec * rho_nd * f0
+                                 * (0.25 * z_nd_arr(i, j, nz) + 0.75 * z_itop)
+                                 * pow(z_nd_arr(i, j, nz) - z_itop, 1.0 / 3.0);
+
+            // note that our flux differs from the specification in that it
+            // uses the local density (rather than the interface density) in
+            // computing the correction to the flux above the inversion.
+            // Formulating things in this way ensures a rough balance between
+            // the subsidence heating and radiative cooling above the inversion.
+
+            // compute radiative heating as divergence of net upward lw flux
+            for (int k = 0; k < nz; k++)
+            {
+                Real dz = (z_nd_arr) ? 0.25 * ( (z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k))
+                                            + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k))
+                                            + (z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k))
+                                            + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k)) ) : fixed_dz;
+
+                Real cpmassl = cp_spec * cons_arr(i, j, k, Rho_comp) * dz; // thermal mass
+                Real FTHRL = -(flux_arr(i, j, k+1) - flux_arr(i, j, k)) / cpmassl;
+                qheating_arr(i, j, k) = FTHRL;             // radiative heating for source term
+                radlwdn_arr(i, j, k) = flux_arr(i, j, k);  // net lw flux
+                radqrlw_arr(i, j, k) = FTHRL;              // net lw heating
+            }
+        });
+    }
+}
