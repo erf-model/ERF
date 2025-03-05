@@ -151,7 +151,7 @@ public:
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
-                   const amrex::Real& fac_fus,
+                   const amrex::Real& /*fac_fus*/,
                    const amrex::Real& fac_sub,
                    const amrex::Real& an,
                    const amrex::Real& bn,
@@ -191,7 +191,7 @@ public:
         do {
             // Latent heats and their derivatives wrt to T
             lstarw  = fac_cond;
-            lstari  = fac_fus;
+            lstari  = fac_sub;
             domn    = 0.0;
 
             // Saturation moisture fractions
@@ -208,7 +208,6 @@ public:
                 // Cloud water not permitted (sublimation & fusion)
                 else if(tabs <= tbgmin) {
                     omn    = 0.0;
-                    lstarw = fac_sub;
                 }
                 // Mixed cloud phase (condensation & fusion)
                 else {
