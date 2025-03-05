@@ -49,7 +49,7 @@ public:
         datalog_int = nstep;
     }
 
-    bool hasDatalog() { return (datalog != nullptr && datalog->good()); }
+    bool hasDatalog() { return datalogname != ""; }
 
 protected:
     std::unique_ptr<std::fstream> datalog = nullptr;

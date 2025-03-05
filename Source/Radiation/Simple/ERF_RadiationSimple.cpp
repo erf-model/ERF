@@ -147,7 +147,7 @@ void RadiationSimple::Run(int& level,
 
                 Real cpmassl = cp_spec * cons_arr(i, j, k, Rho_comp) * dz; // thermal mass
                 Real FTHRL = -(flux_arr(i, j, k+1) - flux_arr(i, j, k)) / cpmassl;
-                qheating_arr(i, j, k) = FTHRL;             // radiative heating for source term
+                qheating_arr(i, j, k, 1) = FTHRL;          // radiative heating for source term
                 radlwdn_arr(i, j, k) = flux_arr(i, j, k);  // net lw flux
                 radqrlw_arr(i, j, k) = FTHRL;              // net lw heating
             }
@@ -161,23 +161,23 @@ void RadiationSimple::WriteDataLog(const amrex::Real &time)
     constexpr int datprecision = 9;
     constexpr int timeprecision = 13;
 
+    Gpu::HostVector<Real> h_avg_radlwdn, h_avg_radqrlw;
+
+    auto domain = m_geom.Domain();
+    h_avg_radlwdn = sumToLine(*radlwdn, 0, 1, domain, 2);
+    h_avg_radqrlw = sumToLine(*radqrlw, 0, 1, domain, 2);
+
+    Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+    int nz = domain.length(2);
+    for (int k = 0; k < nz; k++) {
+        h_avg_radlwdn[k] /= area_z;
+        h_avg_radqrlw[k] /= area_z;
+    }
+
     if (ParallelDescriptor::IOProcessor()) {
         std::ostream& log = *datalog;
 
         if (log.good()) {
-            Gpu::HostVector<Real> h_avg_radlwdn, h_avg_radqrlw;
-
-            auto domain = m_geom.Domain();
-            h_avg_radlwdn = sumToLine(*radlwdn, 0, 1, domain, 2);
-            h_avg_radqrlw = sumToLine(*radqrlw, 0, 1, domain, 2);
-
-            Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
-            int nz = domain.length(2);
-            for (int k = 0; k < nz; k++) {
-                h_avg_radlwdn[k] /= area_z;
-                h_avg_radqrlw[k] /= area_z;
-            }
-
             for (int k = 0; k < nz; k++)
             {
                 Real z = k * m_geom.CellSize(2);
