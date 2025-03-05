@@ -191,7 +191,7 @@ public:
         do {
             // Latent heats and their derivatives wrt to T
             lstarw  = fac_cond;
-            lstari  = fac_fus;
+            lstari  = fac_sub;
             domn    = 0.0;
 
             // Saturation moisture fractions
