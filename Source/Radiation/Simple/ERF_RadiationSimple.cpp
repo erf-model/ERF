@@ -91,7 +91,6 @@ void RadiationSimple::Run(int& level,
                 }
 
                 // inversion height is top of highest layer w/q>8g/kg
-                // TODO: check units!
                 if (qv + qc + qi > 0.008)
                 {
                     itop = max(itop, k+1); // note zi(k+1) is inversion height
@@ -105,7 +104,7 @@ void RadiationSimple::Run(int& level,
             //       qzeroz is initialized to zero since first level is at surface
 
             // compute net upward longwave flux up to inversion height
-            for (int k = 0; k < itop; k++) // TODO: check if includes itop?
+            for (int k = 0; k <= itop; k++)
             {
                 flux_arr(i, j, k) = coef*exp(-qzinf) + coef1*exp(-qzeroz);
                 qzinf = qzinf - deltaq_arr(i, j, k);
