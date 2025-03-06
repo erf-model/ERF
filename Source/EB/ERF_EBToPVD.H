@@ -23,7 +23,7 @@ public:
          Array4<Real const> const& bcent,
          Array4<Real const> const& apx, Array4<Real const> const& apy, Array4<Real const> const& apz);
 
-   void WriteEBVTP(int myID) const;
+   void WriteEBVTP(int myID, int level) const;
    static void WritePVTP(int nProcs) ;
 
    void EBGridCoverage(int myID, const Real* problo, const Real* dx,

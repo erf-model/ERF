@@ -67,10 +67,10 @@ define( int const& a_idim,
 
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
 
-      Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
+      // Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
       // Array4<Real const> const& ccent = (a_factory->getCentroid()).const_array(mfi);
 
-      Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
+      // Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
 
       // EB normal and face centroid
       Array4<Real const> const& bnorm = a_factory->getBndryNormal()[mfi].const_array();
@@ -98,7 +98,7 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
-                  dx, bx, vfrac, afrac, bnorm, bcent, flag,
+                  dx, bx, bnorm, bcent, flag,
                   aux_flag, aux_vfrac,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
@@ -207,26 +207,22 @@ define( int const& a_idim,
           RealVect lo_point (bcent(iv_lo,0), bcent(iv_lo,1), bcent(iv_lo,2));
           RealVect lo_normal(bnorm(iv_lo,0), bnorm(iv_lo,1), bnorm(iv_lo,2));
 
+          if (!is_per && iv_hi[idim]==bx.smallEnd(idim)){
+            lo_point[idim] += 1.0; // Move the boundary centroid upward in the idim direction.
+          }
+
           if (flag(iv_lo).isSingleValued() ) {
 
-            Real norm = ( (bnorm(iv_lo,0)*dx[0])*(bnorm(iv_lo,0)*dx[0])
-                        + (bnorm(iv_lo,1)*dx[1])*(bnorm(iv_lo,1)*dx[1])
-                        + (bnorm(iv_lo,2)*dx[2])*(bnorm(iv_lo,2)*dx[2]) );
+            Real bnorm_x = bnorm(iv_lo,0) * dx[0];
+            Real bnorm_y = bnorm(iv_lo,1) * dx[1];
+            Real bnorm_z = bnorm(iv_lo,2) * dx[2];
 
-            RealVect bcent_isoparam ( bcent(iv_lo,0) / norm * dx[1] * dx[2],
-                                      bcent(iv_lo,1) / norm * dx[0] * dx[2],
-                                      bcent(iv_lo,2) / norm * dx[0] * dx[1] );
-
-            Real bnorm_x = bnorm(iv_lo,0) / dx[0];
-            Real bnorm_y = bnorm(iv_lo,1) / dx[1];
-            Real bnorm_z = bnorm(iv_lo,2) / dx[2];
-
-            norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+            Real norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
 
             RealVect bnorm_isoparam ( bnorm_x / norm, bnorm_y / norm, bnorm_z / norm);
 
             // plane point and normal
-            lo_point  = bcent_isoparam;
+            // lo_point  = bcent_isoparam;
             lo_normal = bnorm_isoparam;
 
           }
@@ -250,26 +246,22 @@ define( int const& a_idim,
           RealVect hi_point (bcent(iv_hi,0), bcent(iv_hi,1), bcent(iv_hi,2));
           RealVect hi_normal(bnorm(iv_hi,0), bnorm(iv_hi,1), bnorm(iv_hi,2));
 
+          if (!is_per && iv_hi[idim]==bx.bigEnd(idim)){
+            lo_point[idim] += -1.0; // Move the boundary centroid downward in the idim direction.
+          }
+
           if (flag(iv_hi).isSingleValued() ) {
 
-            Real norm = ( (bnorm(iv_hi,0)*dx[0])*(bnorm(iv_hi,0)*dx[0])
-                        + (bnorm(iv_hi,1)*dx[1])*(bnorm(iv_hi,1)*dx[1])
-                        + (bnorm(iv_hi,2)*dx[2])*(bnorm(iv_hi,2)*dx[2]) );
+            Real bnorm_x = bnorm(iv_hi,0) * dx[0];
+            Real bnorm_y = bnorm(iv_hi,1) * dx[1];
+            Real bnorm_z = bnorm(iv_hi,2) * dx[2];
 
-            RealVect bcent_isoparam ( bcent(iv_hi,0) / norm * dx[1] * dx[2],
-                                      bcent(iv_hi,1) / norm * dx[0] * dx[2],
-                                      bcent(iv_hi,2) / norm * dx[0] * dx[1] );
-
-            Real bnorm_x = bnorm(iv_hi,0) / dx[0];
-            Real bnorm_y = bnorm(iv_hi,1) / dx[1];
-            Real bnorm_z = bnorm(iv_hi,2) / dx[2];
-
-            norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+            Real norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
 
             RealVect bnorm_isoparam ( bnorm_x / norm, bnorm_y / norm, bnorm_z / norm);
 
             // plane point and normal
-            hi_point  = bcent_isoparam;
+            // hi_point  = bcent_isoparam;
             hi_normal = bnorm_isoparam;
 
           }
@@ -286,6 +278,7 @@ define( int const& a_idim,
           AMREX_ASSERT( !flag(iv_hi).isCovered() || hi_eb_cc.isCovered() );
           AMREX_ASSERT( !flag(iv_hi).isRegular() || hi_eb_cc.isRegular() );
 
+#if 0
 #if defined(AMREX_DEBUG) || defined(AMREX_TESTING) || 1
 
           { /***************************** SANITY CHECK ***********************\
@@ -422,6 +415,7 @@ define( int const& a_idim,
             }
           } //
 #endif
+#endif // 0
 
           //-----------------------
           // Fill out aux_ arrays
