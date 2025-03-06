@@ -245,6 +245,7 @@ ERF::ERF_shared ()
     xvel_bc_data.resize(nlevs_max);
     yvel_bc_data.resize(nlevs_max);
     zvel_bc_data.resize(nlevs_max);
+    th_bc_data.resize(nlevs_max);
 
     advflux_reg.resize(nlevs_max);
 
