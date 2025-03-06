@@ -83,7 +83,7 @@ Domain Boundary Conditions
 Domain boundary conditions in ERF may be broadly categorized as ``ideal`` or ``real`` where
 the ideal BC types correspond those found in classic fluid solvers and real correspond to an
 external data source that may be based upon observation data. The inputs for these types of BCs
-are give in more detail in :ref:`sec:LateralBoundaryConditions`. We briefly note that the supported
+are given in more detail in :ref:`sec:LateralBoundaryConditions`. We briefly note that the supported
 ideal BC types are: ``inflow``, ``outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``MOST``.
 
 
