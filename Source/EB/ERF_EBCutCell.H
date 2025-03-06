@@ -159,31 +159,28 @@ class eb_cut_cell_ {
     amrex::RealVect centVol () const noexcept {
       amrex::RealVect vcent = m_cell_cent;
       if (m_flag.isSingleValued()) {
-        amrex::Real axm = m_lo_faces[0]->area();
-        amrex::Real axp = m_hi_faces[0]->area();
-        amrex::Real aym = m_lo_faces[1]->area();
-        amrex::Real ayp = m_hi_faces[1]->area();
-        amrex::Real azm = m_lo_faces[2]->area();
-        amrex::Real azp = m_hi_faces[2]->area();
-        
-        amrex::Real dapx = (axm - axp)*(m_dx[1]*m_dx[2]);
-        amrex::Real dapy = (aym - ayp)*(m_dx[0]*m_dx[2]);
-        amrex::Real dapz = (azm - azp)*(m_dx[0]*m_dx[1]);
+        amrex::Real xm = m_rbox.lo(0);
+        amrex::Real xp = m_rbox.hi(0);
+        amrex::Real ym = m_rbox.lo(1);
+        amrex::Real yp = m_rbox.hi(1);
+        amrex::Real zm = m_rbox.lo(2);
+        amrex::Real zp = m_rbox.hi(2);
+
+        amrex::Real axm = areaLo(0);
+        amrex::Real axp = areaHi(0);
+        amrex::Real aym = areaLo(1);
+        amrex::Real ayp = areaHi(1);
+        amrex::Real azm = areaLo(2);
+        amrex::Real azp = areaHi(2);
 
         amrex::Real barea = m_F7.area();
         amrex::RealVect bcent = m_F7.get_centroid();
 
         amrex::Real vol = volume();
 
-        amrex::Real x = ( - 0.125 * (m_dx[0]  * m_dx[0] ) * dapx
-                          + 0.5   * (bcent[0] * bcent[0]) * m_eb_normal[0] * barea ) / vol;
-        amrex::Real y = ( - 0.125 * (m_dx[1]  * m_dx[1] ) * dapy
-                          + 0.5   * (bcent[1] * bcent[1]) * m_eb_normal[1] * barea ) / vol;
-        amrex::Real z = ( - 0.125 * (m_dx[2]  * m_dx[2] ) * dapz
-                          + 0.5   * (bcent[2] * bcent[2]) * m_eb_normal[2] * barea ) / vol;
-        vcent[0] = x;
-        vcent[1] = y;
-        vcent[2] = z;
+        vcent[0] = 0.5 * ( - xm * xm * axm + xp * xp * axp + bcent[0] * bcent[0] * m_eb_normal[0] * barea ) / vol;
+        vcent[1] = 0.5 * ( - ym * ym * aym + yp * yp * ayp + bcent[1] * bcent[1] * m_eb_normal[1] * barea ) / vol;
+        vcent[2] = 0.5 * ( - zm * zm * azm + zp * zp * azp + bcent[2] * bcent[2] * m_eb_normal[2] * barea ) / vol;
       }
       return vcent;
     }
@@ -259,14 +256,14 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   m_rbox_area[1] = m_rbox.length(0)*m_rbox.length(2);
   m_rbox_area[2] = m_rbox.length(0)*m_rbox.length(1);
 
-  RealVect v0(a_rbox.lo(0), a_rbox.lo(1), a_rbox.lo(2));
-  RealVect v1(a_rbox.hi(0), a_rbox.lo(1), a_rbox.lo(2));
-  RealVect v2(a_rbox.lo(0), a_rbox.hi(1), a_rbox.lo(2));
-  RealVect v3(a_rbox.lo(0), a_rbox.lo(1), a_rbox.hi(2));
-  RealVect v4(a_rbox.hi(0), a_rbox.lo(1), a_rbox.hi(2));
-  RealVect v5(a_rbox.hi(0), a_rbox.hi(1), a_rbox.lo(2));
-  RealVect v6(a_rbox.lo(0), a_rbox.hi(1), a_rbox.hi(2));
-  RealVect v7(a_rbox.hi(0), a_rbox.hi(1), a_rbox.hi(2));
+  RealVect v0(m_rbox.lo(0), m_rbox.lo(1), m_rbox.lo(2));
+  RealVect v1(m_rbox.hi(0), m_rbox.lo(1), m_rbox.lo(2));
+  RealVect v2(m_rbox.lo(0), m_rbox.hi(1), m_rbox.lo(2));
+  RealVect v3(m_rbox.lo(0), m_rbox.lo(1), m_rbox.hi(2));
+  RealVect v4(m_rbox.hi(0), m_rbox.lo(1), m_rbox.hi(2));
+  RealVect v5(m_rbox.hi(0), m_rbox.hi(1), m_rbox.lo(2));
+  RealVect v6(m_rbox.lo(0), m_rbox.hi(1), m_rbox.hi(2));
+  RealVect v7(m_rbox.hi(0), m_rbox.hi(1), m_rbox.hi(2));
 
   // Centoids of cell faces
 
@@ -279,15 +276,15 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
 
   // Cell centroid
 
-  m_cell_cent[0] = 0.5 * ( a_rbox.lo(0) + a_rbox.hi(0) );
-  m_cell_cent[1] = 0.5 * ( a_rbox.lo(1) + a_rbox.hi(1) );
-  m_cell_cent[2] = 0.5 * ( a_rbox.lo(2) + a_rbox.hi(2) );
+  m_cell_cent[0] = 0.5 * ( m_rbox.lo(0) + m_rbox.hi(0) );
+  m_cell_cent[1] = 0.5 * ( m_rbox.lo(1) + m_rbox.hi(1) );
+  m_cell_cent[2] = 0.5 * ( m_rbox.lo(2) + m_rbox.hi(2) );
 
   // Cell size
 
-  m_dx[0] = a_rbox.hi(0) - a_rbox.lo(0);
-  m_dx[1] = a_rbox.hi(1) - a_rbox.lo(1);
-  m_dx[2] = a_rbox.hi(2) - a_rbox.lo(2);
+  m_dx[0] = m_rbox.hi(0) - m_rbox.lo(0);
+  m_dx[1] = m_rbox.hi(1) - m_rbox.lo(1);
+  m_dx[2] = m_rbox.hi(2) - m_rbox.lo(2);
 
   if (a_flag.isCovered() ) {
 

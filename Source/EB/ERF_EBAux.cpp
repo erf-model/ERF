@@ -471,8 +471,19 @@ define( int const& a_idim,
 
             aux_vfrac(i,j,k) = lo_vol + hi_vol;
 
+            /* centVol() returns the coordinates based on m_rbx.
+              The coordinates in the idim direction are in [0.0,0.5] for the low cell and in [-0.5,0.0] for the hi cell.
+              Therefore, they need to be mapped to the eb_aux space, by shifting:
+              x' = x - 0.5 (low cell), x + 0.5 (hi cell) if idim = 0
+              y' = y - 0.5 (low cell), y + 0.5 (hi cell) if idim = 1
+              z' = z - 0.5 (low cell), z + 0.5 (hi cell) if idim = 2
+            */
+
             RealVect lo_vcent {lo_eb_cc.centVol()};
             RealVect hi_vcent {hi_eb_cc.centVol()};
+
+            lo_vcent[idim] = lo_vcent[idim] - 0.5;
+            hi_vcent[idim] = hi_vcent[idim] + 0.5;
 
             aux_vcent(i,j,k,0) = ( lo_vol * lo_vcent[0] + hi_vol * hi_vcent[0] ) / aux_vfrac(i,j,k);
             aux_vcent(i,j,k,1) = ( lo_vol * lo_vcent[1] + hi_vol * hi_vcent[1] ) / aux_vfrac(i,j,k);
