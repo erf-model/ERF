@@ -732,6 +732,12 @@ ERF::InitData_post ()
             make_physbcs(lev);
             (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
         }
+
+        if (solverChoice.do_forest_drag) {
+            for (int lev(0); lev <= finest_level; ++lev) {
+                m_forest_drag[lev]->define_drag_field(grids[lev], dmap[lev], geom[lev], z_phys_cc[lev].get());
+            }
+        }
     }
 
 #ifdef ERF_USE_PARTICLES

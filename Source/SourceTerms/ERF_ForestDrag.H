@@ -21,7 +21,7 @@ public:
     define_drag_field (const amrex::BoxArray& ba,
                        const amrex::DistributionMapping& dm,
                        amrex::Geometry& geom,
-                       amrex::MultiFab* z_phys_nd);
+                       amrex::MultiFab* z_phys_cc);
 
     amrex::MultiFab*
     get_drag_field () { return m_forest_drag.get(); }

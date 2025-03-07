@@ -32,7 +32,7 @@ void
 ForestDrag::define_drag_field (const BoxArray& ba,
                                const DistributionMapping& dm,
                                Geometry& geom,
-                               MultiFab* z_phys_nd)
+                               MultiFab* z_phys_cc)
 {
     // Geometry params
     const auto& dx = geom.CellSizeArray();
@@ -45,8 +45,8 @@ ForestDrag::define_drag_field (const BoxArray& ba,
     m_forest_drag->setVal(0.);
 
     // Loop over forest types and pre-compute factors
-    for (unsigned ii = 0; ii < m_x_forest.size(); ++ii) {
-
+    for (unsigned ii = 0; ii < m_x_forest.size(); ++ii)
+    {
         // Expose CPU data for GPU capture
         Real af; // Depends upon the type of forest (tf)
         Real treeZm = 0.0; // Only for forest type 2
@@ -87,21 +87,13 @@ ForestDrag::define_drag_field (const BoxArray& ba,
         for (MFIter mfi(*m_forest_drag); mfi.isValid(); ++mfi) {
             Box gtbx = mfi.growntilebox();
             const Array4<Real>& levelDrag  = m_forest_drag->array(mfi);
-            const Array4<const Real>& z_nd = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
-                                                           Array4<const Real>{};
+            const Array4<const Real>& z_cc = z_phys_cc->const_array(mfi);
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Physical positions of cell-centers
                 const Real x = prob_lo[0] + (i + 0.5) * dx[0];
                 const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-                      Real z = prob_lo[2] + (k + 0.5) * dx[2];
-                if (z_nd) {
-                    z = 0.125 * ( z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
-                                + z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  )
-                                + z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
-                                + z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1) );
-                }
-                z = std::max(z,0.0);
+                const Real z = std::max(z_cc(i,j,k),0.0);
 
                 // Proximity to the forest
                 const Real radius = std::sqrt((x - xf) * (x - xf) +
