@@ -2100,6 +2100,278 @@ private:
 };
 
 /**
+ * RICO flux formulation
+ */
+struct rico_flux
+{
+    rico_flux (int l_zlo, amrex::Real l_theta_z0, amrex::Real l_qsat_z0)
+      :  zlo(l_zlo), theta_z0{l_theta_z0}, qsat_z0{l_qsat_z0} {}
+
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_q_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& n,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*qm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& q_star_arr,
+                    const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        amrex::Real rho, eta;
+
+        int ic, jc;
+        ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
+        jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
+        ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
+        jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
+
+        rho   = cons_arr(ic,jc,zlo,Rho_comp);
+
+        amrex::Real qstar   = q_star_arr(ic,jc,zlo);
+        amrex::Real deltaz  = dz * (zlo - k);
+
+        amrex::Real q = cons_arr(ic, jc, zlo, RhoQ1_comp) / rho;
+
+        amrex::Real velx  = 0.5*(velx_arr(ic,jc,zlo) + velx_arr(ic+1,jc,zlo));
+        amrex::Real vely  = 0.5*(vely_arr(ic,jc,zlo) + vely_arr(ic,jc+1,zlo));
+        amrex::Real wsp   = sqrt(velx*velx+vely*vely);
+
+        // NOTE: this is rho*<q'w'> = -K dqdz
+        amrex::Real moflux  = (std::abs(qstar) > eps) ? - rho * qstar * wsp * (q - qsat_z0) : 0.0;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real rqvgrad = ( cons_arr(ic,jc,zlo+1,RhoQ1_comp) - cons_arr(ic,jc,zlo  ,RhoQ1_comp) ) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoQ1_comp) - rqvgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
+        }
+
+        return moflux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_t_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& n,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& t_star_arr,
+                    const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        amrex::Real rho, eta;
+
+        int ic, jc;
+        ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
+        jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
+        ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
+        jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
+
+        rho   = cons_arr(ic,jc,zlo,Rho_comp);
+
+        amrex::Real tstar   = t_star_arr(ic,jc,zlo);
+        amrex::Real deltaz  = dz * (zlo - k);
+
+        amrex::Real velx  = 0.5*(velx_arr(ic,jc,zlo) + velx_arr(ic+1,jc,zlo));
+        amrex::Real vely  = 0.5*(vely_arr(ic,jc,zlo) + vely_arr(ic,jc+1,zlo));
+        amrex::Real wsp   = sqrt(velx*velx+vely*vely);
+
+        amrex::Real theta = cons_arr(ic, jc, zlo, RhoTheta_comp) / rho;
+
+        // NOTE: this is rho*<T'w'> = -K dTdz
+        amrex::Real moflux  = (std::abs(tstar) > eps) ? - rho * tstar * wsp * (theta - theta_z0) : 0.0;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real rthetagrad = ( cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo  ,RhoTheta_comp) ) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - rthetagrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
+        }
+
+        return moflux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_u_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*um_arr*/,
+                    const amrex::Array4<const amrex::Real>& u_star_arr,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        amrex::Real velx, vely, rho, eta;
+        int jy, ic, jc;
+
+        int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
+        int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
+
+        jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
+        jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
+
+        ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
+        jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
+        ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
+        jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
+
+        velx  = velx_arr(i,j,zlo);
+        vely  = 0.25*( vely_arr(iyhi,jy,zlo)+vely_arr(iyhi,jy+1,zlo)
+                     + vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo) );
+        rho   = 0.5 *( cons_arr(ic-1,jc,zlo,Rho_comp)
+                     + cons_arr(ic  ,jc,zlo,Rho_comp) );
+
+        amrex::Real ustar   = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
+        amrex::Real wsp     = sqrt(velx*velx+vely*vely);
+        amrex::Real deltaz  = dz * (zlo - k);
+
+        // NOTE: this is rho*<u'w'> = -K dudz
+        amrex::Real stressx = -rho * ustar * wsp * velx;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
+            je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
+                          + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) + stressx/eta*deltaz;
+        }
+
+        return stressx;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_v_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& icomp,
+                    const amrex::Real& dz,
+                    const amrex::Real& dz1,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vm_arr*/,
+                    const amrex::Array4<const amrex::Real>& u_star_arr,
+                    const amrex::Array4<amrex::Real>& dest_arr) const
+    {
+        amrex::Real velx, vely, rho, eta;
+        int ix, ic, jc;
+
+        ix = i  < lbound(velx_arr).x ? lbound(velx_arr).x : i;
+        ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
+
+        int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
+        int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
+
+        ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
+        jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
+        ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
+        jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
+
+        velx  = 0.25*( velx_arr(ix,jxhi,zlo)+velx_arr(ix+1,jxhi,zlo)
+                     + velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo) );
+        vely  = vely_arr(i,j,zlo);
+        rho   = 0.5*( cons_arr(ic,jc-1,zlo,Rho_comp)
+                    + cons_arr(ic,jc  ,zlo,Rho_comp) );
+
+        amrex::Real ustar   = 0.5 * ( u_star_arr(ic,jc-1,zlo) + u_star_arr(ic,jc,zlo) );
+        amrex::Real wsp     = sqrt(velx*velx+vely*vely);
+        amrex::Real deltaz  = dz * (zlo - k);
+
+        // NOTE: this is rho*<v'w'> = -K dvdz
+        amrex::Real stressy = -rho * ustar * wsp * vely;
+
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
+            je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
+                         + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) + stressy/eta*deltaz;
+        }
+
+        return stressy;
+    }
+
+private:
+    int zlo;
+    const amrex::Real     eps = 1e-15;
+    const amrex::Real eta_eps = 1e-8;
+    amrex::Real theta_z0 = 298.0;
+    amrex::Real qsat_z0 = 0.0010;
+};
+
+
+/**
  * Rotate flux formulation
  */
 struct rotate_flux

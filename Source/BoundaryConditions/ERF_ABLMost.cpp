@@ -126,7 +126,8 @@ ABLMost::update_fluxes (const int& lev,
 
     } // MOENG -- SEA
 
-    if (flux_type == FluxCalcType::CUSTOM) {
+    if (flux_type == FluxCalcType::CUSTOM ||
+        flux_type == FluxCalcType::RICO) {
         u_star[lev]->setVal(custom_ustar);
         t_star[lev]->setVal(custom_tstar);
         q_star[lev]->setVal(custom_qstar);
@@ -251,6 +252,18 @@ ABLMost::impose_most_bcs (const int& lev,
                          z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::ROTATE) {
         rotate_flux flux_comp(klo);
+        compute_most_bcs(lev, mfs,
+                         xxmom_flux,
+                         yymom_flux,
+                         zzmom_flux,
+                         xymom_flux, yxmom_flux,
+                         xzmom_flux, zxmom_flux,
+                         yzmom_flux, zymom_flux,
+                         xheat_flux, yheat_flux, zheat_flux,
+                         xqv_flux, yqv_flux, zqv_flux,
+                         z_phys, flux_comp);
+    } else if (flux_type == FluxCalcType::RICO) {
+        rico_flux flux_comp(klo, rico_theta_z0, rico_qsat_z0);
         compute_most_bcs(lev, mfs,
                          xxmom_flux,
                          yymom_flux,
