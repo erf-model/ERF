@@ -54,7 +54,7 @@ class eb_cut_cell_ {
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::Real volume () {
+    amrex::Real volume () const {
 
       if (m_flag.isCovered() ) { return 0.; }
       if (m_flag.isRegular() ) { return m_rbox.volume(); }
@@ -140,7 +140,7 @@ class eb_cut_cell_ {
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect centBoun () const noexcept {
       amrex::RealVect cent{0.,0.,0.};
-      if (m_flag.isSingleValued()){
+      if (m_flag.isSingleValued()) {
         cent = m_F7.get_centroid();
       }
       return cent;
@@ -149,10 +149,40 @@ class eb_cut_cell_ {
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect normBoun () const noexcept {
       amrex::RealVect normal{0.,0.,0.};
-      if (m_flag.isSingleValued()){
+      if (m_flag.isSingleValued()) {
         normal = m_eb_normal;
       }
       return normal;
+    }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::RealVect centVol () const noexcept {
+      amrex::RealVect vcent = m_cell_cent;
+      if (m_flag.isSingleValued()) {
+        amrex::Real xm = m_rbox.lo(0);
+        amrex::Real xp = m_rbox.hi(0);
+        amrex::Real ym = m_rbox.lo(1);
+        amrex::Real yp = m_rbox.hi(1);
+        amrex::Real zm = m_rbox.lo(2);
+        amrex::Real zp = m_rbox.hi(2);
+
+        amrex::Real axm = areaLo(0);
+        amrex::Real axp = areaHi(0);
+        amrex::Real aym = areaLo(1);
+        amrex::Real ayp = areaHi(1);
+        amrex::Real azm = areaLo(2);
+        amrex::Real azp = areaHi(2);
+
+        amrex::Real barea = m_F7.area();
+        amrex::RealVect bcent = m_F7.get_centroid();
+
+        amrex::Real vol = volume();
+
+        vcent[0] = 0.5 * ( - xm * xm * axm + xp * xp * axp + bcent[0] * bcent[0] * m_eb_normal[0] * barea ) / vol;
+        vcent[1] = 0.5 * ( - ym * ym * aym + yp * yp * ayp + bcent[1] * bcent[1] * m_eb_normal[1] * barea ) / vol;
+        vcent[2] = 0.5 * ( - zm * zm * azm + zp * zp * azp + bcent[2] * bcent[2] * m_eb_normal[2] * barea ) / vol;
+      }
+      return vcent;
     }
 
     void debug ( int const a_face = -1 );
@@ -180,6 +210,8 @@ class eb_cut_cell_ {
 
     static int constexpr m_max_faces = 6;
     amrex::Array<amrex::RealVect,m_max_faces> m_cellface_cent; // Centroids of cell faces
+    amrex::RealVect m_cell_cent; // Centroid of cell
+    amrex::RealVect m_dx;
 
     // cut face
     polygon_ m_F7;
@@ -224,14 +256,14 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   m_rbox_area[1] = m_rbox.length(0)*m_rbox.length(2);
   m_rbox_area[2] = m_rbox.length(0)*m_rbox.length(1);
 
-  RealVect v0(a_rbox.lo(0), a_rbox.lo(1), a_rbox.lo(2));
-  RealVect v1(a_rbox.hi(0), a_rbox.lo(1), a_rbox.lo(2));
-  RealVect v2(a_rbox.lo(0), a_rbox.hi(1), a_rbox.lo(2));
-  RealVect v3(a_rbox.lo(0), a_rbox.lo(1), a_rbox.hi(2));
-  RealVect v4(a_rbox.hi(0), a_rbox.lo(1), a_rbox.hi(2));
-  RealVect v5(a_rbox.hi(0), a_rbox.hi(1), a_rbox.lo(2));
-  RealVect v6(a_rbox.lo(0), a_rbox.hi(1), a_rbox.hi(2));
-  RealVect v7(a_rbox.hi(0), a_rbox.hi(1), a_rbox.hi(2));
+  RealVect v0(m_rbox.lo(0), m_rbox.lo(1), m_rbox.lo(2));
+  RealVect v1(m_rbox.hi(0), m_rbox.lo(1), m_rbox.lo(2));
+  RealVect v2(m_rbox.lo(0), m_rbox.hi(1), m_rbox.lo(2));
+  RealVect v3(m_rbox.lo(0), m_rbox.lo(1), m_rbox.hi(2));
+  RealVect v4(m_rbox.hi(0), m_rbox.lo(1), m_rbox.hi(2));
+  RealVect v5(m_rbox.hi(0), m_rbox.hi(1), m_rbox.lo(2));
+  RealVect v6(m_rbox.lo(0), m_rbox.hi(1), m_rbox.hi(2));
+  RealVect v7(m_rbox.hi(0), m_rbox.hi(1), m_rbox.hi(2));
 
   // Centoids of cell faces
 
@@ -241,6 +273,18 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   m_cellface_cent[3] = 0.25 * ( v0 + v3 + v6 + v2 ); // F4
   m_cellface_cent[4] = 0.25 * ( v0 + v1 + v4 + v3 ); // F5
   m_cellface_cent[5] = 0.25 * ( v2 + v5 + v7 + v6 ); // F6
+
+  // Cell centroid
+
+  m_cell_cent[0] = 0.5 * ( m_rbox.lo(0) + m_rbox.hi(0) );
+  m_cell_cent[1] = 0.5 * ( m_rbox.lo(1) + m_rbox.hi(1) );
+  m_cell_cent[2] = 0.5 * ( m_rbox.lo(2) + m_rbox.hi(2) );
+
+  // Cell size
+
+  m_dx[0] = m_rbox.hi(0) - m_rbox.lo(0);
+  m_dx[1] = m_rbox.hi(1) - m_rbox.lo(1);
+  m_dx[2] = m_rbox.hi(2) - m_rbox.lo(2);
 
   if (a_flag.isCovered() ) {
 

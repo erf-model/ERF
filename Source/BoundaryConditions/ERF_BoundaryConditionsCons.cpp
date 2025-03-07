@@ -68,6 +68,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     // First do all ext_dir bcs
     if (!is_periodic_in_x)
     {
+        Real* th_bc_ptr = m_th_bc_data;
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
         //
@@ -86,7 +87,11 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int l_bc_type = bc_ptr[n].lo(0);
 
                 if (l_bc_type == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][0];
+                    if (dest_comp == RhoTheta_comp) {
+                        dest_arr(i,j,k,dest_comp) = (th_bc_ptr) ? th_bc_ptr[k] : l_bc_extdir_vals_d[bc_comp][0];
+                    } else {
+                        dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][0];
+                    }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(dom_lo.x,j,k,Rho_comp);
                     dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][0];
