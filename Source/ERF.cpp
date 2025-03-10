@@ -743,7 +743,8 @@ ERF::InitData_post ()
 
         if (solverChoice.do_forest_drag) {
             for (int lev(0); lev <= finest_level; ++lev) {
-                m_forest_drag[lev]->define_drag_field(grids[lev], dmap[lev], geom[lev], z_phys_cc[lev].get());
+                m_forest_drag[lev]->define_drag_field(grids[lev], dmap[lev], geom[lev],
+                                                      z_phys_cc[lev].get(), z_phys_nd[lev].get());
             }
         }
     }
