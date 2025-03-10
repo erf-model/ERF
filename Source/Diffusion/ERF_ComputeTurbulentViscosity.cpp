@@ -205,7 +205,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 mu_turb(i,j,k,EddyDiff::Mom_h) = cell_data(i,j,k,Rho_comp) * l_C_k * length * std::sqrt(E);
                 mu_turb(i,j,k,EddyDiff::Mom_v) = mu_turb(i,j,k,EddyDiff::Mom_h);
                 // KH = (1 + 2*l/delta) * mu_turb
-                mu_turb(i,j,k,EddyDiff::Theta_v) = (1.+2.*length/DeltaMsf) * mu_turb(i,j,k,EddyDiff::Mom_v);
+                mu_turb(i,j,k,EddyDiff::Theta_h) = (1.+2.*length/DeltaMsf) * mu_turb(i,j,k,EddyDiff::Mom_h);
+                mu_turb(i,j,k,EddyDiff::Theta_v) = mu_turb(i,j,k,EddyDiff::Theta_h);
                 // Store lengthscale for TKE source terms
                 mu_turb(i,j,k,EddyDiff::Turb_lengthscale) = length;
 
@@ -274,10 +275,9 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     int indx   = n;
                     int indx_v = indx + offset;
 
-                    mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
-
-                    // NOTE: Theta_v has already been set for Deardorff
+                    // NOTE: Theta_h, Theta_v have already been set for Deardorff
                     if (!(indx_v == EddyDiff::Theta_v && use_KE)) {
+                        mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
                         mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
                     }
                 });
