@@ -424,7 +424,7 @@ ABLMost::compute_most_bcs (const int& lev,
                 });
 
                 // TODO: Generalize MOST q flux
-                if ((flux_type == FluxCalcType::CUSTOM) && use_moisture) {
+                if ((flux_type == FluxCalcType::CUSTOM || flux_type == FluxCalcType::RICO) && use_moisture) {
                     n = RhoQ1_comp;
                     ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
