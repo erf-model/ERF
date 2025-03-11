@@ -76,21 +76,9 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
 
                // convert bcent to global coordinate system centered at plo
 
-            //    centroid[0] = problo[0] + bcent(i,j,k,0)*dx[0] + (static_cast<Real>(i) + Real(0.5))*dx[0];
-            //    centroid[1] = problo[1] + bcent(i,j,k,1)*dx[1] + (static_cast<Real>(j) + Real(0.5))*dx[1];
-            //    centroid[2] = problo[2] + bcent(i,j,k,2)*dx[2] + (static_cast<Real>(k) + Real(0.5))*dx[2];
-
-               Real norm = ( (normal[0]*dx[0])*(normal[0]*dx[0])
-                           + (normal[1]*dx[1])*(normal[1]*dx[1])
-                           + (normal[2]*dx[2])*(normal[2]*dx[2]) );
-
-               Real bcent_isoparam_x = bcent(i,j,k,0) / norm * dx[1] * dx[2];
-               Real bcent_isoparam_y = bcent(i,j,k,1) / norm * dx[0] * dx[2];
-               Real bcent_isoparam_z = bcent(i,j,k,2) / norm * dx[0] * dx[1];
-
-               centroid[0] = problo[0] + bcent_isoparam_x*dx[0] + (static_cast<Real>(i) + Real(0.5))*dx[0];
-               centroid[1] = problo[1] + bcent_isoparam_y*dx[1] + (static_cast<Real>(j) + Real(0.5))*dx[1];
-               centroid[2] = problo[2] + bcent_isoparam_z*dx[2] + (static_cast<Real>(k) + Real(0.5))*dx[2];
+               centroid[0] = problo[0] + bcent(i,j,k,0)*dx[0] + (static_cast<Real>(i) + Real(0.5))*dx[0];
+               centroid[1] = problo[1] + bcent(i,j,k,1)*dx[1] + (static_cast<Real>(j) + Real(0.5))*dx[1];
+               centroid[2] = problo[2] + bcent(i,j,k,2)*dx[2] + (static_cast<Real>(k) + Real(0.5))*dx[2];
 
                // vertices of bounding cell (i,j,k)
                vertex[0] = {problo[0] + static_cast<Real>(i  )*dx[0], problo[1] + static_cast<Real>(j  )*dx[1], problo[2] + static_cast<Real>(k  )*dx[2]};
@@ -207,10 +195,10 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
    };
 }
 
-void eb_::EBToPVD::WriteEBVTP(const int myID) const
+void eb_::EBToPVD::WriteEBVTP(const int myID, const int level) const
 {
    std::stringstream ss;
-   ss << std::setw(8) << std::setfill('0') << myID;
+   ss << std::setw(8) << std::setfill('0') << myID << "_level_"<< level;
    std::string cID = "eb_" + ss.str() + ".vtp";
 
    std::ofstream myfile(cID);

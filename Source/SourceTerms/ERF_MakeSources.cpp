@@ -188,7 +188,7 @@ void make_sources (int level,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_src   = source.array(mfi);
 
-        const Array4<const Real>& z_cc_arr = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+        const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                Array4<const Real>{};
@@ -202,7 +202,7 @@ void make_sources (int level,
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Short-wavelength and long-wavelength radiation source terms
-                cell_src(i,j,k,RhoTheta_comp) += qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1);
+                cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * ( qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1) );
             });
         }
 
@@ -211,8 +211,6 @@ void make_sources (int level,
         // *************************************************************************************
         // 3. Add Rayleigh damping for (rho theta)
         // *************************************************************************************
-        Real zlo      = geom.ProbLo(2);
-        Real dz       = geom.CellSize(2);
         Real ztop     = solverChoice.rayleigh_ztop;
         Real zdamp    = solverChoice.rayleigh_zdamp;
         Real dampcoef = solverChoice.rayleigh_dampcoef;
@@ -223,7 +221,7 @@ void make_sources (int level,
             int np = PrimTheta_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                Real zcc = z_cc_arr(i,j,k);
                 Real zfrac = 1 - (ztop - zcc) / zdamp;
                 if (zfrac > 0) {
                     Real theta = cell_prim(i,j,k,np);
@@ -396,7 +394,7 @@ void make_sources (int level,
         // 7. Add sponging
         // *************************************************************************************
         if(!(solverChoice.spongeChoice.sponge_type == "input_sponge")){
-            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
+            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, z_cc_arr);
         }
 
         // *************************************************************************************
@@ -451,7 +449,9 @@ void make_sources (int level,
         // *************************************************************************************
         // 10. Add Immersed source terms
         // *************************************************************************************
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing)
+        {
+            Real dz                     = geom.CellSize(2);
             const Real drag_coefficient = 10.0/dz;
             const Real CdT = drag_coefficient;
             const Real U_s  = 1.0;

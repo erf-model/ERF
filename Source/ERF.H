@@ -688,6 +688,7 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> xvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> yvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> th_bc_data;
 
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
@@ -902,6 +903,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
+    // array of EB objects
+    amrex::Vector<eb_*> eb;
+
     int last_plot_file_step_1;
     int last_plot_file_step_2;
 
@@ -915,6 +919,8 @@ private:
     int max_step = std::numeric_limits<int>::max();
     amrex::Real start_time = 0.0;
     amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
+    bool use_datetime = false;
+    const std::string datetime_format = "%Y-%m-%d %H:%M:%S";
 
     // if >= 0 we restart from a checkpoint
     std::string restart_chkfile = "";

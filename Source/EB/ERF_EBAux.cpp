@@ -40,6 +40,7 @@ define( int const& a_idim,
   }
 
   m_volfrac = new MultiFab(grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
+  m_volcent = new MultiCutFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], *m_cellflags);
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
       const BoxArray& faceba = amrex::convert(a_grids, IntVect::TheDimensionVector(idim));
@@ -50,10 +51,6 @@ define( int const& a_idim,
   m_bndryarea = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
   m_bndrycent = new MultiCutFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], *m_cellflags);
   m_bndrynorm = new MultiCutFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], *m_cellflags);
-
-#if 0
-  m_centroid = new MultiCutFab(a_ba, a_dm, AMREX_SPACEDIM, m_ngrow[1], *m_cellflags);
-#endif
 
   const auto& FlagFab = a_factory->getMultiEBCellFlagFab(); // EBFArrayBoxFactory, EBDataCollection
 
@@ -67,10 +64,9 @@ define( int const& a_idim,
 
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
 
-      Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
+      // Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
       // Array4<Real const> const& ccent = (a_factory->getCentroid()).const_array(mfi);
-
-      Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
+      // Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
 
       // EB normal and face centroid
       Array4<Real const> const& bnorm = a_factory->getBndryNormal()[mfi].const_array();
@@ -79,6 +75,7 @@ define( int const& a_idim,
       // aux quantities
       Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
       Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
+      Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
 
       Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
       Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
@@ -98,8 +95,8 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
-                  dx, bx, vfrac, afrac, bnorm, bcent, flag,
-                  aux_flag, aux_vfrac,
+                  dx, bx, bnorm, bcent, flag,
+                  aux_flag, aux_vfrac, aux_vcent,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
                   aux_barea, aux_bcent, aux_bnorm,
@@ -113,6 +110,9 @@ define( int const& a_idim,
         aux_flag(i,j,k).setDisconnected();
 
         aux_vfrac(i,j,k) = 0.0;
+        aux_vcent(i,j,k,0) = 0.0;
+        aux_vcent(i,j,k,1) = 0.0;
+        aux_vcent(i,j,k,2) = 0.0;
 
         aux_afrac_x(i,j,k) = 0.0;
         aux_afrac_y(i,j,k) = 0.0;
@@ -207,26 +207,22 @@ define( int const& a_idim,
           RealVect lo_point (bcent(iv_lo,0), bcent(iv_lo,1), bcent(iv_lo,2));
           RealVect lo_normal(bnorm(iv_lo,0), bnorm(iv_lo,1), bnorm(iv_lo,2));
 
+          if (!is_per && iv_hi[idim]==bx.smallEnd(idim)){
+            lo_point[idim] += 1.0; // Move the boundary centroid upward in the idim direction.
+          }
+
           if (flag(iv_lo).isSingleValued() ) {
 
-            Real norm = ( (bnorm(iv_lo,0)*dx[0])*(bnorm(iv_lo,0)*dx[0])
-                        + (bnorm(iv_lo,1)*dx[1])*(bnorm(iv_lo,1)*dx[1])
-                        + (bnorm(iv_lo,2)*dx[2])*(bnorm(iv_lo,2)*dx[2]) );
+            Real bnorm_x = bnorm(iv_lo,0) * dx[0];
+            Real bnorm_y = bnorm(iv_lo,1) * dx[1];
+            Real bnorm_z = bnorm(iv_lo,2) * dx[2];
 
-            RealVect bcent_isoparam ( bcent(iv_lo,0) / norm * dx[1] * dx[2],
-                                      bcent(iv_lo,1) / norm * dx[0] * dx[2],
-                                      bcent(iv_lo,2) / norm * dx[0] * dx[1] );
-
-            Real bnorm_x = bnorm(iv_lo,0) / dx[0];
-            Real bnorm_y = bnorm(iv_lo,1) / dx[1];
-            Real bnorm_z = bnorm(iv_lo,2) / dx[2];
-
-            norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+            Real norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
 
             RealVect bnorm_isoparam ( bnorm_x / norm, bnorm_y / norm, bnorm_z / norm);
 
             // plane point and normal
-            lo_point  = bcent_isoparam;
+            // lo_point  = bcent_isoparam;
             lo_normal = bnorm_isoparam;
 
           }
@@ -250,26 +246,22 @@ define( int const& a_idim,
           RealVect hi_point (bcent(iv_hi,0), bcent(iv_hi,1), bcent(iv_hi,2));
           RealVect hi_normal(bnorm(iv_hi,0), bnorm(iv_hi,1), bnorm(iv_hi,2));
 
+          if (!is_per && iv_hi[idim]==bx.bigEnd(idim)){
+            lo_point[idim] += -1.0; // Move the boundary centroid downward in the idim direction.
+          }
+
           if (flag(iv_hi).isSingleValued() ) {
 
-            Real norm = ( (bnorm(iv_hi,0)*dx[0])*(bnorm(iv_hi,0)*dx[0])
-                        + (bnorm(iv_hi,1)*dx[1])*(bnorm(iv_hi,1)*dx[1])
-                        + (bnorm(iv_hi,2)*dx[2])*(bnorm(iv_hi,2)*dx[2]) );
+            Real bnorm_x = bnorm(iv_hi,0) * dx[0];
+            Real bnorm_y = bnorm(iv_hi,1) * dx[1];
+            Real bnorm_z = bnorm(iv_hi,2) * dx[2];
 
-            RealVect bcent_isoparam ( bcent(iv_hi,0) / norm * dx[1] * dx[2],
-                                      bcent(iv_hi,1) / norm * dx[0] * dx[2],
-                                      bcent(iv_hi,2) / norm * dx[0] * dx[1] );
-
-            Real bnorm_x = bnorm(iv_hi,0) / dx[0];
-            Real bnorm_y = bnorm(iv_hi,1) / dx[1];
-            Real bnorm_z = bnorm(iv_hi,2) / dx[2];
-
-            norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
+            Real norm = sqrt( bnorm_x*bnorm_x + bnorm_y*bnorm_y + bnorm_z*bnorm_z);
 
             RealVect bnorm_isoparam ( bnorm_x / norm, bnorm_y / norm, bnorm_z / norm);
 
             // plane point and normal
-            hi_point  = bcent_isoparam;
+            // hi_point  = bcent_isoparam;
             hi_normal = bnorm_isoparam;
 
           }
@@ -286,6 +278,7 @@ define( int const& a_idim,
           AMREX_ASSERT( !flag(iv_hi).isCovered() || hi_eb_cc.isCovered() );
           AMREX_ASSERT( !flag(iv_hi).isRegular() || hi_eb_cc.isRegular() );
 
+#if 0
 #if defined(AMREX_DEBUG) || defined(AMREX_TESTING) || 1
 
           { /***************************** SANITY CHECK ***********************\
@@ -422,6 +415,7 @@ define( int const& a_idim,
             }
           } //
 #endif
+#endif // 0
 
           //-----------------------
           // Fill out aux_ arrays
@@ -472,7 +466,28 @@ define( int const& a_idim,
             aux_flag(i,j,k).setSingleValued();
             aux_flag(i,j,k).setConnected(vdim);
 
-            aux_vfrac(i,j,k) = lo_eb_cc.volume() + hi_eb_cc.volume();
+            Real lo_vol {lo_eb_cc.volume()};
+            Real hi_vol {hi_eb_cc.volume()};
+
+            aux_vfrac(i,j,k) = lo_vol + hi_vol;
+
+            /* centVol() returns the coordinates based on m_rbx.
+              The coordinates in the idim direction are in [0.0,0.5] for the low cell and in [-0.5,0.0] for the hi cell.
+              Therefore, they need to be mapped to the eb_aux space, by shifting:
+              x' = x - 0.5 (low cell), x + 0.5 (hi cell) if idim = 0
+              y' = y - 0.5 (low cell), y + 0.5 (hi cell) if idim = 1
+              z' = z - 0.5 (low cell), z + 0.5 (hi cell) if idim = 2
+            */
+
+            RealVect lo_vcent {lo_eb_cc.centVol()};
+            RealVect hi_vcent {hi_eb_cc.centVol()};
+
+            lo_vcent[idim] = lo_vcent[idim] - 0.5;
+            hi_vcent[idim] = hi_vcent[idim] + 0.5;
+
+            aux_vcent(i,j,k,0) = ( lo_vol * lo_vcent[0] + hi_vol * hi_vcent[0] ) / aux_vfrac(i,j,k);
+            aux_vcent(i,j,k,1) = ( lo_vol * lo_vcent[1] + hi_vol * hi_vcent[1] ) / aux_vfrac(i,j,k);
+            aux_vcent(i,j,k,2) = ( lo_vol * lo_vcent[2] + hi_vol * hi_vcent[2] ) / aux_vfrac(i,j,k);
 
             Real lo_areaLo_x {lo_eb_cc.areaLo(0)};
             Real lo_areaLo_y {lo_eb_cc.areaLo(1)};
@@ -590,7 +605,6 @@ define( int const& a_idim,
             aux_bnorm(i,j,k,0) = eb_normal[0];
             aux_bnorm(i,j,k,1) = eb_normal[1];
             aux_bnorm(i,j,k,2) = eb_normal[2];
-
           }
 
         } // flag(iv_lo) and flag(iv_hi)
@@ -607,6 +621,13 @@ eb_aux_::getVolFrac () const
 {
     AMREX_ASSERT(m_volfrac != nullptr);
     return *m_volfrac;
+}
+
+const MultiCutFab&
+eb_aux_::getVolCent () const
+{
+    AMREX_ASSERT(m_volcent != nullptr);
+    return *m_volcent;
 }
 
 const MultiCutFab&
