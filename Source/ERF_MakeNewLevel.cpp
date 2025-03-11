@@ -133,6 +133,26 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             // make_physbcs is called inside init_only
             init_only(lev, start_time);
         }
+    } else {
+        // if restarting and nudging from input sounding, load the input sounding files
+        if (lev == 0 && solverChoice.init_type == InitType::Input_Sounding && solverChoice.nudging_from_input_sounding)
+        {
+            if (input_sounding_data.input_sounding_file.empty()) {
+                Error("input_sounding file name must be provided via input");
+            }
+
+            input_sounding_data.resize_arrays();
+
+            // this will interpolate the input profiles to the nominal height levels
+            // (ranging from 0 to the domain top)
+            for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
+                input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n);
+            }
+
+            // this will calculate the hydrostatically balanced density and pressure
+            // profiles following WRF ideal.exe
+            if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);
+        }
     }
 
      // Read in tables needed for windfarm simulations
@@ -146,8 +166,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // ********************************************************************************************
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
-    if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+    if (restart_chkfile.empty()) {
+        if (solverChoice.do_forest_drag) {
+            m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+        }
     }
 
     //********************************************************************************************
@@ -246,7 +268,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
     }
 
     //********************************************************************************************
@@ -379,7 +401,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_nd[lev].get());
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
     }
 
     // *****************************************************************************************************

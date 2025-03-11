@@ -83,10 +83,12 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         // Ghost cells to be filled
         IntVect ng_vect = (var_idx == Vars::cons) ? ngvect_cons : ngvect_vels;
 
+        // Set region width
+        int set_width = real_set_width;
+
         // Loop over each component
         for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
         {
-            int width = real_set_width;
 
             // Variable can be read from wrf bdy
             //------------------------------------
@@ -116,9 +118,16 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                     Box gbx = mfi.growntilebox(ng_vect);
                     const Array4<Real>& dest_arr = mf.array(mfi);
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
-                                                  bx_xlo, bx_xhi,
-                                                  bx_ylo, bx_yhi, ng_vect);
+                    realbdy_bc_bxs_xy(gbx, domain, set_width,
+                                      bx_xlo, bx_xhi,
+                                      bx_ylo, bx_yhi,
+                                      ng_vect);
+
+                    /*
+                    Print() << "RealBdy: " << var_idx << ' ' << comp_idx << "\n";
+                    Print() << bx_xlo << ' ' << bx_xhi << "\n";
+                    Print() << bx_ylo << ' ' << bx_yhi << "\n";
+                    */
 
                     // x-faces (includes exterior y ghost cells)
                     ParallelFor(bx_xlo, bx_xhi,
@@ -171,36 +180,44 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                     // Grown tilebox so we fill exterior ghost cells as well
                     Box gbx = mfi.growntilebox(ng_vect);
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
-                                                  bx_xlo, bx_xhi,
-                                                  bx_ylo, bx_yhi, ng_vect);
+                    realbdy_bc_bxs_xy(gbx, domain, set_width,
+                                      bx_xlo, bx_xhi,
+                                      bx_ylo, bx_yhi,
+                                      ng_vect);
 
+                    // Bounding
+                    int i_xlo = bx_xlo.bigEnd(0)   + set_width;
+                    int i_xhi = bx_xhi.smallEnd(0) - set_width;
+                    int j_ylo = bx_ylo.bigEnd(1)   + set_width;
+                    int j_yhi = bx_yhi.smallEnd(1) - set_width;
+
+                    // Destination array
                     const Array4<Real>& dest_arr = mf.array(mfi);
 
                     // x-faces (includes y ghost cells)
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        int jj = std::max(j , dom_lo.y+width);
-                            jj = std::min(jj, dom_hi.y-width);
-                        dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x+width,jj,k,comp_idx);
+                        int jj = std::max(j , dom_lo.y+set_width);
+                            jj = std::min(jj, dom_hi.y-set_width);
+                        dest_arr(i,j,k,comp_idx) = dest_arr(i_xlo,jj,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        int jj = std::max(j , dom_lo.y+width);
-                            jj = std::min(jj, dom_hi.y-width);
-                        dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x-width,jj,k,comp_idx);
+                        int jj = std::max(j , dom_lo.y+set_width);
+                            jj = std::min(jj, dom_hi.y-set_width);
+                        dest_arr(i,j,k,comp_idx) = dest_arr(i_xhi,jj,k,comp_idx);
                     });
 
                     // y-faces (does not include x ghost cells)
                     ParallelFor(bx_ylo, bx_yhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i,dom_lo.y+width,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = dest_arr(i,j_ylo,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i,dom_hi.y-width,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = dest_arr(i,j_yhi,k,comp_idx);
                     });
                 } // mfi
             } // is_read

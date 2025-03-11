@@ -20,14 +20,20 @@ class eb_ {
          amrex::FArrayBox const& terrain_fab,
          amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
          bool is_anelastic);
+    eb_ ();
 
-    void make_factory ( amrex::Geometry            const& a_geom,
-                        amrex::DistributionMapping const& a_dmap,
-                        amrex::BoxArray            const& a_grids);
+    void define (int level,
+                 amrex::Geometry const& a_geom,
+                 amrex::EB2::Level const* a_eb_level,
+                 bool is_anelastic);
 
-    int nghost_basic () const  { return 2; }
-    int nghost_volume () const { return 2; }
-    int nghost_full () const   { return 2; }
+    void make_factory ( int level,
+                        amrex::Geometry   const& a_geom,
+                        amrex::EB2::Level const* a_eb_level);
+
+    int nghost_basic () const  { return 5; } // nghost_eb_basic ()
+    int nghost_volume () const { return 5; } // nghost_eb_volume ()
+    int nghost_full () const   { return 4; } // nghost_eb_full ()
 
     amrex::EBFArrayBoxFactory const* get_const_factory () noexcept
     { return m_factory.get(); }
@@ -38,7 +44,8 @@ class eb_ {
     void WriteEBSurface (const amrex::BoxArray & ba,
                         const amrex::DistributionMapping & dmap,
                         const amrex::Geometry & geom,
-                        const amrex::EBFArrayBoxFactory * ebf);
+                        const amrex::EBFArrayBoxFactory * ebf,
+                        const int level);
 
     eb_aux_ const* get_u_const_factory() { return &m_u_factory; }
     eb_aux_ const* get_v_const_factory() { return &m_v_factory; }

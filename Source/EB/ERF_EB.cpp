@@ -5,6 +5,7 @@
 #include <ERF_EBIFTerrain.H>
 #include <ERF_ProbCommon.H>
 
+#include <ERF.H>
 #include <ERF_EB.H>
 #include <ERF_EBToPVD.H>
 
@@ -22,74 +23,49 @@ eb_::~eb_()
   if (m_factory) { m_factory.reset(nullptr); }
 }
 
-eb_:: eb_ ( Geometry const& a_geom, amrex::FArrayBox const& terrain_fab,
-            amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
-            bool /*is_anelastic*/)
+eb_::eb_ ( )
     : m_has_eb(0),
       m_support_level(EBSupport::full),
       m_write_eb_surface(0)
+{ }
+
+
+void
+eb_::define (int level, Geometry const& a_geom, amrex::EB2::Level const* a_eb_level,
+             bool /*is_anelastic*/)
 {
-    m_type = "terrain";
 
-    // int max_coarsening_level;
-    // if (is_anelastic) {
-    //     max_coarsening_level = 100;
-    // } else {
-    //     max_coarsening_level = 0;
-    // }
+    Print() << "\nBuilding EB geometry based on terrain.\n";
 
-    // int max_level_here = 0;
+    m_write_eb_surface = 1;
 
-    if (m_type == "terrain")
-    {
-        Print() << "\nBuilding EB geometry based on terrain.\n";
+    make_factory(level, a_geom, a_eb_level);
 
-        TerrainIF ebterrain(terrain_fab, a_geom, a_dz_stretched);
-
-        auto gshop = EB2::makeShop(ebterrain);
-
-        // EB2::Build(gshop, a_geom, max_level_here, max_level_here+max_coarsening_level);
-        build_level(a_geom, gshop); // This calls EB2::Build
-
-        m_write_eb_surface = 1;
-
-        make_factory(a_geom, m_eb_level->DistributionMap(), m_eb_level->boxArray());
-
-        m_has_eb = 1;
-
-    } else if (m_type == "box") {
-
-        Print() << "\nBuilding box geometry.\n";
-        make_box(a_geom);
-        m_has_eb = 1;
-
-    } else {
-
-        EB2::AllRegularIF regular;
-        auto gshop = EB2::makeShop(regular);
-        build_level(a_geom, gshop);
-    }
 }
 
 void
 eb_::
-make_factory ( Geometry            const& a_geom,
-               DistributionMapping const& a_dmap,
-               BoxArray            const& a_grids)
+make_factory ( int level,
+               Geometry   const& a_geom,
+               EB2::Level const* a_eb_level)
 {
+
+  BoxArray ba(a_eb_level->boxArray());
+  DistributionMapping dm(a_eb_level->DistributionMap());
+
   Print() << "making EB factory\n";
-  m_factory = std::make_unique<EBFArrayBoxFactory>(*m_eb_level, a_geom, a_grids, a_dmap,
+  m_factory = std::make_unique<EBFArrayBoxFactory>(*a_eb_level, a_geom, ba, dm,
     Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
 
   if (m_write_eb_surface) {
-    eb_::WriteEBSurface(a_grids, a_dmap, a_geom, m_factory.get());
+    eb_::WriteEBSurface(ba, dm, a_geom, m_factory.get(), level);
   }
 
   { int const idim(0);
 
     Print() << "making EB staggered u-factory\n";
     //m_u_factory.set_verbose();
-    m_u_factory.define(idim, a_geom, a_grids, a_dmap,
+    m_u_factory.define(idim, a_geom, ba, dm,
       Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
       m_factory.get());
   }
@@ -97,7 +73,7 @@ make_factory ( Geometry            const& a_geom,
   { int const idim(1);
     Print() << "making EB staggered v-factory\n";
     //m_v_factory.set_verbose();
-    m_v_factory.define(idim, a_geom, a_grids, a_dmap,
+    m_v_factory.define(idim, a_geom, ba, dm,
       Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
       m_factory.get());
   }
@@ -105,7 +81,7 @@ make_factory ( Geometry            const& a_geom,
   { int const idim(2);
     Print() << "making EB staggered w-factory\n";
     //m_w_factory.set_verbose();
-    m_w_factory.define(idim, a_geom, a_grids, a_dmap,
+    m_w_factory.define(idim, a_geom, ba, dm,
       Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
       m_factory.get());
   }
@@ -116,14 +92,17 @@ make_factory ( Geometry            const& a_geom,
 
 void
 eb_::
-WriteEBSurface (const BoxArray & ba, const DistributionMapping & dmap, const Geometry & geom,
-                     const EBFArrayBoxFactory * ebf)
+WriteEBSurface (const BoxArray & ba,
+                const DistributionMapping & dmap,
+                const Geometry & geom,
+                const EBFArrayBoxFactory * ebf,
+                const int level)
 {
 
     EBToPVD eb_to_pvd;
 
-    const Real* dx     = geom.CellSize();
-    const Real* problo = geom.ProbLo();
+    const Real* dx           = geom.CellSize();
+    const Real* problo       = geom.ProbLo();
 
     MultiFab mf_ba(ba, dmap, 1, 0, MFInfo(), *ebf);
 
@@ -192,7 +171,7 @@ WriteEBSurface (const BoxArray & ba, const DistributionMapping & dmap, const Geo
     int cpu = ParallelDescriptor::MyProc();
     int nProcs = ParallelDescriptor::NProcs();
 
-    eb_to_pvd.WriteEBVTP(cpu);
+    eb_to_pvd.WriteEBVTP(cpu, level);
 
     if(ParallelDescriptor::IOProcessor()) {
         EBToPVD::WritePVTP(nProcs);

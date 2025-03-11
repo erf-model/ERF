@@ -128,8 +128,6 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
         // Width of the boundary region
         width = arrays[0].get_vshape()[1];
-
-        AMREX_ALWAYS_ASSERT(1 <= width && width <= 5);
     }
     ParallelDescriptor::Bcast(&width,1,ioproc);
 

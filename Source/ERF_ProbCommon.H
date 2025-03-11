@@ -16,6 +16,27 @@ struct ProbParmDefaults {
     amrex::Real T_0 = 300.0;
 };
 
+template <typename T>
+T erf_get_single_value (std::istream& is, int n)
+{
+  T r = 0;
+  std::string line;
+  if (std::getline(is, line)) {
+    std::stringstream ss(line);
+    ss >> r;
+    if (ss.fail()) {
+      amrex::Abort("Failed to read");
+    }
+    if (ss >> r) {
+      amrex::Print() << "Trying to read line " << n << " in this file " << std::endl;
+      amrex::Abort("Wrong format: more than one number in this line");
+    }
+  } else {
+    amrex::Abort("Unable to read this line");
+  }
+  return r;
+}
+
 /**
  * Class to hold problem-specific routines
 */
@@ -348,24 +369,30 @@ public:
                 AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
 
             } else {
-                file >> nx; file >> ny;
+                int cnt = 1;
+                nx = erf_get_single_value<int>(file,cnt); cnt++;
+                ny = erf_get_single_value<int>(file,cnt); cnt++;
+                amrex::Print()<<"Expecting " << nx << " values of x,    " <<
+                                                ny << " values of y, and " <<
+                                             nx*ny << " values of z" << std::endl;
                 AMREX_ALWAYS_ASSERT(nx > 0);
                 AMREX_ALWAYS_ASSERT(ny > 0);
                 m_xterrain.resize(nx);
                 m_yterrain.resize(ny);
                 m_zterrain.resize(nx * ny);
                 for (int n = 0; n < nx; n++) {
-                    file >> m_xterrain[n];
+                    m_xterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
+                    cnt++;
                 }
                 for (int n = 0; n < ny; n++) {
-                    file >> m_yterrain[n];
+                    m_yterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
+                    cnt++;
                 }
                 for (int n = 0; n < nx * ny; n++) {
-                    file >> m_zterrain[n];
+                    m_zterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
+                    cnt++;
                 }
             }
-
-            amrex::Print() << "NX " << nx << " " << ny << std::endl;
 
             // Close the file after reading
             file.close();
@@ -416,21 +443,25 @@ public:
             amrex::Real x = ProbLoArr[0] + ii * dx[0] + 1e-3;
             amrex::Real y = ProbLoArr[1] + jj * dx[1] + 1e-3;
 
-            int jindex_terrain = -1;
-            for (int it = 0; it < ny && jindex_terrain == -1; it++) {
-                if (d_yt[it] > y) {
-                    jindex_terrain = it-1;
-                }
-            }
-            if (jindex_terrain == -1) {
-                jindex_terrain = ny-1;
-            }
-
             int ind11, ind12, ind21, ind22;
             amrex::Real x1, x2, y1, y2;
 
             int iindex_terrain=-1;
+            int jindex_terrain=-1;
+            // *******************************************************************
+            // NOTE: usgs-format is contiguous in x
+            // *******************************************************************
             if (is_usgs) {
+
+                for (int it = 0; it < ny && jindex_terrain == -1; it++) {
+                    if (d_yt[it] > y) {
+                        jindex_terrain = it-1;
+                    }
+                }
+                if (jindex_terrain == -1) {
+                    jindex_terrain = ny-1;
+                }
+
                 int gstart = (jindex_terrain  )*nx;
                 int gend   = (jindex_terrain+1)*nx-1;
                 for (int it = gstart; it <= gend && iindex_terrain == -1; it++) {
@@ -440,16 +471,36 @@ public:
                 }
 
                 // Define the four values to interpolate between
-                ind11 = jindex_terrain*nx + iindex_terrain;
-                ind12 = ind11+nx;
-                ind21 = ind11+1;
-                ind22 = ind12+1;
+                ind11 = jindex_terrain*nx + iindex_terrain; // (x1,y1)
+                ind12 = ind11+nx;                           // (x1,y2)
+                ind21 = ind11+1;                            // (x2,y1)
+                ind22 = ind12+1;                            // (x2,y2)
+
                 x1 = d_xt[ind11];
                 x2 = d_xt[ind21];
                 y1 = d_yt[jindex_terrain];
                 y2 = d_yt[jindex_terrain+1];
 
+                amrex::Real denom = (x2-x1)*(y2-y1);
+                amrex::Real  w_11 = (x2-x)*(y2-y)/denom; // (x1,y1)
+                amrex::Real  w_12 = (x2-x)*(y-y1)/denom; // (x1,y2)
+                amrex::Real  w_21 = (x-x1)*(y2-y)/denom; // (x2,y1)
+                amrex::Real  w_22 = (x-x1)*(y-y1)/denom; // (x2,y2)
+
+                // Do bilinear interpolation
+                z_arr(i,j,klo) = w_11*d_zt[ind11] + w_12*d_zt[ind12] + w_21*d_zt[ind21] + w_22*d_zt[ind22];
+
             } else {
+
+                for (int it = 0; it < ny && jindex_terrain == -1; it++) {
+                    if (d_yt[it] > y) {
+                        jindex_terrain = it-1;
+                    }
+                }
+                if (jindex_terrain == -1) {
+                    jindex_terrain = ny-1;
+                }
+
                 for (int it = 0; it < nx && iindex_terrain == -1; it++) {
                     if (d_xt[it] > x) {
                         iindex_terrain = it-1;
@@ -465,21 +516,55 @@ public:
                 y1 = d_yt[jindex_terrain];
                 y2 = d_yt[jindex_terrain+1];
 
-                ind11 =           jindex_terrain         * nx + iindex_terrain;
-                ind21 =  std::min(jindex_terrain+1,ny-1) * nx + iindex_terrain;
+#if 1
+                // *******************************************************************
+                // NOTE: this format is contiguous in y to match the AMR-Wind read
+                // *******************************************************************
+                ind11 =           iindex_terrain         * ny + jindex_terrain;                   // (x1,y1)
+                ind21 =  std::min(iindex_terrain+1,nx-1) * ny + jindex_terrain;                   // (x2,y1)
 
-                ind12 =           jindex_terrain         * nx + std::min(iindex_terrain+1,nx-1);
-                ind22  = std::min(jindex_terrain+1,ny-1) * nx + std::min(iindex_terrain+1,nx-1);
-            }
+                ind12 =           iindex_terrain         * ny + std::min(jindex_terrain+1,ny-1);  // (x1,y2)
+                ind22  = std::min(iindex_terrain+1,nx-1) * ny + std::min(jindex_terrain+1,ny-1);  // (x1,y2)
+#else
+                // *******************************************************************
+                // NOTE: this format is contiguous in x as an alternative
+                // *******************************************************************
 
-            // Do bilinear interpolation
-            amrex::Real denom = (x2-x1)*(y2-y1);
-            amrex::Real  w_11 = (x2-x)*(y2-y)/denom;
-            amrex::Real  w_12 = (x2-x)*(y-y1)/denom;
-            amrex::Real  w_21 = (x-x1)*(y2-y)/denom;
-            amrex::Real  w_22 = (x-x1)*(y-y1)/denom;
+                ind11 =           jindex_terrain         * nx + iindex_terrain;                   // (x1,y1)
+                ind12 =  std::min(jindex_terrain+1,ny-1) * nx + iindex_terrain;                   // (x1,y2)
 
-            z_arr(i,j,klo) = w_11*d_zt[ind11] + w_12*d_zt[ind12] + w_21*d_zt[ind21] + w_22*d_zt[ind22];
+                ind21 =           jindex_terrain         * nx + std::min(iindex_terrain+1,nx-1);  // (x2,y1)
+                ind22  = std::min(jindex_terrain+1,ny-1) * nx + std::min(iindex_terrain+1,nx-1);  // (x2,y2)
+#endif
+
+                if (iindex_terrain == nx-1 && jindex_terrain == ny-1)
+                {
+                    z_arr(i,j,klo) = d_zt[ind11];
+                }
+                else if (iindex_terrain != nx-1 && jindex_terrain == ny-1)
+                {
+                    amrex::Real  w_11 = (x2-x); // (x1,y1)
+                    amrex::Real  w_21 = (x-x1); // (x2,y1)
+                    amrex::Real denom = (x2-x1);
+                    z_arr(i,j,klo) = (w_11*d_zt[ind11] + w_21*d_zt[ind21])/denom;
+                }
+                else if (iindex_terrain == nx-1 && jindex_terrain != ny-1)
+                {
+                    amrex::Real  w_11 = (y2-y); // (x1,y1)
+                    amrex::Real  w_12 = (y-y1); // (x1,y2)
+                    amrex::Real denom = (y2-y1);
+                    z_arr(i,j,klo) = (w_11*d_zt[ind11] + w_12*d_zt[ind12])/denom;
+                }
+                else
+                {
+                    amrex::Real  w_11 = (x2-x)*(y2-y); // (x1,y1)
+                    amrex::Real  w_21 = (x-x1)*(y2-y); // (x2,y1)
+                    amrex::Real  w_12 = (x2-x)*(y-y1); // (x1,y2)
+                    amrex::Real  w_22 = (x-x1)*(y-y1); // (x2,y2)
+                    amrex::Real denom = (x2-x1)*(y2-y1);
+                    z_arr(i,j,klo) = (w_11*d_zt[ind11] + w_12*d_zt[ind12] + w_21*d_zt[ind21] + w_22*d_zt[ind22]) / denom;
+                }
+            } // usgs?
         });
     }
 

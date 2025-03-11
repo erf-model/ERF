@@ -40,16 +40,16 @@ read_from_wrfinput (int lev,
         amrex::ignore_unused(NC_dateTime); amrex::ignore_unused(NC_epochTime);
 
         // Verify the inputs geometry matches what the NETCDF file has
-        Real tol   = 1.0e-3;
+        Real rtol   = 1.0e-7;
         Real Len_x = NC_dx * Real(NC_nx-1);
         Real Len_y = NC_dy * Real(NC_ny-1);
-        if (std::fabs(Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) > tol) {
+        if (std::fabs((Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) / Len_x) > rtol) {
             Print() << "X problem extent " << (geom.ProbHi(0) - geom.ProbLo(0)) << " does not match NETCDF file "
                     << Len_x << "!\n";
             Print() << "dx: " << NC_dx << ' ' << "Nx: " << NC_nx-1 << "\n";
             Abort("Domain specification error");
         }
-        if (std::fabs(Len_y - (geom.ProbHi(1) - geom.ProbLo(1))) > tol) {
+        if (std::fabs((Len_y - (geom.ProbHi(1) - geom.ProbLo(1))) / Len_y) > rtol) {
             Print() << "Y problem extent " << (geom.ProbHi(1) - geom.ProbLo(1)) << " does not match NETCDF file "
                     << Len_y << "!\n";
             Print() << "dy: " << NC_dy << ' ' << "Ny: " << NC_ny-1 << "\n";

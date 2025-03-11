@@ -25,6 +25,7 @@ class eb_aux_
     void set_verbose ( ) { m_verbose = 1; }
 
     [[nodiscard]] const amrex::MultiFab& getVolFrac () const;
+    [[nodiscard]] const amrex::MultiCutFab& getVolCent () const;
     [[nodiscard]] const amrex::MultiCutFab& getBndryArea () const;
     [[nodiscard]] const amrex::MultiCutFab& getBndryCent () const;
     [[nodiscard]] const amrex::MultiCutFab& getBndryNorm () const;
@@ -42,7 +43,7 @@ class eb_aux_
 
     amrex::MultiFab* m_volfrac = nullptr;
 
-    // amrex::MultiCutFab* m_centroid = nullptr;
+    amrex::MultiCutFab* m_volcent = nullptr;
     amrex::MultiCutFab* m_bndryarea = nullptr;
     amrex::MultiCutFab* m_bndrycent = nullptr;
     amrex::MultiCutFab* m_bndrynorm = nullptr;
