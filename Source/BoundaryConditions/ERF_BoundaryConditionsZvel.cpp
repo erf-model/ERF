@@ -66,7 +66,9 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
         ParallelFor(bx_xlo, bx_xhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int iflip = dom_lo.x - 1 - i;
-                if (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir) {
+                if ( (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir) ||
+                     (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= 0.) )
+                {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
                     if (l_use_terrain_fitted_coords) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
@@ -83,7 +85,9 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int iflip = 2*dom_hi.x + 1 - i;
-                if (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir) {
+                if ( (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir) ||
+                     (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= 0.) )
+                {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
                     if (l_use_terrain_fitted_coords) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
@@ -110,7 +114,9 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
         ParallelFor(bx_ylo, bx_yhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int jflip = dom_lo.y - 1 - j;
-                if (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir) {
+                if ( (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir) ||
+                     (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= 0.) )
+                {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][1];
                     if (l_use_terrain_fitted_coords) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
@@ -127,7 +133,9 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int jflip =  2*dom_hi.y + 1 - j;
-                if (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir) {
+                if ( (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir) ||
+                     (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= 0.) )
+                {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][4];
                     if (l_use_terrain_fitted_coords) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);

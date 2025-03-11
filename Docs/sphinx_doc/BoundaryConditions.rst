@@ -26,17 +26,17 @@ The information for each face is preceded by
 ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or ``zhi``.
 
 Currently available type of boundary conditions are
-``inflow``, ``outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``MOST``.
+``inflow``, ``outflow``, ``inflow_outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``MOST``.
 (Spelling of the type matters; capitalization does not.)
 
 For example, setting
 
 ::
 
-    xlo.type = "Inflow"
-    xhi.type = "Outflow"
-    zlo.type = "SlipWall"
-    zhi.type = "SlipWall"
+    xlo.type = "inflow"
+    xhi.type = "outflow"
+    zlo.type = "slipwall"
+    zhi.type = "slipwall"
 
     geometry.is_periodic = 0 1 0
 
@@ -54,21 +54,26 @@ for each type; this is summarized in the table below.
 ERF provides the ability to specify a variety of boundary conditions (BCs) in the inputs file.
 We use the following options preceded by ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, and ``zhi``:
 
-+------------+--------------+----------------+----------------+--------------------------+---------------+
-| Type       | Normal vel   | Tangential vel | Density        | Theta                    | Scalar        |
-+============+==============+================+================+==========================+===============+
-| inflow     | ext_dir      | ext_dir        | ext_dir        | ext_dir                  | ext_dir       |
-+------------+--------------+----------------+----------------+--------------------------+---------------+
-| outflow    | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap      |
-+------------+--------------+----------------+----------------+--------------------------+---------------+
-| slipwall   | ext_dir      | foextrap       | foextrap       | ext_dir/foextrap/neumann | foextrap      |
-+------------+--------------+----------------+----------------+--------------------------+---------------+
-| noslipwall | ext_dir      | ext_dir        | foextrap       | ext_dir/foextrap/neumann | foextrap      |
-+------------+--------------+----------------+----------------+--------------------------+---------------+
-| symmetry   | reflect_odd  | reflect_even   | reflect_even   | reflect_even             | reflect_even  |
-+------------+--------------+----------------+----------------+--------------------------+---------------+
-| MOST       |              |                |                |                          |               |
-+------------+--------------+----------------+----------------+--------------------------+---------------+
++---------------+--------------+----------------+----------------+--------------------------+---------------+
+| Type          | Normal vel   | Tangential vel | Density        | Theta                    | Scalar        |
++===============+==============+================+================+==========================+===============+
+| inflow        | ext_dir      | ext_dir        | ext_dir        | ext_dir                  | ext_dir       |
++---------------+--------------+----------------+----------------+--------------------------+---------------+
+| outflow       | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap      |
++---------------+--------------+----------------+----------------+--------------------------+---------------+
+| inflowoutflow | ext_dir if   | ext_dir if     | ext_dir if     | ext_dir if               | ext_dir if   |
+|               | inflowing;   | inflowing;     | inflowing;     | inflowing;               | inflowing;   |
+|               | otherwise    | otherwise      | otherwise      | otherwise                | otherwise    |
+|               | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap     |
++---------------+--------------+----------------+----------------+--------------------------+---------------+
+| slipwall      | ext_dir      | foextrap       | foextrap       | ext_dir/foextrap/neumann | foextrap      |
++---------------+--------------+----------------+----------------+--------------------------+---------------+
+| noslipwall    | ext_dir      | ext_dir        | foextrap       | ext_dir/foextrap/neumann | foextrap      |
++---------------+--------------+----------------+----------------+--------------------------+---------------+
+| symmetry      | reflect_odd  | reflect_even   | reflect_even   | reflect_even             | reflect_even  |
++---------------+--------------+----------------+----------------+--------------------------+---------------+
+| MOST          |              |                |                |                          |               |
++---------------+--------------+----------------+----------------+--------------------------+---------------+
 
 Here ``ext_dir``, ``foextrap``, and ``reflect_even`` refer to AMReX keywords.   The ``ext_dir`` type
 refers to an "external Dirichlet" boundary, which means the values must be specified by the user.
@@ -83,13 +88,13 @@ As an example,
 
 ::
 
-    xlo.type                =   "Inflow"
+    xlo.type                =   inflow
     xlo.velocity            =   1. 0.9  0.
     xlo.density             =   1.
     xlo.theta               =   300.
     xlo.scalar              =   2.
 
-sets the boundary condition type at the low x face to be an inflow with xlo.type = “Inflow”.
+sets the boundary condition type at the low x face to be an inflow with xlo.type = “inflow”.
 
 xlo.velocity = 1. 0. 0. sets all three componentns the inflow velocity,
 xlo.density       = 1. sets the inflow density,
@@ -105,7 +110,7 @@ below example should be modified to ``not`` include ``xlo.theta = <val>``.
 
 ::
 
-    xlo.type                =   "Inflow"
+    xlo.type                =   "inflow"
     xlo.dirichlet_file      =   "inflow_file"
     xlo.density             =   1.
     xlo.theta               =   300.
