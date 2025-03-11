@@ -81,8 +81,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
     if (solverChoice.terrain_type == TerrainType::EB)
     {
-        EBFArrayBoxFactory ebfact = EBFactory(level);
-        const MultiFab& detJ = ebfact.getVolFrac();
+        const eb_& eb_lev = get_eb(level);
+        const MultiFab& detJ = (eb_lev.get_const_factory())->getVolFrac();
 
         estdt_comp_inv = ReduceMax(S_new, ccvel, detJ, 0,
         [=] AMREX_GPU_HOST_DEVICE (Box const& b,

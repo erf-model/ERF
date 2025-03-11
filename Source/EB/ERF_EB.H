@@ -35,7 +35,7 @@ class eb_ {
     int nghost_volume () const { return 5; } // nghost_eb_volume ()
     int nghost_full () const   { return 4; } // nghost_eb_full ()
 
-    amrex::EBFArrayBoxFactory const* get_const_factory () noexcept
+    amrex::EBFArrayBoxFactory const* get_const_factory () const noexcept
     { return m_factory.get(); }
 
     amrex::EB2::Level const* get_level () const noexcept
@@ -47,9 +47,9 @@ class eb_ {
                         const amrex::EBFArrayBoxFactory * ebf,
                         const int level);
 
-    eb_aux_ const* get_u_const_factory() { return &m_u_factory; }
-    eb_aux_ const* get_v_const_factory() { return &m_v_factory; }
-    eb_aux_ const* get_w_const_factory() { return &m_w_factory; }
+    eb_aux_ const* get_u_const_factory() const noexcept { return &m_u_factory; }
+    eb_aux_ const* get_v_const_factory() const noexcept { return &m_v_factory; }
+    eb_aux_ const* get_w_const_factory() const noexcept { return &m_w_factory; }
 
     class EBToPVD;
 
