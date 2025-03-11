@@ -768,7 +768,7 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
             v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             w_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), znd_inp[k], Ninp);
             if (th_read) {
-                th_inp[k] = interpolate_1d(z_inp_tmp.dataPtr(), th_inp_tmp.dataPtr(), znd_inp[k], Ninp);
+                th_inp[k] = interpolate_1d(z_inp_tmp.dataPtr(), th_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             }
         }
         znd_inp[Nz] = ztop;
