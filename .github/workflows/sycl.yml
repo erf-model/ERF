@@ -19,7 +19,12 @@ jobs:
   Build-And-Test-SYCL:
     name: oneAPI SYCL
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        particles: [OFF, ON]
+
     steps:
+
     - uses: actions/checkout@v4
       with:
         submodules: true
@@ -62,7 +67,7 @@ jobs:
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
-          -DERF_ENABLE_PARTICLES:BOOL=ON \
+          -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DCMAKE_C_COMPILER=$(which icx) \
           -DCMAKE_CXX_COMPILER=$(which icpx) \
           -DCMAKE_CXX_STANDARD=17
