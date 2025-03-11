@@ -68,29 +68,72 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
             velz(i,j,k) = momz(i,j,k) * 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
         });
 
-        if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
-             (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::ext_dir) ) {
-            ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                velx(i,j,k) = momx(i,j,k) / dens_arr(i-1,j,k,Rho_comp);
-            });
+        if (bx.smallEnd(0) == domain.smallEnd(0)) {
+            if (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::ext_dir)
+            {
+                ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    velx(i,j,k) = momx(i,j,k) / dens_arr(i-1,j,k,Rho_comp);
+                });
+            }
+            else if (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::ext_dir_upwind)
+            {
+                ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (momx(i,j,k) >= 0.) {
+                        velx(i,j,k) = momx(i,j,k) / dens_arr(i-1,j,k,Rho_comp);
+                    }
+                });
+            }
         }
-        if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
-             (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir) ) {
-            ParallelFor(makeSlab(tbx,0,domain.bigEnd(0)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                velx(i,j,k) = momx(i,j,k) / dens_arr(i,j,k,Rho_comp);
-            });
+
+        if (bx.bigEnd(0) == domain.bigEnd(0)) {
+            if (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir)
+            {
+                ParallelFor(makeSlab(tbx,0,domain.bigEnd(0)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    velx(i,j,k) = momx(i,j,k) / dens_arr(i,j,k,Rho_comp);
+                });
+            }
+            else if (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir_upwind)
+            {
+                ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (momx(i,j,k) <= 0.) {
+                        velx(i,j,k) = momx(i,j,k) / dens_arr(i,j,k,Rho_comp);
+                    }
+                });
+            }
         }
-        if ( (bx.smallEnd(1) == domain.smallEnd(1)) &&
-             (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir) ) {
-            ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                vely(i,j,k) = momy(i,j,k) / dens_arr(i,j-1,k,Rho_comp);
-            });
+
+        if (bx.smallEnd(1) == domain.smallEnd(1)) {
+            if (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir)
+            {
+                ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    vely(i,j,k) = momy(i,j,k) / dens_arr(i,j-1,k,Rho_comp);
+                });
+            }
+            else if (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir_upwind)
+            {
+                ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (momy(i,j,k) >= 0.) {
+                        vely(i,j,k) = momy(i,j,k) / dens_arr(i,j-1,k,Rho_comp);
+                    }
+                });
+            }
         }
-        if ( (bx.bigEnd(1) == domain.bigEnd(1)) &&
-             (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::ext_dir) ) {
-            ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                vely(i,j,k) = momy(i,j,k) / dens_arr(i,j,k,Rho_comp);
-            });
+
+        if (bx.bigEnd(1) == domain.bigEnd(1)) {
+            if (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::ext_dir)
+            {
+                ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    vely(i,j,k) = momy(i,j,k) / dens_arr(i,j,k,Rho_comp);
+                });
+            }
+            else if (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::ext_dir_upwind)
+            {
+                ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (momy(i,j,k) <= 0.) {
+                        vely(i,j,k) = momy(i,j,k) / dens_arr(i,j,k,Rho_comp);
+                    }
+                });
+            }
         }
     } // end MFIter
 }

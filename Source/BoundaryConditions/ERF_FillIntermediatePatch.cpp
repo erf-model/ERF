@@ -125,7 +125,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
         // Impose physical bc's on fine data (note time and 0 are not used)
         bool do_fb = true; bool do_terrain_adjustment = false;
-        (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,
+        (*physbcs_cons[lev])(*mfs_vel[Vars::cons],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                             icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,
                              do_fb, do_terrain_adjustment);
 
         if ( (icomp_cons+ncomp_cons > 1) && (interpolation_type == StateInterpType::Perturbational) )
@@ -313,10 +314,13 @@ ERF::FillIntermediatePatch (int lev, Real time,
     if (m_r2d) fill_from_bndryregs(mfs_vel,time);
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
-    (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
+    (*physbcs_cons[lev])(*mfs_vel[Vars::cons],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                         icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
     if (!cons_only) {
-        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc, do_fb);
-        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc, do_fb);
+        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                          ngvect_vels,time,BCVars::xvel_bc, do_fb);
+        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                          ngvect_vels,time,BCVars::yvel_bc, do_fb);
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
                           ngvect_vels,time,BCVars::zvel_bc, do_fb);
     }

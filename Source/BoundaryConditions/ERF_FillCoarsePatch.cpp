@@ -80,7 +80,8 @@ ERF::FillCoarsePatch (int lev, Real time)
     // ***************************************************************************
     // Physical bc's for cell centered variables at domain boundary
     // ***************************************************************************
-    (*physbcs_cons[lev])(vars_new[lev][Vars::cons],0,ncomp_cons,ngvect_cons,time,BCVars::cons_bc,true);
+    (*physbcs_cons[lev])(vars_new[lev][Vars::cons],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
+                         0,ncomp_cons,ngvect_cons,time,BCVars::cons_bc,true);
 
     //
     //************************************************************************************************
@@ -132,10 +133,12 @@ ERF::FillCoarsePatch (int lev, Real time)
     // ***************************************************************************
     IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
 
-    (   *physbcs_u[lev])(vars_new[lev][Vars::xvel],0,1         ,ngvect_vels,time,BCVars::xvel_bc,true);
-    (   *physbcs_v[lev])(vars_new[lev][Vars::yvel],0,1         ,ngvect_vels,time,BCVars::yvel_bc,true);
-    (   *physbcs_w[lev])(vars_new[lev][Vars::zvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
-                         ngvect_vels,time,BCVars::zvel_bc,true);
+    (*physbcs_u[lev])(vars_new[lev][Vars::xvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
+                      ngvect_vels,time,BCVars::xvel_bc,true);
+    (*physbcs_v[lev])(vars_new[lev][Vars::yvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
+                      ngvect_vels,time,BCVars::yvel_bc,true);
+    (*physbcs_w[lev])(vars_new[lev][Vars::zvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
+                      ngvect_vels,time,BCVars::zvel_bc,true);
 
     // ***************************************************************************
     // Since lev > 0 here we don't worry about m_r2d or wrfbdy data
