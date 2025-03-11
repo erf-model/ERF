@@ -18,7 +18,7 @@ concurrency:
 jobs:
   cuda-build:
     runs-on: ubuntu-22.04
-    name: CUDA v${{matrix.cuda_ver}}
+    name: CUDA v${{matrix.cuda_ver}} - Particles ${{matrix.particles}}
     strategy:
       matrix:
         cuda_pkg: [12-0]

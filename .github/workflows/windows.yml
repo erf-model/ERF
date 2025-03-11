@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   WIN32-MSVC10:
-    name: WIN32 MSVC@19.29
+    name: WIN32 MSVC@19.29 - Particles ${{matrix.particles}}
     runs-on: windows-latest
     strategy:
       matrix:

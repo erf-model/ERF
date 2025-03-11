@@ -18,8 +18,8 @@ concurrency:
 jobs:
 
   Build-And-Test:
-
     runs-on: ${{matrix.os}}
+    name: OS ${{matrix.os}} - Particles ${{matrix.particles}}
     strategy:
       matrix:
         os: [ubuntu-22.04]

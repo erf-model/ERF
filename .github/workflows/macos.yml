@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   MacOS-Clang:
-    name: Apple Clang@11.0
+    name: Apple Clang@11.0 - Particles ${{matrix.particles}}
     runs-on: macos-latest
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
