@@ -80,6 +80,12 @@ Examples of Usage
 
 Domain Boundary Conditions
 ==========================
+Domain boundary conditions in ERF may be broadly categorized as ``ideal`` or ``real`` where
+the ideal BC types correspond those found in classic fluid solvers and real correspond to an
+external data source that may be based upon observation data. The inputs for these types of BCs
+are given in more detail in :ref:`sec:LateralBoundaryConditions`. We briefly note that the supported
+ideal BC types are: ``inflow``, ``outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``MOST``.
+
 
 .. _list-of-parameters-1:
 
@@ -381,31 +387,41 @@ Simulation Time
 List of Parameters
 ------------------
 
-+-----------------+---------------------------+--------------+---------+
-| Parameter       | Definition                | Acceptable   | Default |
-|                 |                           | Values       |         |
-+=================+===========================+==============+=========+
-| **max_step**    | maximum number of level 0 | Integer >= 0 | -1      |
-|                 | time steps                |              |         |
-+-----------------+---------------------------+--------------+---------+
-| **start_time**  | starting simulation       | Real >= 0    |  0.0    |
-|                 | time                      |              |         |
-+-----------------+---------------------------+--------------+---------+
-| **stop_time**   | final simulation          | Real >= 0    | Very    |
-|                 | time                      |              | Large   |
-+-----------------+---------------------------+--------------+---------+
++---------------------+---------------------------+--------------+---------+
+| Parameter           | Definition                | Acceptable   | Default |
+|                     |                           | Values       |         |
++=====================+===========================+==============+=========+
+| **max_step**        | maximum number of level 0 | Integer >= 0 | -1      |
+|                     | time steps                |              |         |
++---------------------+---------------------------+--------------+---------+
+| **start_time**      | starting simulation       | Real >= 0    |  0.0    |
+|                     | time                      |              |         |
++---------------------+---------------------------+--------------+---------+
+| **stop_time**       | final simulation          | Real >= 0    | Very    |
+|                     | time                      |              | Large   |
++---------------------+---------------------------+--------------+---------+
+| **start_datetime**  | starting simulation       | String       | None    |
+|                     | date/time                 | (see notes)  |         |
++---------------------+---------------------------+--------------+---------+
+| **stop_datetime**   | final simulation          | String       | None    |
+|                     | date/time                 | (see notes)  |         |
++---------------------+---------------------------+--------------+---------+
 
 .. _notes-3:
 
 Notes
 -----
 
-To control the number of time steps, you can limit by the maximum number
-of level-0 time steps (**max_step**), or the final simulation time
-(**stop_time**), or both. The code will stop at whichever criterion
-comes first. Note that if the code reaches **stop_time** then the final
-time step will be shortened so as to end exactly at **stop_time**, not
-pass it.
+- To control the number of time steps, you can limit by the maximum number
+  of level-0 time steps (**max_step**), or the final simulation time
+  (**stop_time**), or both. The code will stop at whichever criterion
+  comes first. Note that if the code reaches **stop_time** then the final
+  time step will be shortened so as to end exactly at **stop_time**, not
+  pass it.
+- For real data cases, the start and stop times is the epoch time in seconds.
+- **start_datetime** and **stop_datetime** are in UTC and use the following
+  strftime format: "%Y-%m-%d %H:%M:%S", e.g., "2001-01-01 18:00:00".
+  The start/stop datetime inputs have precedence over the time inputs.
 
 .. _examples-of-usage-4:
 
@@ -1534,7 +1550,8 @@ Examples of Usage
     Sullivan TF is used when generating the terrain following coordinate.
 
 -  When setting **erf.terrain_file_name**, the format of the file is expected to
-    be (in raw text): first the nx values of the x-coordinate, then the ny values of
+    be (in raw text): the integer nx on the first line, the integer ny on the second line,
+    then the nx values of the x-coordinate, then the ny values of
     the y-coordinate, then the (nx times ny) values of the z-coordinate associated
     with the (x,y) values we have just read in.  Note that the z-values are in the
     order z(x1,y1), z(x1,y2), z(x1,y3), ... which is contrary to standard Fortran ordering

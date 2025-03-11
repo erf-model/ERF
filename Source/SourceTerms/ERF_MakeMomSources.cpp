@@ -90,8 +90,7 @@ void make_mom_sources (int level,
     //    9. Forest canopy
     //   10. Immersed Forcing
     // *****************************************************************************
-  //const bool l_use_ndiff       = solverChoice.use_num_diff;
-    const bool l_use_zphys       = (z_phys_nd != nullptr);
+    //const bool l_use_ndiff       = solverChoice.use_num_diff;
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
         if (solverChoice.do_forest_drag) {
@@ -240,10 +239,8 @@ void make_mom_sources (int level,
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                Array4<const Real>{};
 
-        const Array4<const Real>& z_nd_arr = (l_use_zphys) ? z_phys_nd->const_array(mfi) :
-                                                             Array4<const Real>{};
-        const Array4<const Real>& z_cc_arr = (l_use_zphys) ? z_phys_cc->const_array(mfi) :
-                                                             Array4<const Real>{};
+        const Array4<const Real>& z_nd_arr =  z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_cc_arr =  z_phys_cc->const_array(mfi);
 
         // *****************************************************************************
         // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
@@ -493,12 +490,14 @@ void make_mom_sources (int level,
         if(solverChoice.spongeChoice.sponge_type == "input_sponge")
         {
              ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
-                                 xmom_src_arr, ymom_src_arr, rho_u, rho_v, d_sponge_ptrs_at_lev);
+                                                   z_cc_arr, xmom_src_arr, ymom_src_arr,
+                                                   rho_u, rho_v, d_sponge_ptrs_at_lev);
         }
         else
         {
             ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
-                                 xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w);
+                                     xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
+                                     z_nd_arr, z_cc_arr);
         }
 
         // *****************************************************************************

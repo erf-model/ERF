@@ -11,8 +11,10 @@
 #include <ERF.H>
 #include <AMReX_buildInfo.H>
 #include <AMReX_Random.H>
+#include <ERF_EpochTime.H>
 #include <ERF_Utils.H>
 #include <ERF_TerrainMetrics.H>
+#include <ERF_EBIFTerrain.H>
 #include <memory>
 
 using namespace amrex;
@@ -244,6 +246,7 @@ ERF::ERF_shared ()
     xvel_bc_data.resize(nlevs_max);
     yvel_bc_data.resize(nlevs_max);
     zvel_bc_data.resize(nlevs_max);
+    th_bc_data.resize(nlevs_max);
 
     advflux_reg.resize(nlevs_max);
 
@@ -367,19 +370,34 @@ ERF::ERF_shared ()
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
-        int lev = 0; Real dummy_time = 0.0;
-        Box terrain_bx(surroundingNodes(geom[lev].Domain())); terrain_bx.grow(3);
+        Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
         FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
-        prob->init_terrain_surface(geom[lev], terrain_fab, dummy_time);
+        Real dummy_time = 0.0;
+        prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
+        TerrainIF ebterrain(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+        auto gshop = EB2::makeShop(ebterrain);
+        bool build_coarse_level_by_coarsening(false);
+        amrex::EB2::Build(gshop, geom[max_level], max_level, max_level, build_coarse_level_by_coarsening);
+        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
 
-        amrex::Print() << "MAKING EB GEOMETRY " << std::endl;
-        eb_ eb(geom[lev], terrain_fab, stretched_dz_d[lev], solverChoice.anelastic[lev]);
-        // MakeEBGeometry();
-
+        eb.resize(max_level+1);
+        for (int lev = 0; lev < max_level+1; ++lev)
+        {
+            amrex::Print() << "MAKING EB GEOMETRY AT LEVEL " << lev << ", max_level = "<< max_level << std::endl;
+            eb[lev] = new eb_();
+            amrex::EB2::Level const* eb_level = &(ebis.getLevel(geom[lev]));
+            eb[lev]->define(lev, geom[lev], eb_level, solverChoice.anelastic[lev]);
+        }
     }
 }
 
-ERF::~ERF () = default;
+// ERF::~ERF () = default;
+ERF::~ERF ()
+{
+    for (auto* p : eb) {
+        delete p;
+    }
+}
 
 // advance solution to final time
 void
@@ -393,6 +411,12 @@ ERF::Evolve ()
     //      for finer levels (with or without subcycling)
     for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
     {
+        if (use_datetime) {
+            Print() << "\n" << getTimestamp(static_cast<std::time_t>(cur_time),
+                                            datetime_format)
+                    << "  (" << cur_time-start_time << " s elapsed)"
+                    << std::endl;
+        }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
         ComputeDt(step);
@@ -715,6 +739,13 @@ ERF::InitData_post ()
         for (int lev(0); lev <= finest_level; ++lev) {
             make_physbcs(lev);
             (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+        }
+
+        if (solverChoice.do_forest_drag) {
+            for (int lev(0); lev <= finest_level; ++lev) {
+                m_forest_drag[lev]->define_drag_field(grids[lev], dmap[lev], geom[lev],
+                                                      z_phys_cc[lev].get(), z_phys_nd[lev].get());
+            }
         }
     }
 
@@ -1447,9 +1478,19 @@ ERF::ReadParameters ()
     {
         ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
         pp.query("max_step", max_step);
-        pp.query("stop_time", stop_time);
 
-        pp.query("start_time", start_time); // This is optional, it defaults to 0
+        std::string start_datetime, stop_datetime;
+        if (pp.query("start_datetime", start_datetime)) {
+            // Both start and stop datetimes must be provided
+            start_time = getEpochTime(start_datetime, datetime_format);
+            if (pp.query("stop_datetime", stop_datetime)) {
+                stop_time = getEpochTime(stop_datetime, datetime_format);
+            }
+            use_datetime = true;
+        } else {
+            pp.query("stop_time", stop_time);
+            pp.query("start_time", start_time); // This is optional, it defaults to 0
+        }
     }
 
     ParmParse pp(pp_prefix);
