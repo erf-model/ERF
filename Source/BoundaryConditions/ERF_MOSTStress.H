@@ -2132,11 +2132,21 @@ struct rico_flux
     {
         amrex::Real rho, eta;
 
-        int ic, jc;
+        int ic, jc, ix, jx, iy, jy;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
+
+        ix = i  < lbound(velx_arr).x   ? lbound(velx_arr).x   : i;
+        jx = j  < lbound(velx_arr).y   ? lbound(velx_arr).y   : j;
+        ix = ix > ubound(velx_arr).x-1 ? ubound(velx_arr).x-1 : ix;
+        jx = jx > ubound(velx_arr).y   ? ubound(velx_arr).y   : jx;
+
+        iy = i  < lbound(vely_arr).x   ? lbound(vely_arr).x   : i;
+        jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
+        iy = iy > ubound(vely_arr).x   ? ubound(vely_arr).x   : iy;
+        jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
 
@@ -2145,8 +2155,8 @@ struct rico_flux
 
         amrex::Real q = cons_arr(ic, jc, zlo, RhoQ1_comp) / rho;
 
-        amrex::Real velx  = 0.5*(velx_arr(ic,jc,zlo) + velx_arr(ic+1,jc,zlo));
-        amrex::Real vely  = 0.5*(vely_arr(ic,jc,zlo) + vely_arr(ic,jc+1,zlo));
+        amrex::Real velx  = 0.5*(velx_arr(ix,jx,zlo) + velx_arr(ix+1,jx,zlo));
+        amrex::Real vely  = 0.5*(vely_arr(iy,jy,zlo) + vely_arr(iy,jy+1,zlo));
         amrex::Real wsp   = sqrt(velx*velx+vely*vely);
 
         // NOTE: this is rho*<q'w'> = -K dqdz
@@ -2194,19 +2204,29 @@ struct rico_flux
     {
         amrex::Real rho, eta;
 
-        int ic, jc;
+        int ic, jc, ix, jx, iy, jy;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
+
+        ix = i  < lbound(velx_arr).x   ? lbound(velx_arr).x   : i;
+        jx = j  < lbound(velx_arr).y   ? lbound(velx_arr).y   : j;
+        ix = ix > ubound(velx_arr).x-1 ? ubound(velx_arr).x-1 : ix;
+        jx = jx > ubound(velx_arr).y   ? ubound(velx_arr).y   : jx;
+
+        iy = i  < lbound(vely_arr).x   ? lbound(vely_arr).x   : i;
+        jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
+        iy = iy > ubound(vely_arr).x   ? ubound(vely_arr).x   : iy;
+        jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
 
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
         amrex::Real deltaz  = dz * (zlo - k);
 
-        amrex::Real velx  = 0.5*(velx_arr(ic,jc,zlo) + velx_arr(ic+1,jc,zlo));
-        amrex::Real vely  = 0.5*(vely_arr(ic,jc,zlo) + vely_arr(ic,jc+1,zlo));
+        amrex::Real velx  = 0.5*(velx_arr(ix,jx,zlo) + velx_arr(ix+1,jx,zlo));
+        amrex::Real vely  = 0.5*(vely_arr(iy,jy,zlo) + vely_arr(iy,jy+1,zlo));
         amrex::Real wsp   = sqrt(velx*velx+vely*vely);
 
         amrex::Real theta = cons_arr(ic, jc, zlo, RhoTheta_comp) / rho;
