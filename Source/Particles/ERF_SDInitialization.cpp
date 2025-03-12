@@ -11,7 +11,7 @@ void SDInitialization::setDefaults ( const std::vector<std::unique_ptr<MaterialP
     m_radius_aerosol_min.resize(m_num_aerosols);
     m_radius_aerosol_max.resize(m_num_aerosols);
     m_radius_aerosol_mean.resize(m_num_aerosols);
-    m_radius_aerosol_std.resize(m_num_aerosols);
+    m_radius_aerosol_geom_std.resize(m_num_aerosols);
     m_aerosol_init_type.resize(m_num_aerosols);
 
     for (int i = 0; i < m_num_aerosols; i++) {
@@ -23,7 +23,7 @@ void SDInitialization::setDefaults ( const std::vector<std::unique_ptr<MaterialP
         m_radius_aerosol_min[i] = 1.0e-9;
         m_radius_aerosol_max[i] = 1.0e-6;
         m_radius_aerosol_mean[i] = 1.0e-40;
-        m_radius_aerosol_std[i] = 1.0;
+        m_radius_aerosol_geom_std[i] = 1.0;
     }
 
     m_mult_type = SDMultiplicityType::sampled;
@@ -122,9 +122,15 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
             pp.query(key.c_str(), m_radius_aerosol_mean[i]);
         }
         {
-            m_radius_aerosol_std[i] = 2.0;
+            m_radius_aerosol_geom_std[i] = 2.0;
             std::string key = "initial_aerosol_std_radius_" + a_aerosol_mat[i]->name();
-            pp.query(key.c_str(), m_radius_aerosol_std[i]);
+            pp.query(key.c_str(), m_radius_aerosol_geom_std[i]);
+            m_radius_aerosol_geom_std[i] = std::exp(m_radius_aerosol_geom_std[i]);
+        }
+        {
+            m_radius_aerosol_geom_std[i] = 2.0;
+            std::string key = "initial_aerosol_geomstd_radius_" + a_aerosol_mat[i]->name();
+            pp.query(key.c_str(), m_radius_aerosol_geom_std[i]);
         }
     }
 
@@ -166,7 +172,7 @@ void SDInitialization::printParameters ( const std::vector<std::unique_ptr<Mater
                 Print() << ", min=" << m_radius_aerosol_min[i]
                         << ", max=" << m_radius_aerosol_max[i]
                         << ", mean=" << m_radius_aerosol_mean[i]
-                        << ", std=" << m_radius_aerosol_std[i];
+                        << ", std=" << m_radius_aerosol_geom_std[i];
             }
             Print() << ")" << "\n";
         }
@@ -195,12 +201,16 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
             a_aerosol_mass[n] = ed(a_rng) + m_mass_aerosol_min[a_idx];
         }
     } else if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_lnr) {
-        std::uniform_real_distribution<> urd(0.0, 1.0);
-        auto delta =   std::log(m_radius_aerosol_max[a_idx])
-                     - std::log(m_radius_aerosol_min[a_idx]);
+        std::normal_distribution<amrex::Real> nrd(std::log(m_radius_aerosol_mean[a_idx]),
+                                                  std::log(m_radius_aerosol_geom_std[a_idx]));
         for (int n = 0; n < a_np; n++) {
-            auto term = std::log(m_radius_aerosol_min[a_idx]) + urd(a_rng)*delta;
-            auto dry_r = std::exp(term);
+            auto dry_r = std::exp(nrd(a_rng));
+            int count = 0;
+            while ((dry_r < m_radius_aerosol_min[a_idx]) || (dry_r > m_radius_aerosol_max[a_idx])) {
+                dry_r = std::exp(nrd(a_rng));
+                count++;
+                if (count > 100) { break; }
+            }
             a_aerosol_mass[n] = (4.0/3.0) * PI
                                 * dry_r * dry_r * dry_r
                                 * a_density;
@@ -237,7 +247,7 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
         }
     } else if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_lnr) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
-        auto sigma = m_radius_aerosol_std[a_idx];
+        auto sigma = std::log(m_radius_aerosol_geom_std[a_idx]);
         auto mu = m_radius_aerosol_mean[a_idx];
         auto lnrng = std::log(m_radius_aerosol_max[a_idx]) - std::log(m_radius_aerosol_min[a_idx]);
         auto lnmin = std::log(m_radius_aerosol_min[a_idx]);
