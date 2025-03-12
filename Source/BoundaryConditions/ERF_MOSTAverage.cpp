@@ -1288,7 +1288,7 @@ MOSTAverage::compute_region_averages (const int& lev)
             // NOTE2: The fields and averages have different indexing.
             //        The averages are: U/V/T/Qv/Tv/Umag
             //        The fields   are: U/V/T/Qv/Qr/W
-            //        We clip iavg at 2 since all the remaing data is CC
+            //        We clip iavg at 2 since all the remaining data is CC
 
             // Bounded box of CC data used for normalization
             int imf = min(iavg,2);
