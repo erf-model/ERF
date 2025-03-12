@@ -446,6 +446,9 @@ ERF::Evolve ()
             last_plot_file_step_2 = step+1;
             WritePlotFile(2,plotfile_type_2,plot_var_names_2);
         }
+        if (writeNow(cur_time, dt[0], step+1, m_subvol_int, m_subvol_per)) {
+            WriteSubvolume();
+        }
 
         if (writeNow(cur_time, dt[0], step+1, m_check_int, m_check_per)) {
             last_check_file_step = step+1;
@@ -476,6 +479,9 @@ ERF::Evolve ()
     }
     if ( (m_plot_int_2 > 0 || m_plot_per_2 > 0.) && istep[0] > last_plot_file_step_2) {
         WritePlotFile(2,plotfile_type_1,plot_var_names_2);
+    }
+    if (m_subvol_int > 0) {
+        WriteSubvolume();
     }
 
     if ( (m_check_int > 0 || m_check_per > 0.) && istep[0] > last_check_file_step) {
@@ -1165,6 +1171,9 @@ ERF::InitData_post ()
             WritePlotFile(2,plotfile_type_2,plot_var_names_2);
             last_plot_file_step_2 = istep[0];
         }
+        if (m_subvol_int > 0) {
+            WriteSubvolume();
+        }
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...
@@ -1653,6 +1662,9 @@ ERF::ReadParameters ()
         pp.query("plot_int_2" , m_plot_int_2);
         pp.query("plot_per_1",  m_plot_per_1);
         pp.query("plot_per_2",  m_plot_per_2);
+
+        pp.query("subvol_file",   subvol_file);
+        pp.query("subvol_int" , m_subvol_int);
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
