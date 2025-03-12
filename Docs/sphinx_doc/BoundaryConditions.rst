@@ -107,6 +107,8 @@ vertical coordinate z. The input file is expected to contain either ``{z  u  v  
 named ``inflow_file`` that contains the variables ``{z  u  v  w}``, one would use
 the inputs below; note, that if the inflow file contains ``{z  u  v  w  theta}`` then the
 below example should be modified to ``not`` include ``xlo.theta = <val>``.
+If ``theta`` is provided, it is by default the primitive variable, not the conserved quantity
+rho*theta. To specify rho*theta instead, ``xlo.read_prim_theta = false`` should be set.
 
 ::
 
