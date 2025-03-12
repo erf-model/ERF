@@ -8,10 +8,15 @@ concurrency:
 
 jobs:
   library:
-    name: GNU@9.3 C++17 Release
+    name: GNU@9.3 C++17 Release - Particles ${{matrix.particles}}
     runs-on: ubuntu-22.04
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
+    strategy:
+      matrix:
+        particles: [OFF, ON]
+
     steps:
+
     - uses: actions/checkout@v4
       with:
         submodules: true
@@ -39,6 +44,7 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \

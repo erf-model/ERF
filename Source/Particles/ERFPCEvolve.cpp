@@ -4,6 +4,7 @@
 
 #include <ERF_IndexDefines.H>
 #include <ERF_Constants.H>
+#include <ERF_EOS.H>
 #include <AMReX_TracerParticle_mod_K.H>
 
 using namespace amrex;
@@ -24,6 +25,8 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
     if (m_advect_w_gravity) {
         AdvectWithGravity( a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
     }
+
+    ComputeTemperature( a_flow_vars[a_lev][Vars::cons], a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
 
     Redistribute();
     return;
@@ -224,6 +227,84 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
                                     ParallelContext::CommunicatorSub());
 
                 Print() << "ERFPC::AdvectWithGravity() time: " << stoptime << '\n';
+#ifdef AMREX_LAZY
+        });
+#endif
+    }
+}
+
+/*! Uses midpoint method to advance particles using flow velocity. */
+void ERFPC::ComputeTemperature (const MultiFab&                     a_ucons,
+                                int                                 a_lev,
+                                Real                                /*a_dt*/,
+                                const std::unique_ptr<MultiFab>&    a_z_height )
+{
+    BL_PROFILE("ERFPCPC::ComputeTemperature()");
+    AMREX_ASSERT(a_lev >= 0 && a_lev < GetParticles().size());
+
+    const auto strttime = amrex::second();
+    const Geometry& geom = m_gdb->Geom(a_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+
+    // Compute temperature
+    MultiFab T_mf(a_ucons.boxArray(), a_ucons.DistributionMap(), 1, a_ucons.nGrowVect());
+    T_mf.setVal(0.0);
+    for ( MFIter mfi(a_ucons); mfi.isValid(); ++mfi) {
+        const auto& box3d = mfi.tilebox();
+        auto states_array = a_ucons.const_array(mfi);
+        auto tabs_array  = T_mf.array(mfi);
+        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
+                                                  states_array(i,j,k,RhoTheta_comp));
+        });
+    }
+
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti)
+    {
+        int grid    = pti.index();
+        auto& ptile = ParticlesAt(a_lev, pti);
+        auto& aos  = ptile.GetArrayOfStructs();
+        auto& soa  = ptile.GetStructOfArrays();
+        const int n = aos.numParticles();
+        auto *p_pbox = aos().data();
+
+        auto* T_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::temperature).data();
+        auto temperature_arr  = T_mf.array(grid);
+
+        bool use_terrain = (a_z_height != nullptr);
+        auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
+
+        ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
+        {
+            ParticleType& p = p_pbox[i];
+            if (p.id() <= 0) { return; }
+
+            ParticleReal temperature;
+            if (use_terrain) {
+                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
+            } else {
+                cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
+            }
+            T_ptr[i] = temperature;
+        });
+    }
+
+    if (m_verbose > 1)
+    {
+        auto stoptime = amrex::second() - strttime;
+
+#ifdef AMREX_LAZY
+        Lazy::QueueReduction( [=] () mutable {
+#endif
+                ParallelReduce::Max(stoptime, ParallelContext::IOProcessorNumberSub(),
+                                    ParallelContext::CommunicatorSub());
+
+                Print() << "ERFPC::ComputeTemperature() time: " << stoptime << '\n';
 #ifdef AMREX_LAZY
         });
 #endif
