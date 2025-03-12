@@ -1267,28 +1267,44 @@ MOSTAverage::compute_region_averages (const int& lev)
         }
     }
 
+    // NOTE: Checking periodicity with the geom structure is not
+    //       sufficient at higher levels. The BA may be contained
+    //       within the domain and it's exterior ghost cells filled
+    //       from interpolation; yet the domain BCs are periodic.
 
     // Need to fill ghost cells outside the domain if not periodic
     bool not_per_x = !(geom.periodicity().isPeriodic(0));
     bool not_per_y = !(geom.periodicity().isPeriodic(1));
-    if (not_per_x || not_per_y) {
-        Box domain = geom.Domain();
+    Box cc_bnd_bx  = (m_fields[lev][2]->boxArray()).minimalBox();
+    Box domain     = geom.Domain();
+    if (domain.contains(cc_bnd_bx) || (not_per_x || not_per_y)) {
         for (int iavg(0); iavg < m_navg; ++iavg) {
-            IndexType ixt = averages[iavg]->boxArray().ixType();
-            Box ldomain   = domain; ldomain.convert(ixt);
-            IntVect ng    = averages[iavg]->nGrowVect(); ng[2]=0;
+            IntVect ng = averages[iavg]->nGrowVect(); ng[2]=0;
+
+            // NOTE:  Level 0 spans the whole domain, but finer
+            //        levels do not have such a restriction.
+            //        For now, use the bounding box of the boxArray.
+
+            // NOTE2: The fields and averages have different indexing.
+            //        The averages are: U/V/T/Qv/Tv/Umag
+            //        The fields   are: U/V/T/Qv/Qr/W
+            //        We clip iavg at 2 since all the remaining data is CC
+
+            // Bounded box of CC data used for normalization
+            int imf = min(iavg,2);
+            Box bnd_bx = (m_fields[lev][imf]->boxArray()).minimalBox();
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
             for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
                 Box gpbx = mfi.growntilebox(ng); gpbx.setSmall(2,0); gpbx.setBig(2,0);
 
-                if (ldomain.contains(gpbx)) continue;
+                if (bnd_bx.contains(gpbx)) continue;
 
                 auto ma_arr = averages[iavg]->array(mfi);
 
-                int i_lo = ldomain.smallEnd(0); int i_hi = ldomain.bigEnd(0);
-                int j_lo = ldomain.smallEnd(1); int j_hi = ldomain.bigEnd(1);
+                int i_lo = bnd_bx.smallEnd(0); int i_hi = bnd_bx.bigEnd(0);
+                int j_lo = bnd_bx.smallEnd(1); int j_hi = bnd_bx.bigEnd(1);
                 ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     int li, lj;

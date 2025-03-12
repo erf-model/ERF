@@ -14,8 +14,9 @@ geometry.is_periodic = 1 1 0
 zlo.type = "Most"
 zhi.type = "SlipWall"
 
-erf.most.z0 = 100.0
-erf.most.zref = 200.0
+erf.most.average_policy = 1
+erf.most.z0   = 0.1
+erf.most.zref = 8.0
 erf.most.surf_temp = 1.1
 
 # TIME STEP CONTROL
@@ -27,8 +28,16 @@ erf.v              = 1       # verbosity in ERF.cpp
 amr.v              = 1       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
-amr.max_level       = 0       # maximum level number allowed
+amr.max_level      = 1       # maximum level number allowed
+amr.ref_ratio_vect = 20 20 1
+erf.refinement_indicators = box1
 
+erf.box1.max_level = 1
+erf.box1.in_box_lo =  400 400
+erf.box1.in_box_hi =  480 480
+
+erf.coupling_type = "TwoWay"
+    
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
 erf.check_int       = 100        # number of timesteps between checkpoints
@@ -60,15 +69,7 @@ prob.W_0 = 0.0
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
 prob.U_0_Pert_Mag = 0.08
-prob.V_0_Pert_Mag = 0.08 #
+prob.V_0_Pert_Mag = 0.08 
 prob.W_0_Pert_Mag = 0.0
 
-amr.max_level = 1
-amr.ref_ratio_vect = 20 20 1
-erf.refinement_indicators = box1
 
-erf.box1.max_level = 1
-erf.box1.in_box_lo =  400 400
-erf.box1.in_box_hi =  480 480
-
-erf.coupling_type = "OneWay"
