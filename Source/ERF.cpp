@@ -447,6 +447,7 @@ ERF::Evolve ()
             WritePlotFile(2,plotfile_type_2,plot_var_names_2);
         }
         if (writeNow(cur_time, dt[0], step+1, m_subvol_int, m_subvol_per)) {
+            last_subvol = step+1;
             WriteSubvolume();
         }
 
@@ -480,7 +481,7 @@ ERF::Evolve ()
     if ( (m_plot_int_2 > 0 || m_plot_per_2 > 0.) && istep[0] > last_plot_file_step_2) {
         WritePlotFile(2,plotfile_type_1,plot_var_names_2);
     }
-    if (m_subvol_int > 0) {
+    if ( (m_subvol_int > 0 || m_subvol_per > 0.) && istep[0] > last_subvol) {
         WriteSubvolume();
     }
 
@@ -1171,8 +1172,9 @@ ERF::InitData_post ()
             WritePlotFile(2,plotfile_type_2,plot_var_names_2);
             last_plot_file_step_2 = istep[0];
         }
-        if (m_subvol_int > 0) {
+        if (m_subvol_int > 0 || m_subvol_per > 0.) {
             WriteSubvolume();
+            last_subvol = istep[0];
         }
     }
 
@@ -1665,6 +1667,7 @@ ERF::ReadParameters ()
 
         pp.query("subvol_file",   subvol_file);
         pp.query("subvol_int" , m_subvol_int);
+        pp.query("subvol_per" , m_subvol_per);
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
