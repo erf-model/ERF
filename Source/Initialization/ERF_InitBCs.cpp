@@ -564,8 +564,10 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
-                        if (BCVars::cons_bc+i == RhoTheta_comp && th_bc_data[0].data() != nullptr) { continue; }
-                        if (input_bndry_planes && dir < 2 && (
+                        if (BCVars::cons_bc+i == RhoTheta_comp && th_bc_data[0].data() != nullptr) {
+                            domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_prim);
+                        }
+                        else if (input_bndry_planes && dir < 2 && (
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
