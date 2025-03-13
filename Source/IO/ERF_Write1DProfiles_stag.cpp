@@ -625,6 +625,8 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
     // This will hold Tau13 and Tau23
     MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 5, 0);
 
+    MultiFab mf_rho(vars_new[lev][Vars::cons], make_alias, 0, 1);
+
     bool l_use_moist   = ( solverChoice.moisture_type != MoistureType::None );
 
     for ( MFIter mfi(mf_out,TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -632,6 +634,8 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
         const Box& bx = mfi.tilebox();
         const Array4<Real>& fab_arr = mf_out.array(mfi);
         const Array4<Real>& fab_arr_stag = mf_out_stag.array(mfi);
+
+        const Array4<const Real>& rho_arr = mf_rho.const_array(mfi);
 
         // NOTE: These are from the last RK stage...
         const Array4<const Real>& tau11_arr = Tau11_lev[lev]->const_array(mfi);
@@ -654,31 +658,28 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            fab_arr(i, j, k, 0) = tau11_arr(i,j,k);
-            fab_arr(i, j, k, 1) = 0.25 * ( tau12_arr(i,j  ,k) + tau12_arr(i+1,j  ,k)
-                                         + tau12_arr(i,j+1,k) + tau12_arr(i+1,j+1,k) );
-//          fab_arr(i, j, k, 2) = 0.25 * ( tau13_arr(i,j,k  ) + tau13_arr(i+1,j,k)
-//                                       + tau13_arr(i,j,k+1) + tau13_arr(i+1,j,k+1) );
-            fab_arr(i, j, k, 3) = tau22_arr(i,j,k);
-//          fab_arr(i, j, k, 4) = 0.25 * ( tau23_arr(i,j,k  ) + tau23_arr(i,j+1,k)
-//                                       + tau23_arr(i,j,k+1) + tau23_arr(i,j+1,k+1) );
-            fab_arr(i, j, k, 5) = tau33_arr(i,j,k);
-//          fab_arr(i, j, k, 6) =  hfx3_arr(i,j,k);
-//          fab_arr(i, j, k, 7) =  (l_use_moist) ? q1fx3_arr(i,j,k) : 0.0;
-//          fab_arr(i, j, k, 8) =  (l_use_moist) ? q2fx3_arr(i,j,k) : 0.0;
-            fab_arr(i, j, k, 9) =  diss_arr(i,j,k);
+            // rho averaging should follow Diffusion/ERF_ComputeStress_*.cpp
+            fab_arr(i, j, k, 0) = tau11_arr(i,j,k) / rho_arr(i,j,k);
+            fab_arr(i, j, k, 1) = ( tau12_arr(i,j  ,k) + tau12_arr(i+1,j  ,k)
+                                  + tau12_arr(i,j+1,k) + tau12_arr(i+1,j+1,k) )
+                                / (   rho_arr(i,j  ,k) +   rho_arr(i+1,j  ,k)
+                                  +   rho_arr(i,j+1,k) +   rho_arr(i+1,j+1,k) );
+            fab_arr(i, j, k, 3) = tau22_arr(i,j,k) / rho_arr(i,j,k);
+            fab_arr(i, j, k, 5) = tau33_arr(i,j,k) / rho_arr(i,j,k);
+            fab_arr(i, j, k, 9) =  diss_arr(i,j,k) / rho_arr(i,j,k);
         });
 
         const Box& zbx = mfi.tilebox(IntVect(0,0,1));
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            Real rho_face = 0.5 * (rho_arr(i,j,k-1) + rho_arr(i,j,k));
             // average from edge to face center
-            fab_arr_stag(i,j,k,0) = 0.5*(tau13_arr(i,j,k) + tau13_arr(i+1,j  ,k));
-            fab_arr_stag(i,j,k,1) = 0.5*(tau23_arr(i,j,k) + tau23_arr(i  ,j+1,k));
+            fab_arr_stag(i,j,k,0) = 0.5*(tau13_arr(i,j,k) + tau13_arr(i+1,j  ,k)) / rho_face;
+            fab_arr_stag(i,j,k,1) = 0.5*(tau23_arr(i,j,k) + tau23_arr(i  ,j+1,k)) / rho_face;
 
-            fab_arr_stag(i,j,k,2) =  hfx3_arr(i,j,k);
-            fab_arr_stag(i,j,k,3) =  (l_use_moist) ? q1fx3_arr(i,j,k) : 0.0;
-            fab_arr_stag(i,j,k,4) =  (l_use_moist) ? q2fx3_arr(i,j,k) : 0.0;
+            fab_arr_stag(i,j,k,2) = hfx3_arr(i,j,k) / rho_face;
+            fab_arr_stag(i,j,k,3) = (l_use_moist) ? q1fx3_arr(i,j,k) / rho_face : 0.0;
+            fab_arr_stag(i,j,k,4) = (l_use_moist) ? q2fx3_arr(i,j,k) / rho_face : 0.0;
         });
     }
 
@@ -709,15 +710,21 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
     // Divide by the total number of cells we are averaging over
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
     for (int k = 0; k < ht_size; ++k) {
-        h_avg_tau11[k] /= area_z; h_avg_tau12[k] /= area_z;
+        h_avg_tau11[k] /= area_z;
+        h_avg_tau12[k] /= area_z;
+        h_avg_tau13[k] /= area_z;
         h_avg_tau22[k] /= area_z;
+        h_avg_tau23[k] /= area_z;
         h_avg_tau33[k] /= area_z;
+        h_avg_hfx3[k] /= area_z;
+        h_avg_q1fx3[k] /= area_z;
+        h_avg_q2fx3[k] /= area_z;
         h_avg_diss[k] /= area_z;
     }
-    for (int k = 0; k < ht_size+1; ++k) { // staggered heights
-        h_avg_tau13[k] /= area_z;
-        h_avg_tau23[k] /= area_z;
-        h_avg_hfx3[k] /= area_z;
-        h_avg_q1fx3[k] /= area_z; h_avg_q2fx3[k] /= area_z;
-    }
+    // staggered heights
+    h_avg_tau13[ht_size] /= area_z;
+    h_avg_tau23[ht_size] /= area_z;
+    h_avg_hfx3[ht_size]  /= area_z;
+    h_avg_q1fx3[ht_size] /= area_z;
+    h_avg_q2fx3[ht_size] /= area_z;
 }
