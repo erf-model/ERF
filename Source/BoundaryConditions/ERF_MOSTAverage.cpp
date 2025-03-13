@@ -1074,12 +1074,13 @@ MOSTAverage::compute_region_averages (const int& lev)
                     }
                 });
             }
-        }
+        } // MFiter
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
         averages[imf]->FillBoundary(geom.periodicity());
-    }
+
+    } // imf
 
     //
     //----------------------------------------------------------
@@ -1170,11 +1171,12 @@ MOSTAverage::compute_region_averages (const int& lev)
                     }
                 });
             }
+        } // MFiter
 
-            // Fill interior ghost cells and any ghost cells outside a periodic domain
-            //***********************************************************************************
-            averages[iavg]->FillBoundary(geom.periodicity());
-        }
+        // Fill interior ghost cells and any ghost cells outside a periodic domain
+        //***********************************************************************************
+        averages[iavg]->FillBoundary(geom.periodicity());
+
     }
     else // copy temperature
     {
@@ -1260,11 +1262,12 @@ MOSTAverage::compute_region_averages (const int& lev)
                     }
                 });
             }
+        } // MFiter
 
-            // Fill interior ghost cells and any ghost cells outside a periodic domain
-            //***********************************************************************************
-            averages[iavg]->FillBoundary(geom.periodicity());
-        }
+        // Fill interior ghost cells and any ghost cells outside a periodic domain
+        //***********************************************************************************
+        averages[iavg]->FillBoundary(geom.periodicity());
+
     }
 
     // NOTE: Checking periodicity with the geom structure is not
