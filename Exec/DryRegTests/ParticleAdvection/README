@@ -1,0 +1,2 @@
+This problem setup is for particle advection in uniform flow (no terrain).
+The domain is periodic in the y-direction, with inflow at low x and outflow at high x.

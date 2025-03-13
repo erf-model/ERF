@@ -8,9 +8,14 @@ concurrency:
 
 jobs:
   WIN32-MSVC10:
-    name: WIN32 MSVC@19.29
+    name: WIN32 MSVC@19.29 - Particles ${{matrix.particles}}
     runs-on: windows-latest
+    strategy:
+      matrix:
+        particles: [OFF, ON]
+
     steps:
+
     - uses: actions/checkout@v4
       with:
         submodules: true
@@ -22,6 +27,7 @@ jobs:
           -DCMAKE_BUILD_TYPE:STRING=Debug `
           -DERF_DIM:STRING=3 `
           -DERF_ENABLE_MPI:BOOL=OFF `
+          -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} `
           -DERF_ENABLE_TESTS:BOOL=ON `
           -DERF_ENABLE_ALL_WARNINGS:BOOL=OFF `
           -DERF_ENABLE_FCOMPARE:BOOL=ON `
