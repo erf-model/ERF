@@ -48,9 +48,9 @@ ERF::WriteSubvolume ()
     // Now that we know which level we're at, we can figure out which (i,j,k) the origin corresponds to
     // Note we use 1.0001 as a fudge factor since the division of two reals --> integer will do a floor
     // **************************************************************
-    int i0 = (origin[0] - geom[lev_for_sub].ProbLo(0)) * 1.0001 / delta[0];
-    int j0 = (origin[1] - geom[lev_for_sub].ProbLo(1)) * 1.0001 / delta[1];
-    int k0 = (origin[2] - geom[lev_for_sub].ProbLo(2)) * 1.0001 / delta[2];
+    int i0 = static_cast<int>((origin[0] - geom[lev_for_sub].ProbLo(0)) * 1.0001 / delta[0]);
+    int j0 = static_cast<int>((origin[1] - geom[lev_for_sub].ProbLo(1)) * 1.0001 / delta[1]);
+    int k0 = static_cast<int>((origin[2] - geom[lev_for_sub].ProbLo(2)) * 1.0001 / delta[2]);
 
     found = false;
     if (almostEqual(geom[lev_for_sub].ProbLo(0)+i0*delta[0],origin[0]) &&
