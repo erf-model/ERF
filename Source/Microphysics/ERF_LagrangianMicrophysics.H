@@ -38,6 +38,7 @@ public:
                             const MoistureType& a_model_type /*!< moisture model */ )
     {
         AMREX_ASSERT( Microphysics::modelType(a_model_type) == MoistureModelType::Lagrangian );
+        amrex::ignore_unused(a_model_type);
         amrex::Abort("No Lagrangian moisture model implemented yet!") ;
     }
 

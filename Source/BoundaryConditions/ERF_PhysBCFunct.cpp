@@ -13,7 +13,8 @@ using namespace amrex;
  * @param[in] nghost number of ghost cells to be filled
  */
 
-void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
+void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
+                                      int icomp, int ncomp,
                                       IntVect const& nghost, const Real /*time*/, int /*bccomp*/,
                                       bool do_fb, bool do_terrain_adjustment)
 {
@@ -67,12 +68,14 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
 
             if (!gdomain.contains(cbx2))
             {
-                const Array4<Real> cons_arr = mf.array(mfi);
+                Array4<      Real> const& cons_arr = mf.array(mfi);
+                Array4<const Real> const& velx_arr = xvel.const_array(mfi);
+                Array4<const Real> const& vely_arr = yvel.const_array(mfi);
 
                 if (!m_use_real_bcs)
                 {
                     // We send a box with ghost cells in the lateral directions only
-                    impose_lateral_cons_bcs(cons_arr,cbx1,domain,icomp,ncomp,nghost);
+                    impose_lateral_cons_bcs(cons_arr,velx_arr,vely_arr,cbx1,domain,icomp,ncomp,nghost);
                 }
 
                 // We send the full FAB box with ghost cells
@@ -83,7 +86,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
     } // OpenMP
 } // operator()
 
-void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
+void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                                    IntVect const& nghost, const Real time, int bccomp,
                                    bool do_fb)
 {
@@ -139,23 +142,25 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
             if (!gdomainx.contains(xbx2))
             {
-                const Array4<Real> velx_arr = mf.array(mfi);
+                Array4<      Real> const& dest_arr = mf.array(mfi);
+                Array4<const Real> const& velx_arr = xvel.const_array(mfi);
+                Array4<const Real> const& vely_arr = yvel.const_array(mfi);
 
                 if (!m_use_real_bcs)
                 {
                     if (!gdomainx.contains(xbx1))
                     {
-                        impose_lateral_xvel_bcs(velx_arr,xbx1,domain,bccomp);
+                        impose_lateral_xvel_bcs(dest_arr,velx_arr,vely_arr,xbx1,domain,bccomp);
                     }
                 }
 
-                impose_vertical_xvel_bcs(velx_arr,xbx2,domain,z_nd_arr,dxInv,bccomp,time);
+                impose_vertical_xvel_bcs(dest_arr,xbx2,domain,z_nd_arr,dxInv,bccomp,time);
             }
         } // MFIter
     } // OpenMP
 } // operator()
 
-void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
+void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                                    IntVect const& nghost, const Real /*time*/, int bccomp,
                                    bool do_fb)
 {
@@ -211,14 +216,16 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
             if (!gdomainy.contains(ybx2))
             {
-                const Array4<Real> vely_arr = mf.array(mfi);
+                Array4<      Real> const& dest_arr = mf.array(mfi);
+                Array4<const Real> const& velx_arr = xvel.const_array(mfi);
+                Array4<const Real> const& vely_arr = yvel.const_array(mfi);
 
                 if (!m_use_real_bcs)
                 {
-                    impose_lateral_yvel_bcs(vely_arr,ybx1,domain,bccomp);
+                    impose_lateral_yvel_bcs(dest_arr,velx_arr,vely_arr,ybx1,domain,bccomp);
                 }
 
-                impose_vertical_yvel_bcs(vely_arr,ybx2,domain,z_nd_arr,dxInv,bccomp);
+                impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,dxInv,bccomp);
             }
 
         } // MFIter

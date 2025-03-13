@@ -35,6 +35,7 @@ struct ERFParticlesRealIdxSoA
         vy,
         vz,
         mass,
+        temperature,
         ncomps
     };
 };
@@ -155,7 +156,7 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         virtual amrex::Vector<std::string> varNames () const
         {
             BL_PROFILE("ERFPCPC::varNames()");
-            return {AMREX_D_DECL("xvel","yvel","zvel"),"mass"};
+            return {AMREX_D_DECL("xvel","yvel","zvel"),"mass","temperature"};
         }
 
         /*! Get real-type particle attribute names */
@@ -175,6 +176,12 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         virtual void AdvectWithGravity ( int,
                                          amrex::Real,
                                          const std::unique_ptr<amrex::MultiFab>& );
+
+        /*! Interpolates flow temperature to particles */
+        virtual void ComputeTemperature ( const amrex::MultiFab&,
+                                          int,
+                                          amrex::Real,
+                                          const std::unique_ptr<amrex::MultiFab>& );
 
         /*! Compute mass density */
         virtual void massDensity ( amrex::MultiFab&, const int&, const int& a_comp = 0) const;

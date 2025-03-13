@@ -20,7 +20,7 @@ jobs:
   # https://gitlab.kitware.com/cmake/cmake/-/issues/21968
   # https://github.com/ROCm-Developer-Tools/HIP/issues/2246
   Build-And-Test-HIP:
-    name: HIP ROCm GFortran@9.3 C++17 [tests]
+    name: HIP ROCm GFortran@9.3 C++17 - Particles ${{matrix.particles}}
     runs-on: ubuntu-22.04
     # Have to have -Wno-deprecated-declarations due to deprecated atomicAddNoRet
     # Have to have -Wno-gnu-zero-variadic-macro-arguments to avoid
@@ -34,7 +34,12 @@ jobs:
     #    #define select_impl_(_1, _2, impl_, ...) impl_
     # NOTE: -Werror was removed because ERF specifically had a lot of warnings. It will be a separate task to go through and fix them all...
     env: {CXXFLAGS: "-Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual -Wextra-semi -Wunreachable-code -Wno-deprecated-declarations -Wno-gnu-zero-variadic-macro-arguments -Wno-pass-failed"}
+    strategy:
+      matrix:
+        particles: [OFF, ON]
+
     steps:
+
     - uses: actions/checkout@v4
       with:
         submodules: true
@@ -75,6 +80,7 @@ jobs:
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_HIP:BOOL=ON \
           -DAMReX_AMD_ARCH=gfx908 \
+          -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \

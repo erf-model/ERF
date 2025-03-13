@@ -319,6 +319,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                   // Return height for max
                   return { z_arr(i,j,k0) };
                 });
+        amrex::ParallelDescriptor::ReduceRealMax(h_m);
 
         if (h_m < std::numeric_limits<Real>::epsilon()) h_m = 1e-16;
 

@@ -154,6 +154,7 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
         auto* vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
         auto* vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
         auto* mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
+        auto* T_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::temperature).data();
 
         const auto num_particles_arr = num_particles[mfi].array();
 
@@ -210,6 +211,7 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
                     mass_ptr[n] = 1.0e-6;
+                    T_ptr[n] = 0.0;
                }
             });
 
@@ -256,6 +258,7 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
                     mass_ptr[n] = 1.0e-6;
+                    T_ptr[n] = 0.0;
                }
             });
 
@@ -284,6 +287,7 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
                     mass_ptr[n] = 1.0e-6;
+                    T_ptr[n] = 0.0;
                }
             });
 
@@ -311,6 +315,7 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
                     mass_ptr[n] = 1.0e-6;
+                    T_ptr[n] = 0.0;
                }
             });
         }

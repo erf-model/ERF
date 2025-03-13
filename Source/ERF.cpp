@@ -11,6 +11,7 @@
 #include <ERF.H>
 #include <AMReX_buildInfo.H>
 #include <AMReX_Random.H>
+#include <ERF_EpochTime.H>
 #include <ERF_Utils.H>
 #include <ERF_TerrainMetrics.H>
 #include <ERF_EBIFTerrain.H>
@@ -245,6 +246,7 @@ ERF::ERF_shared ()
     xvel_bc_data.resize(nlevs_max);
     yvel_bc_data.resize(nlevs_max);
     zvel_bc_data.resize(nlevs_max);
+    th_bc_data.resize(nlevs_max);
 
     advflux_reg.resize(nlevs_max);
 
@@ -409,6 +411,12 @@ ERF::Evolve ()
     //      for finer levels (with or without subcycling)
     for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
     {
+        if (use_datetime) {
+            Print() << "\n" << getTimestamp(static_cast<std::time_t>(cur_time),
+                                            datetime_format)
+                    << "  (" << cur_time-start_time << " s elapsed)"
+                    << std::endl;
+        }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
         ComputeDt(step);
@@ -732,6 +740,13 @@ ERF::InitData_post ()
             make_physbcs(lev);
             (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
         }
+
+        if (solverChoice.do_forest_drag) {
+            for (int lev(0); lev <= finest_level; ++lev) {
+                m_forest_drag[lev]->define_drag_field(grids[lev], dmap[lev], geom[lev],
+                                                      z_phys_cc[lev].get(), z_phys_nd[lev].get());
+            }
+        }
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -917,11 +932,11 @@ ERF::InitData_post ()
     }
 #endif
 
-        (*physbcs_cons[lev])(lev_new[Vars::cons],0,ncomp_cons,
+        (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
                              ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
-        (   *physbcs_u[lev])(lev_new[Vars::xvel],0,1         ,
+        (   *physbcs_u[lev])(lev_new[Vars::xvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::xvel_bc,do_fb);
-        (   *physbcs_v[lev])(lev_new[Vars::yvel],0,1         ,
+        (   *physbcs_v[lev])(lev_new[Vars::yvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
         (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
@@ -1463,9 +1478,19 @@ ERF::ReadParameters ()
     {
         ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
         pp.query("max_step", max_step);
-        pp.query("stop_time", stop_time);
 
-        pp.query("start_time", start_time); // This is optional, it defaults to 0
+        std::string start_datetime, stop_datetime;
+        if (pp.query("start_datetime", start_datetime)) {
+            // Both start and stop datetimes must be provided
+            start_time = getEpochTime(start_datetime, datetime_format);
+            if (pp.query("stop_datetime", stop_datetime)) {
+                stop_time = getEpochTime(stop_datetime, datetime_format);
+            }
+            use_datetime = true;
+        } else {
+            pp.query("stop_time", stop_time);
+            pp.query("start_time", start_time); // This is optional, it defaults to 0
+        }
     }
 
     ParmParse pp(pp_prefix);

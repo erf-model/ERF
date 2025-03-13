@@ -12,7 +12,8 @@ using namespace amrex;
  * @param[in]     domain   simulation domain
  */
 
-void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest_arr,
+                                                        const Box& bx, const Box& domain,
                                                         int ncomp, const IntVect& nghost)
 {
     BL_PROFILE_VAR("impose_lateral_base_bcs()",impose_lateral_base_bcs);

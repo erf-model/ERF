@@ -73,7 +73,9 @@ The license for ERF can be found in the LICENSE.md file.
 Citation
 ~~~~~~~~~
 
-To cite ERF, please use |JOSS Image|
+To cite ERF, please see the following publications:
+
+|JOSS Image|
 
 .. |JOSS Image| image:: https://joss.theoj.org/papers/10.21105/joss.05202/status.svg
    :target: https://doi.org/10.21105/joss.05202
@@ -91,4 +93,21 @@ To cite ERF, please use |JOSS Image|
        volume  = {8},
        number  = {87},
        pages   = {5202},
+   }
+
+|JAMES Image|
+
+.. |JAMES Image| image:: https://zenodo.org/badge/DOI/10.48550/arXiv.2412.04395.svg
+  :target: https://doi.org/10.48550/arXiv.2412.04395
+
+::
+
+   @article{ERF_JAMES,
+       title = {{ERF}: {Energy} {Research} and {Forecasting} {Model}},
+       shorttitle = {{ERF}},
+       doi = {10.48550/arXiv.2412.04395},
+       publisher = {arXiv},
+       author = {Lattanzi, Aaron and Almgren, Ann and Quon, Eliot and Natarajan, Mahesh and Kosovic, Branko and Mirocha, Jeff and Perry, Bruce and Wiersema, David and Willcox, Donald and Yuan, Xingqiu and Zhang, Weiqun},
+       month = dec,
+       year = {2024},
    }

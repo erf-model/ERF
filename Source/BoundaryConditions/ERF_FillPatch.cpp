@@ -240,10 +240,13 @@ ERF::FillPatch (int lev, Real time,
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     // Note that we call FillBoundary inside the physbcs call
-    (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
+    (*physbcs_cons[lev])(*mfs_vel[Vars::cons],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                         icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
     if (!cons_only) {
-        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc, do_fb);
-        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc, do_fb);
+        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                          ngvect_vels,time,BCVars::xvel_bc, do_fb);
+        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                          ngvect_vels,time,BCVars::yvel_bc, do_fb);
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
                           ngvect_vels,time,BCVars::zvel_bc, do_fb);
     }
@@ -307,10 +310,13 @@ ERF::FillPatch (int lev, Real time,
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     // Note that we call FillBoundary inside the physbcs call
-    (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
+    (*physbcs_cons[lev])(*mfs_vel[Vars::cons],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                          icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
     if (!cons_only) {
-        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc, do_fb);
-        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc, do_fb);
+        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                          ngvect_vels,time,BCVars::xvel_bc, do_fb);
+        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                          ngvect_vels,time,BCVars::yvel_bc, do_fb);
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
                           ngvect_vels,time,BCVars::zvel_bc, do_fb);
     }
