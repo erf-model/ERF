@@ -16,10 +16,6 @@ ERF::write_1D_profiles (Real time)
 {
     BL_PROFILE("ERF::write_1D_profiles()");
 
-    int datwidth = 14;
-    int datprecision = 6;
-    int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
-
     if (NumDataLogs() > 1)
     {
         // Define the 1d arrays we will need

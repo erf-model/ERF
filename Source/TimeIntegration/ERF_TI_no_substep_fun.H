@@ -17,6 +17,7 @@
         const amrex::GpuArray<int, IntVars::NumTypes> ncomp_fast = {2,1,1,1};
 
         if (verbose) amrex::Print() << " No-substepping time integration at level " << level
+                                    << std::setprecision(timeprecision)
                                     << " to " << time_for_fp
                                     << " with dt = " << slow_dt << std::endl;
 

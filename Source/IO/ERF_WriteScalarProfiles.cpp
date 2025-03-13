@@ -19,10 +19,6 @@ ERF::sum_integrated_quantities (Real time)
     if (verbose <= 0)
       return;
 
-    int datwidth = 14;
-    int datprecision = 6;
-    int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
-
     // Single level sum
     Real mass_sl;
 
@@ -107,22 +103,23 @@ ERF::sum_integrated_quantities (Real time)
         scal_ml = foo[i++];
 
         Print() << '\n';
+        Print() << "TIME= " << std::setw(datwidth) << std::setprecision(timeprecision) << std::left << time << '\n';
         if (finest_level ==  0) {
 #if 1
-           Print() << "TIME= " << time << "     MASS          = " << mass_sl << '\n';
+           Print() << " MASS       = " << mass_sl << '\n';
 #else
-           Print() << "TIME= " << time << " PERT MASS         = " << mass_sl << '\n';
+           Print() << " PERT MASS  = " << mass_sl << '\n';
 #endif
-           Print() << "TIME= " << time << " RHO THETA         = " << rhth_sl << '\n';
-           Print() << "TIME= " << time << " RHO SCALAR        = " << scal_sl << '\n';
+           Print() << " RHO THETA  = " << rhth_sl << '\n';
+           Print() << " RHO SCALAR = " << scal_sl << '\n';
         } else {
 #if 1
-           Print() << "TIME= " << time << "      MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #else
-           Print() << "TIME= " << time << " PERT MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #endif
-           Print() << "TIME= " << time << " RHO THETA   SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
-           Print() << "TIME= " << time << " RHO SCALAR  SL/ML = " << scal_sl << " " << scal_ml << '\n';
+           Print() << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
+           Print() << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n';
         }
 
         // The first data log only holds scalars
@@ -174,10 +171,6 @@ ERF::sum_derived_quantities (Real time)
     if (verbose <= 0 || NumDerDataLogs() <= 0) return;
 
     int lev = 0;
-
-    int datwidth = 14;
-    int datprecision = 6;
-    int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
 
     AMREX_ALWAYS_ASSERT(lev == 0);
 
@@ -332,8 +325,6 @@ ERF::cloud_fraction (Real /*time*/)
 void
 ERF::sample_points (int /*lev*/, Real time, IntVect cell, MultiFab& mf)
 {
-    int datwidth = 14;
-
     int ifile = 0;
 
     //
@@ -370,9 +361,6 @@ ERF::sample_points (int /*lev*/, Real time, IntVect cell, MultiFab& mf)
 void
 ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
 {
-    int datwidth = 14;
-    int datprecision = 6;
-
     int ifile = 0;
 
     const int ncomp = mf.nComp(); // cell-centered state vars
