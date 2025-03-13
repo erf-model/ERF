@@ -59,8 +59,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
         v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
 
-        bool use_terrain = false; //(z_height != nullptr);
-        auto zheight = use_terrain ? (*z_height)[grid].array() : Array4<Real>{};
+        auto zheight = (*z_height)[grid].array();
 
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
@@ -86,7 +85,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
             // check for ground impact
             {
                 auto z_ground = plo[2];
-                if (use_terrain) {
+                {
                     auto iv = getParticleCell(p, plo, dxi, domain);
                     z_ground = zheight(iv[0],iv[1],k_lo);
                 }
@@ -101,9 +100,9 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
             // check for top boundary exits
             {
                 auto z_roof = phi[2];
-                if (use_terrain) {
+                {
                     auto iv = getParticleCell(p, plo, dxi, domain);
-                    z_roof = zheight(iv[0],iv[1],k_hi);
+                    z_roof = zheight(iv[0],iv[1],k_hi+1);
                 }
                 if (p.pos(2) > z_roof) {
                     p.pos(2) = z_roof - dx[2];

@@ -24,6 +24,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     const auto dxi = geom.InvCellSizeArray();
     const auto domain = geom.Domain();
 
+    const int k_lo = domain.smallEnd(2);
+    const int k_hi = domain.bigEnd(2);
+
     const auto dx_h = Geom(m_lev).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
@@ -57,8 +60,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
 
-        bool use_terrain = false; //(z_height != nullptr);
-        auto zheight = use_terrain ? (*z_height)[grid].array() : Array4<Real>{};
+        auto zheight = (*z_height)[grid].array();
 
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
@@ -78,12 +80,18 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             if (p.id() <= 0) { return; }
             if (mult_ptr[i] > 0) { return; }
 
-            const auto x_min = plo[0];
-            const auto x_max = phi[0];
-            const auto y_min = plo[1];
-            const auto y_max = phi[1];
-            const auto z_min = plo[2];
-            const auto z_max = phi[2];
+            auto x_min = plo[0];
+            auto x_max = phi[0];
+            auto y_min = plo[1];
+            auto y_max = phi[1];
+            auto z_min = plo[2];
+            auto z_max = phi[2];
+            {
+                // probably not the right thing to do
+                auto iv = getParticleCell(p, plo, dxi, domain);
+                z_min = zheight(iv[0],iv[1],k_lo);
+                z_max = zheight(iv[0],iv[1],k_hi+1);
+            }
 
             // Place particle randomly in domain
             p.pos(0) = x_min + Random(rnd_engine)*(x_max - x_min);
