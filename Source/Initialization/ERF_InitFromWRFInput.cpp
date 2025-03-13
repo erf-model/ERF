@@ -786,7 +786,7 @@ init_base_state_from_wrfinput (const Box& domain,
             //       We want domain GCs and FB picks up interior GCs
             if (tbx.contains(i,j,k)) {
                 if ( (DelP > 1.0) || (DelP/Ptot > 1e-6) ) {
-                    printf("p (%i, %i, %i): %e; p_eos: %e; (qv = %e, rho = %e, rT = %e)",
+                    printf("p (%i, %i, %i): %e; p_eos: %e; (qv = %e, rho = %e, rT = %e) \n",
                            i, j, k, Ptot, P_eos, Qv, cons_arr(ii,jj,kk,Rho_comp), RT);
                     amrex::Abort("Initial state is inconsistent with EOS!?");
                 }
