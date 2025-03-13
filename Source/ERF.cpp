@@ -413,7 +413,7 @@ ERF::Evolve ()
     {
         if (use_datetime) {
             Print() << "\n" << getTimestamp(cur_time, datetime_format)
-                    << "  (" << cur_time-start_time << " s elapsed)"
+                    << " (" << cur_time-start_time << " s elapsed)"
                     << std::endl;
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
@@ -1407,6 +1407,15 @@ ERF::init_only (int lev, Real time)
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
         init_from_wrfinput(lev);
+        if (lev==0) {
+            if ((start_time > 0) && (start_time != t_new[lev])) {
+                Print() << "Ignoring specified start_time="
+                        << std::setprecision(timeprecision) << start_time
+                        << std::endl;
+            }
+            start_time = t_new[lev];
+        }
+        use_datetime = true;
 
         // The physbc's need the terrain but are needed for initHSE
         if (!solverChoice.use_real_bcs) {
