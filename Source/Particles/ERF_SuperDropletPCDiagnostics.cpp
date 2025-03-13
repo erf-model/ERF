@@ -14,6 +14,7 @@ Vector<std::string> SuperDropletPC::varNames () const
     BL_PROFILE("ERFPCPC::varNames()");
     amrex::Vector<std::string> retval = {   AMREX_D_DECL("xvel","yvel","zvel"),
                                             "particle_mass",
+                                            "temperature",
                                             "radius",
                                             "multiplicity",
                                             "terminal_velocity",
