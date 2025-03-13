@@ -53,11 +53,13 @@ public:
     * @param[in] time         time at which the data should be filled
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
-    void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp_cons,
-                     bool do_fb = true, bool do_terrain_adjustment = true);
+    void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
+                     int icomp, int ncomp, amrex::IntVect const& nghost,
+                     const amrex::Real time, int bccomp_cons, bool do_fb = true, bool do_terrain_adjustment = true);
 
     void impose_lateral_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                  const amrex::Array4<amrex::Real const>& xvel_arr,
+                                  const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
                                   int icomp, int ncomp, amrex::IntVect ng);
     void impose_vertical_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
@@ -109,11 +111,12 @@ public:
     * @param[in] time         time at which the data should be filled
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
-    void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp,
-                     bool do_fb);
+    void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
+                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp, bool do_fb);
 
     void impose_lateral_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                  const amrex::Array4<amrex::Real const>& xvel_arr,
+                                  const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
                                   int bccomp);
     void impose_vertical_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
@@ -168,11 +171,12 @@ public:
     * @param[in] time         time at which the data should be filled
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
-    void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp,
-                     bool do_fb);
+    void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
+                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp, bool do_fb);
 
     void impose_lateral_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                  const amrex::Array4<amrex::Real const>& xvel_arr,
+                                  const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
                                   int bccomp);
     void impose_vertical_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,

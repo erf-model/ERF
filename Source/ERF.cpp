@@ -932,11 +932,11 @@ ERF::InitData_post ()
     }
 #endif
 
-        (*physbcs_cons[lev])(lev_new[Vars::cons],0,ncomp_cons,
+        (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
                              ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
-        (   *physbcs_u[lev])(lev_new[Vars::xvel],0,1         ,
+        (   *physbcs_u[lev])(lev_new[Vars::xvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::xvel_bc,do_fb);
-        (   *physbcs_v[lev])(lev_new[Vars::yvel],0,1         ,
+        (   *physbcs_v[lev])(lev_new[Vars::yvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
         (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
