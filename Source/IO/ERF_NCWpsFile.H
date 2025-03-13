@@ -128,6 +128,8 @@ int BuildFABsFromWRFBdyFile (const std::string &fname,
                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
 
+#define NCTEST 0
+
 template<typename DType>
 void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
                      amrex::Vector<NDArray<DType> >& arrays, amrex::Vector<int>& success)
@@ -172,19 +174,29 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
 
             if (success[n] == 1) {
 
+                std::vector<std::string> dimnames = ncf.var(vname_to_read).dimnames();
+                AMREX_ALWAYS_ASSERT(dimnames[0] == "Time");
+
                 std::vector<size_t> shape = ncf.var(vname_to_read).shape();
                 arrays[n]                 = NDArray<DType>(vname_to_read,shape);
                 DType* dataPtr            = arrays[n].get_data();
 
                 std::vector<size_t> start(shape.size(), 0);
 
-                // auto numPts               = arrays[n].ndim();
-                // amrex::Print() << "NetCDF Variable name = " << vname_to_read << std::endl;
-                // amrex::Print() << "numPts read from NetCDF file/var = " << numPts << std::endl;
-                // amrex::Print()  << "Dims of the variable = (";
-                // for (auto &dim:shape)
-                //     amrex::Print() << dim << ", " ;
-                // amrex::Print()  << ")" << std::endl;
+#ifdef NCTEST
+                auto numPts               = arrays[n].ndim();
+                amrex::Print() << "NetCDF Variable name = " << vname_to_read << std::endl;
+                amrex::Print() << "numPts read from NetCDF file/var = " << numPts << std::endl;
+                amrex::Print() << "Dims in var = " << ncf.var(vname_to_read).ndim() << std::endl;
+                amrex::Print()  << "Dim names = (";
+                for (auto &dim:dimnames)
+                    amrex::Print() << dim << ", " ;
+                amrex::Print()  << ")" << std::endl;
+                amrex::Print()  << "Dims of the variable = (";
+                for (auto &dim:shape)
+                    amrex::Print() << dim << ", " ;
+                amrex::Print()  << ")" << std::endl;
+#endif
 
                 ncf.var(vname_to_read).get(dataPtr, start, shape);
 
