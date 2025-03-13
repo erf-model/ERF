@@ -25,6 +25,9 @@ void SuperDropletPC::MassChange ( int                                         a_
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
+    const auto is_periodic = geom.isPeriodic();
+    auto is_periodic_z = is_periodic[2];
+
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
     const int num_aerosols = m_num_aerosols;
@@ -45,8 +48,7 @@ void SuperDropletPC::MassChange ( int                                         a_
         const int num_particles = aos.numParticles();
         auto* p_pbox = aos().data();
 
-        bool use_terrain = false; //(z_height != nullptr);
-        auto zheight = use_terrain ? (*z_height)[grid].array() : Array4<Real>{};
+        auto zheight = (*z_height)[grid].array();
 
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
 
@@ -125,14 +127,14 @@ void SuperDropletPC::MassChange ( int                                         a_
             if (mult_ptr[i] == 0.0) { return; }
 
             ParticleReal sat_ratio, e_sat, temperature;
-            if (use_terrain) {
-                cic_interpolate_mapped_z( p, plo, dxi, sat_pressure_arr, zheight, &e_sat, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, sat_ratio_arr, zheight, &sat_ratio, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-            } else {
+            if (is_periodic_z) {
                 cic_interpolate( p, plo, dxi, sat_pressure_arr, &e_sat, 1 );
                 cic_interpolate( p, plo, dxi, sat_ratio_arr, &sat_ratio, 1 );
                 cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
+            } else {
+                cic_interpolate_mapped_z( p, plo, dxi, sat_pressure_arr, zheight, &e_sat, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, sat_ratio_arr, zheight, &sat_ratio, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
             }
 
             ParticleReal solute_moles = 0.0;

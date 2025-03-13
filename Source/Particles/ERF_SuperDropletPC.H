@@ -134,7 +134,7 @@ class SuperDropletPC : public ERFPC
                                      const int ) const override;
 
         /*! \brief Initialize super-droplets in domain */
-        virtual void InitializeParticles (const MFPtr& a_ptr = nullptr) override;
+        virtual void InitializeParticles (const MFPtr& a_ptr) override;
 
         /*! \brief Initialize particles for a given set of initialization parameters */
         void initializeParticles ( const MFPtr&, const SDInitialization& );

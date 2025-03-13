@@ -234,7 +234,7 @@ void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
         if (m_num_initializations > 1) { Print() << " " << i; }
         Print() << ":\n";
         m_initializations[i]->printParameters(m_aerosol_mat);
-        initializeParticles( nullptr /*a_ptr*/, *(m_initializations[i]) );
+        initializeParticles( a_ptr, *(m_initializations[i]) );
         Print() << "    Particle container size: " << NumSuperDroplets() << "\n";
     }
 }
@@ -611,43 +611,39 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         });
         Gpu::synchronize();
 
-        if (a_height_ptr) {
+        const auto height_arr = (*a_height_ptr)[mfi].array();
+        ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k, const RandomEngine& rnd_eng) noexcept
+        {
+            int num_sd_this_cell = num_superdroplets_arr(i,j,k);
+            int start = offset_arr(i,j,k);
+            for (int n = start; n < start+num_sd_this_cell; n++) {
+                auto& p = aos[n];
+                Real x = p.pos(0);
+                Real y = p.pos(1);
+                Real z = p.pos(2);
+                Real r[3] = { (x-plo[0])/dx[0] - i,
+                              (y-plo[1])/dx[1] - j,
+                              (z-plo[2])/dx[2] - k };
 
-            const auto height_arr = (*a_height_ptr)[mfi].array();
-            ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k, const RandomEngine& rnd_eng) noexcept
-            {
-                int num_sd_this_cell = num_superdroplets_arr(i,j,k);
-                int start = offset_arr(i,j,k);
-                for (int n = start; n < start+num_sd_this_cell; n++) {
-                    auto& p = aos[n];
-                    Real x = p.pos(0);
-                    Real y = p.pos(1);
-                    Real r[3] = { (x-plo[0])/dx[0] - i,
-                                  (y-plo[1])/dx[1] - j,
-                                  Random(rnd_eng) };
+                Real sx[] = { amrex::Real(1.) - r[0], r[0]};
+                Real sy[] = { amrex::Real(1.) - r[1], r[1]};
 
-                    Real sx[] = { amrex::Real(1.) - r[0], r[0]};
-                    Real sy[] = { amrex::Real(1.) - r[1], r[1]};
-
-                    Real height_at_pxy_lo = 0.;
-                    Real height_at_pxy_hi = 0.;
-                    for (int ii = 0; ii < 2; ++ii) {
-                        for (int jj = 0; jj < 2; ++jj) {
-                            height_at_pxy_lo += sx[ii] * sy[jj]
-                                                * height_arr(i+ii,j+jj,k);
-                            height_at_pxy_hi += sx[ii] * sy[jj]
-                                                * height_arr(i+ii,j+jj,k+1);
-                        }
+                Real height_at_pxy_lo = 0.;
+                Real height_at_pxy_hi = 0.;
+                for (int ii = 0; ii < 2; ++ii) {
+                    for (int jj = 0; jj < 2; ++jj) {
+                        height_at_pxy_lo += sx[ii] * sy[jj]
+                                            * height_arr(i+ii,j+jj,k);
+                        height_at_pxy_hi += sx[ii] * sy[jj]
+                                            * height_arr(i+ii,j+jj,k+1);
                     }
+                }
 
-                    Real z = height_at_pxy_lo
-                             + r[2] * (height_at_pxy_hi - height_at_pxy_lo);
-                    p.pos(2) = z;
-               }
-            });
-            Gpu::synchronize();
-
-        }
+                p.pos(2) = height_at_pxy_lo
+                           + r[2] * (height_at_pxy_hi - height_at_pxy_lo);
+           }
+        });
+        Gpu::synchronize();
     }
 
     return;

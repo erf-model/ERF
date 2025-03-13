@@ -36,6 +36,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const auto dxi = geom.InvCellSizeArray();
     const auto domain = geom.Domain();
 
+    const auto is_periodic = geom.isPeriodic();
+    auto is_periodic_z = is_periodic[2];
+
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
     const Real rho_w = m_vapour_mat->density();
@@ -69,8 +72,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         const auto& temperature_arr = a_temperature[grid].array();
         const auto& pressure_arr = a_pressure[grid].array();
 
-        bool use_terrain = false; //(z_height != nullptr);
-        auto zheight = use_terrain ? (*z_height)[grid].array() : Array4<Real>{};
+        auto zheight = (*z_height)[grid].array();
 
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
@@ -113,10 +115,10 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             ParticleReal v[AMREX_SPACEDIM];
             v[0] = v[1] = v[2] = 0.0;
 
-            if (use_terrain) {
-                mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
-            } else {
+            if (is_periodic_z) {
                 mac_interpolate(p, plo, dxi, umacarr, v);
+            } else {
+                mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
             }
 
             // compute effective radius
@@ -148,14 +150,14 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 terminal_vel = term_vel.RogersYau( r_eff );
             } else if (term_vel_type == SDTerminalVelocityType::CloudRainShima) {
                 ParticleReal density, pressure, temperature;
-                if (use_terrain) {
-                    cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
-                    cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
-                    cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-                } else {
+                if (is_periodic_z) {
                     cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
                     cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
                     cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
+                } else {
+                    cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
+                    cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
+                    cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
                 }
                 terminal_vel = term_vel.CloudRainShima( r_eff,
                                                         density,
