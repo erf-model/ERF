@@ -61,6 +61,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                                            nghost_eb_volume(),
                                            nghost_eb_full()},
                                            EBSupport::full);
+
+        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
+        amrex::EB2::Level const* eb_level = &(ebis.getLevel(geom[lev]));
+        eb[lev] = new eb_();
+        eb[lev]->define(lev, geom[lev], eb_level, solverChoice.anelastic[lev]);
     } else {
         // m_factory[lev] = std::make_unique<FabFactory<FArrayBox>>();
     }
