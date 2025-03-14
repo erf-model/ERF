@@ -46,7 +46,7 @@ getTimestamp (const amrex::Real epoch_real, const std::string& datetime_format)
     std::string str_nearest_sec(buffer);
 
     double frac_sec = epoch_real - epoch_nearest_sec;
-    sprintf(buffer, "%.6f", frac_sec);
+    snprintf(buffer, 80, "%.6f", frac_sec);
     AMREX_ASSERT(buffer[0] == '0');
     std::string str_frac_sec(buffer);
 
