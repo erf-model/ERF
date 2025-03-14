@@ -84,6 +84,10 @@ read_from_wrfinput (int lev,
     // Read the netcdf file and fill these FABs
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs, successes);
 
+    // Success was already broadcast in ERF_NCWpsFile.H
     success = successes[0];
+
+    // Broadcast use_theta_m
+    ParallelDescriptor::Bcast(&use_theta_m, 1, ParallelDescriptor::IOProcessorNumber());
 }
 #endif // ERF_USE_NETCDF

@@ -219,27 +219,27 @@ ERF::init_from_wrfinput (int lev)
                   bool mult_rho = false;
                   FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
                   FArrayBox* cur_fab;
-                  if (NC_names[ivar] == "U") {
+                  if (var_name == "U") {
                     cur_fab  = &lev_new[Vars::xvel][mfi];
-                  } else if (NC_names[ivar] == "V") {
+                  } else if (var_name == "V") {
                     cur_fab  = &lev_new[Vars::yvel][mfi];
-                  } else if (NC_names[ivar] == "W") {
+                  } else if (var_name == "W") {
                     cur_fab  = &lev_new[Vars::zvel][mfi];
-                  } else if (NC_names[ivar] == "THM") {
+                  } else if (var_name == "THM") {
                     const Real theta_ref = 300.0;
                     var_fab.template plus<RunOn::Device>(theta_ref);
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoTheta_comp;
-                  } else if (NC_names[ivar] == "QVAPOR") {
+                  } else if (var_name == "QVAPOR") {
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ1_comp;
-                  } else if (NC_names[ivar] == "QCLOUD") {
+                  } else if (var_name == "QCLOUD") {
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ2_comp;
-                  } else if (NC_names[ivar] == "QRAIN") {
+                  } else if (var_name == "QRAIN") {
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ3_comp;
@@ -249,24 +249,24 @@ ERF::init_from_wrfinput (int lev)
                   if (success) {
                       cur_fab->template copy<RunOn::Device>(var_fab, 0, icomp, 1);
                       if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
-                      if (use_theta_m && (NC_names[ivar] == "QVAPOR")) {
+                      if (use_theta_m && (var_name == "QVAPOR")) {
                           // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
                           var_fab.template mult<RunOn::Device>(R_v/R_d);
                           var_fab.template plus<RunOn::Device>(1.0);
                           var_fab.template invert<RunOn::Device>(1.0);
                           cur_fab->template mult<RunOn::Device>(var_fab, 0, RhoTheta_comp, 1);
                       }
-                      var_fab.clear();
                   } else {
                       if (icomp < cur_fab->nComp()) {
-                          amrex::Print() << "Setting " << NC_names[ivar] << " to 0 since we couldn't read it in ... DONE" << std::endl;
+                          amrex::Print() << "Setting " << var_name << " to 0 since we couldn't read it in ... DONE" << std::endl;
                           cur_fab->template setVal<RunOn::Device>(0.0,cur_fab->box(),icomp,1);
                           if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
                       } else {
-                          amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                          amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                       }
                   }
               } // mfi
+              var_fab.clear();
           } // valid var (not rho)
 
           if ( var_name == "PH" ) {
@@ -283,7 +283,7 @@ ERF::init_from_wrfinput (int lev)
                   }
                   var_fab.clear();
               } else {
-                  amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                  amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                   compute_terrain_here = false;
               }
           } else if ( var_name == "PHB" ) {
@@ -300,7 +300,7 @@ ERF::init_from_wrfinput (int lev)
                   }
                   var_fab.clear();
               } else {
-                  amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                  amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                   compute_terrain_here = false;
               }
           } else if ( var_name == "ALB" ) {
