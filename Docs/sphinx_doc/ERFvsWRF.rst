@@ -74,7 +74,7 @@ For real-data simulations, ERF supports a variety of workflows and can work with
 .. list-table:: Simulation Workflows
    :header-rows: 1
 
-   * - 
+   * -
      - Large-Scale Data (reanalysis, HRRR, ...)
      - Intermediate Processing
      - Weather Simulation
@@ -86,7 +86,7 @@ For real-data simulations, ERF supports a variety of workflows and can work with
      - Manual download
      - WPS + ``real.exe``
      - ``erf_abl`` (init from wrfinput)
-   * - 
+   * -
      - Manual download
      - ``ndown.exe``
      - ``erf_abl`` (init from wrfinput)
