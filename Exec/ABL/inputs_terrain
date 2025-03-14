@@ -25,6 +25,11 @@ amr.v              = 1       # verbosity in Amr.cpp
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
 
+erf.refinement_indicators    = my_terrain
+erf.my_terrain.max_level     = 1
+erf.my_terrain.field_name    = terrain_blanking
+erf.my_terrain.value_greater = 0.1
+
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
 erf.check_int       = 512         # number of timesteps between checkpoints
