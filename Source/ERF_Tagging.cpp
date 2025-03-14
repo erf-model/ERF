@@ -86,6 +86,12 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     derived::erf_dertheta(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
                 }
             } // mfi
+        // This allows dynamic refinement based on the value of the density
+        } else if ( (SolverChoice::terrain_type == TerrainType::ImmersedForcing) &&
+                    (ref_tags[j].Field() == "terrain_blanking") )
+        {
+            MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,0);
+
 #ifdef ERF_USE_PARTICLES
         } else {
             //
