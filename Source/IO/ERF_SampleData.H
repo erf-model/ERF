@@ -300,7 +300,7 @@ struct LineSampler
     void
     write_line_ascii (amrex::Vector<amrex::Real>& time)
     {
-        // same as write_1D_profiles
+        // same as definitions in ERF.H
         constexpr int datwidth = 14;
         constexpr int datprecision = 6;
         constexpr int timeprecision = 13;

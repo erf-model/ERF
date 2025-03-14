@@ -705,6 +705,9 @@ ERF::init_from_wrfinput (int lev)
         // Note we only have start_bdy_time if at level 0 and init_type == InitType:WRFInput
         //
         if (lev == 0) {
+            Print() << "Setting start_time to "
+                    << std::setprecision(timeprecision) << start_bdy_time
+                    << " from wrfbdy" << std::endl;
             t_new[lev] = start_bdy_time;
             t_old[lev] = start_bdy_time - 1.e200;
         } else {

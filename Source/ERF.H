@@ -916,6 +916,12 @@ private:
     int last_check_file_step;
     int plot_file_on_restart = 1;
 
+    // Output control
+    const int datwidth = 14;
+    const int datprecision = 6;
+    const int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
+                                  // epoch time for 2030-01-01 00:00:00 is 1,893,456,000 s with dt ~ 0.01 ==> min prec = 12
+
     ////////////////
     // runtime parameters
 
@@ -923,6 +929,7 @@ private:
     int max_step = std::numeric_limits<int>::max();
     amrex::Real start_time = 0.0;
     amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
+
     bool use_datetime = false;
     const std::string datetime_format = "%Y-%m-%d %H:%M:%S";
 
