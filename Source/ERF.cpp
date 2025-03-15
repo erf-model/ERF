@@ -362,6 +362,10 @@ ERF::ERF_shared ()
 
     // We will create each of these in MakeNewLevel.../RemakeLevel
     m_factory.resize(max_level+1);
+    eb.resize(max_level+1);
+    for (int lev = 0; lev < max_level + 1; lev++){
+        eb[lev] = std::make_unique<eb_>();
+    }
 
     //
     // Construct the EB data structures and store in a separate class
@@ -378,25 +382,10 @@ ERF::ERF_shared ()
         auto gshop = EB2::makeShop(ebterrain);
         bool build_coarse_level_by_coarsening(false);
         amrex::EB2::Build(gshop, geom[max_level], max_level, max_level, build_coarse_level_by_coarsening);
-
-        eb.resize(max_level+1);
-        // for (int lev = 0; lev < max_level+1; ++lev)
-        // {
-        //     amrex::Print() << "MAKING EB GEOMETRY AT LEVEL " << lev << ", max_level = "<< max_level << std::endl;
-        //     eb[lev] = new eb_();
-        //     amrex::EB2::Level const* eb_level = &(ebis.getLevel(geom[lev]));
-        //     eb[lev]->define(lev, geom[lev], eb_level, solverChoice.anelastic[lev]);
-        // }
     }
 }
 
-// ERF::~ERF () = default;
-ERF::~ERF ()
-{
-    for (auto* p : eb) {
-        delete p;
-    }
-}
+ERF::~ERF () = default;
 
 // advance solution to final time
 void

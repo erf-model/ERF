@@ -20,7 +20,7 @@ using namespace amrex;
 
 eb_::~eb_()
 {
-  if (m_factory) { m_factory.reset(nullptr); }
+  // if (m_factory) { m_factory.reset(nullptr); }
 }
 
 eb_::eb_ ( )
@@ -29,37 +29,19 @@ eb_::eb_ ( )
       m_write_eb_surface(0)
 { }
 
-
 void
-eb_::define (int level, Geometry const& a_geom, amrex::EB2::Level const* a_eb_level,
-             bool /*is_anelastic*/)
+eb_::make_factory ( int level,
+                    Geometry            const& a_geom,
+                    BoxArray            const& ba,
+                    DistributionMapping const& dm,
+                    EB2::Level const& a_eb_level)
 {
-
-    Print() << "\nBuilding EB geometry based on terrain.\n";
-
-    m_write_eb_surface = 1;
-
-    make_factory(level, a_geom, a_eb_level);
-
-}
-
-void
-eb_::
-make_factory ( int level,
-               Geometry   const& a_geom,
-               EB2::Level const* a_eb_level)
-{
-
-  BoxArray ba(a_eb_level->boxArray());
-  DistributionMapping dm(a_eb_level->DistributionMap());
 
   Print() << "making EB factory\n";
-  m_factory = std::make_unique<EBFArrayBoxFactory>(*a_eb_level, a_geom, ba, dm,
+  m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
     Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
 
-  if (m_write_eb_surface) {
-    eb_::WriteEBSurface(ba, dm, a_geom, m_factory.get(), level);
-  }
+  eb_::WriteEBSurface(ba, dm, a_geom, m_factory.get(), level);
 
   { int const idim(0);
 

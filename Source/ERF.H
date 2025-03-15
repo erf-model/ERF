@@ -903,9 +903,6 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
-    // array of EB objects
-    amrex::Vector<eb_*> eb;
-
     int last_plot_file_step_1;
     int last_plot_file_step_2;
 
@@ -1430,12 +1427,21 @@ private:
     // amrex::Vector<std::unique_ptr<amrex::EBFArrayBoxFactory> > m_factory;
     amrex::Vector<std::unique_ptr<amrex::FabFactory<amrex::FArrayBox> > > m_factory;
 
+    // array of EB objects
+    amrex::Vector<std::unique_ptr<eb_>> eb;
+
     [[nodiscard]] amrex::FabFactory<amrex::FArrayBox> const&
     Factory (int lev) const noexcept { return *m_factory[lev]; }
+
     [[nodiscard]] amrex::EBFArrayBoxFactory const&
     EBFactory (int lev) const noexcept {
         return static_cast<amrex::EBFArrayBoxFactory const&>(*m_factory[lev]);
     }
+
+    [[nodiscard]] amrex::EBFArrayBoxFactory const&
+    EBFactory_eb (int lev) const noexcept {
+        return *(eb[lev]->get_const_factory());
+    }    
 
     [[nodiscard]] eb_ const& get_eb (int lev) const noexcept { 
         AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
