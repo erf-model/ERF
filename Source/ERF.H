@@ -1430,23 +1430,15 @@ private:
     // array of EB objects
     amrex::Vector<std::unique_ptr<eb_>> eb;
 
-    [[nodiscard]] amrex::FabFactory<amrex::FArrayBox> const&
-    Factory (int lev) const noexcept { return *m_factory[lev]; }
-
-    // [[nodiscard]] amrex::EBFArrayBoxFactory const&
-    // EBFactory (int lev) const noexcept {
-    //     return static_cast<amrex::EBFArrayBoxFactory const&>(*m_factory[lev]);
-    // }
+    [[nodiscard]] eb_ const& get_eb (int lev) const noexcept { 
+        AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
+        return *eb[lev]; 
+    }
 
     [[nodiscard]] amrex::EBFArrayBoxFactory const&
     EBFactory (int lev) const noexcept {
         return *(eb[lev]->get_const_factory());
     }    
-
-    [[nodiscard]] eb_ const& get_eb (int lev) const noexcept { 
-        AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
-        return *eb[lev]; 
-    }
 
     [[nodiscard]] static int nghost_eb_basic ()
     { return 5; }
