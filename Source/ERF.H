@@ -1433,13 +1433,13 @@ private:
     [[nodiscard]] amrex::FabFactory<amrex::FArrayBox> const&
     Factory (int lev) const noexcept { return *m_factory[lev]; }
 
-    [[nodiscard]] amrex::EBFArrayBoxFactory const&
-    EBFactory (int lev) const noexcept {
-        return static_cast<amrex::EBFArrayBoxFactory const&>(*m_factory[lev]);
-    }
+    // [[nodiscard]] amrex::EBFArrayBoxFactory const&
+    // EBFactory (int lev) const noexcept {
+    //     return static_cast<amrex::EBFArrayBoxFactory const&>(*m_factory[lev]);
+    // }
 
     [[nodiscard]] amrex::EBFArrayBoxFactory const&
-    EBFactory_eb (int lev) const noexcept {
+    EBFactory (int lev) const noexcept {
         return *(eb[lev]->get_const_factory());
     }    
 
