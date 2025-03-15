@@ -1424,9 +1424,6 @@ private:
     //! The filename of the ith samplelinelog file.
     [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
-    // amrex::Vector<std::unique_ptr<amrex::EBFArrayBoxFactory> > m_factory;
-    amrex::Vector<std::unique_ptr<amrex::FabFactory<amrex::FArrayBox> > > m_factory;
-
     // array of EB objects
     amrex::Vector<std::unique_ptr<eb_>> eb;
 

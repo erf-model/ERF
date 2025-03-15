@@ -360,8 +360,7 @@ ERF::ERF_shared ()
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
     }
 
-    // We will create each of these in MakeNewLevel.../RemakeLevel
-    m_factory.resize(max_level+1);
+    // We will create each of these in MakeNewLevelFromScratch
     eb.resize(max_level+1);
     for (int lev = 0; lev < max_level + 1; lev++){
         eb[lev] = std::make_unique<eb_>();
