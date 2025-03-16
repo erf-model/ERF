@@ -12,7 +12,8 @@ using namespace amrex;
  * @param[in]     domain   simulation domain
  */
 
-void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest_arr,
+                                                        const Box& bx, const Box& domain,
                                                         int ncomp, const IntVect& nghost)
 {
     BL_PROFILE_VAR("impose_lateral_base_bcs()",impose_lateral_base_bcs);
@@ -41,7 +42,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
     //      0 is used as starting index for bcrs
     Vector<BCRec> bcrs(ncomp);
 
-    int bc_comp = BCVars::base_bc;
+    int bc_comp = BaseBCVars::rho0_bc_comp;
 
     for (int nc = 0; nc < ncomp; nc++)
     {
@@ -253,7 +254,7 @@ void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& des
 
     const Real hz = Real(0.5) * m_geom.CellSize(2);
 
-    Box bx_zlo1(bx);  bx_zlo1.setBig(2,dom_lo.z-1);  if (bx_zlo1.ok()) bx_zlo1.setSmall(2,dom_lo.z-1);
+    Box bx_zlo1(bx); bx_zlo1.setBig(2,dom_lo.z-1); if (bx_zlo1.ok()) bx_zlo1.setSmall(2,dom_lo.z-1);
     ParallelFor(
         bx_zlo1, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -265,8 +266,8 @@ void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& des
         }
     );
 
-    Box bx_zlo(bx);  bx_zlo.setBig(2,dom_lo.z-2);
-    Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+1);
+    Box bx_zlo(bx); bx_zlo.setBig(2,dom_lo.z-2);
+    Box bx_zhi(bx); bx_zhi.setSmall(2,dom_hi.z+1);
     ParallelFor(
         bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
         {

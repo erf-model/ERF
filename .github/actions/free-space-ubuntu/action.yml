@@ -1,0 +1,44 @@
+name: Free space on Ubuntu VMs
+description: Frees disk space on GitHub Actions Ubuntu VMs
+
+runs:
+  using: composite
+  steps:
+    - id: show-space-initial
+      run: df -h
+      shell: bash
+    - id: list-largest-packages
+      run: |
+        dpkg-query -W --showformat='${Package} ${Installed-Size}\n' | sort -k2 -n -r | awk 'NR <= 20'
+      shell: bash
+    - id: uninstall-packages
+      run: |
+        sudo apt-get update
+        sudo apt-get purge --autoremove -y azure-cli --fix-missing
+        sudo apt-get purge --autoremove -y microsoft-edge-stable --fix-missing
+        sudo apt-get purge --autoremove -y google-cloud-sdk --fix-missing
+        sudo apt-get purge --autoremove -y google-cloud-cli --fix-missing
+        sudo apt-get purge --autoremove -y '^dotnet-sdk-.*' --fix-missing
+        sudo apt-get purge --autoremove -y google-chrome-stable --fix-missing
+        sudo apt-get purge --autoremove -y '^mongodb-.*' --fix-missing
+        sudo apt-get purge --autoremove -y 'llvm-.*' --fix-missing
+        sudo apt-get purge --autoremove -y '^mysql-.*' --fix-missing
+        sudo apt-get purge --autoremove -y powershell --fix-missing
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        sudo docker image prune --all --force || true
+      shell: bash
+    - id: list-largest-packages-remaining
+      run: |
+        dpkg-query -W --showformat='${Package} ${Installed-Size}\n' | sort -k2 -n -r | awk 'NR <= 20'
+      shell: bash
+    - id: remove-directories
+      run: |
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/.ghcup
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /usr/share/dotnet
+      shell: bash
+    - id: show-space-final
+      run: df -h
+      shell: bash

@@ -3,11 +3,11 @@
 
 #include <sstream>
 #include <string>
-#include <ctime>
 #include <atomic>
 
 #include "AMReX_FArrayBox.H"
 #include "AMReX_IArrayBox.H"
+#include "ERF_EpochTime.H"
 #include "ERF_NCInterface.H"
 
 using PlaneVector = amrex::Vector<amrex::FArrayBox>;
@@ -128,34 +128,56 @@ int BuildFABsFromWRFBdyFile (const std::string &fname,
                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
 
-AMREX_FORCE_INLINE
-std::time_t
-getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
+template<typename DType>
+void ReadTimeSliceFromNetCDFFile(const std::string& fname,
+                                 const int tidx,
+                                 amrex::Vector<std::string> names,
+                                 amrex::Vector<NDArray<DType> >& arrays,
+                                 amrex::Vector<int>& success)
 {
-    // Create a stream which we will use to parse the string,
-    // which we provide to constructor of stream to fill the buffer.
-    std::istringstream ss{ dateTime };
+    amrex::Print() << "Reading time slice " << tidx << " from " << fname << std::endl;
+    AMREX_ASSERT(arrays.size() == names.size());
 
-    // Create a tm object to store the parsed date and time.
-    std::tm tmTime;
-    memset(&tmTime, 0, sizeof(tmTime));
+    if (amrex::ParallelDescriptor::IOProcessor())
+    {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
 
-    // Now we read from buffer using get_time manipulator
-    // and formatting the input appropriately.
-    strptime(dateTime.c_str(), dateTimeFormat.c_str(), &tmTime);
+        int ntimes = ncf.dim("Time").len();
+        AMREX_ALWAYS_ASSERT((tidx >= 0) && (tidx < ntimes));
 
-    // Convert the tm structure to time_t value and return.
-    // Here we use timegm since the output should be relative to UTC.
-    auto epoch = timegm(&tmTime);
-    // Print() << "Time Stamp: "<< std::put_time(&tmTime, "%c")
-    //         << " , Epoch: " << epoch << std::endl;
+        for (auto n=0; n<arrays.size(); ++n)
+        {
+            std::string vname_to_write = names[n];
+            std::string vname_to_read  = names[n];
+            if (vname_to_read.substr(0,2) == "R_") {
+                vname_to_read  = names[n+4]; // This allows us to read "T" instead -- we will over-write this later
+            }
 
-    return epoch;
+            success[n] = ncf.has_var(vname_to_read);
+
+            if (success[n] == 1)
+            {
+                std::vector<std::string> dimnames = ncf.var(vname_to_read).dimnames();
+                AMREX_ALWAYS_ASSERT(dimnames[0] == "Time");
+
+                std::vector<size_t> count = ncf.var(vname_to_read).shape();
+                std::vector<size_t> start(count.size(), 0);
+                start[0] = tidx;
+                count[0] = 1;
+
+                arrays[n] = NDArray<DType>(vname_to_read, count);
+                DType* dataPtr = arrays[n].get_data();
+
+                ncf.var(vname_to_read).get(dataPtr, start, count);
+            } // has_var
+        }
+        ncf.close();
+    }
 }
 
 template<typename DType>
 void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
-                     amrex::Vector<NDArray<DType> >& arrays)
+                     amrex::Vector<NDArray<DType> >& arrays, amrex::Vector<int>& success)
 {
     AMREX_ASSERT(arrays.size() == names.size());
 
@@ -177,10 +199,12 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
         */
 
         // amrex::Print() << "Reading the dimensions from the netcdf file " << "\n";
-        for (auto n=0; n<arrays.size(); ++n) {
-            // read the data from NetCDF file
+
+        for (auto n=0; n<arrays.size(); ++n)
+        {
             std::string vname_to_write = names[n];
             std::string vname_to_read  = names[n];
+
             if (vname_to_read.substr(0,2) == "R_") {
                 vname_to_read  = names[n+4]; // This allows us to read "T" instead -- we will over-write this later
             }
@@ -190,21 +214,38 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
                               << " while filling the array for " << vname_to_write << std::endl;
             */
 
-            std::vector<size_t> shape = ncf.var(vname_to_read).shape();
-            arrays[n]                 = NDArray<DType>(vname_to_read,shape);
-            DType* dataPtr            = arrays[n].get_data();
+            success[n] = ncf.has_var(vname_to_read);
+            // amrex::Print() << " HAS VAR " << vname_to_read << " " << success[n] << std::endl;
 
-            std::vector<size_t> start(shape.size(), 0);
+            if (success[n] == 1) {
 
-            // auto numPts               = arrays[n].ndim();
-            // amrex::Print() << "NetCDF Variable name = " << vname_to_read << std::endl;
-            // amrex::Print() << "numPts read from NetCDF file/var = " << numPts << std::endl;
-            // amrex::Print()  << "Dims of the variable = (";
-            // for (auto &dim:shape)
-            //     amrex::Print() << dim << ", " ;
-            // amrex::Print()  << ")" << std::endl;
+                std::vector<std::string> dimnames = ncf.var(vname_to_read).dimnames();
+                AMREX_ALWAYS_ASSERT(dimnames[0] == "Time");
 
-            ncf.var(vname_to_read).get(dataPtr, start, shape);
+                std::vector<size_t> shape = ncf.var(vname_to_read).shape();
+                arrays[n]                 = NDArray<DType>(vname_to_read,shape);
+                DType* dataPtr            = arrays[n].get_data();
+
+                std::vector<size_t> start(shape.size(), 0);
+
+#if 0
+                auto numPts               = arrays[n].ndim();
+                amrex::Print() << "NetCDF Variable name = " << vname_to_read << std::endl;
+                amrex::Print() << "numPts read from NetCDF file/var = " << numPts << std::endl;
+                amrex::Print() << "Dims in var = " << ncf.var(vname_to_read).ndim() << std::endl;
+                amrex::Print()  << "Dim names = (";
+                for (auto &dim:dimnames)
+                    amrex::Print() << dim << ", " ;
+                amrex::Print()  << ")" << std::endl;
+                amrex::Print()  << "Dims of the variable = (";
+                for (auto &dim:shape)
+                    amrex::Print() << dim << ", " ;
+                amrex::Print()  << ")" << std::endl;
+#endif
+
+                ncf.var(vname_to_read).get(dataPtr, start, shape);
+
+            } // has_var
         }
         ncf.close();
     }
@@ -223,10 +264,6 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
 template<class FAB,typename DType>
 void
 fill_fab_from_arrays (int iv,
-                      amrex::Real& Latitude,
-                      amrex::Real& Longitude,
-                      std::string& Lat_var_name,
-                      std::string& Lon_var_name,
                       amrex::Vector<NDArray<float>>& nc_arrays,
                       const std::string& var_name,
                       NC_Data_Dims_Type& NC_dim_type,
@@ -254,13 +291,20 @@ fill_fab_from_arrays (int iv,
 
     // TODO:  The box will only start at (0,0,0) at level 0 -- we need to generalize this
     amrex::Box my_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,ns1-1));
-    // amrex::Print() <<" MY BOX " << my_box << std::endl;
 
-    if (var_name == "U" || var_name == "UU" ||
-        var_name == "MAPFAC_U" || var_name == "MAPFAC_UY") my_box.setType(amrex::IndexType(amrex::IntVect(1,0,0)));
-    if (var_name == "V" || var_name == "VV" ||
-        var_name == "MAPFAC_V" || var_name == "MAPFAC_VY") my_box.setType(amrex::IndexType(amrex::IntVect(0,1,0)));
-    if (var_name == "W" || var_name == "WW") my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
+    if (var_name == "PH" || var_name == "PHB") {
+        my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
+    } else if (var_name == "U" || var_name == "UU" ||
+        var_name == "MAPFAC_U" || var_name == "MAPFAC_UY")
+    {
+        my_box.setType(amrex::IndexType(amrex::IntVect(1,0,0)));
+    } else if (var_name == "V" || var_name == "VV" ||
+        var_name == "MAPFAC_V" || var_name == "MAPFAC_VY")
+    {
+        my_box.setType(amrex::IndexType(amrex::IntVect(0,1,0)));
+    } else if (var_name == "W" || var_name == "WW") {
+        my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
+    }
 
     amrex::Arena* Arena_Used = amrex::The_Arena();
 #ifdef AMREX_USE_GPU
@@ -275,18 +319,12 @@ fill_fab_from_arrays (int iv,
 
     auto num_pts = my_box.numPts();
 
-    // amrex::Print() <<" ns1 * ns2 * ns3 " << ns1 * ns2 * ns3 << std::endl;
-    // amrex::Print() <<" NUMPTS " << num_pts << std::endl;
-
     for (int n(0); n < num_pts; ++n) {
         int k  = n / (ns2*ns3);
         int j  = (n - k*(ns2*ns3)) / ns3 + joff;
         int i  = n - k*(ns2*ns3) - (j-joff) * ns3 + ioff;
         fab_arr(i,j,k,0) = static_cast<DType>(*(nc_arrays[iv].get_data()+n));
     }
-
-    if (var_name == Lat_var_name) Latitude  = fab_arr(0,0,0);
-    if (var_name == Lon_var_name) Longitude = fab_arr(0,0,0);
 }
 
 /**
@@ -300,14 +338,11 @@ fill_fab_from_arrays (int iv,
 template<class FAB,typename DType>
 void
 BuildFABsFromNetCDFFile (const amrex::Box& domain,
-                         amrex::Real& Latitude,
-                         amrex::Real& Longitude,
-                         std::string& Lat_var_name,
-                         std::string& Lon_var_name,
                          const std::string &fname,
                          amrex::Vector<std::string> nc_var_names,
                          amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types,
-                         amrex::Vector<FAB*> fab_vars)
+                         amrex::Vector<FAB*> fab_vars,
+                         amrex::Vector<int>& success)
 {
     int ioproc = amrex::ParallelDescriptor::IOProcessorNumber();  // I/O rank
 
@@ -315,50 +350,50 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
-        ReadNetCDFFile(fname, nc_var_names, nc_arrays);
+        ReadNetCDFFile(fname, nc_var_names, nc_arrays, success);
     }
+
+    amrex::ParallelDescriptor::Bcast(success.dataPtr(), success.size(), ioproc);
 
     for (int iv = 0; iv < nc_var_names.size(); iv++)
     {
-        FAB tmp;
-        if (amrex::ParallelDescriptor::IOProcessor()) {
-            fill_fab_from_arrays<FAB,DType>(iv, Latitude, Longitude,
-                                            Lat_var_name, Lon_var_name,
-                                            nc_arrays, nc_var_names[iv],
-                                            NC_dim_types[iv], tmp);
-        }
+        if (success[iv] == 1) {
+            FAB tmp;
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                fill_fab_from_arrays<FAB,DType>(iv, nc_arrays, nc_var_names[iv], NC_dim_types[iv], tmp);
+            }
 
-        int ncomp = tmp.nComp();
-        amrex::Box box = tmp.box();
+            int ncomp = tmp.nComp();
+            amrex::Box box = tmp.box();
 
-        amrex::ParallelDescriptor::Bcast(&box,   1, ioproc);
-        amrex::ParallelDescriptor::Bcast(&ncomp, 1, ioproc);
+            amrex::ParallelDescriptor::Bcast(&box,   1, ioproc);
+            amrex::ParallelDescriptor::Bcast(&ncomp, 1, ioproc);
 
-        if (!amrex::ParallelDescriptor::IOProcessor()) {
+            if (!amrex::ParallelDescriptor::IOProcessor()) {
 #ifdef AMREX_USE_GPU
-            tmp.resize(box,ncomp,amrex::The_Pinned_Arena());
+                tmp.resize(box,ncomp,amrex::The_Pinned_Arena());
 #else
-            tmp.resize(box,ncomp);
+                tmp.resize(box,ncomp);
 #endif
-        }
+            }
 
-        amrex::ParallelDescriptor::Bcast(tmp.dataPtr(), tmp.size(), ioproc);
+            amrex::ParallelDescriptor::Bcast(tmp.dataPtr(), tmp.size(), ioproc);
 
-        // Shift box by the domain lower corner
-        amrex::Box  fab_bx = tmp.box();
-        amrex::Dim3 dom_lb = lbound(domain);
-        fab_bx += amrex::IntVect(dom_lb.x,dom_lb.y,dom_lb.z);
-        // fab_vars points to data on device
-        fab_vars[iv]->resize(fab_bx,1);
+            // Shift box by the domain lower corner
+            amrex::Box  fab_bx = tmp.box();
+            amrex::Dim3 dom_lb = lbound(domain);
+            fab_bx += amrex::IntVect(dom_lb.x,dom_lb.y,dom_lb.z);
+            // fab_vars points to data on device
+            fab_vars[iv]->resize(fab_bx,1);
 #ifdef AMREX_USE_GPU
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         tmp.dataPtr(), tmp.dataPtr() + tmp.size(),
-                         fab_vars[iv]->dataPtr());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             tmp.dataPtr(), tmp.dataPtr() + tmp.size(),
+                             fab_vars[iv]->dataPtr());
 #else
-        // Provided by BaseFab inheritance through FArrayBox
-        fab_vars[iv]->copy(tmp,tmp.box(),0,fab_bx,0,1);
+            // Provided by BaseFab inheritance through FArrayBox
+            fab_vars[iv]->copy(tmp,tmp.box(),0,fab_bx,0,1);
 #endif
-    }
+        } // success
+    } // iv
 }
-
 #endif

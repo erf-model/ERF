@@ -22,7 +22,7 @@
 #include <memory>
 
 #include "ERF_Constants.H"
-#include "ERF_Sat_methods.H"
+#include "ERF_SatMethods.H"
 
 // Radiation code interface class
 class WaterVaporSat {

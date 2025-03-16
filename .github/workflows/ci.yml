@@ -18,11 +18,12 @@ concurrency:
 jobs:
 
   Build-And-Test:
-
     runs-on: ${{matrix.os}}
+    name: OS ${{matrix.os}} - Particles ${{matrix.particles}}
     strategy:
       matrix:
         os: [ubuntu-22.04]
+        particles: [OFF, ON]
         include:
         - os: ubuntu-22.04
           install_deps: sudo apt-get install mpich libmpich-dev
@@ -66,6 +67,7 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
@@ -80,8 +82,10 @@ jobs:
         export CCACHE_MAXSIZE=600M
         ccache -z
 
-        cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}} \
-        2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
+        cmake \
+          --build ${{runner.workspace}}/ERF/build-${{matrix.os}} \
+          --parallel ${{env.NPROCS}} \
+          2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
         ccache -s
         du -hs ~/.cache/ccache

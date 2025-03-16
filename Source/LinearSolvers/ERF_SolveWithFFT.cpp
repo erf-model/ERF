@@ -17,9 +17,6 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
 
     auto dxInv = geom[lev].InvCellSizeArray();
 
-    Real reltol = solverChoice.poisson_reltol;
-    Real abstol = solverChoice.poisson_abstol;
-
     Box bounding_box(rhs.boxArray().minimalBox());
     auto bc_fft = get_fft_bc(geom[lev],domain_bc_type,bounding_box);
 

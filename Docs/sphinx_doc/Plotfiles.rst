@@ -135,7 +135,11 @@ Output Options
 |                             | direction        |
 |                             |                  |
 +-----------------------------+------------------+
-| **density**                 | Total density    |
+| **density**                 | Dry density      |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **moist_density**           | Total density    |
 |                             |                  |
 |                             |                  |
 +-----------------------------+------------------+
@@ -187,19 +191,13 @@ Output Options
 |                             |                  |
 |                             |                  |
 +-----------------------------+------------------+
-| **KE**                      | Kinetic energy   |
-|                             |                  |
-|                             |                  |
-+-----------------------------+------------------+
-| **QKE**                     | Turbulent        |
+| **KE**                      | SGS turbulent    |
 |                             | kinetic energy   |
-|                             | * 2              |
+|                             | (from Deardorff  |
+|                             |  or MYNN)        |
+|                             |                  |
 +-----------------------------+------------------+
 | **rhoKE**                   | Density * KE     |
-|                             |                  |
-|                             |                  |
-+-----------------------------+------------------+
-| **rhoQKE**                  | Density * QKE    |
 |                             |                  |
 |                             |                  |
 +-----------------------------+------------------+
@@ -263,6 +261,9 @@ Output Options
 |                             | mass points      |
 |                             |                  |
 +-----------------------------+------------------+
+| **nut**                     | Eddy viscosity,  |
+|                             | nu_t             |
++-----------------------------+------------------+
 | **Kmv**                     | Vertical         |
 |                             | Eddy Diffusivity |
 |                             | of Momentum      |
@@ -270,6 +271,12 @@ Output Options
 | **Kmh**                     | Horizontal       |
 |                             | Eddy Diffusivity |
 |                             | of Momentum      |
+|                             | (Note: For LES,  |
+|                             | this is the      |
+|                             | _dynamic_ eddy   |
+|                             | viscosity, mu_t  |
+|                             | = rho * nu_t     |
+|                             | and Kmh==Kmv)    |
 +-----------------------------+------------------+
 | **Khv**                     | Vertical         |
 |                             | Eddy Diffusivity |

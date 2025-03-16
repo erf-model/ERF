@@ -44,9 +44,10 @@ erf.alpha_T = 0.1
 erf.alpha_C = 0.1
 erf.use_gravity = false
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "Constant"
-erf.dynamicViscosity = 1.0
+erf.les_type = "None"
+
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 1.0
 
 # PROBLEM PARAMETERS
 prob.p_inf = 1e5  # reference pressure [Pa]

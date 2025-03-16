@@ -17,6 +17,7 @@
         const amrex::GpuArray<int, IntVars::NumTypes> ncomp_fast = {2,1,1,1};
 
         if (verbose) amrex::Print() << " No-substepping time integration at level " << level
+                                    << std::setprecision(timeprecision)
                                     << " to " << time_for_fp
                                     << " with dt = " << slow_dt << std::endl;
 
@@ -55,7 +56,7 @@
                 Array4<Real>* fslow = fslow_d.dataPtr();
 
                 // Moving terrain
-                if ( solverChoice.terrain_type == TerrainType::Moving )
+                if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
                 {
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
                     const Array4<const Real>& dJ_new = detJ_cc_new[level]->const_array(mfi);
@@ -106,59 +107,106 @@
                     });
 
                 } else { // Fixed or no terrain
-#ifdef ERF_USE_EB
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
-#endif
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
-#ifdef ERF_USE_EB
                         if (dJ_old(i,j,k) > 0.0) {
-#endif
                             ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
                                ( fslow[IntVars::cons](i,j,k,n) );
-#ifdef ERF_USE_EB
                         }
-#endif
                     });
 
-                    // Commenting out the update is a total HACK while developing the EB capability
-                    ParallelFor(tbx, tby, tbz,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-#ifdef ERF_USE_EB
-                        ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
-#else
-                        ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
-                                                  + slow_dt * fslow[IntVars::xmom](i,j,k);
-#endif
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-#ifdef ERF_USE_EB
-                        ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
-#else
-                        ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
-                                                  + slow_dt * fslow[IntVars::ymom](i,j,k);
-#endif
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-#ifdef ERF_USE_EB
-                        ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
-#else
-                        ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
-                                                  + slow_dt * fslow[IntVars::zmom](i,j,k);
-#endif
+                    // Commenting out the update is a HACK while developing the EB capability
+                    if (solverChoice.terrain_type == TerrainType::EB)
+                    {
+                        ParallelFor(tbx, tby, tbz,
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
+                        },
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
+                        },
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
+                        });
+
+                    } else {
+                        ParallelFor(tbx, tby, tbz,
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
+                                                      + slow_dt * fslow[IntVars::xmom](i,j,k);
+                        },
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
+                                                      + slow_dt * fslow[IntVars::ymom](i,j,k);
+                        },
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
+                                                      + slow_dt * fslow[IntVars::zmom](i,j,k);
+                        });
+                    } // no EB
+                } // not moving terrain
+            } // mfi
+
+            if (solverChoice.terrain_type == TerrainType::EB)
+            {
+                // Redistribute cons states (cell-centered)
+
+                MultiFab dUdt_tmp(ba, dm, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow(), MFInfo(), Factory(level));
+                dUdt_tmp.setVal(0.);
+                MultiFab::Copy(dUdt_tmp, F_slow[IntVars::cons], 0, 0, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow());
+                dUdt_tmp.FillBoundary(fine_geom.periodicity());
+                dUdt_tmp.setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
+
+                BCRec const* bc_ptr_d = domain_bcs_type_d.data();
+                S_old[IntVars::cons].FillBoundary(fine_geom.periodicity());
+                S_old[IntVars::cons].setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
+
+                // Update F_slow by Redistribution.
+                redistribute_term ( level, ncomp_fast[IntVars::cons], F_slow[IntVars::cons], dUdt_tmp,
+                                    S_old[IntVars::cons], bc_ptr_d, slow_dt);
+
+                // Update state using the updated F_slow. (NOTE: redistribute_term returns RHS not state variables.)
+
+                for ( MFIter mfi(S_sum[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box bx = mfi.tilebox();
+                    Vector<Array4<Real> >  ssum_h(ncomp_fast[IntVars::cons]);
+                    Vector<Array4<Real> >  sold_h(ncomp_fast[IntVars::cons]);
+                    Vector<Array4<Real> > fslow_h(ncomp_fast[IntVars::cons]);
+                    const Array4<const Real>& dJ_old = detJ_cc[level]->const_array(mfi);
+
+                    for (int i = 0; i < ncomp_fast[IntVars::cons]; ++i) {
+                        ssum_h[i]  = S_sum[i].array(mfi);
+                        sold_h[i]  = S_old[i].array(mfi);
+                        fslow_h[i] = F_slow[i].array(mfi);
+                    }
+
+                    Gpu::AsyncVector<Array4<Real> >  sold_d(ncomp_fast[IntVars::cons]);
+                    Gpu::AsyncVector<Array4<Real> >  ssum_d(ncomp_fast[IntVars::cons]);
+                    Gpu::AsyncVector<Array4<Real> > fslow_d(ncomp_fast[IntVars::cons]);
+
+                    Gpu::copy(Gpu::hostToDevice,  sold_h.begin(),  sold_h.end(),  sold_d.begin());
+                    Gpu::copy(Gpu::hostToDevice,  ssum_h.begin(),  ssum_h.end(),  ssum_d.begin());
+                    Gpu::copy(Gpu::hostToDevice, fslow_h.begin(), fslow_h.end(), fslow_d.begin());
+
+                    Array4<Real>*  sold =  sold_d.dataPtr();
+                    Array4<Real>*  ssum =  ssum_d.dataPtr();
+                    Array4<Real>* fslow = fslow_d.dataPtr();
+
+                    ParallelFor(bx, ncomp_fast[IntVars::cons], [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
+                    {
+                        const int n = scomp_fast[IntVars::cons] + nn;
+                        if (dJ_old(i,j,k) > 0.0) {
+                            ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
+                                ( fslow[IntVars::cons](i,j,k,n) );
+                        }
                     });
                 }
-            } // mfi
-#ifdef ERF_USE_EB
-            // // call to redistribute_term -- pass in ssum[IntVars::cons] which is MF
-            // MultiFab dUdt_tmp (ba, dm, n_data, 3, MFInfo(), Factory(level));
-            // dUdt_tmp.setVal(0.);
-            // dUdt_tmp.FillBoundary(fine_geom.periodicity());
-            // const BCRec* bc_ptr_h = domain_bcs_type.data(); // Should be host or device or both?
-            // redistribute_term ( level, F_slow[IntVars::cons], dUdt_tmp,
-            //                     S_sum[IntVars::cons], bc_ptr_h, slow_dt);
-#endif
+
+                // Redistribute momentum states (face-centered) will be added here.
+            } // EB
         } // omp
 
         // Even if we update all the conserved variables we don't need

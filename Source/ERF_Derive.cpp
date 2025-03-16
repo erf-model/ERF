@@ -281,6 +281,41 @@ erf_dervortz (
 }
 
 void
+erf_derenstrophysq (
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int ncomp,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& geomdata,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+    AMREX_ALWAYS_ASSERT(ncomp == 1);
+
+    auto const dat = datfab.array(); // cell-centered velocity
+    auto tfab      = derfab.array(); // cell-centered vorticity x-component
+
+    const Real dx = geomdata.CellSize(0);
+    const Real dy = geomdata.CellSize(1);
+    const Real dz = geomdata.CellSize(2);
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        Real vortx = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / (2.0*dy)  // dw/dy
+                    -(dat(i,j,k+1,1) - dat(i,j,k-1,1)) / (2.0*dz); // dv/dz
+        Real vorty = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / (2.0*dz)  // du/dz
+                    -(dat(i+1,j,k,2) - dat(i-1,j,k,2)) / (2.0*dx); // dw/dx
+        Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (2.0*dx)  // dv/dx
+                    -(dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (2.0*dy); // du/dy
+
+        tfab(i,j,k,dcomp) = vortx*vortx + vorty*vorty + vortz*vortz;
+    });
+}
+
+void
 erf_dermagvel (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
@@ -307,4 +342,30 @@ erf_dermagvel (
     });
 }
 
+void
+erf_dermagvelsq (
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int ncomp,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+    AMREX_ALWAYS_ASSERT(ncomp == 1);
+
+    auto const dat = datfab.array(); // cell-centered velocity
+    auto tfab      = derfab.array(); // cell-centered magvel
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        Real u = dat(i,j,k,0);
+        Real v = dat(i,j,k,1);
+        Real w = dat(i,j,k,2);
+        tfab(i,j,k,dcomp) = u*u + v*v + w*w;
+    });
+}
 } // namespace

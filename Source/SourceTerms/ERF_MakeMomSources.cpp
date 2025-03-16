@@ -90,18 +90,14 @@ void make_mom_sources (int level,
     //    9. Forest canopy
     //   10. Immersed Forcing
     // *****************************************************************************
-    const bool l_use_ndiff       = solverChoice.use_NumDiff;
-    const bool l_use_zphys       = (solverChoice.mesh_type != MeshType::ConstantDz);
-    const bool l_do_forest_drag  = solverChoice.do_forest_drag;
-    const bool l_do_terrain_drag = solverChoice.do_terrain_drag;
+    //const bool l_use_ndiff       = solverChoice.use_num_diff;
 
-    // Check if terrain and immersed terrain clash
-    if(l_use_zphys && l_do_terrain_drag){
-        amrex::Error(" Cannot use immersed forcing for terrain with terrain-fitted coordinates");
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        if (solverChoice.do_forest_drag) {
+            amrex::Error(" Currently forest canopy cannot be used with immersed forcing");
+        }
     }
-    if(l_do_forest_drag && l_do_terrain_drag){
-        amrex::Error(" Currently forest canopy cannot be used with immersed forcing");
-    }
+
 
     // *****************************************************************************
     // Data for Coriolis forcing
@@ -243,10 +239,8 @@ void make_mom_sources (int level,
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                Array4<const Real>{};
 
-        const Array4<const Real>& z_nd_arr = (l_use_zphys) ? z_phys_nd->const_array(mfi) :
-                                                             Array4<const Real>{};
-        const Array4<const Real>& z_cc_arr = (l_use_zphys) ? z_phys_cc->const_array(mfi) :
-                                                             Array4<const Real>{};
+        const Array4<const Real>& z_nd_arr =  z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_cc_arr =  z_phys_cc->const_array(mfi);
 
         // *****************************************************************************
         // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
@@ -479,14 +473,16 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 7. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
+#if 0
         if (l_use_ndiff) {
-            /*
-            NumericalDiffusion_Xmom(tbx, dt, solverChoice.NumDiffCoeff,
+            const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
+            const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
+            NumericalDiffusion_Xmom(tbx, dt, solverChoice.num_diff_coeff,
                                     u, cell_data, xmom_src_arr, mf_u);
-            NumericalDiffusion_Ymom(tby, dt, solverChoice.NumDiffCoeff,
+            NumericalDiffusion_Ymom(tby, dt, solverChoice.num_diff_coeff,
                                     v, cell_data, ymom_src_arr, mf_v);
-            */
         }
+#endif
 
         // *****************************************************************************
         // 8. Add SPONGING
@@ -494,18 +490,20 @@ void make_mom_sources (int level,
         if(solverChoice.spongeChoice.sponge_type == "input_sponge")
         {
              ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
-                                 xmom_src_arr, ymom_src_arr, rho_u, rho_v, d_sponge_ptrs_at_lev);
+                                                   z_cc_arr, xmom_src_arr, ymom_src_arr,
+                                                   rho_u, rho_v, d_sponge_ptrs_at_lev);
         }
         else
         {
             ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
-                                 xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w);
+                                     xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
+                                     z_nd_arr, z_cc_arr);
         }
 
         // *****************************************************************************
         // 9. Add CANOPY source terms
         // *****************************************************************************
-        if (l_do_forest_drag) {
+        if (solverChoice.do_forest_drag) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = u(i, j, k);
@@ -543,7 +541,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 10. Add Immersed source terms
         // *****************************************************************************
-        if (l_do_terrain_drag) {
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
             const Real drag_coefficient=10.0/dz;
             const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

@@ -2,15 +2,13 @@
 include(ProcessorCount)
 ProcessorCount(PROCESSES)
 
-set(FCOMPARE_GOLD_FILES_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ERFGoldFiles)
-
 #=============================================================================
 # Functions for adding tests / Categories of tests
 #=============================================================================
 macro(setup_test)
     set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${TEST_NAME})
     set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
-    set(PLOT_GOLD ${FCOMPARE_GOLD_FILES_DIRECTORY}/${TEST_NAME})
+    set(PLOT_GOLD ${ERF_TEST_GOLD_FILES_DIRECTORY}/${TEST_NAME})
 
     file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
     file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
@@ -123,6 +121,7 @@ add_test_r(DensityCurrent_detJ2              "DryRegTests/DensityCurrent" "erf_d
 add_test_r(DensityCurrent_detJ2_nosub        "DryRegTests/DensityCurrent" "erf_density_current" "plt00020")
 add_test_r(DensityCurrent_detJ2_MT           "DryRegTests/DensityCurrent" "erf_density_current" "plt00010")
 add_test_r(EkmanSpiral                       "DryRegTests/EkmanSpiral" "erf_ekman_spiral" "plt00010")
+#add_test_r(FlowInABox                        "DevTests/FlowInABox"     "erf_flow_in_a_box" "plt00010")
 add_test_r(IsentropicVortexStationary        "DryRegTests/IsentropicVortex" "erf_isentropic_vortex" "plt00010")
 add_test_r(IsentropicVortexAdvecting         "DryRegTests/IsentropicVortex" "erf_isentropic_vortex" "plt00010")
 add_test_r(IVA_NumDiff                       "DryRegTests/IsentropicVortex" "erf_isentropic_vortex" "plt00010")
@@ -155,6 +154,10 @@ add_test_r(ABL_InflowFile                    "ABL" "erf_abl" "plt00010")
 add_test_r(MoistBubble                       "MoistRegTests/Bubble" "erf_bubble" "plt00010")
 add_test_r(SquallLine_2D                     "MoistRegTests/SquallLine_2D" "erf_squallline" "plt00010")
 add_test_r(SuperCell_3D                      "MoistRegTests/SuperCell_3D" "erf_supercell"   "plt00010")
+if(ERF_ENABLE_PARTICLES)
+  add_test_r(ParticlesAdvect                 "DryRegTests/ParticleAdvection" "erf_particles_advect" "plt00010")
+  add_test_r(ParticlesWoA                    "DryRegTests/ParticlesOverWoA" "erf_particles_over_woa" "plt00010")
+endif()
 
 add_test_0(InitSoundingIdeal_stationary      "ABL" "erf_abl" "plt00010")
 add_test_0(Deardorff_stationary              "ABL" "erf_abl" "plt00010")

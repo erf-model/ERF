@@ -38,13 +38,14 @@ erf.plot_int_1      = 50         # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = false
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "Constant"
-erf.dynamicViscosity = 0.1
+erf.les_type = "None"
+
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 0.1
+erf.alpha_T           = 0.0
+erf.alpha_C           = 0.0
 
 erf.init_type = "uniform"
 

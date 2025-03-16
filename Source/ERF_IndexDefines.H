@@ -35,7 +35,7 @@
 // Cell-centered state variables
 #define Rho_comp       0
 #define RhoTheta_comp  (Rho_comp+1)
-#define RhoKE_comp     (Rho_comp+2) // for Deardorff LES Model or MYNN PBL Model
+#define RhoKE_comp     (Rho_comp+2) // for Deardorff LES Model, k-equation RANS, or MYNN PBL Model
 
 #define RhoScalar_comp (RhoKE_comp+1)
 
@@ -64,13 +64,13 @@ namespace BaseState {
         p0_comp,
         pi0_comp,
         th0_comp,
+        qv0_comp,
         num_comps
     };
 }
 
 // NOTE: we still use this indexing even if no moisture
 // NOTE: We assume a single boundary condition for all passive scalars
-// NOTE:    and a single boundary condition for all components of the base state
 namespace BCVars {
     enum {
         cons_bc = 0,
@@ -84,11 +84,22 @@ namespace BCVars {
         RhoQ4_bc_comp,
         RhoQ5_bc_comp,
         RhoQ6_bc_comp,
-        base_bc,
         xvel_bc = NBCVAR_max,
         yvel_bc = NBCVAR_max+1,
         zvel_bc = NBCVAR_max+2,
         NumTypes
+    };
+}
+
+// Note that we don't use these, but we need this vector to be long enough
+//  not to segfault when we do the FillPatch operation.
+namespace BaseBCVars {
+    enum {
+        rho0_bc_comp = 0,
+          p0_bc_comp,
+         pi0_bc_comp,
+         th0_bc_comp,
+         qv0_bc_comp
     };
 }
 
@@ -164,7 +175,7 @@ namespace EddyDiff {
 }
 
 enum struct ERF_BC {
-    symmetry, inflow, outflow, ho_outflow, open, no_slip_wall, slip_wall, periodic, MOST, undefined
+    symmetry, inflow, outflow, inflow_outflow, ho_outflow, open, no_slip_wall, slip_wall, periodic, MOST, undefined
 };
 
 // NOTE: the first of these must match up with the BCType enum
@@ -184,7 +195,8 @@ enum mathematicalBndryTypes : int {
     neumann          =  104,
     neumann_int      =  105,
     open             =  106,
-    hoextrapcc       =  107
+    hoextrapcc       =  107,
+    ext_dir_upwind   =  108
 };
 }
 

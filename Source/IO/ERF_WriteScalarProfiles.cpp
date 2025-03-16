@@ -1,6 +1,7 @@
 #include <iomanip>
 
 #include "ERF.H"
+#include "ERF_Derive.H"
 
 using namespace amrex;
 
@@ -17,9 +18,6 @@ ERF::sum_integrated_quantities (Real time)
 
     if (verbose <= 0)
       return;
-
-    int datwidth = 14;
-    int datprecision = 6;
 
     // Single level sum
     Real mass_sl;
@@ -105,22 +103,23 @@ ERF::sum_integrated_quantities (Real time)
         scal_ml = foo[i++];
 
         Print() << '\n';
+        Print() << "TIME= " << std::setw(datwidth) << std::setprecision(timeprecision) << std::left << time << '\n';
         if (finest_level ==  0) {
 #if 1
-           Print() << "TIME= " << time << "     MASS          = " << mass_sl << '\n';
+           Print() << " MASS       = " << mass_sl << '\n';
 #else
-           Print() << "TIME= " << time << " PERT MASS         = " << mass_sl << '\n';
+           Print() << " PERT MASS  = " << mass_sl << '\n';
 #endif
-           Print() << "TIME= " << time << " RHO THETA         = " << rhth_sl << '\n';
-           Print() << "TIME= " << time << " RHO SCALAR        = " << scal_sl << '\n';
+           Print() << " RHO THETA  = " << rhth_sl << '\n';
+           Print() << " RHO SCALAR = " << scal_sl << '\n';
         } else {
 #if 1
-           Print() << "TIME= " << time << "      MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #else
-           Print() << "TIME= " << time << " PERT MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #endif
-           Print() << "TIME= " << time << " RHO THETA   SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
-           Print() << "TIME= " << time << " RHO SCALAR  SL/ML = " << scal_sl << " " << scal_ml << '\n';
+           Print() << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
+           Print() << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n';
         }
 
         // The first data log only holds scalars
@@ -138,13 +137,10 @@ ERF::sum_integrated_quantities (Real time)
                 } // time = 0
 
               // Write the quantities at this time
-              data_log1 << std::setw(datwidth) << time;
-              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                        << h_avg_ustar[0];
-              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                        << h_avg_tstar[0];
-              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                        << h_avg_olen[0];
+              data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time;
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_ustar[0];
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_tstar[0];
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_olen[0];
               data_log1 << std::endl;
             } // if good
         } // loop over i
@@ -167,6 +163,87 @@ ERF::sum_integrated_quantities (Real time)
             sample_lines(lev, time, SampleLine(i), vars_new[lev][Vars::cons]);
         }
     }
+}
+
+void
+ERF::sum_derived_quantities (Real time)
+{
+    if (verbose <= 0 || NumDerDataLogs() <= 0) return;
+
+    int lev = 0;
+
+    AMREX_ALWAYS_ASSERT(lev == 0);
+
+    // ************************************************************************
+    // WARNING: we are not filling ghost cells other than periodic outside the domain
+    // ************************************************************************
+
+    MultiFab mf_cc_vel(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
+    mf_cc_vel.setVal(0.); // We just do this to avoid uninitialized values
+
+    // Average all three components of velocity (on faces) to the cell center
+    average_face_to_cellcenter(mf_cc_vel,0,
+                               Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],
+                                                        &vars_new[lev][Vars::yvel],
+                                                        &vars_new[lev][Vars::zvel]});
+    mf_cc_vel.FillBoundary(geom[lev].periodicity());
+
+    if (!geom[lev].isPeriodic(0) || !geom[lev].isPeriodic(1) || !geom[lev].isPeriodic(2)) {
+        amrex::Warning("Ghost cells outside non-periodic physical boundaries are not filled -- vel set to 0 there");
+    }
+
+    MultiFab r_wted_magvelsq(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
+    MultiFab unwted_magvelsq(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
+    MultiFab     enstrophysq(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(unwted_magvelsq, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        auto& src_fab = mf_cc_vel[mfi];
+
+        auto& dest1_fab = unwted_magvelsq[mfi];
+        derived::erf_dermagvelsq(bx, dest1_fab, 0, 1, src_fab, Geom(lev), t_new[0], nullptr, lev);
+
+        auto& dest2_fab = enstrophysq[mfi];
+        derived::erf_derenstrophysq(bx, dest2_fab, 0, 1, src_fab, Geom(lev), t_new[0], nullptr, lev);
+    }
+
+    // Copy the MF holding 1/2(u^2 + v^2 + w^2) into the MF that will hold 1/2 rho (u^2 + v^2 + w^2)d
+    MultiFab::Copy(r_wted_magvelsq, unwted_magvelsq, 0, 0, 1, 0);
+
+    // Multiply the MF holding 1/2(u^2 + v^2 + w^2) by rho to get  1/2 rho (u^2 + v^2 + w^2)
+    MultiFab::Multiply(r_wted_magvelsq, vars_new[lev][Vars::cons], 0, 0, 1, 0);
+
+    Real  unwted_avg = volWgtSumMF(lev, unwted_magvelsq, 0, *mapfac_m[lev],true,false);
+    Real  r_wted_avg = volWgtSumMF(lev, r_wted_magvelsq, 0, *mapfac_m[lev],true,false);
+    Real enstrsq_avg = volWgtSumMF(lev, enstrophysq,     0, *mapfac_m[lev],true,false);
+
+    Real vol = geom[lev].ProbDomain().volume(); // Volume of the domain;
+     unwted_avg /= vol;
+     r_wted_avg /= vol;
+    enstrsq_avg /= vol;
+
+    if (ParallelDescriptor::IOProcessor()) {
+
+        std::ostream& data_log_der = DerDataLog(0);
+
+        if (time == 0.0) {
+            data_log_der << std::setw(datwidth) << "          time";
+            data_log_der << std::setw(datwidth) << "        ke_den";
+            data_log_der << std::setw(datwidth) << "         velsq";
+            data_log_der << std::setw(datwidth) << "     enstrophy";
+            data_log_der << std::endl;
+        }
+        data_log_der << std::setw(datwidth) << std::setprecision(timeprecision) << time;
+        data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  <<  unwted_avg;
+        data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  <<  r_wted_avg;
+        data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  << enstrsq_avg;
+        data_log_der << std::endl;
+
+    } // if IOProcessor
 }
 
 Real
@@ -248,8 +325,6 @@ ERF::cloud_fraction (Real /*time*/)
 void
 ERF::sample_points (int /*lev*/, Real time, IntVect cell, MultiFab& mf)
 {
-    int datwidth = 14;
-
     int ifile = 0;
 
     //
@@ -286,9 +361,6 @@ ERF::sample_points (int /*lev*/, Real time, IntVect cell, MultiFab& mf)
 void
 ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
 {
-    int datwidth = 14;
-    int datprecision = 6;
-
     int ifile = 0;
 
     const int ncomp = mf.nComp(); // cell-centered state vars
@@ -406,7 +478,7 @@ ERF::volWgtSumMF (int lev,
     auto const& dx = geom[lev].CellSizeArray();
     Real cell_vol = dx[0]*dx[1]*dx[2];
     volume.setVal(cell_vol);
-    if (solverChoice.mesh_type != MeshType::ConstantDz) {
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
     }
     sum = MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);

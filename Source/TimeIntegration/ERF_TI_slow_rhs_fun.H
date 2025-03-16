@@ -24,8 +24,10 @@
         }
 
         BL_PROFILE("slow_rhs_fun_pre");
-        if (verbose) Print() << "Making slow rhs at time " << old_stage_time << " for fast variables advancing from " <<
-                                old_step_time << " to " << new_stage_time << std::endl;
+        if (verbose) Print() << std::setprecision(timeprecision)
+                             << "Making slow rhs at time " << old_stage_time
+                             << " for fast variables advancing from " << old_step_time
+                             << " to " << new_stage_time << std::endl;
 
         Real slow_dt = new_stage_time - old_step_time;
 
@@ -49,26 +51,28 @@
         Real* dptr_u_geos = solverChoice.have_geo_wind_profile ? d_u_geos[level].data(): nullptr;
         Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
 
-        // Construct the source terms for the cell-centered (conserved) variables
-        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
-#if defined(ERF_USE_RRTMGP)
-                     qheating_rates[level].get(),
-#endif
-                     fine_geom, solverChoice,
-                     mapfac_u[level], mapfac_v[level], mapfac_m[level],
-                     dptr_rhotheta_src, dptr_rhoqt_src,
-                     dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     input_sounding_data, turbPert);
-
         // Canopy data for mom sources
         MultiFab* forest_drag = nullptr;
         if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
         // Immersed Forcing
         MultiFab* terrain_blank = nullptr;
-        if(solverChoice.do_terrain_drag) { terrain_blank = m_terrain_drag[level]->get_terrain_blank_field(); }
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            terrain_blank = terrain_blanking[level].get();
+        }
+
+        // Construct the source terms for the cell-centered (conserved) variables
+        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
+#if defined(ERF_USE_RRTMGP)
+                     qheating_rates[level].get(),
+#endif
+                     terrain_blank, fine_geom, solverChoice,
+                     mapfac_u[level], mapfac_v[level], mapfac_m[level],
+                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                     input_sounding_data, turbPert);
 
         // Moving terrain
-        if ( solverChoice.terrain_type == TerrainType::Moving )
+        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             // Note that the "old" and "new" metric terms correspond to
             // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
@@ -78,20 +82,41 @@
             // aka old_stage_time
 
             if (verbose) Print() << "Re-making old geometry at old time   : " << old_step_time << std::endl;
-            prob->init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
-            init_terrain_grid  (level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
+
+            //
+            // Make a temporary MF to fill the terrain
+            //
+            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[level]->nGrow());
+            FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
+            FArrayBox terrain_fab_src(makeSlab(terrain_bx,2,0),1);
+            FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
+
+            prob->init_terrain_surface(fine_geom,terrain_fab_old,old_step_time);
+            prob->init_terrain_surface(fine_geom,terrain_fab_src,old_stage_time);
+            prob->init_terrain_surface(fine_geom,terrain_fab_new,new_stage_time);
+
+            // Copy on intersection
+            for (MFIter mfi(*z_phys_nd[level],false); mfi.isValid(); ++mfi)
+            {
+                Box isect = terrain_fab_old.box() & (*z_phys_nd[level])[mfi].box();
+                (    *z_phys_nd[level])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
+                (*z_phys_nd_src[level])[mfi].template copy<RunOn::Device>(terrain_fab_src,isect,0,isect,0,1);
+                (*z_phys_nd_new[level])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
+            }
+
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
             make_areas         (fine_geom,*z_phys_nd[level], *ax[level], *ay[level], *az[level]);
 
-            if (verbose) Print() << "Making src geometry at old_stage_time:  " << old_stage_time << std::endl;
-            prob->init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
-            init_terrain_grid  (level,fine_geom,*z_phys_nd_src[level], zlevels_stag[level], phys_bc_type);
+            if (verbose) Print() << "Making src geometry at old_stage_time:  "
+                                 << std::setprecision(timeprecision) << old_stage_time << std::endl;
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_src[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd_src[level], *detJ_cc_src[level]);
             make_areas         (fine_geom,*z_phys_nd_src[level], *ax_src[level], *ay_src[level], *az_src[level]);
 
-            if (verbose) Print() << "Making new geometry at new_stage_time: " << new_stage_time << std::endl;
-            prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
-            init_terrain_grid  (level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
+            if (verbose) Print() << "Making new geometry at new_stage_time: "
+                                 << std::setprecision(timeprecision) << new_stage_time << std::endl;
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
             make_areas         (fine_geom,*z_phys_nd_new[level], *ax_new[level], *ay_new[level], *az_new[level]);
 
@@ -148,12 +173,10 @@
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level], p0_new,
-                             pp_inc[level],
+                             z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level],
+                             stretched_dz_d[level], p0_new, pp_inc[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#ifdef ERF_USE_EB
                              EBFactory(level),
-#endif
                              fr_as_crse, fr_as_fine);
 
             add_thin_body_sources(xmom_src, ymom_src, zmom_src,
@@ -236,6 +259,7 @@
             } // MFIter
             r0_new->FillBoundary(fine_geom.periodicity());
             p0_new->FillBoundary(fine_geom.periodicity());
+            th0_new->FillBoundary(fine_geom.periodicity());
 
         } else { // If not moving_terrain
 
@@ -257,12 +281,10 @@
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3,Q2fx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
-                             pp_inc[level],
+                             z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
+                             stretched_dz_d[level], p0, pp_inc[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#ifdef ERF_USE_EB
                              EBFactory(level),
-#endif
                              fr_as_crse, fr_as_fine);
 
             add_thin_body_sources(xmom_src, ymom_src, zmom_src,
@@ -272,7 +294,7 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
-        if (use_real_bcs && (level == 0)) {
+        if (solverChoice.use_real_bcs && (level == 0)) {
             if (real_width>0) {
                 realbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                                    real_width, real_set_width, fine_geom,
@@ -316,6 +338,7 @@
         Real slow_dt = new_stage_time - old_step_time;
 
         if (verbose) amrex::Print() << "Time integration of scalars at level " << level
+                                    << std::setprecision(timeprecision)
                                     << " from " << old_step_time << " to " << new_stage_time
                                     << " with dt = " << slow_dt
                                     << " using RHS created at " << old_stage_time << std::endl;
@@ -324,7 +347,7 @@
 
 #if defined(ERF_USE_NETCDF)
         bool moist_set_rhs = false;
-        if ( use_real_bcs &&
+        if ( solverChoice.use_real_bcs &&
              (level==0)   &&
              (real_set_width > 0) &&
              (solverChoice.moisture_type != MoistureType::None) )
@@ -349,7 +372,7 @@
         }
 
         // Moving terrain
-        if ( solverChoice.terrain_type == TerrainType::Moving ) {
+        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh ) {
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
@@ -357,9 +380,7 @@
                               fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc_new[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#ifdef ERF_USE_EB
                               EBFactory(level),
-#endif
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
                               real_width, real_set_width,
@@ -374,9 +395,7 @@
                               fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#ifdef ERF_USE_EB
                               EBFactory(level),
-#endif
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
                               real_width, real_set_width,
@@ -402,8 +421,10 @@
                                 const int nrk)
     {
         BL_PROFILE("slow_rhs_fun_inc");
-        if (verbose) Print() << "Making slow rhs at time " << old_stage_time << " for fast variables advancing from " <<
-                                old_step_time << " to " << new_stage_time << std::endl;
+        if (verbose) Print() << std::setprecision(timeprecision)
+                             << "Making slow rhs at time " << old_stage_time
+                             << " for fast variables advancing from " << old_step_time
+                             << " to " << new_stage_time << std::endl;
         //
         // Define primitive variables for all later RK stages
         // (We have already done this for the first RK step)
@@ -438,13 +459,15 @@
         if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
         // Immersed Forcing
         MultiFab* terrain_blank = nullptr;
-        if(solverChoice.do_terrain_drag) { terrain_blank = m_terrain_drag[level]->get_terrain_blank_field(); }
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            terrain_blank = terrain_blanking[level].get();
+        }
 
         make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
-                     qheating_rates[level],
+                     qheating_rates[level].get(),
 #endif
-                     fine_geom, solverChoice,
+                     terrain_blank, fine_geom, solverChoice,
                      mapfac_u[level], mapfac_v[level], mapfac_m[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
@@ -470,12 +493,10 @@
                          Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                          Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                         z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
-                         pp_inc[level],
+                         z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
+                         stretched_dz_d[level], p0, pp_inc[level],
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#ifdef ERF_USE_EB
                          EBFactory(level),
-#endif
                          fr_as_crse, fr_as_fine);
 
          add_thin_body_sources(xmom_src, ymom_src, zmom_src,
@@ -484,7 +505,7 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
-        if (use_real_bcs && (level == 0)) {
+        if (solverChoice.use_real_bcs && (level == 0)) {
             if (real_width>0) {
                     realbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                                        real_width, real_set_width, fine_geom,

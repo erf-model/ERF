@@ -2,13 +2,11 @@
 #define ERF_INTEGRATION_H_
 
 #include <AMReX_MultiFab.H>
+#include <AMReX_EBMultiFabUtil.H>
+
 #include "ERF_DataStruct.H"
 #include "ERF_InputSoundingData.H"
 #include "ERF_TurbPertStruct.H"
-
-#ifdef ERF_USE_EB
-#include <AMReX_EBMultiFabUtil.H>
-#endif
 
 /**
  * Function for computing the buoyancy term to be used in the evolution
@@ -33,6 +31,7 @@ void make_sources (int level, int nrk,
 #if defined(ERF_USE_RRTMGP)
                    const amrex::MultiFab* qheating_rates,
 #endif
+                   amrex::MultiFab* terrain_blank,
                    const amrex::Geometry geom,
                    const SolverChoice& solverChoice,
                    std::unique_ptr<amrex::MultiFab>& mapfac_u,
@@ -86,7 +85,6 @@ void add_thin_body_sources (amrex::MultiFab& xmom_source,
 #if defined(ERF_USE_NETCDF)
 void
 moist_set_rhs (const amrex::Box& tbx,
-               const amrex::Box& gtbx,
                const amrex::Array4<amrex::Real const>& old_cons,
                const amrex::Array4<amrex::Real const>& new_cons,
                const amrex::Array4<amrex::Real      >& cell_rhs,
@@ -106,7 +104,8 @@ void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
                               const amrex::Geometry geom,
                               const amrex::Box& bx,
                               const amrex::Array4<amrex::Real>& cell_rhs,
-                              const amrex::Array4<const amrex::Real>& cell_data);
+                              const amrex::Array4<const amrex::Real>& cell_data,
+                              const amrex::Array4<const amrex::Real>& z_phys_cc);
 
 void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                                const amrex::Geometry geom,
@@ -118,13 +117,16 @@ void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                                const amrex::Array4<amrex::Real>& rho_w_rhs,
                                const amrex::Array4<const amrex::Real>& rho_u,
                                const amrex::Array4<const amrex::Real>& rho_v,
-                               const amrex::Array4<const amrex::Real>& rho_w);
+                               const amrex::Array4<const amrex::Real>& rho_w,
+                               const amrex::Array4<const amrex::Real>& z_phys_nd,
+                               const amrex::Array4<const amrex::Real>& z_phys_cc);
 
 void ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
                                               const amrex::Geometry geom,
                                               const amrex::Box& tbx,
                                               const amrex::Box& tby,
                                               const amrex::Array4<const amrex::Real>& cell_data,
+                                              const amrex::Array4<const amrex::Real>& z_phys_cc,
                                               const amrex::Array4<amrex::Real>& rho_u_rhs,
                                               const amrex::Array4<amrex::Real>& rho_v_rhs,
                                               const amrex::Array4<const amrex::Real>& rho_u,

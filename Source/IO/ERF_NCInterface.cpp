@@ -2,6 +2,7 @@
 
 #include "ERF_NCInterface.H"
 #include <AMReX.H>
+#include <AMReX_Print.H>
 
 #define abort_func amrex::Abort
 
@@ -61,6 +62,27 @@ int NCVar::ndim () const
     int ndims;
     check_nc_error(nc_inq_varndims(ncid, varid, &ndims));
     return ndims;
+}
+
+/**
+ * Error-checking function to get the name of each dimension from a NetCDF identity
+ */
+std::vector<std::string> NCVar::dimnames () const
+{
+    int ndims = ndim();
+    std::vector<int> dimids(ndims);
+    std::vector<std::string> vnames(ndims);
+
+    for (int i = 0; i < ndims; ++i)
+        check_nc_error(nc_inq_vardimid(ncid, varid, dimids.data()));
+
+    char buf[80];
+    for (int i = 0; i < ndims; ++i) {
+        check_nc_error(nc_inq_dimname(ncid, dimids[i], buf));
+        vnames[i] = std::string(buf);
+    }
+
+    return vnames;
 }
 
 /**
@@ -540,10 +562,21 @@ bool NCGroup::has_dim (const std::string& name) const
     return (ierr == NC_NOERR);
 }
 
+int NCGroup::get_id (const std::string& name) const
+{
+    int temp_id = 0;
+    int ierr = nc_inq_varid (ncid, name.data(), &temp_id);
+    if (ierr == NC_ENOTVAR) {
+        amrex::Abort("NetCDF variable '" + name + "' does not exist");
+    }
+    return temp_id;
+}
+
 bool NCGroup::has_var (const std::string& name) const
 {
-    int ierr = nc_inq_varid(ncid, name.data(), nullptr);
-    return (ierr == NC_NOERR);
+    int rh_id = 0;
+    int ierr = nc_inq_varid(ncid, name.data(), &rh_id);
+    return (ierr  == NC_NOERR);
 }
 
 bool NCGroup::has_attr (const std::string& name) const

@@ -154,6 +154,5 @@ private:
 
    // Vector to store NoahmpIO objects at a level
    amrex::Vector<NoahmpIO_type> noahmpio_vect;
-
 };
 #endif

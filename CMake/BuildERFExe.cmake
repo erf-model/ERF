@@ -35,19 +35,6 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
   endif()
 
-  if(ERF_ENABLE_EB)
-    target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/EB/ERF_InitEB.cpp
-                   ${SRC_DIR}/EB/ERF_EBBox.cpp
-                   ${SRC_DIR}/EB/ERF_EBCylinder.cpp
-                   ${SRC_DIR}/EB/ERF_EBRegular.cpp
-                   ${SRC_DIR}/EB/ERF_InitEB.cpp
-                   ${SRC_DIR}/EB/ERF_WriteEBSurface.cpp 
-                   ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp)
-    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/EB>)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EB)
-  endif()
-
   if(ERF_ENABLE_FFT)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/LinearSolvers/ERF_SolveWithFFT.cpp)
@@ -78,29 +65,36 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   if(ERF_ENABLE_RRTMGP)
+    target_include_directories(${erf_lib_name} PUBLIC
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/cloud_optics>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband>
+                              )
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/Utils/ERF_Orbit.cpp
-                   ${SRC_DIR}/Radiation/ERF_InitRRTMGP.cpp
-                   ${SRC_DIR}/Radiation/ERF_FinalizeRRTMGP.cpp
-                   ${SRC_DIR}/Radiation/ERF_RunLongWaveRRTMGP.cpp
-                   ${SRC_DIR}/Radiation/ERF_RunShortWaveRRTMGP.cpp
-                   ${SRC_DIR}/Radiation/ERF_CloudRadProps.cpp
-                   ${SRC_DIR}/Radiation/ERF_AeroRadProps.cpp
-                   ${SRC_DIR}/Radiation/ERF_Optics.cpp
+                   ${SRC_DIR}/Radiation/ERF_RRTMGP_Interface.cpp
                    ${SRC_DIR}/Radiation/ERF_Radiation.cpp
-                   ${SRC_DIR}/Radiation/ERF_Albedo.cpp
+                   ${SRC_DIR}/Radiation/ERF_OrbCosZenith.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels/mo_gas_optics_kernels.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/expand_and_transpose.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_fluxes_broadband_kernels.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_optical_props_kernels.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_rte_solver_kernels.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/mo_load_coefficients.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_garand_atmos_io.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_load_cloud_coefficients.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
                   )
-
-    # The interface code needs to know about the RRTMGP includes
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
-
-    target_include_directories(${erf_lib_name} SYSTEM PUBLIC
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/cloud_optics
-                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples
-                              )
+    target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_YAKL)
+    target_link_libraries(${erf_lib_name} PUBLIC yakl)
   endif()
 
   target_sources(${erf_lib_name}
@@ -112,6 +106,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_ReadWaves.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom.cpp
+       ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_ConstantDz.cpp
+       ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_StretchedDz.cpp
+       ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_EB.cpp
+       ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_TF.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForState.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForOpenBC.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_ABLMost.cpp
@@ -138,6 +136,14 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeTurbulentViscosity.cpp
+       ${SRC_DIR}/EB/ERF_EBAdvectionSrcForState.cpp
+       ${SRC_DIR}/EB/ERF_EBAux.cpp
+       ${SRC_DIR}/EB/ERF_EBBox.cpp
+       ${SRC_DIR}/EB/ERF_EB.cpp
+       ${SRC_DIR}/EB/ERF_EBCutCell.cpp
+       ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
+       ${SRC_DIR}/EB/ERF_EBToPVD.cpp
+       ${SRC_DIR}/EB/ERF_EBWriteSurface.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
        ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
@@ -157,9 +163,37 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Write1DProfiles_stag.cpp
        ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
        ${SRC_DIR}/IO/ERF_Plotfile.cpp
+       ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp 
+       ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Cloud.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_IceFall.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Precip.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_PrecipFall.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_Precip.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_PrecipFall.cpp
+       ${SRC_DIR}/Microphysics/SAM/ERF_UpdateSAM.cpp
+       ${SRC_DIR}/Microphysics/Kessler/ERF_InitKessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/ERF_Kessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/ERF_UpdateKessler.cpp
+       ${SRC_DIR}/Microphysics/SatAdj/ERF_InitSatAdj.cpp
+       ${SRC_DIR}/Microphysics/SatAdj/ERF_SatAdj.cpp
+       ${SRC_DIR}/Microphysics/SatAdj/ERF_UpdateSatAdj.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNN25.cpp
+       ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
@@ -170,7 +204,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MoistSetRhs.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
-       ${SRC_DIR}/SourceTerms/ERF_TerrainDrag.cpp       
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp
@@ -187,29 +220,14 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_FastRhs_MT.cpp
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
+       ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
+       ${SRC_DIR}/Utils/ERF_InitZLevels.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp 
-       ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
+       ${SRC_DIR}/Utils/ERF_ThinBodyWallDist.cpp
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_Precip.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_PrecipFall.cpp
-       ${SRC_DIR}/Microphysics/SAM/ERF_UpdateSAM.cpp
-       ${SRC_DIR}/Microphysics/Kessler/ERF_InitKessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/ERF_Kessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/ERF_UpdateKessler.cpp
-       ${SRC_DIR}/Microphysics/SatAdj/ERF_InitSatAdj.cpp
-       ${SRC_DIR}/Microphysics/SatAdj/ERF_SatAdj.cpp
-       ${SRC_DIR}/Microphysics/SatAdj/ERF_UpdateSatAdj.cpp
        ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
        ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
        ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
@@ -232,10 +250,6 @@ endif()
     endif()
   endif()
 
-  if(ERF_ENABLE_RRTMGP)
-    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation>)
-  endif()
-
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
   endif()
@@ -246,6 +260,7 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/BoundaryConditions>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/DataStructs>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Diffusion>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/EB>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Initialization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/IO>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LinearSolvers>)
@@ -258,6 +273,7 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SAM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Morrison>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SatAdj>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
@@ -269,11 +285,6 @@ endif()
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/MM5>)
-
-  if(ERF_ENABLE_RRTMGP)
-     target_link_libraries(${erf_lib_name} PUBLIC yakl)
-     target_link_libraries(${erf_lib_name} PUBLIC rrtmgp)
-  endif()
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC AMReX::amrex)

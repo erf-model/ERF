@@ -7,106 +7,34 @@
 
 using namespace amrex;
 
+/**
+ * Define a default z_phys so we have it even if a completely regular grid
+ * This will be over-written if we use z_levels, or grid stretching, or terrain-fitted grids
+ */
 void
-init_zlevels (Vector<Vector<Real>>& zlevels_stag,
-              Vector<Vector<Real>>& stretched_dz_h,
-              Vector<Gpu::DeviceVector<Real>>& stretched_dz_d,
-              Vector<Geometry> const& geom,
-              Vector<IntVect> const& ref_ratio,
-              const Real grid_stretching_ratio,
-              const Real zsurf,
-              const Real dz0)
+init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, MultiFab& z_phys_cc)
 {
-    int max_level = zlevels_stag.size()-1;
+    const auto& dx = geom.CellSize();
+    Real dz = dx[2];
 
-    for (int lev = 0; lev <= max_level; lev++)
+    for (MFIter mfi(z_phys_nd,true); mfi.isValid(); ++mfi)
     {
-        auto dx = geom[lev].CellSizeArray();
-        const Box& domain = geom[lev].Domain();
-        int nz = domain.length(2)+1; // staggered
-
-        zlevels_stag[lev].resize(nz);
-
-        stretched_dz_h[lev].resize(domain.length(2));
-
-        if (grid_stretching_ratio == 0) {
-            // This is the default for z_levels
-            for (int k = 0; k < nz; k++)
-            {
-                zlevels_stag[lev][k] = k * dx[2];
-            }
-            for (int k = 0; k < nz-1; k++)
-            {
-                stretched_dz_h[lev][k] = dx[2];
-            }
-        } else if (lev == 0) {
-            // Create stretched grid based on initial dz and stretching ratio
-            zlevels_stag[lev][0] = zsurf;
-            Real dz = dz0;
-            stretched_dz_h[lev][0] = dz0;
-            Print() << "Stretched grid levels at level : " << lev << " is " <<  zsurf;
-            for (int k = 1; k < nz; k++)
-            {
-                zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + dz;
-                if (k < nz-1) {
-                    stretched_dz_h[lev][k] = dz;
-                }
-                Print() << " " << zlevels_stag[lev][k];
-                dz *= grid_stretching_ratio;
-            }
-            Print() << std::endl;
-        } else if (lev > 0) {
-            int rr = ref_ratio[lev-1][2];
-            expand_and_interpolate_1d(zlevels_stag[lev], zlevels_stag[lev-1], rr, false);
-            for (int k = 0; k < nz-1; k++)
-            {
-                stretched_dz_h[lev][k] = (zlevels_stag[lev][k+1] - zlevels_stag[lev][k]);
-            }
-        }
+        const Box& bx = mfi.growntilebox();
+        const Array4< Real> z_nd_arr = z_phys_nd.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            z_nd_arr(i,j,k) = k * dz;
+        });
     }
 
-    // Try reading in terrain_z_levels, which allows arbitrarily spaced grid
-    // levels to be specified and will take precedence over the
-    // grid_stretching_ratio parameter
-    ParmParse pp("erf");
-    int n_zlevels = pp.countval("terrain_z_levels");
-    if (n_zlevels > 0)
+    for (MFIter mfi(z_phys_cc,true); mfi.isValid(); ++mfi)
     {
-        int nz = geom[0].Domain().length(2)+1; // staggered
-        if (n_zlevels != nz) {
-            Print() << "You supplied " << n_zlevels << " staggered terrain_z_levels " << std::endl;
-            Print() << "but n_cell+1 in the z-direction is " <<  nz << std::endl;
-            Abort("You must specify a z_level for every value of k");
-        }
-
-        if (grid_stretching_ratio > 0) {
-            Print() << "Note: Found terrain_z_levels, ignoring grid_stretching_ratio" << std::endl;
-        }
-
-        pp.getarr("terrain_z_levels", zlevels_stag[0], 0, nz);
-
-        // These levels should range from 0 at the surface to the height of the
-        // top of model domain (see the coordinate surface height, zeta, in
-        // Klemp 2011)
-        AMREX_ALWAYS_ASSERT(zlevels_stag[0][0] == 0);
-
-        for (int lev = 1; lev <= max_level; lev++) {
-            int rr = ref_ratio[lev-1][2];
-            expand_and_interpolate_1d(zlevels_stag[lev], zlevels_stag[lev-1], rr, false);
-        }
-
-        for (int lev = 0; lev <= max_level; lev++) {
-            int nz_zlevs = zlevels_stag[lev].size();
-            for (int k = 0; k < nz_zlevs-1; k++)
-            {
-                stretched_dz_h[lev][k] = (zlevels_stag[lev][k+1] - zlevels_stag[lev][k]);
-            }
-        }
-    }
-
-    for (int lev = 0; lev <= max_level; lev++) {
-        stretched_dz_d[lev].resize(stretched_dz_h[lev].size());
-        Gpu::copy(Gpu::hostToDevice, stretched_dz_h[lev].begin(), stretched_dz_h[lev].end(), stretched_dz_d[lev].begin());
+        const Box& bx = mfi.growntilebox();
+        const Array4< Real> z_cc_arr = z_phys_cc.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            z_cc_arr(i,j,k) = (k + 0.5) * dz;
+        });
     }
 }
 
@@ -115,9 +43,9 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
  */
 
 void
-init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
-                   Vector<Real> const& z_levels_h,
-                   GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
+make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
+                            Vector<Real> const& z_levels_h,
+                            GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
 {
     const Box& domain = geom.Domain();
 
@@ -223,29 +151,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
             });
         }
     }
-
-    /*
-    // Debug
-    for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        Box gbx = mfi.growntilebox(ngrow);
-        gbx.setRange(2,domlo_z,domhi_z+1);
-
-        Array4<Real> z_arr = z_phys_nd.array(mfi);
-
-        int rank = 0;
-        Print(rank) << "Debugging init_terrain_grid" << "\n";
-        Print(rank) << gbx << "\n";
-
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            Print(rank) << IntVect(i,j,k) << "\n";
-            Print(rank) << z_arr(i,j,k) << "\n";
-            Print(rank) << "\n";
-        });
-        Print(rank) << "Cleared..." << "\n";
-    }
-   */
-} // init_terrain_grid
+} // make_terrain_fitted_coords
 
 void
 init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
@@ -413,6 +319,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                   // Return height for max
                   return { z_arr(i,j,k0) };
                 });
+        amrex::ParallelDescriptor::ReduceRealMax(h_m);
 
         if (h_m < std::numeric_limits<Real>::epsilon()) h_m = 1e-16;
 
@@ -585,7 +492,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                     int ii = amrex::max(amrex::min(i,imax),imin);
                     int jj = amrex::max(amrex::min(j,jmax),jmin);
 
-                    // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
+                    // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "WRFInput")
                     if (k == k0+1) {
                         z_arr(i,j,k) = z + z_arr(ii,jj,k0);
                     } else {
@@ -717,22 +624,12 @@ make_zcc (const Geometry& geom,
           MultiFab& z_phys_nd,
           MultiFab& z_phys_cc)
 {
-    // Domain valid box (z_nd is nodal)
-    const Box& domain = geom.Domain();
-    int domlo_z = domain.smallEnd(2);
-
-    // Number of ghost cells
-    int ngrow= z_phys_cc.nGrow();
-
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(z_phys_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        Box gbx = mfi.growntilebox(ngrow);
-        if (gbx.smallEnd(2) < domlo_z) {
-            gbx.setSmall(2,domlo_z);
-        }
+        Box gbx = mfi.growntilebox();
         Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
         Array4<Real      > z_cc = z_phys_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {

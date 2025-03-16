@@ -79,14 +79,13 @@ erf.moistscal_horiz_adv_type = "Centered_2nd"
 erf.moistscal_vert_adv_type  = "Centered_2nd"
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 1.0
 erf.use_gravity = false
 
-erf.molec_diff_type = "ConstantAlpha"
-erf.les_type        = "None"
-erf.Cs              = 1.5
-erf.dynamicViscosity = 10.0
+erf.les_type          = "None"
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 10.0
+erf.alpha_T           = 0.0
+erf.alpha_C           = 1.0
 
 erf.pbl_type        = "None"
 

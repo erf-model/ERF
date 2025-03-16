@@ -14,6 +14,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
     {
         BL_PROFILE("fast_rhs_fun");
         if (verbose) amrex::Print() << "Fast time integration at level " << level
+                                    << std::setprecision(timeprecision)
                                     << " from " << old_substep_time << " to " << new_substep_time
                                     << " with dt = " << dtau << std::endl;
 
@@ -48,18 +49,34 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;
-        if ( solverChoice.terrain_type == TerrainType::Moving )
+        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             // Make "old" fast geom -- store in z_phys_nd for convenience
-            if (verbose) Print() << "Making geometry at start of substep time: " << old_substep_time << std::endl;
-            prob->init_custom_terrain(fine_geom,*z_phys_nd[level],old_substep_time);
-            init_terrain_grid  (level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
-            make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
+            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[level]->nGrow());
+
+            if (verbose) Print() << "Making geometry at start of substep time: "
+                                 << std::setprecision(timeprecision) << old_substep_time << std::endl;
+            FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
+            prob->init_terrain_surface(fine_geom,terrain_fab_old,old_substep_time);
 
             // Make "new" fast geom
-            if (verbose) Print() << "Making geometry for end of substep time :" << new_substep_time << std::endl;
-            prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_substep_time);
-            init_terrain_grid  (level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
+            if (verbose) Print() << "Making geometry for end of substep time :"
+                                 << std::setprecision(timeprecision) << new_substep_time << std::endl;
+            FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
+            prob->init_terrain_surface(fine_geom,terrain_fab_new,new_substep_time);
+
+            // Copy on intersection
+            for (MFIter mfi(*z_phys_nd[level],false); mfi.isValid(); ++mfi)
+            {
+                Box isect = terrain_fab_old.box() & (*z_phys_nd[level])[mfi].box();
+                (    *z_phys_nd[level])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
+                (*z_phys_nd_new[level])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
+            }
+
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
+            make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
+
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
             make_areas         (fine_geom,*z_phys_nd_new[level], *ax_new[level], *ay_new[level], *az_new[level]);
 
@@ -181,10 +198,10 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         // NOTE: Numerical diffusion is tested on in FillPatchIntermediate and dictates the size of the
         //       box over which VelocityToMomentum is computed. V2M requires one more ghost cell be
         //       filled for rho than velocity. This logical condition ensures we fill enough ghost cells
-        //       when use_NumDiff is true.
+        //       when use_num_diff is true.
         int ng_cons = S_data[IntVars::cons].nGrowVect().max() - 1;
         int ng_vel  = S_data[IntVars::xmom].nGrowVect().max();
-        if (!solverChoice.use_NumDiff) {
+        if (!solverChoice.use_num_diff) {
             ng_cons = 1;
             ng_vel  = 1;
         }

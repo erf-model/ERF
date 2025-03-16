@@ -7,6 +7,13 @@
 #include <ERF_IndexDefines.H>
 
 /**
+ * Routine to define default z_phys_nd and z_phys_cc
+ */
+void
+init_default_zphys (int lev, const amrex::Geometry& geom,
+                    amrex::MultiFab& z_phys_nd, amrex::MultiFab& z_phys_cc);
+
+/**
  * Utility routines for constructing terrain metric terms
  */
 
@@ -20,10 +27,10 @@ void init_zlevels (amrex::Vector<amrex::Vector<amrex::Real>> & zlevels_stag,
                    const amrex::Real zsurf,
                    const amrex::Real dz0);
 
-void init_terrain_grid (int lev, const amrex::Geometry& geom,
-                        amrex::MultiFab& z_phys_nd,
-                        amrex::Vector<amrex::Real> const& z_levels_h,
-                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type);
+void make_terrain_fitted_coords (int lev, const amrex::Geometry& geom,
+                                 amrex::MultiFab& z_phys_nd,
+                                 amrex::Vector<amrex::Real> const& z_levels_h,
+                                 amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type);
 
 void init_which_terrain_grid (int lev, const amrex::Geometry& geom,
                               amrex::MultiFab& z_phys_nd,

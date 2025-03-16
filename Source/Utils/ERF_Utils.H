@@ -71,19 +71,40 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
+ * Convert (den_div u) to (den_mlt u) by multiplying by (den_mlt/den_div)
+ */
+void
+ConvertForProjection (const amrex::MultiFab& den_div, const amrex::MultiFab& den_mlt,
+                      amrex::MultiFab& xmom, amrex::MultiFab& ymom, amrex::MultiFab& zmom,
+                      const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+
+/*
  * Compute boxes for looping over interior/exterior ghost cells
  * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post
  */
-void compute_interior_ghost_bxs_xy (const amrex::Box& bx,
-                                    const amrex::Box& domain,
-                                    const int& width,
-                                    const int& set_width,
-                                    amrex::Box& bx_xlo,
-                                    amrex::Box& bx_xhi,
-                                    amrex::Box& bx_ylo,
-                                    amrex::Box& bx_yhi,
-                                    const amrex::IntVect& ng_vect=amrex::IntVect(0,0,0),
-                                    const bool get_int_ng=false);
+void realbdy_interior_bxs_xy (const amrex::Box& bx,
+                              const amrex::Box& domain,
+                              const int& width,
+                              amrex::Box& bx_xlo,
+                              amrex::Box& bx_xhi,
+                              amrex::Box& bx_ylo,
+                              amrex::Box& bx_yhi,
+                              const int& set_width=0,
+                              const amrex::IntVect& ng_vect=amrex::IntVect(0,0,0),
+                              const bool get_int_ng=false);
+
+/*
+ * Compute boxes for looping over set region cells
+ * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post
+ */
+void realbdy_bc_bxs_xy (const amrex::Box& bx,
+                        const amrex::Box& domain,
+                        const int& set_width,
+                        amrex::Box& bx_xlo,
+                        amrex::Box& bx_xhi,
+                        amrex::Box& bx_ylo,
+                        amrex::Box& bx_yhi,
+                        const amrex::IntVect& ng_vect=amrex::IntVect(0,0,0));
 
 /*
  * Compute relaxation region RHS with wrfbdy
@@ -149,7 +170,8 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
                                 const int& icomp,
                                 const int& num_var,
                                 const int& width,
-                                const int& set_width,
+                                const int& set_width_x,
+                                const int& set_width_y,
                                 const amrex::Dim3& dom_lo,
                                 const amrex::Dim3& dom_hi,
                                 const amrex::Box& bx_xlo,
@@ -163,15 +185,17 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
                                 const amrex::Array4<const amrex::Real>& data_arr,
                                 const amrex::Array4<amrex::Real>& rhs_arr)
 {
-    int Spec_z  = set_width;
+    int Spec_z_x = set_width_x;
+    int Spec_z_y = set_width_y;
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes
         int j_lo  = std::min(j-dom_lo.y,width-1);
         int j_hi  = std::min(dom_hi.y-j,width-1);
         int jj    = std::min(j_lo,j_hi);
-        int n_ind = std::min(i-dom_lo.x,jj) + 1;
-        if (n_ind <= Spec_z) {
+        int n_ind_y = jj + 1;
+        int n_ind_x = i - dom_lo.x + 1;
+        if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
             amrex::Real tend = ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
             rhs_arr(i,j,k,n+icomp) = tend;
         }
@@ -182,8 +206,9 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         int j_lo  = std::min(j-dom_lo.y,width-1);
         int j_hi  = std::min(dom_hi.y-j,width-1);
         int jj    = std::min(j_lo,j_hi);
-        int n_ind = std::min(dom_hi.x-i,jj) + 1;
-        if (n_ind <= Spec_z) {
+        int n_ind_y = jj + 1;
+        int n_ind_x = dom_hi.x - i + 1;
+        if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
             amrex::Real tend = ( arr_xhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
             rhs_arr(i,j,k,n+icomp) = tend;
         }
@@ -193,7 +218,7 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
     {
         // No corners for y boxes
         int n_ind = j - dom_lo.y + 1;
-        if (n_ind <= Spec_z) {
+        if (n_ind <= Spec_z_y) {
             amrex::Real tend = ( arr_ylo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
             rhs_arr(i,j,k,n+icomp) = tend;
         }
@@ -202,7 +227,7 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
     {
         // No corners for y boxes
         int n_ind = dom_hi.y - j + 1;
-        if (n_ind <= Spec_z) {
+        if (n_ind <= Spec_z_y) {
             amrex::Real tend = ( arr_yhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
             rhs_arr(i,j,k,n+icomp) = tend;
         }
@@ -267,7 +292,7 @@ realbdy_compute_laplacian_relaxation (const int& icomp,
         int j_hi  = std::min(dom_hi.y-j,width-1);
         int jj    = std::min(j_lo,j_hi);
         int n_ind = std::min(i-dom_lo.x,jj) + 1;
-        AMREX_ASSERT(n_ind > Spec_z);
+        //AMREX_ASSERT(n_ind > Spec_z);
         amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
                               * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
         amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
@@ -291,7 +316,7 @@ realbdy_compute_laplacian_relaxation (const int& icomp,
         int j_hi  = std::min(dom_hi.y-j,width-1);
         int jj    = std::min(j_lo,j_hi);
         int n_ind = std::min(dom_hi.x-i,jj) + 1;
-        AMREX_ASSERT(n_ind > Spec_z);
+        //AMREX_ASSERT(n_ind > Spec_z);
         amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
                               * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
         amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
@@ -313,7 +338,7 @@ realbdy_compute_laplacian_relaxation (const int& icomp,
     {
         // No corners for y boxes
         int n_ind = j - dom_lo.y + 1;
-        AMREX_ASSERT(n_ind > Spec_z);
+        //AMREX_ASSERT(n_ind > Spec_z);
         amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
                               * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
         amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
@@ -334,7 +359,7 @@ realbdy_compute_laplacian_relaxation (const int& icomp,
     {
         // No corners for y boxes
         int n_ind = dom_hi.y - j + 1;
-        AMREX_ASSERT(n_ind > Spec_z);
+        //AMREX_ASSERT(n_ind > Spec_z);
         amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
                               * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
         amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
@@ -377,6 +402,7 @@ ApplyMask (amrex::MultiFab& dst,
         }
     }
 }
+
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
@@ -399,4 +425,11 @@ ApplyInvertedMask (amrex::MultiFab& dst,
     }
 }
 
+void
+thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
+                    amrex::Vector<amrex::IntVect>& xfaces,
+                    amrex::Vector<amrex::IntVect>& yfaces,
+                    amrex::Vector<amrex::IntVect>& zfaces,
+                    const amrex::Geometry& geomdata,
+                    std::unique_ptr<amrex::MultiFab>& z_phys_cc);
 #endif

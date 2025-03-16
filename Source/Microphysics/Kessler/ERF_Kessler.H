@@ -1,11 +1,3 @@
-/*
- * Implementation 1-moment microphysics model
- * NOTE: this model is based on the Kessler code, and the Klemp's paper
- * 1): Joseph, Klemp, the simulation of three-dimensional convective storm dynamics,
- * Journal of the atmospheric sciences, vol35, p1070
- * 2): Marat Khairoutdinov and David Randall, cloud resolving modeling of the ARM summer 1997 IOP:
- * model formulation, results, unvertainties, and sensitivities, Journal of the atmospheric sciences, vol60, p607
- */
 #ifndef ERF_Kessler_H
 #define ERF_Kessler_H
 
@@ -61,8 +53,6 @@ public:
     void
     Define (SolverChoice& sc) override
     {
-        docloud = sc.do_cloud;
-        doprecip = sc.do_precip;
         m_fac_cond = lcond / sc.c_p;
         m_fac_fus = lfus / sc.c_p;
         m_fac_sub = lsub / sc.c_p;
@@ -163,9 +153,6 @@ private:
 
     // plane average axis
     int m_axis;
-
-    // model options
-    bool docloud, doprecip;
 
     // constants
     amrex::Real m_fac_cond;

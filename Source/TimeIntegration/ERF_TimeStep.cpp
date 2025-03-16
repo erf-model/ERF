@@ -79,7 +79,8 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
     if (Verbose()) {
         amrex::Print() << "[Level " << lev << " step " << istep[lev]+1 << "] ";
-        amrex::Print() << "ADVANCE from time = " << t_old[lev] << " to " << t_new[lev]
+        amrex::Print() << std::setprecision(timeprecision)
+                       << "ADVANCE from time = " << t_old[lev] << " to " << t_new[lev]
                        << " with dt = " << dt[lev] << std::endl;
     }
 
@@ -113,10 +114,8 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
         }
     }
 
-    if (verbose && lev == 0) {
-        if (solverChoice.moisture_type != MoistureType::None) {
-            amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
-        }
+    if (verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {
+        amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
     }
 }
 

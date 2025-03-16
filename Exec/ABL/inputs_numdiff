@@ -35,33 +35,29 @@ erf.plot_int_1        = 1        # number of timesteps between plotfiles
 erf.plot_vars_1       = density rhoKE rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 1.0
 erf.use_gravity = false
 
 erf.molec_diff_type = "None"
 erf.les_type = "Deardorff"
-erf.Ck       = 0.1
-erf.sigma_k  = 1.0
-erf.Ce       = 0.1
+erf.Ck       = 0.1  # Coefficient in Moeng1984, Eqn. 19
+erf.Ce       = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
+erf.Ce_wall  = 3.9  # To account for "wall effects"
 
-erf.use_NumDiff  = true
-erf.NumDiffCoeff = 0.5
+erf.num_diff_coeff = 0.5
 
 erf.init_type = "uniform"
-erf.KE_0 = 0.1 # for Deardorff
 
-# PROBLEM PARAMETERS
+# PROBLEM PARAMETERS -- set these for uniform init only
 prob.rho_0 = 1.0
-prob.A_0   = 1.0
-
-prob.U_0 = 10.0
-prob.V_0 = 0.0
-prob.W_0 = 0.0
-prob.T_0 = 300.0
+prob.A_0   = 1.0 # advected scalar
+prob.U_0   = 10.0
+prob.V_0   = 0.0
+prob.W_0   = 0.0
+prob.T_0   = 300.0
+prob.KE_0  = 0.1
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
 prob.U_0_Pert_Mag = 0.08
-prob.V_0_Pert_Mag = 0.08 
+prob.V_0_Pert_Mag = 0.08
 prob.W_0_Pert_Mag = 0.0

@@ -17,9 +17,31 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
 
+    //
+    // Make sure the ghost cells of the level we are tagging at are filled
+    //    in case we take differences that require them
+    // NOTE: We are Fillpatching only the cell-centered variables here
+    //
+    MultiFab& S_new = vars_new[levc][Vars::cons];
+    MultiFab& U_new = vars_new[levc][Vars::xvel];
+    MultiFab& V_new = vars_new[levc][Vars::yvel];
+    MultiFab& W_new = vars_new[levc][Vars::zvel];
+    //
+    if (levc == 0) {
+        FillPatch(levc, time, {&S_new, &U_new, &V_new, &W_new});
+    } else {
+        FillPatch(levc, time, {&S_new, &U_new, &V_new, &W_new},
+                              {&S_new, &rU_new[levc], &rV_new[levc], &rW_new[levc]},
+                              base_state[levc], base_state[levc],
+                              false, true);
+    }
+
     for (int j=0; j < ref_tags.size(); ++j)
     {
-        std::unique_ptr<MultiFab> mf = std::make_unique<MultiFab>(grids[levc], dmap[levc], 1, 0);
+        //
+        // This mf must have ghost cells because we may take differences between adjacent values
+        //
+        std::unique_ptr<MultiFab> mf = std::make_unique<MultiFab>(grids[levc], dmap[levc], 1, 1);
 
         // This allows dynamic refinement based on the value of the density
         if (ref_tags[j].Field() == "density")
@@ -37,15 +59,25 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ2_comp, 0, 1, 0);
             MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 0);
 
+        // This allows dynamic refinement based on the value of the z-component of vorticity
+        } else if (ref_tags[j].Field() == "vorticity" ) {
+            MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
+            average_face_to_cellcenter(mf_cc_vel,0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
+            for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.growntilebox();
+                auto& dfab = (*mf)[mfi];
+                auto& sfab = mf_cc_vel[mfi];
+                derived::erf_dervortz(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+            }
 
-        // This allows dynamic refinement based on the value of the scalar/pressure/theta
+        // This allows dynamic refinement based on the value of the scalar/theta
         } else if ( (ref_tags[j].Field() == "scalar"  ) ||
-                    (ref_tags[j].Field() == "pressure") ||
                     (ref_tags[j].Field() == "theta"   ) )
         {
             for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bx = mfi.tilebox();
+                const Box& bx = mfi.growntilebox();
                 auto& dfab = (*mf)[mfi];
                 auto& sfab = vars_new[levc][Vars::cons][mfi];
                 if (ref_tags[j].Field() == "scalar") {
@@ -54,6 +86,12 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     derived::erf_dertheta(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
                 }
             } // mfi
+        // This allows dynamic refinement based on the value of the density
+        } else if ( (SolverChoice::terrain_type == TerrainType::ImmersedForcing) &&
+                    (ref_tags[j].Field() == "terrain_blanking") )
+        {
+            MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,0);
+
 #ifdef ERF_USE_PARTICLES
         } else {
             //
@@ -120,10 +158,15 @@ ERF::refinement_criteria_setup ()
 
             int num_real_lo = ppr.countval("in_box_lo");
             int num_indx_lo = ppr.countval("in_box_lo_indices");
+            int num_real_hi = ppr.countval("in_box_hi");
+            int num_indx_hi = ppr.countval("in_box_hi_indices");
 
-            if ( !((num_real_lo == AMREX_SPACEDIM && num_indx_lo == 0) ||
-                   (num_indx_lo == AMREX_SPACEDIM && num_real_lo == 0) ||
-                   (num_indx_lo ==              0 && num_real_lo == 0)) )
+            AMREX_ALWAYS_ASSERT(num_real_lo == num_real_hi);
+            AMREX_ALWAYS_ASSERT(num_indx_lo == num_indx_hi);
+
+            if ( !((num_real_lo >= AMREX_SPACEDIM-1 && num_indx_lo == 0) ||
+                   (num_indx_lo >= AMREX_SPACEDIM-1 && num_real_lo == 0) ||
+                   (num_indx_lo ==              0   && num_real_lo == 0)) )
             {
                 amrex::Abort("Must only specify box for refinement using real OR index space");
             }
@@ -140,13 +183,17 @@ ERF::refinement_criteria_setup ()
                     const Real* plo = geom[lev_for_box].ProbLo();
                     const Real* phi = geom[lev_for_box].ProbHi();
 
-                    ppr.getarr("in_box_lo",rbox_lo,0,AMREX_SPACEDIM);
-                    ppr.getarr("in_box_hi",rbox_hi,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_lo",rbox_lo,0,num_real_lo);
+                    ppr.getarr("in_box_hi",rbox_hi,0,num_real_hi);
 
                     if (rbox_lo[0] < plo[0]) rbox_lo[0] = plo[0];
                     if (rbox_lo[1] < plo[1]) rbox_lo[1] = plo[1];
                     if (rbox_hi[0] > phi[0]) rbox_hi[0] = phi[0];
                     if (rbox_hi[1] > phi[1]) rbox_hi[1] = phi[1];
+                    if (num_real_lo < AMREX_SPACEDIM) {
+                        rbox_lo[2] = plo[2];
+                        rbox_hi[2] = phi[2];
+                    }
 
                     realbox = RealBox(&(rbox_lo[0]),&(rbox_hi[0]));
 
@@ -168,7 +215,7 @@ ERF::refinement_criteria_setup ()
                         klo = domain.smallEnd(2) - 1;
                         khi = domain.smallEnd(2) - 1;
 
-                        if (rbox_lo[2] < zlevels_stag[lev_for_box][domain.smallEnd(2)])
+                        if (rbox_lo[2] <= zlevels_stag[lev_for_box][domain.smallEnd(2)])
                         {
                             klo = domain.smallEnd(2);
                         }
@@ -183,7 +230,7 @@ ERF::refinement_criteria_setup ()
                         }
                         AMREX_ASSERT(klo >= domain.smallEnd(2));
 
-                        if (rbox_hi[2] > zlevels_stag[lev_for_box][domain.bigEnd(2)+1])
+                        if (rbox_hi[2] >= zlevels_stag[lev_for_box][domain.bigEnd(2)+1])
                         {
                             khi = domain.bigEnd(2);
                         }
@@ -223,7 +270,7 @@ ERF::refinement_criteria_setup ()
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
-                if (init_type == InitType::Real || init_type == InitType::Metgrid) {
+                if (solverChoice.init_type == InitType::WRFInput) {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
                         amrex::Error("Number of boxes doesn't match number of input files");
 
@@ -261,7 +308,7 @@ ERF::refinement_criteria_setup ()
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
-                if (init_type == InitType::Real || init_type == InitType::Metgrid) {
+                if (solverChoice.init_type == InitType::WRFInput) {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
                         amrex::Error("Number of boxes doesn't match number of input files");
 

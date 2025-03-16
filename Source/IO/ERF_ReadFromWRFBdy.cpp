@@ -52,7 +52,8 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
         // Read the time stamps
         using CharArray = NDArray<char>;
         Vector<CharArray> array_ts(1);
-        ReadNetCDFFile(nc_bdy_file, {"Times"}, array_ts);
+        Vector<int> success(1);
+        ReadNetCDFFile(nc_bdy_file, {"Times"}, array_ts, success);
 
         ntimes = array_ts[0].get_vshape()[0];
         auto dateStrLen = array_ts[0].get_vshape()[1];
@@ -70,6 +71,7 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
         for (int nt(0); nt < ntimes; nt++) {
             std::string date(&timeStamps[nt][0], &timeStamps[nt][dateStrLen-1]+1);
             auto epochTime = getEpochTime(date, dateTimeFormat);
+            Print() << "  wrfbdy datetime " << nt << " : " << date << " " << epochTime << std::endl;
             epochTimes.push_back(epochTime);
 
             if (nt == 1) {
@@ -118,16 +120,59 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
     if (ParallelDescriptor::IOProcessor())
     {
-        ReadNetCDFFile(nc_bdy_file, nc_var_names, arrays);
+        Vector<int> success(nc_var_names.size());
+
+#if 1
+        for (int itime=0; itime < ntimes; ++itime) {
+            Vector<RARRAY> tslice(nc_var_names.size());
+            ReadTimeSliceFromNetCDFFile(nc_bdy_file, itime, nc_var_names, tslice, success);
+
+            /*
+             * DEV TEST: Copy tslice into full array to verify result
+             */
+            for (int n=0; n < nc_var_names.size(); ++n) {
+                std::vector<size_t> vshape = tslice[n].get_vshape();
+                size_t offset{1};
+                for (auto &dim:vshape) offset *= dim;
+
+                Print() << "Time " << itime << " " << nc_var_names[n] << "(";
+                for (auto &dim:vshape)
+                    amrex::Print() << dim << ",";
+                Print() << ") offset=" << offset << std::endl;
+
+                if (itime==0) {
+                    // allocate full array
+                    vshape[0] = ntimes;
+                    arrays[n] = NDArray<float>(tslice[n].get_vname(), vshape);
+                }
+
+                float* fullPtr = arrays[n].get_data();
+                float* slicePtr = tslice[n].get_data();
+                std::copy(slicePtr, slicePtr+offset, fullPtr+itime*offset);
+            }
+        }
+
+        for (auto &istat:success) {
+            AMREX_ALWAYS_ASSERT(istat==1);
+        }
+
+        //for (int n=0; n < nc_var_names.size(); ++n) {
+        //    std::vector<size_t> shape = arrays[n].get_vshape();
+        //    Print() << "Read " << nc_var_names[n] << "(";
+        //    for (auto &dim:shape)
+        //        amrex::Print() << dim << ",";
+        //    Print() << ")" << std::endl;
+        //}
+#else
+        ReadNetCDFFile(nc_bdy_file, nc_var_names, arrays, success);
 
         // Assert that the data has the same number of time snapshots
         int itimes = static_cast<int>(arrays[0].get_vshape()[0]);
         AMREX_ALWAYS_ASSERT(itimes == ntimes);
+#endif
 
         // Width of the boundary region
         width = arrays[0].get_vshape()[1];
-
-        AMREX_ALWAYS_ASSERT(1 <= width && width <= 5);
     }
     ParallelDescriptor::Bcast(&width,1,ioproc);
 
@@ -512,103 +557,171 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 void
 convert_wrfbdy_data (const Box& domain,
                      Vector<Vector<FArrayBox>>& bdy_data,
-                     const FArrayBox& NC_MUB_fab,
-                     const FArrayBox& NC_C1H_fab,
-                     const FArrayBox& NC_C2H_fab,
-                     const FArrayBox& NC_xvel_fab,
-                     const FArrayBox& NC_yvel_fab,
-                     const FArrayBox& NC_theta_fab,
-                     const FArrayBox& NC_QVAPOR_fab)
+                     const MultiFab& mf_MUB,
+                     const MultiFab& mf_C1H,
+                     const MultiFab& mf_C2H,
+                     const MultiFab& xvel,
+                     const MultiFab& yvel,
+                     const MultiFab& cons,
+                     const Geometry& geom,
+                     const bool& use_moist)
 {
-    // These were filled from wrfinput
-    Array4<Real const> c1h_arr  = NC_C1H_fab.const_array();
-    Array4<Real const> c2h_arr  = NC_C2H_fab.const_array();
-    Array4<Real const> mub_arr  = NC_MUB_fab.const_array();
+    // Owner masks for parallel reduce sum
+    std::unique_ptr<iMultiFab> mask_c = OwnerMask(cons, geom.periodicity());
+    std::unique_ptr<iMultiFab> mask_u = OwnerMask(xvel, geom.periodicity());
+    std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
 
     int ntimes = bdy_data.size();
     for (int nt = 0; nt < ntimes; nt++)
     {
-        Array4<Real> bdy_u_arr  = bdy_data[nt][WRFBdyVars::U].array();  // This is face-centered
-        Array4<Real> bdy_v_arr  = bdy_data[nt][WRFBdyVars::V].array();
-        Array4<Real> bdy_t_arr  = bdy_data[nt][WRFBdyVars::T].array();
-        Array4<Real> bdy_qv_arr = bdy_data[nt][WRFBdyVars::QV].array();
-        Array4<Real> mu_arr     = bdy_data[nt][WRFBdyVars::MU].array(); // This is cell-centered
+        // Temporary bdy data structures for global reductions
+        int vsize = bdy_data[nt].size() - 2; // Don't do MU & PC
+        amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
+        for (int ivar(0); ivar < vsize; ++ivar) {
+            bdy_data_tmp[ivar].resize(bdy_data[nt][ivar].box(),1);
+            bdy_data_tmp[ivar].template setVal<RunOn::Device>(0.);
+        }
 
-        int ilo  = domain.smallEnd()[0];
-        int ihi  = domain.bigEnd()[0];
-        int jlo  = domain.smallEnd()[1];
-        int jhi  = domain.bigEnd()[1];
+        for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
+        {
+            Box tbx = mfi.tilebox();
+            Box xbx = mfi.nodaltilebox(0);
+            Box ybx = mfi.nodaltilebox(1);
+            const Box& bx_u  = (xbx & bdy_data[nt][WRFBdyVars::U].box());
+            const Box& bx_v  = (ybx & bdy_data[nt][WRFBdyVars::V].box());
+            const Box& bx_t  = (tbx & bdy_data[nt][WRFBdyVars::T].box());
+            const Box& bx_qv = (tbx & bdy_data[nt][WRFBdyVars::QV].box());
 
-        if (nt==0) {
-            bdy_data[0][WRFBdyVars::U].template  copy<RunOn::Device>(NC_xvel_fab);
-            bdy_data[0][WRFBdyVars::V].template  copy<RunOn::Device>(NC_yvel_fab);
-            bdy_data[0][WRFBdyVars::T].template  copy<RunOn::Device>(NC_theta_fab);
-            bdy_data[0][WRFBdyVars::QV].template copy<RunOn::Device>(NC_QVAPOR_fab);
-        } else {
-            // Define u velocity
-            const auto & bx_u  = bdy_data[0][WRFBdyVars::U].box();
-            ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real xmu;
-                if (i == ilo) {
-                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
-                } else if (i > ihi) {
-                    xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
-                } else {
-                    xmu = ( mu_arr(i,j,0) +  mu_arr(i-1,j,0)
-                           +mub_arr(i,j,0) + mub_arr(i-1,j,0)) * 0.5;
-                }
-                Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy = bdy_u_arr(i,j,k) / xmu_mult;
-                bdy_u_arr(i,j,k) = new_bdy;
-            });
+            // TMP BDY data
+            Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
+            Array4<Real> bdy_v_tmp  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
+            Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
+            Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
 
-            // Define v velocity
-            const auto & bx_v  = bdy_data[0][WRFBdyVars::V].box();
-            ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real xmu;
-                if (j == jlo) {
-                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
-                } else if (j > jhi) {
-                    xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
-                } else {
-                    xmu =  ( mu_arr(i,j,0) +  mu_arr(i,j-1,0)
-                            +mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * 0.5;
-                }
-                Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy = bdy_v_arr(i,j,k) / xmu_mult;
-                bdy_v_arr(i,j,k) = new_bdy;
-            });
+            // Mask data
+            const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
+            const Array4<const int>& mask_u_arr = mask_u->const_array(mfi);
+            const Array4<const int>& mask_v_arr = mask_v->const_array(mfi);
 
-            // Define theta
-            Real theta_ref = 300.;
-            const auto & bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
-            ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
-                Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy_Th = bdy_t_arr(i,j,k) / xmu_mult + theta_ref;
-                Real qv_fac = (1. + bdy_qv_arr(i,j,k) / 0.622 / xmu_mult);
-                new_bdy_Th /= qv_fac;
-                bdy_t_arr(i,j,k) = new_bdy_Th;
-                //if (nt == 0 and std::abs(rth_arr(i,j,k) - bdy_t_arr(i,j,k)) > 0.) {
-                //    Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << rth_arr(i,j,k) << " " << bdy_t_arr(i,j,k) <<
-                //             " " << std::abs(th_arr(i,j,k) - bdy_t_arr(i,j,k)) << std::endl;
-                //}
-            });
+            if (nt==0) {
+                const Array4<const Real>& xvel_fab = xvel.const_array(mfi);
+                const Array4<const Real>& yvel_fab = yvel.const_array(mfi);
+                const Array4<const Real>& cons_fab = cons.const_array(mfi);
 
-            // Define Qv
-            const auto & bx_qv = bdy_data[0][WRFBdyVars::QV].box();
-            ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
-                Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy_QV = bdy_qv_arr(i,j,k) / xmu_mult;
-                bdy_qv_arr(i,j,k) = new_bdy_QV;
-            });
+                // Define u velocity
+                ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (mask_u_arr(i,j,k)) { bdy_u_tmp(i,j,k) = xvel_fab(i,j,k); }
+                });
 
-        } // nt ==0
+                // Define v velocity
+                ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (mask_v_arr(i,j,k)) { bdy_v_tmp(i,j,k) = yvel_fab(i,j,k); }
+                });
+
+                // Define Qv & T
+                ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (mask_c_arr(i,j,k)) {
+                        bdy_t_tmp(i,j,k)  = cons_fab(i,j,k,RhoTheta_comp)/cons_fab(i,j,k,Rho_comp);
+                        bdy_qv_tmp(i,j,k) = (use_moist) ? cons_fab(i,j,k,RhoQ1_comp   )/cons_fab(i,j,k,Rho_comp) :
+                                                          0.0;
+                    }
+                });
+
+            } else {
+                // Populated from read wrfinput
+                Array4<Real const> c1h_arr  = mf_C1H.const_array(mfi);
+                Array4<Real const> c2h_arr  = mf_C2H.const_array(mfi);
+                Array4<Real const> mub_arr  = mf_MUB.const_array(mfi);
+
+                // BDY data
+                Array4<Real> bdy_u_arr  = bdy_data[nt][WRFBdyVars::U].array();  // This is x-face-centered
+                Array4<Real> bdy_v_arr  = bdy_data[nt][WRFBdyVars::V].array();  // This is y-face-centered
+                Array4<Real> bdy_t_arr  = bdy_data[nt][WRFBdyVars::T].array();  // This is cell-centered
+                Array4<Real> bdy_qv_arr = bdy_data[nt][WRFBdyVars::QV].array(); // This is cell-centered
+                Array4<Real> mu_arr     = bdy_data[nt][WRFBdyVars::MU].array(); // This is cell-centered
+
+                // Bounds limiting
+                int ilo  = domain.smallEnd()[0];
+                int ihi  = domain.bigEnd()[0];
+                int jlo  = domain.smallEnd()[1];
+                int jhi  = domain.bigEnd()[1];
+
+                // Define u velocity
+                ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (mask_u_arr(i,j,k)) {
+                        Real xmu;
+                        if (i == ilo) {
+                            xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
+                        } else if (i > ihi) {
+                            xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
+                        } else {
+                            xmu = (  mu_arr(i,j,0) +  mu_arr(i-1,j,0)
+                                  + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * 0.5;
+                        }
+                        Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                        Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult;
+                        bdy_u_tmp(i,j,k) = new_bdy;
+                    }
+                });
+
+                // Define v velocity
+                ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (mask_v_arr(i,j,k)) {
+                        Real xmu;
+                        if (j == jlo) {
+                            xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
+                        } else if (j > jhi) {
+                            xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
+                        } else {
+                            xmu =  (  mu_arr(i,j,0) +  mu_arr(i,j-1,0)
+                                   + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * 0.5;
+                        }
+                        Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                        Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;
+                        bdy_v_tmp(i,j,k) = new_bdy;
+                    }
+                });
+
+                // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
+                Real theta_ref = 300.;
+                ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (mask_c_arr(i,j,k)) {
+                        Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
+                        Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                        Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + theta_ref;
+                        Real qv_fac      = (1. + bdy_qv_arr(i,j,k) / 0.622 / xmu_mult);
+                        new_bdy_Th      /= qv_fac;
+                        bdy_t_tmp(i,j,k) = new_bdy_Th;
+                    }
+                });
+
+                // Define Qv
+                ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (mask_c_arr(i,j,k)) {
+                        Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
+                        Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                        Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
+                        bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : 0.;
+                    }
+                });
+
+            } // nt ==0
+        } // mfi
+
+        for (int ivar(0); ivar < vsize; ++ivar) {
+            amrex::ParallelAllReduce::Sum(bdy_data_tmp[ivar].dataPtr(),
+                                          bdy_data_tmp[ivar].size(),
+                                          ParallelContext::CommunicatorAll());
+            bdy_data[nt][ivar].template  copy<RunOn::Device>(bdy_data_tmp[ivar],0,0,1);
+        }
+
     } // ntimes
 }
 #endif // ERF_USE_NETCDF

@@ -9,7 +9,7 @@ Meshing
 
 The spatial discretization in ERF uses the classic Arakawa C-grid with
 scalar quantities at cell centers and normal velocities at cell faces.
-Simulations over complex topography use a terrain-following, height-based vertical coordinate.
+Simulations over complex topography have the option to use a terrain-following, height-based vertical coordinate.
 When terrain-following coordinates are used, the surface topography at nodes (cell corners)
 is specified either analytically or through parsing a text file; all metric terms derive from this quantity.
 

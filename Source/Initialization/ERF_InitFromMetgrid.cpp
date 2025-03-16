@@ -39,6 +39,13 @@ ERF::init_from_metgrid (int lev)
     if (real_width > real_set_width)
         AMREX_ALWAYS_ASSERT(real_width-real_set_width >= 3);
 
+    // Ensure a reasonable value for the order of the vertical interpolation scheme.
+    AMREX_ALWAYS_ASSERT(metgrid_order > 0 && metgrid_order <= 9);
+
+    // Odd behavior can occur if not using the surface and also omitting some near-surface levels.
+    if (metgrid_force_sfc_k > 0)
+        AMREX_ALWAYS_ASSERT(metgrid_use_sfc);
+
     // Size the SST and LANDMASK
       sst_lev[lev].resize(ntimes);
     lmask_lev[lev].resize(ntimes);
@@ -105,7 +112,7 @@ ERF::init_from_metgrid (int lev)
                           NC_ght_fab[itime],   NC_hgt_fab[itime],  NC_psfc_fab[itime],
                           NC_MSFU_fab[itime],  NC_MSFV_fab[itime], NC_MSFM_fab[itime],
                           NC_sst_fab[itime],   NC_LAT_fab[itime],  NC_LON_fab[itime],
-                          NC_lmask_iab[itime], Latitude,           Longitude,         geom[lev]);
+                          NC_lmask_iab[itime], geom[lev]);
     } // itime
 
     // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
@@ -143,7 +150,7 @@ ERF::init_from_metgrid (int lev)
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag[lev], phys_bc_type);
+    make_terrain_fitted_coords(lev, geom[lev], *z_phys, zlevels_stag[lev], phys_bc_type);
 
     // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();
@@ -408,10 +415,13 @@ ERF::init_from_metgrid (int lev)
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+    MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
+
     for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         FArrayBox&     p_hse_fab = p_hse[mfi];
         FArrayBox&    pi_hse_fab = pi_hse[mfi];
         FArrayBox&    th_hse_fab = th_hse[mfi];
+        FArrayBox&    qv_hse_fab = qv_hse[mfi];
         FArrayBox&     r_hse_fab = r_hse[mfi];
         FArrayBox&      cons_fab = lev_new[Vars::cons][mfi];
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
@@ -422,17 +432,20 @@ ERF::init_from_metgrid (int lev)
         //     r_hse     calculate moist hydrostatic density
         //     pi_hse    calculate Exner term given pressure
         //     th_hse    calculate potential temperature
+        //     qv_hse    calculate qv
         const Box valid_bx = mfi.validbox();
         init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc, l_rdOcp,
                                      valid_bx, flag_psfc,
                                      cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
-                                     z_phys_nd_fab, NC_psfc_fab);
+                                     qv_hse_fab, z_phys_nd_fab, NC_psfc_fab);
     } // mf
 
     // FillBoundary to populate the internal halo cells
      r_hse.FillBoundary(geom[lev].periodicity());
      p_hse.FillBoundary(geom[lev].periodicity());
     pi_hse.FillBoundary(geom[lev].periodicity());
+    th_hse.FillBoundary(geom[lev].periodicity());
+    qv_hse.FillBoundary(geom[lev].periodicity());
 
     // NOTE: fabs_for_bcs is defined over the whole domain on each rank.
     //       However, the operations needed to define the data on the ERF
@@ -988,6 +1001,7 @@ init_state_from_metgrid (const bool use_moisture,
  * @param p_hse_fab FArrayBox holding the hydrostatic base state pressure we are initializing
  * @param pi_hse_fab FArrayBox holding the hydrostatic base Exner pressure we are initializing
  * @param th_hse_fab FArrayBox holding the base state potential temperature we are initializing
+ * @param qv_hse_fab FArrayBox holding the base state qv we are initializing
  * @param z_phys_nd_fab FArrayBox holding nodal z coordinate data for terrain
  * @param NC_psfc_fab Vector of FArrayBox objects holding metgrid data for surface pressure
  * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
@@ -1004,6 +1018,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& p_hse_fab,
                               FArrayBox& pi_hse_fab,
                               FArrayBox& th_hse_fab,
+                              FArrayBox& qv_hse_fab,
                               FArrayBox& z_phys_cc_fab,
                               const Vector<FArrayBox>& NC_psfc_fab)
 {
@@ -1039,6 +1054,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();
         const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
         const Array4<Real>& th_hse_arr = th_hse_fab.array();
+        const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
         auto psfc_flag = flag_psfc_vec[0];
 
         // ********************************************************
@@ -1089,8 +1105,9 @@ init_base_state_from_metgrid (const bool use_moisture,
                     if (p_lo < 0.0) p_lo = 0.0;
                     rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
                 } // it
-                p_hse_arr(i,j,0) =  p_lo;
-                r_hse_arr(i,j,0) = rd_lo;
+                 p_hse_arr(i,j,0) =  p_lo;
+                 r_hse_arr(i,j,0) = rd_lo;
+                qv_hse_arr(i,j,0) = qv_lo;
             }
 
             // Iterations for k \in [1 kmax]
@@ -1155,7 +1172,8 @@ init_base_state_from_metgrid (const bool use_moisture,
             r_hse_arr(i,j,k) *= (1.0 + Qv);
 
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-            th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k)) / r_hse_arr(i,j,k);
+            th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), Qv) / new_data(i,j,k,Rho_comp);
+            qv_hse_arr(i,j,k) = Qv;
         });
 
         // FOEXTRAP hse arrays to fill ghost cells. FillBoundary is
@@ -1171,6 +1189,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             p_hse_arr(i,j,k) =  p_hse_arr(i+1,jj,k);
             pi_hse_arr(i,j,k) = pi_hse_arr(i+1,jj,k);
             th_hse_arr(i,j,k) = th_hse_arr(i+1,jj,k);
+            qv_hse_arr(i,j,k) = qv_hse_arr(i+1,jj,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -1180,6 +1199,7 @@ init_base_state_from_metgrid (const bool use_moisture,
              p_hse_arr(i,j,k) =  p_hse_arr(i-1,jj,k);
             pi_hse_arr(i,j,k) = pi_hse_arr(i-1,jj,k);
             th_hse_arr(i,j,k) = th_hse_arr(i-1,jj,k);
+            qv_hse_arr(i,j,k) = qv_hse_arr(i-1,jj,k);
         });
         ParallelFor(gvbx_ylo, gvbx_yhi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -1188,6 +1208,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             p_hse_arr(i,j,k) =  p_hse_arr(i,j+1,k);
             pi_hse_arr(i,j,k) = pi_hse_arr(i,j+1,k);
             th_hse_arr(i,j,k) = th_hse_arr(i,j+1,k);
+            qv_hse_arr(i,j,k) = qv_hse_arr(i,j+1,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -1195,6 +1216,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             p_hse_arr(i,j,k) =  p_hse_arr(i,j-1,k);
             pi_hse_arr(i,j,k) = pi_hse_arr(i,j-1,k);
             th_hse_arr(i,j,k) = th_hse_arr(i,j-1,k);
+            qv_hse_arr(i,j,k) = qv_hse_arr(i,j-1,k);
         });
         ParallelFor(gvbx_zlo, gvbx_zhi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -1203,6 +1225,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             p_hse_arr(i,j,k) =  p_hse_arr(i,j,k+1);
             pi_hse_arr(i,j,k) = pi_hse_arr(i,j,k+1);
             th_hse_arr(i,j,k) = th_hse_arr(i,j,k+1);
+            qv_hse_arr(i,j,k) = qv_hse_arr(i,j,k+1);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -1210,6 +1233,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             p_hse_arr(i,j,k) =  p_hse_arr(i,j,k-1);
             pi_hse_arr(i,j,k) = pi_hse_arr(i,j,k-1);
             th_hse_arr(i,j,k) = th_hse_arr(i,j,k-1);
+            qv_hse_arr(i,j,k) = qv_hse_arr(i,j,k+1);
         });
     }
 }

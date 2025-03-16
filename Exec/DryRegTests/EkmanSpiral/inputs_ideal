@@ -41,9 +41,9 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "Constant"
-erf.dynamicViscosity = 5.0
+erf.les_type          = "None"
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 5.0
 
 erf.use_coriolis = true
 erf.abl_driver_type = "GeostrophicWind"
@@ -55,6 +55,9 @@ erf.rotational_time_period = 86164.0900027328
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
 
-# INITIALIZATION WITH ATM DATA
-erf.init_type = "ideal"
+# INITIALIZATION 
+erf.init_type      = WRFInput
+erf.terrain_type   = StaticFittedMesh
+erf.moisture_model = SatAdj
+
 erf.nc_init_file_0 = "wrfinput_ekman_d01"

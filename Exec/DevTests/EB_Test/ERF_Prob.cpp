@@ -82,6 +82,8 @@ Problem::init_custom_pert(
 
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
+    AMREX_ALWAYS_ASSERT(sc.terrain_type == TerrainType::EB);
+
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     // ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -171,11 +173,7 @@ Problem::init_custom_pert(
     // Set the z-velocity from impenetrable condition
     ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-#ifdef ERF_USE_EB
         z_vel_pert(i, j, k) = 0.0;
-#else
-        z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel_pert, y_vel_pert, z_nd, dxInv);
-#endif
     });
 
     amrex::Gpu::streamSynchronize();
@@ -189,7 +187,7 @@ Problem::init_custom_pert(
     */
     void
     Problem::init_custom_terrain (const amrex::Geometry& geom,
-                                  amrex::FArrayBox& z_phys_nd,
+                                  amrex::FArrayBox& terrain_fab,
                                   const amrex::Real& /*time*/)
     {
         // Bottom of domain
@@ -209,11 +207,9 @@ Problem::init_custom_pert(
         Real num  = 8.11 * a * a * a;
         Real xcen = 0.5 * (prob_lo[0] + prob_hi[0]);
 
-        // Grown box with no z range
-        amrex::Box bx = z_phys_nd.box();
-        bx.setRange(2,0);
+        amrex::Box bx = terrain_fab.box();
 
-        amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array();
+        amrex::Array4<amrex::Real> const& z_arr = terrain_fab.array();
 
         Real x_in = (-xcen);
         Real height_at_inflow = num / (x_in * x_in + 4.0 * a * a);
@@ -230,6 +226,6 @@ Problem::init_custom_pert(
             Real height = num / (x*x + 4.0 * a * a);
 
             // Populate terrain height
-            z_arr(i,j,k0) = height - height_at_inflow;
+            z_arr(i,j,k0) = amrex::max( height - height_at_inflow + 1.e-4, 1.e-4 );
         });
     }
