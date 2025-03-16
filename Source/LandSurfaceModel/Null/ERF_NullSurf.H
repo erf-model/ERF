@@ -27,7 +27,7 @@ class NullSurf {
 
     virtual
     void
-    Advance (const int& lev,
+    Advance (const int& /*lev*/,
              amrex::MultiFab& /*cons_in*/,
              amrex::MultiFab& /*xvel_in*/,
              amrex::MultiFab& /*yvel_in*/,
