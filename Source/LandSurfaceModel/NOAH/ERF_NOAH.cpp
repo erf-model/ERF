@@ -202,7 +202,7 @@ NOAH::Advance (const int& lev,
 
        // Call the noahmpio driver code. This runs the land model forcing for
        // each object in noahmpio_vect that represent a block in the domain.
-       NoahmpDriverMain(&noahmpio);
+       NoahmpDriverMain(noahmpio);
 
        // Copy forcing data from Noahmp to ERF
        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
