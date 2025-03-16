@@ -59,8 +59,8 @@ public:
              amrex::MultiFab& cons_in,
              amrex::MultiFab& xvel_in,
              amrex::MultiFab& yvel_in,
-             std::unique_ptr<amrex::MultiFab>& hfx3_in,
-             std::unique_ptr<amrex::MultiFab>& qfx3_in,
+             amrex::MultiFab* hfx3_out,
+             amrex::MultiFab* qfx3_out,
              const amrex::Real& dt) override;
 
     // Get state vars from lsm class

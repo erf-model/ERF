@@ -53,11 +53,11 @@ public:
              amrex::MultiFab& cons_in,
              amrex::MultiFab& xvel_in,
              amrex::MultiFab& yvel_in,
-             std::unique_ptr<amrex::MultiFab>& hfx3_in,
-             std::unique_ptr<amrex::MultiFab>& qfx3_in,
+             amrex::MultiFab* hfx3_out,
+             amrex::MultiFab* qfx3_out,
              const amrex::Real& dt_advance)
     {
-        m_lsm_model[lev]->Advance(lev, cons_in, xvel_in, yvel_in, hfx3_in, qfx3_in, dt_advance);
+        m_lsm_model[lev]->Advance(lev, cons_in, xvel_in, yvel_in, hfx3_out, qfx3_out, dt_advance);
     }
 
     void

@@ -146,7 +146,7 @@ NOAH::Init (const MultiFab& cons_in,
         // and headers from the NetCDF land file
         NoahmpIOVarInitDefault(&noahmpio);
 
-        // This reads NoahmpTable.TBL file which another input file
+        // This reads NoahmpTable.TBL file which is another input file
         // we need to set some IO variables.
         NoahmpReadTable(&noahmpio);
 
@@ -172,11 +172,12 @@ NOAH::Advance (const int& lev,
                MultiFab& cons_in,
                MultiFab& xvel_in,
                MultiFab& yvel_in,
-               std::unique_ptr<MultiFab>& hfx3_in,
-               std::unique_ptr<MultiFab>& qfx3_in,
+               MultiFab* hfx3_out,
+               MultiFab* qfx3_out,
                const amrex::Real& dt) {
 
-    // Loop over blocks to copy forcing data from ERF to Noahmp.
+    // Loop over blocks to copy forcing data to Noahmp, drive the land model,
+    // and copy data back to ERF Multifabs.
     //
     // TODO: Logic needs to be implement to only loop over blocks that
     //       are aligned with lower boundary in z direction
@@ -189,33 +190,21 @@ NOAH::Advance (const int& lev,
        const amrex::Array4<const Real>& U_PHY = xvel_in.array(mfi);
        const amrex::Array4<const Real>& V_PHY = yvel_in.array(mfi);
 
+       amrex::Array4<Real> SHBXY = hfx3_out->array(mfi);
+       amrex::Array4<Real> EVBXY = qfx3_out->array(mfi);
+
+       // Copy forcing data from ERF to Noahmp.
        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
        {
           noahmpio->U_PHY(i,0,j) = U_PHY(i,j,0);
           noahmpio->V_PHY(i,0,j) = V_PHY(i,j,0);
        });
-    }
 
-    // Call the noahmpio driver code. This runs the land model forcing
-    // for each object in noahmpio_vect that represent a block in the
-    // domain.
-    for (auto& noahmpio: noahmpio_vect) {
+       // Call the noahmpio driver code. This runs the land model forcing for
+       // each object in noahmpio_vect that represent a block in the domain.
        NoahmpDriverMain(&noahmpio);
-    }
 
-    // Loop over blocks to copy forcing data from Noahmp to ERF
-    //
-    // TODO: Logic needs to be implement to only loop over blocks that
-    //       are aligned with lower boundary in z direction
-    idb = 0;
-    for (amrex::MFIter mfi(*hfx3_in, false); mfi.isValid(); ++mfi, ++idb) {
-
-       NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
-       const amrex::Box& bx = mfi.tilebox();
-
-       amrex::Array4<Real> SHBXY = hfx3_in->array(mfi);
-       amrex::Array4<Real> EVBXY = qfx3_in->array(mfi);
-
+       // Copy forcing data from Noahmp to ERF
        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
        {
             SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
