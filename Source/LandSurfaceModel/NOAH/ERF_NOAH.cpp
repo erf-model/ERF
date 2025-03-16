@@ -187,11 +187,11 @@ NOAH::Advance (const int& lev,
        NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
        const amrex::Box& bx = mfi.tilebox();
 
-       const amrex::Array4<const Real>& U_PHY = xvel_in.array(mfi);
-       const amrex::Array4<const Real>& V_PHY = yvel_in.array(mfi);
+       const amrex::Array4<const amrex::Real>& U_PHY = xvel_in.array(mfi);
+       const amrex::Array4<const amrex::Real>& V_PHY = yvel_in.array(mfi);
 
-       amrex::Array4<Real> SHBXY = hfx3_out->array(mfi);
-       amrex::Array4<Real> EVBXY = qfx3_out->array(mfi);
+       amrex::Array4<amrex::Real> SHBXY = hfx3_out->array(mfi);
+       amrex::Array4<amrex::Real> EVBXY = qfx3_out->array(mfi);
 
        // Copy forcing data from ERF to Noahmp.
        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
