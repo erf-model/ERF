@@ -77,7 +77,7 @@ NOAH::Init (const MultiFab& cons_in,
     amrex::Print() << "NoahmpIO: Initializing" << std::endl;
 
     // Set noahmpio_vect to the size of local blocks (boxes)
-
+    //
     // TODO: Logic needs to be implemented to only allocate
     //       noahmpio object if a block is aligned at the lower
     //       boundary in z direction
@@ -86,7 +86,7 @@ NOAH::Init (const MultiFab& cons_in,
     // Iterate over multifab and noahmpio object together. Multifabs
     // is used to extract size of blocks and set bounds for noahmpio
     // objects.
-
+    //
     // TODO: Logic needs to be implement to only loop over blocks that
     //       are aligned with lower boundary in z direction
     int idb = 0;
@@ -141,16 +141,6 @@ NOAH::Init (const MultiFab& cons_in,
         noahmpio.kms = 0;
         noahmpio.kme = 0;
 
-        amrex::Print() << "XSTART: "<< noahmpio.xstart << std::endl;
-        amrex::Print() << "XEND: "<< noahmpio.xend << std::endl;
-        amrex::Print() << "YSTART: "<< noahmpio.ystart << std::endl;
-        amrex::Print() << "YEND: "<< noahmpio.yend << std::endl;
-        amrex::Print() << "NSOIL: "<< noahmpio.nsoil << std::endl;
-        amrex::Print() << "NSNOW: "<< noahmpio.nsnow << std::endl;
-        amrex::Print() << "LLANDUSE: "<< noahmpio.llanduse << std::endl;
-        amrex::Print() << "KDS: "<< noahmpio.kds << std::endl;
-        amrex::Print() << "KDE: "<< noahmpio.kde << std::endl;
-
         // This procedure allocates memory in Fortran for IO variables
         // using bounds that are set above and read from namelist.erf
         // and headers from the NetCDF land file
@@ -182,12 +172,12 @@ NOAH::Advance (const int& lev,
                MultiFab& cons_in,
                MultiFab& xvel_in,
                MultiFab& yvel_in,
-               MultiFab& hfx3_in,
-               MultiFab& qfx3_in,
+               std::unique_ptr<MultiFab>& hfx3_in,
+               std::unique_ptr<MultiFab>& qfx3_in,
                const amrex::Real& dt) {
 
     // Loop over blocks to copy forcing data from ERF to Noahmp.
-
+    //
     // TODO: Logic needs to be implement to only loop over blocks that
     //       are aligned with lower boundary in z direction
     int idb = 0;
@@ -208,31 +198,28 @@ NOAH::Advance (const int& lev,
 
     // Call the noahmpio driver code. This runs the land model forcing
     // for each object in noahmpio_vect that represent a block in the
-    // doomain.
-    /*
+    // domain.
     for (auto& noahmpio: noahmpio_vect) {
        NoahmpDriverMain(&noahmpio);
     }
-    */
 
     // Loop over blocks to copy forcing data from Noahmp to ERF
-
+    //
     // TODO: Logic needs to be implement to only loop over blocks that
     //       are aligned with lower boundary in z direction
-    /*idb = 0;
-    for (amrex::MFIter mfi(hfx3_in, false); mfi.isValid(); ++mfi, ++idb) {
+    idb = 0;
+    for (amrex::MFIter mfi(*hfx3_in, false); mfi.isValid(); ++mfi, ++idb) {
 
        NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
        const amrex::Box& bx = mfi.tilebox();
 
-       //amrex::Array4<Real> SHBXY = hfx3_in.array(mfi);
-       //amrex::Array4<Real> EVBXY = qfx3_in.array(mfi);
+       amrex::Array4<Real> SHBXY = hfx3_in->array(mfi);
+       amrex::Array4<Real> EVBXY = qfx3_in->array(mfi);
 
        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
        {
-            //SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
-            //EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
+            SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
+            EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
        });
     }
-   */
 };
