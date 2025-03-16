@@ -29,7 +29,7 @@ NOAH::Init (const MultiFab& cons_in,
     LsmVarName = {"theta"};
 
 
-    // NOTE: lsm data is not used for Noahmp, however, the intialization is done
+    // NOTE: lsm data is not used for Noahmp, however, the initialization is done
     //       to maintin consistency with IO and Driver interfaces that depend on
     //       this data. We eventually want to tweak those interfaces so we don't
     //       have to allocate lsm_data while using Noahmp lsm.
@@ -72,7 +72,7 @@ NOAH::Init (const MultiFab& cons_in,
     }
 
     // NOTE: Actual NoahmpIO interface that is relevant for the
-    //       implemenation of this lsm
+    //       implementation of this lsm
 
     amrex::Print() << "NoahmpIO: Initializing" << std::endl;
 
@@ -99,7 +99,7 @@ NOAH::Init (const MultiFab& cons_in,
 
         // Read namelist.erf file. This file contains
         // noahmpio specific parameters and is read by
-        // the Fortran side of the implemenation.
+        // the Fortran side of the implementation.
         NoahmpReadNamelist(&noahmpio);
 
         // Read the headers from the NetCDF land file.
@@ -111,7 +111,7 @@ NOAH::Init (const MultiFab& cons_in,
         // noahmpio variables. At present we will set all the variables
         // corresponding to domain, memory, and tile to the same bounds.
         // This will be changed later if we want to do special memory
-        // managment for expensive use cases.
+        // management for expensive use cases.
         noahmpio.xstart = bx.smallEnd(0);
         noahmpio.xend = bx.bigEnd(0);
         noahmpio.ystart = bx.smallEnd(1);
@@ -158,7 +158,7 @@ NOAH::Init (const MultiFab& cons_in,
         //       that logic must be transferred to this implementation.
         NoahmpReadLandMain(&noahmpio);
 
-        // Compute additional intial values that were not supplied
+        // Compute additional initial values that were not supplied
         // by the NetCDF land file.
         NoahmpInitMain(&noahmpio);
 
