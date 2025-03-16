@@ -3,10 +3,18 @@
 using namespace amrex;
 
 void ERF::advance_lsm (int lev,
-                       MultiFab& /*cons*/,
+                       MultiFab& cons_in,
+                       MultiFab& xvel_in,
+                       MultiFab& yvel_in,
                        const Real& dt_advance)
 {
     if (solverChoice.lsm_type != LandSurfaceType::None) {
-        lsm.Advance(lev, dt_advance);
+        if (solverChoice.lsm_type == LandSurfaceType::NOAH) {
+            MultiFab& hfx3_in = *SFS_hfx3_lev[lev];
+            MultiFab& qfx3_in = *SFS_q1fx3_lev[lev];
+            lsm.Advance(lev, cons_in, xvel_in, yvel_in, hfx3_in, qfx3_in, dt_advance);
+        } else {
+            lsm.Advance(lev, dt_advance);
+        }
     }
 }

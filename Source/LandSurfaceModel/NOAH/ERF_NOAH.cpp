@@ -1,8 +1,11 @@
 
 #include<iostream>
+#include<string>
 
+#include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <ERF_NOAH.H>
+#include <ERF.H>
 
 using namespace amrex;
 
@@ -12,41 +15,224 @@ NOAH::Init (const MultiFab& cons_in,
             const Geometry& geom,
             const Real& dt)
 {
-    // Initialize Noahmp IO
-    amrex::Print() << "Initializing Noahmp IO" << std::endl;
 
+    m_dt = dt;
+    m_geom = geom;
+
+    Box domain = geom.Domain();
+    khi_lsm    = domain.smallEnd(2) - 1;
+
+    LsmVarMap.resize(m_lsm_size);
+    LsmVarMap = {LsmVar_NOAH::theta};
+
+    LsmVarName.resize(m_lsm_size);
+    LsmVarName = {"theta"};
+
+
+    // NOTE: lsm data is not used for Noahmp, however, the intialization is done
+    //       to maintin consistency with IO and Driver interfaces that depend on
+    //       this data. We eventually want to tweak those interfaces so we don't
+    //       have to allocate lsm_data while using Noahmp lsm.
+
+    // NOTE: All boxes in ba extend from zlo to zhi, so this transform is valid.
+    //       If that were to change, the dm and new ba are no longer valid and
+    //       direct copying between lsm data/flux vars cannot be done in a parfor.
+
+    // Set box array for lsm data
+    IntVect ng(0,0,1);
+    BoxArray ba = cons_in.boxArray();
+    DistributionMapping dm = cons_in.DistributionMap();
+    BoxList bl_lsm = ba.boxList();
+    for (auto& b : bl_lsm) {
+        b.setBig(2,khi_lsm);                  // First point below the surface
+        b.setSmall(2,khi_lsm - m_nz_lsm + 1); // Last point below the surface
+    }
+    BoxArray ba_lsm(std::move(bl_lsm));
+
+    // Set up lsm geometry
+    const RealBox& dom_rb = m_geom.ProbDomain();
+    const Real*    dom_dx = m_geom.CellSize();
+    RealBox lsm_rb = dom_rb;
+    Real lsm_dx[AMREX_SPACEDIM] = {AMREX_D_DECL(dom_dx[0],dom_dx[1],m_dz_lsm)};
+    Real lsm_z_hi = dom_rb.lo(2);
+    Real lsm_z_lo = lsm_z_hi - Real(m_nz_lsm)*lsm_dx[2];
+    lsm_rb.setHi(2,lsm_z_hi); lsm_rb.setLo(2,lsm_z_lo);
+    m_lsm_geom.define( ba_lsm.minimalBox(), lsm_rb, m_geom.Coord(), m_geom.isPeriodic() );
+
+    // Create the data and fluxes
+    for (auto ivar = 0; ivar < LsmVar_NOAH::NumVars; ++ivar) {
+        // State vars are CC
+        Real theta_0 = m_theta_dir;
+        lsm_fab_vars[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
+        lsm_fab_vars[ivar]->setVal(theta_0);
+
+        // Fluxes are nodal in z
+        lsm_fab_flux[ivar] = std::make_shared<MultiFab>(convert(ba_lsm, IntVect(0,0,1)), dm, 1, IntVect(0,0,0));
+        lsm_fab_flux[ivar]->setVal(0.);
+    }
+
+    // NOTE: Actual NoahmpIO interface that is relevant for the
+    //       implemenation of this lsm
+
+    amrex::Print() << "NoahmpIO: Initializing" << std::endl;
+
+    // Set noahmpio_vect to the size of local blocks (boxes)
+
+    // TODO: Logic needs to be implemented to only allocate
+    //       noahmpio object if a block is aligned at the lower
+    //       boundary in z direction
+    noahmpio_vect.resize(cons_in.local_size());
+
+    // Iterate over multifab and noahmpio object together. Multifabs
+    // is used to extract size of blocks and set bounds for noahmpio
+    // objects.
+
+    // TODO: Logic needs to be implement to only loop over blocks that
+    //       are aligned with lower boundary in z direction
+    int idb = 0;
+    for (amrex::MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
+
+        // Get bounds for the tile and the reference to its
+        // corresponding noahmpio object
+        const amrex::Box& bx = mfi.tilebox();
+        NoahmpIO_type& noahmpio = noahmpio_vect[idb];
+
+        // Read namelist.erf file. This file contains
+        // noahmpio specific parameters and is read by
+        // the Fortran side of the implemenation.
+        NoahmpReadNamelist(&noahmpio);
+
+        // Read the headers from the NetCDF land file.
+        // This is also implemented on the Fortran side of
+        // things currently.
+        NoahmpReadLandHeader(&noahmpio);
+
+        // Extract tile bounds and set them to their corresponding
+        // noahmpio variables. At present we will set all the variables
+        // corresponding to domain, memory, and tile to the same bounds.
+        // This will be changed later if we want to do special memory
+        // managment for expensive use cases.
+        noahmpio.xstart = bx.smallEnd(0);
+        noahmpio.xend = bx.bigEnd(0);
+        noahmpio.ystart = bx.smallEnd(1);
+        noahmpio.yend = bx.bigEnd(1);
+
+        // Domain bounds
+        noahmpio.ids = noahmpio.xstart;
+        noahmpio.ide = noahmpio.xend;
+        noahmpio.jds = noahmpio.ystart;
+        noahmpio.jde = noahmpio.yend;
+        noahmpio.kds = 0;
+        noahmpio.kde = 0;
+
+        // Tile bounds
+        noahmpio.its = noahmpio.xstart;
+        noahmpio.ite = noahmpio.xend;
+        noahmpio.jts = noahmpio.ystart;
+        noahmpio.jte = noahmpio.yend;
+        noahmpio.kts = 0;
+        noahmpio.kte = 0;
+
+        // Memory bounds
+        noahmpio.ims = noahmpio.xstart;
+        noahmpio.ime = noahmpio.xend;
+        noahmpio.jms = noahmpio.ystart;
+        noahmpio.jme = noahmpio.yend;
+        noahmpio.kms = 0;
+        noahmpio.kme = 0;
+
+        amrex::Print() << "XSTART: "<< noahmpio.xstart << std::endl;
+        amrex::Print() << "XEND: "<< noahmpio.xend << std::endl;
+        amrex::Print() << "YSTART: "<< noahmpio.ystart << std::endl;
+        amrex::Print() << "YEND: "<< noahmpio.yend << std::endl;
+        amrex::Print() << "NSOIL: "<< noahmpio.nsoil << std::endl;
+        amrex::Print() << "NSNOW: "<< noahmpio.nsnow << std::endl;
+        amrex::Print() << "LLANDUSE: "<< noahmpio.llanduse << std::endl;
+        amrex::Print() << "KDS: "<< noahmpio.kds << std::endl;
+        amrex::Print() << "KDE: "<< noahmpio.kde << std::endl;
+
+        // This procedure allocates memory in Fortran for IO variables
+        // using bounds that are set above and read from namelist.erf
+        // and headers from the NetCDF land file
+        NoahmpIOVarInitDefault(&noahmpio);
+
+        // This reads NoahmpTable.TBL file which another input file
+        // we need to set some IO variables.
+        NoahmpReadTable(&noahmpio);
+
+        // Read and initialize data from the NetCDF land file.
+        // TODO: This is currently implemented in Fortran
+        //       but needs redesigning to support nblocks > 1.
+        //       If the land file should be read in parallel
+        //       by different blocks representing different map areas,
+        //       that logic must be transferred to this implementation.
+        NoahmpReadLandMain(&noahmpio);
+
+        // Compute additional intial values that were not supplied
+        // by the NetCDF land file.
+        NoahmpInitMain(&noahmpio);
+
+        amrex::Print() << "NoahmpIO: Initialized" << std::endl;
+  }
+
+};
+
+void
+NOAH::Advance (const int& lev,
+               MultiFab& cons_in,
+               MultiFab& xvel_in,
+               MultiFab& yvel_in,
+               MultiFab& hfx3_in,
+               MultiFab& qfx3_in,
+               const amrex::Real& dt) {
+
+    // Loop over blocks to copy forcing data from ERF to Noahmp.
+
+    // TODO: Logic needs to be implement to only loop over blocks that
+    //       are aligned with lower boundary in z direction
+    int idb = 0;
+    for (amrex::MFIter mfi(xvel_in, false); mfi.isValid(); ++mfi, ++idb) {
+
+       NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
+       const amrex::Box& bx = mfi.tilebox();
+
+       const amrex::Array4<const Real>& U_PHY = xvel_in.array(mfi);
+       const amrex::Array4<const Real>& V_PHY = yvel_in.array(mfi);
+
+       ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+       {
+          noahmpio->U_PHY(i,0,j) = U_PHY(i,j,0);
+          noahmpio->V_PHY(i,0,j) = V_PHY(i,j,0);
+       });
+    }
+
+    // Call the noahmpio driver code. This runs the land model forcing
+    // for each object in noahmpio_vect that represent a block in the
+    // doomain.
     /*
-     * noahmpio.xstart = 1;
-     * noahmpio.xend = 4;
-     * noahmpio.ystart = 1;
-     * noahmpio.yend = 2;
-     * noahmpio.nsoil = 1;
-     * noahmpio.nsnow = 3;
-     *
-     * noahmpio.ids = 1;
-     * noahmpio.ide = 1;
-     * noahmpio.ims = 1;
-     * noahmpio.ime = 1;
-     * noahmpio.its = 1;
-     * noahmpio.ite = 1;
-     *
-     * noahmpio.jds = 1;
-     * noahmpio.jde = 1;
-     * noahmpio.jms = 1;
-     * noahmpio.jme = 1;
-     * noahmpio.jts = 1;
-     * noahmpio.jte = 1;
-     *
-     * noahmpio.kds = 1;
-     * noahmpio.kde = 1;
-     * noahmpio.kms = 1;
-     * noahmpio.kme = 1;
-     * noahmpio.kts = 1;
-     * noahmpio.kte = 1;
-     */
+    for (auto& noahmpio: noahmpio_vect) {
+       NoahmpDriverMain(&noahmpio);
+    }
+    */
 
-    NoahmpIOVarInitDefault(&noahmpio);
-    NoahmpInitMain(&noahmpio);
+    // Loop over blocks to copy forcing data from Noahmp to ERF
 
-    amrex::Print() << "Noahmp IO Initialized" << std::endl;
+    // TODO: Logic needs to be implement to only loop over blocks that
+    //       are aligned with lower boundary in z direction
+    /*idb = 0;
+    for (amrex::MFIter mfi(hfx3_in, false); mfi.isValid(); ++mfi, ++idb) {
+
+       NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
+       const amrex::Box& bx = mfi.tilebox();
+
+       //amrex::Array4<Real> SHBXY = hfx3_in.array(mfi);
+       //amrex::Array4<Real> EVBXY = qfx3_in.array(mfi);
+
+       ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+       {
+            //SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
+            //EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
+       });
+    }
+   */
 };

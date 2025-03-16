@@ -2,6 +2,7 @@
 #define ERF_LANDSURFACE_H
 
 #include <AMReX_PlotFileUtil.H>
+#include <AMReX_MultiFabUtil.H>
 
 #include <ERF_NullSurf.H>
 #include <ERF_SLM.H>
@@ -45,6 +46,18 @@ public:
           const amrex::Real& dt_advance)
     {
         m_lsm_model[lev]->Init(cons_in, geom, dt_advance);
+    }
+
+    void
+    Advance (const int& lev,
+             amrex::MultiFab& cons_in,
+             amrex::MultiFab& xvel_in,
+             amrex::MultiFab& yvel_in,
+             amrex::MultiFab& hfx3_in,
+             amrex::MultiFab& qfx3_in,
+             const amrex::Real& dt_advance)
+    {
+        m_lsm_model[lev]->Advance(lev, cons_in, xvel_in, yvel_in, hfx3_in, qfx3_in, dt_advance);
     }
 
     void
