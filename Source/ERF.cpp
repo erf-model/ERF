@@ -344,10 +344,14 @@ ERF::ERF_shared ()
     // Size lat long arrays if using netcdf
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);
+    sinPhi_m.resize(nlevs_max);
+    cosPhi_m.resize(nlevs_max);
     for (int lev = 0; lev < max_level; ++lev)
     {
         lat_m[lev] = nullptr;
         lon_m[lev] = nullptr;
+        sinPhi_m[lev] = nullptr;
+        cosPhi_m[lev] = nullptr;
     }
 #endif
 
