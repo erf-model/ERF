@@ -1588,19 +1588,18 @@ ERF::ReadParameters ()
 
         // NetCDF wrfinput initialization files -- possibly multiple files at each of multiple levels
         //        but we always have exactly one file at level 0
-        for (int lev = 0; lev <= max_level; lev++)
-        {
+        for (int lev = 0; lev <= max_level; lev++) {
             const std::string nc_file_names = Concatenate("nc_init_file_",lev,1);
-            if (pp.contains(nc_file_names.c_str()))
-            {
+            if (pp.contains(nc_file_names.c_str())) {
                 int num_files = pp.countval(nc_file_names.c_str());
                 num_files_at_level[lev] = num_files;
                 nc_init_file[lev].resize(num_files);
                 pp.queryarr(nc_file_names.c_str(), nc_init_file[lev],0,num_files);
-                for (int j = 0; j < num_files; j++)
+                for (int j = 0; j < num_files; j++) {
                     Print() << "Reading NC init file names at level " << lev << " and index " << j << " : " << nc_init_file[lev][j] << std::endl;
-            }
-        }
+                } // j
+            } // if pp.contains
+        } // lev
 
         // NetCDF wrfbdy lateral boundary file
         pp.query("nc_bdy_file", nc_bdy_file);
@@ -1741,6 +1740,18 @@ ERF::ReadParameters ()
             m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
         }
     }
+
+    // If init from WRFInput or Metgrid make sure a valid file name is present
+    if ((solverChoice.init_type == InitType::WRFInput) ||
+        (solverChoice.init_type == InitType::Metgrid) ) {
+        for (int lev = 0; lev <= max_level; lev++) {
+            int num_files = nc_init_file[lev].size();
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present for init type WRFInput or Metgrid.");
+            for (int j = 0; j < num_files; j++) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[lev][j].empty(), "Valid file name must be present for init type WRFInput or Metgrid.");
+            } //j
+        } // lev
+    } // InitType
 
     if (solverChoice.init_type == InitType::WRFInput) {
         AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
