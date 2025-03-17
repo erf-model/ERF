@@ -295,12 +295,10 @@ fill_fab_from_arrays (int iv,
     if (var_name == "PH" || var_name == "PHB") {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
     }
-    else if (var_name == "U"        || var_name == "UU" ||
-             var_name == "MAPFAC_U" || var_name == "MAPFAC_UY") {
+    else if (var_name == "U" || var_name == "UU" || var_name == "MAPFAC_U") {
         my_box.setType(amrex::IndexType(amrex::IntVect(1,0,0)));
     }
-    else if (var_name == "V"        || var_name == "VV" ||
-             var_name == "MAPFAC_V" || var_name == "MAPFAC_VY") {
+    else if (var_name == "V" || var_name == "VV" || var_name == "MAPFAC_V") {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,1,0)));
     }
     else if (var_name == "W" || var_name == "WW") {
