@@ -20,6 +20,7 @@ read_from_wrfinput (int lev,
                     FArrayBox& NC_fab,
                     const std::string& NC_name,
                     Geometry& geom,
+                    int& use_theta_m,
                     int& success);
 
 Real
@@ -99,7 +100,7 @@ ERF::init_from_wrfinput (int lev)
     NC_names.push_back("U");         // 2
     NC_names.push_back("V");         // 3
     NC_names.push_back("W");         // 4
-    NC_names.push_back("T");         // 5
+    NC_names.push_back("THM");       // 5
     NC_names.push_back("PH");        // 6
     NC_names.push_back("PHB");       // 7
     NC_names.push_back("PB");        // 8
@@ -130,7 +131,7 @@ ERF::init_from_wrfinput (int lev)
     //       the shapes in ERF_ReadFromWRFInput.cpp
     //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
 
-    MultiFab mf_PH , mf_PHB;         // For terrain height
+    MultiFab mf_PH , mf_PHB;         // For geopotential height
     MultiFab mf_ALB, mf_PB , mf_P  ; // For base state
     MultiFab mf_MUB, mf_C1H, mf_C2H; // For bdy convert
 
@@ -164,9 +165,10 @@ ERF::init_from_wrfinput (int lev)
         for (int ivar = 0; ivar < nvar; ++ ivar) {
             Print() << "Reading variable " << NC_names[ivar] << " ...";
 
-            int success;
+            int success, use_theta_m;
             read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
-                               NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev], success);
+                               NC_fab_var_file[idx][ivar], NC_names[ivar], geom[lev],
+                               use_theta_m, success);
 
             auto var_name = NC_names[ivar];
             auto& var_fab = NC_fab_var_file[idx][ivar];
@@ -199,7 +201,7 @@ ERF::init_from_wrfinput (int lev)
             if ( var_name == "U"      ||
                  var_name == "V"      ||
                  var_name == "W"      ||
-                 var_name == "T"      ||
+                 var_name == "THM"    ||
                  var_name == "QVAPOR" ||
                  var_name == "QCLOUD" ||
                  var_name == "QRAIN" ) {
@@ -217,27 +219,27 @@ ERF::init_from_wrfinput (int lev)
                   bool mult_rho = false;
                   FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
                   FArrayBox* cur_fab;
-                  if (NC_names[ivar] == "U") {
+                  if (var_name == "U") {
                     cur_fab  = &lev_new[Vars::xvel][mfi];
-                  } else if (NC_names[ivar] == "V") {
+                  } else if (var_name == "V") {
                     cur_fab  = &lev_new[Vars::yvel][mfi];
-                  } else if (NC_names[ivar] == "W") {
+                  } else if (var_name == "W") {
                     cur_fab  = &lev_new[Vars::zvel][mfi];
-                  } else if (NC_names[ivar] == "T") {
+                  } else if (var_name == "THM") {
                     const Real theta_ref = 300.0;
                     var_fab.template plus<RunOn::Device>(theta_ref);
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoTheta_comp;
-                  } else if (NC_names[ivar] == "QVAPOR") {
+                  } else if (var_name == "QVAPOR") {
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ1_comp;
-                  } else if (NC_names[ivar] == "QCLOUD") {
+                  } else if (var_name == "QCLOUD") {
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ2_comp;
-                  } else if (NC_names[ivar] == "QRAIN") {
+                  } else if (var_name == "QRAIN") {
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ3_comp;
@@ -247,17 +249,24 @@ ERF::init_from_wrfinput (int lev)
                   if (success) {
                       cur_fab->template copy<RunOn::Device>(var_fab, 0, icomp, 1);
                       if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
-                      var_fab.clear();
+                      if (use_theta_m && (var_name == "QVAPOR")) {
+                          // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
+                          var_fab.template mult<RunOn::Device>(R_v/R_d);
+                          var_fab.template plus<RunOn::Device>(1.0);
+                          var_fab.template invert<RunOn::Device>(1.0);
+                          cur_fab->template mult<RunOn::Device>(var_fab, 0, RhoTheta_comp, 1);
+                      }
                   } else {
                       if (icomp < cur_fab->nComp()) {
-                          amrex::Print() << "Setting " << NC_names[ivar] << " to 0 since we couldn't read it in ... DONE" << std::endl;
+                          amrex::Print() << "Setting " << var_name << " to 0 since we couldn't read it in ... DONE" << std::endl;
                           cur_fab->template setVal<RunOn::Device>(0.0,cur_fab->box(),icomp,1);
                           if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
                       } else {
-                          amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                          amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                       }
                   }
               } // mfi
+              var_fab.clear();
           } // valid var (not rho)
 
           if ( var_name == "PH" ) {
@@ -274,7 +283,7 @@ ERF::init_from_wrfinput (int lev)
                   }
                   var_fab.clear();
               } else {
-                  amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                  amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                   compute_terrain_here = false;
               }
           } else if ( var_name == "PHB" ) {
@@ -291,7 +300,7 @@ ERF::init_from_wrfinput (int lev)
                   }
                   var_fab.clear();
               } else {
-                  amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                  amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                   compute_terrain_here = false;
               }
           } else if ( var_name == "ALB" ) {
@@ -696,6 +705,9 @@ ERF::init_from_wrfinput (int lev)
         // Note we only have start_bdy_time if at level 0 and init_type == InitType:WRFInput
         //
         if (lev == 0) {
+            Print() << "Setting start_time to "
+                    << std::setprecision(timeprecision) << start_bdy_time
+                    << " from wrfbdy" << std::endl;
             t_new[lev] = start_bdy_time;
             t_old[lev] = start_bdy_time - 1.e200;
         } else {
@@ -776,8 +788,10 @@ init_base_state_from_wrfinput (const Box& domain,
             // NOTE: Ghost cells don't contain valid data
             //       We want domain GCs and FB picks up interior GCs
             if (tbx.contains(i,j,k)) {
-                if ( (DelP > 2.0) && (DelP / Ptot < 1.e-4) ) {
-                    amrex::Abort("Initial state is inconsistent with EOS!");
+                if ( (DelP > 1.0) || (DelP/Ptot > 1e-6) ) {
+                    printf("p (%i, %i, %i): %e; p_eos: %e; (qv = %e, rho = %e, rT = %e) \n",
+                           i, j, k, Ptot, P_eos, Qv, cons_arr(ii,jj,kk,Rho_comp), RT);
+                    amrex::Abort("Initial state is inconsistent with EOS!?");
                 }
             }
 

@@ -36,14 +36,21 @@ getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
 
 AMREX_FORCE_INLINE
 std::string
-getTimestamp (const std::time_t epoch, const std::string& datetime_format)
+getTimestamp (const amrex::Real epoch_real, const std::string& datetime_format)
 {
-    std::tm *time_info = std::gmtime(&epoch);
+    auto epoch_nearest_sec = static_cast<std::time_t>(epoch_real);
+    std::tm *time_info = std::gmtime(&epoch_nearest_sec);
 
     char buffer[80];
     std::strftime(buffer, sizeof(buffer), datetime_format.c_str(), time_info);
+    std::string str_nearest_sec(buffer);
 
-    return std::string(buffer);
+    double frac_sec = epoch_real - epoch_nearest_sec;
+    snprintf(buffer, 80, "%.6f", frac_sec);
+    AMREX_ASSERT(buffer[0] == '0');
+    std::string str_frac_sec(buffer);
+
+    return str_nearest_sec + str_frac_sec.substr(1);
 }
 
 

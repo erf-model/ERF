@@ -354,8 +354,11 @@ public:
     void MakeDiagnosticAverage (amrex::Vector<amrex::Real>& h_havg, amrex::MultiFab& S, int n);
     void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
-    // write plotfile to disk
+    // Write plotfile to disk
     void WritePlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+
+    // Write subvolume of data into a different "plotfile"
+    void WriteSubvolume  ();
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -905,9 +908,16 @@ private:
 
     int last_plot_file_step_1;
     int last_plot_file_step_2;
+    int last_subvol;
 
     int last_check_file_step;
     int plot_file_on_restart = 1;
+
+    // Output control
+    const int datwidth = 14;
+    const int datprecision = 6;
+    const int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
+                                  // epoch time for 2030-01-01 00:00:00 is 1,893,456,000 s with dt ~ 0.01 ==> min prec = 12
 
     ////////////////
     // runtime parameters
@@ -916,6 +926,7 @@ private:
     int max_step = std::numeric_limits<int>::max();
     amrex::Real start_time = 0.0;
     amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
+
     bool use_datetime = false;
     const std::string datetime_format = "%Y-%m-%d %H:%M:%S";
 
@@ -946,11 +957,14 @@ private:
     // plotfile prefix and frequency
     std::string plot_file_1 {"plt_1_"};
     std::string plot_file_2 {"plt_2_"};
+    std::string subvol_file {"subvol"};
     bool m_expand_plotvars_to_unif_rr = false;
     int m_plot_int_1 = -1;
     int m_plot_int_2 = -1;
+    int m_subvol_int = -1;
     amrex::Real m_plot_per_1 = -1.0;
     amrex::Real m_plot_per_2 = -1.0;
+    amrex::Real m_subvol_per = -1.0;
     bool m_plot_face_vels = false;
 
     bool plot_lsm = false;

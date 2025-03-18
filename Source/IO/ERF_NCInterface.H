@@ -66,6 +66,9 @@ struct NCVar
     //! Shape of the array (size in each array dimension)
     [[nodiscard]] std::vector<size_t> shape () const;
 
+    //! Dimension names of the array (str in each array dimension)
+    [[nodiscard]] std::vector<std::string> dimnames () const;
+
     //! Write out the entire variable
     void put (const double*) const;
     void put (const float*) const;

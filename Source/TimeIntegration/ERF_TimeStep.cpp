@@ -79,7 +79,8 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
     if (Verbose()) {
         amrex::Print() << "[Level " << lev << " step " << istep[lev]+1 << "] ";
-        amrex::Print() << "ADVANCE from time = " << t_old[lev] << " to " << t_new[lev]
+        amrex::Print() << std::setprecision(timeprecision)
+                       << "ADVANCE from time = " << t_old[lev] << " to " << t_new[lev]
                        << " with dt = " << dt[lev] << std::endl;
     }
 

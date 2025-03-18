@@ -8,10 +8,15 @@ concurrency:
 
 jobs:
   MacOS-Clang:
-    name: Apple Clang@11.0
+    name: Apple Clang@11.0 - Particles ${{matrix.particles}}
     runs-on: macos-latest
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
+    strategy:
+      matrix:
+        particles: [OFF, ON]
+
     steps:
+
     - uses: actions/checkout@v4
       with:
         submodules: true
@@ -37,6 +42,7 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=TRUE \
+          -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_ENABLE_TESTS:BOOL=TRUE \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=TRUE \
           -DERF_ENABLE_FCOMPARE:BOOL=TRUE \

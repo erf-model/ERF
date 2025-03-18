@@ -11,7 +11,7 @@ using namespace amrex;
  * of the domain.
  *
  * This function also maps the selected boundary condition types
- * (e.g. Outflow, Inflow, Periodic, Dirichlet, ...) to the
+ * (e.g. Outflow, Inflow, InflowOutflow, Periodic, Dirichlet, ...) to the
  * specific implementation needed for each variable.
  *
  * Stores this information in both host and device vectors
@@ -20,10 +20,11 @@ using namespace amrex;
 void ERF::init_bcs ()
 {
     bool rho_read = false;
+    bool read_prim_theta = true;
     Vector<Real> cons_dir_init(NBCVAR_max,0.0);
     cons_dir_init[BCVars::Rho_bc_comp] = 1.0;
     cons_dir_init[BCVars::RhoTheta_bc_comp] = -1.0;
-    auto f = [this,&rho_read] (std::string const& bcid, Orientation ori)
+    auto f = [this,&rho_read,&read_prim_theta] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
         m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  1.0;
@@ -97,11 +98,17 @@ void ERF::init_bcs ()
             domain_bc_type[ori] = "HO_Outflow";
         }
 
-        else if (bc_type == "inflow")
+        else if (bc_type == "inflow" || bc_type == "inflow_outflow")
         {
-            // Print() << bcid << " set to inflow.\n";
-              phys_bc_type[ori] = ERF_BC::inflow;
-            domain_bc_type[ori] = "Inflow";
+            if (bc_type == "inflow") {
+                // Print() << bcid << " set to inflow.\n";
+                  phys_bc_type[ori] = ERF_BC::inflow;
+                domain_bc_type[ori] = "Inflow";
+            } else {
+                // Print() << bcid << " set to inflow_outflow.\n";
+                  phys_bc_type[ori] = ERF_BC::inflow_outflow;
+                domain_bc_type[ori] = "InflowOutflow";
+            }
 
             std::vector<Real> v;
             if (input_bndry_planes && m_r2d->ingested_velocity()) {
@@ -113,6 +120,7 @@ void ERF::init_bcs ()
                 std::string dirichlet_file;
                 auto file_exists = pp.query("dirichlet_file", dirichlet_file);
                 if (file_exists) {
+                    pp.query("read_prim_theta", read_prim_theta);
                     init_Dirichlet_bc_data(dirichlet_file);
                 } else {
                     pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
@@ -360,6 +368,18 @@ void ERF::init_bcs ()
                     }
                 }
             }
+            else if (bct == ERF_BC::inflow_outflow)
+            {
+                if (side == Orientation::low) {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                        domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::ext_dir_upwind);
+                    }
+                } else {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                        domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::ext_dir_upwind);
+                    }
+                }
+            }
             else if (bct == ERF_BC::no_slip_wall)
             {
                 if (side == Orientation::low) {
@@ -546,8 +566,12 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
-                        if (BCVars::cons_bc+i == RhoTheta_comp && th_bc_data[0.].data() != nullptr) { continue; }
-                        if (input_bndry_planes && dir < 2 && (
+                        if ((BCVars::cons_bc+i == RhoTheta_comp) &&
+                            (th_bc_data[0].data() != nullptr))
+                        {
+                            if (read_prim_theta) domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_prim);
+                        }
+                        else if (input_bndry_planes && dir < 2 && (
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
@@ -564,7 +588,12 @@ void ERF::init_bcs ()
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
-                        if (input_bndry_planes && dir < 2 && (
+                        if ((BCVars::cons_bc+i == RhoTheta_comp) &&
+                            (th_bc_data[0].data() != nullptr))
+                        {
+                            if (read_prim_theta) domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_prim);
+                        }
+                        else if (input_bndry_planes && dir < 2 && (
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
@@ -576,6 +605,24 @@ void ERF::init_bcs ()
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
                         }
                         else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
+                            domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                        }
+                    }
+                }
+            }
+            else if (bct == ERF_BC::inflow_outflow )
+            {
+                if (side == Orientation::low) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_upwind);
+                        if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
+                            domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                        }
+                    }
+                } else {
+                    for (int i = 0; i < NBCVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_upwind);
+                        if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                         }
                     }
@@ -732,7 +779,7 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
             v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             w_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), znd_inp[k], Ninp);
             if (th_read) {
-                th_inp[k] = interpolate_1d(z_inp_tmp.dataPtr(), th_inp_tmp.dataPtr(), znd_inp[k], Ninp);
+                th_inp[k] = interpolate_1d(z_inp_tmp.dataPtr(), th_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             }
         }
         znd_inp[Nz] = ztop;

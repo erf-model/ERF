@@ -12,6 +12,7 @@ read_from_wrfinput (int lev,
                     FArrayBox& NC_fab,
                     const std::string& NC_name,
                     Geometry& geom,
+                    int& use_theta_m,
                     int& success)
 {
     if (ParallelDescriptor::IOProcessor()) {
@@ -24,6 +25,7 @@ read_from_wrfinput (int lev,
             std::vector<int> attr;
             ncf.get_attr("WEST-EAST_GRID_DIMENSION", attr);   NC_nx = attr[0];
             ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); NC_ny = attr[0];
+            ncf.get_attr("USE_THETA_M", attr);                use_theta_m = attr[0];
         }
         { // Global Attributes (Real)
             std::vector<Real> attr;
@@ -63,7 +65,7 @@ read_from_wrfinput (int lev,
     Vector<int> successes; successes.resize(NC_names.size());
 
     if (NC_name == "ALB" || NC_name == "AL" || NC_name == "U" ||  NC_name == "V" ||  NC_name == "W" ||
-        NC_name == "T"   || NC_name == "PH" || NC_name == "PHB" || NC_name == "PB" || NC_name == "P" ||
+        NC_name == "THM" || NC_name == "PH" || NC_name == "PHB" || NC_name == "PB" || NC_name == "P" ||
         NC_name == "QVAPOR"   || NC_name == "QCLOUD" || NC_name == "QRAIN")
     {
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
@@ -82,6 +84,10 @@ read_from_wrfinput (int lev,
     // Read the netcdf file and fill these FABs
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs, successes);
 
+    // Success was already broadcast in ERF_NCWpsFile.H
     success = successes[0];
+
+    // Broadcast use_theta_m
+    ParallelDescriptor::Bcast(&use_theta_m, 1, ParallelDescriptor::IOProcessorNumber());
 }
 #endif // ERF_USE_NETCDF

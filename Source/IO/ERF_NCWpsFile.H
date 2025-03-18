@@ -129,6 +129,53 @@ int BuildFABsFromWRFBdyFile (const std::string &fname,
                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
 
 template<typename DType>
+void ReadTimeSliceFromNetCDFFile(const std::string& fname,
+                                 const int tidx,
+                                 amrex::Vector<std::string> names,
+                                 amrex::Vector<NDArray<DType> >& arrays,
+                                 amrex::Vector<int>& success)
+{
+    amrex::Print() << "Reading time slice " << tidx << " from " << fname << std::endl;
+    AMREX_ASSERT(arrays.size() == names.size());
+
+    if (amrex::ParallelDescriptor::IOProcessor())
+    {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+
+        int ntimes = ncf.dim("Time").len();
+        AMREX_ALWAYS_ASSERT((tidx >= 0) && (tidx < ntimes));
+
+        for (auto n=0; n<arrays.size(); ++n)
+        {
+            std::string vname_to_write = names[n];
+            std::string vname_to_read  = names[n];
+            if (vname_to_read.substr(0,2) == "R_") {
+                vname_to_read  = names[n+4]; // This allows us to read "T" instead -- we will over-write this later
+            }
+
+            success[n] = ncf.has_var(vname_to_read);
+
+            if (success[n] == 1)
+            {
+                std::vector<std::string> dimnames = ncf.var(vname_to_read).dimnames();
+                AMREX_ALWAYS_ASSERT(dimnames[0] == "Time");
+
+                std::vector<size_t> count = ncf.var(vname_to_read).shape();
+                std::vector<size_t> start(count.size(), 0);
+                start[0] = tidx;
+                count[0] = 1;
+
+                arrays[n] = NDArray<DType>(vname_to_read, count);
+                DType* dataPtr = arrays[n].get_data();
+
+                ncf.var(vname_to_read).get(dataPtr, start, count);
+            } // has_var
+        }
+        ncf.close();
+    }
+}
+
+template<typename DType>
 void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
                      amrex::Vector<NDArray<DType> >& arrays, amrex::Vector<int>& success)
 {
@@ -172,19 +219,29 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
 
             if (success[n] == 1) {
 
+                std::vector<std::string> dimnames = ncf.var(vname_to_read).dimnames();
+                AMREX_ALWAYS_ASSERT(dimnames[0] == "Time");
+
                 std::vector<size_t> shape = ncf.var(vname_to_read).shape();
                 arrays[n]                 = NDArray<DType>(vname_to_read,shape);
                 DType* dataPtr            = arrays[n].get_data();
 
                 std::vector<size_t> start(shape.size(), 0);
 
-                // auto numPts               = arrays[n].ndim();
-                // amrex::Print() << "NetCDF Variable name = " << vname_to_read << std::endl;
-                // amrex::Print() << "numPts read from NetCDF file/var = " << numPts << std::endl;
-                // amrex::Print()  << "Dims of the variable = (";
-                // for (auto &dim:shape)
-                //     amrex::Print() << dim << ", " ;
-                // amrex::Print()  << ")" << std::endl;
+#if 0
+                auto numPts               = arrays[n].ndim();
+                amrex::Print() << "NetCDF Variable name = " << vname_to_read << std::endl;
+                amrex::Print() << "numPts read from NetCDF file/var = " << numPts << std::endl;
+                amrex::Print() << "Dims in var = " << ncf.var(vname_to_read).ndim() << std::endl;
+                amrex::Print()  << "Dim names = (";
+                for (auto &dim:dimnames)
+                    amrex::Print() << dim << ", " ;
+                amrex::Print()  << ")" << std::endl;
+                amrex::Print()  << "Dims of the variable = (";
+                for (auto &dim:shape)
+                    amrex::Print() << dim << ", " ;
+                amrex::Print()  << ")" << std::endl;
+#endif
 
                 ncf.var(vname_to_read).get(dataPtr, start, shape);
 
