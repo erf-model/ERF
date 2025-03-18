@@ -303,7 +303,7 @@ struct TurbulentPerturbation {
         if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb) * 1 / total_ref_ratio; 
 
         // Ma and Senocak (2023) Eq. 8, solving for delta phi
-        pb_amp[lev][boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
+        pb_amp[lev][boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb) * 1 / total_ref_ratio;
 
         if (pt_type == 0) {
             // Performing this step converts the perturbation proportionality into
