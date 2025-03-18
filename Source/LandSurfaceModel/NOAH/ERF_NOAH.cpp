@@ -74,7 +74,7 @@ NOAH::Init (const MultiFab& cons_in,
     // NOTE: Actual NoahmpIO interface that is relevant for the
     //       implementation of this lsm
 
-    amrex::Print() << "NoahmpIO: Initializing" << std::endl;
+    amrex::Print() << "Noah-MP initialization started" << std::endl;
 
     // Set noahmpio_vect to the size of local blocks (boxes)
     //
@@ -95,60 +95,60 @@ NOAH::Init (const MultiFab& cons_in,
         // Get bounds for the tile and the reference to its
         // corresponding noahmpio object
         const amrex::Box& bx = mfi.tilebox();
-        NoahmpIO_type& noahmpio = noahmpio_vect[idb];
+        NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
 
         // Read namelist.erf file. This file contains
         // noahmpio specific parameters and is read by
         // the Fortran side of the implementation.
-        NoahmpReadNamelist(&noahmpio);
+        NoahmpReadNamelist(noahmpio);
 
         // Read the headers from the NetCDF land file.
         // This is also implemented on the Fortran side of
         // things currently.
-        NoahmpReadLandHeader(&noahmpio);
+        NoahmpReadLandHeader(noahmpio);
 
         // Extract tile bounds and set them to their corresponding
         // noahmpio variables. At present we will set all the variables
         // corresponding to domain, memory, and tile to the same bounds.
         // This will be changed later if we want to do special memory
         // management for expensive use cases.
-        noahmpio.xstart = bx.smallEnd(0);
-        noahmpio.xend = bx.bigEnd(0);
-        noahmpio.ystart = bx.smallEnd(1);
-        noahmpio.yend = bx.bigEnd(1);
+        noahmpio->xstart = bx.smallEnd(0);
+        noahmpio->xend = bx.bigEnd(0);
+        noahmpio->ystart = bx.smallEnd(1);
+        noahmpio->yend = bx.bigEnd(1);
 
         // Domain bounds
-        noahmpio.ids = noahmpio.xstart;
-        noahmpio.ide = noahmpio.xend;
-        noahmpio.jds = noahmpio.ystart;
-        noahmpio.jde = noahmpio.yend;
-        noahmpio.kds = 0;
-        noahmpio.kde = 0;
+        noahmpio->ids = noahmpio->xstart;
+        noahmpio->ide = noahmpio->xend;
+        noahmpio->jds = noahmpio->ystart;
+        noahmpio->jde = noahmpio->yend;
+        noahmpio->kds = 0;
+        noahmpio->kde = 0;
 
         // Tile bounds
-        noahmpio.its = noahmpio.xstart;
-        noahmpio.ite = noahmpio.xend;
-        noahmpio.jts = noahmpio.ystart;
-        noahmpio.jte = noahmpio.yend;
-        noahmpio.kts = 0;
-        noahmpio.kte = 0;
+        noahmpio->its = noahmpio->xstart;
+        noahmpio->ite = noahmpio->xend;
+        noahmpio->jts = noahmpio->ystart;
+        noahmpio->jte = noahmpio->yend;
+        noahmpio->kts = 0;
+        noahmpio->kte = 0;
 
         // Memory bounds
-        noahmpio.ims = noahmpio.xstart;
-        noahmpio.ime = noahmpio.xend;
-        noahmpio.jms = noahmpio.ystart;
-        noahmpio.jme = noahmpio.yend;
-        noahmpio.kms = 0;
-        noahmpio.kme = 0;
+        noahmpio->ims = noahmpio->xstart;
+        noahmpio->ime = noahmpio->xend;
+        noahmpio->jms = noahmpio->ystart;
+        noahmpio->jme = noahmpio->yend;
+        noahmpio->kms = 0;
+        noahmpio->kme = 0;
 
         // This procedure allocates memory in Fortran for IO variables
         // using bounds that are set above and read from namelist.erf
         // and headers from the NetCDF land file
-        NoahmpIOVarInitDefault(&noahmpio);
+        NoahmpIOVarInitDefault(noahmpio);
 
         // This reads NoahmpTable.TBL file which is another input file
         // we need to set some IO variables.
-        NoahmpReadTable(&noahmpio);
+        NoahmpReadTable(noahmpio);
 
         // Read and initialize data from the NetCDF land file.
         // TODO: This is currently implemented in Fortran
@@ -156,14 +156,14 @@ NOAH::Init (const MultiFab& cons_in,
         //       If the land file should be read in parallel
         //       by different blocks representing different map areas,
         //       that logic must be transferred to this implementation.
-        NoahmpReadLandMain(&noahmpio);
+        NoahmpReadLandMain(noahmpio);
 
         // Compute additional initial values that were not supplied
         // by the NetCDF land file.
-        NoahmpInitMain(&noahmpio);
-
-        amrex::Print() << "NoahmpIO: Initialized" << std::endl;
+        NoahmpInitMain(noahmpio);
   }
+
+  amrex::Print() << "Noah-MP intialization completed" << std::endl;
 
 };
 
@@ -176,6 +176,8 @@ NOAH::Advance (const int& lev,
                MultiFab* qfx3_out,
                const amrex::Real& dt) {
 
+    amrex::Print () << "Noah-MP driver started" << std::endl;
+
     // Loop over blocks to copy forcing data to Noahmp, drive the land model,
     // and copy data back to ERF Multifabs.
     //
@@ -187,8 +189,9 @@ NOAH::Advance (const int& lev,
        NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
        const amrex::Box& bx = mfi.tilebox();
 
-       const amrex::Array4<const amrex::Real>& U_PHY = xvel_in.array(mfi);
-       const amrex::Array4<const amrex::Real>& V_PHY = yvel_in.array(mfi);
+       const amrex::Array4<const amrex::Real>& U_PHY = xvel_in.const_array(mfi);
+       const amrex::Array4<const amrex::Real>& V_PHY = yvel_in.const_array(mfi);
+       const amrex::Array4<const amrex::Real>& QV_TH = cons_in.const_array(mfi);
 
        amrex::Array4<amrex::Real> SHBXY = hfx3_out->array(mfi);
        amrex::Array4<amrex::Real> EVBXY = qfx3_out->array(mfi);
@@ -198,6 +201,9 @@ NOAH::Advance (const int& lev,
        {
           noahmpio->U_PHY(i,0,j) = U_PHY(i,j,0);
           noahmpio->V_PHY(i,0,j) = V_PHY(i,j,0);
+          noahmpio->T_PHY(i,0,j) = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
+          noahmpio->QV_CURR(i,0,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
+
        });
 
        // Call the noahmpio driver code. This runs the land model forcing for
@@ -211,4 +217,6 @@ NOAH::Advance (const int& lev,
             EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
        });
     }
+
+    amrex::Print () << "Noah-MP driver completed" << std::endl;
 };
