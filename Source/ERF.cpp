@@ -357,7 +357,7 @@ ERF::ERF_shared ()
         sinPhi_m[lev] = nullptr;
         cosPhi_m[lev] = nullptr;
     }
-    
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
