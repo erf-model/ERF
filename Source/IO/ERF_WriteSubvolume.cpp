@@ -67,7 +67,7 @@ ERF::WriteSubvolume ()
 
     Box domain(geom[lev_for_sub].Domain());
 
-    Box bx(IntVect(i0,j0,k0),IntVect(i0+ncell[0],j0+ncell[1],k0+ncell[2]));
+    Box bx(IntVect(i0,j0,k0),IntVect(i0+ncell[0]-1,j0+ncell[1]-1,k0+ncell[2]-1));
     amrex::Print() << "Box requested is " << bx << std::endl;
 
     if (!domain.contains(bx))

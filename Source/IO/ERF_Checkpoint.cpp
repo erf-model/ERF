@@ -237,7 +237,8 @@ ERF::WriteCheckpointFile () const
 #ifdef ERF_USE_NETCDF
    // Write bdy_data files
    if ( ParallelDescriptor::IOProcessor() &&
-        ((solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid)) )
+        ((solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid)) &&
+        solverChoice.use_real_bcs )
    {
        // Vector dimensions
        int num_time = bdy_data_xlo.size();
@@ -558,7 +559,8 @@ ERF::ReadCheckpointFile ()
 
 #ifdef ERF_USE_NETCDF
     // Read bdy_data files
-    if ( (solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid) )
+    if ( (solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid) &&
+         solverChoice.use_real_bcs )
     {
         int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
         int num_time;
