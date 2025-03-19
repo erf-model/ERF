@@ -228,7 +228,34 @@ ERF::WriteCheckpointFile () const
             }
             VisMF::Write(z0, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
         }
-    }
+
+#ifdef ERF_USE_NETCDF
+         // Write lat/lon if it exists
+        if (lat_m[lev] && lon_m[lev] && solverChoice.has_lat_lon) {
+            amrex::Print() << "Writing Lat/Lon variables" << std::endl;
+            IntVect ngv = ng; ngv[2] = 0;
+            MultiFab lat(ba2d,dmap[lev],1,ngv);
+            MultiFab lon(ba2d,dmap[lev],1,ngv);
+            MultiFab::Copy(lat,*lat_m[lev],0,0,1,ngv);
+            MultiFab::Copy(lon,*lon_m[lev],0,0,1,ngv);
+            VisMF::Write(lat, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LAT"));
+            VisMF::Write(lon, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LON"));
+        }
+
+        // Write sinPhi and cosPhi if it exists
+        if (cosPhi_m[lev] && sinPhi_m[lev] && solverChoice.variable_coriolis) {
+            amrex::Print() << "Writing Coriolis factors" << std::endl;
+            IntVect ngv = ng; ngv[2] = 0;
+            MultiFab sphi(ba2d,dmap[lev],1,ngv);
+            MultiFab cphi(ba2d,dmap[lev],1,ngv);
+            MultiFab::Copy(sphi,*sinPhi_m[lev],0,0,1,ngv);
+            MultiFab::Copy(cphi,*cosPhi_m[lev],0,0,1,ngv);
+            VisMF::Write(sphi, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SinPhi"));
+            VisMF::Write(cphi, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "CosPhi"));
+        }
+#endif
+
+    } // for lev
 
 #ifdef ERF_USE_PARTICLES
    particleData.Checkpoint(checkpointname);
@@ -532,7 +559,6 @@ ERF::ReadCheckpointFile ()
         }
         BoxArray ba2d(std::move(bl2d));
 
-        {
         IntVect ng = mapfac_m[lev]->nGrowVect();
         MultiFab mf_m(ba2d,dmap[lev],1,ng);
         VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_m"));
@@ -547,8 +573,50 @@ ERF::ReadCheckpointFile ()
         MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ng);
         VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_v"));
         MultiFab::Copy(*mapfac_v[lev],mf_v,0,0,1,ng);
+
+        if (m_most && m_most->have_variable_sea_roughness())  {
+            amrex::Print() << "Reading variable surface roughness" << std::endl;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab z0(ba2d,dmap[lev],1,ng);
+            VisMF::Read(z0, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
+            for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.growntilebox();
+                FArrayBox* most_z0 = (m_most->get_z0(lev));
+                most_z0->copy<RunOn::Host>(z0[mfi], bx);
+            }
         }
-    }
+
+#ifdef ERF_USE_NETCDF
+        // Read lat/lon if it exists
+        if (solverChoice.has_lat_lon) {
+            amrex::Print() << "Reading Lat/Lon variables" << std::endl;
+            IntVect ngv = ng; ngv[2] = 0;
+            MultiFab lat(ba2d,dmap[lev],1,ngv);
+            MultiFab lon(ba2d,dmap[lev],1,ngv);
+            VisMF::Read(lat, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LAT"));
+            VisMF::Read(lon, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LON"));
+            lat_m[lev] = std::make_unique<MultiFab>(ba2d,dmap[lev],1,ngv);
+            lon_m[lev] = std::make_unique<MultiFab>(ba2d,dmap[lev],1,ngv);
+            MultiFab::Copy(*lat_m[lev],lat,0,0,1,ngv);
+            MultiFab::Copy(*lon_m[lev],lon,0,0,1,ngv);
+        }
+
+        // Read sinPhi and cosPhi if it exists
+        if (solverChoice.variable_coriolis) {
+            amrex::Print() << "Reading Coriolis factors" << std::endl;
+            IntVect ngv = ng; ngv[2] = 0;
+            MultiFab sphi(ba2d,dmap[lev],1,ngv);
+            MultiFab cphi(ba2d,dmap[lev],1,ngv);
+            VisMF::Read(sphi, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SinPhi"));
+            VisMF::Read(cphi, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "CosPhi"));
+            sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d,dmap[lev],1,ngv);
+            cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d,dmap[lev],1,ngv);
+            MultiFab::Copy(*sinPhi_m[lev],sphi,0,0,1,ngv);
+            MultiFab::Copy(*cosPhi_m[lev],cphi,0,0,1,ngv);
+        }
+#endif
+
+    } // for lev
 
 #ifdef ERF_USE_PARTICLES
     restartTracers((ParGDBBase*)GetParGDB(),restart_chkfile);
