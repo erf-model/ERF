@@ -244,6 +244,10 @@ ERF::init_from_wrfinput (int lev)
                     mult_rho = true;
                     icomp    = RhoQ3_comp;
                     if (n_qstate > 3) { icomp = RhoQ4_comp; }
+                    if (n_qstate < 3) {
+                        var_fab.clear();
+                        continue;
+                    }
                   }
 
                   if (success) {
