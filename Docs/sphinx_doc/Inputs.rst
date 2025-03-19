@@ -1169,6 +1169,10 @@ List of Parameters
 | **erf.use_coriolis**                | Include Coriolis       | true / false      | false               |
 |                                     | forcing                |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.variable_coriolis**           | Include Coriolis       | true / false      | false               |
+|                                     | forcing that varies    |                   |                     |
+|                                     | with latitude          |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.rotational_time_period**      | Used to calculate the  | Real              | 86400.0             |
 |                                     | Coriolis frequency     |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
