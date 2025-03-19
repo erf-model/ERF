@@ -212,8 +212,8 @@ NOAH::Advance (const int& lev,
             // Copy forcing data from Noahmp to ERF
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
             {
-                SHBXY(i,j,1) = noahmpio->SHBXY(i,j);
-                EVBXY(i,j,1) = noahmpio->EVBXY(i,j);
+                SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
+                EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
             });
         }
     }
