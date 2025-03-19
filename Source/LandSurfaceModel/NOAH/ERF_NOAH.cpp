@@ -163,7 +163,7 @@ NOAH::Init (const MultiFab& cons_in,
         NoahmpInitMain(noahmpio);
   }
 
-  amrex::Print() << "Noah-MP intialization completed" << std::endl;
+  amrex::Print() << "Noah-MP initialization completed" << std::endl;
 
 };
 
