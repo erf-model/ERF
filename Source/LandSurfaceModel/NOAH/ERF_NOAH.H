@@ -61,7 +61,8 @@ public:
              amrex::MultiFab& yvel_in,
              amrex::MultiFab* hfx3_out,
              amrex::MultiFab* qfx3_out,
-             const amrex::Real& dt) override;
+             const amrex::Real& dt,
+             const int& nstep) override;
 
     // Get state vars from lsm class
     amrex::MultiFab*

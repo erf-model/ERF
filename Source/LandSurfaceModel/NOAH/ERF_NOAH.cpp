@@ -122,24 +122,24 @@ NOAH::Init (const MultiFab& cons_in,
         noahmpio->ide = noahmpio->xend;
         noahmpio->jds = noahmpio->ystart;
         noahmpio->jde = noahmpio->yend;
-        noahmpio->kds = 0;
-        noahmpio->kde = 0;
+        noahmpio->kds = 1;
+        noahmpio->kde = 2;
 
         // Tile bounds
         noahmpio->its = noahmpio->xstart;
         noahmpio->ite = noahmpio->xend;
         noahmpio->jts = noahmpio->ystart;
         noahmpio->jte = noahmpio->yend;
-        noahmpio->kts = 0;
-        noahmpio->kte = 0;
+        noahmpio->kts = 1;
+        noahmpio->kte = 2;
 
         // Memory bounds
         noahmpio->ims = noahmpio->xstart;
         noahmpio->ime = noahmpio->xend;
         noahmpio->jms = noahmpio->ystart;
         noahmpio->jme = noahmpio->yend;
-        noahmpio->kms = 0;
-        noahmpio->kme = 0;
+        noahmpio->kms = 1;
+        noahmpio->kme = 2;
 
         // This procedure allocates memory in Fortran for IO variables
         // using bounds that are set above and read from namelist.erf
@@ -174,9 +174,10 @@ NOAH::Advance (const int& lev,
                MultiFab& yvel_in,
                MultiFab* hfx3_out,
                MultiFab* qfx3_out,
-               const amrex::Real& dt) {
+               const amrex::Real& dt,
+               const int& nstep) {
 
-    amrex::Print () << "Noah-MP driver started" << std::endl;
+    amrex::Print () << "Noah-MP driver started at time step: " << nstep+1 << std::endl;
 
     // Loop over blocks to copy forcing data to Noahmp, drive the land model,
     // and copy data back to ERF Multifabs.
@@ -199,22 +200,23 @@ NOAH::Advance (const int& lev,
        // Copy forcing data from ERF to Noahmp.
        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
        {
-          noahmpio->U_PHY(i,0,j) = U_PHY(i,j,0);
-          noahmpio->V_PHY(i,0,j) = V_PHY(i,j,0);
-          noahmpio->T_PHY(i,0,j) = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
-          noahmpio->QV_CURR(i,0,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
+          noahmpio->U_PHY(i,1,j) = U_PHY(i,j,0);
+          noahmpio->V_PHY(i,1,j) = V_PHY(i,j,0);
+          noahmpio->T_PHY(i,1,j) = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
+          noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
 
        });
 
        // Call the noahmpio driver code. This runs the land model forcing for
        // each object in noahmpio_vect that represent a block in the domain.
+       noahmpio->itimestep = nstep+1;
        NoahmpDriverMain(noahmpio);
 
        // Copy forcing data from Noahmp to ERF
        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
        {
-            SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
-            EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
+            SHBXY(i,j,1) = noahmpio->SHBXY(i,j);
+            EVBXY(i,j,1) = noahmpio->EVBXY(i,j);
        });
     }
 
