@@ -468,7 +468,7 @@ public:
     amrex::Real
     get_zref () { return m_ma.get_zref(); }
 
-    const amrex::FArrayBox*
+    amrex::FArrayBox*
     get_z0 (const int& lev) { return &z_0[lev]; }
 
     bool have_variable_sea_roughness() { return m_var_z0; }

@@ -205,11 +205,16 @@ ERF::init_from_metgrid (int lev)
         }
     }
 
-    lat_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    solverChoice.has_lat_lon       = true;
+    lat_m[lev]    = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
     for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         Box gtbx = mfi.growntilebox();
         FArrayBox& dst = (*(lat_m[lev]))[mfi];
         FArrayBox& src = NC_LAT_fab[0];
+        const Array4<      Real>& sin_arr = (sinPhi_m[lev])->array(mfi);
+        const Array4<      Real>& cos_arr = (cosPhi_m[lev])->array(mfi);
         const Array4<      Real>& dst_arr = dst.array();
         const Array4<const Real>& src_arr = src.const_array();
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
@@ -217,6 +222,10 @@ ERF::init_from_metgrid (int lev)
             int li = min(max(i, i_lo), i_hi);
             int lj = min(max(j, j_lo), j_hi);
             dst_arr(i,j,0) = src_arr(li,lj,0);
+
+            Real lat_rad = dst_arr(i,j,0) * (PI/180.);
+            sin_arr(i,j,0) = std::sin(lat_rad);
+            cos_arr(i,j,0) = std::cos(lat_rad);
         });
     }
 

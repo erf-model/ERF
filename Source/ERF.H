@@ -678,8 +678,10 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
     amrex::Real bdy_time_interval;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
 #endif // ERF_USE_NETCDF
+
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
     // Struct for working with the sounding data we take as an input
     InputSoundingData input_sounding_data;
