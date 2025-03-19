@@ -106,9 +106,9 @@ ERF::init_from_wrfinput (int lev)
     NC_names.push_back("PB");        // 8
     NC_names.push_back("P");         // 9
     NC_names.push_back("MUB");       // 10
-    NC_names.push_back("MAPFAC_UY"); // 11
-    NC_names.push_back("MAPFAC_VY"); // 12
-    NC_names.push_back("MAPFAC_MY"); // 13
+    NC_names.push_back("MAPFAC_U");  // 11
+    NC_names.push_back("MAPFAC_V");  // 12
+    NC_names.push_back("MAPFAC_M");  // 13
     NC_names.push_back("SST");       // 14
     NC_names.push_back("LANDMASK");  // 15
     NC_names.push_back("C1H");       // 16
@@ -433,7 +433,7 @@ ERF::init_from_wrfinput (int lev)
           }
 
           // Initialize MapFac U
-          if ( var_name == "MAPFAC_UY" ) {
+          if ( var_name == "MAPFAC_U" ) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -446,7 +446,7 @@ ERF::init_from_wrfinput (int lev)
           }
 
           // Initialize MapFac V
-          if ( var_name == "MAPFAC_VY" ) {
+          if ( var_name == "MAPFAC_V" ) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -459,7 +459,7 @@ ERF::init_from_wrfinput (int lev)
           }
 
           // Initialize MapFac M
-          if ( var_name == "MAPFAC_MY" ) {
+          if ( var_name == "MAPFAC_M" ) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
