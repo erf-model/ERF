@@ -8,6 +8,8 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_Vector.H>
+#include <AMReX_MFIter.H>
 
 #include <ERF_NullSurf.H>
 #include <ERF_Constants.H>
@@ -17,7 +19,18 @@
 // External include from the noahmp library
 #include <NoahmpIO.H>
 
+namespace LsmVar_NOAH {
+   enum {
+      // independent variables
+      theta = 0,
+      NumVars
+  };
+}
+
 class NOAH : public NullSurf {
+
+    using FabPtr = std::shared_ptr<amrex::MultiFab>;
+
 public:
     // Constructor
     NOAH () {}
@@ -25,16 +38,122 @@ public:
     // Destructor
     virtual ~NOAH () = default;
 
+    // Set thermo and grid properties
+    void
+    Define (SolverChoice& /*sc*/) override
+    {
+        // NOTE: We should parse things from sc here,
+        //       but they are hard coded because this
+        //       is a demonstration for now.
+    }
+
     // Initialize data structures
     void
     Init (const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
           const amrex::Real& dt) override;
 
+    // Wrapper to do all the updating
+    void
+    Advance (const int& lev,
+             amrex::MultiFab& cons_in,
+             amrex::MultiFab& xvel_in,
+             amrex::MultiFab& yvel_in,
+             amrex::MultiFab* hfx3_out,
+             amrex::MultiFab* qfx3_out,
+             const amrex::Real& dt,
+             const int& nstep) override;
+
+    // Get state vars from lsm class
+    amrex::MultiFab*
+    Lsm_Data_Ptr (const int& varIdx) override
+    {
+        int lsmIdx = LsmVarMap[varIdx];
+        AMREX_ALWAYS_ASSERT(lsmIdx < NOAH::m_lsm_size && lsmIdx>=0);
+        return lsm_fab_vars[lsmIdx].get();
+    }
+
+    // Get flux vars from lsm class
+    amrex::MultiFab*
+    Lsm_Flux_Ptr (const int& varIdx) override
+    {
+        int lsmIdx = LsmVarMap[varIdx];
+        AMREX_ALWAYS_ASSERT(lsmIdx < NOAH::m_lsm_size && lsmIdx>=0);
+        return lsm_fab_flux[lsmIdx].get();
+    }
+
+    // Get lsm geometry
+    amrex::Geometry
+    Lsm_Geom ( ) override { return m_lsm_geom; }
+
+    // Get number of vars lsm class contains
+    int
+    Lsm_Data_Size () override { return NOAH::m_lsm_size; }
+
+    // Get variable names
+    std::string
+    Lsm_VarName (const int& varIdx) override
+    {
+        int lsmIdx = LsmVarMap[varIdx];
+        AMREX_ALWAYS_ASSERT(lsmIdx < NOAH::m_lsm_size && lsmIdx>=0);
+        return LsmVarName[lsmIdx];
+    }
+
 private:
+    // number of lsm variables (theta)
+    int m_lsm_size = 1;
 
-   // C++ variable for NoahmpIO type
-   NoahmpIO_type noahmpio;
+    // LsmVar map (state indices -> LsmVar enum)
+    amrex::Vector<int> LsmVarMap;
 
+    // Lsm varnames
+    amrex::Vector<std::string> LsmVarName;
+
+    // geometry for atmosphere
+    amrex::Geometry m_geom;
+
+    // geometry for lsm
+    amrex::Geometry m_lsm_geom;
+
+    // timestep
+    amrex::Real m_dt;
+
+    // domain klo-1 or lsm khi
+    int khi_lsm;
+
+    // constants
+    // amrex::Real m_fac_cond;
+    // amrex::Real m_fac_fus;
+    // amrex::Real m_fac_sub;
+    // amrex::Real m_gOcp;
+
+    // independent variables
+    amrex::Array<FabPtr, LsmVar_NOAH::NumVars> lsm_fab_vars;
+
+    // flux array for conjugate transfer
+    amrex::Array<FabPtr, LsmVar_NOAH::NumVars> lsm_fab_flux;
+
+    // Vars that should be parsed
+    // ==========================
+    // Number of grid points in z
+    int m_nz_lsm = 30;
+
+    // Size of grid spacing in z
+    amrex::Real m_dz_lsm = 0.1; // 3 [m] below surface
+
+    // Specific heat
+    amrex::Real m_cp_soil =  1.26e6; // [J/m^3 K]
+
+    // Conductivity
+    amrex::Real m_k_soil = 0.2; // dry soil [W/m K]
+
+    // Theta Dirichlet value at lowest point below surface
+    amrex::Real m_theta_dir = 400.0; // [K]
+
+    // Thermal diffusivity
+    amrex::Real m_d_soil = m_k_soil / m_cp_soil; // [m^2/s]
+
+   // Vector to store NoahmpIO objects at a level
+   amrex::Vector<NoahmpIO_type> noahmpio_vect;
 };
 #endif

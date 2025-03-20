@@ -86,7 +86,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     if (SolverChoice::terrain_type == TerrainType::ImmersedForcing)
     {
-        terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+        terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
         terrain_blanking[lev]->setVal(1.0);
     }
 
@@ -518,7 +518,7 @@ ERF::init_zphys (int lev, Real time)
 
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
             terrain_blanking[lev]->setVal(1.0);
-            MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, 0);
+            MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ngrow);
             terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         }
 
@@ -566,7 +566,7 @@ ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys
         // This assumes we have already remade the EBGeometry
         //
         terrain_blanking[lev]->setVal(1.0);
-        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, 0);
+        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, z_phys_nd[lev]->nGrowVect());
     }
 }
 void

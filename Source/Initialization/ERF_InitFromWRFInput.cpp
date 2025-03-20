@@ -244,6 +244,7 @@ ERF::init_from_wrfinput (int lev)
                     mult_rho = true;
                     icomp    = RhoQ3_comp;
                     if (n_qstate > 3) { icomp = RhoQ4_comp; }
+                    if (n_qstate < 3) { success = 0; }
                   }
 
                   if (success) {
@@ -434,6 +435,11 @@ ERF::init_from_wrfinput (int lev)
 
           // Initialize MapFac U
           if ( var_name == "MAPFAC_U" ) {
+              Real max_val = var_fab.template max<RunOn::Device>();
+              if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
+                  Print() << "MAPFAC_U cannot be 0, resetting to 1!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -447,6 +453,11 @@ ERF::init_from_wrfinput (int lev)
 
           // Initialize MapFac V
           if ( var_name == "MAPFAC_V" ) {
+              Real max_val = var_fab.template max<RunOn::Device>();
+              if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
+                  Print() << "MAPFAC_V cannot be 0, resetting to 1!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -460,6 +471,11 @@ ERF::init_from_wrfinput (int lev)
 
           // Initialize MapFac M
           if ( var_name == "MAPFAC_M" ) {
+              Real max_val = var_fab.template max<RunOn::Device>();
+              if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
+                  Print() << "MAPFAC_M cannot be 0, resetting to 1!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -539,13 +555,14 @@ ERF::init_from_wrfinput (int lev)
     // Rebalance the base state if needed
     // **************************************************************************
     if (solverChoice.rebalance_wrfinput) {
+        Print() << "Rebalancing the HSE state!\n";
         int ncomp = lev_new[Vars::cons].nComp();
         int k_dom_lo = geom[lev].Domain().smallEnd(2);
         int k_dom_hi = geom[lev].Domain().bigEnd(2);
         Real tol = 1.0e-10;
         Real grav = CONST_GRAV;
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-            Box bx = mfi.tilebox();
+        for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
+            Box bx  = mfi.tilebox();
             int klo = bx.smallEnd(2);
             int khi = bx.bigEnd(2);
             AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));

@@ -1,6 +1,8 @@
 #include "ERF_Prob.H"
 #include <ERF_Constants.H>
 
+#include "ERF_Interpolation_Bilinear.H"
+
 using namespace amrex;
 
 std::unique_ptr<ProblemBase>
@@ -82,80 +84,6 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
               });
           } // mfi
     } // no terrain
-}
-
-AMREX_FORCE_INLINE
-AMREX_GPU_HOST_DEVICE
-int get_single_index(int i, int j, int k,
-                     int nx, int ny)
-{
-
-    int si = k*nx*ny + j*nx + i;
-    return si;
-}
-
-AMREX_FORCE_INLINE
-AMREX_GPU_HOST_DEVICE
-void bilinear_interpolation(const Real* xvec, const Real* yvec, const Real* zvec,
-                            const Real dxvec, const Real dyvec,
-                            const int nx, const int ny, const int nz,
-                            const Real x, const Real y, const Real z,
-                            const Real* varvec,
-                            Real& tmp_var)
-{
-    int iloc=-1, jloc=-1, kloc=-1;
-    for(int k=0;k<nz;k++){
-        if(zvec[k] > z){
-            kloc = k-1;
-            break;
-        }
-        else if (zvec[k] == z) {
-            kloc = k;
-        }
-
-    }
-        iloc = std::floor((x-xvec[0])/dxvec);
-        jloc = std::floor((y-yvec[0])/dyvec);
-
-        if(iloc > nx-1 or iloc < 0 or
-           jloc > ny-1 or iloc < 0 or
-           kloc > nz-1 or kloc < 0){
-            //std::cout << "The value of iloc, jloc, kloc is " << iloc << " " << jloc <<
-            //                                                    kloc << "\n";
-            //exit(0);
-        }
-
-        Real xlo = xvec[0] + iloc*dxvec;
-        Real ylo = yvec[0] + jloc*dyvec;
-        Real zlo = zvec[kloc];
-
-        /*std::cout << "dxvec and dyvec are " << dxvec << " " << dyvec << "\n";
-        std::cout << "The value of xvec0, yvec0 is " << xvec[0] << " " << yvec[0] <<  "\n";
-        std::cout << "The value of x-xvec0/dxvec, y-yvec0/dyvec is " << x-xvec[0] << " " << y-yvec[0] <<  "\n";
-        std::cout << "The value of x-xvec0/dxvec, y-yvec0/dyvec is " << (x-xvec[0])/dxvec << " " << (y-yvec[0])/dyvec <<  "\n";
-        std::cout << "The value of xlo, ylo, zlo is " << xlo << " " << ylo << " " <<  zlo << "\n";
-        std::cout << "The value of x, y, z is " << x << " " << y << " " <<  z << "\n";
-        std::cout << "iloc, jloc, kloc = " << iloc << " " << jloc << " " << kloc << "\n";*/
-
-        Real w_x = (x - xlo)/dxvec;
-        Real w_y = (y - ylo)/dyvec;
-        Real w_z = (z - zlo)/(zvec[kloc+1] - zvec[kloc]);
-
-        int ind0 = get_single_index(iloc,jloc,kloc,nx,ny);
-        int ind1 = get_single_index(iloc+1,jloc,kloc,nx,ny);
-        int ind2 = get_single_index(iloc+1,jloc+1,kloc,nx,ny);
-        int ind3 = get_single_index(iloc,jloc+1,kloc,nx,ny);
-        int ind4 = get_single_index(iloc,jloc,kloc+1,nx,ny);
-        int ind5 = get_single_index(iloc+1,jloc,kloc+1,nx,ny);
-        int ind6 = get_single_index(iloc+1,jloc+1,kloc+1,nx,ny);
-        int ind7 = get_single_index(iloc,jloc+1,kloc+1,nx,ny);
-
-        tmp_var = (1-w_x)*(1-w_y)*(1-w_z)*varvec[ind0] + w_x*(1-w_y)*(1-w_z)*varvec[ind1] +
-                  w_x*w_y*(1-w_z)*varvec[ind2] + (1-w_x)*w_y*(1-w_z)*varvec[ind3] +
-                  (1-w_x)*(1-w_y)*w_z*varvec[ind4] + w_x*(1-w_y)*w_z*varvec[ind5] +
-                  w_x*w_y*w_z*varvec[ind6] + (1-w_x)*w_y*w_z*varvec[ind7];
-
-        //std::cout << "Variable value is " << tmp_var << "\n";
 }
 
 void

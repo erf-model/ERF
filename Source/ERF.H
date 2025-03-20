@@ -339,7 +339,9 @@ public:
                                const amrex::Real& time);
 
     void advance_lsm (int lev,
-                      amrex::MultiFab& /*cons_in*/,
+                      amrex::MultiFab& cons_in,
+                      amrex::MultiFab& xvel_in,
+                      amrex::MultiFab& yvel_in,
                       const amrex::Real& dt_advance);
 
 #if defined(ERF_USE_RRTMGP)
