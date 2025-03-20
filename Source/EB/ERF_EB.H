@@ -29,17 +29,15 @@ class eb_ {
 
     void make_factory ( int level,
                         amrex::Geometry   const& a_geom,
-                        amrex::EB2::Level const* a_eb_level);
+                        amrex::BoxArray            const& ba,
+                        amrex::DistributionMapping const& dm,
+                        amrex::EB2::Level const& a_eb_level);
 
     int nghost_basic () const  { return 5; } // nghost_eb_basic ()
     int nghost_volume () const { return 5; } // nghost_eb_volume ()
     int nghost_full () const   { return 4; } // nghost_eb_full ()
 
-    amrex::EBFArrayBoxFactory const* get_const_factory () noexcept
-    { return m_factory.get(); }
-
-    amrex::EB2::Level const* get_level () const noexcept
-    { return m_eb_level; }
+    const std::unique_ptr<amrex::EBFArrayBoxFactory>& get_const_factory () const noexcept { return m_factory; }
 
     void WriteEBSurface (const amrex::BoxArray & ba,
                         const amrex::DistributionMapping & dmap,
@@ -47,9 +45,9 @@ class eb_ {
                         const amrex::EBFArrayBoxFactory * ebf,
                         const int level);
 
-    eb_aux_ const* get_u_const_factory() { return &m_u_factory; }
-    eb_aux_ const* get_v_const_factory() { return &m_v_factory; }
-    eb_aux_ const* get_w_const_factory() { return &m_w_factory; }
+    eb_aux_ const* get_u_const_factory() const noexcept { return &m_u_factory; }
+    eb_aux_ const* get_v_const_factory() const noexcept { return &m_v_factory; }
+    eb_aux_ const* get_w_const_factory() const noexcept { return &m_w_factory; }
 
     class EBToPVD;
 

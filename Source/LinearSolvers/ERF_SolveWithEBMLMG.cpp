@@ -65,7 +65,7 @@ void ERF::solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& 
     Array<MultiFab,AMREX_SPACEDIM> bcoef;
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
         bcoef[idim].define(convert(ba_tmp[0],IntVect::TheDimensionVector(idim)),
-                            dm_tmp[0], 1, 0, MFInfo(), *m_factory[lev]);
+                            dm_tmp[0], 1, 0, MFInfo(), EBFactory(lev));
         bcoef[idim].setVal(-1.0);
     }
     mleb.setBCoeffs(0, amrex::GetArrOfConstPtrs(bcoef));
