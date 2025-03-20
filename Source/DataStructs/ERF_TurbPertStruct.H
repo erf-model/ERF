@@ -299,8 +299,8 @@ struct TurbulentPerturbation {
         for (int level = lev; level >= 1; level--) {
             total_ref_ratio *= ref_ratio[level-1][2];
         }
-        // calculaton needs to be scale-aware since the formulation relies on the physical size of the box
-        if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb) * 1 / total_ref_ratio; 
+        // calculation needs to be scale-aware since the formulation relies on the physical size of the box
+        if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb) * 1 / total_ref_ratio;
 
         // Ma and Senocak (2023) Eq. 8, solving for delta phi
         pb_amp[lev][boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb) * 1 / total_ref_ratio;
