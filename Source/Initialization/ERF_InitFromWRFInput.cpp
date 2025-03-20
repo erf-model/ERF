@@ -555,13 +555,14 @@ ERF::init_from_wrfinput (int lev)
     // Rebalance the base state if needed
     // **************************************************************************
     if (solverChoice.rebalance_wrfinput) {
+        Print() << "Rebalancing the HSE state!\n";
         int ncomp = lev_new[Vars::cons].nComp();
         int k_dom_lo = geom[lev].Domain().smallEnd(2);
         int k_dom_hi = geom[lev].Domain().bigEnd(2);
         Real tol = 1.0e-10;
         Real grav = CONST_GRAV;
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-            Box bx = mfi.tilebox();
+        for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
+            Box bx  = mfi.tilebox();
             int klo = bx.smallEnd(2);
             int khi = bx.bigEnd(2);
             AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
