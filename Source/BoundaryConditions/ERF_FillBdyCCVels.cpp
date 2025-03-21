@@ -8,10 +8,12 @@
 using namespace amrex;
 
 void
-ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel)
+ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel, int levc)
 {
     // Impose bc's at domain boundaries
-    for (int lev = 0; lev <= finest_level; ++lev)
+    int lev_start = std::max(0,levc);
+    int lev_end   = mf_cc_vel.size();
+    for (int lev(lev_start); lev < lev_end; ++lev)
     {
         Box domain(Geom(lev).Domain());
 
