@@ -31,7 +31,7 @@ Real ERF::cfl           =  0.8;
 Real ERF::sub_cfl       =  1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
-Real ERF::dt_max_initial = 1.0;
+Real ERF::dt_max_initial = 2.0e100;
 Real ERF:: dt_max = 1e9;
 int  ERF::fixed_mri_dt_ratio = 0;
 
@@ -206,7 +206,7 @@ ERF::ERF_shared ()
 
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
-    dt.resize(nlevs_max, 1.e100);
+    dt.resize(nlevs_max, std::min(1.e100,dt_max_initial));
     dt_mri_ratio.resize(nlevs_max, 1);
 
     vars_new.resize(nlevs_max);
