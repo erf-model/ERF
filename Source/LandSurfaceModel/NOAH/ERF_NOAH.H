@@ -154,6 +154,6 @@ private:
     amrex::Real m_d_soil = m_k_soil / m_cp_soil; // [m^2/s]
 
    // Vector to store NoahmpIO objects at a level
-   amrex::Vector<NoahmpIO_type> noahmpio_vect;
+   NoahmpIO_vector noahmpio_vect;
 };
 #endif

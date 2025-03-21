@@ -93,17 +93,23 @@ NOAH::Init (const MultiFab& cons_in,
             // Get reference to the noahmpio object
             NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
 
+            // Pass idb context to noahmpio
+            noahmpio->blkid = idb;
+
+            // Initialize scalar values
+            noahmpio->ScalarInitDefault();
+
             // Store the rank of process for noahmp
             noahmpio->rank = amrex::ParallelDescriptor::MyProc();
 
             // Read namelist.erf file. This file contains
             // noahmpio specific parameters and is read by
             // the Fortran side of the implementation.
-            NoahmpReadNamelist(noahmpio);
+            noahmpio->ReadNamelist();
 
             // Read the headers from the NetCDF land file. This is also
             // implemented on the Fortran side of things currently.
-            NoahmpReadLandHeader(noahmpio);
+            noahmpio->ReadLandHeader();
 
             // Extract tile bounds and set them to their corresponding
             // noahmpio variables. At present we will set all the variables
@@ -142,18 +148,18 @@ NOAH::Init (const MultiFab& cons_in,
             // This procedure allocates memory in Fortran for IO variables
             // using bounds that are set above and read from namelist.erf
             // and headers from the NetCDF land file
-            NoahmpIOVarInitDefault(noahmpio);
+            noahmpio->VarInitDefault();
 
             // This reads NoahmpTable.TBL file which is another input file
             // we need to set some IO variables.
-            NoahmpReadTable(noahmpio);
+            noahmpio->ReadTable();
 
             // Read and initialize data from the NetCDF land file.
-            NoahmpReadLandMain(noahmpio);
+            noahmpio->ReadLandMain();
 
             // Compute additional initial values that were not supplied
             // by the NetCDF land file.
-            NoahmpInitMain(noahmpio);
+            noahmpio->InitMain();
         }
   }
 
@@ -207,7 +213,7 @@ NOAH::Advance (const int& lev,
             // Call the noahmpio driver code. This runs the land model forcing for
             // each object in noahmpio_vect that represent a block in the domain.
             noahmpio->itimestep = nstep+1;
-            NoahmpDriverMain(noahmpio);
+            noahmpio->DriverMain();
 
             // Copy forcing data from Noahmp to ERF
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
