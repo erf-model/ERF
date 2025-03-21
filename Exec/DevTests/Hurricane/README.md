@@ -8,20 +8,20 @@ This folder contains examples for hurricane simulations from real weather data.
 1. Download the initial condition file 
 
 ```
-wget https://zenodo.org/record/14880478/files/ERF_IC_Henri_gdas1.fnl0p25.2021081906.f00.bin
+wget https://zenodo.org/record/15043093/files/ERF_IC_HenriERA5_20210819_VeryLarge.bin
 ```
 
 2. `make -j8`
-3. Run with `inputs_20210819_Henri`
+3. Run with `inputs_20210819_Henri_NoAMR`
 
 ## Hurricane Laura
 
 1. Download the initial condition file 
 
 ```
-wget https://zenodo.org/record/14880478/files/ERF_IC_Laura_2020082600.bin
+wget https://zenodo.org/record/15043093/files/ERF_IC_Laura_LargeDomain.bin
 ```
 
 2. `make -j8`.
-3. Run with `inputs_20200826_Laura`
+3. Run with `inputs_20200826_Laura_NoAMR` or `inputs_20200826_Laura_2LevelAMR`.
 

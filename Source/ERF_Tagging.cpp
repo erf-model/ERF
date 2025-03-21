@@ -46,28 +46,35 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         // This allows dynamic refinement based on the value of the density
         if (ref_tags[j].Field() == "density")
         {
-            MultiFab::Copy(*mf,vars_new[levc][Vars::cons],Rho_comp,0,1,0);
+            MultiFab::Copy(*mf,vars_new[levc][Vars::cons],Rho_comp,0,1,1);
 
         // This allows dynamic refinement based on the value of qv
         } else if ( ref_tags[j].Field() == "qv" ) {
-            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ1_comp, 0, 1, 0);
-            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 0);
+            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ1_comp, 0, 1, 1);
+            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 1);
 
 
         // This allows dynamic refinement based on the value of qc
         } else if (ref_tags[j].Field() == "qc" ) {
-            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ2_comp, 0, 1, 0);
-            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 0);
+            MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], RhoQ2_comp, 0, 1, 1);
+            MultiFab::Divide(*mf, vars_new[levc][Vars::cons],   Rho_comp, 0, 1, 1);
 
         // This allows dynamic refinement based on the value of the z-component of vorticity
         } else if (ref_tags[j].Field() == "vorticity" ) {
-            MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
-            average_face_to_cellcenter(mf_cc_vel,0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
+            Vector<MultiFab> mf_cc_vel(1);
+            mf_cc_vel[0].define(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
+            average_face_to_cellcenter(mf_cc_vel[0],0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
+
+            // Impose bc's at domain boundaries at all levels
+            FillBdyCCVels(mf_cc_vel);
+
+            mf->setVal(0.);
+
             for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bx = mfi.growntilebox();
+                const Box& bx = mfi.tilebox();
                 auto& dfab = (*mf)[mfi];
-                auto& sfab = mf_cc_vel[mfi];
+                auto& sfab = mf_cc_vel[0][mfi];
                 derived::erf_dervortz(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
             }
 
@@ -90,7 +97,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         } else if ( (SolverChoice::terrain_type == TerrainType::ImmersedForcing) &&
                     (ref_tags[j].Field() == "terrain_blanking") )
         {
-            MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,0);
+            MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
 
 #ifdef ERF_USE_PARTICLES
         } else {

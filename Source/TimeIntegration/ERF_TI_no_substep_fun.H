@@ -153,7 +153,7 @@
             {
                 // Redistribute cons states (cell-centered)
 
-                MultiFab dUdt_tmp(ba, dm, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow(), MFInfo(), Factory(level));
+                MultiFab dUdt_tmp(ba, dm, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow(), MFInfo(), EBFactory(level));
                 dUdt_tmp.setVal(0.);
                 MultiFab::Copy(dUdt_tmp, F_slow[IntVars::cons], 0, 0, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow());
                 dUdt_tmp.FillBoundary(fine_geom.periodicity());

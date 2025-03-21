@@ -234,7 +234,8 @@ void ERF::poisson_wall_dist (int lev)
     const Real abstol = solverChoice.poisson_abstol;
 
     Real sigma = 1.0;
-    MLNodeLaplacian mlpoisson(geom_tmp, ba_tmp, dm_tmp, info, {m_factory[lev].get()}, sigma);
+    Vector<EBFArrayBoxFactory const*> factory_vec = { &EBFactory(lev) };
+    MLNodeLaplacian mlpoisson(geom_tmp, ba_tmp, dm_tmp, info, factory_vec, sigma);
 
     mlpoisson.setDomainBC(bc3d_lo, bc3d_hi);
 

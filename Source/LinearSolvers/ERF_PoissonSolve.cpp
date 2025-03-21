@@ -26,8 +26,8 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
     if (solverChoice.terrain_type == TerrainType::EB)
     {
-        rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
-        phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1, MFInfo(), Factory(lev));
+        rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0, MFInfo(), EBFactory(lev));
+        phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1, MFInfo(), EBFactory(lev));
     } else {
         rhs.resize(1); rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
         phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
@@ -115,7 +115,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     fluxes.resize(1);
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
         if (solverChoice.terrain_type == TerrainType::EB) {
-            fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0, MFInfo(), Factory(lev));
+            fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0, MFInfo(), EBFactory(lev));
         } else {
             fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
         }
