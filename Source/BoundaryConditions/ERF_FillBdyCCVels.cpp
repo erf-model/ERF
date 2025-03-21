@@ -11,10 +11,9 @@ void
 ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel, int levc)
 {
     // Impose bc's at domain boundaries
-    int lev_start = std::max(0,levc);
-    int lev_end   = mf_cc_vel.size();
-    for (int lev(lev_start); lev < lev_end; ++lev)
+    for (int ilev(0); ilev < mf_cc_vel.size(); ++lev)
     {
+        int lev = ilev + levc;
         Box domain(Geom(lev).Domain());
 
         int ihi = domain.bigEnd(0);
