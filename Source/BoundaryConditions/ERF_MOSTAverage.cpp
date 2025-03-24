@@ -1073,13 +1073,8 @@ MOSTAverage::compute_region_averages (const int& lev)
                       }
                     }
                 });
-            }
+            } // interp
         } // MFiter
-
-        // Fill interior ghost cells and any ghost cells outside a periodic domain
-        //***********************************************************************************
-        averages[imf]->FillBoundary(geom.periodicity());
-
     } // imf
 
     //
@@ -1170,13 +1165,8 @@ MOSTAverage::compute_region_averages (const int& lev)
                       }
                     }
                 });
-            }
+            } // interp
         } // MFiter
-
-        // Fill interior ghost cells and any ghost cells outside a periodic domain
-        //***********************************************************************************
-        averages[iavg]->FillBoundary(geom.periodicity());
-
     }
     else // copy temperature
     {
@@ -1261,13 +1251,8 @@ MOSTAverage::compute_region_averages (const int& lev)
                       }
                     }
                 });
-            }
+            } // interp
         } // MFiter
-
-        // Fill interior ghost cells and any ghost cells outside a periodic domain
-        //***********************************************************************************
-        averages[iavg]->FillBoundary(geom.periodicity());
-
     }
 
     // NOTE: Checking periodicity with the geom structure is not
@@ -1283,31 +1268,17 @@ MOSTAverage::compute_region_averages (const int& lev)
     if (domain.contains(cc_bnd_bx) || (not_per_x || not_per_y)) {
         for (int iavg(0); iavg < m_navg; ++iavg) {
             IntVect ng = averages[iavg]->nGrowVect(); ng[2]=0;
-
-            // NOTE:  Level 0 spans the whole domain, but finer
-            //        levels do not have such a restriction.
-            //        For now, use the bounding box of the boxArray.
-
-            // NOTE2: The fields and averages have different indexing.
-            //        The averages are: U/V/T/Qv/Tv/Umag
-            //        The fields   are: U/V/T/Qv/Qr/W
-            //        We clip iavg at 2 since all the remaining data is CC
-
-            // Bounded box of CC data used for normalization
-            int imf = min(iavg,2);
-            Box bnd_bx = (m_fields[lev][imf]->boxArray()).minimalBox();
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
             for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
+                Box  tbx = mfi.tilebox();
                 Box gpbx = mfi.growntilebox(ng); gpbx.setSmall(2,0); gpbx.setBig(2,0);
-
-                if (bnd_bx.contains(gpbx)) continue;
 
                 auto ma_arr = averages[iavg]->array(mfi);
 
-                int i_lo = bnd_bx.smallEnd(0); int i_hi = bnd_bx.bigEnd(0);
-                int j_lo = bnd_bx.smallEnd(1); int j_hi = bnd_bx.bigEnd(1);
+                int i_lo = tbx.smallEnd(0); int i_hi = tbx.bigEnd(0);
+                int j_lo = tbx.smallEnd(1); int j_hi = tbx.bigEnd(1);
                 ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     int li, lj;
@@ -1319,6 +1290,11 @@ MOSTAverage::compute_region_averages (const int& lev)
                     ma_arr(i,j,k) = ma_arr(li,lj,k);
                 });
             } // MFiter
+
+            // Fill interior ghost cells and any ghost cells outside a periodic domain
+            //***********************************************************************************
+            averages[iavg]->FillBoundary(geom.periodicity());
+
         } // iavg
     } // Not periodic
 }
