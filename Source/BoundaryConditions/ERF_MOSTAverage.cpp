@@ -1265,8 +1265,8 @@ MOSTAverage::compute_region_averages (const int& lev)
     bool not_per_y = !(geom.periodicity().isPeriodic(1));
     Box cc_bnd_bx  = (m_fields[lev][2]->boxArray()).minimalBox();
     Box domain     = geom.Domain();
-    if (domain.contains(cc_bnd_bx) || (not_per_x || not_per_y)) {
-        for (int iavg(0); iavg < m_navg; ++iavg) {
+    for (int iavg(0); iavg < m_navg; ++iavg) {
+        if (domain.contains(cc_bnd_bx) || (not_per_x || not_per_y)) {
             IntVect ng = averages[iavg]->nGrowVect(); ng[2]=0;
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -1290,13 +1290,13 @@ MOSTAverage::compute_region_averages (const int& lev)
                     ma_arr(i,j,k) = ma_arr(li,lj,k);
                 });
             } // MFiter
+        } // Not periodic
 
-            // Fill interior ghost cells and any ghost cells outside a periodic domain
-            //***********************************************************************************
-            averages[iavg]->FillBoundary(geom.periodicity());
+        // Fill interior ghost cells and any ghost cells outside a periodic domain
+        //***********************************************************************************
+        averages[iavg]->FillBoundary(geom.periodicity());
 
-        } // iavg
-    } // Not periodic
+    } // iavg
 }
 
 
