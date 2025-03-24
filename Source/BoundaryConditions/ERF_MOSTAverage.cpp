@@ -142,11 +142,13 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Initialize remaining multifabs
         for (int iavg(2); iavg < m_navg; ++iavg) {
             m_averages[lev][iavg] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-            m_averages[lev][iavg]->setVal(1.E34);
+            if (iavg == 3) {
+                // Default to dry for Qv
+                m_averages[lev][iavg]->setVal(0.0);
+            } else {
+                m_averages[lev][iavg]->setVal(1.E34);
+            }
         }
-
-        // Default to dry
-        m_averages[lev][3]->setVal(0.0);
 
         if (m_rotate) {
             m_rot_fields[lev][2] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
@@ -1171,8 +1173,7 @@ MOSTAverage::compute_region_averages (const int& lev)
     else // copy temperature
     {
         int iavg   = m_navg - 2;
-        IntVect ng = averages[iavg]->nGrowVect();
-        MultiFab::Copy(*(averages[iavg]),*(averages[2]),0,0,1,ng);
+        MultiFab::Copy(*(averages[iavg]),*(averages[2]),0,0,1,0);
     }
 
     //
@@ -1272,13 +1273,16 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
             for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
-                Box  tbx = mfi.tilebox();
+                Box  pbx = mfi.tilebox();         pbx.setSmall(2,0);  pbx.setBig(2.0);
                 Box gpbx = mfi.growntilebox(ng); gpbx.setSmall(2,0); gpbx.setBig(2,0);
+
+                // NOTE: This is true if we have an interior tilebox
+                if (pbx.contains(gpbx)) { continue; }
 
                 auto ma_arr = averages[iavg]->array(mfi);
 
-                int i_lo = tbx.smallEnd(0); int i_hi = tbx.bigEnd(0);
-                int j_lo = tbx.smallEnd(1); int j_hi = tbx.bigEnd(1);
+                int i_lo = pbx.smallEnd(0); int i_hi = pbx.bigEnd(0);
+                int j_lo = pbx.smallEnd(1); int j_hi = pbx.bigEnd(1);
                 ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     int li, lj;
