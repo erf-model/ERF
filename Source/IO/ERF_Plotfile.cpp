@@ -1159,7 +1159,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             if(solverChoice.moisture_type == MoistureType::Kessler){
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][4]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][0]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }
@@ -1167,17 +1167,17 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             {
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][8]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][0]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "snow_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][9]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][1]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "graup_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][10]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][2]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }

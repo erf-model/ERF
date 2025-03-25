@@ -772,7 +772,7 @@ private:
     amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
 
     std::unique_ptr<Microphysics> micro;
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
 
     // Variables for wind farm parametrization models
 
