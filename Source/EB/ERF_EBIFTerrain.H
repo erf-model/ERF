@@ -26,8 +26,8 @@ public:
           prob_lo_z(a_geom.ProbLo(2)),
           prob_hi_x(a_geom.ProbHi(0)),
           prob_hi_y(a_geom.ProbHi(1)),
-          i_hi(static_cast<int>(std::round((a_geom.ProbHi(0)-a_geom.ProbLo(0)) / a_geom.CellSize(0)))),
-          j_hi(static_cast<int>(std::round( (a_geom.ProbHi(1)-a_geom.ProbLo(1)) / a_geom.CellSize(1))))
+          i_hi(static_cast<int>(std::round((a_geom.ProbHi(0)-a_geom.ProbLo(0))/a_geom.CellSize(0)))),
+          j_hi(static_cast<int>(std::round((a_geom.ProbHi(1)-a_geom.ProbLo(1))/a_geom.CellSize(1))))
         {}
 
     AMREX_GPU_HOST_DEVICE inline
@@ -43,12 +43,12 @@ public:
         amrex::Real x2{};
         amrex::Real y1{};
         amrex::Real y2{};
-
         amrex::Real w1{};
         amrex::Real w2{};
-
         amrex::Real terr_z{0.};
 
+        // z_stretched
+        const int k1 = static_cast<int>(std::floor((z-prob_lo_z) / dz));
         const amrex::Real z1 = prob_lo_z + k1*dz;
         const amrex::Real remainder_z = (z - z1)/dz;
         amrex::Real z_stretched = prob_lo_z;
@@ -57,6 +57,7 @@ public:
         }
         z_stretched += remainder_z * dz_s[k1];
 
+        // Interpolation (nine subregions of x-y plane)
         if        (x <= prob_lo_x && y <= prob_lo_y) {
             terr_z = terr_arr(0   ,0   ,0);
         } else if (x >= prob_hi_x && y <= prob_lo_y) {
