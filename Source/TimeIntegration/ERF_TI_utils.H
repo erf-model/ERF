@@ -126,13 +126,6 @@
             ng_cons_to_use = ng_cons;
         }
 
-        bool allow_most_bcs = true;
-        if (fast_only) {
-            allow_most_bcs = false;
-        } else {
-            allow_most_bcs = true;
-        }
-
         // **********************************************************************************
         // NOTE: FillIntermediatePatch takes momenta at the new time, and returns
         //       BOTH updated velocities and momenta
@@ -142,6 +135,5 @@
                               {&S_data[IntVars::cons], &xvel_new, &yvel_new, &zvel_new},
                               {&S_data[IntVars::cons], &S_data[IntVars::xmom],
                                &S_data[IntVars::ymom], &S_data[IntVars::zmom]},
-                              ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons,
-                              allow_most_bcs);
+                              ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons);
     };

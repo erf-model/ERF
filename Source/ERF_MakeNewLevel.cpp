@@ -324,17 +324,17 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
 
     // ********************************************************************************************
-    // Create the MOST arrays at this (new) level
+    // Create the SGSDiff arrays at this (new) level
     // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::sgsdiff) {
         int nlevs = finest_level+1;
         Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                                      &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-        m_most->make_MOST_at_level(lev,nlevs,
-                                   mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                   Qr_prim[lev], z_phys_nd[lev],
-                                   Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+        m_sgsdiff->make_SGSDiff_at_level(lev,nlevs,
+                                         mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                         Qr_prim[lev], z_phys_nd[lev],
+                                         Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                                         lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -509,17 +509,17 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
 
     // ********************************************************************************************
-    // Update the MOST arrays at this level
+    // Update the SGSDiff arrays at this level
     // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::sgsdiff) {
         int nlevs = finest_level+1;
         Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                                      &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-        m_most->make_MOST_at_level(lev,nlevs,
-                                   mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                   Qr_prim[lev], z_phys_nd[lev],
-                                   Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+        m_sgsdiff->make_SGSDiff_at_level(lev,nlevs,
+                                         mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                         Qr_prim[lev], z_phys_nd[lev],
+                                         Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                                         lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
     }
 
     // These calls are done in AmrCore::regrid if this is a regrid at lev > 0

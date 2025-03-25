@@ -6,16 +6,17 @@
  * Worker routines for filling data at new levels after initialization, restart or regridding
 */
 
-#include "ERF_ProbCommon.H"
-#include <ERF_EOS.H>
-#include <ERF.H>
-
-#include <AMReX_buildInfo.H>
-
-#include <ERF_Utils.H>
-#include <ERF_TerrainMetrics.H>
-#include <ERF_ParFunctions.H>
 #include <memory>
+
+#include "AMReX_buildInfo.H"
+
+#include "ERF_ProbCommon.H"
+#include "ERF_EOS.H"
+#include "ERF.H"
+#include "ERF_Utils.H"
+#include "ERF_TerrainMetrics.H"
+#include "ERF_ParFunctions.H"
+
 
 using namespace amrex;
 
@@ -208,9 +209,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // ********************************************************************************************
-    // Define Theta_prim storage if using MOST BC
+    // Define Theta_prim storage if using sgsdiff BC
     // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::sgsdiff) {
         Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
         if (solverChoice.moisture_type != MoistureType::None) {
             Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));

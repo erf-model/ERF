@@ -6,8 +6,8 @@ CEXE_sources += ERF_BoundaryConditionsBaseState.cpp
 CEXE_sources += ERF_BoundaryConditionsBndryReg.cpp
 CEXE_sources += ERF_BoundaryConditionsRealbdy.cpp
 
-CEXE_headers += ERF_ABLMost.H
-CEXE_sources += ERF_ABLMost.cpp
+CEXE_headers += ERF_SGSDiff.H
+CEXE_sources += ERF_SGSDiff.cpp
 
 CEXE_sources += ERF_FillPatch.cpp
 CEXE_sources += ERF_FillCoarsePatch.cpp

@@ -41,7 +41,7 @@
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
 #include <ERF_InputSpongeData.H>
-#include <ERF_ABLMost.H>
+#include <ERF_SGSDiff.H>
 #include <ERF_Derive.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
@@ -499,8 +499,8 @@ public:
     // read checkpoint file from disk
     void ReadCheckpointFile ();
 
-    // read checkpoint file from disk -- called after instantiating m_most
-    void ReadCheckpointFileMOST ();
+    // read checkpoint file from disk -- called after instantiating m_sgsdiff
+    void ReadCheckpointFileSGSDiff ();
 
     void init_zphys            (int lev, amrex::Real time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
@@ -584,8 +584,7 @@ private:
     void FillIntermediatePatch (int lev, amrex::Real time,
                                 const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                                 const amrex::Vector<amrex::MultiFab*>& mfs_mom,
-                                int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons,
-                                bool allow_most_bcs = true);
+                                int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons);
 
     // Fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
@@ -1182,7 +1181,7 @@ private:
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
-    std::unique_ptr<ABLMost>          m_most = nullptr;
+    std::unique_ptr<SGSDiff>          m_sgsdiff = nullptr;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
     //

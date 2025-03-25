@@ -1,5 +1,5 @@
-#ifndef ERF_ABLMOST_H
-#define ERF_ABLMOST_H
+#ifndef ERF_SGSDIFF_H
+#define ERF_SGSDIFF_H
 
 #include <AMReX_Geometry.H>
 #include <AMReX_ParmParse.H>
@@ -26,14 +26,14 @@
  * Demetri P Lalas and Corrado F Ratto, January 1996,
  * https://doi.org/10.1142/2975.
  */
-class ABLMost
+class SGSDiff
 {
 
 public:
 
     // Constructor
-    explicit ABLMost (const amrex::Vector<amrex::Geometry>& geom,
-                      bool& use_exp_most, bool& use_rot_most,
+    explicit SGSDiff (const amrex::Vector<amrex::Geometry>& geom,
+                      bool& use_rot_most,
                       std::string a_pp_prefix,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
@@ -41,7 +41,6 @@ public:
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
     : m_geom(geom),
-      m_exp_most(use_exp_most),
       m_rotate(use_rot_most),
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
@@ -182,20 +181,20 @@ public:
     } // constructor
 
     void
-    make_MOST_at_level (const int& lev,
-                        int nlevs,
-                        const amrex::Vector<amrex::MultiFab*>& mfv,
-                        std::unique_ptr<amrex::MultiFab>& Theta_prim,
-                        std::unique_ptr<amrex::MultiFab>& Qv_prim,
-                        std::unique_ptr<amrex::MultiFab>& Qr_prim,
-                        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                        amrex::MultiFab* Hwave,
-                        amrex::MultiFab* Lwave,
-                        amrex::MultiFab* eddyDiffs,
-                        amrex::Vector<amrex::MultiFab*> lsm_data,
-                        amrex::Vector<amrex::MultiFab*> lsm_flux,
-                        amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
-                        amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
+    make_SGSDiff_at_level (const int& lev,
+                           int nlevs,
+                           const amrex::Vector<amrex::MultiFab*>& mfv,
+                           std::unique_ptr<amrex::MultiFab>& Theta_prim,
+                           std::unique_ptr<amrex::MultiFab>& Qv_prim,
+                           std::unique_ptr<amrex::MultiFab>& Qr_prim,
+                           std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                           amrex::MultiFab* Hwave,
+                           amrex::MultiFab* Lwave,
+                           amrex::MultiFab* eddyDiffs,
+                           amrex::Vector<amrex::MultiFab*> lsm_data,
+                           amrex::Vector<amrex::MultiFab*> lsm_flux,
+                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
+                           amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
     {
         // Update MOST Average
         m_ma.make_MOSTAverage_at_level(lev, mfv, Theta_prim, Qv_prim, Qr_prim, z_phys_nd);
@@ -342,7 +341,7 @@ public:
     void
     update_fluxes (const int& lev,
                    const amrex::Real& time,
-                   int max_iters = 25);
+                   int max_iters = 100);
 
     template <typename FluxIter>
     void
@@ -352,40 +351,38 @@ public:
                     bool is_land);
 
     void
-    impose_most_bcs (const int& lev,
-                     const amrex::Vector<amrex::MultiFab*>& mfs,
-                     amrex::MultiFab* xxmom_flux,
-                     amrex::MultiFab* yymom_flux,
-                     amrex::MultiFab* zzmom_flux,
-                     amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
-                     amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
-                     amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
-                     amrex::MultiFab* xheat_flux,
-                     amrex::MultiFab* yheat_flux,
-                     amrex::MultiFab* zheat_flux,
-                     amrex::MultiFab* xqv_flux,
-                     amrex::MultiFab* yqv_flux,
-                     amrex::MultiFab* zqv_flux,
-                     amrex::MultiFab* z_phys);
+    impose_sgsdiff_bcs (const int& lev,
+                        amrex::MultiFab* xxmom_flux,
+                        amrex::MultiFab* yymom_flux,
+                        amrex::MultiFab* zzmom_flux,
+                        amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
+                        amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                        amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
+                        amrex::MultiFab* xheat_flux,
+                        amrex::MultiFab* yheat_flux,
+                        amrex::MultiFab* zheat_flux,
+                        amrex::MultiFab* xqv_flux,
+                        amrex::MultiFab* yqv_flux,
+                        amrex::MultiFab* zqv_flux,
+                        amrex::MultiFab* z_phys);
 
     template <typename FluxCalc>
     void
-    compute_most_bcs (const int& lev,
-                      const amrex::Vector<amrex::MultiFab*>& mfs,
-                      amrex::MultiFab* xxmom_flux,
-                      amrex::MultiFab* yymom_flux,
-                      amrex::MultiFab* zzmom_flux,
-                      amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
-                      amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
-                      amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
-                      amrex::MultiFab* xheat_flux,
-                      amrex::MultiFab* yheat_flux,
-                      amrex::MultiFab* zheat_flux,
-                      amrex::MultiFab* xqv_flux,
-                      amrex::MultiFab* yqv_flux,
-                      amrex::MultiFab* zqv_flux,
-                      amrex::MultiFab* z_phys,
-                      const FluxCalc& flux_comp);
+    compute_sgsdiff_bcs (const int& lev,
+                         amrex::MultiFab* xxmom_flux,
+                         amrex::MultiFab* yymom_flux,
+                         amrex::MultiFab* zzmom_flux,
+                         amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
+                         amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                         amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
+                         amrex::MultiFab* xheat_flux,
+                         amrex::MultiFab* yheat_flux,
+                         amrex::MultiFab* zheat_flux,
+                         amrex::MultiFab* xqv_flux,
+                         amrex::MultiFab* yqv_flux,
+                         amrex::MultiFab* zqv_flux,
+                         amrex::MultiFab* z_phys,
+                         const FluxCalc& flux_comp);
 
     void
     time_interp_sst (const int& lev,
@@ -530,7 +527,6 @@ public:
 private:
     // Set in constructor
     amrex::Vector<amrex::Geometry>  m_geom;
-    bool m_exp_most = false;
     bool m_rotate   = false;
     amrex::Real m_start_bdy_time;
     amrex::Real m_bdy_time_interval;
@@ -569,4 +565,4 @@ private:
     amrex::Vector<amrex::MultiFab*>  m_eddyDiffs_lev;
 };
 
-#endif /* ABLMOST_H */
+#endif /* SGSDIFF_H */

@@ -680,13 +680,13 @@ ERF::InitData_pre ()
         if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
-            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::sgsdiff ) {
             Abort("MYNN2.5/MYNNEDMF/YSU PBL Model requires MOST at lower boundary");
         }
 
         if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
              (solverChoice.turbChoice[lev].Ce_wall > 0) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::sgsdiff) &&
              (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::slip_wall) &&
              (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) ) {
             Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
@@ -1035,30 +1035,25 @@ ERF::InitData_post ()
    // send_to_ww3(lev);
 #endif
 
-    // Configure ABLMost params if used MostWall boundary condition
+    // Configure SGSDiff params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
-    //       FillPatch does not call MOST, FillIntermediatePatch does.
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::sgsdiff)
     {
-        bool use_exp_most = solverChoice.use_explicit_most;
         bool use_rot_most = solverChoice.use_rotate_most;
-        if (use_exp_most) {
-            Print() << "Using MOST with explicitly included surface stresses" << std::endl;
-            if (use_rot_most) {
-                Print() << "Using MOST with surface stress rotations" << std::endl;
-            }
+        if (use_rot_most) {
+            Print() << "Using SGSDiff with surface stress rotations" << std::endl;
         }
 
         //
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
-        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, pp_prefix, Qv_prim,
-                                           z_phys_nd, solverChoice.terrain_type
+        m_sgsdiff = std::make_unique<SGSDiff>(geom, use_rot_most, pp_prefix, Qv_prim,
+                                              z_phys_nd, solverChoice.terrain_type
 #ifdef ERF_USE_NETCDF
-                                           ,start_bdy_time, bdy_time_interval
+                                              ,start_bdy_time, bdy_time_interval
 #endif
-                                           );
+                                              );
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of level sor just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_most.
@@ -1067,17 +1062,17 @@ ERF::InitData_post ()
         {
             Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                                          &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-            m_most->make_MOST_at_level(lev,nlevs,
-                                       mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                       Qr_prim[lev], z_phys_nd[lev],
-                                       Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                       lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+            m_sgsdiff->make_SGSDiff_at_level(lev,nlevs,
+                                             mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                             Qr_prim[lev], z_phys_nd[lev],
+                                             Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                                             lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
         }
 
 
         if (restart_chkfile != "") {
             // Update surface fields if needed
-            ReadCheckpointFileMOST();
+            ReadCheckpointFileSGSDiff();
         }
 
         // We now configure ABLMost params here so that we can print the averages at t=0
@@ -1104,17 +1099,17 @@ ERF::InitData_post ()
                     Qr_prim[lev]->setVal(0.0);
                 }
             }
-            m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
+            m_sgsdiff->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
 
             if (restart_chkfile == "") {
                 // Only do this if starting from scratch; if restarting, then
                 // we don't want to call update_fluxes multiple times because
                 // it will change u* and theta* from their previous values
-                m_most->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
-                                    solverChoice.RhoQv_comp,
-                                    solverChoice.RhoQc_comp,
-                                    solverChoice.RhoQr_comp);
-                m_most->update_fluxes(lev, time);
+                m_sgsdiff->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
+                                       solverChoice.RhoQv_comp,
+                                       solverChoice.RhoQc_comp,
+                                       solverChoice.RhoQr_comp);
+                m_sgsdiff->update_fluxes(lev, time);
             }
         }
     }

@@ -85,7 +85,7 @@ enum Sponge {
 
 struct SolverChoice {
   public:
-    void init_params(int max_level, std::string pp_prefix)
+    void init_params (int max_level, std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -337,14 +337,10 @@ struct SolverChoice {
         pp.query("rayleigh_dampcoef", rayleigh_dampcoef);
         pp.query("rayleigh_zdamp", rayleigh_zdamp);
 
-        // Flag to do explicit MOST formulation
-        pp.query("use_explicit_most",use_explicit_most);
-
         // Flag to do MOST rotations with terrain
         pp.query("use_rotate_most",use_rotate_most);
         if (use_rotate_most) {
             AMREX_ASSERT_WITH_MESSAGE(terrain_type != TerrainType::None,"MOST stress rotations are only valid with terrain!");
-            AMREX_ASSERT_WITH_MESSAGE(use_explicit_most, "MOST Stress rotations are only valid with explicit MOST!");
         }
 
         // Which external forcings?
@@ -461,7 +457,7 @@ struct SolverChoice {
         check_params(max_level);
     }
 
-    void check_params(int max_level)
+    void check_params (int max_level)
     {
         // Warn for PBL models and moisture - these may not yet be compatible
         for (int lev = 0; lev <= max_level; lev++) {
@@ -504,7 +500,7 @@ struct SolverChoice {
         }
     }
 
-    void display(int max_level, std::string pp_prefix)
+    void display (int max_level, std::string pp_prefix)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
@@ -732,9 +728,6 @@ struct SolverChoice {
     // Do we use source terms to nudge the solution towards
     //    the time-varying data provided in input sounding files?
     bool nudging_from_input_sounding = false;
-
-    // User specified MOST BC type
-    bool use_explicit_most = false;
 
     // MOST stress rotations
     bool use_rotate_most = false;
