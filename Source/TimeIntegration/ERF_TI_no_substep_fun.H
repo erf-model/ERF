@@ -149,6 +149,10 @@
                 } // not moving terrain
             } // mfi
 
+            // // SK *****************************************************
+            // Print()<<"SK: no_substep_fun/ nComp = "<< F_slow[IntVars::cons].nComp()<<std::endl; // 4
+            // // SK *****************************************************
+
             if (solverChoice.terrain_type == TerrainType::EB)
             {
                 // Redistribute cons states (cell-centered)
@@ -164,8 +168,8 @@
                 S_old[IntVars::cons].setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
 
                 // Update F_slow by Redistribution.
-                redistribute_term ( level, ncomp_fast[IntVars::cons], F_slow[IntVars::cons], dUdt_tmp,
-                                    S_old[IntVars::cons], bc_ptr_d, slow_dt);
+                redistribute_term ( ncomp_fast[IntVars::cons], fine_geom, F_slow[IntVars::cons], dUdt_tmp,
+                                    S_old[IntVars::cons], EBFactory(level), bc_ptr_d, slow_dt);
 
                 // Update state using the updated F_slow. (NOTE: redistribute_term returns RHS not state variables.)
 
