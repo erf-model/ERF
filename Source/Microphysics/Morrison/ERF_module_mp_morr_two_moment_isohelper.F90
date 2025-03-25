@@ -1,9 +1,16 @@
 MODULE mp_morr_two_moment_isohelper
-  USE MODULE_MP_MORR_TWO_MOMENT, ONLY: MP_MORR_TWO_MOMENT, MORR_TWO_MOMENT_INIT
   USE ISO_C_BINDING
+  USE MODULE_MP_MORR_TWO_MOMENT, ONLY: MP_MORR_TWO_MOMENT, MORR_TWO_MOMENT_INIT
   IMPLICIT NONE
 
   CONTAINS
+
+  ! Initialize the Morrison microphysics scheme
+  SUBROUTINE morr_two_moment_init_c(morr_rimed_ice) BIND(C, name="morr_two_moment_init_c")
+    INTEGER(C_INT), VALUE, INTENT(IN) :: morr_rimed_ice
+    
+    CALL MORR_TWO_MOMENT_INIT(morr_rimed_ice)
+  END SUBROUTINE morr_two_moment_init_c
 
   SUBROUTINE mp_morr_two_moment_c(itimestep, &
                 th, qv, qc, qr, qi, qs, qg, ni, ns, nr, ng, &
@@ -29,7 +36,7 @@ MODULE mp_morr_two_moment_isohelper
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: snownc, snowncv, graupelnc, graupelncv
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: refl_10cm
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: diagflag
-    LOGICAL(C_BOOL), VALUE, INTENT(IN) :: do_radar_ref
+    INTEGER(C_INT), VALUE, INTENT(IN) :: do_radar_ref
     REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, kms:kme, jms:jme) :: qrcuten, qscuten, qicuten
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: f_qndrop
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: qndrop
@@ -45,19 +52,26 @@ MODULE mp_morr_two_moment_isohelper
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: rainprod, evapprod
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: qlsink, precr, preci, precs, precg
 
-    ! Call the original routine
+    ! Convert C_BOOL to Fortran logical
+    LOGICAL :: diag_flag_f, f_qndrop_f, wetscav_on_f
+    
+    ! Convert C types to Fortran types
+    diag_flag_f = diagflag
+    f_qndrop_f = f_qndrop
+    wetscav_on_f = wetscav_on
+
     CALL MP_MORR_TWO_MOMENT(itimestep, &
                 th, qv, qc, qr, qi, qs, qg, ni, ns, nr, ng, &
                 rho, pii, p, dt_in, dz, ht, w, &
                 rainnc, rainncv, sr, &
                 snownc, snowncv, graupelnc, graupelncv, &
-                refl_10cm, diagflag, do_radar_ref, &
+                refl_10cm, diag_flag_f, do_radar_ref, &
                 qrcuten, qscuten, qicuten, &
-                f_qndrop, qndrop, &
+                f_qndrop_f, qndrop, &
                 ids, ide, jds, jde, kds, kde, &
                 ims, ime, jms, jme, kms, kme, &
                 its, ite, jts, jte, kts, kte, &
-                wetscav_on, rainprod, evapprod, &
+                wetscav_on_f, rainprod, evapprod, &
                 qlsink, precr, preci, precs, precg)
 
   END SUBROUTINE mp_morr_two_moment_c

@@ -10,6 +10,13 @@ extern "C" {
 #endif
 
 /**
+ * Initialize the Morrison microphysics scheme
+ *
+ * @param morr_rimed_ice: 0 for graupel, 1 for hail configuration
+ */
+void morr_two_moment_init_c(int morr_rimed_ice);
+
+/**
  * C interface to the Fortran MP_MORR_TWO_MOMENT routine.
  *
  * @note: All array dimensions must match between C++ and Fortran calls.
@@ -26,7 +33,7 @@ void mp_morr_two_moment_c(
     double* rainnc, double* rainncv, double* sr,
     double* snownc, double* snowncv, double* graupelnc, double* graupelncv,
     // Radar reflectivity
-    double* refl_10cm, bool diagflag, bool do_radar_ref,
+    double* refl_10cm, bool diagflag, int do_radar_ref,
     // Cumulus tendencies
     double* qrcuten, double* qscuten, double* qicuten,
     // WRF-Chem
