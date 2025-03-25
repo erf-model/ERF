@@ -17,10 +17,10 @@ public:
     RadiationSimple(const int& lev,
                     SolverChoice& sc) {
         // Check if we have a valid moisture model
-        if (sc.moisture_type != MoistureType::None) { moist = true; }
+        if (sc.moisture_type != MoistureType::None) { m_moist = true; }
 
         // Check if we have a moisture model with ice
-        if (sc.moisture_type == MoistureType::SAM || sc.moisture_type == MoistureType::Kessler || sc.moisture_type == MoistureType::Morrison || sc.moisture_type == MoistureType::SuperDroplets)  { ice = true; }
+        if (sc.moisture_type == MoistureType::SAM || sc.moisture_type == MoistureType::Kessler || sc.moisture_type == MoistureType::Morrison)  { m_ice = true; }
     };
 
     ~RadiationSimple() = default;
@@ -49,8 +49,8 @@ public:
     const amrex::MultiFab *get_radqrlw() { return radqrlw.get(); }
 
 private:
-    bool moist = false;
-    bool ice = false;
+    bool m_moist = false;
+    bool m_ice = false;
 
     amrex::Geometry m_geom;
     amrex::BoxArray m_ba;

@@ -52,6 +52,9 @@ void RadiationSimple::Run(int& level,
     flux.setVal(0.0);
     deltaq.setVal(0.0);
 
+    auto moist = m_moist;
+    auto ice = m_ice;
+
     for (MFIter mfi(*cons_in, TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box box = mfi.validbox();
