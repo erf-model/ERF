@@ -1273,7 +1273,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
             for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
-                Box  pbx = mfi.tilebox();         pbx.setSmall(2,0);  pbx.setBig(2.0);
+                Box  pbx = mfi.tilebox();         pbx.setSmall(2,0);  pbx.setBig(2,0);
                 Box gpbx = mfi.growntilebox(ng); gpbx.setSmall(2,0); gpbx.setBig(2,0);
 
                 // NOTE: This is true if we have an interior tilebox
