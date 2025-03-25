@@ -14,6 +14,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
     {
         BL_PROFILE("fast_rhs_fun");
         if (verbose) amrex::Print() << "Fast time integration at level " << level
+                                    << std::setprecision(timeprecision)
                                     << " from " << old_substep_time << " to " << new_substep_time
                                     << " with dt = " << dtau << std::endl;
 
@@ -53,12 +54,14 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             // Make "old" fast geom -- store in z_phys_nd for convenience
             Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[level]->nGrow());
 
-            if (verbose) Print() << "Making geometry at start of substep time: " << old_substep_time << std::endl;
+            if (verbose) Print() << "Making geometry at start of substep time: "
+                                 << std::setprecision(timeprecision) << old_substep_time << std::endl;
             FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
             prob->init_terrain_surface(fine_geom,terrain_fab_old,old_substep_time);
 
             // Make "new" fast geom
-            if (verbose) Print() << "Making geometry for end of substep time :" << new_substep_time << std::endl;
+            if (verbose) Print() << "Making geometry for end of substep time :"
+                                 << std::setprecision(timeprecision) << new_substep_time << std::endl;
             FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
             prob->init_terrain_surface(fine_geom,terrain_fab_new,new_substep_time);
 

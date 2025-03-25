@@ -53,12 +53,53 @@ wrfinput files).
 Key Differences
 --------------------
 
-**Vertical coordinates**: Unlike WRF, ERF uses a height-based vertical coordinate, with vertical grid stretching permitted.
+**Vertical Coordinates**: Unlike WRF, ERF uses a height-based vertical coordinate, with vertical grid stretching permitted.
+
+**Governing Equations**: ERF supports both fully compressible and anelastic equation sets.
 
 **Time Integration**: ERF supports using a 3rd-order Runge-Kutta scheme with no substepping as alternative to RK3 with acoustic substepping.
 
-**Initial conditions**: ERF has an additional mode of "custom" initialization in which
-the user writes the initialization routine.
+**User-Defined Functions**: ERF allows the user to write custom routines for initialization and spatiotemporally varying source terms.
+
+**Representation of Surface Features**: Terrain and urban geometries may be simulated with immersed forcing or embedded (immersed) boundary techniques.
 
 ERF does *not* have the capability for global simulation
+
+
+
+Workflows
+--------------------
+For real-data simulations, ERF supports a variety of workflows and can work with existing WRF Preprocessing System (WPS) or initial/boundary condition data.
+
+.. list-table:: Simulation Workflows
+   :header-rows: 1
+
+   * -
+     - Large-Scale Data (reanalysis, HRRR, ...)
+     - Intermediate Processing
+     - Weather Simulation
+   * - WRF
+     - Manual download
+     - WPS + ``real.exe``
+     - ``wrf.exe``
+   * - WRF --> ERF
+     - Manual download
+     - WPS + ``real.exe``
+     - ``erf_abl`` (init from wrfinput)
+   * -
+     - Manual download
+     - ``ndown.exe``
+     - ``erf_abl`` (init from wrfinput)
+   * - WPS --> ERF
+     - Manual download
+     - WPS
+     - ``erf_abl`` (init from metgrid)
+   * - E3SM --> ERF
+     - ``run_e3sm``
+     -  *Under development*
+     - ``erf_abl``
+   * - ERF standalone
+     - Python tools
+     - Python tools *(under development)*
+     - ``erf_abl``
 

@@ -54,6 +54,14 @@ period (measured in seconds), and :math:`\phi` the latitude.
 Values for ``erf.rotational_time_period``, ``erf.latitude``, and ``erf.coriolis_3d``; the first two are used
 to compute the Coriolis frequency and the last of these determines whether to include the z-component in the Coriolis forcing.
 
+When initializing from a ``wrfinput`` or ``met_em`` file, the latitude at the grid cell centers will be known. For this case, a user may specify
+
+::
+
+      variable_coriolis == true
+
+to use the grid latitude, :math:`\phi(y)`, when computing the sine and cosine coefficients above.
+
 There is no dependence on the radial distance from the center of the earth, thus the curvature of the earth is neglected.
 
 Rayleigh Damping

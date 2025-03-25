@@ -71,6 +71,7 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
         for (int nt(0); nt < ntimes; nt++) {
             std::string date(&timeStamps[nt][0], &timeStamps[nt][dateStrLen-1]+1);
             auto epochTime = getEpochTime(date, dateTimeFormat);
+            Print() << "  wrfbdy datetime " << nt << " : " << date << " " << epochTime << std::endl;
             epochTimes.push_back(epochTime);
 
             if (nt == 1) {
@@ -120,11 +121,55 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
     if (ParallelDescriptor::IOProcessor())
     {
         Vector<int> success(nc_var_names.size());
+
+#if 1
+        for (int itime=0; itime < ntimes; ++itime) {
+            Vector<RARRAY> tslice(nc_var_names.size());
+            ReadTimeSliceFromNetCDFFile(nc_bdy_file, itime, nc_var_names, tslice, success);
+
+            /*
+             * DEV TEST: Copy tslice into full array to verify result
+             */
+            for (int n=0; n < nc_var_names.size(); ++n) {
+                std::vector<size_t> vshape = tslice[n].get_vshape();
+                size_t offset{1};
+                for (auto &dim:vshape) offset *= dim;
+
+                Print() << "Time " << itime << " " << nc_var_names[n] << "(";
+                for (auto &dim:vshape)
+                    amrex::Print() << dim << ",";
+                Print() << ") offset=" << offset << std::endl;
+
+                if (itime==0) {
+                    // allocate full array
+                    vshape[0] = ntimes;
+                    arrays[n] = NDArray<float>(tslice[n].get_vname(), vshape);
+                }
+
+                float* fullPtr = arrays[n].get_data();
+                float* slicePtr = tslice[n].get_data();
+                std::copy(slicePtr, slicePtr+offset, fullPtr+itime*offset);
+            }
+        }
+
+        for (auto &istat:success) {
+            AMREX_ALWAYS_ASSERT(istat==1);
+        }
+
+        //for (int n=0; n < nc_var_names.size(); ++n) {
+        //    std::vector<size_t> shape = arrays[n].get_vshape();
+        //    Print() << "Read " << nc_var_names[n] << "(";
+        //    for (auto &dim:shape)
+        //        amrex::Print() << dim << ",";
+        //    Print() << ")" << std::endl;
+        //}
+#else
         ReadNetCDFFile(nc_bdy_file, nc_var_names, arrays, success);
 
         // Assert that the data has the same number of time snapshots
         int itimes = static_cast<int>(arrays[0].get_vshape()[0]);
         AMREX_ALWAYS_ASSERT(itimes == ntimes);
+#endif
 
         // Width of the boundary region
         width = arrays[0].get_vshape()[1];

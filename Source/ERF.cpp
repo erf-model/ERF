@@ -31,7 +31,7 @@ Real ERF::cfl           =  0.8;
 Real ERF::sub_cfl       =  1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
-Real ERF::dt_max_initial = 1.0;
+Real ERF::dt_max_initial = 2.0e100;
 Real ERF:: dt_max = 1e9;
 int  ERF::fixed_mri_dt_ratio = 0;
 
@@ -209,7 +209,7 @@ ERF::ERF_shared ()
 
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
-    dt.resize(nlevs_max, 1.e100);
+    dt.resize(nlevs_max, std::min(1.e100,dt_max_initial));
     dt_mri_ratio.resize(nlevs_max, 1);
 
     vars_new.resize(nlevs_max);
@@ -347,12 +347,19 @@ ERF::ERF_shared ()
     // Size lat long arrays if using netcdf
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);
-    for (int lev = 0; lev < max_level; ++lev)
-    {
+    for (int lev = 0; lev < max_level; ++lev) {
         lat_m[lev] = nullptr;
         lon_m[lev] = nullptr;
     }
 #endif
+
+    // Variable coriolis
+    sinPhi_m.resize(nlevs_max);
+    cosPhi_m.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev) {
+        sinPhi_m[lev] = nullptr;
+        cosPhi_m[lev] = nullptr;
+    }
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
@@ -363,8 +370,11 @@ ERF::ERF_shared ()
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
     }
 
-    // We will create each of these in MakeNewLevel.../RemakeLevel
-    m_factory.resize(max_level+1);
+    // We will create each of these in MakeNewLevelFromScratch
+    eb.resize(max_level+1);
+    for (int lev = 0; lev < max_level + 1; lev++){
+        eb[lev] = std::make_unique<eb_>();
+    }
 
     //
     // Construct the EB data structures and store in a separate class
@@ -381,26 +391,10 @@ ERF::ERF_shared ()
         auto gshop = EB2::makeShop(ebterrain);
         bool build_coarse_level_by_coarsening(false);
         amrex::EB2::Build(gshop, geom[max_level], max_level, max_level, build_coarse_level_by_coarsening);
-        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
-
-        eb.resize(max_level+1);
-        for (int lev = 0; lev < max_level+1; ++lev)
-        {
-            amrex::Print() << "MAKING EB GEOMETRY AT LEVEL " << lev << ", max_level = "<< max_level << std::endl;
-            eb[lev] = new eb_();
-            amrex::EB2::Level const* eb_level = &(ebis.getLevel(geom[lev]));
-            eb[lev]->define(lev, geom[lev], eb_level, solverChoice.anelastic[lev]);
-        }
     }
 }
 
-// ERF::~ERF () = default;
-ERF::~ERF ()
-{
-    for (auto* p : eb) {
-        delete p;
-    }
-}
+ERF::~ERF () = default;
 
 // advance solution to final time
 void
@@ -415,9 +409,8 @@ ERF::Evolve ()
     for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
     {
         if (use_datetime) {
-            Print() << "\n" << getTimestamp(static_cast<std::time_t>(cur_time),
-                                            datetime_format)
-                    << "  (" << cur_time-start_time << " s elapsed)"
+            Print() << "\n" << getTimestamp(cur_time, datetime_format)
+                    << " (" << cur_time-start_time << " s elapsed)"
                     << std::endl;
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
@@ -1441,6 +1434,15 @@ ERF::init_only (int lev, Real time)
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
         init_from_wrfinput(lev);
+        if (lev==0) {
+            if ((start_time > 0) && (start_time != t_new[lev])) {
+                Print() << "Ignoring specified start_time="
+                        << std::setprecision(timeprecision) << start_time
+                        << std::endl;
+            }
+            start_time = t_new[lev];
+        }
+        use_datetime = true;
 
         // The physbc's need the terrain but are needed for initHSE
         if (!solverChoice.use_real_bcs) {
@@ -1514,7 +1516,6 @@ ERF::ReadParameters ()
 
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {
-            // Both start and stop datetimes must be provided
             start_time = getEpochTime(start_datetime, datetime_format);
             if (pp.query("stop_datetime", stop_datetime)) {
                 stop_time = getEpochTime(stop_datetime, datetime_format);
@@ -1603,19 +1604,18 @@ ERF::ReadParameters ()
 
         // NetCDF wrfinput initialization files -- possibly multiple files at each of multiple levels
         //        but we always have exactly one file at level 0
-        for (int lev = 0; lev <= max_level; lev++)
-        {
+        for (int lev = 0; lev <= max_level; lev++) {
             const std::string nc_file_names = Concatenate("nc_init_file_",lev,1);
-            if (pp.contains(nc_file_names.c_str()))
-            {
+            if (pp.contains(nc_file_names.c_str())) {
                 int num_files = pp.countval(nc_file_names.c_str());
                 num_files_at_level[lev] = num_files;
                 nc_init_file[lev].resize(num_files);
                 pp.queryarr(nc_file_names.c_str(), nc_init_file[lev],0,num_files);
-                for (int j = 0; j < num_files; j++)
+                for (int j = 0; j < num_files; j++) {
                     Print() << "Reading NC init file names at level " << lev << " and index " << j << " : " << nc_init_file[lev][j] << std::endl;
-            }
-        }
+                } // j
+            } // if pp.contains
+        } // lev
 
         // NetCDF wrfbdy lateral boundary file
         pp.query("nc_bdy_file", nc_bdy_file);
@@ -1757,9 +1757,17 @@ ERF::ReadParameters ()
         }
     }
 
-    if (solverChoice.init_type == InitType::WRFInput) {
-        AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-    }
+    // If init from WRFInput or Metgrid make sure a valid file name is present
+    if ((solverChoice.init_type == InitType::WRFInput) ||
+        (solverChoice.init_type == InitType::Metgrid) ) {
+        for (int lev = 0; lev <= max_level; lev++) {
+            int num_files = nc_init_file[lev].size();
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present for init type WRFInput or Metgrid.");
+            for (int j = 0; j < num_files; j++) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[lev][j].empty(), "Valid file name must be present for init type WRFInput or Metgrid.");
+            } //j
+        } // lev
+    } // InitType
 
     // What type of land surface model to use
     // NOTE: Must be checked after init_params

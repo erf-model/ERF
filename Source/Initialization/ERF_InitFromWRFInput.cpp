@@ -106,9 +106,9 @@ ERF::init_from_wrfinput (int lev)
     NC_names.push_back("PB");        // 8
     NC_names.push_back("P");         // 9
     NC_names.push_back("MUB");       // 10
-    NC_names.push_back("MAPFAC_UY"); // 11
-    NC_names.push_back("MAPFAC_VY"); // 12
-    NC_names.push_back("MAPFAC_MY"); // 13
+    NC_names.push_back("MAPFAC_U");  // 11
+    NC_names.push_back("MAPFAC_V");  // 12
+    NC_names.push_back("MAPFAC_M");  // 13
     NC_names.push_back("SST");       // 14
     NC_names.push_back("LANDMASK");  // 15
     NC_names.push_back("C1H");       // 16
@@ -219,54 +219,55 @@ ERF::init_from_wrfinput (int lev)
                   bool mult_rho = false;
                   FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
                   FArrayBox* cur_fab;
-                  if (NC_names[ivar] == "U") {
+                  if (var_name == "U") {
                     cur_fab  = &lev_new[Vars::xvel][mfi];
-                  } else if (NC_names[ivar] == "V") {
+                  } else if (var_name == "V") {
                     cur_fab  = &lev_new[Vars::yvel][mfi];
-                  } else if (NC_names[ivar] == "W") {
+                  } else if (var_name == "W") {
                     cur_fab  = &lev_new[Vars::zvel][mfi];
-                  } else if (NC_names[ivar] == "THM") {
+                  } else if (var_name == "THM") {
                     const Real theta_ref = 300.0;
                     var_fab.template plus<RunOn::Device>(theta_ref);
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoTheta_comp;
-                  } else if (NC_names[ivar] == "QVAPOR") {
+                  } else if (var_name == "QVAPOR") {
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ1_comp;
-                  } else if (NC_names[ivar] == "QCLOUD") {
+                  } else if (var_name == "QCLOUD") {
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ2_comp;
-                  } else if (NC_names[ivar] == "QRAIN") {
+                  } else if (var_name == "QRAIN") {
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ3_comp;
                     if (n_qstate > 3) { icomp = RhoQ4_comp; }
+                    if (n_qstate < 3) { success = 0; }
                   }
 
                   if (success) {
                       cur_fab->template copy<RunOn::Device>(var_fab, 0, icomp, 1);
                       if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
-                      if (use_theta_m && (NC_names[ivar] == "QVAPOR")) {
+                      if (use_theta_m && (var_name == "QVAPOR")) {
                           // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
                           var_fab.template mult<RunOn::Device>(R_v/R_d);
                           var_fab.template plus<RunOn::Device>(1.0);
                           var_fab.template invert<RunOn::Device>(1.0);
                           cur_fab->template mult<RunOn::Device>(var_fab, 0, RhoTheta_comp, 1);
                       }
-                      var_fab.clear();
                   } else {
                       if (icomp < cur_fab->nComp()) {
-                          amrex::Print() << "Setting " << NC_names[ivar] << " to 0 since we couldn't read it in ... DONE" << std::endl;
+                          amrex::Print() << "Setting " << var_name << " to 0 since we couldn't read it in ... DONE" << std::endl;
                           cur_fab->template setVal<RunOn::Device>(0.0,cur_fab->box(),icomp,1);
                           if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
                       } else {
-                          amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                          amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                       }
                   }
               } // mfi
+              var_fab.clear();
           } // valid var (not rho)
 
           if ( var_name == "PH" ) {
@@ -283,7 +284,7 @@ ERF::init_from_wrfinput (int lev)
                   }
                   var_fab.clear();
               } else {
-                  amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                  amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                   compute_terrain_here = false;
               }
           } else if ( var_name == "PHB" ) {
@@ -300,7 +301,7 @@ ERF::init_from_wrfinput (int lev)
                   }
                   var_fab.clear();
               } else {
-                  amrex::Print() << "Ignoring " << NC_names[ivar] << " since we aren't using it ... DONE" << std::endl;
+                  amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                   compute_terrain_here = false;
               }
           } else if ( var_name == "ALB" ) {
@@ -375,69 +376,88 @@ ERF::init_from_wrfinput (int lev)
           int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
           int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
 
-          // Initialize Latitude
+          // Initialize Latitude & Coriolis factors
           if ( var_name == "XLAT_V" ) {
-            lat_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
-            for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-              Box gtbx = mfi.growntilebox();
-              const Array4<      Real>& dst_arr = (lat_m[lev])->array(mfi);
-              const Array4<const Real>& src_arr = var_fab.const_array();
-              ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
-              {
-                int li = amrex::min(amrex::max(i, i_lo), i_hi);
-                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                dst_arr(i,j,0) = src_arr(li,lj,0);
-              });
-            }
+              solverChoice.has_lat_lon       = true;
+              lat_m[lev]    = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+              sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+              cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+              for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                  Box gtbx = mfi.growntilebox();
+                  const Array4<      Real>& sin_arr = (sinPhi_m[lev])->array(mfi);
+                  const Array4<      Real>& cos_arr = (cosPhi_m[lev])->array(mfi);
+                  const Array4<      Real>& dst_arr = (lat_m[lev])->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                      int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
+
+                      Real lat_rad = dst_arr(i,j,0) * (PI/180.);
+                      sin_arr(i,j,0) = std::sin(lat_rad);
+                      cos_arr(i,j,0) = std::cos(lat_rad);
+                  });
+              }
           }
 
           // Initialize Longitude
           if ( var_name == "XLONG_U" ) {
-            lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
-            for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-              Box gtbx = mfi.growntilebox();
-              const Array4<      Real>& dst_arr = (lon_m[lev])->array(mfi);
-              const Array4<const Real>& src_arr = var_fab.const_array();
-              ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
-              {
-                int li = amrex::min(amrex::max(i, i_lo), i_hi);
-                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                dst_arr(i,j,0) = src_arr(li,lj,0);
-              });
-            }
+              lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+              for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                  Box gtbx = mfi.growntilebox();
+                  const Array4<      Real>& dst_arr = (lon_m[lev])->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                      int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
+                  });
+              }
           }
 
           // Initialize Landmask
           if ( var_name == "LANDMASK" ) {
-            for ( MFIter mfi(*(lmask_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-              Box gtbx = mfi.growntilebox();
-              const Array4<       int>& dst_arr = lmask_lev[lev][0]->array(mfi);
-              const Array4<const Real>& src_arr = var_fab.const_array();
-              ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
-              {
-                int li = amrex::min(amrex::max(i, i_lo), i_hi);
-                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
-              });
-            }
-            (lmask_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
+              for ( MFIter mfi(*(lmask_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                  Box gtbx = mfi.growntilebox();
+                  const Array4<       int>& dst_arr = lmask_lev[lev][0]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                      int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                      dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
+                  });
+              }
+              (lmask_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
           }
 
           // Initialize MapFac U
-          if ( var_name == "MAPFAC_UY" ) {
+          if ( var_name == "MAPFAC_U" ) {
+              Real max_val = var_fab.template max<RunOn::Device>();
+              if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
+                  Print() << "MAPFAC_U cannot be 0, resetting to 1!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(*mapfac_u[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-            {
-              // Define fabs for holding the initial data
-              FArrayBox &msf_fab = (*mapfac_u[lev])[mfi];
-              msf_fab.template copy<RunOn::Device>(var_fab);
-            }
+              for ( MFIter mfi(*mapfac_u[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              {
+                  // Define fabs for holding the initial data
+                  FArrayBox &msf_fab = (*mapfac_u[lev])[mfi];
+                  msf_fab.template copy<RunOn::Device>(var_fab);
+              }
           }
 
           // Initialize MapFac V
-          if ( var_name == "MAPFAC_VY" ) {
+          if ( var_name == "MAPFAC_V" ) {
+              Real max_val = var_fab.template max<RunOn::Device>();
+              if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
+                  Print() << "MAPFAC_V cannot be 0, resetting to 1!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -450,16 +470,21 @@ ERF::init_from_wrfinput (int lev)
           }
 
           // Initialize MapFac M
-          if ( var_name == "MAPFAC_MY" ) {
+          if ( var_name == "MAPFAC_M" ) {
+              Real max_val = var_fab.template max<RunOn::Device>();
+              if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
+                  Print() << "MAPFAC_M cannot be 0, resetting to 1!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(*mapfac_m[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-            {
-              // Define fabs for holding the initial data
-              FArrayBox &msf_fab = (*mapfac_m[lev])[mfi];
-              msf_fab.template copy<RunOn::Device>(var_fab);
-            }
+              for ( MFIter mfi(*mapfac_m[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              {
+                  // Define fabs for holding the initial data
+                  FArrayBox &msf_fab = (*mapfac_m[lev])[mfi];
+                  msf_fab.template copy<RunOn::Device>(var_fab);
+              }
           }
 
           if (success) {
@@ -467,7 +492,7 @@ ERF::init_from_wrfinput (int lev)
               Print() << " DONE\n";
           }
         } // ivar
-      Print() << "\n";
+        Print() << "\n";
     } // idx
 
     // Convert the velocities using the map factors
@@ -530,13 +555,14 @@ ERF::init_from_wrfinput (int lev)
     // Rebalance the base state if needed
     // **************************************************************************
     if (solverChoice.rebalance_wrfinput) {
+        Print() << "Rebalancing the HSE state!\n";
         int ncomp = lev_new[Vars::cons].nComp();
         int k_dom_lo = geom[lev].Domain().smallEnd(2);
         int k_dom_hi = geom[lev].Domain().bigEnd(2);
         Real tol = 1.0e-10;
         Real grav = CONST_GRAV;
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-            Box bx = mfi.tilebox();
+        for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
+            Box bx  = mfi.tilebox();
             int klo = bx.smallEnd(2);
             int khi = bx.bigEnd(2);
             AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
@@ -705,6 +731,9 @@ ERF::init_from_wrfinput (int lev)
         // Note we only have start_bdy_time if at level 0 and init_type == InitType:WRFInput
         //
         if (lev == 0) {
+            Print() << "Setting start_time to "
+                    << std::setprecision(timeprecision) << start_bdy_time
+                    << " from wrfbdy" << std::endl;
             t_new[lev] = start_bdy_time;
             t_old[lev] = start_bdy_time - 1.e200;
         } else {

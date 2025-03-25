@@ -65,6 +65,27 @@ int NCVar::ndim () const
 }
 
 /**
+ * Error-checking function to get the name of each dimension from a NetCDF identity
+ */
+std::vector<std::string> NCVar::dimnames () const
+{
+    int ndims = ndim();
+    std::vector<int> dimids(ndims);
+    std::vector<std::string> vnames(ndims);
+
+    for (int i = 0; i < ndims; ++i)
+        check_nc_error(nc_inq_vardimid(ncid, varid, dimids.data()));
+
+    char buf[80];
+    for (int i = 0; i < ndims; ++i) {
+        check_nc_error(nc_inq_dimname(ncid, dimids[i], buf));
+        vnames[i] = std::string(buf);
+    }
+
+    return vnames;
+}
+
+/**
  * Error-checking function to get the length of each dimension from a NetCDF identity
  */
 std::vector<size_t> NCVar::shape () const

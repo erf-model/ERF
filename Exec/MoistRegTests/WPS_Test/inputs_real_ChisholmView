@@ -1,6 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 1
-start_time = 1385042400.
 
 amrex.fpe_trap_invalid = 1
 

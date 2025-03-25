@@ -214,7 +214,7 @@ public:
     amrex::Real cloud_fraction (amrex::Real time);
 
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
-    void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel);
+    void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel, int levc=0);
 
     void sample_points (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
@@ -339,7 +339,9 @@ public:
                                const amrex::Real& time);
 
     void advance_lsm (int lev,
-                      amrex::MultiFab& /*cons_in*/,
+                      amrex::MultiFab& cons_in,
+                      amrex::MultiFab& xvel_in,
+                      amrex::MultiFab& yvel_in,
                       const amrex::Real& dt_advance);
 
 #if defined(ERF_USE_RRTMGP)
@@ -678,8 +680,10 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
     amrex::Real bdy_time_interval;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
 #endif // ERF_USE_NETCDF
+
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
     // Struct for working with the sounding data we take as an input
     InputSoundingData input_sounding_data;
@@ -906,15 +910,18 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
-    // array of EB objects
-    amrex::Vector<eb_*> eb;
-
     int last_plot_file_step_1;
     int last_plot_file_step_2;
     int last_subvol;
 
     int last_check_file_step;
     int plot_file_on_restart = 1;
+
+    // Output control
+    const int datwidth = 14;
+    const int datprecision = 6;
+    const int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
+                                  // epoch time for 2030-01-01 00:00:00 is 1,893,456,000 s with dt ~ 0.01 ==> min prec = 12
 
     ////////////////
     // runtime parameters
@@ -923,6 +930,7 @@ private:
     int max_step = std::numeric_limits<int>::max();
     amrex::Real start_time = 0.0;
     amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
+
     bool use_datetime = false;
     const std::string datetime_format = "%Y-%m-%d %H:%M:%S";
 
@@ -1435,14 +1443,17 @@ private:
     //! The filename of the ith samplelinelog file.
     [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
-    // amrex::Vector<std::unique_ptr<amrex::EBFArrayBoxFactory> > m_factory;
-    amrex::Vector<std::unique_ptr<amrex::FabFactory<amrex::FArrayBox> > > m_factory;
+    // array of EB objects
+    amrex::Vector<std::unique_ptr<eb_>> eb;
 
-    [[nodiscard]] amrex::FabFactory<amrex::FArrayBox> const&
-    Factory (int lev) const noexcept { return *m_factory[lev]; }
+    [[nodiscard]] eb_ const& get_eb (int lev) const noexcept {
+        AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
+        return *eb[lev];
+    }
+
     [[nodiscard]] amrex::EBFArrayBoxFactory const&
     EBFactory (int lev) const noexcept {
-        return static_cast<amrex::EBFArrayBoxFactory const&>(*m_factory[lev]);
+        return *(eb[lev]->get_const_factory());
     }
 
     [[nodiscard]] static int nghost_eb_basic ()

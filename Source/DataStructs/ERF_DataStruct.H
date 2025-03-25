@@ -330,6 +330,8 @@ struct SolverChoice {
 
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
+        pp.query("has_lat_lon", has_lat_lon);
+        if (has_lat_lon) { pp.query("variable_coriolis", variable_coriolis); }
 
         // Include Rayleigh damping (separate flags for each variable)
         pp.query("rayleigh_damp_U", rayleigh_damp_U);
@@ -373,7 +375,7 @@ struct SolverChoice {
 
         if (use_coriolis)
         {
-            build_coriolis_forcings(pp_prefix);
+            build_coriolis_forcings_const_lat(pp_prefix);
         }
 
         pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
@@ -597,7 +599,7 @@ struct SolverChoice {
         }
     }
 
-    void build_coriolis_forcings(std::string pp_prefix)
+    void build_coriolis_forcings_const_lat (std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -772,6 +774,9 @@ struct SolverChoice {
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
     std::string abl_geo_wind_table;
     bool have_geo_wind_profile {false};
+
+    bool has_lat_lon{false};
+    bool variable_coriolis{false};
 
     int ave_plane {2};
     // Microphysics params
