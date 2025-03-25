@@ -19,6 +19,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
+#include <ERF_Morrison_Fortran_Interface.H>
 
 namespace MicVar_Morr {
    enum {

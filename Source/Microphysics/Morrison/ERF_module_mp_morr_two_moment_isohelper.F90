@@ -1,4 +1,5 @@
 MODULE mp_morr_two_moment_isohelper
+  USE MODULE_MP_MORR_TWO_MOMENT, ONLY: MP_MORR_TWO_MOMENT, MORR_TWO_MOMENT_INIT
   USE ISO_C_BINDING
   IMPLICIT NONE
 
@@ -6,12 +7,12 @@ MODULE mp_morr_two_moment_isohelper
 
   SUBROUTINE mp_morr_two_moment_c(itimestep, &
                 th, qv, qc, qr, qi, qs, qg, ni, ns, nr, ng, &
-                rho, pii, p, dt_in, dz, ht, w, &
+                rho, pii, p, dt_in, dz, w, &
                 rainnc, rainncv, sr, &
                 snownc, snowncv, graupelnc, graupelncv, &
                 refl_10cm, diagflag, do_radar_ref, &
                 qrcuten, qscuten, qicuten, &
-                f_qndrop, qndrop, &
+                f_qndrop, qndrop, ht, &
                 ids, ide, jds, jde, kds, kde, &
                 ims, ime, jms, jme, kms, kme, &
                 its, ite, jts, jte, kts, kte, &
@@ -28,7 +29,7 @@ MODULE mp_morr_two_moment_isohelper
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: snownc, snowncv, graupelnc, graupelncv
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: refl_10cm
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: diagflag
-    INTEGER(C_INT), VALUE, INTENT(IN) :: do_radar_ref
+    LOGICAL(C_BOOL), VALUE, INTENT(IN) :: do_radar_ref
     REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, kms:kme, jms:jme) :: qrcuten, qscuten, qicuten
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: f_qndrop
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: qndrop

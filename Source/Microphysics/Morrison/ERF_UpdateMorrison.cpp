@@ -2,9 +2,9 @@
 #include "ERF_Constants.H"
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_MultiFabUtil.H>
-#include <ERF_Morrison_Fortran_Interface.H>
 
 using namespace amrex;
+#include <stdbool.h>
 
 /**
  * Updates conserved and microphysics variables in the provided MultiFabs from
