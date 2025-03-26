@@ -88,7 +88,7 @@ struct TurbChoice {
 
         // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
         if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
-            use_KE = true;
+            use_pbl_tke = true;
             query_one_or_per_level(pp, "advect_KE"    , advect_KE, lev, max_level);
             query_one_or_per_level(pp, "diffuse_KE_3D", diffuse_KE_3D, lev, max_level);
         }
@@ -121,6 +121,17 @@ struct TurbChoice {
         query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
         query_one_or_per_level(pp, "mix_isotropic", mix_isotropic, lev, max_level);
+
+        // Set common flags
+        use_kturb = ( (les_type  != LESType::None) ||
+                      (rans_type != RANSType::None) ||
+                      (pbl_type  != PBLType::None) );
+        use_keqn  = ( (les_type  == LESType::Deardorff) ||
+                      (rans_type == RANSType::kEqn) );
+        use_tke   = ( (les_type  == LESType::Deardorff) ||
+                      (rans_type == RANSType::kEqn) ||
+                      (pbl_type  == PBLType::MYNN25) ||
+                      (pbl_type  == PBLType::MYNNEDMF) );
 
         // Validate inputs
         if (les_type == LESType::Smagorinsky) {
@@ -248,6 +259,12 @@ struct TurbChoice {
     MYNNLevel25 pbl_mynn;
     MYNNLevel2 pbl_mynn_level2; // for filtering
 
+    // Common Flags
+    bool use_kturb = false;     // Any turbulence modeling?
+    bool use_keqn = false;      // Any microscale turbulence modeling (LES, RANS) with TKE closure? Need to populate SmnSmn_lev for production term.
+    bool use_pbl_tke = false;   // Any mesoscale  turbulence modeling (PBL) with TKE closure?
+    bool use_tke = false;       // Any TKE closure?
+
     // Model coefficients - YSU
     // TODO: Add parmparse for all of these above
     amrex::Real pbl_ysu_coriolis_freq = 1.0e-4; // 1e-4 is hardcoded in WRF, we let the user specify or tske the value from ERF coriolis forcing
@@ -257,7 +274,6 @@ struct TurbChoice {
     amrex::Real pbl_ysu_unst_Ribcr = 0.0;  // Critical Bulk Richardson number for unstable conditions
 
     // QKE stuff - default is to use it, if MYNN2.5 PBL is used default is turb transport in Z-direction only
-    bool use_KE = true;
     bool diffuse_KE_3D = true;
     bool advect_KE = true;
 };

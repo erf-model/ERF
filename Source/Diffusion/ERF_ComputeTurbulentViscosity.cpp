@@ -600,13 +600,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     const Real const_grav = solverChoice.gravity;
 
     if (most) {
-        bool l_use_turb = ( turbChoice.les_type  == LESType::Smagorinsky ||
-                            turbChoice.les_type  == LESType::Deardorff   ||
-                            turbChoice.rans_type == RANSType::kEqn       ||
-                            turbChoice.pbl_type  == PBLType::MYNN25      ||
-                            turbChoice.pbl_type  == PBLType::MYNNEDMF    ||
-                            turbChoice.pbl_type  == PBLType::YSU );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(l_use_turb,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(turbChoice.use_kturb,
           "A turbulence model must be utilized with MOST boundaries to compute the turbulent viscosity");
     } else {
         AMREX_ALWAYS_ASSERT(!vert_only);

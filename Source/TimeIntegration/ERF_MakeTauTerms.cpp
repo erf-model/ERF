@@ -41,24 +41,15 @@ void erf_make_tau_terms (int level, int nrk,
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain_fitted_coords);
 
 
-    const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
-                                    (tc.les_type        !=       LESType::None) ||
-                                    (tc.rans_type       !=      RANSType::None) ||
-                                    (tc.pbl_type        !=       PBLType::None) );
+    const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) || tc.use_kturb );
     const bool l_use_constAlpha = ( dc.molec_diff_type == MolecDiffType::ConstantAlpha );
-    const bool l_use_turb       = ( tc.les_type  == LESType::Smagorinsky ||
-                                    tc.les_type  == LESType::Deardorff   ||
-                                    tc.rans_type == RANSType::kEqn       ||
-                                    tc.pbl_type  == PBLType::MYNN25      ||
-                                    tc.pbl_type  == PBLType::MYNNEDMF    ||
-                                    tc.pbl_type  == PBLType::YSU );
+    const bool l_use_turb       = tc.use_kturb;
 
-    const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
-                                   tc.rans_type == RANSType::kEqn);
+    const bool need_SmnSmn = tc.use_keqn;
 
-    const bool use_most     = (most != nullptr);
-    const bool exp_most     = (solverChoice.use_explicit_most);
-    const bool rot_most     = (solverChoice.use_rotate_most);
+    const bool use_most = (most != nullptr);
+    const bool exp_most = (solverChoice.use_explicit_most);
+    const bool rot_most = (solverChoice.use_rotate_most);
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
