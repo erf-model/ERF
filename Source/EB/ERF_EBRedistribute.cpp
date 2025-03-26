@@ -55,8 +55,8 @@ redistribute_term ( MFIter const& mfi,
     bool regular = (flagfab.getType(amrex::grow(bx,4)) == FabType::regular);
     bool covered = (flagfab.getType(bx) == FabType::covered);
 
-    Array4<Real      > out = result.array(mfi);
-    Array4<Real      > in  = result_tmp.array(mfi);
+    Array4<Real> out = result.array(mfi);
+    Array4<Real> in  = result_tmp.array(mfi);
 
     if (!regular && !covered)
     {

@@ -2,6 +2,7 @@
 #include <ERF_SrcHeaders.H>
 #include <ERF_TI_slow_headers.H>
 #include <ERF_EBAdvection.H>
+#include <ERF_EBRedistribute.H>
 
 using namespace amrex;
 
@@ -566,5 +567,78 @@ void erf_slow_rhs_post (int level, int finest_level,
         } // two-way coupling
         } // end profile
       } // mfi
+
+      if (solverChoice.terrain_type == TerrainType::EB)
+      {
+          // start_comp and num_comp
+          for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
+          {
+              if (is_valid_slow_var[ivar])
+              {
+                  start_comp = ivar;
+                  if (ivar >= RhoQ1_comp) {
+                      num_comp = nvars - RhoQ1_comp;
+                  } else {
+                      num_comp = 1;
+                  }
+              }
+          }
+
+          // Redistribute cons states (cell-centered)
+          const int num_comp_total{S_rhs[IntVars::cons].nComp()};
+          MultiFab dUdt_tmp(ba, dm, num_comp_total, S_rhs[IntVars::cons].nGrow(), MFInfo(), ebfact);
+          dUdt_tmp.setVal(0.);
+          MultiFab::Copy(dUdt_tmp, S_rhs[IntVars::cons], start_comp, start_comp, num_comp, S_rhs[IntVars::cons].nGrow());
+          dUdt_tmp.FillBoundary(geom.periodicity());
+          dUdt_tmp.setDomainBndry(1.234e10, 0, num_comp_total, geom);
+
+          S_old[IntVars::cons].FillBoundary(geom.periodicity());
+          S_old[IntVars::cons].setDomainBndry(1.234e10, 0, num_comp_total, geom);
+
+          // Update S_rhs by Redistribution. 
+          // To-do: Currently, redistributing all the scalar variables. 
+          //        This needs to be redistributed only for num_comp variables starting from ivar, for efficiency.
+          redistribute_term ( num_comp_total, geom, S_rhs[IntVars::cons], dUdt_tmp,
+                              S_old[IntVars::cons], ebfact, bc_ptr_d, dt);
+
+          // Update state using the updated S_rhs. (NOTE: redistribute_term returns RHS not state variables.)
+          for ( MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+          {
+            Box tbx  = mfi.tilebox();
+            Vector<Array4<Real> > sdata_h(num_comp);
+            Vector<Array4<Real> > sold_h(num_comp);
+            Vector<Array4<Real> > srhs_h(num_comp);
+            Array4<const Real> detJ_arr = ebfact.getVolFrac().const_array(mfi);
+
+            for (int i = 0; i < num_comp; ++i) {
+                sdata_h[i] = S_data[start_comp+i].array(mfi);
+                sold_h[i] = S_old[start_comp+i].array(mfi);
+                srhs_h[i] = S_rhs[start_comp+i].array(mfi);
+            }
+
+            Gpu::AsyncVector<Array4<Real> > sdata_d(num_comp);
+            Gpu::AsyncVector<Array4<Real> > sold_d(num_comp);
+            Gpu::AsyncVector<Array4<Real> > srhs_d(num_comp);
+
+            Gpu::copy(Gpu::hostToDevice, sdata_h.begin(), sdata_h.end(), sdata_d.begin());
+            Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
+            Gpu::copy(Gpu::hostToDevice, srhs_h.begin(), srhs_h.end(), srhs_d.begin());
+
+            Array4<Real>* sdata = sdata_d.dataPtr();
+            Array4<Real>* sold = sold_d.dataPtr();
+            Array4<Real>* srhs = srhs_d.dataPtr();
+
+            ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            {
+                if (detJ_arr(i,j,k) > 0.0) {
+                    sdata[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) 
+                                                + dt * srhs[IntVars::cons](i,j,k,n);
+                }
+            });
+        }
+
+          // Redistribute momentum states (face-centered) will be added here.
+      } // EB
+
     } // OMP
 }
