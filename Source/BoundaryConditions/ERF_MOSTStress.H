@@ -1527,7 +1527,7 @@ struct donelan_flux
     }
 
 private:
-    const amrex::Real eta_eps = 1e-8;
+
 };
 
 
@@ -1642,7 +1642,7 @@ struct custom_flux
 
 private:
     const amrex::Real     eps = 1e-15;
-    const amrex::Real eta_eps = 1e-8;
+
 };
 
 /**
