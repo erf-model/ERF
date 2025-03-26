@@ -39,6 +39,12 @@ namespace MicVar_Morr {
       qpr,   // precip rain
       qps,   // precip ice
       qpg,   // graupel
+      // number concentrations
+      nc,    // cloud droplet number
+      nr,    // rain number
+      ni,    // cloud ice number
+      ns,    // snow number
+      ng,    // graupel number
       // derived vars
       rain_accum,
       snow_accum,
@@ -129,8 +135,8 @@ public:
         dt = dt_advance;
 
         // Loop through the grids
-        for (MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl]); mfi.isValid(); ++mfi) {
-          const Box& box = mfi.validbox();
+        for (amrex::MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl]); mfi.isValid(); ++mfi) {
+          const amrex::Box& box = mfi.validbox();
 
           // Get array data from class member variables
           auto const& theta_arr = mic_fab_vars[MicVar_Morr::theta]->array(mfi);
@@ -154,7 +160,7 @@ public:
 
           // Get radar reflectivity array if radar diagnostics enabled
           //        auto const& refl_arr = m_do_radar_ref ? m_radar->array(mfi) : nullptr;
-          auto const& refl_arr = m_radar->array(mfi);
+          //        auto const& refl_arr = m_radar->array(mfi);
 
           // Extract box dimensions
           const int ilo = box.loVect()[0];
@@ -252,7 +258,8 @@ public:
 
           // Prepare data pointers for Fortran call
           // These would be passed directly to the Fortran interface
-
+          double dummy_reflectivity = 0.0;
+          double* dummy_reflectivity_ptr = &dummy_reflectivity;
           // Example call (pseudo-code - actual interface would depend on your Fortran interop setup)
           mp_morr_two_moment_c(
               1,  // ITIMESTEP - Use 1 for simplicity
@@ -275,7 +282,6 @@ public:
               pres_arr.dataPtr(),       // P (in hPa, convert if needed)
               dt,                       // DT_IN
               dz_arr.dataPtr(),         // DZ
-              ht_arr.dataPtr(),         // HT (terrain height - not used)
               w_arr.dataPtr(),          // W (vertical velocity)
 
               // 2D arrays for precipitation accounting
@@ -288,9 +294,9 @@ public:
               graupelncv_arr.dataPtr(), // GRAUPELNCV
 
               // Radar reflectivity
-              m_do_radar_ref ? refl_arr.dataPtr() : nullptr,  // refl_10cm
+              dummy_reflectivity_ptr,  // refl_10cm
               true,                     // diagflag
-              m_do_radar_ref ? 1 : 0,   // do_radar_ref
+              0,   // do_radar_ref
 
               // Cumulus tendencies
               qrcuten_arr.dataPtr(),    // qrcuten
@@ -300,6 +306,7 @@ public:
               // WRF-Chem flags
               &flag_qndrop,             // F_QNDROP
               nullptr,                  // qndrop (not used here)
+              ht_arr.dataPtr(),         // HT (terrain height - not used)
 
               // Domain dimensions
               ilo, ihi, jlo, jhi, klo, khi,  // IDS,IDE,JDS,JDE,KDS,KDE
