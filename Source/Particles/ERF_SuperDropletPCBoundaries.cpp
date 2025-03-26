@@ -94,6 +94,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                     mult_ptr[i] = 0.0;
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
+                    update_location_idata(p,plo,dxi,zheight);
                 }
             }
 
@@ -109,6 +110,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                     mult_ptr[i] = 0.0;
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
+                    update_location_idata(p,plo,dxi,zheight);
                 }
             }
 
@@ -188,6 +190,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
             }
 
+            // Update z-coordinate carried by the particle
         });
         Gpu::synchronize();
         num_deactivated_particles += *(deactivated_particles.copyToHost());
