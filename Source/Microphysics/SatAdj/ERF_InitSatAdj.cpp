@@ -24,9 +24,6 @@ void SatAdj::Init (const MultiFab& cons_in,
     dt = dt_advance;
     m_geom = geom;
 
-    MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar_SatAdj::qv, MicVar_SatAdj::qc};
-
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar_SatAdj::NumVars; ++ivar) {
         mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(),
