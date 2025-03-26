@@ -602,40 +602,22 @@ void erf_slow_rhs_post (int level, int finest_level,
                               S_old[IntVars::cons], ebfact, bc_ptr_d, dt);
 
           // Update state using the updated S_rhs. (NOTE: redistribute_term returns RHS not state variables.)
-          for ( MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+          for ( MFIter mfi(S_new[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
           {
             Box tbx  = mfi.tilebox();
-            Vector<Array4<Real> > sdata_h(num_comp);
-            Vector<Array4<Real> > sold_h(num_comp);
-            Vector<Array4<Real> > srhs_h(num_comp);
+            const Array4<Real>& snew = S_new[IntVars::cons].array(mfi);
+			const Array4<Real>& sold = S_old[IntVars::cons].array(mfi);
+			const Array4<Real>& srhs = S_rhs[IntVars::cons].array(mfi);
             Array4<const Real> detJ_arr = ebfact.getVolFrac().const_array(mfi);
 
-            for (int i = 0; i < num_comp; ++i) {
-                sdata_h[i] = S_data[start_comp+i].array(mfi);
-                sold_h[i] = S_old[start_comp+i].array(mfi);
-                srhs_h[i] = S_rhs[start_comp+i].array(mfi);
-            }
-
-            Gpu::AsyncVector<Array4<Real> > sdata_d(num_comp);
-            Gpu::AsyncVector<Array4<Real> > sold_d(num_comp);
-            Gpu::AsyncVector<Array4<Real> > srhs_d(num_comp);
-
-            Gpu::copy(Gpu::hostToDevice, sdata_h.begin(), sdata_h.end(), sdata_d.begin());
-            Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
-            Gpu::copy(Gpu::hostToDevice, srhs_h.begin(), srhs_h.end(), srhs_d.begin());
-
-            Array4<Real>* sdata = sdata_d.dataPtr();
-            Array4<Real>* sold = sold_d.dataPtr();
-            Array4<Real>* srhs = srhs_d.dataPtr();
-
-            ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
             {
                 if (detJ_arr(i,j,k) > 0.0) {
-                    sdata[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) 
-                                                + dt * srhs[IntVars::cons](i,j,k,n);
+					const int n = start_comp + nn;
+                    snew(i,j,k,n) = sold(i,j,k,n) + dt * srhs(i,j,k,n);
                 }
             });
-        }
+          }
 
           // Redistribute momentum states (face-centered) will be added here.
       } // EB
