@@ -5,6 +5,7 @@ CEXE_headers += ERF_Interpolation_WENO.H
 CEXE_headers += ERF_Interpolation_WENO_Z.H
 CEXE_headers += ERF_Interpolation.H
 CEXE_headers += ERF_Interpolation_1D.H
+CEXE_headers += ERF_Interpolation_Bilinear.H
 CEXE_headers += ERF_Microphysics_Utils.H
 CEXE_headers += ERF_TerrainMetrics.H
 CEXE_headers += ERF_TileNoZ.H

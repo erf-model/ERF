@@ -54,6 +54,8 @@ void make_mom_sources (int level,
                        const MultiFab& base_state,
                              MultiFab* forest_drag,
                              MultiFab* terrain_blank,
+                             MultiFab* cosPhi_mf,
+                             MultiFab* sinPhi_mf,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& /*mapfac_m*/,
@@ -106,6 +108,7 @@ void make_mom_sources (int level,
     auto coriolis_factor      = solverChoice.coriolis_factor;
     auto cosphi               = solverChoice.cosphi;
     auto sinphi               = solverChoice.sinphi;
+    auto var_coriolis         = solverChoice.variable_coriolis;
 
     // *****************************************************************************
     // Flag for Geostrophic forcing
@@ -239,6 +242,11 @@ void make_mom_sources (int level,
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                Array4<const Real>{};
 
+        const Array4<const Real>& cphi_arr = (cosPhi_mf) ? cosPhi_mf->const_array(mfi) :
+                                                           Array4<const Real>{};
+        const Array4<const Real>& sphi_arr = (sinPhi_mf) ? sinPhi_mf->const_array(mfi) :
+                                                           Array4<const Real>{};
+
         const Array4<const Real>& z_nd_arr =  z_phys_nd->const_array(mfi);
         const Array4<const Real>& z_cc_arr =  z_phys_cc->const_array(mfi);
 
@@ -246,23 +254,42 @@ void make_mom_sources (int level,
         // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis) {
-            ParallelFor(tbx, tby, tbz,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
-            },
-
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
-            },
-
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
-            });
+            if (var_coriolis) {
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
+                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                    Real sphi_loc  = 0.5  * (sphi_arr(i,j,0) + sphi_arr(i-1,j,0));
+                    Real cphi_loc  = 0.5  * (cphi_arr(i,j,0) + cphi_arr(i-1,j,0));
+                    xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sphi_loc - rho_w_loc * cphi_loc);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                    Real sphi_loc  = 0.5  * (sphi_arr(i,j,0) + sphi_arr(i,j-1,0));
+                    ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sphi_loc;
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
+                    zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cphi_arr(i,j,0);
+                });
+            } else {
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
+                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                    xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                    ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
+                    zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
+                });
+            } // var_coriolis
         } // use_coriolis
 
         // *****************************************************************************

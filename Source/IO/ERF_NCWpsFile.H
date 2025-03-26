@@ -269,7 +269,7 @@ fill_fab_from_arrays (int iv,
                       NC_Data_Dims_Type& NC_dim_type,
                       FAB& temp)
 {
-    int ns1, ns2, ns3;
+    int ns1, ns2, ns3; // bottom_top, south_north, west_east (these can be staggered or unstaggered)
     if (NC_dim_type == NC_Data_Dims_Type::Time_BT) {
         ns1 = nc_arrays[iv].get_vshape()[1];
         ns2 = 1;
@@ -294,15 +294,14 @@ fill_fab_from_arrays (int iv,
 
     if (var_name == "PH" || var_name == "PHB") {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
-    } else if (var_name == "U" || var_name == "UU" ||
-        var_name == "MAPFAC_U" || var_name == "MAPFAC_UY")
-    {
+    }
+    else if (var_name == "U" || var_name == "UU" || var_name == "MAPFAC_U") {
         my_box.setType(amrex::IndexType(amrex::IntVect(1,0,0)));
-    } else if (var_name == "V" || var_name == "VV" ||
-        var_name == "MAPFAC_V" || var_name == "MAPFAC_VY")
-    {
+    }
+    else if (var_name == "V" || var_name == "VV" || var_name == "MAPFAC_V") {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,1,0)));
-    } else if (var_name == "W" || var_name == "WW") {
+    }
+    else if (var_name == "W" || var_name == "WW") {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
     }
 

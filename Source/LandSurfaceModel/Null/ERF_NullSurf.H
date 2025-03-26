@@ -27,6 +27,17 @@ class NullSurf {
 
     virtual
     void
+    Advance (const int& /*lev*/,
+             amrex::MultiFab& /*cons_in*/,
+             amrex::MultiFab& /*xvel_in*/,
+             amrex::MultiFab& /*yvel_in*/,
+             amrex::MultiFab* /*hfx3_out*/,
+             amrex::MultiFab* /*qfx3_out*/,
+             const amrex::Real& /*dt_advance*/,
+             const int& /*nstep*/) { }
+
+    virtual
+    void
     Update_Micro_Vars (amrex::MultiFab& /*cons_in*/) { }
 
     virtual

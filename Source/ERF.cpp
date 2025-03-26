@@ -31,7 +31,7 @@ Real ERF::cfl           =  0.8;
 Real ERF::sub_cfl       =  1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
-Real ERF::dt_max_initial = 1.0;
+Real ERF::dt_max_initial = 2.0e100;
 Real ERF:: dt_max = 1e9;
 int  ERF::fixed_mri_dt_ratio = 0;
 
@@ -206,7 +206,7 @@ ERF::ERF_shared ()
 
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
-    dt.resize(nlevs_max, 1.e100);
+    dt.resize(nlevs_max, std::min(1.e100,dt_max_initial));
     dt_mri_ratio.resize(nlevs_max, 1);
 
     vars_new.resize(nlevs_max);
@@ -344,12 +344,19 @@ ERF::ERF_shared ()
     // Size lat long arrays if using netcdf
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);
-    for (int lev = 0; lev < max_level; ++lev)
-    {
+    for (int lev = 0; lev < max_level; ++lev) {
         lat_m[lev] = nullptr;
         lon_m[lev] = nullptr;
     }
 #endif
+
+    // Variable coriolis
+    sinPhi_m.resize(nlevs_max);
+    cosPhi_m.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev) {
+        sinPhi_m[lev] = nullptr;
+        cosPhi_m[lev] = nullptr;
+    }
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
@@ -1470,10 +1477,8 @@ ERF::init_only (int lev, Real time)
     // Initialize turbulent perturbation
     if (solverChoice.pert_type == PerturbationType::Source ||
         solverChoice.pert_type == PerturbationType::Direct) {
-        if (lev == 0) {
-            turbPert_update(lev, 0.);
-            turbPert_amplitude(lev);
-        }
+        turbPert_update(lev, 0.);
+        turbPert_amplitude(lev);
     }
 }
 
@@ -1739,10 +1744,6 @@ ERF::ReadParameters ()
             } //j
         } // lev
     } // InitType
-
-    if (solverChoice.init_type == InitType::WRFInput) {
-        AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-    }
 
     // What type of land surface model to use
     // NOTE: Must be checked after init_params

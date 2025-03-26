@@ -214,7 +214,7 @@ public:
     amrex::Real cloud_fraction (amrex::Real time);
 
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
-    void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel);
+    void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel, int levc=0);
 
     void sample_points (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
@@ -339,7 +339,9 @@ public:
                                const amrex::Real& time);
 
     void advance_lsm (int lev,
-                      amrex::MultiFab& /*cons_in*/,
+                      amrex::MultiFab& cons_in,
+                      amrex::MultiFab& xvel_in,
+                      amrex::MultiFab& yvel_in,
                       const amrex::Real& dt_advance);
 
 #if defined(ERF_USE_RRTMGP)
@@ -678,8 +680,10 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
     amrex::Real bdy_time_interval;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
 #endif // ERF_USE_NETCDF
+
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
     // Struct for working with the sounding data we take as an input
     InputSoundingData input_sounding_data;
@@ -768,7 +772,7 @@ private:
     amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
 
     std::unique_ptr<Microphysics> micro;
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
 
     // Variables for wind farm parametrization models
 
