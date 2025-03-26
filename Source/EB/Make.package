@@ -18,6 +18,7 @@ CEXE_headers += ERF_EBAdvection.H
 CEXE_headers += ERF_EBAdvectionSrcForScalars.H
 
 CEXE_sources += ERF_EBBox.cpp
+CEXE_headers += ERF_EBRedistribute.H
 CEXE_sources += ERF_EBRedistribute.cpp
 CEXE_sources += ERF_EBWriteSurface.cpp
 

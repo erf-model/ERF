@@ -9,6 +9,7 @@
 #include <ERF_Diffusion.H>
 #include <ERF_TileNoZ.H>
 #include <ERF_Utils.H>
+#include <ERF_EBRedistribute.H>
 
 using namespace amrex;
 

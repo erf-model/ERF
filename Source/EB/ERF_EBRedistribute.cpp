@@ -1,55 +1,62 @@
 #include <AMReX_Config.H>
+#include <AMReX_Geometry.H>
 
 #include <ERF.H>
+#include <ERF_EBRedistribute.H>
 #include "AMReX_EB_Redistribution.H"
 
 using namespace amrex;
 
 void
-ERF::redistribute_term (int lev, int ncomp,
-                        MultiFab& result,
-                        MultiFab& result_tmp,
-                        MultiFab const& state,
-                        BCRec const* bc, // this is bc for the state (needed for SRD slopes)
-                        Real const local_dt)
+redistribute_term ( int ncomp,
+                    const Geometry& geom,
+                    MultiFab& result,
+                    MultiFab& result_tmp,
+                    MultiFab const& state,
+                    EBFArrayBoxFactory const& ebfact,
+                    BCRec const* bc, // this is bc for the state (needed for SRD slopes)
+                    Real const local_dt)
 {
     // ************************************************************************
     // Redistribute result_tmp and pass out result
     // ************************************************************************
     AMREX_ASSERT(result.nComp() == state.nComp());
 
-    result_tmp.FillBoundary(geom[lev].periodicity());
+    result_tmp.FillBoundary(geom.periodicity());
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        redistribute_term(mfi, lev, ncomp, result, result_tmp, state, bc, local_dt);
+        redistribute_term(mfi, ncomp, geom, result, result_tmp, state, ebfact, bc, local_dt);
     }
 }
 
 void
-ERF::redistribute_term (MFIter const& mfi, int lev, int ncomp,
-                        MultiFab& result,
-                        MultiFab& result_tmp,
-                        MultiFab const& state,
-                        BCRec const* bc, // this is bc for the state (needed for SRD slopes)
-                        Real const local_dt)
+redistribute_term ( MFIter const& mfi,
+                    int ncomp,
+                    const Geometry& geom,
+                    MultiFab& result,
+                    MultiFab& result_tmp,
+                    MultiFab const& state,
+                    EBFArrayBoxFactory const& ebfact,
+                    BCRec const* bc, // this is bc for the state (needed for SRD slopes)
+                    Real const local_dt)
 {
     AMREX_ASSERT(result.nComp() == state.nComp());
 
     Box const& bx = mfi.tilebox();
 
-    EBFArrayBoxFactory const& ebfact = EBFactory(lev);
+    // EBFArrayBoxFactory const& ebfact = EBFactory(lev);
     EBCellFlagFab const& flagfab = ebfact.getMultiEBCellFlagFab()[mfi];
     Array4<EBCellFlag const> const& flag = flagfab.const_array();
 
     bool regular = (flagfab.getType(amrex::grow(bx,4)) == FabType::regular);
     bool covered = (flagfab.getType(bx) == FabType::covered);
 
-    Array4<Real      > out = result.array(mfi);
-    Array4<Real      > in  = result_tmp.array(mfi);
+    Array4<Real> out = result.array(mfi);
+    Array4<Real> in  = result_tmp.array(mfi);
 
     if (!regular && !covered)
     {
@@ -84,7 +91,7 @@ ERF::redistribute_term (MFIter const& mfi, int lev, int ncomp,
                              scratch, flag,
                              apx, apy, apz, vfrac,
                              fcx, fcy, fcz, ccc,
-                             bc, geom[lev], local_dt, redistribution_type);
+                             bc, geom, local_dt, redistribution_type);
     }
     else
     {
