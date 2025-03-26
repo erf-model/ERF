@@ -91,25 +91,43 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            if ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
-                 (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
-                 (derived_names[i] != "z_phys" && derived_names[i] != "detJ") )
+            if ( ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
+                   (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
+                   (derived_names[i] != "z_phys" && derived_names[i] != "detJ") )
+#ifndef ERF_USE_WINDFARM
+               && (derived_names[i] != "SMark0" && derived_names[i] != "SMark1") )
+#else
+            )
+#endif
             {
-                if ( (solverChoice.moisture_type == MoistureType::SAM ||
-                      solverChoice.moisture_type == MoistureType::SAM_NoIce) ||
-                     (derived_names[i] != "qi" &&
-                      derived_names[i] != "qsnow" &&
-                      derived_names[i] != "qgraup" &&
-                      derived_names[i] != "snow_accum" &&
-                      derived_names[i] != "graup_accum") )
-                {
-                    if ( (solverChoice.moisture_type != MoistureType::None)      ||
-                         (derived_names[i] != "qv" && derived_names[i] != "qc" and
-                          derived_names[i] != "num_turb" and derived_names[i] != "SMark0" and
-                          derived_names[i] != "SMark1") ) {
+                if (solverChoice.moisture_type == MoistureType::None) { // no moist quantities allowed
+                    if (derived_names[i] != "qv" && derived_names[i] != "qc"    && derived_names[i] != "qrain"  &&
+                        derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
+                        derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
+                    {
                         tmp_plot_names.push_back(derived_names[i]);
                     }
-                } // moisture_type
+                } else if ( (solverChoice.moisture_type == MoistureType::Kessler) ||
+                            (solverChoice.moisture_type == MoistureType::SAM_NoIce) ) { // allow qv, qc, qrain
+                    if (derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
+                        derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
+                    {
+                        tmp_plot_names.push_back(derived_names[i]);
+                    }
+                } else if ( (solverChoice.moisture_type == MoistureType::SatAdj) ||
+                            (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
+                            (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ) { // allow qv, qc
+                    if (derived_names[i] != "qrain"  &&
+                        derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
+                        derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
+                    {
+                        tmp_plot_names.push_back(derived_names[i]);
+                    }
+                } else
+                {
+                    // For moisture_type SAM and Morrison we have all moist quantities
+                    tmp_plot_names.push_back(derived_names[i]);
+                }
             } // use_terrain?
         } // hasElement
     }
