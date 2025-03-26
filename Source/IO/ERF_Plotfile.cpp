@@ -1197,14 +1197,16 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 mf_comp ++;
             }
 
-            if(solverChoice.moisture_type == MoistureType::Kessler){
+            if (solverChoice.moisture_type == MoistureType::Kessler)
+            {
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
                     MultiFab::Copy(mf[lev],*(qmoist[lev][0]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }
-            else if(solverChoice.moisture_type == MoistureType::SAM)
+            else if ( (solverChoice.moisture_type == MoistureType::SAM) ||
+                      (solverChoice.moisture_type == MoistureType::Morrison) )
             {
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
