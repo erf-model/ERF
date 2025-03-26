@@ -55,7 +55,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                     tmp_plot_names.push_back(cons_names[i]);
                 }
             } else if ( (solverChoice.moisture_type == MoistureType::SatAdj) ||
-                        (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) || 
+                        (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
                         (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ) { // allow rhoQ1, rhoQ2
                 if (cons_names[i] != "rhoQ3" && cons_names[i] != "rhoQ4" &&
                     cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
@@ -68,7 +68,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                     tmp_plot_names.push_back(cons_names[i]);
                 }
             } else
-            { 
+            {
                 // For moisture_type SAM and Morrison we have all six variables
                 tmp_plot_names.push_back(cons_names[i]);
             }
