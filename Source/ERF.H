@@ -477,18 +477,6 @@ public:
     void MakeEBGeometry ();
     void make_eb_box ();
     void make_eb_regular ();
-    void redistribute_term (int lev, int ncomp,
-                            amrex::MultiFab& result,
-                            amrex::MultiFab& result_tmp,
-                            amrex::MultiFab const& state,
-                            amrex::BCRec const* bc,
-                            amrex::Real const dt);
-    void redistribute_term (amrex::MFIter const& mfi, int lev, int ncomp,
-                            amrex::MultiFab& result,
-                            amrex::MultiFab& result_tmp,
-                            amrex::MultiFab const& state,
-                            amrex::BCRec const* bc,
-                            amrex::Real const dt);
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
