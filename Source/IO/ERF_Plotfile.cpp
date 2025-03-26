@@ -43,12 +43,18 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
 
     for (int i = 0; i < cons_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, cons_names[i]) ) {
-            if ( (solverChoice.moisture_type == MoistureType::SAM) || (cons_names[i] != "rhoQ4" &&
-                                                                       cons_names[i] != "rhoQ5" &&
-                                                                       cons_names[i] != "rhoQ6") )
+            if (solverChoice.moisture_type == MoistureType::None) {
+                if (cons_names[i] != "rhoQ1" && cons_names[i] != "rhoQ2" && cons_names[i] != "rhoQ3" &&
+                    cons_names[i] != "rhoQ4" && cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
+                {
+                    tmp_plot_names.push_back(cons_names[i]);
+                }
+            } else if
+                 ( (solverChoice.moisture_type != MoistureType::SAM || solverChoice.moisture_type != MoistureType::Morrison) &&
+                   (cons_names[i] != "rhoQ4" && cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6") )
             {
                 tmp_plot_names.push_back(cons_names[i]);
-            } // moisture_type
+            }
         }
     }
 
