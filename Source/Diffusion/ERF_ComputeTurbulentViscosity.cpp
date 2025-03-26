@@ -48,6 +48,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
 
+    bool isotropic   = turbChoice.mix_isotropic;
+
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
     if (turbChoice.les_type == LESType::Smagorinsky)
@@ -91,12 +93,21 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                   // the terrain grid is only deformed in z for now
                   dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
               }
-              Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
-              Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
-              Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
 
-              mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-              mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
+              if (isotropic) {
+                  Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                  Real Delta      = std::cbrt(cellVolMsf);
+                  Real CsDeltaSqr = Cs*Cs*Delta*Delta;
+
+                  mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                  mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
+              } else {
+                  Real DeltaH = std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                  Real DeltaV = 1.0 / dzInv;
+
+                  mu_turb(i, j, k, EddyDiff::Mom_h) = Cs*Cs*DeltaH*DeltaH * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                  mu_turb(i, j, k, EddyDiff::Mom_v) = Cs*Cs*DeltaV*DeltaV * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+              }
 
               // Calculate SFS quantities
               Real dtheta_dz;
@@ -561,7 +572,9 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
-    // In LES mode, the turbulent viscosity is isotropic, so the LES model sets both horizontal and vertical viscosities
+    // In LES mode, the turbulent viscosity is isotropic (unless mix_isotropic is set to false), so
+    // the LES model sets both horizontal and vertical viscosities
+    //
     // In PBL mode, the primary purpose of the PBL model is to control vertical transport, so the PBL model sets the vertical viscosity.
     // Optionally, the PBL model can be run in conjunction with an LES model that sets the horizontal viscosity
     // (this isn’t truly LES, but the model form is the same as Smagorinsky).

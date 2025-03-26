@@ -120,6 +120,8 @@ struct TurbChoice {
         query_one_or_per_level(pp, "sigma_k" , sigma_k, lev, max_level);
         query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
+        query_one_or_per_level(pp, "mix_isotropic", mix_isotropic, lev, max_level);
+
         // Validate inputs
         if (les_type == LESType::Smagorinsky) {
             if (Cs == 0) {
@@ -162,6 +164,7 @@ struct TurbChoice {
                 amrex::Real Cs_equiv = std::sqrt(Ck * std::sqrt(Ck/Ce));
                 amrex::Print() << "equivalent Cs               : " << Cs_equiv << std::endl;
             }
+            amrex::Print() << "isotropic mixing            : " << mix_isotropic << std::endl;
         }
 
         if (rans_type != RANSType::None) {
@@ -232,6 +235,9 @@ struct TurbChoice {
     // - reference potential temperature used to quantify the stratification in
     //   a stable region
     amrex::Real theta_ref = 300.0;
+
+    // Anistropic length scales
+    bool mix_isotropic = true;
 
     // RANS type
     RANSType rans_type;
