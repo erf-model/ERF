@@ -209,6 +209,7 @@ SGSDiff::compute_fluxes (const int& lev,
  */
 void
 SGSDiff::impose_sgsdiff_bcs (const int& lev,
+                             Vector<const MultiFab*> mfs,
                              MultiFab* xxmom_flux,
                              MultiFab* yymom_flux,
                              MultiFab* zzmom_flux,
@@ -223,10 +224,10 @@ SGSDiff::impose_sgsdiff_bcs (const int& lev,
                              MultiFab* zqv_flux,
                              MultiFab* z_phys)
 {
-    const int klo = 0;
     if (flux_type == FluxCalcType::MOENG) {
-        moeng_flux flux_comp();
+        moeng_flux flux_comp;
         compute_sgsdiff_bcs(lev,
+                            mfs,
                             xxmom_flux,
                             yymom_flux,
                             zzmom_flux,
@@ -237,8 +238,9 @@ SGSDiff::impose_sgsdiff_bcs (const int& lev,
                             xqv_flux, yqv_flux, zqv_flux,
                             z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::DONELAN) {
-        donelan_flux flux_comp();
+        donelan_flux flux_comp;
         compute_sgsdiff_bcs(lev,
+                            mfs,
                             xxmom_flux,
                             yymom_flux,
                             zzmom_flux,
@@ -249,8 +251,9 @@ SGSDiff::impose_sgsdiff_bcs (const int& lev,
                             xqv_flux, yqv_flux, zqv_flux,
                             z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::ROTATE) {
-        rotate_flux flux_comp();
+        rotate_flux flux_comp;
         compute_sgsdiff_bcs(lev,
+                            mfs,
                             xxmom_flux,
                             yymom_flux,
                             zzmom_flux,
@@ -261,8 +264,9 @@ SGSDiff::impose_sgsdiff_bcs (const int& lev,
                             xqv_flux, yqv_flux, zqv_flux,
                             z_phys, flux_comp);
     } else {
-        custom_flux flux_comp();
+        custom_flux flux_comp;
         compute_sgsdiff_bcs(lev,
+                            mfs,
                             xxmom_flux,
                             yymom_flux,
                             zzmom_flux,
@@ -287,6 +291,7 @@ SGSDiff::impose_sgsdiff_bcs (const int& lev,
 template <typename FluxCalc>
 void
 SGSDiff::compute_sgsdiff_bcs (const int& lev,
+                              Vector<const MultiFab*> mfs,
                               MultiFab* xxmom_flux,
                               MultiFab* yymom_flux,
                               MultiFab* zzmom_flux,
@@ -305,7 +310,6 @@ SGSDiff::compute_sgsdiff_bcs (const int& lev,
     bool rot_most = m_rotate;
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const auto& dxInv = m_geom[lev].InvCellSizeArray();
-    const auto& dz_no_terrain = m_geom[lev].CellSize(2);
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
         // Get field arrays
@@ -366,10 +370,9 @@ SGSDiff::compute_sgsdiff_bcs (const int& lev,
 
         // Rho*Theta flux
         //============================================================================
-        const Box& bx = mfi.tilebox();
+        Box bx = mfi.tilebox();
         if (bx.smallEnd(2) != klo) { continue; }
-        bx.make_slab(2,klo);
-        int n = RhoTheta_comp;
+        bx.makeSlab(2,klo);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real Tflux = flux_comp.compute_t_flux(i, j, k,
@@ -393,7 +396,6 @@ SGSDiff::compute_sgsdiff_bcs (const int& lev,
         //============================================================================
         // TODO: Generalize MOST q flux
         if ((flux_type == FluxCalcType::CUSTOM) && use_moisture) {
-            n = RhoQ1_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real Qflux = flux_comp.compute_q_flux(i, j, k,

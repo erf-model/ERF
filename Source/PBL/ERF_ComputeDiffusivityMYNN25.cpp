@@ -25,8 +25,6 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const int RhoQc_comp,
                           const int RhoQr_comp)
 {
-    const bool use_sgsdiff = (sgsdiff != nullptr);
-
     auto mynn     = turbChoice.pbl_mynn;
     auto level2   = turbChoice.pbl_mynn_level2;
 

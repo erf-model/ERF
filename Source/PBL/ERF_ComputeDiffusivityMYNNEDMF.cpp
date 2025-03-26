@@ -4204,7 +4204,6 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 #endif
       printf("ran tridiag2_cc with n=%d and got %g %g %g %g %g",n,a,b,c,d,x);
     }
-    const bool use_sgsdiff    = (sgsdiff != nullptr);
 
     auto mynn     = turbChoice.pbl_mynn;
     auto level2   = turbChoice.pbl_mynn_level2;

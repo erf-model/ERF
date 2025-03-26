@@ -23,7 +23,7 @@ void erf_make_tau_terms (int level, int nrk,
                          MultiFab* eddyDiffs,
                          const Geometry geom,
                          const SolverChoice& solverChoice,
-                         std::unique_ptr<SGSDiff>& sgsdiff,
+                         std::unique_ptr<SGSDiff>& /*sgsdiff*/,
                          std::unique_ptr<MultiFab>& detJ,
                          std::unique_ptr<MultiFab>& mapfac_m,
                          std::unique_ptr<MultiFab>& mapfac_u,
@@ -55,9 +55,6 @@ void erf_make_tau_terms (int level, int nrk,
 
     const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
                                    tc.rans_type == RANSType::kEqn);
-
-    const bool use_sgsdiff = (sgsdiff != nullptr);
-    const bool rot_sgsdiff = (solverChoice.use_rotate_sgsdiff);
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);

@@ -304,8 +304,6 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/,
                                     const FArrayBox* z_0)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
-    const Box& domain = geom.Domain();
-    const int& klo    = domain.smallEnd(2);
     const bool use_sgsdiff = (sgsdiff != nullptr);
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;

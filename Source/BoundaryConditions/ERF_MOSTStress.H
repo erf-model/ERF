@@ -1258,8 +1258,7 @@ private:
  */
 struct moeng_flux
 {
-    moeng_flux ()
-
+    moeng_flux () {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -1405,8 +1404,7 @@ private:
  */
 struct donelan_flux
 {
-    donelan_flux ()
-
+    donelan_flux () {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -1449,7 +1447,6 @@ struct donelan_flux
         amrex::Real theta_surf  = t_surf_arr(i,j,k);
         amrex::Real theta_mean  =  tm_arr(i,j,k);
         amrex::Real wsp_mean    = umm_arr(i,j,k);
-        wsp_mean = std::max(wsp_mean, WSMIN);
 
         // NOTE: this is rho*<T'w'> = -K dTdz
         amrex::Real moflux = -rho * Ch * wsp_mean * (theta_mean - theta_surf);
@@ -1508,7 +1505,7 @@ struct donelan_flux
     {
         amrex::Real velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
                                    + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
-        amrex::Real vely  = vely_arr(i,j,zko);
+        amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = 0.5  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real Cd       = 0.001;
@@ -1539,8 +1536,7 @@ private:
  */
 struct custom_flux
 {
-    custom_flux ()
-
+    custom_flux () {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -1632,7 +1628,7 @@ struct custom_flux
     {
         amrex::Real velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
                                    + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
-        amrex::Real vely  = vely_arr(i,j,zko);
+        amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = 0.5  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real ustar   = 0.5 * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
@@ -1654,8 +1650,7 @@ private:
  */
 struct rotate_flux
 {
-    rotate_flux ()
-
+    rotate_flux () {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -1712,15 +1707,14 @@ struct rotate_flux
                     const int& j,
                     const int& k,
                     const amrex::Array4<const amrex::Real>& cons_arr,
-                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*um_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
         // NOTE: this is the total stress
-        amrex::Real rho     = 0.5 *( cons_arr(i-1,j,k,Rho_comp)
-                                   + cons_arr(i  ,j,k,Rho_comp) );
+        amrex::Real rho     = 0.5 *( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i  ,j,k,Rho_comp) );
         amrex::Real ustar   = 0.5 * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
         amrex::Real stressx = -rho * ustar * ustar;
 

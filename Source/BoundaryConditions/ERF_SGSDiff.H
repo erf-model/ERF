@@ -352,6 +352,7 @@ public:
 
     void
     impose_sgsdiff_bcs (const int& lev,
+                        amrex::Vector<const amrex::MultiFab*> mfs,
                         amrex::MultiFab* xxmom_flux,
                         amrex::MultiFab* yymom_flux,
                         amrex::MultiFab* zzmom_flux,
@@ -369,6 +370,7 @@ public:
     template <typename FluxCalc>
     void
     compute_sgsdiff_bcs (const int& lev,
+                         amrex::Vector<const amrex::MultiFab*> mfs,
                          amrex::MultiFab* xxmom_flux,
                          amrex::MultiFab* yymom_flux,
                          amrex::MultiFab* zzmom_flux,

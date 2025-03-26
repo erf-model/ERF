@@ -582,8 +582,8 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(z0, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
             for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                FArrayBox* z0 = (m_sgsdiff->get_z0(lev));
-                z0->copy<RunOn::Host>(z0[mfi], bx);
+                FArrayBox* most_z0 = (m_sgsdiff->get_z0(lev));
+                most_z0->copy<RunOn::Host>(z0[mfi], bx);
             }
         }
 
