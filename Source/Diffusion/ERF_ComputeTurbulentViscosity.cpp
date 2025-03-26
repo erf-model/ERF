@@ -176,8 +176,13 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     // the terrain grid is only deformed in z for now
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
                 }
-                Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
-                Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
+                Real Delta;
+                if (isotropic) {
+                    Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                    Delta = std::cbrt(cellVolMsf);
+                } else {
+                    Delta = 1.0 / dzInv;
+                }
 
                 // Calculate stratification-dependent mixing length (Deardorff 1980)
                 Real eps       = std::numeric_limits<Real>::epsilon();
@@ -200,24 +205,32 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 }
                 Real E              = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp),Real(0.0));
                 Real stratification = l_abs_g * dtheta_dz * l_inv_theta0;
+
+                // Following WRF, the stratification effects are applied to the vertical length scales
+                // in the case of anistropic mixing
                 Real length;
                 if (stratification <= eps) {
-                    length = DeltaMsf;
+                    length = Delta;  // cbrt(dx*dy*dz) -or- dz
                 } else {
                     length = 0.76 * std::sqrt(E / amrex::max(stratification,eps));
                     // mixing length should be _reduced_ for stable stratification
-                    length = amrex::min(length, DeltaMsf);
+                    length = amrex::min(length, Delta);
                     // following WRF, make sure the mixing length isn't too small
-                    length = amrex::max(length, 0.001 * DeltaMsf);
+                    length = amrex::max(length, 0.001 * Delta);
                 }
+
+                Real DeltaH = (isotropic) ? length : std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+
+                Real Pr_inv_v = (1. + 2.*length/Delta);
+                Real Pr_inv_h  = (isotropic) ? Pr_inv_v : inv_Pr_t;
 
                 // Calculate eddy diffusivities
                 // K = rho * C_k * l * KE^(1/2)
-                mu_turb(i,j,k,EddyDiff::Mom_h) = cell_data(i,j,k,Rho_comp) * l_C_k * length * std::sqrt(E);
-                mu_turb(i,j,k,EddyDiff::Mom_v) = mu_turb(i,j,k,EddyDiff::Mom_h);
+                mu_turb(i,j,k,EddyDiff::Mom_h) = cell_data(i,j,k,Rho_comp) * l_C_k * DeltaH * std::sqrt(E);
+                mu_turb(i,j,k,EddyDiff::Mom_v) = cell_data(i,j,k,Rho_comp) * l_C_k * length * std::sqrt(E);
                 // KH = (1 + 2*l/delta) * mu_turb
-                mu_turb(i,j,k,EddyDiff::Theta_h) = (1.+2.*length/DeltaMsf) * mu_turb(i,j,k,EddyDiff::Mom_h);
-                mu_turb(i,j,k,EddyDiff::Theta_v) = mu_turb(i,j,k,EddyDiff::Theta_h);
+                mu_turb(i,j,k,EddyDiff::Theta_h) = Pr_inv_h * mu_turb(i,j,k,EddyDiff::Mom_h);
+                mu_turb(i,j,k,EddyDiff::Theta_v) = Pr_inv_v * mu_turb(i,j,k,EddyDiff::Mom_v);
                 // Store lengthscale for TKE source terms
                 mu_turb(i,j,k,EddyDiff::Turb_lengthscale) = length;
 
@@ -227,7 +240,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 if ((l_C_e_wall > 0) && (k==0)) {
                     Ce = l_C_e_wall;
                 } else {
-                    Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
+                    Ce = 1.9*l_C_k + Ce_lcoeff*length / Delta;
                 }
                 diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
 
