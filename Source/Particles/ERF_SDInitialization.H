@@ -29,6 +29,7 @@ namespace SupDropInit
     const std::string attrib_init_const = "mass_constant";
     const std::string attrib_init_exp = "mass_exponential";
     const std::string attrib_init_lnr = "radius_log_normal";
+    const std::string attrib_init_lnr_auto = "radius_lognormal_autorange";
 }
 
 AMREX_ENUM(SDMultiplicityType,

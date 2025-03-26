@@ -1,3 +1,4 @@
+#include <cmath>
 #include "ERF_SDInitialization.H"
 
 void SDInitialization::setDefaults ( const std::vector<std::unique_ptr<MaterialProperties>>& a_aerosol_mat )
@@ -220,6 +221,15 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
     }
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static amrex::Real SD_erfinv(const amrex::Real x) {
+    amrex::Real a = 0.147;
+    amrex::Real term = std::log(1 - x * x);
+    amrex::Real p1 = 2 / (PI * a) + term / 2.0;
+    amrex::Real p2 = term / a;
+    return std::sqrt(std::sqrt(p1 * p1 - p2) - p1);
+}
+
 void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_aerosol_mass,
                                                 amrex::Vector<amrex::Real>& a_multiplicity,
                                                 const int a_idx,
@@ -258,6 +268,57 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
             a_multiplicity[n] += 1.0 / (sigma*std::sqrt(2*PI)*dry_r) * term;
         }
+    } else if (m_aerosol_init_type[a_idx] == SupDropInit::attrib_init_lnr_auto) {
+        std::uniform_real_distribution<> urd(0.0, 1.0);
+        auto sigma = std::log(m_radius_aerosol_geom_std[a_idx]);
+        auto mu = m_radius_aerosol_mean[a_idx];
+        // automatically find the min and max radius of superdroplets, using Dziekan & Pawlowska 2017
+        auto rmin = 1e-9;
+        auto rmax = 1e-3;
+        auto dlnr = (std::log(rmax) - std::log(rmin)) / a_np;
+        auto P_min = 0.0;
+        auto P_max = 1.0;
+        auto tol = 1.0 / m_numdens_init;
+        int a_np_tail = 0.01 * a_np; // this is an approximation for now; saves 1% of SDs for the tail
+        amrex::Print() << "Finding aerosol radius sampling range\n";
+        while ((P_max >= 1.0 - tol) || (P_min <= tol)) {
+            if (P_max >= 1.0 - tol) {
+                rmax = rmax * 0.99;
+            }
+            if (P_min <= tol) {
+                rmin = rmin * 1.01;
+            }
+            P_min = (1 + std::erf((std::log(rmin / mu)) / sigma / std::sqrt(2))) / 2;
+            P_max = (1 + std::erf((std::log(rmax / mu)) / sigma / std::sqrt(2))) / 2;
+        }
+        dlnr = (std::log(rmax) - std::log(rmin));
+        amrex::Print() << "Range: rmin =" << rmin << ", rmax = " << rmax << ", dlnr = " << dlnr << "\n";
+
+        // initialize the main distribution
+        amrex::Print() << "Initializing radii\n";
+        auto lnrmin = std::log(rmin);
+        for (int n = 0; n < a_np; n++) {
+            auto tmp = lnrmin + urd(a_rng)*dlnr;
+            auto dry_r = std::exp(tmp);
+            a_aerosol_mass[n] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
+            auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
+            a_multiplicity[n] = 1.0 / (sigma*std::sqrt(2*PI)*dry_r) * term;
+        }
+
+        // initialize the tail using approximate erfinv
+        amrex::Print() << "Initializing tail: " << a_np_tail << " particles\n";
+        auto tail_mult = std::exp(-std::log(rmax/mu)*std::log(rmax/mu)/(2.0*sigma*sigma)) / (sigma*std::sqrt(2*PI)*rmax);
+        for (int n = 0; n < a_np_tail; n++) {
+            int sd_id = urd(a_rng) * a_np;
+            auto tmp = P_max + (1.0 - P_max) * urd(a_rng);
+            auto tmp2 = SD_erfinv(2 * tmp - 1);
+            auto dry_r = mu * std::exp(sigma * std::sqrt(2) * tmp2);
+            a_aerosol_mass[sd_id] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
+            // set the multiplicity to the same as for the 99th percentile aerosol
+            a_multiplicity[sd_id] = tail_mult;
+            amrex::Print() << "radius: " << dry_r << ", multiplicity: " << tail_mult << "\n";
+        }
+        amrex::Print() << "Done sampling\n";
     } else {
         amrex::Abort("Unknown m_aerosol_init_type!");
     }

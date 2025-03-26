@@ -7,7 +7,7 @@
     for a timestep - this includes nucleation, advection, and coalescence */
 void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                    const int& a_iter, /*!< Iteration number */
-                                   const Real& /* a_time */, /*!< Simulation time */
+                                   const Real&  a_time, /*!< Simulation time */
                                    Vector<Vector<MultiFab>>& a_flow_vars, /*!< flow variables (*all*) */
                                    const Vector<MFPtr>& a_z, /*!< terrain */
                                    const BCTypeArr& a_bc /*! Boundary types */)
@@ -40,6 +40,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
     // Advect particles
     if (m_flag_advection) {
         m_super_droplets->AdvectParticles ( 0,
+                                            a_time,
                                             a_dt,
                                             &a_flow_vars[0][Vars::xvel],
                                             *(m_mic_fab_vars[MicVar_SD::rho]),
