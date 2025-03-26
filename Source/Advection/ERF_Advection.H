@@ -9,7 +9,7 @@
 #include <ERF_DataStruct.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_ABLMost.H>
-
+#include <ERF_EB.H>
 
 /** Compute advection tendency for density and potential temperature */
 void AdvectionSrcForRho (const amrex::Box& bx,
@@ -55,7 +55,8 @@ void AdvectionSrcForScalars (const amrex::Real& dt,
                              const amrex::BCRec* bc_ptr_h);
 
 /** Compute advection tendencies for all components of momentum */
-void AdvectionSrcForMom (const amrex::Box& bx,
+void AdvectionSrcForMom (const amrex::MFIter& mfi,
+                         const amrex::Box& bx,
                          const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                          const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
                          const amrex::Array4<      amrex::Real>& rho_w_rhs,
@@ -77,6 +78,7 @@ void AdvectionSrcForMom (const amrex::Box& bx,
                          const AdvType horiz_adv_type, const AdvType vert_adv_type,
                          const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                          MeshType& mesh_type, TerrainType& terrain_type,
+                         const eb_& ebfact,
                          const int lo_z_face, const int hi_z_face,
                          const amrex::Box& domain,
                          const amrex::BCRec* bc_ptr_h);
@@ -141,7 +143,7 @@ void AdvectionSrcForMom_TF (
                             const int lo_z_face, const int hi_z_face);
 
 /** Compute advection tendencies for all components of momentum when using EB for terrain */
-void AdvectionSrcForMom_EB (
+void AdvectionSrcForMom_EB (const amrex::MFIter& mfi,
                             const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                             const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
                             const amrex::Array4<      amrex::Real>& rho_w_rhs,
@@ -149,16 +151,13 @@ void AdvectionSrcForMom_EB (
                             const amrex::Array4<const amrex::Real>& w        ,
                             const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
                             const amrex::Array4<const amrex::Real>& Omega    ,
-                            const amrex::Array4<const amrex::Real>& ax,
-                            const amrex::Array4<const amrex::Real>& ay,
-                            const amrex::Array4<const amrex::Real>& az,
-                            const amrex::Array4<const amrex::Real>& detJ,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
                             const AdvType horiz_adv_type, const AdvType vert_adv_type,
                             const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
+                            const eb_& ebfact,
                             const int lo_z_face, const int hi_z_face,
                             const amrex::Box& domain);
 
