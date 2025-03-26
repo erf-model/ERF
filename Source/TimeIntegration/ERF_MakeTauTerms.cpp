@@ -65,14 +65,13 @@ void erf_make_tau_terms (int level, int nrk,
     // *****************************************************************************
     // Pre-computed quantities
     // *****************************************************************************
-    int nvars                     = S_data[IntVars::cons].nComp();
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
 
     std::unique_ptr<MultiFab> expr;
 
     if (l_use_diff) {
-        expr    = std::make_unique<MultiFab>(ba  , dm, 1, IntVect(1,1,1));
+        expr    = std::make_unique<MultiFab>(ba, dm, 1, IntVect(1,1,1));
 
         // if using constant alpha (mu = rho * alpha), then first divide by the
         // reference density -- mu_eff will be scaled by the instantaneous
@@ -223,9 +222,9 @@ void erf_make_tau_terms (int level, int nrk,
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
-                                s12, s13,
-                                s21, s23,
-                                s31, s32,
+                                s12, s21,
+                                s13, s31,
+                                s23, s32,
                                 z_nd, detJ_arr, bc_ptr_h, dxInv,
                                 mf_m, mf_u, mf_v);
                 } // profile
