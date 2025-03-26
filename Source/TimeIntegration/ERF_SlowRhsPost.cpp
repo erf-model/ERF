@@ -595,8 +595,8 @@ void erf_slow_rhs_post (int level, int finest_level,
           S_old[IntVars::cons].FillBoundary(geom.periodicity());
           S_old[IntVars::cons].setDomainBndry(1.234e10, 0, num_comp_total, geom);
 
-          // Update S_rhs by Redistribution. 
-          // To-do: Currently, redistributing all the scalar variables. 
+          // Update S_rhs by Redistribution.
+          // To-do: Currently, redistributing all the scalar variables.
           //        This needs to be redistributed only for num_comp variables starting from ivar, for efficiency.
           redistribute_term ( num_comp_total, geom, S_rhs[IntVars::cons], dUdt_tmp,
                               S_old[IntVars::cons], ebfact, bc_ptr_d, dt);
@@ -606,14 +606,14 @@ void erf_slow_rhs_post (int level, int finest_level,
           {
             Box tbx  = mfi.tilebox();
             const Array4<Real>& snew = S_new[IntVars::cons].array(mfi);
-			const Array4<Real>& sold = S_old[IntVars::cons].array(mfi);
-			const Array4<Real>& srhs = S_rhs[IntVars::cons].array(mfi);
+            const Array4<Real>& sold = S_old[IntVars::cons].array(mfi);
+            const Array4<Real>& srhs = S_rhs[IntVars::cons].array(mfi);
             Array4<const Real> detJ_arr = ebfact.getVolFrac().const_array(mfi);
 
             ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
             {
                 if (detJ_arr(i,j,k) > 0.0) {
-					const int n = start_comp + nn;
+                    const int n = start_comp + nn;
                     snew(i,j,k,n) = sold(i,j,k,n) + dt * srhs(i,j,k,n);
                 }
             });
