@@ -10,6 +10,7 @@ using namespace amrex;
 
 /*! Evolve particles for one time step */
 void SuperDropletPC::AdvectParticles ( int                   a_lev,
+                                       Real                  a_time,
                                        Real                  a_dt,
                                        const MultiFab* const a_flow_vel,
                                        const MultiFab&       a_density,
