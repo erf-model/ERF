@@ -37,12 +37,10 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                                    const MultiFab& mapfac_u, const MultiFab& mapfac_v,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav,
-                                   std::unique_ptr<SGSDiff>& sgsdiff)
+                                   std::unique_ptr<SGSDiff>& /*sgsdiff*/)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const Box& domain = geom.Domain();
-    const int& klo    = domain.smallEnd(2);
-    const bool use_sgsdiff = (sgsdiff != nullptr);
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
