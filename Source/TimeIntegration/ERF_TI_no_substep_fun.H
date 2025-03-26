@@ -149,10 +149,6 @@
                 } // not moving terrain
             } // mfi
 
-            // // SK *****************************************************
-            // Print()<<"SK: no_substep_fun/ nComp = "<< F_slow[IntVars::cons].nComp()<<std::endl; // 4
-            // // SK *****************************************************
-
             if (solverChoice.terrain_type == TerrainType::EB)
             {
                 // Redistribute cons states (cell-centered)
@@ -176,20 +172,20 @@
                 for ( MFIter mfi(S_sum[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box bx = mfi.tilebox();
-                    Vector<Array4<Real> >  ssum_h(ncomp_fast[IntVars::cons]);
-                    Vector<Array4<Real> >  sold_h(ncomp_fast[IntVars::cons]);
-                    Vector<Array4<Real> > fslow_h(ncomp_fast[IntVars::cons]);
+                    Vector<Array4<Real> >  ssum_h(n_data);
+                    Vector<Array4<Real> >  sold_h(n_data);
+                    Vector<Array4<Real> > fslow_h(n_data);
                     const Array4<const Real>& dJ_old = detJ_cc[level]->const_array(mfi);
 
-                    for (int i = 0; i < ncomp_fast[IntVars::cons]; ++i) {
+                    for (int i = 0; i < n_data; ++i) {
                         ssum_h[i]  = S_sum[i].array(mfi);
                         sold_h[i]  = S_old[i].array(mfi);
                         fslow_h[i] = F_slow[i].array(mfi);
                     }
 
-                    Gpu::AsyncVector<Array4<Real> >  sold_d(ncomp_fast[IntVars::cons]);
-                    Gpu::AsyncVector<Array4<Real> >  ssum_d(ncomp_fast[IntVars::cons]);
-                    Gpu::AsyncVector<Array4<Real> > fslow_d(ncomp_fast[IntVars::cons]);
+                    Gpu::AsyncVector<Array4<Real> >  sold_d(n_data);
+                    Gpu::AsyncVector<Array4<Real> >  ssum_d(n_data);
+                    Gpu::AsyncVector<Array4<Real> > fslow_d(n_data);
 
                     Gpu::copy(Gpu::hostToDevice,  sold_h.begin(),  sold_h.end(),  sold_d.begin());
                     Gpu::copy(Gpu::hostToDevice,  ssum_h.begin(),  ssum_h.end(),  ssum_d.begin());
