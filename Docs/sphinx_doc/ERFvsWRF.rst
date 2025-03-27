@@ -63,7 +63,7 @@ Key Differences
 **Governing Equations**: ERF supports both fully compressible and anelastic equation sets.
 
 **Time Integration**: ERF supports using a 3rd-order Runge-Kutta scheme with explicit acoustic substepping or no substepping
- (in addition to the implicit acoustic substepping in WRF).
+(in addition to the implicit acoustic substepping in WRF).
 
 **Representation of Surface Features**: Terrain and urban geometries may be simulated with immersed forcing or embedded (immersed) boundary techniques.
 
