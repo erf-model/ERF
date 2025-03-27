@@ -1040,15 +1040,15 @@ ERF::InitData_post ()
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::sgsdiff)
     {
-        bool use_rot_most = solverChoice.use_rotate_most;
-        if (use_rot_most) {
+        bool rotate = solverChoice.use_rotate_sgsdiff;
+        if (rotate) {
             Print() << "Using SGSDiff with surface stress rotations" << std::endl;
         }
 
         //
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
-        m_sgsdiff = std::make_unique<SGSDiff>(geom, use_rot_most, pp_prefix, Qv_prim,
+        m_sgsdiff = std::make_unique<SGSDiff>(geom, rotate, pp_prefix, Qv_prim,
                                               z_phys_nd, solverChoice.terrain_type
 #ifdef ERF_USE_NETCDF
                                               ,start_bdy_time, bdy_time_interval

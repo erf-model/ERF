@@ -703,8 +703,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     //       RK stage only, therefore the shear production term also does not
     //       change between RK stages.
     //       The surface heat flux hfx_z(i,j,-1) is updated in MOSTStress at
-    //       each RK stage if using the ERF_EXPLICIT_MOST_STRESS path, but that
-    //       does not change the buoyancy production term here.
+    //       each RK stage, but that does not change the buoyancy production term here.
     if (l_use_keqn && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
         int qty_index = RhoKE_comp;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

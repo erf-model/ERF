@@ -307,7 +307,7 @@ SGSDiff::compute_sgsdiff_bcs (const int& lev,
                               MultiFab* z_phys,
                               const FluxCalc& flux_comp)
 {
-    bool rot_most = m_rotate;
+    bool rotate = m_rotate;
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const auto& dxInv = m_geom[lev].InvCellSizeArray();
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
@@ -380,7 +380,7 @@ SGSDiff::compute_sgsdiff_bcs (const int& lev,
                                                   umm_arr, tm_arr, u_star_arr,
                                                   t_star_arr, t_surf_arr);
 
-            if (rot_most) {
+            if (rotate) {
                 rotate_scalar_flux(i, j, k, Tflux, dxInv, zphys_arr,
                                    hfx1_arr, hfx2_arr, hfx3_arr);
             } else {
@@ -403,7 +403,7 @@ SGSDiff::compute_sgsdiff_bcs (const int& lev,
                                                       umm_arr, qm_arr, u_star_arr,
                                                       q_star_arr, t_surf_arr);
 
-                if (rot_most) {
+                if (rotate) {
                     rotate_scalar_flux(i, j, k, Qflux, dxInv, zphys_arr,
                                        qfx1_arr, qfx2_arr, qfx3_arr);
                 } else {
@@ -421,7 +421,7 @@ SGSDiff::compute_sgsdiff_bcs (const int& lev,
                                                     cons_arr, velx_arr, vely_arr,
                                                     umm_arr, um_arr, u_star_arr);
 
-            if (rot_most) {
+            if (rotate) {
                 rotate_stress_tensor(i, j, k, stressx, dxInv, zphys_arr,
                                      velx_arr, vely_arr, velz_arr,
                                      t11_arr, t22_arr, t33_arr,
@@ -444,7 +444,7 @@ SGSDiff::compute_sgsdiff_bcs (const int& lev,
                                                     umm_arr, vm_arr, u_star_arr);
 
             // NOTE: One stress rotation for ALL the stress components
-            if (!rot_most) {
+            if (!rotate) {
                 t23_arr(i,j,k) = stressy;
                 if (t32_arr) { t32_arr(i,j,k) = stressy; }
             }

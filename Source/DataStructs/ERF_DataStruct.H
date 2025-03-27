@@ -338,8 +338,8 @@ struct SolverChoice {
         pp.query("rayleigh_zdamp", rayleigh_zdamp);
 
         // Flag to do MOST rotations with terrain
-        pp.query("use_rotate_most",use_rotate_most);
-        if (use_rotate_most) {
+        pp.query("use_rotate_sgsdiff",use_rotate_sgsdiff);
+        if (use_rotate_sgsdiff) {
             AMREX_ASSERT_WITH_MESSAGE(terrain_type != TerrainType::None,"MOST stress rotations are only valid with terrain!");
         }
 
@@ -730,7 +730,7 @@ struct SolverChoice {
     bool nudging_from_input_sounding = false;
 
     // MOST stress rotations
-    bool use_rotate_most = false;
+    bool use_rotate_sgsdiff = false;
 
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;

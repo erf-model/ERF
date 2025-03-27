@@ -37,12 +37,12 @@ using namespace amrex;
  * @param[in]  tm_arr theta mean array
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
- * @param[in]  use_sgsdiff whether we have turned on MOST BCs
+ * @param[in]  use_sgsdiff whether we have turned on subgrid diffusion
  */
 void
 DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         int start_comp, int num_comp,
-                        const bool& rot_most,
+                        const bool& rotate,
                         const Array4<const Real>& u,
                         const Array4<const Real>& v,
                         const Array4<const Real>& cell_data,
@@ -230,7 +230,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
 
-            bool sgsdiff_on_zlo = ( use_sgsdiff && rot_most && k == dom_lo.z);
+            bool sgsdiff_on_zlo = ( use_sgsdiff && rotate && k == dom_lo.z);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -261,7 +261,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && rot_most && k == dom_lo.z);
+            bool sgsdiff_on_zlo = ( use_sgsdiff && rotate && k == dom_lo.z);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -349,7 +349,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && rot_most && k == dom_lo.z);
+            bool sgsdiff_on_zlo = ( use_sgsdiff && rotate && k == dom_lo.z);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -378,7 +378,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && rot_most && k == dom_lo.z);
+            bool sgsdiff_on_zlo = ( use_sgsdiff && rotate && k == dom_lo.z);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -464,7 +464,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && rot_most && k == dom_lo.z);
+            bool sgsdiff_on_zlo = ( use_sgsdiff && rotate && k == dom_lo.z);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -492,7 +492,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && rot_most && k == dom_lo.z);
+            bool sgsdiff_on_zlo = ( use_sgsdiff && rotate && k == dom_lo.z);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -576,7 +576,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && rot_most && k == dom_lo.z);
+            bool sgsdiff_on_zlo = ( use_sgsdiff && rotate && k == dom_lo.z);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -604,7 +604,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && rot_most && k == dom_lo.z);
+            bool sgsdiff_on_zlo = ( use_sgsdiff && rotate && k == dom_lo.z);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -776,8 +776,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     //       RK stage only, therefore the shear production term also does not
     //       change between RK stages.
     //       The surface heat flux hfx_z(i,j,-1) is updated in MOSTStress at
-    //       each RK stage if using the ERF_EXPLICIT_MOST_STRESS path, but that
-    //       does not change the buoyancy production term here.
+    //       each RK stage,but that does not change the buoyancy production term here.
     if (l_use_keqn && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
         int qty_index = RhoKE_comp;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

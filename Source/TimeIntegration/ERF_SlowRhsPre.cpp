@@ -157,7 +157,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool l_use_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool l_use_sgsdiff  = (sgsdiff != nullptr);
-    const bool l_rot_most     = (solverChoice.use_rotate_most);
+    const bool l_rotate       = (solverChoice.use_rotate_sgsdiff);
 
     const bool l_anelastic = solverChoice.anelastic[level];
     const bool l_fixed_rho = solverChoice.fixed_density;
@@ -530,7 +530,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_comp  = end_comp - n_start + 1;
 
             if (l_use_terrain_fitted_coords) {
-                DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rot_most, u, v,
+                DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        z_nd, ax_arr, ay_arr, az_arr, detJ_arr,

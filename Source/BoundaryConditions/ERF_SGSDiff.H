@@ -33,7 +33,7 @@ public:
 
     // Constructor
     explicit SGSDiff (const amrex::Vector<amrex::Geometry>& geom,
-                      bool& use_rot_most,
+                      bool& use_rot_sgsdiff,
                       std::string a_pp_prefix,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
@@ -41,7 +41,7 @@ public:
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
     : m_geom(geom),
-      m_rotate(use_rot_most),
+      m_rotate(use_rot_sgsdiff),
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_ma(geom,(z_phys_nd[0]!=nullptr),a_pp_prefix,a_terrain_type)
@@ -54,7 +54,7 @@ public:
         pp.query("most.z0", z0_const);
 
         // Specify how to compute the flux
-        if (use_rot_most) {
+        if (use_rot_sgsdiff) {
             flux_type = FluxCalcType::ROTATE;
         } else {
             std::string flux_string{"moeng"};

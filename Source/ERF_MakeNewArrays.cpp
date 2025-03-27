@@ -387,6 +387,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_need_SmnSmn = ( (solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
                            (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) );
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
+    bool l_rotate      = (  solverChoice.use_rotate_sgsdiff  );
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
@@ -425,7 +426,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             SFS_q2fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
             SFS_q1fx3_lev[lev]->setVal(0.0);
             SFS_q2fx3_lev[lev]->setVal(0.0);
-            if (solverChoice.use_rotate_most) {
+            if (l_rotate) {
                 SFS_q1fx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
                 SFS_q1fx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
                 SFS_q1fx1_lev[lev]->setVal(0.0);
