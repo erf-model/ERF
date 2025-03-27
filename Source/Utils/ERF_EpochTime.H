@@ -14,6 +14,7 @@ AMREX_FORCE_INLINE
 std::time_t getEpochTime(const std::string& dateTime, const std::string& dateTimeFormat) {
     std::tm tmTime{};
 
+    (void)dateTimeFormat;
     // Manually parse the date string
     if (sscanf(dateTime.c_str(), "%d-%d-%d_%d:%d:%dUTC",
                &tmTime.tm_year, &tmTime.tm_mon, &tmTime.tm_mday,
