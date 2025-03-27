@@ -28,18 +28,18 @@ MODULE mp_morr_two_moment_isohelper
 
     ! Define C interoperable types
     INTEGER(C_INT), VALUE, INTENT(IN) :: itimestep
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: th, qv, qc, qr, qi, qs, qg, ni, ns, nr, ng
-    REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, kms:kme, jms:jme) :: rho, pii, p, dz, w
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: th, qv, qc, qr, qi, qs, qg, ni, ns, nr, ng
+    REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, jms:jme, kms:kme) :: rho, pii, p, dz, w
     REAL(C_DOUBLE), VALUE, INTENT(IN) :: dt_in
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: rainnc, rainncv, sr
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: snownc, snowncv, graupelnc, graupelncv
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: refl_10cm
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme) :: rainnc, rainncv, sr
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme) :: snownc, snowncv, graupelnc, graupelncv
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: refl_10cm
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: diagflag
     INTEGER(C_INT), VALUE, INTENT(IN) :: do_radar_ref
-    REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, kms:kme, jms:jme) :: qrcuten, qscuten, qicuten
+    REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, jms:jme, kms:kme) :: qrcuten, qscuten, qicuten
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: f_qndrop
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: qndrop
-    REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, jms:jme) :: ht
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: qndrop
+    REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, kms:kme) :: ht
 
     ! Domain dimensions
     INTEGER(C_INT), VALUE, INTENT(IN) :: ids, ide, jds, jde, kds, kde
@@ -48,8 +48,8 @@ MODULE mp_morr_two_moment_isohelper
 
     ! Optional arguments
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: wetscav_on
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: rainprod, evapprod
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme, jms:jme) :: qlsink, precr, preci, precs, precg
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: rainprod, evapprod
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: qlsink, precr, preci, precs, precg
 
     ! Convert C_BOOL to Fortran logical
     LOGICAL :: diag_flag_f, f_qndrop_f, wetscav_on_f

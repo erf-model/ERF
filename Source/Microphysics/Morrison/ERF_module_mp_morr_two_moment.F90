@@ -730,7 +730,8 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
    DO I=ITS,ITE
    DO J=JTS,JTE
    DO K=KTS,KTE
-       T(i,j,k)        = TH(i,j,k)*PII(i,j,k)
+        T(i,j,k)        = TH(i,j,k)*PII(i,j,k)
+!        print*,"(",i,",",j,",",k,")    ",QV(i,j,k)
    END DO
    END DO
    END DO

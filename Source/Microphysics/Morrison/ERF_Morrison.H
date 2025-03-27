@@ -136,7 +136,8 @@ public:
 
         // Loop through the grids
         for (amrex::MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl]); mfi.isValid(); ++mfi) {
-          const amrex::Box& box = mfi.validbox();
+          const amrex::Box& box = mfi.tilebox();
+          const amrex::Box& memory_box = mfi.growntilebox();
 
           // Get array data from class member variables
           auto const& theta_arr = mic_fab_vars[MicVar_Morr::theta]->array(mfi);
@@ -169,6 +170,14 @@ public:
           const int jhi = box.hiVect()[1];
           const int klo = box.loVect()[2];
           const int khi = box.hiVect()[2];
+
+          // Extract box dimensions
+          const int ilom = memory_box.loVect()[0];
+          const int ihim = memory_box.hiVect()[0];
+          const int jlom = memory_box.loVect()[1];
+          const int jhim = memory_box.hiVect()[1];
+          const int klom = memory_box.loVect()[2];
+          const int khim = memory_box.hiVect()[2];
 
           // Calculate Exner function (PII) to convert potential temperature to temperature
           // PII = (P/P0)^(R/cp)
@@ -262,6 +271,7 @@ public:
           double* dummy_reflectivity_ptr = &dummy_reflectivity;
           // Example call (pseudo-code - actual interface would depend on your Fortran interop setup)
 
+          //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
           mp_morr_two_moment_c
           (
               1,  // ITIMESTEP - Use 1 for simplicity
@@ -312,7 +322,7 @@ public:
 
               // Domain dimensions
               ilo, ihi, jlo, jhi, klo, khi,  // IDS,IDE,JDS,JDE,KDS,KDE
-              ilo, ihi, jlo, jhi, klo, khi,  // IMS,IME,JMS,JME,KMS,KME
+              ilom, ihim, jlom, jhim, klom, khim,  // IMS,IME,JMS,JME,KMS,KME
               ilo, ihi, jlo, jhi, klo, khi,  // ITS,ITE,JTS,JTE,KTS,KTE
 
               // Optional WRF-Chem outputs
@@ -325,7 +335,7 @@ public:
               precs_arr.dataPtr(),      // PRECS
               precg_arr.dataPtr()       // PRECG
           );
-
+          //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
           // After the call, all fields are updated
           // We don't need to copy results back since we passed direct pointers
           // to our class member arrays
