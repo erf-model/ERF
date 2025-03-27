@@ -23,7 +23,7 @@ xhi.type = "Outflow"
 zhi.type = "SlipWall"
 #zlo.type = "NoSlipWall"
 
-zlo.type = "Most"
+zlo.type = "sgsdiff"
 erf.most.flux_type = "custom"
 erf.most.ustar  = 0.0395   # z=10.
 ##erf.most.ustar  = 0.395   # z=1.0

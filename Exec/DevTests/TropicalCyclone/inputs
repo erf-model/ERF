@@ -26,7 +26,7 @@ ylo.type = "Outflow"
 xhi.type = "Outflow"
 yhi.type = "Outflow"
 
-zlo.type = "Most"
+zlo.type = "sgsdiff"
 erf.use_explicit_most   = 1
 erf.most.surf_temp      = 301.14
 erf.most.zref           = 10.
