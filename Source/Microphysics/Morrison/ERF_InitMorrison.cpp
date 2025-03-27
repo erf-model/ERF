@@ -28,7 +28,7 @@ Morrison::Init (const MultiFab& cons_in,
 {
     amrex::Abort("Morrison not actually implemented yet; this is SAM");
 
-    dt = dt_advance;
+    dt     = dt_advance;
     m_geom = geom;
     m_gtoe = grids;
 
@@ -36,8 +36,7 @@ Morrison::Init (const MultiFab& cons_in,
     m_detJ_cc   = detJ_cc.get();
 
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar_Morr::qt, MicVar_Morr::qv , MicVar_Morr::qcl, MicVar_Morr::qci,
-                 MicVar_Morr::qp, MicVar_Morr::qpr, MicVar_Morr::qps, MicVar_Morr::qpg, MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
+    MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
 
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar_Morr::NumVars; ++ivar) {
