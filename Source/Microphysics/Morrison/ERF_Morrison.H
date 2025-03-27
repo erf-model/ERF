@@ -306,7 +306,7 @@ public:
               qicuten_arr.dataPtr(),    // qicuten
 
               // WRF-Chem flags
-              &flag_qndrop,             // F_QNDROP
+              flag_qndrop,              // F_QNDROP
               nullptr,                  // qndrop (not used here)
               ht_arr.dataPtr(),         // HT (terrain height - not used)
 
