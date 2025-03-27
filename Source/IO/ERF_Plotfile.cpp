@@ -110,7 +110,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                 } else if ( (solverChoice.moisture_type == MoistureType::Kessler) ||
                             (solverChoice.moisture_type == MoistureType::SAM_NoIce) ) { // allow qv, qc, qrain
                     if (derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
-                        derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
+                        derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
                     {
                         tmp_plot_names.push_back(derived_names[i]);
                     }
