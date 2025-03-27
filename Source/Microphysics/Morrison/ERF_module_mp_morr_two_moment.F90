@@ -727,11 +727,18 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
 
    ! Currently mixing of number concentrations also is neglected (not coupled with PBL schemes)
 
+   print *,'IMS IME ',ims,ime
+   print *,'JMS JME ',jms,jme
+   print *,'KMS KME ',kms,kme
+
+   print *,'ITS ITE ',its,ite
+   print *,'JTS JTE ',jts,jte
+   print *,'KTS KTE ',kts,kte
+
    DO I=ITS,ITE
    DO J=JTS,JTE
    DO K=KTS,KTE
-        T(i,j,k)        = TH(i,j,k)*PII(i,j,k)
-!        print*,"(",i,",",j,",",k,")    ",QV(i,j,k)
+        T(i,j,k) = TH(i,j,k) * PII(i,j,k)
    END DO
    END DO
    END DO

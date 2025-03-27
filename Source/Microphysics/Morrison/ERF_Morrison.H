@@ -135,9 +135,9 @@ public:
         dt = dt_advance;
 
         // Loop through the grids
-        for (amrex::MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl]); mfi.isValid(); ++mfi) {
+        for (amrex::MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl],TileNoZ()); mfi.isValid(); ++mfi)
+        {
           const amrex::Box& box = mfi.tilebox();
-          const amrex::Box& memory_box = mfi.growntilebox();
 
           // Get array data from class member variables
           auto const& theta_arr = mic_fab_vars[MicVar_Morr::theta]->array(mfi);
@@ -171,42 +171,44 @@ public:
           const int klo = box.loVect()[2];
           const int khi = box.hiVect()[2];
 
-          // Extract box dimensions
-          const int ilom = memory_box.loVect()[0];
-          const int ihim = memory_box.hiVect()[0];
-          const int jlom = memory_box.loVect()[1];
-          const int jhim = memory_box.hiVect()[1];
-          const int klom = memory_box.loVect()[2];
-          const int khim = memory_box.hiVect()[2];
+          amrex::Box grown_box(box); grown_box.grow(3);
+
+          const int ilom = grown_box.loVect()[0];
+          const int ihim = grown_box.hiVect()[0];
+          const int jlom = grown_box.loVect()[1];
+          const int jhim = grown_box.hiVect()[1];
+          const int klom = grown_box.loVect()[2];
+          const int khim = grown_box.hiVect()[2];
 
           // Calculate Exner function (PII) to convert potential temperature to temperature
           // PII = (P/P0)^(R/cp)
-          amrex::FArrayBox pii_fab(box, 1);
+          amrex::FArrayBox pii_fab(grown_box, 1);
           auto const& pii_arr = pii_fab.array();
           const amrex::Real p0 = 100000.0; // Reference pressure (Pa)
           const amrex::Real rdcp = m_rdOcp; // R/cp ratio
 
           // Calculate Exner function
-          amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             // Convert pressure from hPa to Pa for calculation
             pii_arr(i,j,k) = std::pow((pres_arr(i,j,k) * 100.0) / p0, rdcp);
           });
 
           // Create arrays for height differences (dz)
-          amrex::FArrayBox dz_fab(box, 1);
+          amrex::FArrayBox dz_fab(grown_box, 1);
           auto const& dz_arr = dz_fab.array();
 
           // Calculate height differences
           const amrex::Real dz_val = m_geom.CellSize(m_axis);
-          amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             dz_arr(i,j,k) = dz_val;
           });
 
           // Arrays to store precipitation rates
-          amrex::FArrayBox rainncv_fab(box, 1);
-          amrex::FArrayBox sr_fab(box, 1);     // Ratio of snow to total precipitation
-          amrex::FArrayBox snowncv_fab(box, 1);
-          amrex::FArrayBox graupelncv_fab(box, 1);
+          amrex::FArrayBox    rainncv_fab(grown_box, 1);
+          amrex::FArrayBox         sr_fab(grown_box, 1);     // Ratio of snow to total precipitation
+          amrex::FArrayBox    snowncv_fab(grown_box, 1);
+          amrex::FArrayBox graupelncv_fab(grown_box, 1);
+
           auto const& rainncv_arr = rainncv_fab.array();
           auto const& sr_arr = sr_fab.array();
           auto const& snowncv_arr = snowncv_fab.array();
@@ -224,9 +226,9 @@ public:
           ht_fab.setVal(0.0);  // Not used by Morrison scheme
 
           // Create dummy arrays for cumulus tendencies (if needed)
-          amrex::FArrayBox qrcuten_fab(box, 1);
-          amrex::FArrayBox qscuten_fab(box, 1);
-          amrex::FArrayBox qicuten_fab(box, 1);
+          amrex::FArrayBox qrcuten_fab(grown_box, 1);
+          amrex::FArrayBox qscuten_fab(grown_box, 1);
+          amrex::FArrayBox qicuten_fab(grown_box, 1);
           auto const& qrcuten_arr = qrcuten_fab.array();
           auto const& qscuten_arr = qscuten_fab.array();
           auto const& qicuten_arr = qicuten_fab.array();
@@ -240,13 +242,13 @@ public:
           bool flag_qndrop = false;  // Flag to indicate droplet number prediction
 
           // Now create arrays for other optional variables
-          amrex::FArrayBox rainprod_fab(box, 1);
-          amrex::FArrayBox evapprod_fab(box, 1);
-          amrex::FArrayBox qlsink_fab(box, 1);
-          amrex::FArrayBox precr_fab(box, 1);
-          amrex::FArrayBox preci_fab(box, 1);
-          amrex::FArrayBox precs_fab(box, 1);
-          amrex::FArrayBox precg_fab(box, 1);
+          amrex::FArrayBox rainprod_fab(grown_box, 1);
+          amrex::FArrayBox evapprod_fab(grown_box, 1);
+          amrex::FArrayBox qlsink_fab(grown_box, 1);
+          amrex::FArrayBox precr_fab(grown_box, 1);
+          amrex::FArrayBox preci_fab(grown_box, 1);
+          amrex::FArrayBox precs_fab(grown_box, 1);
+          amrex::FArrayBox precg_fab(grown_box, 1);
 
           auto const& rainprod_arr = rainprod_fab.array();
           auto const& evapprod_arr = evapprod_fab.array();
