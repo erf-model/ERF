@@ -75,8 +75,15 @@ ERF::WriteSubvolume ()
         amrex::Abort("Box requested is larger than the existing domain");
     }
 
-    Vector<int> cs;
-    pp.getarr("chunk_size",cs,0,AMREX_SPACEDIM);
+    Vector<int> cs(3);
+    int count = pp.countval("chunk_size");
+    if (count > 0) {
+        pp.queryarr("chunk_size",cs,0,AMREX_SPACEDIM);
+    } else {
+        cs[0] = max_grid_size[0][0];
+        cs[1] = max_grid_size[0][1];
+        cs[2] = max_grid_size[0][2];
+    }
     IntVect chunk_size(cs[0],cs[1],cs[2]);
 
     BoxArray ba(bx);
