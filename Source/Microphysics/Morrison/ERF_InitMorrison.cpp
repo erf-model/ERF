@@ -26,8 +26,6 @@ Morrison::Init (const MultiFab& cons_in,
                 std::unique_ptr<MultiFab>& z_phys_nd,
                 std::unique_ptr<MultiFab>& detJ_cc)
 {
-    amrex::Abort("Morrison not actually implemented yet; this is SAM");
-
     dt     = dt_advance;
     m_geom = geom;
     m_gtoe = grids;
@@ -77,6 +75,9 @@ Morrison::Init (const MultiFab& cons_in,
         gamaz.resize({zlo}, {zhi});
         zmid.resize({zlo}, {zhi});
     }
+
+    int morr_rimed_ice = 0; // This is used to set something called "ihail"
+    morr_two_moment_init_c(morr_rimed_ice);
 }
 
 

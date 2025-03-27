@@ -8,7 +8,6 @@ MODULE mp_morr_two_moment_isohelper
   ! Initialize the Morrison microphysics scheme
   SUBROUTINE morr_two_moment_init_c(morr_rimed_ice) BIND(C, name="morr_two_moment_init_c")
     INTEGER(C_INT), VALUE, INTENT(IN) :: morr_rimed_ice
-    
     CALL MORR_TWO_MOMENT_INIT(morr_rimed_ice)
   END SUBROUTINE morr_two_moment_init_c
 
@@ -54,7 +53,7 @@ MODULE mp_morr_two_moment_isohelper
 
     ! Convert C_BOOL to Fortran logical
     LOGICAL :: diag_flag_f, f_qndrop_f, wetscav_on_f
-    
+
     ! Convert C types to Fortran types
     diag_flag_f = diagflag
     f_qndrop_f = f_qndrop

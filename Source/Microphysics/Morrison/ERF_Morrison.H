@@ -261,7 +261,9 @@ public:
           double dummy_reflectivity = 0.0;
           double* dummy_reflectivity_ptr = &dummy_reflectivity;
           // Example call (pseudo-code - actual interface would depend on your Fortran interop setup)
-          mp_morr_two_moment_c(
+
+          mp_morr_two_moment_c
+          (
               1,  // ITIMESTEP - Use 1 for simplicity
 
               // 3D arrays in Fortran expected order (assume column-major for Fortran)
@@ -322,7 +324,7 @@ public:
               preci_arr.dataPtr(),      // PRECI
               precs_arr.dataPtr(),      // PRECS
               precg_arr.dataPtr()       // PRECG
-                               );
+          );
 
           // After the call, all fields are updated
           // We don't need to copy results back since we passed direct pointers
