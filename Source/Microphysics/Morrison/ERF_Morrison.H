@@ -184,13 +184,16 @@ public:
           // PII = (P/P0)^(R/cp)
           amrex::FArrayBox pii_fab(grown_box, 1);
           auto const& pii_arr = pii_fab.array();
+
           const amrex::Real p0 = 100000.0; // Reference pressure (Pa)
+
           const amrex::Real rdcp = m_rdOcp; // R/cp ratio
 
           // Calculate Exner function
           amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // Convert pressure from hPa to Pa for calculation
-            pii_arr(i,j,k) = std::pow((pres_arr(i,j,k) * 100.0) / p0, rdcp);
+            // NOTE: the Morrison Fortran version uses Pa not hPa so we didn't divide p by 100
+            //       so we don't need to multiply by 100 here
+            pii_arr(i,j,k) = std::pow((pres_arr(i,j,k)) / p0, rdcp);
           });
 
           // Create arrays for height differences (dz)

@@ -789,6 +789,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
           qscu1d(k)     = qscuten(i,j,k)
           qicu1d(k)     = qicuten(i,j,k)
       end do  !jdf added this
+
 ! below for wrf-chem
    IF (flag_qndrop .AND. PRESENT( qndrop )) THEN
       iact = 3
@@ -805,15 +806,13 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
 
 !jdf  end do
 
-      call MORR_TWO_MOMENT_MICRO(QC_TEND1D, QI_TEND1D, QNI_TEND1D, QR_TEND1D,   &
+      call MORR_TWO_MOMENT_MICRO(i,j,kts,kte,QC_TEND1D, QI_TEND1D, QNI_TEND1D, QR_TEND1D,   &
                                  NI_TEND1D, NS_TEND1D, NR_TEND1D,               &
                                  QC1D, QI1D, QS1D, QR1D,NI1D, NS1D, NR1D,       &
                                  T_TEND1D,QV_TEND1D, T1D, QV1D, P1D, DZ1D, W1D, &
                                  PRECPRT1D,SNOWRT1D,                            &
                                  SNOWPRT1D,GRPLPRT1D,                 & ! hm added 7/13/13
                                  EFFC1D,EFFI1D,EFFS1D,EFFR1D,DT,                &
-                                 IMS,IME, JMS,JME, KMS,KME,                     &
-                                 ITS,ITE, JTS,JTE, KTS,KTE,                     & ! HM ADD GRAUPEL
                                  QG_TEND1D,NG_TEND1D,QG1D,NG1D,EFFG1D,          &
                                  qrcu1d, qscu1d, qicu1d,                        &
 ! ADD SEDIMENTATION TENDENCIES
@@ -825,9 +824,9 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
    !
       do k=kts,kte
 
-! hm, add tendencies to update global variables
-! HM, TENDENCIES FOR Q AND N NOW ADDED IN M2005MICRO, SO WE
-! ONLY NEED TO TRANSFER 1D VARIABLES BACK TO 3D
+         ! hm, add tendencies to update global variables
+         ! HM, TENDENCIES FOR Q AND N NOW ADDED IN M2005MICRO, SO WE
+         ! ONLY NEED TO TRANSFER 1D VARIABLES BACK TO 3D
 
           QC(i,j,k)        = QC1D(k)
           QI(i,j,k)        = QI1D(k)
@@ -875,11 +874,11 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
       end do
 
 ! hm modified so that m2005 precip variables correctly match wrf precip variables
-      RAINNC(i,j) = RAINNC(I,J)+PRECPRT1D
-      RAINNCV(i,j) = PRECPRT1D
-      SNOWNC(i,j) = SNOWNC(I,J)+SNOWPRT1D
-      SNOWNCV(i,j) = SNOWPRT1D
-      GRAUPELNC(i,j) = GRAUPELNC(I,J)+GRPLPRT1D
+      RAINNC(i,j)     = RAINNC(I,J)+PRECPRT1D
+      RAINNCV(i,j)    = PRECPRT1D
+      SNOWNC(i,j)     = SNOWNC(I,J)+SNOWPRT1D
+      SNOWNCV(i,j)    = SNOWPRT1D
+      GRAUPELNC(i,j)  = GRAUPELNC(I,J)+GRPLPRT1D
       GRAUPELNCV(i,j) = GRPLPRT1D
       SR(i,j) = SNOWRT1D/(PRECPRT1D+1.E-12)
 
@@ -890,16 +889,15 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
-      SUBROUTINE MORR_TWO_MOMENT_MICRO(QC3DTEN,QI3DTEN,QNI3DTEN,QR3DTEN,         &
-                                       NI3DTEN,NS3DTEN,NR3DTEN,QC3D,QI3D,QNI3D,QR3D,NI3D,NS3D,NR3D,              &
+      SUBROUTINE MORR_TWO_MOMENT_MICRO(i,j,kts,kte,                                                   &
+                                       QC3DTEN,QI3DTEN,QNI3DTEN,QR3DTEN,                              &
+                                       NI3DTEN,NS3DTEN,NR3DTEN,QC3D,QI3D,QNI3D,QR3D,NI3D,NS3D,NR3D,   &
                                        T3DTEN,QV3DTEN,T3D,QV3D,PRES,DZQ,W3D,PRECRT,SNOWRT,            &
-                                       SNOWPRT,GRPLPRT,                &
-                                       EFFC,EFFI,EFFS,EFFR,DT,                                                   &
-                                       IMS,IME, JMS,JME, KMS,KME,           &
-                                       ITS,ITE, JTS,JTE, KTS,KTE,           & ! ADD GRAUPEL
-                                       QG3DTEN,NG3DTEN,QG3D,NG3D,EFFG,qrcu1d,qscu1d, qicu1d,    &
-                                       QGSTEN,QRSTEN,QISTEN,QNISTEN,QCSTEN, &
-                                       nc3d,nc3dten,iinum, & ! wrf-chem
+                                       SNOWPRT,GRPLPRT,                                               &
+                                       EFFC,EFFI,EFFS,EFFR,DT,                                        &
+                                       QG3DTEN,NG3DTEN,QG3D,NG3D,EFFG,qrcu1d,qscu1d, qicu1d,          &
+                                       QGSTEN,QRSTEN,QISTEN,QNISTEN,QCSTEN,                           &
+                                       nc3d,nc3dten,iinum,                                            & ! wrf-chem
                                        c2prec,CSED,ISED,SSED,GSED,RSED)
 
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
@@ -929,8 +927,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! INPUT NUMBER OF GRID CELLS
 
 ! INPUT/OUTPUT PARAMETERS                                 ! DESCRIPTION (UNITS)
-      INTEGER, INTENT( IN)  :: IMS,IME, JMS,JME, KMS,KME,          &
-                               ITS,ITE, JTS,JTE, KTS,KTE
+      INTEGER, INTENT( IN)  :: i,j,kts,kte
 
       REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::  QC3DTEN            ! CLOUD WATER MIXING RATIO TENDENCY (KG/KG/S)
       REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::  QI3DTEN            ! CLOUD ICE MIXING RATIO TENDENCY (KG/KG/S)
@@ -1219,7 +1216,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 
-        ! print *,'IN MICRO KTS:KTE ', kts, kte
+        ! print *,'IN MICRO KTS:KTE ', i,j,kts, kte
 
 ! SET LTRUE INITIALLY TO 0
 
@@ -1392,10 +1389,13 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! IF THERE IS NO CLOUD/PRECIP WATER, AND IF SUBSATURATED, THEN SKIP MICROPHYSICS
 ! FOR THIS LEVEL
 
-            IF (QC3D(K).LT.QSMALL.AND.QI3D(K).LT.QSMALL.AND.QNI3D(K).LT.QSMALL &
-                 .AND.QR3D(K).LT.QSMALL.AND.QG3D(K).LT.QSMALL) THEN
-                 IF (T3D(K).LT.273.15.AND.QVQVSI(K).LT.0.999) GOTO 200
-                 IF (T3D(K).GE.273.15.AND.QVQVS(K).LT.0.999) GOTO 200
+            IF ( QC3D(K).LT.QSMALL.AND. &
+                 QI3D(K).LT.QSMALL.AND. &
+                QNI3D(K).LT.QSMALL.AND. &
+                 QR3D(K).LT.QSMALL.AND. &
+                 QG3D(K).LT.QSMALL) THEN
+                     IF (T3D(K).LT.273.15.AND.QVQVSI(K).LT.0.999) GOTO 200
+                     IF (T3D(K).GE.273.15.AND.QVQVS(K).LT.0.999) GOTO 200
             END IF
 
 ! THERMAL CONDUCTIVITY FOR AIR
@@ -3186,17 +3186,22 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! WATER SATURATION
 
       DUMT = T3D(K)+DT*T3DTEN(K)
-      DUMQV = QV3D(K)+DT*QV3DTEN(K)
-! hm, add fix for low pressure, 5/12/10
+      DUMQV = QV3D(K) + DT * QV3DTEN(K)
+
+      ! hm, add fix for low pressure, 5/12/10
       dum=min(0.99*pres(k),POLYSVP(DUMT,0))
       DUMQSS = EP_2*dum/(PRES(K)-dum)
-      DUMQC = QC3D(K)+DT*QC3DTEN(K)
+
+      DUMQC = QC3D(K) + DT * QC3DTEN(K)
+
       DUMQC = MAX(DUMQC,0.)
 
 ! SATURATION ADJUSTMENT FOR LIQUID
 
       DUMS = DUMQV-DUMQSS
+
       PCC(K) = DUMS/(1.+XXLV(K)**2*DUMQSS/(CPM(K)*RV*DUMT**2))/DT
+
       IF (PCC(K)*DT+DUMQC.LT.0.) THEN
            PCC(K) = -DUMQC/DT
       END IF
