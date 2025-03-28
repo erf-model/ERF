@@ -94,12 +94,13 @@ constexpr Real gamma_function(Real x) {
                        const SolverChoice& sc)
     {
         dt = dt_advance;
-#if 0
+        bool use_dev_cpp=false;
+        if(use_dev_cpp) {
         this->Cloud(sc);
         this->IceFall(sc);
         this->Precip(sc);
         this->PrecipFall(sc);
-#else
+        } else {
         // Store timestep
         dt = dt_advance;
 
@@ -117,13 +118,13 @@ constexpr Real gamma_function(Real x) {
           auto const& qps_arr = mic_fab_vars[MicVar_Morr::qps]->array(mfi);
           auto const& qpg_arr = mic_fab_vars[MicVar_Morr::qpg]->array(mfi);
           auto const& ni_arr = mic_fab_vars[MicVar_Morr::ni]->array(mfi);
-          auto const& nc_arr = mic_fab_vars[MicVar_Morr::nc]->array(mfi);
+          [[maybe_unused]] auto const& nc_arr = mic_fab_vars[MicVar_Morr::nc]->array(mfi);
           auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& nr_arr = mic_fab_vars[MicVar_Morr::nr]->array(mfi);
           auto const& ng_arr = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
           auto const& rho_arr = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
           auto const& pres_arr = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
-          auto const& tabs_arr = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
+          [[maybe_unused]] auto const& tabs_arr = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
           auto const& rain_accum_arr = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
           auto const& snow_accum_arr = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
           auto const& graup_accum_arr = mic_fab_vars[MicVar_Morr::graup_accum]->array(mfi);
@@ -251,7 +252,7 @@ constexpr Real gamma_function(Real x) {
           int m_inum = 1;    // Droplet number option (0: predict, 1: constant)
           int m_iliq = 0;    // Liquid-only option (0: include ice, 1: liquid only)
           int m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
-          int m_ibase = 2;   // Cloud base activation option
+          [[maybe_unused]] int m_ibase = 2;   // Cloud base activation option
           int m_isub = 0;    // Sub-grid vertical velocity option
           int m_igraup = 0;  // Graupel option (0: include graupel, 1: no graupel)
           int m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
@@ -352,6 +353,7 @@ constexpr Real gamma_function(Real x) {
           amrex::Real m_xam_r, m_xbm_r, m_xmu_r;  // Rain reflectivity parameters
           amrex::Real m_xam_s, m_xbm_s, m_xmu_s;  // Snow reflectivity parameters
           amrex::Real m_xam_g, m_xbm_g, m_xmu_g;  // Graupel reflectivity parameters
+#if 0
           amrex::Real m_lambda_radar;  // Radar wavelength (10 cm)
           amrex::Real m_k_w;           // K_w parameter for liquid water
           amrex::Real m_lamda4;        // Lambda^4 for radar calculation
@@ -367,7 +369,7 @@ constexpr Real gamma_function(Real x) {
           bool m_melt_outside_g;     // Liquid coating of melting graupel
           std::complex<amrex::Real> m_m_w_0;  // Dielectric constant for water
           std::complex<amrex::Real> m_m_i_0;  // Dielectric constant for ice
-
+#endif
           // Set microphysics control parameters
           m_inum = 1;           // Use constant droplet number concentration
           m_ndcnst = 250.0;     // Droplet number concentration (cm^-3)
@@ -612,6 +614,9 @@ constexpr Real gamma_function(Real x) {
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
+          bool run_morr_cpp = true;
+          bool use_morr_cpp_answer = false; //true;
+          if(run_morr_cpp) {
           FILE *file = fopen("output_cpp.txt", "a");
           ////////////////////////////////////////////////////////////
           // ParallelFor for testing partial C++ implementation
@@ -621,6 +626,8 @@ constexpr Real gamma_function(Real x) {
           ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
          {
             // Tendencies and mixing ratios
+#if 0
+           //No precip implmented yet
             amrex::Real qc3dten=0;            // QC3DTEN: CLOUD WATER MIXING RATIO TENDENCY (KG/KG/S)
             amrex::Real qi3dten=0;            // QI3DTEN: CLOUD ICE MIXING RATIO TENDENCY (KG/KG/S)
             amrex::Real qni3dten=0;           // QNI3DTEN: SNOW MIXING RATIO TENDENCY (KG/KG/S)
@@ -628,6 +635,7 @@ constexpr Real gamma_function(Real x) {
             amrex::Real ni3dten=0;            // NI3DTEN: CLOUD ICE NUMBER CONCENTRATION (1/KG/S)
             amrex::Real ns3dten=0;            // NS3DTEN: SNOW NUMBER CONCENTRATION (1/KG/S)
             amrex::Real nr3dten=0;            // NR3DTEN: RAIN NUMBER CONCENTRATION (1/KG/S)
+#endif
             amrex::Real qc3d=qcl_arr(i,j,k);               // QC3D: CLOUD WATER MIXING RATIO (KG/KG)
             amrex::Real qi3d=qci_arr(i,j,k);               // QI3D: CLOUD ICE MIXING RATIO (KG/KG)
             amrex::Real qni3d=qps_arr(i,j,k);;              // QNI3D: SNOW MIXING RATIO (KG/KG)
@@ -635,22 +643,27 @@ constexpr Real gamma_function(Real x) {
             amrex::Real ni3d=ni_arr(i,j,k);               // NI3D: CLOUD ICE NUMBER CONCENTRATION (1/KG)
             amrex::Real ns3d=ns_arr(i,j,k);               // NS3D: SNOW NUMBER CONCENTRATION (1/KG)
             amrex::Real nr3d=nr_arr(i,j,k);               // NR3D: RAIN NUMBER CONCENTRATION (1/KG)
+#if 0
+            //No precip implmented yet
             amrex::Real t3dten=0;             // T3DTEN: TEMPERATURE TENDENCY (K/S)
             amrex::Real qv3dten=0;            // QV3DTEN: WATER VAPOR MIXING RATIO TENDENCY (KG/KG/S)
+#endif
             amrex::Real t3d=theta_arr(i,j,k)*pii_arr(i,j,k);                // T3D: TEMPERATURE (K)
             amrex::Real qv3d=qv_arr(i,j,k);               // QV3D: WATER VAPOR MIXING RATIO (KG/KG)
             amrex::Real pres=pres_arr(i,j,k);               // PRES: ATMOSPHERIC PRESSURE (PA)
-            amrex::Real dzq=dz_arr(i,j,k);// dz_val;                // DZQ: DIFFERENCE IN HEIGHT ACROSS LEVEL (m)
-            amrex::Real w3d=w_arr(i,j,k);                // W3D: GRID-SCALE VERTICAL VELOCITY (M/S)
+            [[maybe_unused]] amrex::Real dzq=dz_arr(i,j,k);// dz_val;                // DZQ: DIFFERENCE IN HEIGHT ACROSS LEVEL (m)
+            [[maybe_unused]] amrex::Real w3d=w_arr(i,j,k);                // W3D: GRID-SCALE VERTICAL VELOCITY (M/S)
 
             // WRF-chem variables
             amrex::Real nc3d;               // nc3d: Cloud droplet number concentration
             amrex::Real nc3dten=0;            // nc3dten: Cloud droplet number concentration tendency
+#if 0
             int iinum;                      // iinum: Integer control variable
 
             // Graupel variables
             amrex::Real qg3dten=0;            // QG3DTEN: GRAUPEL MIX RATIO TENDENCY (KG/KG/S)
             amrex::Real ng3dten=0;            // NG3DTEN: GRAUPEL NUMB CONC TENDENCY (1/KG/S)
+#endif
             amrex::Real qg3d=qpg_arr(i,j,k);               // QG3D: GRAUPEL MIX RATIO (KG/KG)
             amrex::Real ng3d=ng_arr(i,j,k);               // NG3D: GRAUPEL NUMBER CONC (1/KG)
 
@@ -680,11 +693,12 @@ constexpr Real gamma_function(Real x) {
             amrex::Real effg;               // EFFG: GRAUPEL EFFECTIVE RADIUS (MICRON)
 
             // Model input parameters
-            amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
-
+            //amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
+            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
+#if 0
             // Size distribution parameters
             amrex::Real lamc;               // LAMC: Slope parameter for droplets (m^-1)
-            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
+//            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
             amrex::Real lams;               // LAMS: Slope parameter for snow (m^-1)
             amrex::Real lamr;               // LAMR: Slope parameter for rain (m^-1)
             amrex::Real lamg;               // LAMG: Slope parameter for graupel (m^-1)
@@ -766,7 +780,7 @@ constexpr Real gamma_function(Real x) {
             amrex::Real nmultrg;            // NMULTRG: Ice multiplication due to accretion rain by graupel
             amrex::Real qmultg;             // QMULTG: Change Q due to ice multiplication droplets/graupel
             amrex::Real qmultrg;            // QMULTRG: Change Q due to ice multiplication rain/graupel
-
+#endif
             // Time-varying atmospheric parameters
             amrex::Real kap;                // KAP: Thermal conductivity of air
             amrex::Real evs;                // EVS: Saturation vapor pressure
@@ -780,12 +794,12 @@ constexpr Real gamma_function(Real x) {
             amrex::Real xxlv;               // XXLV: Latent heat of vaporization
             amrex::Real cpm;                // CPM: Specific heat at constant pressure for moist air
             amrex::Real mu;                 // MU: Viscosity of air
-            amrex::Real sc;                 // SC: Schmidt number
+            amrex::Real sc_schmidt;         // SC: Schmidt number
             amrex::Real xlf;                // XLF: Latent heat of freezing
             amrex::Real rho;                // RHO: Air density
             amrex::Real ab;                 // AB: Correction to condensation rate due to latent heating
             amrex::Real abi;                // ABI: Correction to deposition rate due to latent heating
-
+#if 0
             // Time-varying microphysics parameters
             amrex::Real dap;                // DAP: Diffusivity of aerosol
             amrex::Real nacnt;              // NACNT: Number of contact nuclei
@@ -845,7 +859,7 @@ constexpr Real gamma_function(Real x) {
             amrex::Real faloutnr;           // FALOUTNR: Fallout rate for rain number
             amrex::Real faltndnr;           // FALTNDNR: Number-weighted fallout tendency for rain
             amrex::Real fnr;                // FNR: Number-weighted fall speed for rain
-
+#endif
             // Fall-speed parameter 'A' with air density correction
             amrex::Real ain;                // AIN: Fall-speed parameter 'A' with air density correction for ice
             amrex::Real arn;                // ARN: Fall-speed parameter 'A' with air density correction for rain
@@ -855,6 +869,7 @@ constexpr Real gamma_function(Real x) {
 
             // Dummy variables
             amrex::Real dum;                // DUM: General dummy variable
+#if 0
             amrex::Real dum1;               // DUM1: General dummy variable
             amrex::Real dum2;               // DUM2: General dummy variable
             amrex::Real dumt;               // DUMT: Dummy variable for temperature
@@ -862,10 +877,11 @@ constexpr Real gamma_function(Real x) {
             amrex::Real dumqss;             // DUMQSS: Dummy saturation mixing ratio
             amrex::Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
             amrex::Real dums;               // DUMS: General dummy variable
-
+#endif
             // Prognostic supersaturation
             amrex::Real dqsdt;              // DQSDT: Change of saturation mixing ratio with temperature
             amrex::Real dqsidt;             // DQSIDT: Change in ice saturation mixing ratio with temperature
+#if 0
             amrex::Real epsi;               // EPSI: 1/phase relaxation time (see M2005), ice
             amrex::Real epss;               // EPSS: 1/phase relaxation time (see M2005), snow
             amrex::Real epsr;               // EPSR: 1/phase relaxation time (see M2005), rain
@@ -939,7 +955,7 @@ constexpr Real gamma_function(Real x) {
             amrex::Real lammin;             // LAMMIN: Minimum value for slope parameter
 
             int idrop;                      // IDROP: Switch for droplet activation scheme
-
+#endif
             // For WRF-CHEM
             amrex::Real c2prec;             // C2PREC: Cloud to precipitation conversion
             amrex::Real csed;               // CSED: Cloud sedimentation
@@ -947,7 +963,8 @@ constexpr Real gamma_function(Real x) {
             amrex::Real ssed;               // SSED: Snow sedimentation
             amrex::Real gsed;               // GSED: Graupel sedimentation
             amrex::Real rsed;               // RSED: Rain sedimentation
-            amrex::Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
+            [[maybe_unused]] amrex::Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
+
             // NC3DTEN LOCAL ARRAY INITIALIZED
             nc3dten = 0.0;
 
@@ -1135,6 +1152,7 @@ constexpr Real gamma_function(Real x) {
 
             // If there is no cloud/precip water, and if subsaturated, then skip microphysics for this level
             bool skipMicrophysics = false;
+            bool skipPrecip = true;
             if (qc3d < QSMALL && qi3d < QSMALL && qni3d < QSMALL && qr3d < QSMALL && qg3d < QSMALL) {
               if ((t3d < 273.15 && qvqvsi < 0.999) || (t3d >= 273.15 && qvqvs < 0.999)) {
                 skipMicrophysics = true;
@@ -1148,7 +1166,7 @@ constexpr Real gamma_function(Real x) {
             dv = 8.794e-5 * std::pow(t3d, 1.81) / pres; // budget equation: calculate vapor diffusivity
 
             // Schmidt number
-            sc = mu / (rho * dv); // budget equation: calculate Schmidt number
+            sc_schmidt = mu / (rho * dv); // budget equation: calculate Schmidt number
 
             // Psychometric corrections
             // Rate of change sat. mix. ratio with temperature
@@ -1158,12 +1176,57 @@ constexpr Real gamma_function(Real x) {
             abi = 1.0 + dqsidt * xxls / cpm; // budget equation: calculate ABI
             ab = 1.0 + dqsdt * xxlv / cpm; // budget equation: calculate AB
 
-            //f(skip_microphysics) {
+            if(!skipMicrophysics) {
+              printf("ERROR: Microphysics not implmented in C++");
+              skipPrecip = false;
+            }
 
-            //}
+            // INITIALIZE PRECIP AND SNOW RATES
+            precrt = 0.0;
+            snowrt = 0.0;
+        // hm added 7/13/13
+            snowprt = 0.0;
+            grplprt = 0.0;
+            if(!skipPrecip) {
+              printf("ERROR: Microphysics not implmented in C++");
+              skipPrecip = false;
+            }
+            if(use_morr_cpp_answer) {
+            // Transfer 1D variables back to 3D arrays
+            qcl_arr(i,j,k) = qc3d;
+            qci_arr(i,j,k) = qi3d;
+            qps_arr(i,j,k) = qni3d;
+            qpr_arr(i,j,k) = qr3d;
+            ni_arr(i,j,k) = ni3d;
+            ns_arr(i,j,k) = ns3d;
+            nr_arr(i,j,k) = nr3d;
+            qpg_arr(i,j,k) = qg3d;
+            ng_arr(i,j,k) = ng3d;
+
+            // Temperature and potential temperature conversion
+            theta_arr(i,j,k) = t3d / pii_arr(i,j,k); // Convert temp back to potential temp
+            qv_arr(i,j,k) = qv3d;
+
+            //Deleted wrf-check, effc, and precr type data as not used by ERF
+
+            /* // NEED gpu-compatabile summation for rain_accum, check SAM or Kessler for better example
+            rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + precrt;
+            snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + snowprt;
+            graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + grplprt;
+            // Update precipitation accumulation variables
+            // These are outside the k-loop in the original code
+            rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + precrt;
+            rainncv_arr(i,j) = precrt;
+            snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + snowprt;
+            snowncv_arr(i,j) = snowprt;
+            graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + grplprt;
+            graupelncv_arr(i,j) = grplprt;
+            sr_arr(i,j) = snowrt / (precrt + 1.e-12);*/
+            }
          });
           fclose(file);
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
+        } else {
           mp_morr_two_moment_c
           (
               1,  // ITIMESTEP - Use 1 for simplicity
@@ -1227,10 +1290,11 @@ constexpr Real gamma_function(Real x) {
               precs_arr.dataPtr(),      // PRECS
               precg_arr.dataPtr()       // PRECG
           );
+        }
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
           // After the call, all fields are updated
           // We don't need to copy results back since we passed direct pointers
           // to our class member arrays
         }
-#endif
+        }
     }
