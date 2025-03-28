@@ -83,7 +83,7 @@ does a linear extrapolation from the two nearest valid values. The ``neumann`` c
 is an ERF-specific boundary type that allows a user to specify a variable gradient. Currently, the
 ``neumann`` BC is only supported for theta to allow for weak capping inversion
 (:math:`\partial \theta / \partial z`) at the top domain. The ``sgsdiff`` condition is an ERF-specific
-boundry type that employs the above set of boundary conditions but also directly specifies the
+boundary type that employs the above set of boundary conditions but also directly specifies the
 subgrid scale diffusive fluxes; see :ref:`sec:sgsdiff` for more information.
 
 As an example,
