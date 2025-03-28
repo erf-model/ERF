@@ -24,7 +24,7 @@ zhi.type = "SlipWall"
 #zlo.type = "NoSlipWall"
 
 zlo.type = "sgsdiff"
-erf.most.flux_type = "custom"
+erf.sgsdiff.flux_type = "custom"
 erf.most.ustar  = 0.0395   # z=10.
 ##erf.most.ustar  = 0.395   # z=1.0
 erf.most.tstar  = 0. # theta flux

@@ -58,7 +58,7 @@ public:
             flux_type = FluxCalcType::ROTATE;
         } else {
             std::string flux_string{"moeng"};
-            pp.query("most.flux_type", flux_string);
+            pp.query("sgsdiff.flux_type", flux_string);
             if (flux_string == "donelan") {
                 flux_type = FluxCalcType::DONELAN;
             } else if (flux_string == "moeng") {
