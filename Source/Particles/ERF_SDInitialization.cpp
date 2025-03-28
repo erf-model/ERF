@@ -129,7 +129,6 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
             m_radius_aerosol_geom_std[i] = std::exp(m_radius_aerosol_geom_std[i]);
         }
         {
-            m_radius_aerosol_geom_std[i] = 2.0;
             std::string key = "initial_aerosol_geomstd_radius_" + a_aerosol_mat[i]->name();
             pp.query(key.c_str(), m_radius_aerosol_geom_std[i]);
         }
@@ -173,6 +172,9 @@ void SDInitialization::printParameters ( const std::vector<std::unique_ptr<Mater
                 Print() << ", min=" << m_radius_aerosol_min[i]
                         << ", max=" << m_radius_aerosol_max[i]
                         << ", mean=" << m_radius_aerosol_mean[i]
+                        << ", std=" << m_radius_aerosol_geom_std[i];
+            } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_lnr_auto) {
+                Print() << ", mean=" << m_radius_aerosol_mean[i]
                         << ", std=" << m_radius_aerosol_geom_std[i];
             }
             Print() << ")" << "\n";
@@ -316,7 +318,6 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
             a_aerosol_mass[sd_id] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             // set the multiplicity to the same as for the 99th percentile aerosol
             a_multiplicity[sd_id] = tail_mult;
-            amrex::Print() << "radius: " << dry_r << ", multiplicity: " << tail_mult << "\n";
         }
         amrex::Print() << "Done sampling\n";
     } else {
