@@ -1073,6 +1073,94 @@ constexpr Real gamma_function(Real x) {
                       qvs, qvi, qvqvs, qvqvsi, rho, qr3d, qc3d, qi3d, qni3d, qg3d, nr3d, ns3d, ni3d);
             }
 #endif
+            // HEAT OF FUSION
+            xlf = xxls - xxlv;
+
+            // IF MIXING RATIO < QSMALL SET MIXING RATIO AND NUMBER CONC TO ZERO
+            // Note: QSMALL is not defined in the variable list, so I'll define it
+            const amrex::Real QSMALL = m_qsmall;
+
+            if (qc3d < QSMALL) {
+              qc3d = 0.0;
+              nc3d = 0.0;
+              effc = 0.0;
+            }
+            if (qr3d < QSMALL) {
+              qr3d = 0.0;
+              nr3d = 0.0;
+              effr = 0.0;
+            }
+            if (qi3d < QSMALL) {
+              qi3d = 0.0;
+              ni3d = 0.0;
+              effi = 0.0;
+            }
+            if (qni3d < QSMALL) {
+              qni3d = 0.0;
+              ns3d = 0.0;
+              effs = 0.0;
+            }
+            if (qg3d < QSMALL) {
+              qg3d = 0.0;
+              ng3d = 0.0;
+              effg = 0.0;
+            }
+
+            // INITIALIZE SEDIMENTATION TENDENCIES FOR MIXING RATIO
+            qrsten = 0.0;  // temporary update: initialize QRSTEN
+            qisten = 0.0;  // temporary update: initialize QISTEN
+            qnisten = 0.0; // temporary update: initialize QNISTEN
+            qcsten = 0.0;  // temporary update: initialize QCSTEN
+            qgsten = 0.0;  // temporary update: initialize QGSTEN
+
+            // MICROPHYSICS PARAMETERS VARYING IN TIME/HEIGHT
+            mu = 1.496e-6 * std::pow(t3d, 1.5) / (t3d + 120.0); // budget equation: calculate air viscosity
+
+            // Fall speed with density correction (Heymsfield and Benssemer 2006)
+            dum = std::pow(m_rhosu / rho, 0.54); // temporary update: calculate density correction factor
+
+            // AA revision 4/1/11: Ikawa and Saito 1991 air-density correction
+            ain = std::pow(m_rhosu / rho, 0.35) * m_ai; // budget equation: calculate ice fall speed parameter
+            arn = dum * m_ar; // budget equation: calculate rain fall speed parameter
+            asn = dum * m_as; // budget equation: calculate snow fall speed parameter
+
+            // AA revision 4/1/11: temperature-dependent Stokes fall speed
+            acn = m_g * m_rhow / (18.0 * mu); // budget equation: calculate cloud droplet fall speed parameter
+
+            // HM ADD GRAUPEL 8/28/06
+            agn = dum * m_ag; // budget equation: calculate graupel fall speed parameter
+
+            // hm 4/7/09 bug fix, initialize lami to prevent later division by zero
+            lami = 0.0; // temporary update: initialize LAMI
+
+            // If there is no cloud/precip water, and if subsaturated, then skip microphysics for this level
+            bool skipMicrophysics = false;
+            if (qc3d < QSMALL && qi3d < QSMALL && qni3d < QSMALL && qr3d < QSMALL && qg3d < QSMALL) {
+              if ((t3d < 273.15 && qvqvsi < 0.999) || (t3d >= 273.15 && qvqvs < 0.999)) {
+                skipMicrophysics = true;
+              }
+            }
+
+            // Thermal conductivity for air
+            kap = 1.414e3 * mu; // budget equation: calculate thermal conductivity
+
+            // Diffusivity of water vapor
+            dv = 8.794e-5 * std::pow(t3d, 1.81) / pres; // budget equation: calculate vapor diffusivity
+
+            // Schmidt number
+            sc = mu / (rho * dv); // budget equation: calculate Schmidt number
+
+            // Psychometric corrections
+            // Rate of change sat. mix. ratio with temperature
+            dum = (m_Rv * t3d * t3d); // temporary update: calculate temperature factor
+            dqsdt = xxlv * qvs / dum; // budget equation: calculate DQSDT
+            dqsidt = xxls * qvi / dum; // budget equation: calculate DQSIDT
+            abi = 1.0 + dqsidt * xxls / cpm; // budget equation: calculate ABI
+            ab = 1.0 + dqsdt * xxlv / cpm; // budget equation: calculate AB
+
+            //f(skip_microphysics) {
+
+            //}
          });
           fclose(file);
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
