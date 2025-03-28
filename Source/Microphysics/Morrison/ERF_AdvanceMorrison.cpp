@@ -614,9 +614,9 @@ constexpr Real gamma_function(Real x) {
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
-          bool run_morr_fort = true;
           bool run_morr_cpp = true;
           bool use_morr_cpp_answer = false; //true;
+          bool run_morr_fort = !use_morr_cpp_answer;
           if(run_morr_cpp) {
           FILE *file = fopen("output_cpp.txt", "a");
           ////////////////////////////////////////////////////////////
