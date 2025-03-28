@@ -613,6 +613,11 @@ constexpr Real gamma_function(Real x) {
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
           FILE *file = fopen("output_cpp.txt", "a");
+          ////////////////////////////////////////////////////////////
+          // ParallelFor for testing partial C++ implementation
+          // NOTE: Currently all Array4 values are copied to locals
+          //       This means we're not updating or outputing anything
+          ////////////////////////////////////////////////////////////
           ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
          {
             // Tendencies and mixing ratios
@@ -975,6 +980,97 @@ constexpr Real gamma_function(Real x) {
               FILE *file = fopen("output_cpp.txt", "a");
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                       i, j, k, xxlv, xxls, cpm, evs, eis, t3d, CP, qv3d, pres);
+            }
+#endif
+            // MAKE SURE ICE SATURATION DOESN'T EXCEED WATER SAT. NEAR FREEZING
+            if (eis > evs) {
+              eis = evs; // temporary update: adjust ice saturation pressure
+            }
+
+            // SATURATION MIXING RATIOS
+            qvs = m_ep_2 * evs / (pres - evs); // budget equation: calculate water saturation mixing ratio
+            qvi = m_ep_2 * eis / (pres - eis); // budget equation: calculate ice saturation mixing ratio
+
+            // SATURATION RATIOS
+            qvqvs = qv3d / qvs; // budget equation: calculate water saturation ratio
+            qvqvsi = qv3d / qvi; // budget equation: calculate ice saturation ratio
+
+            // AIR DENSITY
+            rho = pres / (m_R * t3d); // budget equation: calculate air density
+
+            const double DS = 0.3;       // Size distribution parameter for snow
+            const double DI = 3.0;       // Size distribution parameter for cloud ice
+            const double CI = 800.0;     // Mass-diameter relationship parameter for cloud ice
+            // ADD NUMBER CONCENTRATION DUE TO CUMULUS TENDENCY
+            // ASSUME N0 ASSOCIATED WITH CUMULUS PARAM RAIN IS 10^7 M^-4
+            // ASSUME N0 ASSOCIATED WITH CUMULUS PARAM SNOW IS 2 X 10^7 M^-4
+            // FOR DETRAINED CLOUD ICE, ASSUME MEAN VOLUME DIAM OF 80 MICRON
+            if (qrcu1d >= 1.0e-10) {
+              dum = 1.8e5 * std::pow(qrcu1d * dt / (m_pi * m_rhow * std::pow(rho, 3)), 0.25); // rate equation: calculate rain number concentration from cumulus
+              nr3d += dum; // budget equation: update rain number concentration
+            }
+            if (qscu1d >= 1.0e-10) {
+              dum = 3.e5 * std::pow(qscu1d * dt / (m_cons1 * std::pow(rho, 3)), 1.0 / (DS + 1.0)); // rate equation: calculate snow number concentration from cumulus
+              ns3d += dum; // budget equation: update snow number concentration
+            }
+            if (qicu1d >= 1.0e-10) {
+              dum = qicu1d * dt / (CI * std::pow(80.0e-6, DI)); // rate equation: calculate cloud ice number concentration from cumulus
+              ni3d += dum; // budget equation: update cloud ice number concentration
+            }
+
+            // AT SUBSATURATION, REMOVE SMALL AMOUNTS OF CLOUD/PRECIP WATER
+            // hm modify 7/0/09 change limit to 1.e-8
+            if (qvqvs < 0.9) {
+              if (qr3d < 1.0e-8) {
+                qv3d += qr3d; // budget equation: transfer rain to vapor
+                t3d -= qr3d * xxlv / cpm; // budget equation: adjust temperature
+                qr3d = 0.0; // temporary update: set rain to zero
+              }
+              if (qc3d < 1.0e-8) {
+                qv3d += qc3d; // budget equation: transfer cloud water to vapor
+                t3d -= qc3d * xxlv / cpm; // budget equation: adjust temperature
+                qc3d = 0.0; // temporary update: set cloud water to zero
+              }
+            }
+
+            if (qvqvsi < 0.9) {
+              if (qi3d < 1.0e-8) {
+                qv3d += qi3d; // budget equation: transfer cloud ice to vapor
+                t3d -= qi3d * xxls / cpm; // budget equation: adjust temperature
+                qi3d = 0.0; // temporary update: set cloud ice to zero
+              }
+              if (qni3d < 1.0e-8) {
+                qv3d += qni3d; // budget equation: transfer snow to vapor
+                t3d -= qni3d * xxls / cpm; // budget equation: adjust temperature
+                qni3d = 0.0; // temporary update: set snow to zero
+              }
+              if (qg3d < 1.0e-8) {
+                qv3d += qg3d; // budget equation: transfer graupel to vapor
+                t3d -= qg3d * xxls / cpm; // budget equation: adjust temperature
+                qg3d = 0.0; // temporary update: set graupel to zero
+              }
+            }
+#if 0
+            // C++ version
+            if ((i >= 86 && i <= 101 && j >= 0 && j <= 3 && k >= 8 && k <= 23 &&
+                 (i-86)%2 == 0 && j%2 == 0 && (k-8)%2 == 0) ||
+                (i == 92 && j == 0 && k == 17) ||
+                (((i == 168 || i == 169 || i == 190 || i == 191) &&
+                  (j == 0 || j == 3) &&
+                  (k == 0 || k == 1 || k == 126 || k == 127))) ||
+                (i == 175 && j == 1 && k == 50) ||
+                (i == 180 && j == 2 && k == 75) ||
+                (i == 185 && j == 1 && k == 100) ||
+                (i == 170 && j == 0 && k == 30) ||
+                (i == 188 && j == 3 && k == 60) ||
+                (i == 178 && j == 2 && k == 40) ||
+                (i == 183 && j == 0 && k == 80) ||
+                (i == 173 && j == 3 && k == 110) ||
+                (i == 186 && j == 1 && k == 90) ||
+                (i == 177 && j == 2 && k == 65)) {
+              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+                      i, j, k, xxlv, xxls, cpm, evs, eis, t3d, CP, qv3d, pres,
+                      qvs, qvi, qvqvs, qvqvsi, rho, qr3d, qc3d, qi3d, qni3d, qg3d, nr3d, ns3d, ni3d);
             }
 #endif
          });
