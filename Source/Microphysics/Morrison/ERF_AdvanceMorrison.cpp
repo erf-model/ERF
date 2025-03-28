@@ -615,7 +615,7 @@ constexpr Real gamma_function(Real x) {
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
           bool run_morr_cpp = true;
-          bool use_morr_cpp_answer = false; //true;
+          bool use_morr_cpp_answer = false;
           bool run_morr_fort = !use_morr_cpp_answer;
           if(run_morr_cpp) {
           FILE *file = fopen("output_cpp.txt", "a");
@@ -1153,12 +1153,15 @@ constexpr Real gamma_function(Real x) {
 
             // If there is no cloud/precip water, and if subsaturated, then skip microphysics for this level
             bool skipMicrophysics = false;
-            bool skipPrecip = true;
+            bool skipConcentrations = false;
+            bool skipPrecip = true; // set with if statement
             if (qc3d < QSMALL && qi3d < QSMALL && qni3d < QSMALL && qr3d < QSMALL && qg3d < QSMALL) {
               if ((t3d < 273.15 && qvqvsi < 0.999) || (t3d >= 273.15 && qvqvs < 0.999)) {
                 skipMicrophysics = true;
               }
             }
+
+            if(!skipMicrophysics) {
 
             // Thermal conductivity for air
             kap = 1.414e3 * mu; // budget equation: calculate thermal conductivity
@@ -1177,8 +1180,69 @@ constexpr Real gamma_function(Real x) {
             abi = 1.0 + dqsidt * xxls / cpm; // budget equation: calculate ABI
             ab = 1.0 + dqsdt * xxlv / cpm; // budget equation: calculate AB
 
-            if(!skipMicrophysics) {
-              printf("ERROR: Microphysics not implmented in C++");
+            // CASE FOR TEMPERATURE ABOVE FREEZING
+            if (t3d >= 273.15) {
+              //......................................................................
+              // ALLOW FOR CONSTANT DROPLET NUMBER
+              // INUM = 0, PREDICT DROPLET NUMBER
+              // INUM = 1, SET CONSTANT DROPLET NUMBER
+
+              if (m_inum == 1) {
+                // CONVERT NDCNST FROM CM-3 TO KG-1
+                // Note: NDCNST constant would need to be defined elsewhere
+                nc3d = m_ndcnst * 1.0e6 / rho; // Set cloud droplet number concentration
+              }
+
+              // GET SIZE DISTRIBUTION PARAMETERS
+              // MELT VERY SMALL SNOW AND GRAUPEL MIXING RATIOS, ADD TO RAIN
+              if (qni3d < 1.0e-6) {
+                qr3d = qr3d + qni3d;         // Transfer snow to rain
+                nr3d = nr3d + ns3d;          // Transfer snow number to rain
+                t3d = t3d - qni3d * xlf / cpm; // Adjust temperature
+                qni3d = 0.0;                 // Set snow to zero
+                ns3d = 0.0;                  // Set snow number to zero
+              }
+
+              if (qg3d < 1.0e-6) {
+                qr3d = qr3d + qg3d;          // Transfer graupel to rain
+                nr3d = nr3d + ng3d;          // Transfer graupel number to rain
+                t3d = t3d - qg3d * xlf / cpm;  // Adjust temperature
+                qg3d = 0.0;                  // Set graupel to zero
+                ng3d = 0.0;                  // Set graupel number to zero
+              }
+
+              // Skip to label 300 if concentrations are below thresholds
+              // Note: QSMALL constant would need to be defined elsewhere
+              if (qc3d < m_qsmall && qni3d < 1.0e-8 && qr3d < m_qsmall && qg3d < 1.0e-8) {
+                skipConcentrations=true;
+              }
+#if 0
+              // C++ version
+              if ((i >= 86 && i <= 101 && j >= 0 && j <= 3 && k >= 8 && k <= 23 &&
+                   (i-86)%2 == 0 && j%2 == 0 && (k-8)%2 == 0) ||
+                  (i == 92 && j == 0 && k == 17) ||
+                  (((i == 168 || i == 169 || i == 190 || i == 191) &&
+                    (j == 0 || j == 3) &&
+                    (k == 0 || k == 1 || k == 126 || k == 127))) ||
+                  (i == 175 && j == 1 && k == 50) ||
+                  (i == 180 && j == 2 && k == 75) ||
+                  (i == 185 && j == 1 && k == 100) ||
+                  (i == 170 && j == 0 && k == 30) ||
+                  (i == 188 && j == 3 && k == 60) ||
+                  (i == 178 && j == 2 && k == 40) ||
+                  (i == 183 && j == 0 && k == 80) ||
+                  (i == 173 && j == 3 && k == 110) ||
+                  (i == 186 && j == 1 && k == 90) ||
+                  (i == 177 && j == 2 && k == 65)) {
+                fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+                        i, j, k, t3d, nc3d, qr3d, nr3d, qni3d, ns3d, qg3d, ng3d);
+              }
+#endif
+              if(!skipConcentrations)
+                      printf("ERROR: Concentrations not implmented in C++");
+
+            }
+              printf("ERROR: Microphysics not fully implmented in C++\n");
               skipPrecip = false;
             }
 
@@ -1189,8 +1253,7 @@ constexpr Real gamma_function(Real x) {
             snowprt = 0.0;
             grplprt = 0.0;
             if(!skipPrecip) {
-              printf("ERROR: Microphysics not implmented in C++");
-              skipPrecip = false;
+              printf("ERROR: Sedimentation not implmented in C++");
             }
             if(use_morr_cpp_answer) {
             // Transfer 1D variables back to 3D arrays
@@ -1228,6 +1291,7 @@ constexpr Real gamma_function(Real x) {
           fclose(file);
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
           }
+          amrex::Print()<<"fortran should run "<<run_morr_fort<<std::endl;
           if(run_morr_fort) {
           mp_morr_two_moment_c
           (

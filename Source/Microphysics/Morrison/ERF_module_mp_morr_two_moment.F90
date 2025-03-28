@@ -1454,7 +1454,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 
             ABI(K) = 1.+DQSIDT*XXLS(K)/CPM(K)
             AB(K) = 1.+DQSDT*XXLV(K)/CPM(K)
-
 !
 !.....................................................................
 !.....................................................................
@@ -1489,8 +1488,32 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
           QG3D(K) = 0.
           NG3D(K) = 0.
        END IF
-
-       IF (QC3D(K).LT.QSMALL.AND.QNI3D(K).LT.1.E-8.AND.QR3D(K).LT.QSMALL.AND.QG3D(K).LT.1.E-8) GOTO 300
+#if 0
+       ! Fortran version
+             if ((i >= 86 .and. i <= 101 .and. j >= 0 .and. j <= 3 .and. k >= 8 .and. k <= 23 .and. &
+                  mod(i-86,2) == 0 .and. mod(j,2) == 0 .and. mod(k-8,2) == 0) .or. &
+                  (i == 92 .and. j == 0 .and. k == 17) .or. &
+                  (((i == 168 .or. i == 169 .or. i == 190 .or. i == 191) .and. &
+                  (j == 0 .or. j == 3) .and. &
+                  (k == 0 .or. k == 1 .or. k == 126 .or. k == 127))) .or. &
+                  (i == 175 .and. j == 1 .and. k == 50) .or. &
+                  (i == 180 .and. j == 2 .and. k == 75) .or. &
+                  (i == 185 .and. j == 1 .and. k == 100) .or. &
+                  (i == 170 .and. j == 0 .and. k == 30) .or. &
+                  (i == 188 .and. j == 3 .and. k == 60) .or. &
+                  (i == 178 .and. j == 2 .and. k == 40) .or. &
+                  (i == 183 .and. j == 0 .and. k == 80) .or. &
+                  (i == 173 .and. j == 3 .and. k == 110) .or. &
+                  (i == 186 .and. j == 1 .and. k == 90) .or. &
+                  (i == 177 .and. j == 2 .and. k == 65)) then
+          write(10, '(i5,i5,i5,8(es24.16))') &
+               i,j,k,t3d(k),nc3d(k),qr3d(k),nr3d(k),qni3d(k),ns3d(k),qg3d(k),ng3d(k)
+       endif
+#endif
+       IF (QC3D(K).LT.QSMALL.AND.QNI3D(K).LT.1.E-8.AND.QR3D(K).LT.QSMALL.AND.QG3D(K).LT.1.E-8) THEN
+!          STOP
+          GOTO 300
+       ENDIF
 
 ! MAKE SURE NUMBER CONCENTRATIONS AREN'T NEGATIVE
 
@@ -3298,7 +3321,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
  200     CONTINUE
 
         END DO
-close(10)
+
 ! INITIALIZE PRECIP AND SNOW RATES
       PRECRT = 0.
       SNOWRT = 0.
@@ -4019,7 +4042,7 @@ close(10)
       END DO !!! K LOOP
 
  400         CONTINUE
-
+      close(10)
 ! ALL DONE !!!!!!!!!!!
       RETURN
       END SUBROUTINE MORR_TWO_MOMENT_MICRO
