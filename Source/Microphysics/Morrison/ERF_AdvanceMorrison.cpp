@@ -1,6 +1,8 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <complex>
+#include <cmath>
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
@@ -15,6 +17,15 @@
 #include "ERF_Morrison.H"
 #include <ERF_Morrison_Fortran_Interface.H>
 
+using namespace amrex;
+
+
+// Gamma function using the standard C++ tgamma function
+constexpr Real gamma_function(Real x) {
+  // Note: std::tgamma may not be constexpr in all compilers
+  // but this will work at runtime in any case
+  return std::tgamma(x);
+}
     // wrapper to do all the updating
     void
     Morrison::Advance (const amrex::Real& dt_advance,
@@ -186,6 +197,7 @@
           // Physical constants
           amrex::Real m_pi;          // Pi constant
           amrex::Real m_R;           // Gas constant for dry air (J/kg/K)
+          amrex::Real m_Rd;           // Gas constant for dry air (J/kg/K)
           amrex::Real m_Rv;          // Gas constant for water vapor (J/kg/K)
           amrex::Real m_cp;          // Specific heat at constant pressure (J/kg/K)
           amrex::Real m_g;           // Gravitational acceleration (m/s^2)
@@ -399,7 +411,7 @@
           m_lamming = 1.0/2000.0E-6;
 
           // Set CCN parameters for different environments
-          if (m_activate_type == 1) {
+          if (m_iact == 1) {
             // Maritime CCN spectrum parameters (modified from Rasmussen et al. 2002)
             // NCCN = C*S^K, where S is supersaturation in %
             m_k1 = 0.4;        // Exponent in CCN activation formula
@@ -407,7 +419,7 @@
           }
 
           // Initialize aerosol activation parameters for lognormal distribution
-          if (m_activate_type == 2) {
+          if (m_iact == 2) {
             // Parameters for ammonium sulfate
             m_mw = 0.018;      // Molecular weight of water (kg/mol)
             m_osm = 1.0;       // Osmotic coefficient
@@ -418,7 +430,7 @@
             m_ma = 0.0284;     // Molecular weight of air (kg/mol)
             m_rr = 8.3145;     // Universal gas constant (J/mol/K)
             m_bact = m_vi * m_osm * m_epsm * m_mw * m_rhoa / (m_map * m_rhow);
-            m_a_w = 2.0 * m_mw * 0.0761 / (m_rhow * m_r_v * 293.15);  // "A" parameter
+            //            m_a_w = 2.0 * m_mw * 0.0761 / (m_rhow * m_r_v * 293.15);  // "A" parameter
 
             // Aerosol size distribution parameters for MPACE (Morrison et al. 2007, JGR)
             // Mode 1
@@ -530,19 +542,345 @@
           m_xmu_g = 0.0;
 
           // Set microphysics control parameters
-          m_activate_type = 2;  // Lognormal aerosol activation
-          m_inuc_type = 0;      // Mid-latitude ice nucleation (Cooper)
+          m_iact = 2;  // Lognormal aerosol activation
+          m_inuc = 0;      // Mid-latitude ice nucleation (Cooper)
           m_iliq = 0;           // Include ice processes
           m_igraup = 0;         // Include graupel processes
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
 
-          // Ensure consistency between m_iact and m_activate_type
-          m_iact = m_activate_type;
+          ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+         {
+            // Tendencies and mixing ratios
+            amrex::Real qc3dten;            // QC3DTEN: CLOUD WATER MIXING RATIO TENDENCY (KG/KG/S)
+            amrex::Real qi3dten;            // QI3DTEN: CLOUD ICE MIXING RATIO TENDENCY (KG/KG/S)
+            amrex::Real qni3dten;           // QNI3DTEN: SNOW MIXING RATIO TENDENCY (KG/KG/S)
+            amrex::Real qr3dten;            // QR3DTEN: RAIN MIXING RATIO TENDENCY (KG/KG/S)
+            amrex::Real ni3dten;            // NI3DTEN: CLOUD ICE NUMBER CONCENTRATION (1/KG/S)
+            amrex::Real ns3dten;            // NS3DTEN: SNOW NUMBER CONCENTRATION (1/KG/S)
+            amrex::Real nr3dten;            // NR3DTEN: RAIN NUMBER CONCENTRATION (1/KG/S)
+            amrex::Real qc3d;               // QC3D: CLOUD WATER MIXING RATIO (KG/KG)
+            amrex::Real qi3d;               // QI3D: CLOUD ICE MIXING RATIO (KG/KG)
+            amrex::Real qni3d;              // QNI3D: SNOW MIXING RATIO (KG/KG)
+            amrex::Real qr3d;               // QR3D: RAIN MIXING RATIO (KG/KG)
+            amrex::Real ni3d;               // NI3D: CLOUD ICE NUMBER CONCENTRATION (1/KG)
+            amrex::Real ns3d;               // NS3D: SNOW NUMBER CONCENTRATION (1/KG)
+            amrex::Real nr3d;               // NR3D: RAIN NUMBER CONCENTRATION (1/KG)
+            amrex::Real t3dten;             // T3DTEN: TEMPERATURE TENDENCY (K/S)
+            amrex::Real qv3dten;            // QV3DTEN: WATER VAPOR MIXING RATIO TENDENCY (KG/KG/S)
+            amrex::Real t3d;                // T3D: TEMPERATURE (K)
+            amrex::Real qv3d;               // QV3D: WATER VAPOR MIXING RATIO (KG/KG)
+            amrex::Real pres;               // PRES: ATMOSPHERIC PRESSURE (PA)
+            amrex::Real dzq;                // DZQ: DIFFERENCE IN HEIGHT ACROSS LEVEL (m)
+            amrex::Real w3d;                // W3D: GRID-SCALE VERTICAL VELOCITY (M/S)
 
-          // Initialize water vapor gas constant for activation calculations
-          m_r_v = m_Rv;
+            // WRF-chem variables
+            amrex::Real nc3d;               // nc3d: Cloud droplet number concentration
+            amrex::Real nc3dten;            // nc3dten: Cloud droplet number concentration tendency
+            int iinum;                      // iinum: Integer control variable
+
+            // Graupel variables
+            amrex::Real qg3dten;            // QG3DTEN: GRAUPEL MIX RATIO TENDENCY (KG/KG/S)
+            amrex::Real ng3dten;            // NG3DTEN: GRAUPEL NUMB CONC TENDENCY (1/KG/S)
+            amrex::Real qg3d;               // QG3D: GRAUPEL MIX RATIO (KG/KG)
+            amrex::Real ng3d;               // NG3D: GRAUPEL NUMBER CONC (1/KG)
+
+            // Sedimentation tendencies
+            amrex::Real qgsten;             // QGSTEN: GRAUPEL SED TEND (KG/KG/S)
+            amrex::Real qrsten;             // QRSTEN: RAIN SED TEND (KG/KG/S)
+            amrex::Real qisten;             // QISTEN: CLOUD ICE SED TEND (KG/KG/S)
+            amrex::Real qnisten;            // QNISTEN: SNOW SED TEND (KG/KG/S)
+            amrex::Real qcsten;             // QCSTEN: CLOUD WAT SED TEND (KG/KG/S)
+
+            // Cumulus tendencies for precipitation
+            amrex::Real qrcu1d;             // qrcu1d: Rain from cumulus parameterization
+            amrex::Real qscu1d;             // qscu1d: Snow from cumulus parameterization
+            amrex::Real qicu1d;             // qicu1d: Ice from cumulus parameterization
+
+            // Output variables
+            amrex::Real precrt;             // PRECRT: TOTAL PRECIP PER TIME STEP (mm)
+            amrex::Real snowrt;             // SNOWRT: SNOW PER TIME STEP (mm)
+            amrex::Real snowprt;            // SNOWPRT: TOTAL CLOUD ICE PLUS SNOW PER TIME STEP (mm)
+            amrex::Real grplprt;            // GRPLPRT: TOTAL GRAUPEL PER TIME STEP (mm)
+
+            // Effective radii
+            amrex::Real effc;               // EFFC: DROPLET EFFECTIVE RADIUS (MICRON)
+            amrex::Real effi;               // EFFI: CLOUD ICE EFFECTIVE RADIUS (MICRON)
+            amrex::Real effs;               // EFFS: SNOW EFFECTIVE RADIUS (MICRON)
+            amrex::Real effr;               // EFFR: RAIN EFFECTIVE RADIUS (MICRON)
+            amrex::Real effg;               // EFFG: GRAUPEL EFFECTIVE RADIUS (MICRON)
+
+            // Model input parameters
+            amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
+
+            // Size distribution parameters
+            amrex::Real lamc;               // LAMC: Slope parameter for droplets (m^-1)
+            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
+            amrex::Real lams;               // LAMS: Slope parameter for snow (m^-1)
+            amrex::Real lamr;               // LAMR: Slope parameter for rain (m^-1)
+            amrex::Real lamg;               // LAMG: Slope parameter for graupel (m^-1)
+            amrex::Real cdist1;             // CDIST1: PSD parameter for droplets
+            amrex::Real n0i;                // N0I: Intercept parameter for cloud ice (kg^-1 m^-1)
+            amrex::Real n0s;                // N0S: Intercept parameter for snow (kg^-1 m^-1)
+            amrex::Real n0r;                // N0RR: Intercept parameter for rain (kg^-1 m^-1)
+            amrex::Real n0g;                // N0G: Intercept parameter for graupel (kg^-1 m^-1)
+            amrex::Real pgam;               // PGAM: Spectral shape parameter for droplets
+
+            // Microphysical processes
+            amrex::Real nsubc;              // NSUBC: Loss of NC during evaporation
+            amrex::Real nsubi;              // NSUBI: Loss of NI during sublimation
+            amrex::Real nsubs;              // NSUBS: Loss of NS during sublimation
+            amrex::Real nsubr;              // NSUBR: Loss of NR during evaporation
+            amrex::Real prd;                // PRD: Deposition cloud ice
+            amrex::Real pre;                // PRE: Evaporation of rain
+            amrex::Real prds;               // PRDS: Deposition snow
+            amrex::Real nnuccc;             // NNUCCC: Change N due to contact freezing droplets
+            amrex::Real mnuccc;             // MNUCCC: Change Q due to contact freezing droplets
+            amrex::Real pra;                // PRA: Accretion droplets by rain
+            amrex::Real prc;                // PRC: Autoconversion droplets
+            amrex::Real pcc;                // PCC: Condensation/evaporation droplets
+            amrex::Real nnuccd;             // NNUCCD: Change N freezing aerosol (primary ice nucleation)
+            amrex::Real mnuccd;             // MNUCCD: Change Q freezing aerosol (primary ice nucleation)
+            amrex::Real mnuccr;             // MNUCCR: Change Q due to contact freezing rain
+            amrex::Real nnuccr;             // NNUCCR: Change N due to contact freezing rain
+            amrex::Real npra;               // NPRA: Change N due to droplet accretion by rain
+            amrex::Real nragg;              // NRAGG: Self-collection/breakup of rain
+            amrex::Real nsagg;              // NSAGG: Self-collection of snow
+            amrex::Real nprc;               // NPRC: Change NC autoconversion droplets
+            amrex::Real nprc1;              // NPRC1: Change NR autoconversion droplets
+            amrex::Real prai;               // PRAI: Change Q accretion cloud ice by snow
+            amrex::Real prci;               // PRCI: Change Q autoconversion cloud ice to snow
+            amrex::Real psacws;             // PSACWS: Change Q droplet accretion by snow
+            amrex::Real npsacws;            // NPSACWS: Change N droplet accretion by snow
+            amrex::Real psacwi;             // PSACWI: Change Q droplet accretion by cloud ice
+            amrex::Real npsacwi;            // NPSACWI: Change N droplet accretion by cloud ice
+            amrex::Real nprci;              // NPRCI: Change N autoconversion cloud ice by snow
+            amrex::Real nprai;              // NPRAI: Change N accretion cloud ice
+            amrex::Real nmults;             // NMULTS: Ice multiplication due to riming droplets by snow
+            amrex::Real nmultr;             // NMULTR: Ice multiplication due to riming rain by snow
+            amrex::Real qmults;             // QMULTS: Change Q due to ice multiplication droplets/snow
+            amrex::Real qmultr;             // QMULTR: Change Q due to ice multiplication rain/snow
+            amrex::Real pracs;              // PRACS: Change Q rain-snow collection
+            amrex::Real npracs;             // NPRACS: Change N rain-snow collection
+            amrex::Real pccn;               // PCCN: Change Q droplet activation
+            amrex::Real psmlt;              // PSMLT: Change Q melting snow to rain
+            amrex::Real evpms;              // EVPMS: Change Q melting snow evaporating
+            amrex::Real nsmlts;             // NSMLTS: Change N melting snow
+            amrex::Real nsmltr;             // NSMLTR: Change N melting snow to rain
+            amrex::Real piacr;              // PIACR: Change QR, ice-rain collection
+            amrex::Real niacr;              // NIACR: Change N, ice-rain collection
+            amrex::Real praci;              // PRACI: Change QI, ice-rain collection
+            amrex::Real piacrs;             // PIACRS: Change QR, ice rain collision, added to snow
+            amrex::Real niacrs;             // NIACRS: Change N, ice rain collision, added to snow
+            amrex::Real pracis;             // PRACIS: Change QI, ice rain collision, added to snow
+            amrex::Real eprd;               // EPRD: Sublimation cloud ice
+            amrex::Real eprds;              // EPRDS: Sublimation snow
+
+            // Graupel processes
+            amrex::Real pracg;              // PRACG: Change in Q collection rain by graupel
+            amrex::Real psacwg;             // PSACWG: Change in Q collection droplets by graupel
+            amrex::Real pgsacw;             // PGSACW: Conversion Q to graupel due to collection droplets by snow
+            amrex::Real pgracs;             // PGRACS: Conversion Q to graupel due to collection rain by snow
+            amrex::Real prdg;               // PRDG: Deposition of graupel
+            amrex::Real eprdg;              // EPRDG: Sublimation of graupel
+            amrex::Real evpmg;              // EVPMG: Change Q melting of graupel and evaporation
+            amrex::Real pgmlt;              // PGMLT: Change Q melting of graupel
+            amrex::Real npracg;             // NPRACG: Change N collection rain by graupel
+            amrex::Real npsacwg;            // NPSACWG: Change N collection droplets by graupel
+            amrex::Real nscng;              // NSCNG: Change N conversion to graupel due to collection droplets by snow
+            amrex::Real ngracs;             // NGRACS: Change N conversion to graupel due to collection rain by snow
+            amrex::Real ngmltg;             // NGMLTG: Change N melting graupel
+            amrex::Real ngmltr;             // NGMLTR: Change N melting graupel to rain
+            amrex::Real nsubg;              // NSUBG: Change N sublimation/deposition of graupel
+            amrex::Real psacr;              // PSACR: Conversion due to collection of snow by rain
+            amrex::Real nmultg;             // NMULTG: Ice multiplication due to accretion droplets by graupel
+            amrex::Real nmultrg;            // NMULTRG: Ice multiplication due to accretion rain by graupel
+            amrex::Real qmultg;             // QMULTG: Change Q due to ice multiplication droplets/graupel
+            amrex::Real qmultrg;            // QMULTRG: Change Q due to ice multiplication rain/graupel
+
+            // Time-varying atmospheric parameters
+            amrex::Real kap;                // KAP: Thermal conductivity of air
+            amrex::Real evs;                // EVS: Saturation vapor pressure
+            amrex::Real eis;                // EIS: Ice saturation vapor pressure
+            amrex::Real qvs;                // QVS: Saturation mixing ratio
+            amrex::Real qvi;                // QVI: Ice saturation mixing ratio
+            amrex::Real qvqvs;              // QVQVS: Saturation ratio
+            amrex::Real qvqvsi;             // QVQVSI: Ice saturation ratio
+            amrex::Real dv;                 // DV: Diffusivity of water vapor in air
+            amrex::Real xxls;               // XXLS: Latent heat of sublimation
+            amrex::Real xxlv;               // XXLV: Latent heat of vaporization
+            amrex::Real cpm;                // CPM: Specific heat at constant pressure for moist air
+            amrex::Real mu;                 // MU: Viscosity of air
+            amrex::Real sc;                 // SC: Schmidt number
+            amrex::Real xlf;                // XLF: Latent heat of freezing
+            amrex::Real rho;                // RHO: Air density
+            amrex::Real ab;                 // AB: Correction to condensation rate due to latent heating
+            amrex::Real abi;                // ABI: Correction to deposition rate due to latent heating
+
+            // Time-varying microphysics parameters
+            amrex::Real dap;                // DAP: Diffusivity of aerosol
+            amrex::Real nacnt;              // NACNT: Number of contact nuclei
+            amrex::Real fmult;              // FMULT: Temperature-dependent parameter for rime-splintering
+            amrex::Real coffi;              // COFFI: Ice autoconversion parameter
+
+            // Fall speed working variables
+            amrex::Real dumi;               // DUMI: Dummy variable for ice
+            amrex::Real dumr;               // DUMR: Dummy variable for rain
+            amrex::Real dumfni;             // DUMFNI: Dummy fall speed number for ice
+            amrex::Real dumg;               // DUMG: Dummy variable for graupel
+            amrex::Real dumfng;             // DUMFNG: Dummy fall speed number for graupel
+            amrex::Real uni;                // UNI: Number-weighted terminal velocity for cloud ice
+            amrex::Real umi;                // UMI: Mass-weighted terminal velocity for cloud ice
+            amrex::Real umr;                // UMR: Mass-weighted terminal velocity for rain
+            amrex::Real fr;                 // FR: Mass-weighted fall speed for rain
+            amrex::Real fi;                 // FI: Mass-weighted fall speed for ice
+            amrex::Real fni;                // FNI: Number-weighted fall speed for ice
+            amrex::Real fg;                 // FG: Mass-weighted fall speed for graupel
+            amrex::Real fng;                // FNG: Number-weighted fall speed for graupel
+            amrex::Real rgvm;               // RGVM: Rain size parameter
+            amrex::Real faloutr;            // FALOUTR: Fallout rate for rain mass
+            amrex::Real falouti;            // FALOUTI: Fallout rate for ice mass
+            amrex::Real faloutni;           // FALOUTNI: Fallout rate for ice number
+            amrex::Real faltndr;            // FALTNDR: Mass-weighted fallout tendency for rain
+            amrex::Real faltndi;            // FALTNDI: Mass-weighted fallout tendency for ice
+            amrex::Real faltndni;           // FALTNDNI: Number-weighted fallout tendency for ice
+            amrex::Real rho2;               // RHO2: Air density squared
+            amrex::Real dumqs;              // DUMQS: Dummy variable for snow
+            amrex::Real dumfns;             // DUMFNS: Dummy fall speed number for snow
+            amrex::Real ums;                // UMS: Mass-weighted terminal velocity for snow
+            amrex::Real uns;                // UNS: Number-weighted terminal velocity for snow
+            amrex::Real fs;                 // FS: Mass-weighted fall speed for snow
+            amrex::Real fns;                // FNS: Number-weighted fall speed for snow
+            amrex::Real falouts;            // FALOUTS: Fallout rate for snow mass
+            amrex::Real faloutns;           // FALOUTNS: Fallout rate for snow number
+            amrex::Real faloutg;            // FALOUTG: Fallout rate for graupel mass
+            amrex::Real faloutng;           // FALOUTNG: Fallout rate for graupel number
+            amrex::Real faltnds;            // FALTNDS: Mass-weighted fallout tendency for snow
+            amrex::Real faltndns;           // FALTNDNS: Number-weighted fallout tendency for snow
+            amrex::Real unr;                // UNR: Number-weighted terminal velocity for rain
+            amrex::Real faltndg;            // FALTNDG: Mass-weighted fallout tendency for graupel
+            amrex::Real faltndng;           // FALTNDNG: Number-weighted fallout tendency for graupel
+            amrex::Real dumc;               // DUMC: Dummy variable for cloud
+            amrex::Real dumfnc;             // DUMFNC: Dummy fall speed number for cloud
+            amrex::Real unc;                // UNC: Number-weighted terminal velocity for cloud
+            amrex::Real umc;                // UMC: Mass-weighted terminal velocity for cloud
+            amrex::Real ung;                // UNG: Number-weighted terminal velocity for graupel
+            amrex::Real umg;                // UMG: Mass-weighted terminal velocity for graupel
+            amrex::Real fc;                 // FC: Mass-weighted fall speed for cloud
+            amrex::Real faloutc;            // FALOUTC: Fallout rate for cloud mass
+            amrex::Real faloutnc;           // FALOUTNC: Fallout rate for cloud number
+            amrex::Real faltndc;            // FALTNDC: Mass-weighted fallout tendency for cloud
+            amrex::Real faltndnc;           // FALTNDNC: Number-weighted fallout tendency for cloud
+            amrex::Real fnc;                // FNC: Number-weighted fall speed for cloud
+            amrex::Real dumfnr;             // DUMFNR: Dummy fall speed number for rain
+            amrex::Real faloutnr;           // FALOUTNR: Fallout rate for rain number
+            amrex::Real faltndnr;           // FALTNDNR: Number-weighted fallout tendency for rain
+            amrex::Real fnr;                // FNR: Number-weighted fall speed for rain
+
+            // Fall-speed parameter 'A' with air density correction
+            amrex::Real ain;                // AIN: Fall-speed parameter 'A' with air density correction for ice
+            amrex::Real arn;                // ARN: Fall-speed parameter 'A' with air density correction for rain
+            amrex::Real asn;                // ASN: Fall-speed parameter 'A' with air density correction for snow
+            amrex::Real acn;                // ACN: Fall-speed parameter 'A' with air density correction for cloud
+            amrex::Real agn;                // AGN: Fall-speed parameter 'A' with air density correction for graupel
+
+            // Dummy variables
+            amrex::Real dum;                // DUM: General dummy variable
+            amrex::Real dum1;               // DUM1: General dummy variable
+            amrex::Real dum2;               // DUM2: General dummy variable
+            amrex::Real dumt;               // DUMT: Dummy variable for temperature
+            amrex::Real dumqv;              // DUMQV: Dummy variable for water vapor
+            amrex::Real dumqss;             // DUMQSS: Dummy saturation mixing ratio
+            amrex::Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
+            amrex::Real dums;               // DUMS: General dummy variable
+
+            // Prognostic supersaturation
+            amrex::Real dqsdt;              // DQSDT: Change of saturation mixing ratio with temperature
+            amrex::Real dqsidt;             // DQSIDT: Change in ice saturation mixing ratio with temperature
+            amrex::Real epsi;               // EPSI: 1/phase relaxation time (see M2005), ice
+            amrex::Real epss;               // EPSS: 1/phase relaxation time (see M2005), snow
+            amrex::Real epsr;               // EPSR: 1/phase relaxation time (see M2005), rain
+            amrex::Real epsg;               // EPSG: 1/phase relaxation time (see M2005), graupel
+
+            // Droplet activation variables
+            amrex::Real tauc;               // TAUC: Phase relaxation time (see M2005), droplets
+            amrex::Real taur;               // TAUR: Phase relaxation time (see M2005), rain
+            amrex::Real taui;               // TAUI: Phase relaxation time (see M2005), cloud ice
+            amrex::Real taus;               // TAUS: Phase relaxation time (see M2005), snow
+            amrex::Real taug;               // TAUG: Phase relaxation time (see M2005), graupel
+            amrex::Real dumact;             // DUMACT: Dummy variable for activation
+            amrex::Real dum3;               // DUM3: General dummy variable
+
+            // Counting/index variables
+            int k_local=k;                  // K: Vertical level index
+            int nstep;                      // NSTEP: Timestep counter
+            int n;                          // N: General index variable
+            int ltrue;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
+
+            // Droplet activation/freezing aerosol
+            amrex::Real ct;                 // CT: Droplet activation parameter
+            amrex::Real temp1;              // TEMP1: Dummy temperature
+            amrex::Real sat1;               // SAT1: Dummy saturation
+            amrex::Real sigvl;              // SIGVL: Surface tension liquid/vapor
+            amrex::Real kel;                // KEL: Kelvin parameter
+            amrex::Real kc2;                // KC2: Total ice nucleation rate
+            amrex::Real cry;                // CRY: Aerosol activation parameter
+            amrex::Real kry;                // KRY: Aerosol activation parameter
+
+            // More working/dummy variables
+            amrex::Real dumqi;              // DUMQI: Dummy variable for ice mixing ratio
+            amrex::Real dumni;              // DUMNI: Dummy variable for ice number concentration
+            amrex::Real dc0;                // DC0: Characteristic diameter for cloud droplets
+            amrex::Real ds0;                // DS0: Characteristic diameter for snow
+            amrex::Real dg0;                // DG0: Characteristic diameter for graupel
+            amrex::Real dumqc;              // DUMQC: Dummy variable for cloud water mixing ratio
+            amrex::Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
+            amrex::Real ratio;              // RATIO: General ratio variable
+            amrex::Real sum_dep;            // SUM_DEP: Sum of deposition/sublimation
+            amrex::Real fudgef;             // FUDGEF: Adjustment factor
+
+            // Effective vertical velocity (M/S)
+            amrex::Real wef;                // WEF: Effective vertical velocity
+
+            // Working parameters for ice nucleation
+            amrex::Real anuc;               // ANUC: Ice nucleation parameter
+            amrex::Real bnuc;               // BNUC: Ice nucleation parameter
+
+            // Working parameters for aerosol activation
+            amrex::Real aact;               // AACT: Aerosol activation parameter
+            amrex::Real gamm;               // GAMM: Parameter for aerosol activation
+            amrex::Real gg;                 // GG: Parameter for aerosol activation
+            amrex::Real psi;                // PSI: Parameter for aerosol activation
+            amrex::Real eta1;               // ETA1: Parameter for aerosol activation
+            amrex::Real eta2;               // ETA2: Parameter for aerosol activation
+            amrex::Real sm1;                // SM1: Parameter for aerosol activation
+            amrex::Real sm2;                // SM2: Parameter for aerosol activation
+            amrex::Real smax;               // SMAX: Maximum supersaturation
+            amrex::Real uu1;                // UU1: Parameter for aerosol activation
+            amrex::Real uu2;                // UU2: Parameter for aerosol activation
+            amrex::Real alpha;              // ALPHA: Parameter for aerosol activation
+
+            // Dummy size distribution parameters
+            amrex::Real dlams;              // DLAMS: Dummy slope parameter for snow
+            amrex::Real dlamr;              // DLAMR: Dummy slope parameter for rain
+            amrex::Real dlami;              // DLAMI: Dummy slope parameter for ice
+            amrex::Real dlamc;              // DLAMC: Dummy slope parameter for cloud
+            amrex::Real dlamg;              // DLAMG: Dummy slope parameter for graupel
+            amrex::Real lammax;             // LAMMAX: Maximum value for slope parameter
+            amrex::Real lammin;             // LAMMIN: Minimum value for slope parameter
+
+            int idrop;                      // IDROP: Switch for droplet activation scheme
+
+            // For WRF-CHEM
+            amrex::Real c2prec;             // C2PREC: Cloud to precipitation conversion
+            amrex::Real csed;               // CSED: Cloud sedimentation
+            amrex::Real ised;               // ISED: Ice sedimentation
+            amrex::Real ssed;               // SSED: Snow sedimentation
+            amrex::Real gsed;               // GSED: Graupel sedimentation
+            amrex::Real rsed;               // RSED: Rain sedimentation
+            amrex::Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
+        });
 
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
           mp_morr_two_moment_c
