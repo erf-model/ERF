@@ -627,7 +627,7 @@ constexpr Real gamma_function(Real x) {
           ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
          {
             // Tendencies and mixing ratios
-#if 0
+#if 1
            //No precip implmented yet
             amrex::Real qc3dten=0;            // QC3DTEN: CLOUD WATER MIXING RATIO TENDENCY (KG/KG/S)
             amrex::Real qi3dten=0;            // QI3DTEN: CLOUD ICE MIXING RATIO TENDENCY (KG/KG/S)
@@ -644,7 +644,7 @@ constexpr Real gamma_function(Real x) {
             amrex::Real ni3d=ni_arr(i,j,k);               // NI3D: CLOUD ICE NUMBER CONCENTRATION (1/KG)
             amrex::Real ns3d=ns_arr(i,j,k);               // NS3D: SNOW NUMBER CONCENTRATION (1/KG)
             amrex::Real nr3d=nr_arr(i,j,k);               // NR3D: RAIN NUMBER CONCENTRATION (1/KG)
-#if 0
+#if 1
             //No precip implmented yet
             amrex::Real t3dten=0;             // T3DTEN: TEMPERATURE TENDENCY (K/S)
             amrex::Real qv3dten=0;            // QV3DTEN: WATER VAPOR MIXING RATIO TENDENCY (KG/KG/S)
@@ -658,7 +658,7 @@ constexpr Real gamma_function(Real x) {
             // WRF-chem variables
             amrex::Real nc3d;               // nc3d: Cloud droplet number concentration
             amrex::Real nc3dten=0;            // nc3dten: Cloud droplet number concentration tendency
-#if 0
+#if 1
             int iinum;                      // iinum: Integer control variable
 
             // Graupel variables
@@ -696,7 +696,7 @@ constexpr Real gamma_function(Real x) {
             // Model input parameters
             //amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
             amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
-#if 0
+#if 1
             // Size distribution parameters
             amrex::Real lamc;               // LAMC: Slope parameter for droplets (m^-1)
 //            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
@@ -870,7 +870,7 @@ constexpr Real gamma_function(Real x) {
 
             // Dummy variables
             amrex::Real dum;                // DUM: General dummy variable
-#if 0
+#if 1
             amrex::Real dum1;               // DUM1: General dummy variable
             amrex::Real dum2;               // DUM2: General dummy variable
             amrex::Real dumt;               // DUMT: Dummy variable for temperature
@@ -882,7 +882,7 @@ constexpr Real gamma_function(Real x) {
             // Prognostic supersaturation
             amrex::Real dqsdt;              // DQSDT: Change of saturation mixing ratio with temperature
             amrex::Real dqsidt;             // DQSIDT: Change in ice saturation mixing ratio with temperature
-#if 0
+#if 1
             amrex::Real epsi;               // EPSI: 1/phase relaxation time (see M2005), ice
             amrex::Real epss;               // EPSS: 1/phase relaxation time (see M2005), snow
             amrex::Real epsr;               // EPSR: 1/phase relaxation time (see M2005), rain
@@ -916,6 +916,7 @@ constexpr Real gamma_function(Real x) {
             // More working/dummy variables
             amrex::Real dumqi;              // DUMQI: Dummy variable for ice mixing ratio
             amrex::Real dumni;              // DUMNI: Dummy variable for ice number concentration
+            amrex::Real di0;                // DC0: Characteristic diameter for ice
             amrex::Real dc0;                // DC0: Characteristic diameter for cloud droplets
             amrex::Real ds0;                // DS0: Characteristic diameter for snow
             amrex::Real dg0;                // DG0: Characteristic diameter for graupel
@@ -1016,8 +1017,9 @@ constexpr Real gamma_function(Real x) {
             // AIR DENSITY
             rho = pres / (m_R * t3d); // budget equation: calculate air density
 
-            const double DS = 0.3;       // Size distribution parameter for snow
-            const double DI = 3.0;       // Size distribution parameter for cloud ice
+            ds0 = 3.0;       // Size distribution parameter for snow
+            di0 = 3.0;       // Size distribution parameter for cloud ice
+            dg0 = 3.0;       // Size distribution parameter for graupel
             const double CI = 800.0;     // Mass-diameter relationship parameter for cloud ice
             // ADD NUMBER CONCENTRATION DUE TO CUMULUS TENDENCY
             // ASSUME N0 ASSOCIATED WITH CUMULUS PARAM RAIN IS 10^7 M^-4
@@ -1028,11 +1030,11 @@ constexpr Real gamma_function(Real x) {
               nr3d += dum; // budget equation: update rain number concentration
             }
             if (qscu1d >= 1.0e-10) {
-              dum = 3.e5 * std::pow(qscu1d * dt / (m_cons1 * std::pow(rho, 3)), 1.0 / (DS + 1.0)); // rate equation: calculate snow number concentration from cumulus
+              dum = 3.e5 * std::pow(qscu1d * dt / (m_cons1 * std::pow(rho, 3)), 1.0 / (ds0 + 1.0)); // rate equation: calculate snow number concentration from cumulus
               ns3d += dum; // budget equation: update snow number concentration
             }
             if (qicu1d >= 1.0e-10) {
-              dum = qicu1d * dt / (CI * std::pow(80.0e-6, DI)); // rate equation: calculate cloud ice number concentration from cumulus
+              dum = qicu1d * dt / (CI * std::pow(80.0e-6, di0)); // rate equation: calculate cloud ice number concentration from cumulus
               ni3d += dum; // budget equation: update cloud ice number concentration
             }
 
@@ -1238,12 +1240,194 @@ constexpr Real gamma_function(Real x) {
                         i, j, k, t3d, nc3d, qr3d, nr3d, qni3d, ns3d, qg3d, ng3d);
               }
 #endif
-              if(!skipConcentrations)
-                      printf("ERROR: Concentrations not implmented in C++");
+              if(!skipConcentrations) {
+                ns3d = amrex::max(0.0,ns3d);
+                nc3d = amrex::max(0.0,nc3d);
+                nr3d = amrex::max(0.0,nr3d);
+                ng3d = amrex::max(0.0,ng3d);
 
-            }
-              printf("ERROR: Microphysics not fully implmented in C++\n");
-              skipPrecip = false;
+                // ========================================================================
+                // USING WRF APPROACH FOR SIZE DISTRIBUTION PARAMETERS
+                // ========================================================================
+                // Rain
+                if (qr3d >= m_qsmall) {
+                  // Calculate lambda parameter using cons26 (pi*rhow/6)
+                  lamr = pow(m_cons26 * nr3d / qr3d, 1.0/3.0);
+
+                  // Check for slope and adjust vars
+                  if (lamr < m_lamminr) {
+                    lamr = m_lamminr;
+                    n0r = pow(lamr, 4.0) * qr3d / m_cons26;
+                    nr3d = n0r / lamr;  // Update number concentration
+                  } else if (lamr > m_lammaxr) {
+                    lamr = m_lammaxr;
+                    n0r = pow(lamr, 4.0) * qr3d / m_cons26;
+                    nr3d = n0r / lamr;  // Update number concentration
+                  } else {
+                    // Calculate intercept parameter using WRF formula
+                    n0r = pow(lamr, 4.0) * qr3d / m_cons26;
+                  }
+                }
+
+                // Cloud droplets
+                if (qc3d >= m_qsmall) {
+                  // Calculate air density factor (moist air density)
+                  amrex::Real dum = pres/(287.15*t3d);
+
+                  // MARTIN ET AL. (1994) FORMULA FOR PGAM (WRF implementation)
+                  pgam = 0.0005714*(nc3d/1.0e6*dum) + 0.2714;
+                  pgam = 1.0/(pgam*pgam) - 1.0;
+                  pgam = amrex::max(pgam, 2.0);
+                  pgam = amrex::min(pgam, 10.0);
+
+                  // Calculate gamma function values
+                  amrex::Real gamma_pgam_plus_1 = tgamma(pgam + 1.0);
+                  amrex::Real gamma_pgam_plus_4 = tgamma(pgam + 4.0);
+
+                  // Calculate lambda parameter
+                  lamc = pow((m_cons26 * nc3d * gamma_pgam_plus_4) / (qc3d * gamma_pgam_plus_1), 1.0/3.0);
+
+                  // Lambda bounds from WRF - 60 micron max diameter, 1 micron min diameter
+                  amrex::Real lambda_min = (pgam + 1.0)/60.0e-6;
+                  amrex::Real lambda_max = (pgam + 1.0)/1.0e-6;
+
+                  // Check bounds and update number concentration if needed
+                  if (lamc < lambda_min) {
+                    lamc = lambda_min;
+                    // Update cloud droplet number using the same formula as in WRF
+                    nc3d = exp(3.0*log(lamc) + log(qc3d) +
+                               log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
+                  } else if (lamc > lambda_max) {
+                    lamc = lambda_max;
+                    // Update cloud droplet number using the same formula as in WRF
+                    nc3d = exp(3.0*log(lamc) + log(qc3d) +
+                               log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
+                  }
+
+                  // Calculate intercept parameter
+                  cdist1 = nc3d * pow(lamc, pgam+1) / gamma_pgam_plus_1;
+                }
+
+                // Snow
+                if (qni3d >= m_qsmall) {
+                  // Calculate lambda parameter
+                  lams = pow(m_cons1 * ns3d / qni3d, 1.0/ds0);
+
+                  // Calculate intercept parameter
+                  n0s = ns3d * lams;
+
+                  // Check for slope and adjust vars
+                  if (lams < m_lammins) {
+                    lams = m_lammins;
+                    n0s = pow(lams, 4.0) * qni3d / m_cons1;
+                    ns3d = n0s / lams;  // Update number concentration
+                  } else if (lams > m_lammaxs) {
+                    lams = m_lammaxs;
+                    n0s = pow(lams, 4.0) * qni3d / m_cons1;
+                    ns3d = n0s / lams;  // Update number concentration
+                  }
+                }
+
+                // Cloud ice
+                if (qi3d >= m_qsmall) {
+                  // Calculate lambda parameter
+                  lami = pow(m_cons12 * ni3d / qi3d, 1.0/3.0);
+
+                  // Calculate intercept parameter (initial calculation)
+                  n0i = ni3d * lami;
+
+                  // Check for slope (apply bounds)
+                  if (lami < m_lammini) {
+                    lami = m_lammini;
+                    // Recalculate n0i when lambda is adjusted
+                    n0i = pow(lami, 4.0) * qi3d / m_cons12;
+                    // Update ni3d when lambda is adjusted
+                    ni3d = n0i / lami;
+                  } else if (lami > m_lammaxi) {
+                    lami = m_lammaxi;
+                    // Recalculate n0i when lambda is adjusted
+                    n0i = pow(lami, 4.0) * qi3d / m_cons12;
+                    // Update ni3d when lambda is adjusted
+                    ni3d = n0i / lami;
+                  }
+                }
+
+                // Graupel
+                if (qg3d >= m_qsmall) {
+                  // Calculate lambda parameter
+                  lamg = pow(m_cons2 * ng3d / qg3d, 1.0/dg0);
+
+                  // Calculate intercept parameter
+                  n0g = ng3d * lamg;
+
+                  // Check for slope and adjust vars
+                  if (lamg < m_lamming) {
+                    lamg = m_lamming;
+                    n0g = pow(lamg, 4.0) * qg3d / m_cons2;
+                    ng3d = n0g / lamg;  // Update number concentration
+                  } else if (lamg > m_lammaxg) {
+                    lamg = m_lammaxg;
+                    n0g = pow(lamg, 4.0) * qg3d / m_cons2;
+                    ng3d = n0g / lamg;  // Update number concentration
+                  }
+                }
+#if 1
+                // C++ version
+                if ((i >= 86 && i <= 101 && j >= 0 && j <= 3 && k >= 8 && k <= 23 &&
+                     (i-86)%2 == 0 && j%2 == 0 && (k-8)%2 == 0) ||
+                    (i == 92 && j == 0 && k == 17) ||
+                    (((i == 168 || i == 169 || i == 190 || i == 191) &&
+                      (j == 0 || j == 3) &&
+                      (k == 0 || k == 1 || k == 126 || k == 127))) ||
+                    (i == 175 && j == 1 && k == 50) ||
+                    (i == 180 && j == 2 && k == 75) ||
+                    (i == 185 && j == 1 && k == 100) ||
+                    (i == 170 && j == 0 && k == 30) ||
+                    (i == 188 && j == 3 && k == 60) ||
+                    (i == 178 && j == 2 && k == 40) ||
+                    (i == 183 && j == 0 && k == 80) ||
+                    (i == 173 && j == 3 && k == 110) ||
+                    (i == 186 && j == 1 && k == 90) ||
+                    (i == 177 && j == 2 && k == 65)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+                          i, j, k, lamr, n0r, pgam, lamc, nc3d, lams, n0s, ns3d, lamg, n0g, ng3d);
+                }
+#endif
+                ////////////////////// First instance of ZERO OUT PROCESS RATES
+                      printf("ERROR: Concentrations not fully implmented in C++");
+              }
+              //Right after 300 CONTINUE
+              // Calculate saturation adjustment to condense extra vapor above water saturation
+              dumt = t3d + dt * t3dten;
+              dumqv = qv3d + dt * qv3dten;
+
+              // Fix for low pressure (added 5/12/10)
+              dum = std::min(0.99 * pres, calc_saturation_vapor_pressure(dumt, 0));
+              dumqss = m_ep_2 * dum / (pres - dum);
+              dumqc = qc3d + dt * qc3dten;
+              dumqc = std::max(dumqc, 0.0);
+
+              // Saturation adjustment for liquid
+              dums = dumqv - dumqss;
+              pcc = dums / (1.0 + xxlv * xxlv * dumqss / (cpm * m_Rv * dumt * dumt)) / dt;
+              if (pcc * dt + dumqc < 0.0) {
+                pcc = -dumqc / dt;
+              }
+
+              // Update tendencies
+              qv3dten -= pcc;
+              t3dten += pcc * xxlv / cpm;
+              qc3dten += pcc;
+#if 0
+              if (i == 93 && j == 3 && k == 18) {
+                fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+                        i, j, k, t3d, qv3d, pres, qc3d, t3dten, qv3dten, qc3dten,
+                        dumt, dumqv, dum, dumqss, dumqc, dums, pcc);
+              }
+#endif
+            } // not implmented : ELSE  ! TEMPERATURE < 273.15
+                    skipPrecip = false;
+                    printf("ERROR: Microphysics not fully implmented in C++\n");
             }
 
             // INITIALIZE PRECIP AND SNOW RATES
@@ -1253,6 +1437,7 @@ constexpr Real gamma_function(Real x) {
             snowprt = 0.0;
             grplprt = 0.0;
             if(!skipPrecip) {
+              //Implementing CALCULATE SEDIMENATION
               printf("ERROR: Sedimentation not implmented in C++");
             }
             if(use_morr_cpp_answer) {
