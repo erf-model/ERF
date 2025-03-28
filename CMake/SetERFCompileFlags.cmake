@@ -20,6 +20,9 @@ endif()
 separate_arguments(ERF_CXX_FLAGS)
 target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${ERF_CXX_FLAGS}>)
 
+separate_arguments(ERF_Fortran_FLAGS)
+target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${ERF_Fortran_FLAGS}>)
+
 if(ERF_ENABLE_CUDA)
   list(APPEND ERF_CUDA_FLAGS "--expt-relaxed-constexpr")
   list(APPEND ERF_CUDA_FLAGS "--expt-extended-lambda")

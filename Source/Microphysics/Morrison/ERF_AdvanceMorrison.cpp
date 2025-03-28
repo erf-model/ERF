@@ -614,6 +614,7 @@ constexpr Real gamma_function(Real x) {
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
+          bool run_morr_fort = true;
           bool run_morr_cpp = true;
           bool use_morr_cpp_answer = false; //true;
           if(run_morr_cpp) {
@@ -1226,7 +1227,8 @@ constexpr Real gamma_function(Real x) {
          });
           fclose(file);
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
-        } else {
+          }
+          if(run_morr_fort) {
           mp_morr_two_moment_c
           (
               1,  // ITIMESTEP - Use 1 for simplicity
