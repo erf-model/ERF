@@ -26,6 +26,68 @@ constexpr Real gamma_function(Real x) {
   // but this will work at runtime in any case
   return std::tgamma(x);
 }
+  /**
+   * Helper function to calculate saturation vapor pressure for water or ice.
+   * This corresponds to the POLYSVP function in the Fortran code (line ~5580).
+   *
+   * @param[in] T Temperature in Kelvin
+   * @param[in] type 0 for liquid water, 1 for ice
+   * @return Saturation vapor pressure in Pascals
+   */
+  amrex::Real
+  calc_saturation_vapor_pressure (const amrex::Real T, const int type)
+  {
+    amrex::Real polysvp = 0.0;
+    amrex::Real del_T = T - 273.15;  // Convert to Celsius
+
+    if (type == 1) {  // Ice (lines ~5631-5644)
+        if (T >= 195.8) {
+            // Flatau et al. formula for ice
+            const amrex::Real a0i = 6.11147274;
+            const amrex::Real a1i = 0.503160820;
+            const amrex::Real a2i = 0.188439774e-1;
+            const amrex::Real a3i = 0.420895665e-3;
+            const amrex::Real a4i = 0.615021634e-5;
+            const amrex::Real a5i = 0.602588177e-7;
+            const amrex::Real a6i = 0.385852041e-9;
+            const amrex::Real a7i = 0.146898966e-11;
+            const amrex::Real a8i = 0.252751365e-14;
+
+            polysvp = a0i + del_T*(a1i + del_T*(a2i + del_T*(a3i + del_T*(a4i + del_T*(a5i + del_T*(a6i + del_T*(a7i + a8i*del_T)))))));
+            polysvp *= 100.0;  // Convert from hPa to Pa
+        } else {
+            // Goff-Gratch formula for ice at cold temperatures
+            polysvp = std::pow(10.0, (-9.09718*(273.16/T-1.0) - 3.56654*std::log10(273.16/T) +
+                                      0.876793*(1.0-T/273.16) + std::log10(6.1071))) * 100.0;
+            polysvp = 0.0;
+        } // T
+    } else {  // Water (lines ~5648-5665)
+      if (T >= 202.0) {
+        // Flatau et al. formula for liquid water
+        const amrex::Real a0 = 6.11239921;
+        const amrex::Real a1 = 0.443987641;
+        const amrex::Real a2 = 0.142986287e-1;
+        const amrex::Real a3 = 0.264847430e-3;
+        const amrex::Real a4 = 0.302950461e-5;
+        const amrex::Real a5 = 0.206739458e-7;
+        const amrex::Real a6 = 0.640689451e-10;
+        const amrex::Real a7 = -0.952447341e-13;
+        const amrex::Real a8 = -0.976195544e-15;
+
+        polysvp = a0 + del_T*(a1 + del_T*(a2 + del_T*(a3 + del_T*(a4 + del_T*(a5 + del_T*(a6 + del_T*(a7 + a8*del_T)))))));
+        polysvp *= 100.0;  // Convert from hPa to Pa
+      } else {
+        // Goff-Gratch formula for water at cold temperatures
+        polysvp = std::pow(10.0, (-7.90298*(373.16/T-1.0) + 5.02808*std::log10(373.16/T) -
+                                  1.3816e-7*(std::pow(10.0, (11.344*(1.0-T/373.16)))-1.0) +
+                                  8.1328e-3*(std::pow(10.0, (-3.49149*(373.16/T-1.0)))-1.0) +
+                                  std::log10(1013.246))) * 100.0;
+      }
+    }
+
+    return polysvp;
+  }
+
     // wrapper to do all the updating
     void
     Morrison::Advance (const amrex::Real& dt_advance,
@@ -55,6 +117,7 @@ constexpr Real gamma_function(Real x) {
           auto const& qps_arr = mic_fab_vars[MicVar_Morr::qps]->array(mfi);
           auto const& qpg_arr = mic_fab_vars[MicVar_Morr::qpg]->array(mfi);
           auto const& ni_arr = mic_fab_vars[MicVar_Morr::ni]->array(mfi);
+          auto const& nc_arr = mic_fab_vars[MicVar_Morr::nc]->array(mfi);
           auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& nr_arr = mic_fab_vars[MicVar_Morr::nr]->array(mfi);
           auto const& ng_arr = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
@@ -549,54 +612,54 @@ constexpr Real gamma_function(Real x) {
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
-
+          FILE *file = fopen("output_cpp.txt", "a");
           ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
          {
             // Tendencies and mixing ratios
-            amrex::Real qc3dten;            // QC3DTEN: CLOUD WATER MIXING RATIO TENDENCY (KG/KG/S)
-            amrex::Real qi3dten;            // QI3DTEN: CLOUD ICE MIXING RATIO TENDENCY (KG/KG/S)
-            amrex::Real qni3dten;           // QNI3DTEN: SNOW MIXING RATIO TENDENCY (KG/KG/S)
-            amrex::Real qr3dten;            // QR3DTEN: RAIN MIXING RATIO TENDENCY (KG/KG/S)
-            amrex::Real ni3dten;            // NI3DTEN: CLOUD ICE NUMBER CONCENTRATION (1/KG/S)
-            amrex::Real ns3dten;            // NS3DTEN: SNOW NUMBER CONCENTRATION (1/KG/S)
-            amrex::Real nr3dten;            // NR3DTEN: RAIN NUMBER CONCENTRATION (1/KG/S)
-            amrex::Real qc3d;               // QC3D: CLOUD WATER MIXING RATIO (KG/KG)
-            amrex::Real qi3d;               // QI3D: CLOUD ICE MIXING RATIO (KG/KG)
-            amrex::Real qni3d;              // QNI3D: SNOW MIXING RATIO (KG/KG)
-            amrex::Real qr3d;               // QR3D: RAIN MIXING RATIO (KG/KG)
-            amrex::Real ni3d;               // NI3D: CLOUD ICE NUMBER CONCENTRATION (1/KG)
-            amrex::Real ns3d;               // NS3D: SNOW NUMBER CONCENTRATION (1/KG)
-            amrex::Real nr3d;               // NR3D: RAIN NUMBER CONCENTRATION (1/KG)
-            amrex::Real t3dten;             // T3DTEN: TEMPERATURE TENDENCY (K/S)
-            amrex::Real qv3dten;            // QV3DTEN: WATER VAPOR MIXING RATIO TENDENCY (KG/KG/S)
-            amrex::Real t3d;                // T3D: TEMPERATURE (K)
-            amrex::Real qv3d;               // QV3D: WATER VAPOR MIXING RATIO (KG/KG)
-            amrex::Real pres;               // PRES: ATMOSPHERIC PRESSURE (PA)
-            amrex::Real dzq;                // DZQ: DIFFERENCE IN HEIGHT ACROSS LEVEL (m)
-            amrex::Real w3d;                // W3D: GRID-SCALE VERTICAL VELOCITY (M/S)
+            amrex::Real qc3dten=0;            // QC3DTEN: CLOUD WATER MIXING RATIO TENDENCY (KG/KG/S)
+            amrex::Real qi3dten=0;            // QI3DTEN: CLOUD ICE MIXING RATIO TENDENCY (KG/KG/S)
+            amrex::Real qni3dten=0;           // QNI3DTEN: SNOW MIXING RATIO TENDENCY (KG/KG/S)
+            amrex::Real qr3dten=0;            // QR3DTEN: RAIN MIXING RATIO TENDENCY (KG/KG/S)
+            amrex::Real ni3dten=0;            // NI3DTEN: CLOUD ICE NUMBER CONCENTRATION (1/KG/S)
+            amrex::Real ns3dten=0;            // NS3DTEN: SNOW NUMBER CONCENTRATION (1/KG/S)
+            amrex::Real nr3dten=0;            // NR3DTEN: RAIN NUMBER CONCENTRATION (1/KG/S)
+            amrex::Real qc3d=qcl_arr(i,j,k);               // QC3D: CLOUD WATER MIXING RATIO (KG/KG)
+            amrex::Real qi3d=qci_arr(i,j,k);               // QI3D: CLOUD ICE MIXING RATIO (KG/KG)
+            amrex::Real qni3d=qps_arr(i,j,k);;              // QNI3D: SNOW MIXING RATIO (KG/KG)
+            amrex::Real qr3d=qpr_arr(i,j,k);;               // QR3D: RAIN MIXING RATIO (KG/KG)
+            amrex::Real ni3d=ni_arr(i,j,k);               // NI3D: CLOUD ICE NUMBER CONCENTRATION (1/KG)
+            amrex::Real ns3d=ns_arr(i,j,k);               // NS3D: SNOW NUMBER CONCENTRATION (1/KG)
+            amrex::Real nr3d=nr_arr(i,j,k);               // NR3D: RAIN NUMBER CONCENTRATION (1/KG)
+            amrex::Real t3dten=0;             // T3DTEN: TEMPERATURE TENDENCY (K/S)
+            amrex::Real qv3dten=0;            // QV3DTEN: WATER VAPOR MIXING RATIO TENDENCY (KG/KG/S)
+            amrex::Real t3d=theta_arr(i,j,k)*pii_arr(i,j,k);                // T3D: TEMPERATURE (K)
+            amrex::Real qv3d=qv_arr(i,j,k);               // QV3D: WATER VAPOR MIXING RATIO (KG/KG)
+            amrex::Real pres=pres_arr(i,j,k);               // PRES: ATMOSPHERIC PRESSURE (PA)
+            amrex::Real dzq=dz_arr(i,j,k);// dz_val;                // DZQ: DIFFERENCE IN HEIGHT ACROSS LEVEL (m)
+            amrex::Real w3d=w_arr(i,j,k);                // W3D: GRID-SCALE VERTICAL VELOCITY (M/S)
 
             // WRF-chem variables
             amrex::Real nc3d;               // nc3d: Cloud droplet number concentration
-            amrex::Real nc3dten;            // nc3dten: Cloud droplet number concentration tendency
+            amrex::Real nc3dten=0;            // nc3dten: Cloud droplet number concentration tendency
             int iinum;                      // iinum: Integer control variable
 
             // Graupel variables
-            amrex::Real qg3dten;            // QG3DTEN: GRAUPEL MIX RATIO TENDENCY (KG/KG/S)
-            amrex::Real ng3dten;            // NG3DTEN: GRAUPEL NUMB CONC TENDENCY (1/KG/S)
-            amrex::Real qg3d;               // QG3D: GRAUPEL MIX RATIO (KG/KG)
-            amrex::Real ng3d;               // NG3D: GRAUPEL NUMBER CONC (1/KG)
+            amrex::Real qg3dten=0;            // QG3DTEN: GRAUPEL MIX RATIO TENDENCY (KG/KG/S)
+            amrex::Real ng3dten=0;            // NG3DTEN: GRAUPEL NUMB CONC TENDENCY (1/KG/S)
+            amrex::Real qg3d=qpg_arr(i,j,k);               // QG3D: GRAUPEL MIX RATIO (KG/KG)
+            amrex::Real ng3d=ng_arr(i,j,k);               // NG3D: GRAUPEL NUMBER CONC (1/KG)
 
             // Sedimentation tendencies
-            amrex::Real qgsten;             // QGSTEN: GRAUPEL SED TEND (KG/KG/S)
-            amrex::Real qrsten;             // QRSTEN: RAIN SED TEND (KG/KG/S)
-            amrex::Real qisten;             // QISTEN: CLOUD ICE SED TEND (KG/KG/S)
-            amrex::Real qnisten;            // QNISTEN: SNOW SED TEND (KG/KG/S)
-            amrex::Real qcsten;             // QCSTEN: CLOUD WAT SED TEND (KG/KG/S)
+            amrex::Real qgsten=0.0;             // QGSTEN: GRAUPEL SED TEND (KG/KG/S)
+            amrex::Real qrsten=0.0;             // QRSTEN: RAIN SED TEND (KG/KG/S)
+            amrex::Real qisten=0.0;             // QISTEN: CLOUD ICE SED TEND (KG/KG/S)
+            amrex::Real qnisten=0.0;            // QNISTEN: SNOW SED TEND (KG/KG/S)
+            amrex::Real qcsten=0.0;             // QCSTEN: CLOUD WAT SED TEND (KG/KG/S)
 
             // Cumulus tendencies for precipitation
-            amrex::Real qrcu1d;             // qrcu1d: Rain from cumulus parameterization
-            amrex::Real qscu1d;             // qscu1d: Snow from cumulus parameterization
-            amrex::Real qicu1d;             // qicu1d: Ice from cumulus parameterization
+            amrex::Real qrcu1d=qrcuten_arr(i,j,k);             // qrcu1d: Rain from cumulus parameterization
+            amrex::Real qscu1d=qscuten_arr(i,j,k);             // qscu1d: Snow from cumulus parameterization
+            amrex::Real qicu1d=qicuten_arr(i,j,k);             // qicu1d: Ice from cumulus parameterization
 
             // Output variables
             amrex::Real precrt;             // PRECRT: TOTAL PRECIP PER TIME STEP (mm)
@@ -880,8 +943,42 @@ constexpr Real gamma_function(Real x) {
             amrex::Real gsed;               // GSED: Graupel sedimentation
             amrex::Real rsed;               // RSED: Rain sedimentation
             amrex::Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
-        });
+            // NC3DTEN LOCAL ARRAY INITIALIZED
+            nc3dten = 0.0;
 
+            // INITIALIZE VARIABLES FOR WRF-CHEM OUTPUT TO ZERO
+            c2prec = 0.0;
+            csed = 0.0;
+            ised = 0.0;
+            ssed = 0.0;
+            gsed = 0.0;
+            rsed = 0.0;
+
+            // LATENT HEAT OF VAPORIZATION
+            xxlv = 3.1484E6 - 2370.0 * t3d;
+            // LATENT HEAT OF SUBLIMATION
+            xxls = 3.15E6 - 2370.0 * t3d + 0.3337E6;
+
+            // Assuming CP is a constant defined elsewhere (specific heat of dry air at constant pressure)
+            const amrex::Real CP = 1004.5; // J/kg/K
+            cpm = CP * (1.0 + 0.887 * qv3d);
+
+            // SATURATION VAPOR PRESSURE AND MIXING RATIO
+            // hm, add fix for low pressure, 5/12/10
+            // Assuming POLYSVP is defined elsewhere
+            evs = std::min(0.99 * pres, calc_saturation_vapor_pressure(t3d, 0));  // PA
+            eis = std::min(0.99 * pres, calc_saturation_vapor_pressure(t3d, 1));  // PA
+#if 0
+            if ((i >= 86 && i <= 101 && j >= 0 && j <= 3 && k >= 8 && k <= 23 &&
+                 (i-86)%2 == 0 && j%2 == 0 && (k-8)%2 == 0) ||
+                (i == 92 && j == 0 && k == 17)) {
+              FILE *file = fopen("output_cpp.txt", "a");
+              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+                      i, j, k, xxlv, xxls, cpm, evs, eis, t3d, CP, qv3d, pres);
+            }
+#endif
+         });
+          fclose(file);
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
           mp_morr_two_moment_c
           (
