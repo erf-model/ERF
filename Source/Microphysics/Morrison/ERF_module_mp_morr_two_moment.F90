@@ -659,8 +659,9 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
 
    REAL(C_DOUBLE), INTENT(IN):: dt_in
    INTEGER, INTENT(IN):: ITIMESTEP
-
-   REAL(C_DOUBLE), DIMENSION(ims:ime, jms:jme         ), INTENT(INOUT) :: RAINNC, RAINNCV, SR, SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: rainnc, snownc, graupelnc
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: rainncv, sr,  snowncv, graupelncv
+!   REAL(C_DOUBLE), DIMENSION(ims:ime, jms:jme         ), INTENT(INOUT) :: RAINNC, RAINNCV, SR, SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV
    REAL(C_DOUBLE), DIMENSION(ims:ime, jms:kme, kms:jme), INTENT(INOUT) :: refl_10cm
    REAL(C_DOUBLE), DIMENSION(ims:ime ,jms:jme         ), INTENT(IN   ) :: ht
 
@@ -874,11 +875,11 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
       end do
 
 ! hm modified so that m2005 precip variables correctly match wrf precip variables
-      RAINNC(i,j)     = RAINNC(I,J)+PRECPRT1D
+      RAINNC(i,j,K)     = RAINNC(I,J,K)+PRECPRT1D
       RAINNCV(i,j)    = PRECPRT1D
-      SNOWNC(i,j)     = SNOWNC(I,J)+SNOWPRT1D
+      SNOWNC(i,j,K)     = SNOWNC(I,J,K)+SNOWPRT1D
       SNOWNCV(i,j)    = SNOWPRT1D
-      GRAUPELNC(i,j)  = GRAUPELNC(I,J)+GRPLPRT1D
+      GRAUPELNC(i,j,K)  = GRAUPELNC(I,J,K)+GRPLPRT1D
       GRAUPELNCV(i,j) = GRPLPRT1D
       SR(i,j) = SNOWRT1D/(PRECPRT1D+1.E-12)
 

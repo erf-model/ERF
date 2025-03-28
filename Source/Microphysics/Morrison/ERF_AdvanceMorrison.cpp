@@ -101,12 +101,12 @@
           amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             dz_arr(i,j,k) = dz_val;
           });
-
+          amrex::Box grown_boxD(grown_box); grown_boxD.makeSlab(2,0);
           // Arrays to store precipitation rates
-          amrex::FArrayBox    rainncv_fab(grown_box, 1);
-          amrex::FArrayBox         sr_fab(grown_box, 1);     // Ratio of snow to total precipitation
-          amrex::FArrayBox    snowncv_fab(grown_box, 1);
-          amrex::FArrayBox graupelncv_fab(grown_box, 1);
+          amrex::FArrayBox    rainncv_fab(grown_boxD, 1);
+          amrex::FArrayBox         sr_fab(grown_boxD, 1);     // Ratio of snow to total precipitation
+          amrex::FArrayBox    snowncv_fab(grown_boxD, 1);
+          amrex::FArrayBox graupelncv_fab(grown_boxD, 1);
 
           auto const& rainncv_arr = rainncv_fab.array();
           auto const& sr_arr = sr_fab.array();

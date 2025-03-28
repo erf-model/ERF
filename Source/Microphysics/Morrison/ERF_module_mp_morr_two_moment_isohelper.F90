@@ -31,8 +31,8 @@ MODULE mp_morr_two_moment_isohelper
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: th, qv, qc, qr, qi, qs, qg, ni, ns, nr, ng
     REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, jms:jme, kms:kme) :: rho, pii, p, dz, w
     REAL(C_DOUBLE), VALUE, INTENT(IN) :: dt_in
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme) :: rainnc, rainncv, sr
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme) :: snownc, snowncv, graupelnc, graupelncv
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: rainnc, snownc, graupelnc
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme) :: rainncv, sr,  snowncv, graupelncv
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: refl_10cm
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: diagflag
     INTEGER(C_INT), VALUE, INTENT(IN) :: do_radar_ref
