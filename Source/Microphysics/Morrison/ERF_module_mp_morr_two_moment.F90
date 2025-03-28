@@ -1222,7 +1222,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! SET LTRUE INITIALLY TO 0
 
          LTRUE = 0
-
+         open(unit=10, file='output_F.txt', status='unknown', position='append')
 ! ATMOSPHERIC PARAMETERS THAT VARY IN TIME AND HEIGHT
          DO K = KTS,KTE
 
@@ -1253,7 +1253,14 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 
             EVS(K) = min(0.99*pres(k),POLYSVP(T3D(K),0))   ! PA
             EIS(K) = min(0.99*pres(k),POLYSVP(T3D(K),1))   ! PA
-
+#if 0
+            if ((i >= 86 .and. i <= 101 .and. j >= 0 .and. j <= 3 .and. k >= 8 .and. k <= 23 .and. &
+                 mod(i-86,2) == 0 .and. mod(j,2) == 0 .and. mod(k-8,2) == 0) .or. &
+                 (i == 92 .and. j == 0 .and. k == 17)) then
+               write(10, '(i5,i5,i5,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16)') &
+                    i,j,k,xxlv(k),xxls(k),cpm(k),evs(k),eis(k),t3d(k),CP,qv3d(k),pres(k)
+            endif
+#endif
 ! MAKE SURE ICE SATURATION DOESN'T EXCEED WATER SAT. NEAR FREEZING
 
             IF (EIS(K).GT.EVS(K)) EIS(K) = EVS(K)
@@ -1319,7 +1326,30 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                   QG3D(K)=0.
                END IF
              END IF
-
+#if 0
+             if ((i >= 86 .and. i <= 101 .and. j >= 0 .and. j <= 3 .and. k >= 8 .and. k <= 23 .and. &
+                  mod(i-86,2) == 0 .and. mod(j,2) == 0 .and. mod(k-8,2) == 0) .or. &
+                  (i == 92 .and. j == 0 .and. k == 17) .or. &
+                  (((i == 168 .or. i == 169 .or. i == 190 .or. i == 191) .and. &
+                  (j == 0 .or. j == 3) .and. &
+                  (k == 0 .or. k == 1 .or. k == 126 .or. k == 127))) .or. &
+                  (i == 175 .and. j == 1 .and. k == 50) .or. &
+                  (i == 180 .and. j == 2 .and. k == 75) .or. &
+                  (i == 185 .and. j == 1 .and. k == 100) .or. &
+                  (i == 170 .and. j == 0 .and. k == 30) .or. &
+                  (i == 188 .and. j == 3 .and. k == 60) .or. &
+                  (i == 178 .and. j == 2 .and. k == 40) .or. &
+                  (i == 183 .and. j == 0 .and. k == 80) .or. &
+                  (i == 173 .and. j == 3 .and. k == 110) .or. &
+                  (i == 186 .and. j == 1 .and. k == 90) .or. &
+                  (i == 177 .and. j == 2 .and. k == 65)) then
+                 write(10,'(i5,i5,i5,24(es24.16))') &
+!                write(10, '(i5,i5,i5,24(1pe24.16))') &
+!                write(10, '(i5,i5,i5,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16)') &
+                     i,j,k,xxlv(k),xxls(k),cpm(k),evs(k),eis(k),t3d(k),cp,qv3d(k),pres(k), &
+                     qvs(k),qvi(k),qvqvs(k),qvqvsi(k),rho(k),qr3d(k),qc3d(k),qi3d(k),qni3d(k),qg3d(k),nr3d(k),ns3d(k),ni3d(k)
+             endif
+#endif
 ! HEAT OF FUSION
 
             XLF(K) = XXLS(K)-XXLV(K)
@@ -3268,7 +3298,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
  200     CONTINUE
 
         END DO
-
+close(10)
 ! INITIALIZE PRECIP AND SNOW RATES
       PRECRT = 0.
       SNOWRT = 0.
