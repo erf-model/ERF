@@ -32,14 +32,14 @@ MODULE mp_morr_two_moment_isohelper
     REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, jms:jme, kms:kme) :: rho, pii, p, dz, w
     REAL(C_DOUBLE), VALUE, INTENT(IN) :: dt_in
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: rainnc, snownc, graupelnc
-    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, kms:kme) :: rainncv, sr,  snowncv, graupelncv
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: rainncv, sr,  snowncv, graupelncv
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: refl_10cm
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: diagflag
     INTEGER(C_INT), VALUE, INTENT(IN) :: do_radar_ref
     REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, jms:jme, kms:kme) :: qrcuten, qscuten, qicuten
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: f_qndrop
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: qndrop
-    REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, kms:kme) :: ht
+    REAL(C_DOUBLE), INTENT(IN), DIMENSION(ims:ime, jms:jme) :: ht
 
     ! Domain dimensions
     INTEGER(C_INT), VALUE, INTENT(IN) :: ids, ide, jds, jde, kds, kde

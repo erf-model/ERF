@@ -875,11 +875,11 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
       end do
 
 ! hm modified so that m2005 precip variables correctly match wrf precip variables
-      RAINNC(i,j,K)     = RAINNC(I,J,K)+PRECPRT1D
+      RAINNC(i,j,KTS)     = RAINNC(I,J,KTS)+PRECPRT1D
       RAINNCV(i,j)    = PRECPRT1D
-      SNOWNC(i,j,K)     = SNOWNC(I,J,K)+SNOWPRT1D
+      SNOWNC(i,j,KTS)     = SNOWNC(I,J,KTS)+SNOWPRT1D
       SNOWNCV(i,j)    = SNOWPRT1D
-      GRAUPELNC(i,j,K)  = GRAUPELNC(I,J,K)+GRPLPRT1D
+      GRAUPELNC(i,j,KTS)  = GRAUPELNC(I,J,KTS)+GRPLPRT1D
       GRAUPELNCV(i,j) = GRPLPRT1D
       SR(i,j) = SNOWRT1D/(PRECPRT1D+1.E-12)
 
