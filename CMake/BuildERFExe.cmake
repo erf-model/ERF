@@ -175,6 +175,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_AdvanceMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Cloud.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_IceFall.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Precip.cpp
