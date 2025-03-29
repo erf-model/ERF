@@ -258,14 +258,16 @@ public:
     {
         a_idx.clear();
         a_names.clear();
-        a_idx.push_back( 8); a_names.push_back("RainAccum");
-        a_idx.push_back( 9); a_names.push_back("SnowAccum");
-        a_idx.push_back(10); a_names.push_back("GraupAccum");
+
+        // NOTE: These are the indices to access into qmoist (not mic_fab_vars)
+        a_idx.push_back(0); a_names.push_back("RainAccum");
+        a_idx.push_back(1); a_names.push_back("SnowAccum");
+        a_idx.push_back(2); a_names.push_back("GraupAccum");
     }
 
 private:
-    // Number of qmoist variables (qt, qv, qcl, qci, qp, qpr, qps, qpg)
-    int m_qmoist_size = 11;
+    // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
+    int m_qmoist_size = 3;
 
     // Number of qstate variables
     int m_qstate_size = 6;

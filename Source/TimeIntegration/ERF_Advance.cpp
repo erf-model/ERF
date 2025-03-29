@@ -64,26 +64,23 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                        Geom(lev).Domain(),
                        domain_bcs_type);
 
-    // TODO: Can test on multiple levels later
     // Update the inflow perturbation update time and amplitude
-    if (lev == 0) {
-        if (solverChoice.pert_type == PerturbationType::Source ||
-            solverChoice.pert_type == PerturbationType::Direct)
-        {
-            turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
-        }
+    if (solverChoice.pert_type == PerturbationType::Source ||
+        solverChoice.pert_type == PerturbationType::Direct)
+    {
+        turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
+    }
 
-        // If PerturbationType::Direct is selected, directly add the computed perturbation
-        // on the conserved field
-        if (solverChoice.pert_type == PerturbationType::Direct)
-        {
-            auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
-            for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
-                Box bx  = mfi.tilebox();
-                const Array4<Real> &cell_data  = S_old.array(mfi);
-                const Array4<const Real> &pert_cell = turbPert.pb_cell.array(mfi);
-                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
-            }
+    // If PerturbationType::Direct is selected, directly add the computed perturbation
+    // on the conserved field
+    if (solverChoice.pert_type == PerturbationType::Direct)
+    {
+        auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
+        for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
+            Box bx  = mfi.tilebox();
+            const Array4<Real> &cell_data  = S_old.array(mfi);
+            const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
+            turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
         }
     }
 

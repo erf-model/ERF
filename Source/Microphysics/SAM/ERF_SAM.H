@@ -46,7 +46,6 @@ namespace MicVar {
       rain_accum,
       snow_accum,
       graup_accum,
-      omega,
       NumVars
   };
 }
@@ -261,24 +260,22 @@ public:
     }
 
     void
-    Qmoist_Restart_Vars (const SolverChoice& a_sc,
+    Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
                          std::vector<int>& a_idx,
                          std::vector<std::string>& a_names) const override
     {
         a_idx.clear();
         a_names.clear();
-        if (a_sc.moisture_type == MoistureType::SAM) {
-            a_idx.push_back( 8); a_names.push_back("RainAccum");
-            a_idx.push_back( 9); a_names.push_back("SnowAccum");
-            a_idx.push_back(10); a_names.push_back("GraupAccum");
-        } else if (a_sc.moisture_type == MoistureType::SAM_NoIce) {
-            a_idx.push_back( 8); a_names.push_back("RainAccum");
-        }
+
+        // NOTE: These are the indices to access into qmoist (not mic_fab_vars)
+        a_idx.push_back(0); a_names.push_back("RainAccum");
+        a_idx.push_back(1); a_names.push_back("SnowAccum");
+        a_idx.push_back(2); a_names.push_back("GraupAccum");
     }
 
 private:
-    // Number of qmoist variables (qt, qv, qcl, qci, qp, qpr, qps, qpg)
-    int m_qmoist_size = 11;
+    // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
+    int m_qmoist_size = 3;
 
     // Number of qstate variables
     int m_qstate_size = 6;

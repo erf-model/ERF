@@ -1477,10 +1477,8 @@ ERF::init_only (int lev, Real time)
     // Initialize turbulent perturbation
     if (solverChoice.pert_type == PerturbationType::Source ||
         solverChoice.pert_type == PerturbationType::Direct) {
-        if (lev == 0) {
-            turbPert_update(lev, 0.);
-            turbPert_amplitude(lev);
-        }
+        turbPert_update(lev, 0.);
+        turbPert_amplitude(lev);
     }
 }
 

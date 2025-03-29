@@ -56,7 +56,7 @@ ERF::turbPert_amplitude (int lev)
     for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
         const Box &bx  = mfi.validbox();
         const auto &cons_pert_arr = cons_data.array(mfi); // Address of perturbation array
-        const amrex::Array4<const amrex::Real> &pert_cell = turbPert.pb_cell.array(mfi); // per-cell perturbation stored in structure
+        const amrex::Array4<const amrex::Real> &pert_cell = turbPert.pb_cell[lev].array(mfi); // per-cell perturbation stored in structure
 
         turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cons_pert_arr, pert_cell);
     } // mfi

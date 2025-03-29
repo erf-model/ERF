@@ -66,7 +66,7 @@ public:
     }
 
 private:
-    int m_qmoist_size = 1;
+    int m_qmoist_size = 0;
     int m_qstate_size = 0;
 };
 
