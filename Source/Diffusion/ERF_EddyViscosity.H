@@ -60,13 +60,6 @@ ComputeSmnSmn (int& i, int& j, int& k,
     {
         s13bar = 0.25 * ( s13(i  , j  , k  ) + s13(i  , j  , k+1)
                         + s13(i+1, j  , k  ) + s13(i+1, j  , k+1) );
-        if ((i==124) && (j==191) && (k<=1)) {
-            amrex::AllPrint() << "ComputeSmnSmn" << amrex::IntVect(i,j,k)
-                << " s13bar=" << s13bar << " from"
-                << " " << s13(i  , j  , k  ) << " " << s13(i  , j  , k+1)
-                << " " << s13(i+1, j  , k  ) << " " << s13(i+1, j  , k+1)
-                << std::endl;
-        }
     }
 
     amrex::Real s23bar;
@@ -77,13 +70,6 @@ ComputeSmnSmn (int& i, int& j, int& k,
     {
         s23bar = 0.25 * ( s23(i  , j  , k  ) + s23(i  , j  , k+1)
                         + s23(i  , j+1, k  ) + s23(i  , j+1, k+1) );
-        if ((i==124) && (j==191) && (k<=1)) {
-            amrex::AllPrint() << "ComputeSmnSmn" << amrex::IntVect(i,j,k)
-                << " s23bar=" << s23bar << " from"
-                << " " << s23(i  , j  , k  ) << " " << s23(i  , j  , k+1)
-                << " " << s23(i  , j+1, k  ) << " " << s23(i  , j+1, k+1)
-                << std::endl;
-        }
     }
 
     amrex::Real s11bar = s11(i,j,k);
