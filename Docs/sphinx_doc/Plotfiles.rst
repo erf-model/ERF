@@ -9,6 +9,13 @@ Plotfiles
 .. toctree::
    :maxdepth: 1
 
+There are two types of plotfiles that can be written from ERF.   The first is the
+standard type of plotfile which includes data on all levels for those variables
+specified by the user in the inputs file.  The second type of plotfile contains
+data on one level only and in a specified region of the domain.   We refer to this
+latter capability as "Subvolumes" below.  The level at which the data is written
+out is determined by the mesh spacing specified by the user.
+
 Controlling PlotFile Generation
 ===============================
 
@@ -57,14 +64,14 @@ List of Parameters
 |                             | plot files       |                       |            |
 |                             | at second freq.  |                       |            |
 +-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_per_1**          | how often in     | Real                  | -1.0       |
-|                             | simulation time  | :math:`> 0`           |            |
+| **erf.plot_per_1**          | how often (in    | Real                  | -1.0       |
+|                             | simulation time) | :math:`> 0`           |            |
 |                             | to write         |                       |            |
 |                             | plot files       |                       |            |
 |                             | at first freq.   |                       |            |
 +-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_per_2**          | how often in     | Real                  | -1.0       |
-|                             | simulation time  | :math:`> 0`           |            |
+| **erf.plot_per_2**          | how often (in    | Real                  | -1.0       |
+|                             | simulation time) | :math:`> 0`           |            |
 |                             | to write         |                       |            |
 |                             | plot files       |                       |            |
 |                             | at second freq.  |                       |            |
@@ -82,12 +89,48 @@ List of Parameters
 |                             | at seoncd freq.  |                       |            |
 +-----------------------------+------------------+-----------------------+------------+
 
+The analogous list for subvolumes contains the following options:
+
++-----------------------------+-------------------+-----------------------+---------------+
+| Parameter                   | Definition        | Acceptable            | Default       |
+|                             |                   | Values                |               |
++=============================+===================+=======================+===============+
+| **erf.subvol_file**         | prefix for        | String                | “*subvol*”    |
+|                             | subvolume         |                       |               |
+|                             | file names        |                       |               |
++-----------------------------+-------------------+-----------------------+---------------+
+| **erf.subvol_int**          | how often (by     | Integer               | -1            |
+|                             | level-0 time      | :math:`> 0`           |               |
+|                             | steps) to write   |                       |               |
+|                             | subvol files      |                       |               |
++-----------------------------+-------------------+-----------------------+---------------+
+| **erf.subvol_per**          | how often (in     | Real                  | -1.0          |
+|                             | simulation time)  | :math:`> 0`           |               |
+|                             | to write          |                       |               |
+|                             | subvol files      |                       |               |
++-----------------------------+-------------------+-----------------------+---------------+
+| **erf.subvol.origin**       | lower left corner | Reals                 | None -- must  |
+|                             | of region to be   |                       | be specified  |
+|                             | output            |                       | if outputting |
+|                             |                   |                       | subvolumes    |
++-----------------------------+-------------------+-----------------------+---------------+
+| **erf.subvol.nxnynz**       | dimensions        | Integers              | None -- must  |
+|                             | of region to be   |                       | be specified  |
+|                             | output            |                       | if outputting |
+|                             |                   |                       | subvolumes    |
++-----------------------------+-------------------+-----------------------+---------------+
+| **erf.subvol.dxdydz**       | resolution        | Reals                 | None -- must  |
+|                             | of region to be   |                       | be specified  |
+|                             | output            |                       | if outputting |
+|                             |                   |                       | subvolumes    |
++-----------------------------+-------------------+-----------------------+---------------+
+
 .. _notes-5:
 
 Notes
 -----
 
--  The NeTCDF option is only available if ERF has been built with USE_NETCDF enabled.
+-  The NetCDF option for writing plotfiles is only available if ERF has been built with USE_NETCDF enabled.
 
 .. _examples-of-usage-8:
 
@@ -115,6 +158,9 @@ Plotfiles can include the quantities of several simulation parameters as output.
 They are summarized in the list below. Note that temporally averaged quantities
 (e.g., ``u_t_avg, v_t_avg, w_t_avg, umag_t_avg``) require the user to enable the
 storage of the time averaged variables with ``erf.time_avg_vel = true``.
+
+Subvolumes current default to plotting only the three velocity components but will
+be generalized in future.
 
 Output Options
 --------------
