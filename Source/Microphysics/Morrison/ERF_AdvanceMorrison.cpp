@@ -1942,6 +1942,100 @@ constexpr Real gamma_function(Real x) {
               dumg(i,j,k) = dumg(i,j,k) * rho(i,j,k);       // Graupel content * density
               dumfng(i,j,k) = dumfng(i,j,k) * rho(i,j,k);   // Graupel number * density
             }
+            // Main time stepping loop for sedimentation
+            for (int n = 0; n <= nstep; n++) {
+              // Calculate initial fallout for each hydrometeor type for all levels
+              for (int k = klo; k <= khi; k++) {
+                faloutr(i,j,k) = fr(i,j,k) * dumr(i,j,k);
+                falouti(i,j,k) = fi(i,j,k) * dumi(i,j,k);
+                faloutni(i,j,k) = fni(i,j,k) * dumfni(i,j,k);
+                falouts(i,j,k) = fs(i,j,k) * dumqs(i,j,k);
+                faloutns(i,j,k) = fns(i,j,k) * dumfns(i,j,k);
+                faloutnr(i,j,k) = fnr(i,j,k) * dumfnr(i,j,k);
+                faloutc(i,j,k) = fc(i,j,k) * dumc(i,j,k);
+                faloutnc(i,j,k) = fnc(i,j,k) * dumfnc(i,j,k);
+                faloutg(i,j,k) = fg(i,j,k) * dumg(i,j,k);
+                faloutng(i,j,k) = fng(i,j,k) * dumfng(i,j,k);
+              }
+
+              // Process top of model level
+              int k = khi;
+
+              // Calculate tendencies at top level
+              faltndr(i,j,k) = faloutr(i,j,k) / dzq(i,j,k);
+              faltndi(i,j,k) = falouti(i,j,k) / dzq(i,j,k);
+              faltndni(i,j,k) = faloutni(i,j,k) / dzq(i,j,k);
+              faltnds(i,j,k) = falouts(i,j,k) / dzq(i,j,k);
+              faltndns(i,j,k) = faloutns(i,j,k) / dzq(i,j,k);
+              faltndnr(i,j,k) = faloutnr(i,j,k) / dzq(i,j,k);
+              faltndc(i,j,k) = faloutc(i,j,k) / dzq(i,j,k);
+              faltndnc(i,j,k) = faloutnc(i,j,k) / dzq(i,j,k);
+              faltndg(i,j,k) = faloutg(i,j,k) / dzq(i,j,k);
+              faltndng(i,j,k) = faloutng(i,j,k) / dzq(i,j,k);
+
+              // Add fallout terms to Eulerian tendencies (scaled by time step and density)
+              qrsten(i,j,k) = qrsten(i,j,k) - faltndr(i,j,k) / nstep / rho(i,j,k);
+              qisten(i,j,k) = qisten(i,j,k) - faltndi(i,j,k) / nstep / rho(i,j,k);
+              ni3dten(i,j,k) = ni3dten(i,j,k) - faltndni(i,j,k) / nstep / rho(i,j,k);
+              qnisten(i,j,k) = qnisten(i,j,k) - faltnds(i,j,k) / nstep / rho(i,j,k);
+              ns3dten(i,j,k) = ns3dten(i,j,k) - faltndns(i,j,k) / nstep / rho(i,j,k);
+              nr3dten(i,j,k) = nr3dten(i,j,k) - faltndnr(i,j,k) / nstep / rho(i,j,k);
+              qcsten(i,j,k) = qcsten(i,j,k) - faltndc(i,j,k) / nstep / rho(i,j,k);
+              nc3dten(i,j,k) = nc3dten(i,j,k) - faltndnc(i,j,k) / nstep / rho(i,j,k);
+              qgsten(i,j,k) = qgsten(i,j,k) - faltndg(i,j,k) / nstep / rho(i,j,k);
+              ng3dten(i,j,k) = ng3dten(i,j,k) - faltndng(i,j,k) / nstep / rho(i,j,k);
+
+              // Update temporary working variables
+              dumr(i,j,k) = dumr(i,j,k) - faltndr(i,j,k) * dt / nstep;
+              dumi(i,j,k) = dumi(i,j,k) - faltndi(i,j,k) * dt / nstep;
+              dumfni(i,j,k) = dumfni(i,j,k) - faltndni(i,j,k) * dt / nstep;
+              dumqs(i,j,k) = dumqs(i,j,k) - faltnds(i,j,k) * dt / nstep;
+              dumfns(i,j,k) = dumfns(i,j,k) - faltndns(i,j,k) * dt / nstep;
+              dumfnr(i,j,k) = dumfnr(i,j,k) - faltndnr(i,j,k) * dt / nstep;
+              dumc(i,j,k) = dumc(i,j,k) - faltndc(i,j,k) * dt / nstep;
+              dumfnc(i,j,k) = dumfnc(i,j,k) - faltndnc(i,j,k) * dt / nstep;
+              dumg(i,j,k) = dumg(i,j,k) - faltndg(i,j,k) * dt / nstep;
+              dumfng(i,j,k) = dumfng(i,j,k) - faltndng(i,j,k) * dt / nstep;
+
+              // Process remaining levels from top to bottom
+              for (int k = khi-1; k >= klo; k--) {
+                // Calculate tendencies based on difference between levels
+                faltndr(i,j,k) = (faloutr(i,j,k+1) - faloutr(i,j,k)) / dzq(i,j,k);
+                faltndi(i,j,k) = (falouti(i,j,k+1) - falouti(i,j,k)) / dzq(i,j,k);
+                faltndni(i,j,k) = (faloutni(i,j,k+1) - faloutni(i,j,k)) / dzq(i,j,k);
+                faltnds(i,j,k) = (falouts(i,j,k+1) - falouts(i,j,k)) / dzq(i,j,k);
+                faltndns(i,j,k) = (faloutns(i,j,k+1) - faloutns(i,j,k)) / dzq(i,j,k);
+                faltndnr(i,j,k) = (faloutnr(i,j,k+1) - faloutnr(i,j,k)) / dzq(i,j,k);
+                faltndc(i,j,k) = (faloutc(i,j,k+1) - faloutc(i,j,k)) / dzq(i,j,k);
+                faltndnc(i,j,k) = (faloutnc(i,j,k+1) - faloutnc(i,j,k)) / dzq(i,j,k);
+                faltndg(i,j,k) = (faloutg(i,j,k+1) - faloutg(i,j,k)) / dzq(i,j,k);
+                faltndng(i,j,k) = (faloutng(i,j,k+1) - faloutng(i,j,k)) / dzq(i,j,k);
+
+                // Add fallout terms to Eulerian tendencies (positive here, as mass flows in from above)
+                qrsten(i,j,k) = qrsten(i,j,k) + faltndr(i,j,k) / nstep / rho(i,j,k);
+                qisten(i,j,k) = qisten(i,j,k) + faltndi(i,j,k) / nstep / rho(i,j,k);
+                ni3dten(i,j,k) = ni3dten(i,j,k) + faltndni(i,j,k) / nstep / rho(i,j,k);
+                qnisten(i,j,k) = qnisten(i,j,k) + faltnds(i,j,k) / nstep / rho(i,j,k);
+                ns3dten(i,j,k) = ns3dten(i,j,k) + faltndns(i,j,k) / nstep / rho(i,j,k);
+                nr3dten(i,j,k) = nr3dten(i,j,k) + faltndnr(i,j,k) / nstep / rho(i,j,k);
+                qcsten(i,j,k) = qcsten(i,j,k) + faltndc(i,j,k) / nstep / rho(i,j,k);
+                nc3dten(i,j,k) = nc3dten(i,j,k) + faltndnc(i,j,k) / nstep / rho(i,j,k);
+                qgsten(i,j,k) = qgsten(i,j,k) + faltndg(i,j,k) / nstep / rho(i,j,k);
+                ng3dten(i,j,k) = ng3dten(i,j,k) + faltndng(i,j,k) / nstep / rho(i,j,k);
+
+                // Update temporary working variables
+                dumr(i,j,k) = dumr(i,j,k) + faltndr(i,j,k) * dt / nstep;
+                dumi(i,j,k) = dumi(i,j,k) + faltndi(i,j,k) * dt / nstep;
+                dumfni(i,j,k) = dumfni(i,j,k) + faltndni(i,j,k) * dt / nstep;
+                dumqs(i,j,k) = dumqs(i,j,k) + faltnds(i,j,k) * dt / nstep;
+                dumfns(i,j,k) = dumfns(i,j,k) + faltndns(i,j,k) * dt / nstep;
+                dumfnr(i,j,k) = dumfnr(i,j,k) + faltndnr(i,j,k) * dt / nstep;
+                dumc(i,j,k) = dumc(i,j,k) + faltndc(i,j,k) * dt / nstep;
+                dumfnc(i,j,k) = dumfnc(i,j,k) + faltndnc(i,j,k) * dt / nstep;
+                dumg(i,j,k) = dumg(i,j,k) + faltndg(i,j,k) * dt / nstep;
+                dumfng(i,j,k) = dumfng(i,j,k) + faltndng(i,j,k) * dt / nstep;
+              }
+            }
             printf("ERROR: Sedimentation not implmented in C++\n");
             }
 
