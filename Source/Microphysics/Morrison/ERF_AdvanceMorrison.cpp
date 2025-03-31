@@ -776,6 +776,33 @@ constexpr Real gamma_function(Real x) {
             effr_fab.setVal(0.0);
             effg_fab.setVal(0.0);
 
+            // Create FArrayBoxes for scalar variables
+            amrex::FArrayBox rho_fab(grown_box, 1);
+            amrex::FArrayBox mu_fab(grown_box, 1);
+            amrex::FArrayBox ain_fab(grown_box, 1);
+            amrex::FArrayBox arn_fab(grown_box, 1);
+            amrex::FArrayBox asn_fab(grown_box, 1);
+            amrex::FArrayBox acn_fab(grown_box, 1);
+            amrex::FArrayBox agn_fab(grown_box, 1);
+
+            // Get Array4 views
+            auto const& rho = rho_fab.array();
+            auto const& mu = mu_fab.array();
+            auto const& ain = ain_fab.array();
+            auto const& arn = arn_fab.array();
+            auto const& asn = asn_fab.array();
+            auto const& acn = acn_fab.array();
+            auto const& agn = agn_fab.array();
+
+            // Initialize all values to zero
+            rho_fab.setVal(0.0);
+            mu_fab.setVal(0.0);
+            ain_fab.setVal(0.0);
+            arn_fab.setVal(0.0);
+            asn_fab.setVal(0.0);
+            acn_fab.setVal(0.0);
+            agn_fab.setVal(0.0);
+
             FILE *file = fopen("output_cpp.txt", "a");
           ////////////////////////////////////////////////////////////
           // ParallelFor for testing partial C++ implementation
@@ -911,10 +938,8 @@ constexpr Real gamma_function(Real x) {
             amrex::Real xxls;               // XXLS: Latent heat of sublimation
             amrex::Real xxlv;               // XXLV: Latent heat of vaporization
             amrex::Real cpm;                // CPM: Specific heat at constant pressure for moist air
-            amrex::Real mu;                 // MU: Viscosity of air
             amrex::Real sc_schmidt;         // SC: Schmidt number
             amrex::Real xlf;                // XLF: Latent heat of freezing
-            amrex::Real rho;                // RHO: Air density
             amrex::Real ab;                 // AB: Correction to condensation rate due to latent heating
             amrex::Real abi;                // ABI: Correction to deposition rate due to latent heating
 #if 0
@@ -925,12 +950,6 @@ constexpr Real gamma_function(Real x) {
             amrex::Real coffi;              // COFFI: Ice autoconversion parameter
 
 #endif
-            // Fall-speed parameter 'A' with air density correction
-            amrex::Real ain;                // AIN: Fall-speed parameter 'A' with air density correction for ice
-            amrex::Real arn;                // ARN: Fall-speed parameter 'A' with air density correction for rain
-            amrex::Real asn;                // ASN: Fall-speed parameter 'A' with air density correction for snow
-            amrex::Real acn;                // ACN: Fall-speed parameter 'A' with air density correction for cloud
-            amrex::Real agn;                // AGN: Fall-speed parameter 'A' with air density correction for graupel
 
             // Dummy variables
             amrex::Real dum;                // DUM: General dummy variable
@@ -1068,7 +1087,7 @@ constexpr Real gamma_function(Real x) {
             qvqvsi = qv3d(i,j,k) / qvi; // budget equation: calculate ice saturation ratio
 
             // AIR DENSITY
-            rho = pres(i,j,k) / (m_R * t3d(i,j,k)); // budget equation: calculate air density
+            rho(i,j,k) = pres(i,j,k) / (m_R * t3d(i,j,k)); // budget equation: calculate air density
 
             ds0 = 3.0;       // Size distribution parameter for snow
             di0 = 3.0;       // Size distribution parameter for cloud ice
@@ -1079,11 +1098,11 @@ constexpr Real gamma_function(Real x) {
             // ASSUME N0 ASSOCIATED WITH CUMULUS PARAM SNOW IS 2 X 10^7 M^-4
             // FOR DETRAINED CLOUD ICE, ASSUME MEAN VOLUME DIAM OF 80 MICRON
             if (qrcu1d(i,j,k) >= 1.0e-10) {
-              dum = 1.8e5 * std::pow(qrcu1d(i,j,k) * dt / (m_pi * m_rhow * std::pow(rho, 3)), 0.25); // rate equation: calculate rain number concentration from cumulus
+              dum = 1.8e5 * std::pow(qrcu1d(i,j,k) * dt / (m_pi * m_rhow * std::pow(rho(i,j,k), 3)), 0.25); // rate equation: calculate rain number concentration from cumulus
               nr3d(i,j,k) += dum; // budget equation: update rain number concentration
             }
             if (qscu1d(i,j,k) >= 1.0e-10) {
-              dum = 3.e5 * std::pow(qscu1d(i,j,k) * dt / (m_cons1 * std::pow(rho, 3)), 1.0 / (ds0 + 1.0)); // rate equation: calculate snow number concentration from cumulus
+              dum = 3.e5 * std::pow(qscu1d(i,j,k) * dt / (m_cons1 * std::pow(rho(i,j,k), 3)), 1.0 / (ds0 + 1.0)); // rate equation: calculate snow number concentration from cumulus
               ns3d(i,j,k) += dum; // budget equation: update snow number concentration
             }
             if (qicu1d(i,j,k) >= 1.0e-10) {
@@ -1187,21 +1206,21 @@ constexpr Real gamma_function(Real x) {
             qgsten(i,j,k) = 0.0;  // temporary update: initialize QGSTEN
 
             // MICROPHYSICS PARAMETERS VARYING IN TIME/HEIGHT
-            mu = 1.496e-6 * std::pow(t3d(i,j,k), 1.5) / (t3d(i,j,k) + 120.0); // budget equation: calculate air viscosity
+            mu(i,j,k) = 1.496e-6 * std::pow(t3d(i,j,k), 1.5) / (t3d(i,j,k) + 120.0); // budget equation: calculate air viscosity
 
             // Fall speed with density correction (Heymsfield and Benssemer 2006)
-            dum = std::pow(m_rhosu / rho, 0.54); // temporary update: calculate density correction factor
+            dum = std::pow(m_rhosu / rho(i,j,k), 0.54); // temporary update: calculate density correction factor
 
             // AA revision 4/1/11: Ikawa and Saito 1991 air-density correction
-            ain = std::pow(m_rhosu / rho, 0.35) * m_ai; // budget equation: calculate ice fall speed parameter
-            arn = dum * m_ar; // budget equation: calculate rain fall speed parameter
-            asn = dum * m_as; // budget equation: calculate snow fall speed parameter
+            ain(i,j,k) = std::pow(m_rhosu / rho(i,j,k), 0.35) * m_ai; // budget equation: calculate ice fall speed parameter
+            arn(i,j,k) = dum * m_ar; // budget equation: calculate rain fall speed parameter
+            asn(i,j,k) = dum * m_as; // budget equation: calculate snow fall speed parameter
 
             // AA revision 4/1/11: temperature-dependent Stokes fall speed
-            acn = m_g * m_rhow / (18.0 * mu); // budget equation: calculate cloud droplet fall speed parameter
+            acn(i,j,k) = m_g * m_rhow / (18.0 * mu(i,j,k)); // budget equation: calculate cloud droplet fall speed parameter
 
             // HM ADD GRAUPEL 8/28/06
-            agn = dum * m_ag; // budget equation: calculate graupel fall speed parameter
+            agn(i,j,k) = dum * m_ag; // budget equation: calculate graupel fall speed parameter
 
             // hm 4/7/09 bug fix, initialize lami to prevent later division by zero
             lami = 0.0; // temporary update: initialize LAMI
@@ -1219,13 +1238,13 @@ constexpr Real gamma_function(Real x) {
             if(!skipMicrophysics) {
 
             // Thermal conductivity for air
-            kap = 1.414e3 * mu; // budget equation: calculate thermal conductivity
+              kap = 1.414e3 * mu(i,j,k); // budget equation: calculate thermal conductivity
 
             // Diffusivity of water vapor
             dv = 8.794e-5 * std::pow(t3d(i,j,k), 1.81) / pres(i,j,k); // budget equation: calculate vapor diffusivity
 
             // Schmidt number
-            sc_schmidt = mu / (rho * dv); // budget equation: calculate Schmidt number
+            sc_schmidt = mu(i,j,k) / (rho(i,j,k) * dv); // budget equation: calculate Schmidt number
 
             // Psychometric corrections
             // Rate of change sat. mix. ratio with temperature
@@ -1245,7 +1264,7 @@ constexpr Real gamma_function(Real x) {
               if (m_inum == 1) {
                 // CONVERT NDCNST FROM CM-3 TO KG-1
                 // Note: NDCNST constant would need to be defined elsewhere
-                nc3d(i,j,k) = m_ndcnst * 1.0e6 / rho; // Set cloud droplet number concentration
+                nc3d(i,j,k) = m_ndcnst * 1.0e6 / rho(i,j,k); // Set cloud droplet number concentration
               }
 
               // GET SIZE DISTRIBUTION PARAMETERS
@@ -1666,7 +1685,7 @@ constexpr Real gamma_function(Real x) {
                 dlamg = amrex::max(dlamg, m_lamming);
                 dlamg = amrex::min(dlamg, m_lammaxg);
               }
-#if 1
+#if 0
               // C++ version
               if ((i == 92 && j == 0 && k == 17)) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n", 
@@ -1674,6 +1693,67 @@ constexpr Real gamma_function(Real x) {
                         dlami, dlamr, pgam, dlamc, dlams, dlamg);
               }
 #endif
+              // Calculate number-weighted and mass-weighted terminal fall speeds
+
+              // CLOUD WATER
+              if (dumc >= m_qsmall) {
+                unc = acn(i,j,k) * gamma_function(1. + m_bc + pgam) / (dlamc * std::pow(dlamc, m_bc) * gamma_function(pgam + 1.));
+                umc = acn(i,j,k) * gamma_function(4. + m_bc + pgam) / (dlamc * std::pow(dlamc, m_bc) * gamma_function(pgam + 4.));
+              } else {
+                umc = 0.;
+                unc = 0.;
+              }
+
+              // CLOUD ICE
+              if (dumi >= m_qsmall) {
+                uni = ain(i,j,k) * m_cons27 / std::pow(dlami, m_bi);
+                umi = ain(i,j,k) * m_cons28 / std::pow(dlami, m_bi);
+              } else {
+                umi = 0.;
+                uni = 0.;
+              }
+
+              // RAIN
+              if (dumr >= m_qsmall) {
+                unr = arn(i,j,k) * m_cons6 / std::pow(dlamr, m_br);
+                umr = arn(i,j,k) * m_cons4 / std::pow(dlamr, m_br);
+              } else {
+                umr = 0.;
+                unr = 0.;
+              }
+
+              // SNOW
+              if (dumqs >= m_qsmall) {
+                ums = asn(i,j,k) * m_cons3 / std::pow(dlams, m_bs);
+                uns = asn(i,j,k) * m_cons5 / std::pow(dlams, m_bs);
+              } else {
+                ums = 0.;
+                uns = 0.;
+              }
+
+              // GRAUPEL
+              if (dumg >= m_qsmall) {
+                umg = agn(i,j,k) * m_cons7 / std::pow(dlamg, m_bg);
+                ung = agn(i,j,k) * m_cons8 / std::pow(dlamg, m_bg);
+              } else {
+                umg = 0.;
+                ung = 0.;
+              }
+
+              // SET REALISTIC LIMITS ON FALLSPEED
+              // Bug fix, 10/08/09
+              dum = std::pow(m_rhosu / rho(i,j,k), 0.54);
+              ums = std::min(ums, 1.2 * dum);
+              uns = std::min(uns, 1.2 * dum);
+
+              // Fix 053011
+              // Fix for correction by AA 4/6/11
+              umi = std::min(umi, 1.2 * std::pow(m_rhosu / rho(i,j,k), 0.35));
+              uni = std::min(uni, 1.2 * std::pow(m_rhosu / rho(i,j,k), 0.35));
+              umr = std::min(umr, 9.1 * dum);
+              unr = std::min(unr, 9.1 * dum);
+              umg = std::min(umg, 20. * dum);
+              ung = std::min(ung, 20. * dum);
               printf("ERROR: Sedimentation not implmented in C++\n");
             }
 

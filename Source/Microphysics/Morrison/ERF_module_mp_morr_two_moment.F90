@@ -3446,7 +3446,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
         DLAMG=MAX(DLAMG,LAMMING)
         DLAMG=MIN(DLAMG,LAMMAXG)
       END IF
-#if 1
+#if 0
 ! Fortran version
 if ((i == 92 .and. j == 0 .and. k == 17)) then
     write(10, '(i5,i5,i5,15(es24.16))') &
