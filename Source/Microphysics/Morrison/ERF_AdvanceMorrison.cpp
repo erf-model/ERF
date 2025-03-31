@@ -803,6 +803,156 @@ constexpr Real gamma_function(Real x) {
             acn_fab.setVal(0.0);
             agn_fab.setVal(0.0);
 
+            // Create FArrayBoxes for fall speed working variables
+            amrex::FArrayBox dumi_fab(grown_box, 1);
+            amrex::FArrayBox dumr_fab(grown_box, 1);
+            amrex::FArrayBox dumfni_fab(grown_box, 1);
+            amrex::FArrayBox dumg_fab(grown_box, 1);
+            amrex::FArrayBox dumfng_fab(grown_box, 1);
+            amrex::FArrayBox uni_fab(grown_box, 1);
+            amrex::FArrayBox umi_fab(grown_box, 1);
+            amrex::FArrayBox umr_fab(grown_box, 1);
+            amrex::FArrayBox fr_fab(grown_box, 1);
+            amrex::FArrayBox fi_fab(grown_box, 1);
+            amrex::FArrayBox fni_fab(grown_box, 1);
+            amrex::FArrayBox fg_fab(grown_box, 1);
+            amrex::FArrayBox fng_fab(grown_box, 1);
+            amrex::FArrayBox rgvm_fab(grown_box, 1);
+            amrex::FArrayBox faloutr_fab(grown_box, 1);
+            amrex::FArrayBox falouti_fab(grown_box, 1);
+            amrex::FArrayBox faloutni_fab(grown_box, 1);
+            amrex::FArrayBox faltndr_fab(grown_box, 1);
+            amrex::FArrayBox faltndi_fab(grown_box, 1);
+            amrex::FArrayBox faltndni_fab(grown_box, 1);
+            amrex::FArrayBox rho2_fab(grown_box, 1);
+            amrex::FArrayBox dumqs_fab(grown_box, 1);
+            amrex::FArrayBox dumfns_fab(grown_box, 1);
+            amrex::FArrayBox ums_fab(grown_box, 1);
+            amrex::FArrayBox uns_fab(grown_box, 1);
+            amrex::FArrayBox fs_fab(grown_box, 1);
+            amrex::FArrayBox fns_fab(grown_box, 1);
+            amrex::FArrayBox falouts_fab(grown_box, 1);
+            amrex::FArrayBox faloutns_fab(grown_box, 1);
+            amrex::FArrayBox faloutg_fab(grown_box, 1);
+            amrex::FArrayBox faloutng_fab(grown_box, 1);
+            amrex::FArrayBox faltnds_fab(grown_box, 1);
+            amrex::FArrayBox faltndns_fab(grown_box, 1);
+            amrex::FArrayBox unr_fab(grown_box, 1);
+            amrex::FArrayBox faltndg_fab(grown_box, 1);
+            amrex::FArrayBox faltndng_fab(grown_box, 1);
+            amrex::FArrayBox dumc_fab(grown_box, 1);
+            amrex::FArrayBox dumfnc_fab(grown_box, 1);
+            amrex::FArrayBox unc_fab(grown_box, 1);
+            amrex::FArrayBox umc_fab(grown_box, 1);
+            amrex::FArrayBox ung_fab(grown_box, 1);
+            amrex::FArrayBox umg_fab(grown_box, 1);
+            amrex::FArrayBox fc_fab(grown_box, 1);
+            amrex::FArrayBox faloutc_fab(grown_box, 1);
+            amrex::FArrayBox faloutnc_fab(grown_box, 1);
+            amrex::FArrayBox faltndc_fab(grown_box, 1);
+            amrex::FArrayBox faltndnc_fab(grown_box, 1);
+            amrex::FArrayBox fnc_fab(grown_box, 1);
+            amrex::FArrayBox dumfnr_fab(grown_box, 1);
+            amrex::FArrayBox faloutnr_fab(grown_box, 1);
+            amrex::FArrayBox faltndnr_fab(grown_box, 1);
+            amrex::FArrayBox fnr_fab(grown_box, 1);
+            amrex::FArrayBox dumqi_fab(grown_box, 1);
+            amrex::FArrayBox dumni_fab(grown_box, 1);
+            amrex::FArrayBox di0_fab(grown_box, 1);
+            amrex::FArrayBox dc0_fab(grown_box, 1);
+            amrex::FArrayBox ds0_fab(grown_box, 1);
+            amrex::FArrayBox dg0_fab(grown_box, 1);
+            amrex::FArrayBox dumqc_fab(grown_box, 1);
+            amrex::FArrayBox dumqr_fab(grown_box, 1);
+            amrex::FArrayBox ratio_fab(grown_box, 1);
+            amrex::FArrayBox sum_dep_fab(grown_box, 1);
+            amrex::FArrayBox fudgef_fab(grown_box, 1);
+            amrex::FArrayBox dlams_fab(grown_box, 1);
+            amrex::FArrayBox dlamr_fab(grown_box, 1);
+            amrex::FArrayBox dlami_fab(grown_box, 1);
+            amrex::FArrayBox dlamc_fab(grown_box, 1);
+            amrex::FArrayBox dlamg_fab(grown_box, 1);
+
+            // Create Array4 references
+            auto const& dumi = dumi_fab.array();
+            auto const& dumr = dumr_fab.array();
+            auto const& dumfni = dumfni_fab.array();
+            auto const& dumg = dumg_fab.array();
+            auto const& dumfng = dumfng_fab.array();
+            auto const& uni = uni_fab.array();
+            auto const& umi = umi_fab.array();
+            auto const& umr = umr_fab.array();
+            auto const& fr = fr_fab.array();
+            auto const& fi = fi_fab.array();
+            auto const& fni = fni_fab.array();
+            auto const& fg = fg_fab.array();
+            auto const& fng = fng_fab.array();
+            auto const& rgvm = rgvm_fab.array();
+            auto const& faloutr = faloutr_fab.array();
+            auto const& falouti = falouti_fab.array();
+            auto const& faloutni = faloutni_fab.array();
+            auto const& faltndr = faltndr_fab.array();
+            auto const& faltndi = faltndi_fab.array();
+            auto const& faltndni = faltndni_fab.array();
+            auto const& rho2 = rho2_fab.array();
+            auto const& dumqs = dumqs_fab.array();
+            auto const& dumfns = dumfns_fab.array();
+            auto const& ums = ums_fab.array();
+            auto const& uns = uns_fab.array();
+            auto const& fs = fs_fab.array();
+            auto const& fns = fns_fab.array();
+            auto const& falouts = falouts_fab.array();
+            auto const& faloutns = faloutns_fab.array();
+            auto const& faloutg = faloutg_fab.array();
+            auto const& faloutng = faloutng_fab.array();
+            auto const& faltnds = faltnds_fab.array();
+            auto const& faltndns = faltndns_fab.array();
+            auto const& unr = unr_fab.array();
+            auto const& faltndg = faltndg_fab.array();
+            auto const& faltndng = faltndng_fab.array();
+            auto const& dumc = dumc_fab.array();
+            auto const& dumfnc = dumfnc_fab.array();
+            auto const& unc = unc_fab.array();
+            auto const& umc = umc_fab.array();
+            auto const& ung = ung_fab.array();
+            auto const& umg = umg_fab.array();
+            auto const& fc = fc_fab.array();
+            auto const& faloutc = faloutc_fab.array();
+            auto const& faloutnc = faloutnc_fab.array();
+            auto const& faltndc = faltndc_fab.array();
+            auto const& faltndnc = faltndnc_fab.array();
+            auto const& fnc = fnc_fab.array();
+            auto const& dumfnr = dumfnr_fab.array();
+            auto const& faloutnr = faloutnr_fab.array();
+            auto const& faltndnr = faltndnr_fab.array();
+            auto const& fnr = fnr_fab.array();
+            auto const& dumqi = dumqi_fab.array();
+            auto const& dumni = dumni_fab.array();
+            auto const& dumqc = dumqc_fab.array();
+            auto const& dumqr = dumqr_fab.array();
+            auto const& ratio = ratio_fab.array();
+            auto const& sum_dep = sum_dep_fab.array();
+            auto const& fudgef = fudgef_fab.array();
+            auto const& dlams = dlams_fab.array();
+            auto const& dlamr = dlamr_fab.array();
+            auto const& dlami = dlami_fab.array();
+            auto const& dlamc = dlamc_fab.array();
+            auto const& dlamg = dlamg_fab.array();
+
+            // Initialize arrays as needed
+            dlams_fab.setVal(0.0);
+            dlamr_fab.setVal(0.0);
+            dlami_fab.setVal(0.0);
+            dlamc_fab.setVal(0.0);
+            dlamg_fab.setVal(0.0);
+
+            // Rest of initialization to zero
+            dumi_fab.setVal(0.0);
+            dumr_fab.setVal(0.0);
+            dumfni_fab.setVal(0.0);
+            dumg_fab.setVal(0.0);
+            dumfng_fab.setVal(0.0);
+
             FILE *file = fopen("output_cpp.txt", "a");
           ////////////////////////////////////////////////////////////
           // ParallelFor for testing partial C++ implementation
@@ -1532,79 +1682,10 @@ constexpr Real gamma_function(Real x) {
 
             amrex::Real dum;                // DUM: General dummy variable
 
-            // Fall speed working variables
-            amrex::Real dumi;               // DUMI: Dummy variable for ice
-            amrex::Real dumr;               // DUMR: Dummy variable for rain
-            amrex::Real dumfni;             // DUMFNI: Dummy fall speed number for ice
-            amrex::Real dumg;               // DUMG: Dummy variable for graupel
-            amrex::Real dumfng;             // DUMFNG: Dummy fall speed number for graupel
-            amrex::Real uni;                // UNI: Number-weighted terminal velocity for cloud ice
-            amrex::Real umi;                // UMI: Mass-weighted terminal velocity for cloud ice
-            amrex::Real umr;                // UMR: Mass-weighted terminal velocity for rain
-            amrex::Real fr;                 // FR: Mass-weighted fall speed for rain
-            amrex::Real fi;                 // FI: Mass-weighted fall speed for ice
-            amrex::Real fni;                // FNI: Number-weighted fall speed for ice
-            amrex::Real fg;                 // FG: Mass-weighted fall speed for graupel
-            amrex::Real fng;                // FNG: Number-weighted fall speed for graupel
-            amrex::Real rgvm;               // RGVM: Rain size parameter
-            amrex::Real faloutr;            // FALOUTR: Fallout rate for rain mass
-            amrex::Real falouti;            // FALOUTI: Fallout rate for ice mass
-            amrex::Real faloutni;           // FALOUTNI: Fallout rate for ice number
-            amrex::Real faltndr;            // FALTNDR: Mass-weighted fallout tendency for rain
-            amrex::Real faltndi;            // FALTNDI: Mass-weighted fallout tendency for ice
-            amrex::Real faltndni;           // FALTNDNI: Number-weighted fallout tendency for ice
-            amrex::Real rho2;               // RHO2: Air density squared
-            amrex::Real dumqs;              // DUMQS: Dummy variable for snow
-            amrex::Real dumfns;             // DUMFNS: Dummy fall speed number for snow
-            amrex::Real ums;                // UMS: Mass-weighted terminal velocity for snow
-            amrex::Real uns;                // UNS: Number-weighted terminal velocity for snow
-            amrex::Real fs;                 // FS: Mass-weighted fall speed for snow
-            amrex::Real fns;                // FNS: Number-weighted fall speed for snow
-            amrex::Real falouts;            // FALOUTS: Fallout rate for snow mass
-            amrex::Real faloutns;           // FALOUTNS: Fallout rate for snow number
-            amrex::Real faloutg;            // FALOUTG: Fallout rate for graupel mass
-            amrex::Real faloutng;           // FALOUTNG: Fallout rate for graupel number
-            amrex::Real faltnds;            // FALTNDS: Mass-weighted fallout tendency for snow
-            amrex::Real faltndns;           // FALTNDNS: Number-weighted fallout tendency for snow
-            amrex::Real unr;                // UNR: Number-weighted terminal velocity for rain
-            amrex::Real faltndg;            // FALTNDG: Mass-weighted fallout tendency for graupel
-            amrex::Real faltndng;           // FALTNDNG: Number-weighted fallout tendency for graupel
-            amrex::Real dumc;               // DUMC: Dummy variable for cloud
-            amrex::Real dumfnc;             // DUMFNC: Dummy fall speed number for cloud
-            amrex::Real unc;                // UNC: Number-weighted terminal velocity for cloud
-            amrex::Real umc;                // UMC: Mass-weighted terminal velocity for cloud
-            amrex::Real ung;                // UNG: Number-weighted terminal velocity for graupel
-            amrex::Real umg;                // UMG: Mass-weighted terminal velocity for graupel
-            amrex::Real fc;                 // FC: Mass-weighted fall speed for cloud
-            amrex::Real faloutc;            // FALOUTC: Fallout rate for cloud mass
-            amrex::Real faloutnc;           // FALOUTNC: Fallout rate for cloud number
-            amrex::Real faltndc;            // FALTNDC: Mass-weighted fallout tendency for cloud
-            amrex::Real faltndnc;           // FALTNDNC: Number-weighted fallout tendency for cloud
-            amrex::Real fnc;                // FNC: Number-weighted fall speed for cloud
-            amrex::Real dumfnr;             // DUMFNR: Dummy fall speed number for rain
-            amrex::Real faloutnr;           // FALOUTNR: Fallout rate for rain number
-            amrex::Real faltndnr;           // FALTNDNR: Number-weighted fallout tendency for rain
-            amrex::Real fnr;                // FNR: Number-weighted fall speed for rain
-
-            // More working/dummy variables
-            amrex::Real dumqi;              // DUMQI: Dummy variable for ice mixing ratio
-            amrex::Real dumni;              // DUMNI: Dummy variable for ice number concentration
             amrex::Real di0;                // DC0: Characteristic diameter for ice
             amrex::Real dc0;                // DC0: Characteristic diameter for cloud droplets
             amrex::Real ds0;                // DS0: Characteristic diameter for snow
             amrex::Real dg0;                // DG0: Characteristic diameter for graupel
-            amrex::Real dumqc;              // DUMQC: Dummy variable for cloud water mixing ratio
-            amrex::Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
-            amrex::Real ratio;              // RATIO: General ratio variable
-            amrex::Real sum_dep;            // SUM_DEP: Sum of deposition/sublimation
-            amrex::Real fudgef;             // FUDGEF: Adjustment factor
-
-            // Dummy size distribution parameters
-            amrex::Real dlams=0.0;              // DLAMS: Dummy slope parameter for snow
-            amrex::Real dlamr=0.0;              // DLAMR: Dummy slope parameter for rain
-            amrex::Real dlami=0.0;              // DLAMI: Dummy slope parameter for ice
-            amrex::Real dlamc=0.0;              // DLAMC: Dummy slope parameter for cloud
-            amrex::Real dlamg=0.0;              // DLAMG: Dummy slope parameter for graupel
             amrex::Real lammax;             // LAMMAX: Maximum value for slope parameter
             amrex::Real lammin;             // LAMMIN: Minimum value for slope parameter
 
@@ -1619,143 +1700,137 @@ constexpr Real gamma_function(Real x) {
               // STABILITY, I.E. COURANT# < 1
 
               // Update prognostic variables with tendencies
-              dumi = qi3d(i,j,k) + qi3dten(i,j,k) * dt;
-              dumqs = qni3d(i,j,k) + qni3dten(i,j,k) * dt;
-              dumr = qr3d(i,j,k) + qr3dten(i,j,k) * dt;
-              dumfni = ni3d(i,j,k) + ni3dten(i,j,k) * dt;
-              dumfns = ns3d(i,j,k) + ns3dten(i,j,k) * dt;
-              dumfnr = nr3d(i,j,k) + nr3dten(i,j,k) * dt;
-              dumc = qc3d(i,j,k) + qc3dten(i,j,k) * dt;
-              dumfnc = nc3d(i,j,k) + nc3dten(i,j,k) * dt;
-              dumg = qg3d(i,j,k) + qg3dten(i,j,k) * dt;
-              dumfng = ng3d(i,j,k) + ng3dten(i,j,k) * dt;
+              dumi(i,j,k) = qi3d(i,j,k) + qi3dten(i,j,k) * dt;
+              dumqs(i,j,k) = qni3d(i,j,k) + qni3dten(i,j,k) * dt;
+              dumr(i,j,k) = qr3d(i,j,k) + qr3dten(i,j,k) * dt;
+              dumfni(i,j,k) = ni3d(i,j,k) + ni3dten(i,j,k) * dt;
+              dumfns(i,j,k) = ns3d(i,j,k) + ns3dten(i,j,k) * dt;
+              dumfnr(i,j,k) = nr3d(i,j,k) + nr3dten(i,j,k) * dt;
+              dumc(i,j,k) = qc3d(i,j,k) + qc3dten(i,j,k) * dt;
+              dumfnc(i,j,k) = nc3d(i,j,k) + nc3dten(i,j,k) * dt;
+              dumg(i,j,k) = qg3d(i,j,k) + qg3dten(i,j,k) * dt;
+              dumfng(i,j,k) = ng3d(i,j,k) + ng3dten(i,j,k) * dt;
 
               // SWITCH FOR CONSTANT DROPLET NUMBER
               if (iinum == 1) {
-                dumfnc = nc3d(i,j,k);
+                dumfnc(i,j,k) = nc3d(i,j,k);
               }
 
               // MAKE SURE NUMBER CONCENTRATIONS ARE POSITIVE
-              dumfni = amrex::max(0., dumfni);
-              dumfns = amrex::max(0., dumfns);
-              dumfnc = amrex::max(0., dumfnc);
-              dumfnr = amrex::max(0., dumfnr);
-              dumfng = amrex::max(0., dumfng);
+              dumfni(i,j,k) = amrex::max(0., dumfni(i,j,k));
+              dumfns(i,j,k) = amrex::max(0., dumfns(i,j,k));
+              dumfnc(i,j,k) = amrex::max(0., dumfnc(i,j,k));
+              dumfnr(i,j,k) = amrex::max(0., dumfnr(i,j,k));
+              dumfng(i,j,k) = amrex::max(0., dumfng(i,j,k));
 
               // CLOUD ICE
-              if (dumi >= m_qsmall) {
-                dlami = std::pow(m_cons12 * dumfni / dumi, 1.0/di0);
-                dlami = amrex::max(dlami, m_lammini);
-                dlami = amrex::min(dlami, m_lammaxi);
+              if (dumi(i,j,k) >= m_qsmall) {
+                dlami(i,j,k) = std::pow(m_cons12 * dumfni(i,j,k) / dumi(i,j,k), 1.0/di0);
+                dlami(i,j,k) = amrex::max(dlami(i,j,k), m_lammini);
+                dlami(i,j,k) = amrex::min(dlami(i,j,k), m_lammaxi);
               }
 
               // RAIN
-              if (dumr >= m_qsmall) {
-                dlamr = std::pow(m_pi * m_rhow * dumfnr / dumr, 1.0/3.0);
-                dlamr = amrex::max(dlamr, m_lamminr);
-                dlamr = amrex::min(dlamr, m_lammaxr);
+              if (dumr(i,j,k) >= m_qsmall) {
+                dlamr(i,j,k) = std::pow(m_pi * m_rhow * dumfnr(i,j,k) / dumr(i,j,k), 1.0/3.0);
+                dlamr(i,j,k) = amrex::max(dlamr(i,j,k), m_lamminr);
+                dlamr(i,j,k) = amrex::min(dlamr(i,j,k), m_lammaxr);
               }
 
               // CLOUD DROPLETS
-              if (dumc >= m_qsmall) {
-                dum = pres(i,j,k) / (287.15 * t3d(i,j,k));
-                pgam = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
+              if (dumc(i,j,k) >= m_qsmall) {
+                amrex::Real dum = pres(i,j,k) / (287.15 * t3d(i,j,k));
+                amrex::Real pgam = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
                 pgam = 1.0 / (pgam * pgam) - 1.0;
                 pgam = amrex::max(pgam, 2.0);
                 pgam = amrex::min(pgam, 10.0);
 
-                dlamc = std::pow(m_cons26 * dumfnc * std::tgamma(pgam + 4.0) / 
-                                 (dumc * std::tgamma(pgam + 1.0)), 1.0/3.0);
+                dlamc(i,j,k) = std::pow(m_cons26 * dumfnc(i,j,k) * std::tgamma(pgam + 4.0) /
+                                        (dumc(i,j,k) * std::tgamma(pgam + 1.0)), 1.0/3.0);
                 lammin = (pgam + 1.0) / 60.0e-6;
                 lammax = (pgam + 1.0) / 1.0e-6;
-                dlamc = amrex::max(dlamc, lammin);
-                dlamc = amrex::min(dlamc, lammax);
+                dlamc(i,j,k) = amrex::max(dlamc(i,j,k), lammin);
+                dlamc(i,j,k) = amrex::min(dlamc(i,j,k), lammax);
               }
 
               // SNOW
-              if (dumqs >= m_qsmall) {
-                dlams = std::pow(m_cons1 * dumfns / dumqs, 1.0/ds0);
-                dlams = amrex::max(dlams, m_lammins);
-                dlams = amrex::min(dlams, m_lammaxs);
+              if (dumqs(i,j,k) >= m_qsmall) {
+                dlams(i,j,k) = std::pow(m_cons1 * dumfns(i,j,k) / dumqs(i,j,k), 1.0/ds0);
+                dlams(i,j,k) = amrex::max(dlams(i,j,k), m_lammins);
+                dlams(i,j,k) = amrex::min(dlams(i,j,k), m_lammaxs);
               }
 
               // GRAUPEL
-              if (dumg >= m_qsmall) {
-                dlamg = std::pow(m_cons2 * dumfng / dumg, 1.0/dg0);
-                dlamg = amrex::max(dlamg, m_lamming);
-                dlamg = amrex::min(dlamg, m_lammaxg);
+              if (dumg(i,j,k) >= m_qsmall) {
+                dlamg(i,j,k) = std::pow(m_cons2 * dumfng(i,j,k) / dumg(i,j,k), 1.0/dg0);
+                dlamg(i,j,k) = amrex::max(dlamg(i,j,k), m_lamming);
+                dlamg(i,j,k) = amrex::min(dlamg(i,j,k), m_lammaxg);
               }
-#if 0
-              // C++ version
-              if ((i == 92 && j == 0 && k == 17)) {
-                fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n", 
-                        i, j, k, dumi, dumqs, dumr, dumfni, dumfns, dumfnr, dumc, dumfnc, dumg, dumfng,
-                        dlami, dlamr, pgam, dlamc, dlams, dlamg);
-              }
-#endif
+
               // Calculate number-weighted and mass-weighted terminal fall speeds
 
               // CLOUD WATER
-              if (dumc >= m_qsmall) {
-                unc = acn(i,j,k) * gamma_function(1. + m_bc + pgam) / (dlamc * std::pow(dlamc, m_bc) * gamma_function(pgam + 1.));
-                umc = acn(i,j,k) * gamma_function(4. + m_bc + pgam) / (dlamc * std::pow(dlamc, m_bc) * gamma_function(pgam + 4.));
+              if (dumc(i,j,k) >= m_qsmall) {
+                unc(i,j,k) = acn(i,j,k) * gamma_function(1. + m_bc + pgam) / (dlamc(i,j,k) * std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam + 1.));
+                umc(i,j,k) = acn(i,j,k) * gamma_function(4. + m_bc + pgam) / (dlamc(i,j,k) * std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam + 4.));
               } else {
-                umc = 0.;
-                unc = 0.;
+                umc(i,j,k) = 0.;
+                unc(i,j,k) = 0.;
               }
 
               // CLOUD ICE
-              if (dumi >= m_qsmall) {
-                uni = ain(i,j,k) * m_cons27 / std::pow(dlami, m_bi);
-                umi = ain(i,j,k) * m_cons28 / std::pow(dlami, m_bi);
+              if (dumi(i,j,k) >= m_qsmall) {
+                uni(i,j,k) = ain(i,j,k) * m_cons27 / std::pow(dlami(i,j,k), m_bi);
+                umi(i,j,k) = ain(i,j,k) * m_cons28 / std::pow(dlami(i,j,k), m_bi);
               } else {
-                umi = 0.;
-                uni = 0.;
+                umi(i,j,k) = 0.;
+                uni(i,j,k) = 0.;
               }
 
               // RAIN
-              if (dumr >= m_qsmall) {
-                unr = arn(i,j,k) * m_cons6 / std::pow(dlamr, m_br);
-                umr = arn(i,j,k) * m_cons4 / std::pow(dlamr, m_br);
+              if (dumr(i,j,k) >= m_qsmall) {
+                unr(i,j,k) = arn(i,j,k) * m_cons6 / std::pow(dlamr(i,j,k), m_br);
+                umr(i,j,k) = arn(i,j,k) * m_cons4 / std::pow(dlamr(i,j,k), m_br);
               } else {
-                umr = 0.;
-                unr = 0.;
+                umr(i,j,k) = 0.;
+                unr(i,j,k) = 0.;
               }
 
               // SNOW
-              if (dumqs >= m_qsmall) {
-                ums = asn(i,j,k) * m_cons3 / std::pow(dlams, m_bs);
-                uns = asn(i,j,k) * m_cons5 / std::pow(dlams, m_bs);
+              if (dumqs(i,j,k) >= m_qsmall) {
+                ums(i,j,k) = asn(i,j,k) * m_cons3 / std::pow(dlams(i,j,k), m_bs);
+                uns(i,j,k) = asn(i,j,k) * m_cons5 / std::pow(dlams(i,j,k), m_bs);
               } else {
-                ums = 0.;
-                uns = 0.;
+                ums(i,j,k) = 0.;
+                uns(i,j,k) = 0.;
               }
 
               // GRAUPEL
-              if (dumg >= m_qsmall) {
-                umg = agn(i,j,k) * m_cons7 / std::pow(dlamg, m_bg);
-                ung = agn(i,j,k) * m_cons8 / std::pow(dlamg, m_bg);
+              if (dumg(i,j,k) >= m_qsmall) {
+                umg(i,j,k) = agn(i,j,k) * m_cons7 / std::pow(dlamg(i,j,k), m_bg);
+                ung(i,j,k) = agn(i,j,k) * m_cons8 / std::pow(dlamg(i,j,k), m_bg);
               } else {
-                umg = 0.;
-                ung = 0.;
+                umg(i,j,k) = 0.;
+                ung(i,j,k) = 0.;
               }
 
               // SET REALISTIC LIMITS ON FALLSPEED
               // Bug fix, 10/08/09
-              dum = std::pow(m_rhosu / rho(i,j,k), 0.54);
-              ums = std::min(ums, 1.2 * dum);
-              uns = std::min(uns, 1.2 * dum);
+              amrex::Real dum = std::pow(m_rhosu / rho(i,j,k), 0.54);
+              ums(i,j,k) = std::min(ums(i,j,k), 1.2 * dum);
+              uns(i,j,k) = std::min(uns(i,j,k), 1.2 * dum);
 
               // Fix 053011
               // Fix for correction by AA 4/6/11
-              umi = std::min(umi, 1.2 * std::pow(m_rhosu / rho(i,j,k), 0.35));
-              uni = std::min(uni, 1.2 * std::pow(m_rhosu / rho(i,j,k), 0.35));
-              umr = std::min(umr, 9.1 * dum);
-              unr = std::min(unr, 9.1 * dum);
-              umg = std::min(umg, 20. * dum);
-              ung = std::min(ung, 20. * dum);
+              umi(i,j,k) = std::min(umi(i,j,k), 1.2 * std::pow(m_rhosu / rho(i,j,k), 0.35));
+              uni(i,j,k) = std::min(uni(i,j,k), 1.2 * std::pow(m_rhosu / rho(i,j,k), 0.35));
+              umr(i,j,k) = std::min(umr(i,j,k), 9.1 * dum);
+              unr(i,j,k) = std::min(unr(i,j,k), 9.1 * dum);
+              umg(i,j,k) = std::min(umg(i,j,k), 20. * dum);
+              ung(i,j,k) = std::min(ung(i,j,k), 20. * dum);
               printf("ERROR: Sedimentation not implmented in C++\n");
             }
+ 
 
             //End of _micro
             if(use_morr_cpp_answer) {
