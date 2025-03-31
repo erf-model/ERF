@@ -614,8 +614,9 @@ constexpr Real gamma_function(Real x) {
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
+          amrex::Box boxD(box); boxD.makeSlab(2,0);
           bool run_morr_cpp = true;
-          bool use_morr_cpp_answer = false;
+          bool use_morr_cpp_answer = true;
           bool run_morr_fort = !use_morr_cpp_answer;
           if(run_morr_cpp) {
           FILE *file = fopen("output_cpp.txt", "a");
@@ -624,8 +625,9 @@ constexpr Real gamma_function(Real x) {
           // NOTE: Currently all Array4 values are copied to locals
           //       This means we're not updating or outputing anything
           ////////////////////////////////////////////////////////////
-          ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+          ParallelFor( boxD, [=] AMREX_GPU_DEVICE (int i, int j, int )
          {
+           for(int k=klo; k<=khi; k++) {
             // Tendencies and mixing ratios
 #if 1
            //No precip implmented yet
@@ -1472,6 +1474,7 @@ constexpr Real gamma_function(Real x) {
             graupelncv_arr(i,j) = grplprt;
             sr_arr(i,j) = snowrt / (precrt + 1.e-12);*/
             }
+           }
          });
           fclose(file);
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
