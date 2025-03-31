@@ -858,10 +858,6 @@ constexpr Real gamma_function(Real x) {
             amrex::FArrayBox fnr_fab(grown_box, 1);
             amrex::FArrayBox dumqi_fab(grown_box, 1);
             amrex::FArrayBox dumni_fab(grown_box, 1);
-            amrex::FArrayBox di0_fab(grown_box, 1);
-            amrex::FArrayBox dc0_fab(grown_box, 1);
-            amrex::FArrayBox ds0_fab(grown_box, 1);
-            amrex::FArrayBox dg0_fab(grown_box, 1);
             amrex::FArrayBox dumqc_fab(grown_box, 1);
             amrex::FArrayBox dumqr_fab(grown_box, 1);
             amrex::FArrayBox ratio_fab(grown_box, 1);
@@ -939,19 +935,71 @@ constexpr Real gamma_function(Real x) {
             auto const& dlamc = dlamc_fab.array();
             auto const& dlamg = dlamg_fab.array();
 
-            // Initialize arrays as needed
+            // Initialize arrays to 0
             dlams_fab.setVal(0.0);
             dlamr_fab.setVal(0.0);
             dlami_fab.setVal(0.0);
             dlamc_fab.setVal(0.0);
             dlamg_fab.setVal(0.0);
-
-            // Rest of initialization to zero
             dumi_fab.setVal(0.0);
             dumr_fab.setVal(0.0);
             dumfni_fab.setVal(0.0);
             dumg_fab.setVal(0.0);
             dumfng_fab.setVal(0.0);
+            uni_fab.setVal(0.0);
+            umi_fab.setVal(0.0);
+            umr_fab.setVal(0.0);
+            fr_fab.setVal(0.0);
+            fi_fab.setVal(0.0);
+            fni_fab.setVal(0.0);
+            fg_fab.setVal(0.0);
+            fng_fab.setVal(0.0);
+            rgvm_fab.setVal(0.0);
+            faloutr_fab.setVal(0.0);
+            falouti_fab.setVal(0.0);
+            faloutni_fab.setVal(0.0);
+            faltndr_fab.setVal(0.0);
+            faltndi_fab.setVal(0.0);
+            faltndni_fab.setVal(0.0);
+            rho2_fab.setVal(0.0);
+            dumqs_fab.setVal(0.0);
+            dumfns_fab.setVal(0.0);
+            ums_fab.setVal(0.0);
+            uns_fab.setVal(0.0);
+            fs_fab.setVal(0.0);
+            fns_fab.setVal(0.0);
+            falouts_fab.setVal(0.0);
+            faloutns_fab.setVal(0.0);
+            faloutg_fab.setVal(0.0);
+            faloutng_fab.setVal(0.0);
+            faltnds_fab.setVal(0.0);
+            faltndns_fab.setVal(0.0);
+            unr_fab.setVal(0.0);
+            faltndg_fab.setVal(0.0);
+            faltndng_fab.setVal(0.0);
+            dumc_fab.setVal(0.0);
+            dumfnc_fab.setVal(0.0);
+            unc_fab.setVal(0.0);
+            umc_fab.setVal(0.0);
+            ung_fab.setVal(0.0);
+            umg_fab.setVal(0.0);
+            fc_fab.setVal(0.0);
+            faloutc_fab.setVal(0.0);
+            faloutnc_fab.setVal(0.0);
+            faltndc_fab.setVal(0.0);
+            faltndnc_fab.setVal(0.0);
+            fnc_fab.setVal(0.0);
+            dumfnr_fab.setVal(0.0);
+            faloutnr_fab.setVal(0.0);
+            faltndnr_fab.setVal(0.0);
+            fnr_fab.setVal(0.0);
+            dumqi_fab.setVal(0.0);
+            dumni_fab.setVal(0.0);
+            dumqc_fab.setVal(0.0);
+            dumqr_fab.setVal(0.0);
+            ratio_fab.setVal(0.0);
+            sum_dep_fab.setVal(0.0);
+            fudgef_fab.setVal(0.0);
 
             FILE *file = fopen("output_cpp.txt", "a");
           ////////////////////////////////////////////////////////////
@@ -1665,39 +1713,39 @@ constexpr Real gamma_function(Real x) {
             grplprt(i,j,k) = 0.0;
             }
             nstep = 1;
+            if(ltrue != 0) {
+            //goto 400
+            // CALCULATE SEDIMENTATION
+            // THE NUMERICS HERE FOLLOW FROM REISNER ET AL. (1998)
+            // FALLOUT TERMS ARE CALCULATED ON SPLIT TIME STEPS TO ENSURE NUMERICAL
+            // STABILITY, I.E. COURANT# < 1
             // Loop from top to bottom (KTE to KTS)
             for(int k=khi; k>=klo; k--) {
-            // Size distribution parameters
-            amrex::Real lamc;               // LAMC: Slope parameter for droplets (m^-1)
-            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
-            amrex::Real lams;               // LAMS: Slope parameter for snow (m^-1)
-            amrex::Real lamr;               // LAMR: Slope parameter for rain (m^-1)
-            amrex::Real lamg;               // LAMG: Slope parameter for graupel (m^-1)
-            amrex::Real cdist1;             // CDIST1: PSD parameter for droplets
-            amrex::Real n0i;                // N0I: Intercept parameter for cloud ice (kg^-1 m^-1)
-            amrex::Real n0s;                // N0S: Intercept parameter for snow (kg^-1 m^-1)
-            amrex::Real n0r;                // N0RR: Intercept parameter for rain (kg^-1 m^-1)
-            amrex::Real n0g;                // N0G: Intercept parameter for graupel (kg^-1 m^-1)
-            amrex::Real pgam;               // PGAM: Spectral shape parameter for droplets
+              // Size distribution parameters
+              amrex::Real lamc;               // LAMC: Slope parameter for droplets (m^-1)
+              amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
+              amrex::Real lams;               // LAMS: Slope parameter for snow (m^-1)
+              amrex::Real lamr;               // LAMR: Slope parameter for rain (m^-1)
+              amrex::Real lamg;               // LAMG: Slope parameter for graupel (m^-1)
+              amrex::Real cdist1;             // CDIST1: PSD parameter for droplets
+              amrex::Real n0i;                // N0I: Intercept parameter for cloud ice (kg^-1 m^-1)
+              amrex::Real n0s;                // N0S: Intercept parameter for snow (kg^-1 m^-1)
+              amrex::Real n0r;                // N0RR: Intercept parameter for rain (kg^-1 m^-1)
+              amrex::Real n0g;                // N0G: Intercept parameter for graupel (kg^-1 m^-1)
+              amrex::Real pgam;               // PGAM: Spectral shape parameter for droplets
 
-            amrex::Real dum;                // DUM: General dummy variable
+              amrex::Real dum;                // DUM: General dummy variable
 
-            amrex::Real di0;                // DC0: Characteristic diameter for ice
-            amrex::Real dc0;                // DC0: Characteristic diameter for cloud droplets
-            amrex::Real ds0;                // DS0: Characteristic diameter for snow
-            amrex::Real dg0;                // DG0: Characteristic diameter for graupel
-            amrex::Real lammax;             // LAMMAX: Maximum value for slope parameter
-            amrex::Real lammin;             // LAMMIN: Minimum value for slope parameter
+              amrex::Real di0;                // DC0: Characteristic diameter for ice
+              amrex::Real dc0;                // DC0: Characteristic diameter for cloud droplets
+              amrex::Real ds0;                // DS0: Characteristic diameter for snow
+              amrex::Real dg0;                // DG0: Characteristic diameter for graupel
+              amrex::Real lammax;             // LAMMAX: Maximum value for slope parameter
+              amrex::Real lammin;             // LAMMIN: Minimum value for slope parameter
 
-            ds0 = 3.0;       // Size distribution parameter for snow
-            di0 = 3.0;       // Size distribution parameter for cloud ice
-            dg0 = 3.0;       // Size distribution parameter for graupel
-            if(ltrue != 0) {
-              //goto 400
-              // CALCULATE SEDIMENTATION
-              // THE NUMERICS HERE FOLLOW FROM REISNER ET AL. (1998)
-              // FALLOUT TERMS ARE CALCULATED ON SPLIT TIME STEPS TO ENSURE NUMERICAL
-              // STABILITY, I.E. COURANT# < 1
+              ds0 = 3.0;       // Size distribution parameter for snow
+              di0 = 3.0;       // Size distribution parameter for cloud ice
+              dg0 = 3.0;       // Size distribution parameter for graupel
 
               // Update prognostic variables with tendencies
               dumi(i,j,k) = qi3d(i,j,k) + qi3dten(i,j,k) * dt;
@@ -1816,7 +1864,7 @@ constexpr Real gamma_function(Real x) {
 
               // SET REALISTIC LIMITS ON FALLSPEED
               // Bug fix, 10/08/09
-              amrex::Real dum = std::pow(m_rhosu / rho(i,j,k), 0.54);
+              dum = std::pow(m_rhosu / rho(i,j,k), 0.54);
               ums(i,j,k) = std::min(ums(i,j,k), 1.2 * dum);
               uns(i,j,k) = std::min(uns(i,j,k), 1.2 * dum);
 
@@ -1828,10 +1876,76 @@ constexpr Real gamma_function(Real x) {
               unr(i,j,k) = std::min(unr(i,j,k), 9.1 * dum);
               umg(i,j,k) = std::min(umg(i,j,k), 20. * dum);
               ung(i,j,k) = std::min(ung(i,j,k), 20. * dum);
-              printf("ERROR: Sedimentation not implmented in C++\n");
-            }
- 
 
+              // Set fall speed values
+              fr(i,j,k) = umr(i,j,k);         // RAIN FALL SPEED
+              fi(i,j,k) = umi(i,j,k);         // CLOUD ICE FALL SPEED
+              fni(i,j,k) = uni(i,j,k);        // CLOUD ICE NUMBER FALL SPEED
+              fs(i,j,k) = ums(i,j,k);         // SNOW FALL SPEED
+              fns(i,j,k) = uns(i,j,k);        // SNOW NUMBER FALL SPEED
+              fnr(i,j,k) = unr(i,j,k);        // RAIN NUMBER FALL SPEED
+              fc(i,j,k) = umc(i,j,k);         // CLOUD WATER FALL SPEED
+              fnc(i,j,k) = unc(i,j,k);        // CLOUD NUMBER FALL SPEED
+              fg(i,j,k) = umg(i,j,k);         // GRAUPEL FALL SPEED
+              fng(i,j,k) = ung(i,j,k);        // GRAUPEL NUMBER FALL SPEED
+
+              // V3.3 MODIFY FALLSPEED BELOW LEVEL OF PRECIP
+              if (fr(i,j,k) < 1.e-10) {
+                fr(i,j,k) = fr(i,j,k+1);
+              }
+              if (fi(i,j,k) < 1.e-10) {
+                fi(i,j,k) = fi(i,j,k+1);
+              }
+              if (fni(i,j,k) < 1.e-10) {
+                fni(i,j,k) = fni(i,j,k+1);
+              }
+              if (fs(i,j,k) < 1.e-10) {
+                fs(i,j,k) = fs(i,j,k+1);
+              }
+              if (fns(i,j,k) < 1.e-10) {
+                fns(i,j,k) = fns(i,j,k+1);
+              }
+              if (fnr(i,j,k) < 1.e-10) {
+                fnr(i,j,k) = fnr(i,j,k+1);
+              }
+              if (fc(i,j,k) < 1.e-10) {
+                fc(i,j,k) = fc(i,j,k+1);
+              }
+              if (fnc(i,j,k) < 1.e-10) {
+                fnc(i,j,k) = fnc(i,j,k+1);
+              }
+              if (fg(i,j,k) < 1.e-10) {
+                fg(i,j,k) = fg(i,j,k+1);
+              }
+              if (fng(i,j,k) < 1.e-10) {
+                fng(i,j,k) = fng(i,j,k+1);
+              }
+
+              // CALCULATE NUMBER OF SPLIT TIME STEPS
+              // Find maximum fall speed at this point
+              rgvm(i,j,k) = std::max({fr(i,j,k), fi(i,j,k), fs(i,j,k), fc(i,j,k),
+                  fni(i,j,k), fnr(i,j,k), fns(i,j,k), fnc(i,j,k),
+                  fg(i,j,k), fng(i,j,k)});
+
+              // Calculate number of steps (dt and nstep would need to be defined elsewhere)
+              int nstep = std::max(static_cast<int>(rgvm(i,j,k) * dt / dzq(i,j,k) + 1.), nstep);
+
+              // MULTIPLY VARIABLES BY RHO
+              dumr(i,j,k) = dumr(i,j,k) * rho(i,j,k);       // Rain water content * density
+              dumi(i,j,k) = dumi(i,j,k) * rho(i,j,k);       // Cloud ice content * density
+              dumfni(i,j,k) = dumfni(i,j,k) * rho(i,j,k);   // Cloud ice number * density
+              dumqs(i,j,k) = dumqs(i,j,k) * rho(i,j,k);     // Snow content * density
+              dumfns(i,j,k) = dumfns(i,j,k) * rho(i,j,k);   // Snow number * density
+              dumfnr(i,j,k) = dumfnr(i,j,k) * rho(i,j,k);   // Rain number * density
+              dumc(i,j,k) = dumc(i,j,k) * rho(i,j,k);       // Cloud water content * density
+              dumfnc(i,j,k) = dumfnc(i,j,k) * rho(i,j,k);   // Cloud droplet number * density
+              dumg(i,j,k) = dumg(i,j,k) * rho(i,j,k);       // Graupel content * density
+              dumfng(i,j,k) = dumfng(i,j,k) * rho(i,j,k);   // Graupel number * density
+            }
+            printf("ERROR: Sedimentation not implmented in C++\n");
+            }
+
+            for(int k=klo; k<=khi; k++) {
             //End of _micro
             if(use_morr_cpp_answer) {
             // Transfer 1D variables back to 3D arrays
@@ -1865,7 +1979,7 @@ constexpr Real gamma_function(Real x) {
             graupelncv_arr(i,j) = grplprt(i,j,k);
             sr_arr(i,j) = snowrt(i,j,k) / (precrt(i,j,k) + 1.e-12);*/
             }
-           }
+            }
          });
           fclose(file);
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
