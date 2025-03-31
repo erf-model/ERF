@@ -2035,8 +2035,82 @@ constexpr Real gamma_function(Real x) {
                 dumg(i,j,k) = dumg(i,j,k) + faltndg(i,j,k) * dt / nstep;
                 dumfng(i,j,k) = dumfng(i,j,k) + faltndng(i,j,k) * dt / nstep;
               }
+              // Get precipitation and snowfall accumulation during the time step
+              // Factor of 1000 converts from m to mm, but division by density
+              // of liquid water cancels this factor of 1000
+              int kts=klo;
+              precrt(i,j,k) += (faloutr(i,j,kts) + faloutc(i,j,kts) + falouts(i,j,kts) +
+                         falouti(i,j,kts) + faloutg(i,j,kts)) * dt / nstep;
+              snowrt(i,j,k) += (falouts(i,j,kts) + falouti(i,j,kts) + faloutg(i,j,kts)) * dt / nstep;
+
+              // Added 7/13/13
+              snowprt(i,j,k) += (falouti(i,j,kts) + falouts(i,j,kts)) * dt / nstep;
+              grplprt(i,j,k) += faloutg(i,j,kts) * dt / nstep;
             }
             printf("ERROR: Sedimentation not implmented in C++\n");
+            }
+            for(int k=klo; k<=khi; k++) {
+              amrex::Real evs;                // EVS: Saturation vapor pressure
+              amrex::Real eis;                // EIS: Ice saturation vapor pressure
+              amrex::Real qvs;                // QVS: Saturation mixing ratio
+              amrex::Real qvi;                // QVI: Ice saturation mixing ratio
+              amrex::Real qvqvs;              // QVQVS: Saturation ratio
+              amrex::Real qvqvsi;             // QVQVSI: Ice saturation ratio
+              // ADD ON SEDIMENTATION TENDENCIES FOR MIXING RATIO TO REST OF TENDENCIES
+              qr3dten(i,j,k) = qr3dten(i,j,k) + qrsten(i,j,k);
+              qi3dten(i,j,k) = qi3dten(i,j,k) + qisten(i,j,k);
+              qc3dten(i,j,k) = qc3dten(i,j,k) + qcsten(i,j,k);
+              qg3dten(i,j,k) = qg3dten(i,j,k) + qgsten(i,j,k);
+              qni3dten(i,j,k) = qni3dten(i,j,k) + qnisten(i,j,k);
+
+              // PUT ALL CLOUD ICE IN SNOW CATEGORY IF MEAN DIAMETER EXCEEDS 2 * dcs
+              // bug fix
+              if (qi3d(i,j,k) >= m_qsmall && t3d(i,j,k) < 273.15 && dlami(i,j,k) >= 1.e-10) {
+                if (1.0/dlami(i,j,k) >= 2.0*m_dcs) {
+                  qni3dten(i,j,k) = qni3dten(i,j,k) + qi3d(i,j,k)/dt + qi3dten(i,j,k);
+                  ns3dten(i,j,k) = ns3dten(i,j,k) + ni3d(i,j,k)/dt + ni3dten(i,j,k);
+                  qi3dten(i,j,k) = -qi3d(i,j,k)/dt;
+                  ni3dten(i,j,k) = -ni3d(i,j,k)/dt;
+                }
+              }
+
+              // Add tendencies to ensure consistency between mixing ratio and number concentration
+              qc3d(i,j,k) = qc3d(i,j,k) + qc3dten(i,j,k)*dt;
+              qi3d(i,j,k) = qi3d(i,j,k) + qi3dten(i,j,k)*dt;
+              qni3d(i,j,k) = qni3d(i,j,k) + qni3dten(i,j,k)*dt;
+              qr3d(i,j,k) = qr3d(i,j,k) + qr3dten(i,j,k)*dt;
+              nc3d(i,j,k) = nc3d(i,j,k) + nc3dten(i,j,k)*dt;
+              ni3d(i,j,k) = ni3d(i,j,k) + ni3dten(i,j,k)*dt;
+              ns3d(i,j,k) = ns3d(i,j,k) + ns3dten(i,j,k)*dt;
+              nr3d(i,j,k) = nr3d(i,j,k) + nr3dten(i,j,k)*dt;
+
+              if (m_igraup == 0) {
+                qg3d(i,j,k) = qg3d(i,j,k) + qg3dten(i,j,k)*dt;
+                ng3d(i,j,k) = ng3d(i,j,k) + ng3dten(i,j,k)*dt;
+              }
+
+              // ADD TEMPERATURE AND WATER VAPOR TENDENCIES FROM MICROPHYSICS
+              t3d(i,j,k) = t3d(i,j,k) + t3dten(i,j,k)*dt;
+              qv3d(i,j,k) = qv3d(i,j,k) + qv3dten(i,j,k)*dt;
+
+              // SATURATION VAPOR PRESSURE AND MIXING RATIO
+              // hm, add fix for low pressure, 5/12/10
+              // Assuming POLYSVP is defined elsewhere
+              evs = std::min(0.99 * pres(i,j,k), calc_saturation_vapor_pressure(t3d(i,j,k), 0));  // PA
+              eis = std::min(0.99 * pres(i,j,k), calc_saturation_vapor_pressure(t3d(i,j,k), 1));  // PA
+
+              // MAKE SURE ICE SATURATION DOESN'T EXCEED WATER SAT. NEAR FREEZING
+              if (eis > evs) {
+                eis = evs; // temporary update: adjust ice saturation pressure
+              }
+
+              // SATURATION MIXING RATIOS
+              qvs = m_ep_2 * evs / (pres(i,j,k) - evs); // budget equation: calculate water saturation mixing ratio
+              qvi = m_ep_2 * eis / (pres(i,j,k) - eis); // budget equation: calculate ice saturation mixing ratio
+
+              // SATURATION RATIOS
+              qvqvs = qv3d(i,j,k) / qvs; // budget equation: calculate water saturation ratio
+              qvqvsi = qv3d(i,j,k) / qvi; // budget equation: calculate ice saturation ratio          
             }
 
             for(int k=klo; k<=khi; k++) {
