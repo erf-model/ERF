@@ -784,6 +784,7 @@ constexpr Real gamma_function(Real x) {
           ////////////////////////////////////////////////////////////
           ParallelFor( boxD, [=] AMREX_GPU_DEVICE (int i, int j, int )
          {
+           int ltrue=0;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
            for(int k=klo; k<=khi; k++) {
             // Tendencies and mixing ratios
             qc3d(i,j,k) = qcl_arr(i,j,k);   // CLOUD WATER MIXING RATIO
@@ -1016,7 +1017,6 @@ constexpr Real gamma_function(Real x) {
             int k_local=k;                  // K: Vertical level index
             int nstep;                      // NSTEP: Timestep counter
             int n;                          // N: General index variable
-            int ltrue;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
 
             // Droplet activation/freezing aerosol
             amrex::Real ct;                 // CT: Droplet activation parameter
@@ -1508,6 +1508,7 @@ constexpr Real gamma_function(Real x) {
                           i, j, k, lamr, n0r, pgam, lamc, nc3d(i,j,k), lams, n0s, ns3d(i,j,k), lamg, n0g, ng3d(i,j,k));
                 }
 #endif
+                ltrue = 1;
                 ////////////////////// First instance of ZERO OUT PROCESS RATES
                       printf("ERROR: Concentrations not fully implmented in C++");
               }
@@ -1543,22 +1544,23 @@ constexpr Real gamma_function(Real x) {
             } // not implmented : ELSE  ! TEMPERATURE < 273.15
                     skipPrecip = false;
                     printf("ERROR: Microphysics not fully implmented in C++\n");
-                    ltrue = 1;
+
             }
-            // 200 
-            ///////           }
+            // 200
+            }
+            for(int k=klo; k<=khi; k++) {
             // INITIALIZE PRECIP AND SNOW RATES
             precrt(i,j,k) = 0.0;
             snowrt(i,j,k) = 0.0;
         // hm added 7/13/13
             snowprt(i,j,k) = 0.0;
             grplprt(i,j,k) = 0.0;
-            if(!skipPrecip) {
+            if(ltrue != 0) {
               //goto 400
               //Implementing CALCULATE SEDIMENATION
               printf("ERROR: Sedimentation not implmented in C++");
             }
-            ////////            for(int k=klo; k<=khi; k++) {
+
             if(use_morr_cpp_answer) {
             // Transfer 1D variables back to 3D arrays
             qcl_arr(i,j,k) = qc3d(i,j,k);
