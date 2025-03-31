@@ -619,7 +619,164 @@ constexpr Real gamma_function(Real x) {
           bool use_morr_cpp_answer = true;
           bool run_morr_fort = !use_morr_cpp_answer;
           if(run_morr_cpp) {
-          FILE *file = fopen("output_cpp.txt", "a");
+
+            // Create dummy arrays for tendencies
+            amrex::FArrayBox qc3dten_fab(grown_box, 1);   // CLOUD WATER MIXING RATIO TENDENCY
+            amrex::FArrayBox qi3dten_fab(grown_box, 1);   // CLOUD ICE MIXING RATIO TENDENCY  
+            amrex::FArrayBox qni3dten_fab(grown_box, 1);  // SNOW MIXING RATIO TENDENCY
+            amrex::FArrayBox qr3dten_fab(grown_box, 1);   // RAIN MIXING RATIO TENDENCY
+            amrex::FArrayBox ni3dten_fab(grown_box, 1);   // CLOUD ICE NUMBER CONCENTRATION
+            amrex::FArrayBox ns3dten_fab(grown_box, 1);   // SNOW NUMBER CONCENTRATION
+            amrex::FArrayBox nr3dten_fab(grown_box, 1);   // RAIN NUMBER CONCENTRATION
+
+            // Get array references
+            auto const& qc3dten = qc3dten_fab.array();    // CLOUD WATER MIXING RATIO TENDENCY (KG/KG/S)
+            auto const& qi3dten = qi3dten_fab.array();    // CLOUD ICE MIXING RATIO TENDENCY (KG/KG/S)
+            auto const& qni3dten = qni3dten_fab.array();  // SNOW MIXING RATIO TENDENCY (KG/KG/S)
+            auto const& qr3dten = qr3dten_fab.array();    // RAIN MIXING RATIO TENDENCY (KG/KG/S)
+            auto const& ni3dten = ni3dten_fab.array();    // CLOUD ICE NUMBER CONCENTRATION (1/KG/S)
+            auto const& ns3dten = ns3dten_fab.array();    // SNOW NUMBER CONCENTRATION (1/KG/S)
+            auto const& nr3dten = nr3dten_fab.array();    // RAIN NUMBER CONCENTRATION (1/KG/S)
+
+            // Initialize tendencies to zero (no precipitation implemented yet)
+            qc3dten_fab.setVal(0.0);
+            qi3dten_fab.setVal(0.0);
+            qni3dten_fab.setVal(0.0);
+            qr3dten_fab.setVal(0.0);
+            ni3dten_fab.setVal(0.0);
+            ns3dten_fab.setVal(0.0);
+            nr3dten_fab.setVal(0.0);
+
+            // Create arrays for mixing ratios and number concentrations
+            amrex::FArrayBox qc3d_fab(grown_box, 1);    // CLOUD WATER MIXING RATIO
+            amrex::FArrayBox qi3d_fab(grown_box, 1);    // CLOUD ICE MIXING RATIO
+            amrex::FArrayBox qni3d_fab(grown_box, 1);   // SNOW MIXING RATIO
+            amrex::FArrayBox qr3d_fab(grown_box, 1);    // RAIN MIXING RATIO
+            amrex::FArrayBox ni3d_fab(grown_box, 1);    // CLOUD ICE NUMBER CONCENTRATION
+            amrex::FArrayBox ns3d_fab(grown_box, 1);    // SNOW NUMBER CONCENTRATION
+            amrex::FArrayBox nr3d_fab(grown_box, 1);    // RAIN NUMBER CONCENTRATION
+
+            // Get array references
+            auto const& qc3d = qc3d_fab.array();        // CLOUD WATER MIXING RATIO (KG/KG)
+            auto const& qi3d = qi3d_fab.array();        // CLOUD ICE MIXING RATIO (KG/KG)
+            auto const& qni3d = qni3d_fab.array();      // SNOW MIXING RATIO (KG/KG)
+            auto const& qr3d = qr3d_fab.array();        // RAIN MIXING RATIO (KG/KG)
+            auto const& ni3d = ni3d_fab.array();        // CLOUD ICE NUMBER CONCENTRATION (1/KG)
+            auto const& ns3d = ns3d_fab.array();        // SNOW NUMBER CONCENTRATION (1/KG)
+            auto const& nr3d = nr3d_fab.array();        // RAIN NUMBER CONCENTRATION (1/KG)
+
+            // Create arrays for temperature, vapor, and pressure variables
+            amrex::FArrayBox t3dten_fab(grown_box, 1);    // TEMPERATURE TENDENCY
+            amrex::FArrayBox qv3dten_fab(grown_box, 1);   // WATER VAPOR MIXING RATIO TENDENCY
+            amrex::FArrayBox t3d_fab(grown_box, 1);       // TEMPERATURE
+            amrex::FArrayBox qv3d_fab(grown_box, 1);      // WATER VAPOR MIXING RATIO
+            amrex::FArrayBox pres_fab(grown_box, 1);      // ATMOSPHERIC PRESSURE
+            amrex::FArrayBox dzq_fab(grown_box, 1);       // DIFFERENCE IN HEIGHT ACROSS LEVEL
+            amrex::FArrayBox w3d_fab(grown_box, 1);       // GRID-SCALE VERTICAL VELOCITY
+
+            // WRF-chem variables
+            amrex::FArrayBox nc3d_fab(grown_box, 1);      // CLOUD DROPLET NUMBER CONCENTRATION
+            amrex::FArrayBox nc3dten_fab(grown_box, 1);   // CLOUD DROPLET NUMBER CONCENTRATION TENDENCY
+
+            // Graupel variables
+            amrex::FArrayBox qg3dten_fab(grown_box, 1);   // GRAUPEL MIX RATIO TENDENCY
+            amrex::FArrayBox ng3dten_fab(grown_box, 1);   // GRAUPEL NUMB CONC TENDENCY
+            amrex::FArrayBox qg3d_fab(grown_box, 1);      // GRAUPEL MIX RATIO
+            amrex::FArrayBox ng3d_fab(grown_box, 1);      // GRAUPEL NUMBER CONC
+
+            // Sedimentation tendencies
+            amrex::FArrayBox qgsten_fab(grown_box, 1);    // GRAUPEL SED TEND
+            amrex::FArrayBox qrsten_fab(grown_box, 1);    // RAIN SED TEND
+            amrex::FArrayBox qisten_fab(grown_box, 1);    // CLOUD ICE SED TEND
+            amrex::FArrayBox qnisten_fab(grown_box, 1);   // SNOW SED TEND
+            amrex::FArrayBox qcsten_fab(grown_box, 1);    // CLOUD WAT SED TEND
+
+            // Cumulus tendencies
+            amrex::FArrayBox qrcu1d_fab(grown_box, 1);    // RAIN FROM CUMULUS PARAMETERIZATION
+            amrex::FArrayBox qscu1d_fab(grown_box, 1);    // SNOW FROM CUMULUS PARAMETERIZATION
+            amrex::FArrayBox qicu1d_fab(grown_box, 1);    // ICE FROM CUMULUS PARAMETERIZATION
+
+            // Get array references
+            auto const& t3dten = t3dten_fab.array();      // TEMPERATURE TENDENCY (K/S)
+            auto const& qv3dten = qv3dten_fab.array();    // WATER VAPOR MIXING RATIO TENDENCY (KG/KG/S)
+            auto const& t3d = t3d_fab.array();            // TEMPERATURE (K)
+            auto const& qv3d = qv3d_fab.array();          // WATER VAPOR MIXING RATIO (KG/KG)
+            auto const& pres = pres_fab.array();          // ATMOSPHERIC PRESSURE (PA)
+            auto const& dzq = dzq_fab.array();            // DIFFERENCE IN HEIGHT ACROSS LEVEL (m)
+            auto const& w3d = w3d_fab.array();            // GRID-SCALE VERTICAL VELOCITY (M/S)
+
+            // WRF-chem variables
+            auto const& nc3d = nc3d_fab.array();          // CLOUD DROPLET NUMBER CONCENTRATION
+            auto const& nc3dten = nc3dten_fab.array();    // CLOUD DROPLET NUMBER CONCENTRATION TENDENCY
+
+            // Graupel variables
+            auto const& qg3dten = qg3dten_fab.array();    // GRAUPEL MIX RATIO TENDENCY (KG/KG/S)
+            auto const& ng3dten = ng3dten_fab.array();    // GRAUPEL NUMB CONC TENDENCY (1/KG/S)
+            auto const& qg3d = qg3d_fab.array();          // GRAUPEL MIX RATIO (KG/KG)
+            auto const& ng3d = ng3d_fab.array();          // GRAUPEL NUMBER CONC (1/KG)
+
+            // Sedimentation tendencies
+            auto const& qgsten = qgsten_fab.array();      // GRAUPEL SED TEND (KG/KG/S)
+            auto const& qrsten = qrsten_fab.array();      // RAIN SED TEND (KG/KG/S)
+            auto const& qisten = qisten_fab.array();      // CLOUD ICE SED TEND (KG/KG/S)
+            auto const& qnisten = qnisten_fab.array();    // SNOW SED TEND (KG/KG/S)
+            auto const& qcsten = qcsten_fab.array();      // CLOUD WAT SED TEND (KG/KG/S)
+
+            // Cumulus tendencies
+            auto const& qrcu1d = qrcu1d_fab.array();      // RAIN FROM CUMULUS PARAMETERIZATION
+            auto const& qscu1d = qscu1d_fab.array();      // SNOW FROM CUMULUS PARAMETERIZATION
+            auto const& qicu1d = qicu1d_fab.array();      // ICE FROM CUMULUS PARAMETERIZATION
+
+            // Initialize tendency arrays to zero
+            t3dten_fab.setVal(0.0);
+            qv3dten_fab.setVal(0.0);
+            nc3dten_fab.setVal(0.0);
+            qg3dten_fab.setVal(0.0);
+            ng3dten_fab.setVal(0.0);
+            qgsten_fab.setVal(0.0);
+            qrsten_fab.setVal(0.0);
+            qisten_fab.setVal(0.0);
+            qnisten_fab.setVal(0.0);
+            qcsten_fab.setVal(0.0);
+
+            // Create arrays for precipitation rates
+            amrex::FArrayBox precrt_fab(grown_box, 1);    // TOTAL PRECIP PER TIME STEP
+            amrex::FArrayBox snowrt_fab(grown_box, 1);    // SNOW PER TIME STEP
+            amrex::FArrayBox snowprt_fab(grown_box, 1);   // TOTAL CLOUD ICE PLUS SNOW PER TIME STEP
+            amrex::FArrayBox grplprt_fab(grown_box, 1);   // TOTAL GRAUPEL PER TIME STEP
+
+            // Create arrays for effective radii
+            amrex::FArrayBox effc_fab(grown_box, 1);      // DROPLET EFFECTIVE RADIUS
+            amrex::FArrayBox effi_fab(grown_box, 1);      // CLOUD ICE EFFECTIVE RADIUS
+            amrex::FArrayBox effs_fab(grown_box, 1);      // SNOW EFFECTIVE RADIUS
+            amrex::FArrayBox effr_fab(grown_box, 1);      // RAIN EFFECTIVE RADIUS
+            amrex::FArrayBox effg_fab(grown_box, 1);      // GRAUPEL EFFECTIVE RADIUS
+
+            // Get array references for precipitation rates
+            auto const& precrt = precrt_fab.array();      // TOTAL PRECIP PER TIME STEP (mm)
+            auto const& snowrt = snowrt_fab.array();      // SNOW PER TIME STEP (mm)
+            auto const& snowprt = snowprt_fab.array();    // TOTAL CLOUD ICE PLUS SNOW PER TIME STEP (mm)
+            auto const& grplprt = grplprt_fab.array();    // TOTAL GRAUPEL PER TIME STEP (mm)
+
+            // Get array references for effective radii
+            auto const& effc = effc_fab.array();          // DROPLET EFFECTIVE RADIUS (MICRON)
+            auto const& effi = effi_fab.array();          // CLOUD ICE EFFECTIVE RADIUS (MICRON)
+            auto const& effs = effs_fab.array();          // SNOW EFFECTIVE RADIUS (MICRON)
+            auto const& effr = effr_fab.array();          // RAIN EFFECTIVE RADIUS (MICRON)
+            auto const& effg = effg_fab.array();          // GRAUPEL EFFECTIVE RADIUS (MICRON)
+
+            // Initialize these arrays to zero (they will be computed later)
+            precrt_fab.setVal(0.0);
+            snowrt_fab.setVal(0.0);
+            snowprt_fab.setVal(0.0);
+            grplprt_fab.setVal(0.0);
+            effc_fab.setVal(0.0);
+            effi_fab.setVal(0.0);
+            effs_fab.setVal(0.0);
+            effr_fab.setVal(0.0);
+            effg_fab.setVal(0.0);
+
+            FILE *file = fopen("output_cpp.txt", "a");
           ////////////////////////////////////////////////////////////
           // ParallelFor for testing partial C++ implementation
           // NOTE: Currently all Array4 values are copied to locals
@@ -629,71 +786,27 @@ constexpr Real gamma_function(Real x) {
          {
            for(int k=klo; k<=khi; k++) {
             // Tendencies and mixing ratios
-#if 1
-           //No precip implmented yet
-            amrex::Real qc3dten=0;            // QC3DTEN: CLOUD WATER MIXING RATIO TENDENCY (KG/KG/S)
-            amrex::Real qi3dten=0;            // QI3DTEN: CLOUD ICE MIXING RATIO TENDENCY (KG/KG/S)
-            amrex::Real qni3dten=0;           // QNI3DTEN: SNOW MIXING RATIO TENDENCY (KG/KG/S)
-            amrex::Real qr3dten=0;            // QR3DTEN: RAIN MIXING RATIO TENDENCY (KG/KG/S)
-            amrex::Real ni3dten=0;            // NI3DTEN: CLOUD ICE NUMBER CONCENTRATION (1/KG/S)
-            amrex::Real ns3dten=0;            // NS3DTEN: SNOW NUMBER CONCENTRATION (1/KG/S)
-            amrex::Real nr3dten=0;            // NR3DTEN: RAIN NUMBER CONCENTRATION (1/KG/S)
-#endif
-            amrex::Real qc3d=qcl_arr(i,j,k);               // QC3D: CLOUD WATER MIXING RATIO (KG/KG)
-            amrex::Real qi3d=qci_arr(i,j,k);               // QI3D: CLOUD ICE MIXING RATIO (KG/KG)
-            amrex::Real qni3d=qps_arr(i,j,k);;              // QNI3D: SNOW MIXING RATIO (KG/KG)
-            amrex::Real qr3d=qpr_arr(i,j,k);;               // QR3D: RAIN MIXING RATIO (KG/KG)
-            amrex::Real ni3d=ni_arr(i,j,k);               // NI3D: CLOUD ICE NUMBER CONCENTRATION (1/KG)
-            amrex::Real ns3d=ns_arr(i,j,k);               // NS3D: SNOW NUMBER CONCENTRATION (1/KG)
-            amrex::Real nr3d=nr_arr(i,j,k);               // NR3D: RAIN NUMBER CONCENTRATION (1/KG)
-#if 1
-            //No precip implmented yet
-            amrex::Real t3dten=0;             // T3DTEN: TEMPERATURE TENDENCY (K/S)
-            amrex::Real qv3dten=0;            // QV3DTEN: WATER VAPOR MIXING RATIO TENDENCY (KG/KG/S)
-#endif
-            amrex::Real t3d=theta_arr(i,j,k)*pii_arr(i,j,k);                // T3D: TEMPERATURE (K)
-            amrex::Real qv3d=qv_arr(i,j,k);               // QV3D: WATER VAPOR MIXING RATIO (KG/KG)
-            amrex::Real pres=pres_arr(i,j,k);               // PRES: ATMOSPHERIC PRESSURE (PA)
-            [[maybe_unused]] amrex::Real dzq=dz_arr(i,j,k);// dz_val;                // DZQ: DIFFERENCE IN HEIGHT ACROSS LEVEL (m)
-            [[maybe_unused]] amrex::Real w3d=w_arr(i,j,k);                // W3D: GRID-SCALE VERTICAL VELOCITY (M/S)
+            qc3d(i,j,k) = qcl_arr(i,j,k);   // CLOUD WATER MIXING RATIO
+            qi3d(i,j,k) = qci_arr(i,j,k);   // CLOUD ICE MIXING RATIO
+            qni3d(i,j,k) = qps_arr(i,j,k);  // SNOW MIXING RATIO
+            qr3d(i,j,k) = qpr_arr(i,j,k);   // RAIN MIXING RATIO 
+            ni3d(i,j,k) = ni_arr(i,j,k);    // CLOUD ICE NUMBER CONCENTRATION
+            ns3d(i,j,k) = ns_arr(i,j,k);    // SNOW NUMBER CONCENTRATION
+            nr3d(i,j,k) = nr_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
+            nc3d(i,j,k) = nc_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
 
-            // WRF-chem variables
-            amrex::Real nc3d;               // nc3d: Cloud droplet number concentration
-            amrex::Real nc3dten=0;            // nc3dten: Cloud droplet number concentration tendency
-#if 1
+            t3d(i,j,k) = theta_arr(i,j,k) * pii_arr(i,j,k);  // TEMPERATURE
+            qv3d(i,j,k) = qv_arr(i,j,k);                     // WATER VAPOR MIXING RATIO
+            pres(i,j,k) = pres_arr(i,j,k);                   // ATMOSPHERIC PRESSURE
+            dzq(i,j,k) = dz_arr(i,j,k);                      // DIFFERENCE IN HEIGHT ACROSS LEVEL
+            w3d(i,j,k) = w_arr(i,j,k);                       // GRID-SCALE VERTICAL VELOCITY
+            qg3d(i,j,k) = qpg_arr(i,j,k);                    // GRAUPEL MIX RATIO
+            ng3d(i,j,k) = ng_arr(i,j,k);                     // GRAUPEL NUMBER CONC
+            qrcu1d(i,j,k) = qrcuten_arr(i,j,k);              // RAIN FROM CUMULUS PARAMETERIZATION
+            qscu1d(i,j,k) = qscuten_arr(i,j,k);              // SNOW FROM CUMULUS PARAMETERIZATION
+            qicu1d(i,j,k) = qicuten_arr(i,j,k);              // ICE FROM CUMULUS PARAMETERIZATION
+
             int iinum;                      // iinum: Integer control variable
-
-            // Graupel variables
-            amrex::Real qg3dten=0;            // QG3DTEN: GRAUPEL MIX RATIO TENDENCY (KG/KG/S)
-            amrex::Real ng3dten=0;            // NG3DTEN: GRAUPEL NUMB CONC TENDENCY (1/KG/S)
-#endif
-            amrex::Real qg3d=qpg_arr(i,j,k);               // QG3D: GRAUPEL MIX RATIO (KG/KG)
-            amrex::Real ng3d=ng_arr(i,j,k);               // NG3D: GRAUPEL NUMBER CONC (1/KG)
-
-            // Sedimentation tendencies
-            amrex::Real qgsten=0.0;             // QGSTEN: GRAUPEL SED TEND (KG/KG/S)
-            amrex::Real qrsten=0.0;             // QRSTEN: RAIN SED TEND (KG/KG/S)
-            amrex::Real qisten=0.0;             // QISTEN: CLOUD ICE SED TEND (KG/KG/S)
-            amrex::Real qnisten=0.0;            // QNISTEN: SNOW SED TEND (KG/KG/S)
-            amrex::Real qcsten=0.0;             // QCSTEN: CLOUD WAT SED TEND (KG/KG/S)
-
-            // Cumulus tendencies for precipitation
-            amrex::Real qrcu1d=qrcuten_arr(i,j,k);             // qrcu1d: Rain from cumulus parameterization
-            amrex::Real qscu1d=qscuten_arr(i,j,k);             // qscu1d: Snow from cumulus parameterization
-            amrex::Real qicu1d=qicuten_arr(i,j,k);             // qicu1d: Ice from cumulus parameterization
-
-            // Output variables
-            amrex::Real precrt;             // PRECRT: TOTAL PRECIP PER TIME STEP (mm)
-            amrex::Real snowrt;             // SNOWRT: SNOW PER TIME STEP (mm)
-            amrex::Real snowprt;            // SNOWPRT: TOTAL CLOUD ICE PLUS SNOW PER TIME STEP (mm)
-            amrex::Real grplprt;            // GRPLPRT: TOTAL GRAUPEL PER TIME STEP (mm)
-
-            // Effective radii
-            amrex::Real effc;               // EFFC: DROPLET EFFECTIVE RADIUS (MICRON)
-            amrex::Real effi;               // EFFI: CLOUD ICE EFFECTIVE RADIUS (MICRON)
-            amrex::Real effs;               // EFFS: SNOW EFFECTIVE RADIUS (MICRON)
-            amrex::Real effr;               // EFFR: RAIN EFFECTIVE RADIUS (MICRON)
-            amrex::Real effg;               // EFFG: GRAUPEL EFFECTIVE RADIUS (MICRON)
 
             // Model input parameters
             //amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
@@ -1161,7 +1274,7 @@ constexpr Real gamma_function(Real x) {
             bool skipPrecip = true; // set with if statement
             if (qc3d < QSMALL && qi3d < QSMALL && qni3d < QSMALL && qr3d < QSMALL && qg3d < QSMALL) {
               if ((t3d < 273.15 && qvqvsi < 0.999) || (t3d >= 273.15 && qvqvs < 0.999)) {
-                skipMicrophysics = true;
+                skipMicrophysics = true; // GOTO 200
               }
             }
 
@@ -1218,7 +1331,7 @@ constexpr Real gamma_function(Real x) {
               // Skip to label 300 if concentrations are below thresholds
               // Note: QSMALL constant would need to be defined elsewhere
               if (qc3d < m_qsmall && qni3d < 1.0e-8 && qr3d < m_qsmall && qg3d < 1.0e-8) {
-                skipConcentrations=true;
+                skipConcentrations=true; // goto 300
               }
 #if 0
               // C++ version
@@ -1430,8 +1543,10 @@ constexpr Real gamma_function(Real x) {
             } // not implmented : ELSE  ! TEMPERATURE < 273.15
                     skipPrecip = false;
                     printf("ERROR: Microphysics not fully implmented in C++\n");
+                    ltrue = 1;
             }
-
+            // 200 
+           }
             // INITIALIZE PRECIP AND SNOW RATES
             precrt = 0.0;
             snowrt = 0.0;
@@ -1439,9 +1554,11 @@ constexpr Real gamma_function(Real x) {
             snowprt = 0.0;
             grplprt = 0.0;
             if(!skipPrecip) {
+              //goto 400
               //Implementing CALCULATE SEDIMENATION
               printf("ERROR: Sedimentation not implmented in C++");
             }
+            for(int k=klo; k<=khi; k++) {
             if(use_morr_cpp_answer) {
             // Transfer 1D variables back to 3D arrays
             qcl_arr(i,j,k) = qc3d;
@@ -1473,6 +1590,7 @@ constexpr Real gamma_function(Real x) {
             graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + grplprt;
             graupelncv_arr(i,j) = grplprt;
             sr_arr(i,j) = snowrt / (precrt + 1.e-12);*/
+            }
             }
            }
          });
