@@ -1429,8 +1429,7 @@ constexpr Real gamma_function(Real x) {
             bool skipPrecip = true; // set with if statement
             if (qc3d(i,j,k) < QSMALL && qi3d(i,j,k) < QSMALL && qni3d(i,j,k) < QSMALL && qr3d(i,j,k) < QSMALL && qg3d(i,j,k) < QSMALL) {
               if ((t3d(i,j,k) < 273.15 && qvqvsi < 0.999) || (t3d(i,j,k) >= 273.15 && qvqvs < 0.999)) {
-                skipMicrophysics = true;
-                goto label_200;
+                skipMicrophysics = true;//                goto label_200;
               }
             }
 
@@ -1486,8 +1485,7 @@ constexpr Real gamma_function(Real x) {
 
               // Skip to label 300 if concentrations are below thresholds
               if (qc3d(i,j,k) < m_qsmall && qni3d(i,j,k) < 1.0e-8 && qr3d(i,j,k) < m_qsmall && qg3d(i,j,k) < 1.0e-8) {
-                skipConcentrations=true;
-                goto label_300;
+                skipConcentrations=true;//                goto label_300;
               }
 #if 0
               // C++ version
@@ -1668,7 +1666,7 @@ constexpr Real gamma_function(Real x) {
                       printf("ERROR: Concentrations not fully implmented in C++");
               }
               //Right after 300 CONTINUE
-            label_300:
+//            label_300:
               // Calculate saturation adjustment to condense extra vapor above water saturation
               dumt = t3d(i,j,k) + dt * t3dten(i,j,k);
               dumqv = qv3d(i,j,k) + dt * qv3dten(i,j,k);
@@ -1704,7 +1702,7 @@ constexpr Real gamma_function(Real x) {
               ltrue = 1;
               skipPrecip = false;
             }
-            label_200:
+//            label_200:
 
            }
             for(int k=klo; k<=khi; k++) {
@@ -2200,7 +2198,7 @@ constexpr Real gamma_function(Real x) {
                 ng3d(i,j,k) = 0.0;
                 effg(i,j,k) = 0.0;
               }
-
+              /*
               // Skip calculations if there is no cloud/precipitation water
               if ((qc3d(i,j,k) < m_qsmall &&    // CLOUD WATER MIXING RATIO (KG/KG)
                     qi3d(i,j,k) < m_qsmall &&    // CLOUD ICE MIXING RATIO (KG/KG)
@@ -2208,7 +2206,12 @@ constexpr Real gamma_function(Real x) {
                     qr3d(i,j,k) < m_qsmall &&    // RAIN MIXING RATIO (KG/KG)
                     qg3d(i,j,k) < m_qsmall)) {    // GRAUPEL MIX RATIO (KG/KG)
                 goto label_500;
-              } else {
+              } else {*/
+              if (!(qc3d(i,j,k) < m_qsmall &&    // CLOUD WATER MIXING RATIO (KG/KG)
+                    qi3d(i,j,k) < m_qsmall &&    // CLOUD ICE MIXING RATIO (KG/KG)
+                    qni3d(i,j,k) < m_qsmall &&   // SNOW MIXING RATIO (KG/KG)
+                    qr3d(i,j,k) < m_qsmall &&    // RAIN MIXING RATIO (KG/KG)
+                    qg3d(i,j,k) < m_qsmall)) {    // GRAUPEL MIX RATIO (KG/KG)
               // CALCULATE INSTANTANEOUS PROCESSES
 
               // ADD MELTING OF CLOUD ICE TO FORM RAIN
@@ -2222,7 +2225,7 @@ constexpr Real gamma_function(Real x) {
 
               // ****SENSITIVITY - NO ICE
               if ((m_iliq == 1)) {
-                goto label_778;
+                 printf("m_iliq: %g\n",m_iliq);//                goto label_778;
               } else {
 
                 // HOMOGENEOUS FREEZING OF CLOUD WATER
@@ -2253,7 +2256,7 @@ constexpr Real gamma_function(Real x) {
                   }
                 }
               }
-            label_778:
+//            label_778:
                 // MAKE SURE NUMBER CONCENTRATIONS AREN'T NEGATIVE
                 ni3d(i,j,k) = std::max(0.0, ni3d(i,j,k));
                 ns3d(i,j,k) = std::max(0.0, ns3d(i,j,k));
@@ -2358,7 +2361,7 @@ constexpr Real gamma_function(Real x) {
                 }
               }
 
-            label_500:
+//            label_500:
               // CALCULATE EFFECTIVE RADIUS
               if (qi3d(i,j,k) >= m_qsmall) {
                 effi(i,j,k) = 3.0 / lami / 2.0 * 1.0e6;
@@ -2409,10 +2412,11 @@ constexpr Real gamma_function(Real x) {
                 nc3d(i,j,k) = m_ndcnst * 1.0e6 / rho(i,j,k);
               }
             }
-            } else {
+
+            }/* else {
               goto label_400;
             }
-         label_400:
+         label_400:*/
             for(int k=klo; k<=khi; k++) {
             //End of _micro
             if(use_morr_cpp_answer) {
