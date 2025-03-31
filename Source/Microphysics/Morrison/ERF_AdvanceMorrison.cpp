@@ -1149,30 +1149,31 @@ constexpr Real gamma_function(Real x) {
             // HEAT OF FUSION
             xlf = xxls - xxlv;
 
-            // IF MIXING RATIO < m_qsmall SET MIXING RATIO AND NUMBER CONC TO ZERO
-            const amrex::Real m_qsmall = m_qsmall;
+            // IF MIXING RATIO < QSMALL SET MIXING RATIO AND NUMBER CONC TO ZERO
+            // Note: QSMALL is not defined in the variable list, so I'll define it
+            const amrex::Real QSMALL = m_qsmall;
 
-            if (qc3d(i,j,k) < m_qsmall) {
+            if (qc3d(i,j,k) < QSMALL) {
               qc3d(i,j,k) = 0.0;
               nc3d(i,j,k) = 0.0;
               effc(i,j,k) = 0.0;
             }
-            if (qr3d(i,j,k) < m_qsmall) {
+            if (qr3d(i,j,k) < QSMALL) {
               qr3d(i,j,k) = 0.0;
               nr3d(i,j,k) = 0.0;
               effr(i,j,k) = 0.0;
             }
-            if (qi3d(i,j,k) < m_qsmall) {
+            if (qi3d(i,j,k) < QSMALL) {
               qi3d(i,j,k) = 0.0;
               ni3d(i,j,k) = 0.0;
               effi(i,j,k) = 0.0;
             }
-            if (qni3d(i,j,k) < m_qsmall) {
+            if (qni3d(i,j,k) < QSMALL) {
               qni3d(i,j,k) = 0.0;
               ns3d(i,j,k) = 0.0;
               effs(i,j,k) = 0.0;
             }
-            if (qg3d(i,j,k) < m_qsmall) {
+            if (qg3d(i,j,k) < QSMALL) {
               qg3d(i,j,k) = 0.0;
               ng3d(i,j,k) = 0.0;
               effg(i,j,k) = 0.0;
@@ -1209,7 +1210,7 @@ constexpr Real gamma_function(Real x) {
             bool skipMicrophysics = false;
             bool skipConcentrations = false;
             bool skipPrecip = true; // set with if statement
-            if (qc3d(i,j,k) < m_qsmall && qi3d(i,j,k) < m_qsmall && qni3d(i,j,k) < m_qsmall && qr3d(i,j,k) < m_qsmall && qg3d(i,j,k) < m_qsmall) {
+            if (qc3d(i,j,k) < QSMALL && qi3d(i,j,k) < QSMALL && qni3d(i,j,k) < QSMALL && qr3d(i,j,k) < QSMALL && qg3d(i,j,k) < QSMALL) {
               if ((t3d(i,j,k) < 273.15 && qvqvsi < 0.999) || (t3d(i,j,k) >= 273.15 && qvqvs < 0.999)) {
                 skipMicrophysics = true; // GOTO 200
               }
@@ -1597,7 +1598,7 @@ constexpr Real gamma_function(Real x) {
               // THE NUMERICS HERE FOLLOW FROM REISNER ET AL. (1998)
               // FALLOUT TERMS ARE CALCULATED ON SPLIT TIME STEPS TO ENSURE NUMERICAL
               // STABILITY, I.E. COURANT# < 1
-#if 0
+
               // Update prognostic variables with tendencies
               dumi = qi3d(i,j,k) + qi3dten(i,j,k) * dt;
               dumqs = qni3d(i,j,k) + qni3dten(i,j,k) * dt;
@@ -1665,7 +1666,6 @@ constexpr Real gamma_function(Real x) {
                 dlamg = amrex::max(dlamg, m_lamming);
                 dlamg = amrex::min(dlamg, m_lammaxg);
               }
-#endif
               printf("ERROR: Sedimentation not implmented in C++\n");
             }
 
