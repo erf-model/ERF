@@ -616,7 +616,7 @@ constexpr Real gamma_function(Real x) {
           m_do_radar_ref = false; // Disable radar reflectivity by default
           amrex::Box boxD(box); boxD.makeSlab(2,0);
           bool run_morr_cpp = true;
-          bool use_morr_cpp_answer = true;
+          bool use_morr_cpp_answer = false;
           bool run_morr_fort = !use_morr_cpp_answer;
           if(run_morr_cpp) {
 
@@ -785,6 +785,7 @@ constexpr Real gamma_function(Real x) {
           ParallelFor( boxD, [=] AMREX_GPU_DEVICE (int i, int j, int )
          {
            int ltrue=0;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
+           int nstep;                        // NSTEP: Timestep counter
            for(int k=klo; k<=khi; k++) {
             // Tendencies and mixing ratios
             qc3d(i,j,k) = qcl_arr(i,j,k);   // CLOUD WATER MIXING RATIO
@@ -1015,7 +1016,6 @@ constexpr Real gamma_function(Real x) {
 
             // Counting/index variables
             int k_local=k;                  // K: Vertical level index
-            int nstep;                      // NSTEP: Timestep counter
             int n;                          // N: General index variable
 
             // Droplet activation/freezing aerosol
@@ -1486,7 +1486,7 @@ constexpr Real gamma_function(Real x) {
                     ng3d(i,j,k) = n0g / lamg;  // Update number concentration
                   }
                 }
-#if 1
+#if 0
                 // C++ version
                 if ((i >= 86 && i <= 101 && j >= 0 && j <= 3 && k >= 8 && k <= 23 &&
                      (i-86)%2 == 0 && j%2 == 0 && (k-8)%2 == 0) ||
@@ -1508,7 +1508,6 @@ constexpr Real gamma_function(Real x) {
                           i, j, k, lamr, n0r, pgam, lamc, nc3d(i,j,k), lams, n0s, ns3d(i,j,k), lamg, n0g, ng3d(i,j,k));
                 }
 #endif
-                ltrue = 1;
                 ////////////////////// First instance of ZERO OUT PROCESS RATES
                       printf("ERROR: Concentrations not fully implmented in C++");
               }
@@ -1541,9 +1540,12 @@ constexpr Real gamma_function(Real x) {
                         dumt, dumqv, dum, dumqss, dumqc, dums, pcc);
               }
 #endif
-            } // not implmented : ELSE  ! TEMPERATURE < 273.15
-                    skipPrecip = false;
-                    printf("ERROR: Microphysics not fully implmented in C++\n");
+            } else {
+            // not implmented : ELSE  ! TEMPERATURE < 273.15
+              printf("ERROR: Microphysics not fully implmented in C++, missing cold\n");
+            }
+              ltrue = 1;
+              skipPrecip = false;
 
             }
             // 200
@@ -1555,12 +1557,16 @@ constexpr Real gamma_function(Real x) {
         // hm added 7/13/13
             snowprt(i,j,k) = 0.0;
             grplprt(i,j,k) = 0.0;
+            }
+            nstep = 1;
+            for(int k=khi; k>=klo; k--) {
             if(ltrue != 0) {
               //goto 400
               //Implementing CALCULATE SEDIMENATION
-              printf("ERROR: Sedimentation not implmented in C++");
+              printf("ERROR: Sedimentation not implmented in C++\n");
             }
 
+            //End of _micro
             if(use_morr_cpp_answer) {
             // Transfer 1D variables back to 3D arrays
             qcl_arr(i,j,k) = qc3d(i,j,k);
