@@ -2048,7 +2048,6 @@ constexpr Real gamma_function(Real x) {
               grplprt(i,j,k) += faloutg(i,j,kts) * dt / nstep;
             }
             printf("ERROR: Sedimentation not implmented in C++\n");
-            }
             for(int k=klo; k<=khi; k++) {
               amrex::Real evs;                // EVS: Saturation vapor pressure
               amrex::Real eis;                // EIS: Ice saturation vapor pressure
@@ -2059,6 +2058,24 @@ constexpr Real gamma_function(Real x) {
               amrex::Real xxls;               // XXLS: Latent heat of sublimation
               amrex::Real xxlv;               // XXLV: Latent heat of vaporization
               amrex::Real cpm;                // CPM: Specific heat at constant pressure for moist air
+              amrex::Real m_nanew1;      // Total aerosol concentration, mode 1 (m^-3)
+              amrex::Real m_nanew2;      // Total aerosol concentration, mode 2 (m^-3)
+              amrex::Real xlf;                // XLF: Latent heat of freezing
+              // Constant droplet concentration (if INUM = 1)
+              amrex::Real m_ndcnst = 250.0;  // Droplet number concentration (cm^-3)
+              amrex::Real m_qsmall;      // Smallest allowed hydrometeor mixing ratio
+              amrex::Real lamc;               // LAMC: Slope parameter for droplets (m^-1)
+              amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
+              amrex::Real lams;               // LAMS: Slope parameter for snow (m^-1)
+              amrex::Real lamr;               // LAMR: Slope parameter for rain (m^-1)
+              amrex::Real lamg;               // LAMG: Slope parameter for graupel (m^-1)
+              amrex::Real cdist1;             // CDIST1: PSD parameter for droplets
+              amrex::Real n0i;                // N0I: Intercept parameter for cloud ice (kg^-1 m^-1)
+              amrex::Real n0s;                // N0S: Intercept parameter for snow (kg^-1 m^-1)
+              amrex::Real n0r;                // N0RR: Intercept parameter for rain (kg^-1 m^-1)
+              amrex::Real n0g;                // N0G: Intercept parameter for graupel (kg^-1 m^-1)
+              amrex::Real pgam;               // PGAM: Spectral shape parameter for droplets
+
               // ADD ON SEDIMENTATION TENDENCIES FOR MIXING RATIO TO REST OF TENDENCIES
               qr3dten(i,j,k) = qr3dten(i,j,k) + qrsten(i,j,k);
               qi3dten(i,j,k) = qi3dten(i,j,k) + qisten(i,j,k);
@@ -2100,6 +2117,9 @@ constexpr Real gamma_function(Real x) {
               xxlv = 3.1484E6 - 2370.0 * t3d(i,j,k);
               // LATENT HEAT OF SUBLIMATION
               xxls = 3.15E6 - 2370.0 * t3d(i,j,k) + 0.3337E6;
+
+              // HEAT OF FUSION
+              xlf = xxls - xxlv;
 
               // Assuming CP is a constant defined elsewhere (specific heat of dry air at constant pressure)
               const amrex::Real CP = 1004.5; // J/kg/K
@@ -2181,8 +2201,211 @@ constexpr Real gamma_function(Real x) {
                 ng3d(i,j,k) = 0.0;
                 effg(i,j,k) = 0.0;
               }
-            }
+              // CALCULATE INSTANTANEOUS PROCESSES
 
+              // ADD MELTING OF CLOUD ICE TO FORM RAIN
+              if (qi3d(i,j,k) >= m_qsmall && t3d(i,j,k) >= 273.15) {
+                qr3d(i,j,k) = qr3d(i,j,k) + qi3d(i,j,k);
+                t3d(i,j,k) = t3d(i,j,k) - qi3d(i,j,k) * xlf / cpm;
+                qi3d(i,j,k) = 0.0;
+                nr3d(i,j,k) = nr3d(i,j,k) + ni3d(i,j,k);
+                ni3d(i,j,k) = 0.0;
+              }
+
+              // ****SENSITIVITY - NO ICE
+              if (!(m_iliq == 1)) {
+
+                // HOMOGENEOUS FREEZING OF CLOUD WATER
+                if (t3d(i,j,k) <= 233.15 && qc3d(i,j,k) >= m_qsmall) {
+                  qi3d(i,j,k) = qi3d(i,j,k) + qc3d(i,j,k);
+                  t3d(i,j,k) = t3d(i,j,k) + qc3d(i,j,k) * xlf / cpm;
+                  qc3d(i,j,k) = 0.0;
+                  ni3d(i,j,k) = ni3d(i,j,k) + nc3d(i,j,k);
+                  nc3d(i,j,k) = 0.0;
+                }
+
+                // HOMOGENEOUS FREEZING OF RAIN
+                if (m_igraup == 0) {
+                  if (t3d(i,j,k) <= 233.15 && qr3d(i,j,k) >= m_qsmall) {
+                    qg3d(i,j,k) = qg3d(i,j,k) + qr3d(i,j,k);
+                    t3d(i,j,k) = t3d(i,j,k) + qr3d(i,j,k) * xlf / cpm;
+                    qr3d(i,j,k) = 0.0;
+                    ng3d(i,j,k) = ng3d(i,j,k) + nr3d(i,j,k);
+                    nr3d(i,j,k) = 0.0;
+                  }
+                } else if (m_igraup == 1) {
+                  if (t3d(i,j,k) <= 233.15 && qr3d(i,j,k) >= m_qsmall) {
+                    qni3d(i,j,k) = qni3d(i,j,k) + qr3d(i,j,k);
+                    t3d(i,j,k) = t3d(i,j,k) + qr3d(i,j,k) * xlf / cpm;
+                    qr3d(i,j,k) = 0.0;
+                    ns3d(i,j,k) = ns3d(i,j,k) + nr3d(i,j,k);
+                    nr3d(i,j,k) = 0.0;
+                  }
+                }
+              }
+              // Skip calculations if there is no cloud/precipitation water
+              if (!(qc3d(i,j,k) < m_qsmall &&    // CLOUD WATER MIXING RATIO (KG/KG)
+                    qi3d(i,j,k) < m_qsmall &&    // CLOUD ICE MIXING RATIO (KG/KG)
+                    qni3d(i,j,k) < m_qsmall &&   // SNOW MIXING RATIO (KG/KG)
+                    qr3d(i,j,k) < m_qsmall &&    // RAIN MIXING RATIO (KG/KG)
+                    qg3d(i,j,k) < m_qsmall)) {    // GRAUPEL MIX RATIO (KG/KG)
+                //goto 500
+                // MAKE SURE NUMBER CONCENTRATIONS AREN'T NEGATIVE
+                ni3d(i,j,k) = std::max(0.0, ni3d(i,j,k));
+                ns3d(i,j,k) = std::max(0.0, ns3d(i,j,k));
+                nc3d(i,j,k) = std::max(0.0, nc3d(i,j,k));
+                nr3d(i,j,k) = std::max(0.0, nr3d(i,j,k));
+                ng3d(i,j,k) = std::max(0.0, ng3d(i,j,k));
+
+                // CLOUD ICE
+                if (qi3d(i,j,k) >= m_qsmall) {
+                  lami = std::pow(m_cons12 * ni3d(i,j,k) / qi3d(i,j,k), 1.0/m_di);
+                  // CHECK FOR SLOPE
+                  // ADJUST VARS
+                  if (lami < m_lammini) {
+                    lami = m_lammini;
+                    n0i = std::pow(lami, 4) * qi3d(i,j,k) / m_cons12;
+                    ni3d(i,j,k) = n0i / lami;
+                  } else if (lami > m_lammaxi) {
+                    lami = m_lammaxi;
+                    n0i = std::pow(lami, 4) * qi3d(i,j,k) / m_cons12;
+                    ni3d(i,j,k) = n0i / lami;
+                  }
+                }
+
+                // RAIN
+                if (qr3d(i,j,k) >= m_qsmall) {
+                  lamr = std::pow(m_pi * m_rhow * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
+
+                  // CHECK FOR SLOPE
+                  // ADJUST VARS
+                  if (lamr < m_lamminr) {
+                    lamr = m_lamminr;
+                    n0r = std::pow(lamr, 4) * qr3d(i,j,k) / (m_pi * m_rhow);
+                    nr3d(i,j,k) = n0r / lamr;
+                  } else if (lamr > m_lammaxr) {
+                    lamr = m_lammaxr;
+                    n0r = std::pow(lamr, 4) * qr3d(i,j,k) / (m_pi * m_rhow);
+                    nr3d(i,j,k) = n0r / lamr;
+                  }
+                }
+
+                // CLOUD DROPLETS
+                // MARTIN ET AL. (1994) FORMULA FOR PGAM
+                if (qc3d(i,j,k) >= m_qsmall) {
+                  amrex::Real dum = pres(i,j,k) / (287.15 * t3d(i,j,k));
+                  pgam = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
+                  pgam = 1.0 / (pgam * pgam) - 1.0;
+                  pgam = std::max(pgam, 2.0);
+                  pgam = std::min(pgam, 10.0);
+
+                  // CALCULATE LAMC
+                  lamc = std::pow(m_cons26 * nc3d(i,j,k) * gamma_function(pgam + 4.0) / 
+                                  (qc3d(i,j,k) * gamma_function(pgam + 1.0)), 1.0/3.0);
+
+                  // LAMMIN, 60 MICRON DIAMETER
+                  // LAMMAX, 1 MICRON
+                  amrex::Real lammin = (pgam + 1.0) / 60.0e-6;
+                  amrex::Real lammax = (pgam + 1.0) / 1.0e-6;
+
+                  if (lamc < lammin) {
+                    lamc = lammin;
+                    nc3d(i,j,k) = std::exp(3.0 * std::log(lamc) + std::log(qc3d(i,j,k)) + 
+                                           std::log(gamma_function(pgam + 1.0)) - std::log(gamma_function(pgam + 4.0))) / m_cons26;
+                  } else if (lamc > lammax) {
+                    lamc = lammax;
+                    nc3d(i,j,k) = std::exp(3.0 * std::log(lamc) + std::log(qc3d(i,j,k)) + 
+                                           std::log(gamma_function(pgam + 1.0)) - std::log(gamma_function(pgam + 4.0))) / m_cons26;
+                  }
+                }
+
+                // SNOW
+                if (qni3d(i,j,k) >= m_qsmall) {
+                  lams = std::pow(m_cons1 * ns3d(i,j,k) / qni3d(i,j,k), 1.0/m_ds);
+
+                  // CHECK FOR SLOPE
+                  // ADJUST VARS
+                  if (lams < m_lammins) {
+                    lams = m_lammins;
+                    n0s = std::pow(lams, 4) * qni3d(i,j,k) / m_cons1;
+                    ns3d(i,j,k) = n0s / lams;
+                  } else if (lams > m_lammaxs) {
+                    lams = m_lammaxs;
+                    n0s = std::pow(lams, 4) * qni3d(i,j,k) / m_cons1;
+                    ns3d(i,j,k) = n0s / lams;
+                  }
+                }
+
+                // GRAUPEL
+                if (qg3d(i,j,k) >= m_qsmall) {
+                  lamg = std::pow(m_cons2 * ng3d(i,j,k) / qg3d(i,j,k), 1.0/m_dg);
+
+                  // CHECK FOR SLOPE
+                  // ADJUST VARS
+                  if (lamg < m_lamming) {
+                    lamg = m_lamming;
+                    n0g = std::pow(lamg, 4) * qg3d(i,j,k) / m_cons2;
+                    ng3d(i,j,k) = n0g / lamg;
+                  } else if (lamg > m_lammaxg) {
+                    lamg = m_lammaxg;
+                    n0g = std::pow(lamg, 4) * qg3d(i,j,k) / m_cons2;
+                    ng3d(i,j,k) = n0g / lamg;
+                  }
+                }
+              }
+
+              //500
+              // CALCULATE EFFECTIVE RADIUS
+              if (qi3d(i,j,k) >= m_qsmall) {
+                effi(i,j,k) = 3.0 / lami / 2.0 * 1.0e6;
+              } else {
+                effi(i,j,k) = 25.0;
+              }
+
+              if (qni3d(i,j,k) >= m_qsmall) {
+                effs(i,j,k) = 3.0 / lams / 2.0 * 1.0e6;
+              } else {
+                effs(i,j,k) = 25.0;
+              }
+
+              if (qr3d(i,j,k) >= m_qsmall) {
+                effr(i,j,k) = 3.0 / lamr / 2.0 * 1.0e6;
+              } else {
+                effr(i,j,k) = 25.0;
+              }
+
+              if (qc3d(i,j,k) >= m_qsmall) {
+                effc(i,j,k) = gamma_function(pgam + 4.0) / gamma_function(pgam + 3.0) / lamc / 2.0 * 1.0e6;
+              } else {
+                effc(i,j,k) = 25.0;
+              }
+
+              if (qg3d(i,j,k) >= m_qsmall) {
+                effg(i,j,k) = 3.0 / lamg / 2.0 * 1.0e6;
+              } else {
+                effg(i,j,k) = 25.0;
+              }
+
+              // HM ADD 1/10/06, ADD UPPER BOUND ON ICE NUMBER, THIS IS NEEDED
+              // TO PREVENT VERY LARGE ICE NUMBER DUE TO HOMOGENEOUS FREEZING
+              // OF DROPLETS, ESPECIALLY WHEN INUM = 1, SET MAX AT 10 CM-3
+              // HM, 12/28/12, LOWER MAXIMUM ICE CONCENTRATION TO ADDRESS PROBLEM
+              // OF EXCESSIVE AND PERSISTENT ANVIL
+              // NOTE: THIS MAY CHANGE/REDUCE SENSITIVITY TO AEROSOL/CCN CONCENTRATION
+              ni3d(i,j,k) = std::min(ni3d(i,j,k), 0.3e6 / rho(i,j,k));
+
+              // ADD BOUND ON DROPLET NUMBER - CANNOT EXCEED AEROSOL CONCENTRATION
+              if (iinum == 0 && m_iact == 2) {
+                nc3d(i,j,k) = std::min(nc3d(i,j,k), (m_nanew1 + m_nanew2) / rho(i,j,k));
+              }
+
+              // SWITCH FOR CONSTANT DROPLET NUMBER
+              if (iinum == 1) {
+                // CHANGE NDCNST FROM CM-3 TO KG-1
+                nc3d(i,j,k) = m_ndcnst * 1.0e6 / rho(i,j,k);
+              }
+            }
+            }
             for(int k=klo; k<=khi; k++) {
             //End of _micro
             if(use_morr_cpp_answer) {
