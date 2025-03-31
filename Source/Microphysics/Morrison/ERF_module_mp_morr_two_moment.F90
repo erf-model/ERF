@@ -1511,7 +1511,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
        endif
 #endif
        IF (QC3D(K).LT.QSMALL.AND.QNI3D(K).LT.1.E-8.AND.QR3D(K).LT.QSMALL.AND.QG3D(K).LT.1.E-8) THEN
-!          STOP
           GOTO 300
        ENDIF
 
@@ -1636,7 +1635,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NG3D(K) = N0G(K)/LAMG(K)
       END IF
       END IF
-#if 1
+#if 0
       ! Fortran version
       if ((i >= 86 .and. i <= 101 .and. j >= 0 .and. j <= 3 .and. k >= 8 .and. k <= 23 .and. &
            mod(i-86,2) == 0 .and. mod(j,2) == 0 .and. mod(k-8,2) == 0) .or. &
@@ -3447,7 +3446,14 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
         DLAMG=MAX(DLAMG,LAMMING)
         DLAMG=MIN(DLAMG,LAMMAXG)
       END IF
-
+#if 1
+! Fortran version
+if ((i == 92 .and. j == 0 .and. k == 17)) then
+    write(10, '(i5,i5,i5,15(es24.16))') &
+        i,j,k,dumi(k),dumqs(k),dumr(k),dumfni(k),dumfns(k),dumfnr(k),dumc(k),dumfnc(k),dumg(k),dumfng(k), &
+        dlami,dlamr,pgam(k),dlamc,dlams,dlamg
+endif
+#endif
 !......................................................................
 ! CALCULATE NUMBER-WEIGHTED AND MASS-WEIGHTED TERMINAL FALL SPEEDS
 

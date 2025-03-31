@@ -1581,11 +1581,11 @@ constexpr Real gamma_function(Real x) {
             amrex::Real fudgef;             // FUDGEF: Adjustment factor
 
             // Dummy size distribution parameters
-            amrex::Real dlams;              // DLAMS: Dummy slope parameter for snow
-            amrex::Real dlamr;              // DLAMR: Dummy slope parameter for rain
-            amrex::Real dlami;              // DLAMI: Dummy slope parameter for ice
-            amrex::Real dlamc;              // DLAMC: Dummy slope parameter for cloud
-            amrex::Real dlamg;              // DLAMG: Dummy slope parameter for graupel
+            amrex::Real dlams=0.0;              // DLAMS: Dummy slope parameter for snow
+            amrex::Real dlamr=0.0;              // DLAMR: Dummy slope parameter for rain
+            amrex::Real dlami=0.0;              // DLAMI: Dummy slope parameter for ice
+            amrex::Real dlamc=0.0;              // DLAMC: Dummy slope parameter for cloud
+            amrex::Real dlamg=0.0;              // DLAMG: Dummy slope parameter for graupel
             amrex::Real lammax;             // LAMMAX: Maximum value for slope parameter
             amrex::Real lammin;             // LAMMIN: Minimum value for slope parameter
 
@@ -1666,6 +1666,14 @@ constexpr Real gamma_function(Real x) {
                 dlamg = amrex::max(dlamg, m_lamming);
                 dlamg = amrex::min(dlamg, m_lammaxg);
               }
+#if 1
+              // C++ version
+              if ((i == 92 && j == 0 && k == 17)) {
+                fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n", 
+                        i, j, k, dumi, dumqs, dumr, dumfni, dumfns, dumfnr, dumc, dumfnc, dumg, dumfng,
+                        dlami, dlamr, pgam, dlamc, dlams, dlamg);
+              }
+#endif
               printf("ERROR: Sedimentation not implmented in C++\n");
             }
 
