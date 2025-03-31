@@ -7,6 +7,282 @@
 
 using namespace amrex;
 
+constexpr Real xxx = 0.9189385332046727417803297;
+/*
+!------------------------------------------------------------------------------
+
+      REAL(C_DOUBLE) FUNCTION GAMMA(X)
+!----------------------------------------------------------------------
+!
+! THIS ROUTINE CALCULATES THE GAMMA FUNCTION FOR A REAL(C_DOUBLE) ARGUMENT X.
+!   COMPUTATION IS BASED ON AN ALGORITHM OUTLINED IN REFERENCE 1.
+!   THE PROGRAM USES RATIONAL FUNCTIONS THAT APPROXIMATE THE GAMMA
+!   FUNCTION TO AT LEAST 20 SIGNIFICANT DECIMAL DIGITS.  COEFFICIENTS
+!   FOR THE APPROXIMATION OVER THE INTERVAL (1,2) ARE UNPUBLISHED.
+!   THOSE FOR THE APPROXIMATION FOR X .GE. 12 ARE FROM REFERENCE 2.
+!   THE ACCURACY ACHIEVED DEPENDS ON THE ARITHMETIC SYSTEM, THE
+!   COMPILER, THE INTRINSIC FUNCTIONS, AND PROPER SELECTION OF THE
+!   MACHINE-DEPENDENT CONSTANTS.
+!
+!
+!*******************************************************************
+!*******************************************************************
+!
+! EXPLANATION OF MACHINE-DEPENDENT CONSTANTS
+!
+! BETA   - RADIX FOR THE FLOATING-POINT REPRESENTATION
+! MAXEXP - THE SMALLEST POSITIVE POWER OF BETA THAT OVERFLOWS
+! XBIG   - THE LARGEST ARGUMENT FOR WHICH GAMMA(X) IS REPRESENTABLE
+!          IN THE MACHINE, I.E., THE SOLUTION TO THE EQUATION
+!                  GAMMA(XBIG) = BETA**MAXEXP
+! XINF   - THE LARGEST MACHINE REPRESENTABLE FLOATING-POINT NUMBER;
+!          APPROXIMATELY BETA**MAXEXP
+! EPS    - THE SMALLEST POSITIVE FLOATING-POINT NUMBER SUCH THAT
+!          1.0+EPS .GT. 1.0
+! XMININ - THE SMALLEST POSITIVE FLOATING-POINT NUMBER SUCH THAT
+!          1/XMININ IS MACHINE REPRESENTABLE
+!
+!     APPROXIMATE VALUES FOR SOME IMPORTANT MACHINES ARE:
+!
+!                            BETA       MAXEXP        XBIG
+!
+! CRAY-1         (S.P.)        2         8191        966.961
+! CYBER 180/855
+!   UNDER NOS    (S.P.)        2         1070        177.803
+! IEEE (IBM/XT,
+!   SUN, ETC.)   (S.P.)        2          128        35.040
+! IEEE (IBM/XT,
+!   SUN, ETC.)   (D.P.)        2         1024        171.624
+! IBM 3033       (D.P.)       16           63        57.574
+! VAX D-FORMAT   (D.P.)        2          127        34.844
+! VAX G-FORMAT   (D.P.)        2         1023        171.489
+!
+!                            XINF         EPS        XMININ
+!
+! CRAY-1         (S.P.)   5.45E+2465   7.11E-15    1.84E-2466
+! CYBER 180/855
+!   UNDER NOS    (S.P.)   1.26E+322    3.55E-15    3.14E-294
+! IEEE (IBM/XT,
+!   SUN, ETC.)   (S.P.)   3.40E+38     1.19E-7     1.18E-38
+! IEEE (IBM/XT,
+!   SUN, ETC.)   (D.P.)   1.79D+308    2.22D-16    2.23D-308
+! IBM 3033       (D.P.)   7.23D+75     2.22D-16    1.39D-76
+! VAX D-FORMAT   (D.P.)   1.70D+38     1.39D-17    5.88D-39
+! VAX G-FORMAT   (D.P.)   8.98D+307    1.11D-16    1.12D-308
+!
+!*******************************************************************
+!*******************************************************************
+!
+! ERROR RETURNS
+!
+!  THE PROGRAM RETURNS THE VALUE XINF FOR SINGULARITIES OR
+!     WHEN OVERFLOW WOULD OCCUR.  THE COMPUTATION IS BELIEVED
+!     TO BE FREE OF UNDERFLOW AND OVERFLOW.
+!
+!
+!  INTRINSIC FUNCTIONS REQUIRED ARE:
+!
+!     INT, DBLE, EXP, LOG, REAL(C_DOUBLE), SIN
+!
+!
+! REFERENCES:  AN OVERVIEW OF SOFTWARE DEVELOPMENT FOR SPECIAL
+!              FUNCTIONS   W. J. CODY, LECTURE NOTES IN MATHEMATICS,
+!              506, NUMERICAL ANALYSIS DUNDEE, 1975, G. A. WATSON
+!              (ED.), SPRINGER VERLAG, BERLIN, 1976.
+!
+!              COMPUTER APPROXIMATIONS, HART, ET. AL., WILEY AND
+!              SONS, NEW YORK, 1968.
+!
+!  LATEST MODIFICATION: OCTOBER 12, 1989
+!
+!  AUTHORS: W. J. CODY AND L. STOLTZ
+!           APPLIED MATHEMATICS DIVISION
+!           ARGONNE NATIONAL LABORATORY
+!           ARGONNE, IL 60439
+!
+!----------------------------------------------------------------------
+*/
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real wrf_gamma (amrex::Real x)
+{
+    // Debug: using printf since it's GPU compatible
+    printf("wrf_gamma: Input value x = %g\n", x);
+
+    // Local variables
+    int i, n;
+    bool parity = false;
+    amrex::Real fact, half, one, res, sum, twelve, two, xbig, xden, xinf, xminin;
+    amrex::Real xnum, y, y1, ysq, z, zero;
+    amrex::Real c[7];
+    amrex::Real p[8];
+    amrex::Real q[8];
+
+    // Mathematical constants
+    one = 1.0;
+    half = 0.5;
+    twelve = 12.0;
+    two = 2.0;
+    zero = 0.0;
+
+    // Machine dependent parameters
+    xbig = 35.040;
+    xminin = 1.18e-38;
+    amrex::Real eps = 1.19e-7;
+    xinf = 3.4e38;
+
+    // Numerator and denominator coefficients for rational minimax approximation over (1,2)
+    p[0] = -1.71618513886549492533811e+0;
+    p[1] = 2.47656508055759199108314e+1;
+    p[2] = -3.79804256470945635097577e+2;
+    p[3] = 6.29331155312818442661052e+2;
+    p[4] = 8.66966202790413211295064e+2;
+    p[5] = -3.14512729688483675254357e+4;
+    p[6] = -3.61444134186911729807069e+4;
+    p[7] = 6.64561438202405440627855e+4;
+
+    q[0] = -3.08402300119738975254353e+1;
+    q[1] = 3.15350626979604161529144e+2;
+    q[2] = -1.01515636749021914166146e+3;
+    q[3] = -3.10777167157231109440444e+3;
+    q[4] = 2.25381184209801510330112e+4;
+    q[5] = 4.75584627752788110767815e+3;
+    q[6] = -1.34659959864969306392456e+5;
+    q[7] = -1.15132259675553483497211e+5;
+
+    // Coefficients for minimax approximation over (12, inf)
+    c[0] = -1.910444077728e-03;
+    c[1] = 8.4171387781295e-04;
+    c[2] = -5.952379913043012e-04;
+    c[3] = 7.93650793500350248e-04;
+    c[4] = -2.777777777777681622553e-03;
+    c[5] = 8.333333333333333331554247e-02;
+    c[6] = 5.7083835261e-03;
+
+    // Initialize variables
+    parity = false;
+    fact = one;
+    n = 0;
+    y = x;
+
+    printf("wrf_gamma: Initial y = %g\n", y);
+
+    if (y <= zero) {
+        // Argument is negative
+        printf("wrf_gamma: Handling negative argument\n");
+        y = -x;
+        y1 = std::floor(y);
+        res = y - y1;
+        if (res != zero) {
+            if (y1 != std::floor(y1 * half) * two)
+                parity = true;
+            Real pi=amrex::Math::pi<Real>();
+            fact = -pi / std::sin(pi * res);
+            y = y + one;
+            printf("wrf_gamma: After reflection formula: y = %g, fact = %g, parity = %d\n", 
+                   y, fact, parity);
+        }
+        else {
+            printf("wrf_gamma: Singularity detected, returning xinf = %g\n", xinf);
+            res = xinf;
+            return res;
+        }
+    }
+
+    // Argument is positive
+    if (y < eps) {
+        // Argument < eps
+        printf("wrf_gamma: Small argument branch (y < eps)\n");
+        if (y >= xminin) {
+            res = one / y;
+            printf("wrf_gamma: Small argument result: res = %g\n", res);
+        }
+        else {
+            printf("wrf_gamma: Argument too small, returning xinf = %g\n", xinf);
+            res = xinf;
+            return res;
+        }
+    }
+    else if (y < twelve) {
+        // Medium range argument
+        printf("wrf_gamma: Medium range branch (eps <= y < 12)\n");
+        y1 = y;
+        if (y < one) {
+            // 0.0 < argument < 1.0
+            printf("wrf_gamma: Sub-branch: 0 < y < 1\n");
+            z = y;
+            y = y + one;
+        }
+        else {
+            // 1.0 < argument < 12.0, reduce argument if necessary
+            n = static_cast<int>(y) - 1;
+            printf("wrf_gamma: Sub-branch: 1 <= y < 12, n = %d\n", n);
+            y = y - static_cast<amrex::Real>(n);
+            z = y - one;
+        }
+
+        // Evaluate approximation
+        printf("wrf_gamma: Before approximation: z = %g, y = %g\n", z, y);
+        xnum = zero;
+        xden = one;
+        for (i = 0; i < 8; i++) {
+            xnum = (xnum + p[i]) * z;
+            xden = xden * z + q[i];
+        }
+        res = xnum / xden + one;
+        printf("wrf_gamma: After approximation: res = %g\n", res);
+
+        if (y1 < y) {
+            // Adjust result for case 0.0 < argument < 1.0
+            res = res / y1;
+            printf("wrf_gamma: Adjusted for y < 1: res = %g\n", res);
+        }
+        else if (y1 > y) {
+            // Adjust for 2.0 < argument < 12.0
+            printf("wrf_gamma: Adjusting for y > 2 with %d multiplications\n", n);
+            for (i = 0; i < n; i++) {
+                res = res * y;
+                y = y + one;
+                printf("wrf_gamma: Multiplication %d: res = %g, y = %g\n", i+1, res, y);
+            }
+        }
+    }
+    else {
+        // Large argument
+        printf("wrf_gamma: Large argument branch (y >= 12)\n");
+        if (y <= xbig) {
+            ysq = y * y;
+            sum = c[6];
+            for (i = 0; i < 6; i++) {
+                sum = sum / ysq + c[i];
+                printf("wrf_gamma: Sum step %d: sum = %g\n", i+1, sum);
+            }
+            sum = sum / y - y + xxx;
+            sum = sum + (y - half) * std::log(y);
+            printf("wrf_gamma: Before exp: sum = %g\n", sum);
+            res = std::exp(sum);
+            printf("wrf_gamma: After exp: res = %g\n", res);
+        }
+        else {
+            printf("wrf_gamma: Argument too large, returning xinf = %g\n", xinf);
+            res = xinf;
+            return res;
+        }
+    }
+
+    // Final adjustments
+    if (parity) {
+        res = -res;
+        printf("wrf_gamma: Applied parity adjustment: res = %g\n", res);
+    }
+    if (fact != one) {
+        res = fact / res;
+        printf("wrf_gamma: Applied reflection adjustment: res = %g\n", res);
+    }
+    
+    printf("wrf_gamma: Final result = %g\n", res);
+    return res;
+}
+
 /**
  * Initializes the Microphysics module.
  *
@@ -77,6 +353,7 @@ Morrison::Init (const MultiFab& cons_in,
     }
 
     int morr_rimed_ice = 0; // This is used to set something called "ihail"
+    Print().SetPrecision(18)<<"wrf_gamma: "<<wrf_gamma(4+4.829501842840712377835644e+00)<<std::endl;
     morr_two_moment_init_c(morr_rimed_ice);
 }
 
