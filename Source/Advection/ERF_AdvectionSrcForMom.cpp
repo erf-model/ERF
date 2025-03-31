@@ -17,6 +17,9 @@ using namespace amrex;
  * @param[in] bxx box over which the x-momentum is updated
  * @param[in] bxy box over which the y-momentum is updated
  * @param[in] bxz box over which the z-momentum is updated
+ * @param[in] bxx_grown grown boxes of bxx to loop over the nodal grids of bxx
+ * @param[in] bxy_grown grown boxes of bxy to loop over the nodal grids of bxy
+ * @param[in] bxz_grown grown boxes of bxz to loop over the nodal grids of bxz
  * @param[out] rho_u_rhs tendency for the x-momentum equation
  * @param[out] rho_v_rhs tendency for the y-momentum equation
  * @param[out] rho_w_rhs tendency for the z-momentum equation
@@ -43,6 +46,9 @@ void
 AdvectionSrcForMom (const MFIter& mfi,
                     const Box& bx,
                     const Box& bxx, const Box& bxy, const Box& bxz,
+                    const Vector<Box>& bxx_grown,
+                    const Vector<Box>& bxy_grown,
+                    const Vector<Box>& bxz_grown,
                     const Array4<      Real>& rho_u_rhs,
                     const Array4<      Real>& rho_v_rhs,
                     const Array4<      Real>& rho_w_rhs,
@@ -70,6 +76,9 @@ AdvectionSrcForMom (const MFIter& mfi,
                     MeshType& mesh_type,
                     TerrainType& terrain_type,
                     const eb_& ebfact,
+                    const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_u_arr,
+                    const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_v_arr,
+                    const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_w_arr,
                     const int lo_z_face, const int hi_z_face,
                     const Box& domain,
                     const BCRec* bc_ptr_h)
@@ -126,14 +135,14 @@ AdvectionSrcForMom (const MFIter& mfi,
     else if ( terrain_type == TerrainType::EB)
     {
         // amrex::Print() << "ADV:EB " << std::endl;
-        AdvectionSrcForMom_EB(mfi, bxx, bxy, bxz,
+        AdvectionSrcForMom_EB(mfi, bxx, bxy, bxz, bxx_grown, bxy_grown, bxz_grown,
                               rho_u_rhs, rho_v_rhs, rho_w_rhs,
                               u, v, w,
                               rho_u, rho_v, omega,
                               cellSizeInv, mf_m, mf_u, mf_v,
                               horiz_adv_type, vert_adv_type,
                               horiz_upw_frac, vert_upw_frac,
-                              ebfact,
+                              ebfact, flx_u_arr, flx_v_arr, flx_w_arr,
                               lo_z_face, hi_z_face, domain);
     }
     else
