@@ -786,6 +786,8 @@ constexpr Real gamma_function(Real x) {
          {
            int ltrue=0;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
            int nstep;                        // NSTEP: Timestep counter
+           int iinum;                      // iinum: Integer control variable
+
            for(int k=klo; k<=khi; k++) {
             // Tendencies and mixing ratios
             qc3d(i,j,k) = qcl_arr(i,j,k);   // CLOUD WATER MIXING RATIO
@@ -808,15 +810,13 @@ constexpr Real gamma_function(Real x) {
             qscu1d(i,j,k) = qscuten_arr(i,j,k);              // SNOW FROM CUMULUS PARAMETERIZATION
             qicu1d(i,j,k) = qicuten_arr(i,j,k);              // ICE FROM CUMULUS PARAMETERIZATION
 
-            int iinum;                      // iinum: Integer control variable
-
             // Model input parameters
             //amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
-            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
+            //amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
 #if 1
             // Size distribution parameters
             amrex::Real lamc;               // LAMC: Slope parameter for droplets (m^-1)
-//            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
+            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
             amrex::Real lams;               // LAMS: Slope parameter for snow (m^-1)
             amrex::Real lamr;               // LAMR: Slope parameter for rain (m^-1)
             amrex::Real lamg;               // LAMG: Slope parameter for graupel (m^-1)
@@ -924,59 +924,6 @@ constexpr Real gamma_function(Real x) {
             amrex::Real fmult;              // FMULT: Temperature-dependent parameter for rime-splintering
             amrex::Real coffi;              // COFFI: Ice autoconversion parameter
 
-            // Fall speed working variables
-            amrex::Real dumi;               // DUMI: Dummy variable for ice
-            amrex::Real dumr;               // DUMR: Dummy variable for rain
-            amrex::Real dumfni;             // DUMFNI: Dummy fall speed number for ice
-            amrex::Real dumg;               // DUMG: Dummy variable for graupel
-            amrex::Real dumfng;             // DUMFNG: Dummy fall speed number for graupel
-            amrex::Real uni;                // UNI: Number-weighted terminal velocity for cloud ice
-            amrex::Real umi;                // UMI: Mass-weighted terminal velocity for cloud ice
-            amrex::Real umr;                // UMR: Mass-weighted terminal velocity for rain
-            amrex::Real fr;                 // FR: Mass-weighted fall speed for rain
-            amrex::Real fi;                 // FI: Mass-weighted fall speed for ice
-            amrex::Real fni;                // FNI: Number-weighted fall speed for ice
-            amrex::Real fg;                 // FG: Mass-weighted fall speed for graupel
-            amrex::Real fng;                // FNG: Number-weighted fall speed for graupel
-            amrex::Real rgvm;               // RGVM: Rain size parameter
-            amrex::Real faloutr;            // FALOUTR: Fallout rate for rain mass
-            amrex::Real falouti;            // FALOUTI: Fallout rate for ice mass
-            amrex::Real faloutni;           // FALOUTNI: Fallout rate for ice number
-            amrex::Real faltndr;            // FALTNDR: Mass-weighted fallout tendency for rain
-            amrex::Real faltndi;            // FALTNDI: Mass-weighted fallout tendency for ice
-            amrex::Real faltndni;           // FALTNDNI: Number-weighted fallout tendency for ice
-            amrex::Real rho2;               // RHO2: Air density squared
-            amrex::Real dumqs;              // DUMQS: Dummy variable for snow
-            amrex::Real dumfns;             // DUMFNS: Dummy fall speed number for snow
-            amrex::Real ums;                // UMS: Mass-weighted terminal velocity for snow
-            amrex::Real uns;                // UNS: Number-weighted terminal velocity for snow
-            amrex::Real fs;                 // FS: Mass-weighted fall speed for snow
-            amrex::Real fns;                // FNS: Number-weighted fall speed for snow
-            amrex::Real falouts;            // FALOUTS: Fallout rate for snow mass
-            amrex::Real faloutns;           // FALOUTNS: Fallout rate for snow number
-            amrex::Real faloutg;            // FALOUTG: Fallout rate for graupel mass
-            amrex::Real faloutng;           // FALOUTNG: Fallout rate for graupel number
-            amrex::Real faltnds;            // FALTNDS: Mass-weighted fallout tendency for snow
-            amrex::Real faltndns;           // FALTNDNS: Number-weighted fallout tendency for snow
-            amrex::Real unr;                // UNR: Number-weighted terminal velocity for rain
-            amrex::Real faltndg;            // FALTNDG: Mass-weighted fallout tendency for graupel
-            amrex::Real faltndng;           // FALTNDNG: Number-weighted fallout tendency for graupel
-            amrex::Real dumc;               // DUMC: Dummy variable for cloud
-            amrex::Real dumfnc;             // DUMFNC: Dummy fall speed number for cloud
-            amrex::Real unc;                // UNC: Number-weighted terminal velocity for cloud
-            amrex::Real umc;                // UMC: Mass-weighted terminal velocity for cloud
-            amrex::Real ung;                // UNG: Number-weighted terminal velocity for graupel
-            amrex::Real umg;                // UMG: Mass-weighted terminal velocity for graupel
-            amrex::Real fc;                 // FC: Mass-weighted fall speed for cloud
-            amrex::Real faloutc;            // FALOUTC: Fallout rate for cloud mass
-            amrex::Real faloutnc;           // FALOUTNC: Fallout rate for cloud number
-            amrex::Real faltndc;            // FALTNDC: Mass-weighted fallout tendency for cloud
-            amrex::Real faltndnc;           // FALTNDNC: Number-weighted fallout tendency for cloud
-            amrex::Real fnc;                // FNC: Number-weighted fall speed for cloud
-            amrex::Real dumfnr;             // DUMFNR: Dummy fall speed number for rain
-            amrex::Real faloutnr;           // FALOUTNR: Fallout rate for rain number
-            amrex::Real faltndnr;           // FALTNDNR: Number-weighted fallout tendency for rain
-            amrex::Real fnr;                // FNR: Number-weighted fall speed for rain
 #endif
             // Fall-speed parameter 'A' with air density correction
             amrex::Real ain;                // AIN: Fall-speed parameter 'A' with air density correction for ice
@@ -1061,15 +1008,6 @@ constexpr Real gamma_function(Real x) {
             amrex::Real uu1;                // UU1: Parameter for aerosol activation
             amrex::Real uu2;                // UU2: Parameter for aerosol activation
             amrex::Real alpha;              // ALPHA: Parameter for aerosol activation
-
-            // Dummy size distribution parameters
-            amrex::Real dlams;              // DLAMS: Dummy slope parameter for snow
-            amrex::Real dlamr;              // DLAMR: Dummy slope parameter for rain
-            amrex::Real dlami;              // DLAMI: Dummy slope parameter for ice
-            amrex::Real dlamc;              // DLAMC: Dummy slope parameter for cloud
-            amrex::Real dlamg;              // DLAMG: Dummy slope parameter for graupel
-            amrex::Real lammax;             // LAMMAX: Maximum value for slope parameter
-            amrex::Real lammin;             // LAMMIN: Minimum value for slope parameter
 
             int idrop;                      // IDROP: Switch for droplet activation scheme
 #endif
@@ -1211,31 +1149,30 @@ constexpr Real gamma_function(Real x) {
             // HEAT OF FUSION
             xlf = xxls - xxlv;
 
-            // IF MIXING RATIO < QSMALL SET MIXING RATIO AND NUMBER CONC TO ZERO
-            // Note: QSMALL is not defined in the variable list, so I'll define it
-            const amrex::Real QSMALL = m_qsmall;
+            // IF MIXING RATIO < m_qsmall SET MIXING RATIO AND NUMBER CONC TO ZERO
+            const amrex::Real m_qsmall = m_qsmall;
 
-            if (qc3d(i,j,k) < QSMALL) {
+            if (qc3d(i,j,k) < m_qsmall) {
               qc3d(i,j,k) = 0.0;
               nc3d(i,j,k) = 0.0;
               effc(i,j,k) = 0.0;
             }
-            if (qr3d(i,j,k) < QSMALL) {
+            if (qr3d(i,j,k) < m_qsmall) {
               qr3d(i,j,k) = 0.0;
               nr3d(i,j,k) = 0.0;
               effr(i,j,k) = 0.0;
             }
-            if (qi3d(i,j,k) < QSMALL) {
+            if (qi3d(i,j,k) < m_qsmall) {
               qi3d(i,j,k) = 0.0;
               ni3d(i,j,k) = 0.0;
               effi(i,j,k) = 0.0;
             }
-            if (qni3d(i,j,k) < QSMALL) {
+            if (qni3d(i,j,k) < m_qsmall) {
               qni3d(i,j,k) = 0.0;
               ns3d(i,j,k) = 0.0;
               effs(i,j,k) = 0.0;
             }
-            if (qg3d(i,j,k) < QSMALL) {
+            if (qg3d(i,j,k) < m_qsmall) {
               qg3d(i,j,k) = 0.0;
               ng3d(i,j,k) = 0.0;
               effg(i,j,k) = 0.0;
@@ -1272,7 +1209,7 @@ constexpr Real gamma_function(Real x) {
             bool skipMicrophysics = false;
             bool skipConcentrations = false;
             bool skipPrecip = true; // set with if statement
-            if (qc3d(i,j,k) < QSMALL && qi3d(i,j,k) < QSMALL && qni3d(i,j,k) < QSMALL && qr3d(i,j,k) < QSMALL && qg3d(i,j,k) < QSMALL) {
+            if (qc3d(i,j,k) < m_qsmall && qi3d(i,j,k) < m_qsmall && qni3d(i,j,k) < m_qsmall && qr3d(i,j,k) < m_qsmall && qg3d(i,j,k) < m_qsmall) {
               if ((t3d(i,j,k) < 273.15 && qvqvsi < 0.999) || (t3d(i,j,k) >= 273.15 && qvqvs < 0.999)) {
                 skipMicrophysics = true; // GOTO 200
               }
@@ -1329,7 +1266,6 @@ constexpr Real gamma_function(Real x) {
               }
 
               // Skip to label 300 if concentrations are below thresholds
-              // Note: QSMALL constant would need to be defined elsewhere
               if (qc3d(i,j,k) < m_qsmall && qni3d(i,j,k) < 1.0e-8 && qr3d(i,j,k) < m_qsmall && qg3d(i,j,k) < 1.0e-8) {
                 skipConcentrations=true; // goto 300
               }
@@ -1559,10 +1495,177 @@ constexpr Real gamma_function(Real x) {
             grplprt(i,j,k) = 0.0;
             }
             nstep = 1;
+            // Loop from top to bottom (KTE to KTS)
             for(int k=khi; k>=klo; k--) {
+            // Size distribution parameters
+            amrex::Real lamc;               // LAMC: Slope parameter for droplets (m^-1)
+            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
+            amrex::Real lams;               // LAMS: Slope parameter for snow (m^-1)
+            amrex::Real lamr;               // LAMR: Slope parameter for rain (m^-1)
+            amrex::Real lamg;               // LAMG: Slope parameter for graupel (m^-1)
+            amrex::Real cdist1;             // CDIST1: PSD parameter for droplets
+            amrex::Real n0i;                // N0I: Intercept parameter for cloud ice (kg^-1 m^-1)
+            amrex::Real n0s;                // N0S: Intercept parameter for snow (kg^-1 m^-1)
+            amrex::Real n0r;                // N0RR: Intercept parameter for rain (kg^-1 m^-1)
+            amrex::Real n0g;                // N0G: Intercept parameter for graupel (kg^-1 m^-1)
+            amrex::Real pgam;               // PGAM: Spectral shape parameter for droplets
+
+            amrex::Real dum;                // DUM: General dummy variable
+
+            // Fall speed working variables
+            amrex::Real dumi;               // DUMI: Dummy variable for ice
+            amrex::Real dumr;               // DUMR: Dummy variable for rain
+            amrex::Real dumfni;             // DUMFNI: Dummy fall speed number for ice
+            amrex::Real dumg;               // DUMG: Dummy variable for graupel
+            amrex::Real dumfng;             // DUMFNG: Dummy fall speed number for graupel
+            amrex::Real uni;                // UNI: Number-weighted terminal velocity for cloud ice
+            amrex::Real umi;                // UMI: Mass-weighted terminal velocity for cloud ice
+            amrex::Real umr;                // UMR: Mass-weighted terminal velocity for rain
+            amrex::Real fr;                 // FR: Mass-weighted fall speed for rain
+            amrex::Real fi;                 // FI: Mass-weighted fall speed for ice
+            amrex::Real fni;                // FNI: Number-weighted fall speed for ice
+            amrex::Real fg;                 // FG: Mass-weighted fall speed for graupel
+            amrex::Real fng;                // FNG: Number-weighted fall speed for graupel
+            amrex::Real rgvm;               // RGVM: Rain size parameter
+            amrex::Real faloutr;            // FALOUTR: Fallout rate for rain mass
+            amrex::Real falouti;            // FALOUTI: Fallout rate for ice mass
+            amrex::Real faloutni;           // FALOUTNI: Fallout rate for ice number
+            amrex::Real faltndr;            // FALTNDR: Mass-weighted fallout tendency for rain
+            amrex::Real faltndi;            // FALTNDI: Mass-weighted fallout tendency for ice
+            amrex::Real faltndni;           // FALTNDNI: Number-weighted fallout tendency for ice
+            amrex::Real rho2;               // RHO2: Air density squared
+            amrex::Real dumqs;              // DUMQS: Dummy variable for snow
+            amrex::Real dumfns;             // DUMFNS: Dummy fall speed number for snow
+            amrex::Real ums;                // UMS: Mass-weighted terminal velocity for snow
+            amrex::Real uns;                // UNS: Number-weighted terminal velocity for snow
+            amrex::Real fs;                 // FS: Mass-weighted fall speed for snow
+            amrex::Real fns;                // FNS: Number-weighted fall speed for snow
+            amrex::Real falouts;            // FALOUTS: Fallout rate for snow mass
+            amrex::Real faloutns;           // FALOUTNS: Fallout rate for snow number
+            amrex::Real faloutg;            // FALOUTG: Fallout rate for graupel mass
+            amrex::Real faloutng;           // FALOUTNG: Fallout rate for graupel number
+            amrex::Real faltnds;            // FALTNDS: Mass-weighted fallout tendency for snow
+            amrex::Real faltndns;           // FALTNDNS: Number-weighted fallout tendency for snow
+            amrex::Real unr;                // UNR: Number-weighted terminal velocity for rain
+            amrex::Real faltndg;            // FALTNDG: Mass-weighted fallout tendency for graupel
+            amrex::Real faltndng;           // FALTNDNG: Number-weighted fallout tendency for graupel
+            amrex::Real dumc;               // DUMC: Dummy variable for cloud
+            amrex::Real dumfnc;             // DUMFNC: Dummy fall speed number for cloud
+            amrex::Real unc;                // UNC: Number-weighted terminal velocity for cloud
+            amrex::Real umc;                // UMC: Mass-weighted terminal velocity for cloud
+            amrex::Real ung;                // UNG: Number-weighted terminal velocity for graupel
+            amrex::Real umg;                // UMG: Mass-weighted terminal velocity for graupel
+            amrex::Real fc;                 // FC: Mass-weighted fall speed for cloud
+            amrex::Real faloutc;            // FALOUTC: Fallout rate for cloud mass
+            amrex::Real faloutnc;           // FALOUTNC: Fallout rate for cloud number
+            amrex::Real faltndc;            // FALTNDC: Mass-weighted fallout tendency for cloud
+            amrex::Real faltndnc;           // FALTNDNC: Number-weighted fallout tendency for cloud
+            amrex::Real fnc;                // FNC: Number-weighted fall speed for cloud
+            amrex::Real dumfnr;             // DUMFNR: Dummy fall speed number for rain
+            amrex::Real faloutnr;           // FALOUTNR: Fallout rate for rain number
+            amrex::Real faltndnr;           // FALTNDNR: Number-weighted fallout tendency for rain
+            amrex::Real fnr;                // FNR: Number-weighted fall speed for rain
+
+            // More working/dummy variables
+            amrex::Real dumqi;              // DUMQI: Dummy variable for ice mixing ratio
+            amrex::Real dumni;              // DUMNI: Dummy variable for ice number concentration
+            amrex::Real di0;                // DC0: Characteristic diameter for ice
+            amrex::Real dc0;                // DC0: Characteristic diameter for cloud droplets
+            amrex::Real ds0;                // DS0: Characteristic diameter for snow
+            amrex::Real dg0;                // DG0: Characteristic diameter for graupel
+            amrex::Real dumqc;              // DUMQC: Dummy variable for cloud water mixing ratio
+            amrex::Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
+            amrex::Real ratio;              // RATIO: General ratio variable
+            amrex::Real sum_dep;            // SUM_DEP: Sum of deposition/sublimation
+            amrex::Real fudgef;             // FUDGEF: Adjustment factor
+
+            // Dummy size distribution parameters
+            amrex::Real dlams;              // DLAMS: Dummy slope parameter for snow
+            amrex::Real dlamr;              // DLAMR: Dummy slope parameter for rain
+            amrex::Real dlami;              // DLAMI: Dummy slope parameter for ice
+            amrex::Real dlamc;              // DLAMC: Dummy slope parameter for cloud
+            amrex::Real dlamg;              // DLAMG: Dummy slope parameter for graupel
+            amrex::Real lammax;             // LAMMAX: Maximum value for slope parameter
+            amrex::Real lammin;             // LAMMIN: Minimum value for slope parameter
+
+            ds0 = 3.0;       // Size distribution parameter for snow
+            di0 = 3.0;       // Size distribution parameter for cloud ice
+            dg0 = 3.0;       // Size distribution parameter for graupel
             if(ltrue != 0) {
               //goto 400
-              //Implementing CALCULATE SEDIMENATION
+              // CALCULATE SEDIMENTATION
+              // THE NUMERICS HERE FOLLOW FROM REISNER ET AL. (1998)
+              // FALLOUT TERMS ARE CALCULATED ON SPLIT TIME STEPS TO ENSURE NUMERICAL
+              // STABILITY, I.E. COURANT# < 1
+#if 0
+              // Update prognostic variables with tendencies
+              dumi = qi3d(i,j,k) + qi3dten(i,j,k) * dt;
+              dumqs = qni3d(i,j,k) + qni3dten(i,j,k) * dt;
+              dumr = qr3d(i,j,k) + qr3dten(i,j,k) * dt;
+              dumfni = ni3d(i,j,k) + ni3dten(i,j,k) * dt;
+              dumfns = ns3d(i,j,k) + ns3dten(i,j,k) * dt;
+              dumfnr = nr3d(i,j,k) + nr3dten(i,j,k) * dt;
+              dumc = qc3d(i,j,k) + qc3dten(i,j,k) * dt;
+              dumfnc = nc3d(i,j,k) + nc3dten(i,j,k) * dt;
+              dumg = qg3d(i,j,k) + qg3dten(i,j,k) * dt;
+              dumfng = ng3d(i,j,k) + ng3dten(i,j,k) * dt;
+
+              // SWITCH FOR CONSTANT DROPLET NUMBER
+              if (iinum == 1) {
+                dumfnc = nc3d(i,j,k);
+              }
+
+              // MAKE SURE NUMBER CONCENTRATIONS ARE POSITIVE
+              dumfni = amrex::max(0., dumfni);
+              dumfns = amrex::max(0., dumfns);
+              dumfnc = amrex::max(0., dumfnc);
+              dumfnr = amrex::max(0., dumfnr);
+              dumfng = amrex::max(0., dumfng);
+
+              // CLOUD ICE
+              if (dumi >= m_qsmall) {
+                dlami = std::pow(m_cons12 * dumfni / dumi, 1.0/di0);
+                dlami = amrex::max(dlami, m_lammini);
+                dlami = amrex::min(dlami, m_lammaxi);
+              }
+
+              // RAIN
+              if (dumr >= m_qsmall) {
+                dlamr = std::pow(m_pi * m_rhow * dumfnr / dumr, 1.0/3.0);
+                dlamr = amrex::max(dlamr, m_lamminr);
+                dlamr = amrex::min(dlamr, m_lammaxr);
+              }
+
+              // CLOUD DROPLETS
+              if (dumc >= m_qsmall) {
+                dum = pres(i,j,k) / (287.15 * t3d(i,j,k));
+                pgam = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
+                pgam = 1.0 / (pgam * pgam) - 1.0;
+                pgam = amrex::max(pgam, 2.0);
+                pgam = amrex::min(pgam, 10.0);
+
+                dlamc = std::pow(m_cons26 * dumfnc * std::tgamma(pgam + 4.0) / 
+                                 (dumc * std::tgamma(pgam + 1.0)), 1.0/3.0);
+                lammin = (pgam + 1.0) / 60.0e-6;
+                lammax = (pgam + 1.0) / 1.0e-6;
+                dlamc = amrex::max(dlamc, lammin);
+                dlamc = amrex::min(dlamc, lammax);
+              }
+
+              // SNOW
+              if (dumqs >= m_qsmall) {
+                dlams = std::pow(m_cons1 * dumfns / dumqs, 1.0/ds0);
+                dlams = amrex::max(dlams, m_lammins);
+                dlams = amrex::min(dlams, m_lammaxs);
+              }
+
+              // GRAUPEL
+              if (dumg >= m_qsmall) {
+                dlamg = std::pow(m_cons2 * dumfng / dumg, 1.0/dg0);
+                dlamg = amrex::max(dlamg, m_lamming);
+                dlamg = amrex::min(dlamg, m_lammaxg);
+              }
+#endif
               printf("ERROR: Sedimentation not implmented in C++\n");
             }
 
