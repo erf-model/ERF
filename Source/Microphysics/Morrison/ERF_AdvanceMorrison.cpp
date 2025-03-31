@@ -1429,7 +1429,8 @@ constexpr Real gamma_function(Real x) {
             bool skipPrecip = true; // set with if statement
             if (qc3d(i,j,k) < QSMALL && qi3d(i,j,k) < QSMALL && qni3d(i,j,k) < QSMALL && qr3d(i,j,k) < QSMALL && qg3d(i,j,k) < QSMALL) {
               if ((t3d(i,j,k) < 273.15 && qvqvsi < 0.999) || (t3d(i,j,k) >= 273.15 && qvqvs < 0.999)) {
-                skipMicrophysics = true; // GOTO 200
+                skipMicrophysics = true;
+                goto label_200;
               }
             }
 
@@ -1485,7 +1486,8 @@ constexpr Real gamma_function(Real x) {
 
               // Skip to label 300 if concentrations are below thresholds
               if (qc3d(i,j,k) < m_qsmall && qni3d(i,j,k) < 1.0e-8 && qr3d(i,j,k) < m_qsmall && qg3d(i,j,k) < 1.0e-8) {
-                skipConcentrations=true; // goto 300
+                skipConcentrations=true;
+                goto label_300;
               }
 #if 0
               // C++ version
@@ -1666,6 +1668,7 @@ constexpr Real gamma_function(Real x) {
                       printf("ERROR: Concentrations not fully implmented in C++");
               }
               //Right after 300 CONTINUE
+            label_300:
               // Calculate saturation adjustment to condense extra vapor above water saturation
               dumt = t3d(i,j,k) + dt * t3dten(i,j,k);
               dumqv = qv3d(i,j,k) + dt * qv3dten(i,j,k);
@@ -1700,10 +1703,10 @@ constexpr Real gamma_function(Real x) {
             }
               ltrue = 1;
               skipPrecip = false;
+            }
+            label_200:
 
-            }
-            // 200
-            }
+           }
             for(int k=klo; k<=khi; k++) {
             // INITIALIZE PRECIP AND SNOW RATES
             precrt(i,j,k) = 0.0;
@@ -1787,8 +1790,8 @@ constexpr Real gamma_function(Real x) {
 
               // CLOUD DROPLETS
               if (dumc(i,j,k) >= m_qsmall) {
-                amrex::Real dum = pres(i,j,k) / (287.15 * t3d(i,j,k));
-                amrex::Real pgam = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
+                dum = pres(i,j,k) / (287.15 * t3d(i,j,k));
+                pgam = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
                 pgam = 1.0 / (pgam * pgam) - 1.0;
                 pgam = amrex::max(pgam, 2.0);
                 pgam = amrex::min(pgam, 10.0);
@@ -2058,12 +2061,8 @@ constexpr Real gamma_function(Real x) {
               amrex::Real xxls;               // XXLS: Latent heat of sublimation
               amrex::Real xxlv;               // XXLV: Latent heat of vaporization
               amrex::Real cpm;                // CPM: Specific heat at constant pressure for moist air
-              amrex::Real m_nanew1;      // Total aerosol concentration, mode 1 (m^-3)
-              amrex::Real m_nanew2;      // Total aerosol concentration, mode 2 (m^-3)
               amrex::Real xlf;                // XLF: Latent heat of freezing
               // Constant droplet concentration (if INUM = 1)
-              amrex::Real m_ndcnst = 250.0;  // Droplet number concentration (cm^-3)
-              amrex::Real m_qsmall;      // Smallest allowed hydrometeor mixing ratio
               amrex::Real lamc;               // LAMC: Slope parameter for droplets (m^-1)
               amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
               amrex::Real lams;               // LAMS: Slope parameter for snow (m^-1)
@@ -2201,6 +2200,15 @@ constexpr Real gamma_function(Real x) {
                 ng3d(i,j,k) = 0.0;
                 effg(i,j,k) = 0.0;
               }
+
+              // Skip calculations if there is no cloud/precipitation water
+              if ((qc3d(i,j,k) < m_qsmall &&    // CLOUD WATER MIXING RATIO (KG/KG)
+                    qi3d(i,j,k) < m_qsmall &&    // CLOUD ICE MIXING RATIO (KG/KG)
+                    qni3d(i,j,k) < m_qsmall &&   // SNOW MIXING RATIO (KG/KG)
+                    qr3d(i,j,k) < m_qsmall &&    // RAIN MIXING RATIO (KG/KG)
+                    qg3d(i,j,k) < m_qsmall)) {    // GRAUPEL MIX RATIO (KG/KG)
+                goto label_500;
+              } else {
               // CALCULATE INSTANTANEOUS PROCESSES
 
               // ADD MELTING OF CLOUD ICE TO FORM RAIN
@@ -2213,7 +2221,9 @@ constexpr Real gamma_function(Real x) {
               }
 
               // ****SENSITIVITY - NO ICE
-              if (!(m_iliq == 1)) {
+              if ((m_iliq == 1)) {
+                goto label_778;
+              } else {
 
                 // HOMOGENEOUS FREEZING OF CLOUD WATER
                 if (t3d(i,j,k) <= 233.15 && qc3d(i,j,k) >= m_qsmall) {
@@ -2243,13 +2253,7 @@ constexpr Real gamma_function(Real x) {
                   }
                 }
               }
-              // Skip calculations if there is no cloud/precipitation water
-              if (!(qc3d(i,j,k) < m_qsmall &&    // CLOUD WATER MIXING RATIO (KG/KG)
-                    qi3d(i,j,k) < m_qsmall &&    // CLOUD ICE MIXING RATIO (KG/KG)
-                    qni3d(i,j,k) < m_qsmall &&   // SNOW MIXING RATIO (KG/KG)
-                    qr3d(i,j,k) < m_qsmall &&    // RAIN MIXING RATIO (KG/KG)
-                    qg3d(i,j,k) < m_qsmall)) {    // GRAUPEL MIX RATIO (KG/KG)
-                //goto 500
+            label_778:
                 // MAKE SURE NUMBER CONCENTRATIONS AREN'T NEGATIVE
                 ni3d(i,j,k) = std::max(0.0, ni3d(i,j,k));
                 ns3d(i,j,k) = std::max(0.0, ns3d(i,j,k));
@@ -2354,7 +2358,7 @@ constexpr Real gamma_function(Real x) {
                 }
               }
 
-              //500
+            label_500:
               // CALCULATE EFFECTIVE RADIUS
               if (qi3d(i,j,k) >= m_qsmall) {
                 effi(i,j,k) = 3.0 / lami / 2.0 * 1.0e6;
@@ -2405,7 +2409,10 @@ constexpr Real gamma_function(Real x) {
                 nc3d(i,j,k) = m_ndcnst * 1.0e6 / rho(i,j,k);
               }
             }
+            } else {
+              goto label_400;
             }
+         label_400:
             for(int k=klo; k<=khi; k++) {
             //End of _micro
             if(use_morr_cpp_answer) {
