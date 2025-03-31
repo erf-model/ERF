@@ -2056,6 +2056,9 @@ constexpr Real gamma_function(Real x) {
               amrex::Real qvi;                // QVI: Ice saturation mixing ratio
               amrex::Real qvqvs;              // QVQVS: Saturation ratio
               amrex::Real qvqvsi;             // QVQVSI: Ice saturation ratio
+              amrex::Real xxls;               // XXLS: Latent heat of sublimation
+              amrex::Real xxlv;               // XXLV: Latent heat of vaporization
+              amrex::Real cpm;                // CPM: Specific heat at constant pressure for moist air
               // ADD ON SEDIMENTATION TENDENCIES FOR MIXING RATIO TO REST OF TENDENCIES
               qr3dten(i,j,k) = qr3dten(i,j,k) + qrsten(i,j,k);
               qi3dten(i,j,k) = qi3dten(i,j,k) + qisten(i,j,k);
@@ -2093,6 +2096,15 @@ constexpr Real gamma_function(Real x) {
               t3d(i,j,k) = t3d(i,j,k) + t3dten(i,j,k)*dt;
               qv3d(i,j,k) = qv3d(i,j,k) + qv3dten(i,j,k)*dt;
 
+              // LATENT HEAT OF VAPORIZATION
+              xxlv = 3.1484E6 - 2370.0 * t3d(i,j,k);
+              // LATENT HEAT OF SUBLIMATION
+              xxls = 3.15E6 - 2370.0 * t3d(i,j,k) + 0.3337E6;
+
+              // Assuming CP is a constant defined elsewhere (specific heat of dry air at constant pressure)
+              const amrex::Real CP = 1004.5; // J/kg/K
+              cpm = CP * (1.0 + 0.887 * qv3d(i,j,k));
+
               // SATURATION VAPOR PRESSURE AND MIXING RATIO
               // hm, add fix for low pressure, 5/12/10
               // Assuming POLYSVP is defined elsewhere
@@ -2110,7 +2122,65 @@ constexpr Real gamma_function(Real x) {
 
               // SATURATION RATIOS
               qvqvs = qv3d(i,j,k) / qvs; // budget equation: calculate water saturation ratio
-              qvqvsi = qv3d(i,j,k) / qvi; // budget equation: calculate ice saturation ratio          
+              qvqvsi = qv3d(i,j,k) / qvi; // budget equation: calculate ice saturation ratio
+              // AT SUBSATURATION, REMOVE SMALL AMOUNTS OF CLOUD/PRECIP WATER
+              if (qvqvs < 0.9) {
+                if (qr3d(i,j,k) < 1.0e-8) {
+                  qv3d(i,j,k) += qr3d(i,j,k);
+                  t3d(i,j,k) -= qr3d(i,j,k) * xxlv / cpm;
+                  qr3d(i,j,k) = 0.0;
+                }
+                if (qc3d(i,j,k) < 1.0e-8) {
+                  qv3d(i,j,k) += qc3d(i,j,k);
+                  t3d(i,j,k) -= qc3d(i,j,k) * xxlv / cpm;
+                  qc3d(i,j,k) = 0.0;
+                }
+              }
+
+              if (qvqvsi < 0.9) {
+                if (qi3d(i,j,k) < 1.0e-8) {
+                  qv3d(i,j,k) += qi3d(i,j,k);
+                  t3d(i,j,k) -= qi3d(i,j,k) * xxls / cpm;
+                  qi3d(i,j,k) = 0.0;
+                }
+                if (qni3d(i,j,k) < 1.0e-8) {
+                  qv3d(i,j,k) += qni3d(i,j,k);
+                  t3d(i,j,k) -= qni3d(i,j,k) * xxls / cpm;
+                  qni3d(i,j,k) = 0.0;
+                }
+                if (qg3d(i,j,k) < 1.0e-8) {
+                  qv3d(i,j,k) += qg3d(i,j,k);
+                  t3d(i,j,k) -= qg3d(i,j,k) * xxls / cpm;
+                  qg3d(i,j,k) = 0.0;
+                }
+              }
+
+              // IF MIXING RATIO < QSMALL SET MIXING RATIO AND NUMBER CONC TO ZERO
+              if (qc3d(i,j,k) < m_qsmall) {
+                qc3d(i,j,k) = 0.0;
+                nc3d(i,j,k) = 0.0;
+                effc(i,j,k) = 0.0;
+              }
+              if (qr3d(i,j,k) < m_qsmall) {
+                qr3d(i,j,k) = 0.0;
+                nr3d(i,j,k) = 0.0;
+                effr(i,j,k) = 0.0;
+              }
+              if (qi3d(i,j,k) < m_qsmall) {
+                qi3d(i,j,k) = 0.0;
+                ni3d(i,j,k) = 0.0;
+                effi(i,j,k) = 0.0;
+              }
+              if (qni3d(i,j,k) < m_qsmall) {
+                qni3d(i,j,k) = 0.0;
+                ns3d(i,j,k) = 0.0;
+                effs(i,j,k) = 0.0;
+              }
+              if (qg3d(i,j,k) < m_qsmall) {
+                qg3d(i,j,k) = 0.0;
+                ng3d(i,j,k) = 0.0;
+                effg(i,j,k) = 0.0;
+              }
             }
 
             for(int k=klo; k<=khi; k++) {
