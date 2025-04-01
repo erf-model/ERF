@@ -1545,7 +1545,7 @@ constexpr Real gamma_function(Real x) {
                       i, j, k, xxlv, xxls, cpm, evs, eis, t3d(i,j,k), CP, qv3d(i,j,k), pres(i,j,k));
             }
 #endif
-#if 1
+#if 0
               if ((i == 93 && j == 3 && k == 18)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
@@ -1601,7 +1601,7 @@ constexpr Real gamma_function(Real x) {
                 qc3d(i,j,k) = 0.0; // temporary update: set cloud water to zero
               }
             }
-#if 1
+#if 0
               if ((i == 93 && j == 3 && k == 18)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
@@ -1678,7 +1678,7 @@ constexpr Real gamma_function(Real x) {
               ng3d(i,j,k) = 0.0;
               effg(i,j,k) = 0.0;
             }
-#if 1
+#if 0
               if ((i == 93 && j == 3 && k == 18)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
@@ -2238,7 +2238,7 @@ constexpr Real gamma_function(Real x) {
                 nc3dten(i,j,k) = nc3dten(i,j,k) + (-npra - nprc);
                 nr3dten(i,j,k) = nr3dten(i,j,k) + (nprc1 + nragg - npracg);
 
-#if 1
+#if 0
                 if (i == 93 && j == 3 && k == 18) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
@@ -2304,7 +2304,7 @@ constexpr Real gamma_function(Real x) {
               qv3dten(i,j,k) -= pcc;
               t3dten(i,j,k) += pcc * xxlv / cpm;
               qc3dten(i,j,k) += pcc;
-#if 1
+#if 0
               if (i == 93 && j == 3 && k == 18) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                         i, j, k, t3d(i,j,k), qv3d(i,j,k), pres(i,j,k), qc3d(i,j,k), t3dten(i,j,k), qv3dten(i,j,k), qc3dten(i,j,k),
