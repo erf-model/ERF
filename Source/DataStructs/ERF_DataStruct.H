@@ -18,7 +18,7 @@
 #include <ERF_TurbPertStruct.H>
 
 AMREX_ENUM(InitType,
-    None, Input_Sounding, WRFInput, Metgrid, Uniform
+    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform
 );
 
 AMREX_ENUM(ABLDriverType,
