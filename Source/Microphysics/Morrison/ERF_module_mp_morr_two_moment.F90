@@ -1263,7 +1263,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 #endif
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -1317,7 +1317,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
              END IF
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -1397,10 +1397,20 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
        END IF
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
+#endif
+#if 1
+      ! Fortran version
+      if (i == 91 .and. j == 3 .and. k == 58) then
+         write(10, '(i5,i5,i5,12(es24.16))') &
+              i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
+         write(10,*) " ng start"
+         write(10, '(i5,i5,i5,7(es24.16))') &
+                          i, j, k, qg3d(k), qsmall, cons2, dg, lamming, lammaxg,rhog
+      endif
 #endif
 ! INITIALIZE SEDIMENTATION TENDENCIES FOR MIXING RATIO
 
@@ -1433,7 +1443,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
             AGN(K) = DUM*AG
 #if 1
             ! Fortran version
-            if (i == 89 .and. j == 3 .and. k == 25) then
+            if (i == 91 .and. j == 3 .and. k == 58) then
                ! Line 1: indices and main calculated variables
                write(10, '(i5,i5,i5,a8,es24.16,a14,es24.16,a14,es24.16,a14,es24.16)') &
                     i,j,k,"mu(k):",mu(k),"ain(k):",ain(k),"arn(k):",arn(k),"asn(k):",asn(k)
@@ -1523,24 +1533,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
           QG3D(K) = 0.
           NG3D(K) = 0.
        END IF
-#if 0
+#if 1
        ! Fortran version
-             if ((i >= 86 .and. i <= 101 .and. j >= 0 .and. j <= 3 .and. k >= 8 .and. k <= 23 .and. &
-                  mod(i-86,2) == 0 .and. mod(j,2) == 0 .and. mod(k-8,2) == 0) .or. &
-                  (i == 92 .and. j == 0 .and. k == 17) .or. &
-                  (((i == 168 .or. i == 169 .or. i == 190 .or. i == 191) .and. &
-                  (j == 0 .or. j == 3) .and. &
-                  (k == 0 .or. k == 1 .or. k == 126 .or. k == 127))) .or. &
-                  (i == 175 .and. j == 1 .and. k == 50) .or. &
-                  (i == 180 .and. j == 2 .and. k == 75) .or. &
-                  (i == 185 .and. j == 1 .and. k == 100) .or. &
-                  (i == 170 .and. j == 0 .and. k == 30) .or. &
-                  (i == 188 .and. j == 3 .and. k == 60) .or. &
-                  (i == 178 .and. j == 2 .and. k == 40) .or. &
-                  (i == 183 .and. j == 0 .and. k == 80) .or. &
-                  (i == 173 .and. j == 3 .and. k == 110) .or. &
-                  (i == 186 .and. j == 1 .and. k == 90) .or. &
-                  (i == 177 .and. j == 2 .and. k == 65)) then
+       if  (i == 91 .and. j == 3 .and. k == 58) then
           write(10, '(i5,i5,i5,8(es24.16))') &
                i,j,k,t3d(k),nc3d(k),qr3d(k),nr3d(k),qni3d(k),ns3d(k),qg3d(k),ng3d(k)
        endif
@@ -1582,7 +1577,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END IF
       END IF
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                  i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -1675,11 +1670,12 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NG3D(K) = N0G(K)/LAMG(K)
       END IF
       END IF
-#if 0
+#if 1
       ! Fortran version
-      if (i == 89 .and. j == 3 .and. k == 25) then
+      if (i == 91 .and. j == 3 .and. k == 58) then
          write(10, '(i5,i5,i5,12(es24.16))') &
               i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
+         write(10,*) " ng warm"
       endif
 #endif
 !.....................................................................
@@ -2055,7 +2051,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NR3DTEN(K) = NR3DTEN(K)+ (NPRC1(K)+NRAGG(K)-NPRACG(K))
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                  i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -2121,7 +2117,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
 #if 1
       ! Fortran version
-      if (i == 89 .and. j == 3 .and. k == 25) then
+      if (i == 91 .and. j == 3 .and. k == 58) then
          write(10, '(i5,i5,i5,14(es24.16))') &
               i,j,k,t3d(k),qv3d(k),pres(k),qc3d(k),t3dten(k),qv3dten(k),qc3dten(k), &
               dumt,dumqv,dum,dumqss,dumqc,dums,pcc(k)
@@ -2290,7 +2286,16 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NS3D(K) = N0S(K)/LAMS(K)
       END IF
       END IF
-
+#if 1
+      ! Fortran version
+      if (i == 91 .and. j == 3 .and. k == 58) then
+         write(10, '(i5,i5,i5,12(es24.16))') &
+              i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
+         write(10,*) " ng cold"
+         write(10, '(i5,i5,i5,7(es24.16))') &
+                          i, j, k, qg3d(k), qsmall, cons2, dg, lamming, lammaxg,rhog
+      endif
+#endif
 !......................................................................
 ! GRAUPEL
 
@@ -2318,9 +2323,12 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END IF
 #if 1
       ! Fortran version
-      if (i == 89 .and. j == 3 .and. k == 25) then
+      if (i == 91 .and. j == 3 .and. k == 58) then
          write(10, '(i5,i5,i5,12(es24.16))') &
               i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
+         write(10,*) " ng cold"
+         write(10, '(i5,i5,i5,7(es24.16))') &
+                          i, j, k, qg3d(k), qsmall, cons2, dg, lamming, lammaxg,rhog
       endif
 #endif
 !.....................................................................
@@ -2482,7 +2490,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
          END IF
 #if 0
       ! Fortran version
-      if (i == 89 .and. j == 3 .and. k == 25) then
+      if (i == 91 .and. j == 3 .and. k == 58) then
          ! Line 1: indices and first variables
          write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
               i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
@@ -2551,7 +2559,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
             END IF
 #if 1
       ! Fortran version
-      if (i == 89 .and. j == 3 .and. k == 25) then
+      if (i == 91 .and. j == 3 .and. k == 58) then
          ! Line 1: indices and first variables
          write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
               i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
@@ -3139,7 +3147,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
            END IF
 #if 1
       ! Fortran version
-      if (i == 89 .and. j == 3 .and. k == 25) then
+      if (i == 91 .and. j == 3 .and. k == 58) then
          ! Line 1: indices and first variables
          write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
               i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
@@ -3345,7 +3353,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
              -PIACR(K)-PIACRS(K)-PRACG(K)-PGRACS(K))
 #if 1
       ! Fortran version
-      if (i == 89 .and. j == 3 .and. k == 25) then
+      if (i == 91 .and. j == 3 .and. k == 58) then
          ! Line 1: indices and first variables
          write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
               i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
@@ -3431,7 +3439,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3593,7 +3601,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END IF
 #if 1
 ! Fortran version
-if ((i == 89 .and. j == 3 .and. k == 25)) then
+if ((i == 91 .and. j == 3 .and. k == 58)) then
     write(10, '(i5,i5,i5,15(es24.16))') &
         i,j,k,dumi(k),dumqs(k),dumr(k),dumfni(k),dumfns(k),dumfnr(k),dumc(k),dumfnc(k),dumg(k),dumfng(k), &
         dlami,dlamr,pgam(k),dlamc,dlams,dlamg
@@ -3803,7 +3811,7 @@ endif
       NG3DTEN(K) = NG3DTEN(K)+FALTNDNG/NSTEP/RHO(k)
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
                 i,j,k,n,nstep,qcsten(k),faltndc,rho(k),FALTNDC/NSTEP/RHO(k)
         endif
@@ -3843,7 +3851,7 @@ endif
         DO K=KTS,KTE
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qcsten(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3857,7 +3865,7 @@ endif
         QNI3DTEN(K)=QNI3DTEN(K)+QNISTEN(K)
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3888,7 +3896,7 @@ endif
           NR3D(k)        = NR3D(k)+NR3DTEN(k)*DT
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3919,7 +3927,7 @@ endif
             QVQVSI(K) = QV3D(K)/QVI(K)
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3988,7 +3996,7 @@ endif
        END IF
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -4026,7 +4034,7 @@ endif
         END IF
 ! Fortran version
 #if 1
-        if (i == 89 .and. j == 3 .and. k == 25) then
+        if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif

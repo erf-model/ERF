@@ -1323,17 +1323,17 @@ constexpr Real gamma_function(Real x) {
             //amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
 #if 1
             // Size distribution parameters
-            amrex::Real lamc;               // LAMC: Slope parameter for droplets (m^-1)
-            amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
-            amrex::Real lams;               // LAMS: Slope parameter for snow (m^-1)
-            amrex::Real lamr;               // LAMR: Slope parameter for rain (m^-1)
-            amrex::Real lamg;               // LAMG: Slope parameter for graupel (m^-1)
-            amrex::Real cdist1;             // CDIST1: PSD parameter for droplets
-            amrex::Real n0i;                // N0I: Intercept parameter for cloud ice (kg^-1 m^-1)
-            amrex::Real n0s;                // N0S: Intercept parameter for snow (kg^-1 m^-1)
-            amrex::Real n0r;                // N0RR: Intercept parameter for rain (kg^-1 m^-1)
-            amrex::Real n0g;                // N0G: Intercept parameter for graupel (kg^-1 m^-1)
-            amrex::Real pgam;               // PGAM: Spectral shape parameter for droplets
+            amrex::Real lamc=0;               // LAMC: Slope parameter for droplets (m^-1)
+            amrex::Real lami=0;               // LAMI: Slope parameter for cloud ice (m^-1)
+            amrex::Real lams=0;               // LAMS: Slope parameter for snow (m^-1)
+            amrex::Real lamr=0;               // LAMR: Slope parameter for rain (m^-1)
+            amrex::Real lamg=0;               // LAMG: Slope parameter for graupel (m^-1)
+            amrex::Real cdist1=0;             // CDIST1: PSD parameter for droplets
+            amrex::Real n0i=0;                // N0I: Intercept parameter for cloud ice (kg^-1 m^-1)
+            amrex::Real n0s=0;                // N0S: Intercept parameter for snow (kg^-1 m^-1)
+            amrex::Real n0r=0;                // N0RR: Intercept parameter for rain (kg^-1 m^-1)
+            amrex::Real n0g=0;                // N0G: Intercept parameter for graupel (kg^-1 m^-1)
+            amrex::Real pgam=0;               // PGAM: Spectral shape parameter for droplets
 
             // Microphysical processes
             amrex::Real nsubc;              // NSUBC: Loss of NC during evaporation
@@ -1555,7 +1555,7 @@ constexpr Real gamma_function(Real x) {
             }
 #endif
 #if 1
-              if ((i == 89 && j == 3 && k == 25)) {
+              if ((i == 91 && j == 3 && k == 58)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
 #endif
@@ -1611,7 +1611,7 @@ constexpr Real gamma_function(Real x) {
               }
             }
 #if 1
-              if ((i == 89 && j == 3 && k == 25)) {
+              if ((i == 91 && j == 3 && k == 58)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
 #endif
@@ -1688,9 +1688,21 @@ constexpr Real gamma_function(Real x) {
               effg(i,j,k) = 0.0;
             }
 #if 1
-              if ((i == 89 && j == 3 && k == 25)) {
+              if ((i == 91 && j == 3 && k == 58)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
+#endif
+#if 1
+                // C++ version
+                if (i == 91 && j == 3 && k == 58) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e start\n",
+                          i, j, k, lamr, n0r, pgam, lamc, nc3d(i,j,k), lams, n0s, ns3d(i,j,k), lamg, n0g, ng3d(i,j,k));
+                }
+                // C++ version
+                if (i == 91 && j == 3 && k == 58) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e ng componenets\n",
+                          i, j, k, qg3d(i,j,k), m_qsmall, m_cons2, dg0, m_lamming, m_lammaxg,m_rhog);
+                }
 #endif
             // INITIALIZE SEDIMENTATION TENDENCIES FOR MIXING RATIO
             qrsten(i,j,k) = 0.0;  // temporary update: initialize QRSTEN
@@ -1717,7 +1729,7 @@ constexpr Real gamma_function(Real x) {
             agn(i,j,k) = dum * m_ag; // budget equation: calculate graupel fall speed parameter
 #if 1
             // C++ version
-            if (i == 89 && j == 3 && k == 25) {
+            if (i == 91 && j == 3 && k == 58) {
               // Line 1: indices and main calculated variables
               fprintf(file, "%5d %5d %5d mu(i,j,k): %24.16e ain(i,j,k): %24.16e arn(i,j,k): %24.16e asn(i,j,k): %24.16e\n",
                       i, j, k, mu(i,j,k), ain(i,j,k), arn(i,j,k), asn(i,j,k));
@@ -1770,7 +1782,7 @@ constexpr Real gamma_function(Real x) {
             // CASE FOR TEMPERATURE ABOVE FREEZING
             if (t3d(i,j,k) >= 273.15) {
 #if 0
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "warm\n");
                 }
 #endif
@@ -1807,25 +1819,10 @@ constexpr Real gamma_function(Real x) {
               if (qc3d(i,j,k) < m_qsmall && qni3d(i,j,k) < 1.0e-8 && qr3d(i,j,k) < m_qsmall && qg3d(i,j,k) < 1.0e-8) {
                 skipConcentrations=true;//                goto label_300;
               }
-#if 0
+#if 1
               // C++ version
-              if ((i >= 86 && i <= 101 && j >= 0 && j <= 3 && k >= 8 && k <= 23 &&
-                   (i-86)%2 == 0 && j%2 == 0 && (k-8)%2 == 0) ||
-                  (i == 92 && j == 0 && k == 17) ||
-                  (((i == 168 || i == 169 || i == 190 || i == 191) &&
-                    (j == 0 || j == 3) &&
-                    (k == 0 || k == 1 || k == 126 || k == 127))) ||
-                  (i == 175 && j == 1 && k == 50) ||
-                  (i == 180 && j == 2 && k == 75) ||
-                  (i == 185 && j == 1 && k == 100) ||
-                  (i == 170 && j == 0 && k == 30) ||
-                  (i == 188 && j == 3 && k == 60) ||
-                  (i == 178 && j == 2 && k == 40) ||
-                  (i == 183 && j == 0 && k == 80) ||
-                  (i == 173 && j == 3 && k == 110) ||
-                  (i == 186 && j == 1 && k == 90) ||
-                  (i == 177 && j == 2 && k == 65)) {
-                fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+              if (i == 91 && j == 3 && k == 58) {
+                fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e skip\n",
                         i, j, k, t3d(i,j,k), nc3d(i,j,k), qr3d(i,j,k), nr3d(i,j,k), qni3d(i,j,k), ns3d(i,j,k), qg3d(i,j,k), ng3d(i,j,k));
               }
 #endif
@@ -1858,7 +1855,7 @@ constexpr Real gamma_function(Real x) {
                   }
                 }
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e cold\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -2276,7 +2273,7 @@ constexpr Real gamma_function(Real x) {
                 nr3dten(i,j,k) = nr3dten(i,j,k) + (nprc1 + nragg - npracg);
 
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e cold\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -2318,7 +2315,7 @@ constexpr Real gamma_function(Real x) {
                 ng3dten(i,j,k) = ng3dten(i,j,k) + ngmltg;
                 nr3dten(i,j,k) = nr3dten(i,j,k) + (nsubr - nsmltr - ngmltr);
 #if 0
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e cold\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -2348,15 +2345,15 @@ constexpr Real gamma_function(Real x) {
               t3dten(i,j,k) += pcc * xxlv / cpm;
               qc3dten(i,j,k) += pcc;
 #if 1
-              if (i == 89 && j == 3 && k == 25) {
+              if (i == 91 && j == 3 && k == 58) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                         i, j, k, t3d(i,j,k), qv3d(i,j,k), pres(i,j,k), qc3d(i,j,k), t3dten(i,j,k), qv3dten(i,j,k), qc3dten(i,j,k),
                         dumt, dumqv, dum, dumqss, dumqc, dums, pcc);
               }
 #endif
-            } else {
+            } else { //cold
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "cold\n");
                 }
 #endif
@@ -2482,7 +2479,18 @@ constexpr Real gamma_function(Real x) {
                   ni3d(i,j,k) = n0i / lami;
                 }
               }
-
+#if 1
+                // C++ version
+                if (i == 91 && j == 3 && k == 58) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e ng\n",
+                          i, j, k, lamr, n0r, pgam, lamc, nc3d(i,j,k), lams, n0s, ns3d(i,j,k), lamg, n0g, ng3d(i,j,k));
+                }
+                // C++ version
+                if (i == 91 && j == 3 && k == 58) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e ng componenets\n",
+                          i, j, k, qg3d(i,j,k), m_qsmall, m_cons2, dg0, m_lamming, m_lammaxg,m_rhog);
+                }
+#endif
               // Graupel
               if (qg3d(i,j,k) >= m_qsmall) {
                 // Calculate lambda parameter
@@ -2504,9 +2512,14 @@ constexpr Real gamma_function(Real x) {
               }
 #if 1
                 // C++ version
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e ng\n",
                           i, j, k, lamr, n0r, pgam, lamc, nc3d(i,j,k), lams, n0s, ns3d(i,j,k), lamg, n0g, ng3d(i,j,k));
+                }
+                // C++ version
+                if (i == 91 && j == 3 && k == 58) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e ng componenets\n",
+                          i, j, k, qg3d(i,j,k), m_qsmall, m_cons2, dg0, m_lamming, m_lammaxg,m_rhog);
                 }
 #endif
                 ////////////////////// Second instance of ZERO OUT PROCESS RATES
@@ -2633,7 +2646,7 @@ constexpr Real gamma_function(Real x) {
                 }
 #if 0
                 // C++ version
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   // Line 1: indices and first variables
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
@@ -2688,7 +2701,7 @@ constexpr Real gamma_function(Real x) {
                 }
 #if 1
                 // C++ version
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   // Line 1: indices and first variables
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
@@ -3185,7 +3198,7 @@ constexpr Real gamma_function(Real x) {
                 }
 #if 1
                 // C++ version
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   // Line 1: indices and first variables
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
@@ -3370,7 +3383,7 @@ constexpr Real gamma_function(Real x) {
                    piacr - piacrs - pracg - pgracs);
 #if 1
                 // C++ version
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   // Line 1: indices and first variables
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
@@ -3451,7 +3464,7 @@ constexpr Real gamma_function(Real x) {
                 t3dten(i,j,k) = t3dten(i,j,k) + pcc * xxlv / cpm;
                 qc3dten(i,j,k) = qc3dten(i,j,k) + pcc;
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e cold\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -3488,7 +3501,7 @@ constexpr Real gamma_function(Real x) {
                 ng3dten(i,j,k) = ng3dten(i,j,k) + nsubg;
                 nr3dten(i,j,k) = nr3dten(i,j,k) + nsubr;
 #if 0
-              if (i == 89 && j == 3 && k == 25) {
+              if (i == 91 && j == 3 && k == 58) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                         i, j, k, t3d(i,j,k), qv3d(i,j,k), pres(i,j,k), qc3d(i,j,k), t3dten(i,j,k), qv3dten(i,j,k), qc3dten(i,j,k),
                         dumt, dumqv, dum, dumqss, dumqc, dums, pcc);
@@ -3615,7 +3628,7 @@ constexpr Real gamma_function(Real x) {
               // Calculate number-weighted and mass-weighted terminal fall speeds
 #if 1
               // C++ version
-              if ((i == 89 && j == 3 && k == 25)) {
+              if ((i == 91 && j == 3 && k == 58)) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                         i, j, k, dumi(i,j,k), dumqs(i,j,k), dumr(i,j,k), dumfni(i,j,k), dumfns(i,j,k), dumfnr(i,j,k), dumc(i,j,k), dumfnc(i,j,k), dumg(i,j,k), dumfng(i,j,k),
                         dlami(i,j,k), dlamr(i,j,k), pgam, dlamc(i,j,k), dlams(i,j,k), dlamg(i,j,k));
@@ -3827,7 +3840,7 @@ constexpr Real gamma_function(Real x) {
                 qgsten(i,j,k) = qgsten(i,j,k) + faltndg(i,j,k) / nstep / rho(i,j,k);
                 ng3dten(i,j,k) = ng3dten(i,j,k) + faltndng(i,j,k) / nstep / rho(i,j,k);
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k,n,nstep, qcsten(i,j,k), faltndc(i,j,k) ,rho(i,j,k), faltndc(i,j,k) / nstep / rho(i,j,k));
                 }
 #endif
@@ -3879,7 +3892,7 @@ constexpr Real gamma_function(Real x) {
               amrex::Real n0g;                // N0G: Intercept parameter for graupel (kg^-1 m^-1)
               amrex::Real pgam;               // PGAM: Spectral shape parameter for droplets
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qcsten(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -3890,7 +3903,7 @@ constexpr Real gamma_function(Real x) {
               qg3dten(i,j,k) = qg3dten(i,j,k) + qgsten(i,j,k);
               qni3dten(i,j,k) = qni3dten(i,j,k) + qnisten(i,j,k);
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -3915,7 +3928,7 @@ constexpr Real gamma_function(Real x) {
               ns3d(i,j,k) = ns3d(i,j,k) + ns3dten(i,j,k)*dt;
               nr3d(i,j,k) = nr3d(i,j,k) + nr3dten(i,j,k)*dt;
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -3972,7 +3985,7 @@ constexpr Real gamma_function(Real x) {
                 }
               }
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -4021,7 +4034,7 @@ constexpr Real gamma_function(Real x) {
                 effg(i,j,k) = 0.0;
               }
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -4064,7 +4077,7 @@ constexpr Real gamma_function(Real x) {
                   nc3d(i,j,k) = 0.0;
                 }
 #if 1
-                if (i == 89 && j == 3 && k == 25) {
+                if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
