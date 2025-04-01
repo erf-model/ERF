@@ -560,6 +560,8 @@ convert_wrfbdy_data (const Box& domain,
                      const MultiFab& mf_MUB,
                      const MultiFab& mf_C1H,
                      const MultiFab& mf_C2H,
+                     const MultiFab& mapfac_u,
+                     const MultiFab& mapfac_v,
                      const MultiFab& xvel,
                      const MultiFab& yvel,
                      const MultiFab& cons,
@@ -635,6 +637,8 @@ convert_wrfbdy_data (const Box& domain,
                 Array4<Real const> c1h_arr  = mf_C1H.const_array(mfi);
                 Array4<Real const> c2h_arr  = mf_C2H.const_array(mfi);
                 Array4<Real const> mub_arr  = mf_MUB.const_array(mfi);
+                Array4<Real const> msfu_arr = mapfac_u.const_array(mfi);
+                Array4<Real const> msfv_arr = mapfac_v.const_array(mfi);
 
                 // BDY data
                 Array4<Real> bdy_u_arr  = bdy_data[nt][WRFBdyVars::U].array();  // This is x-face-centered
@@ -663,7 +667,7 @@ convert_wrfbdy_data (const Box& domain,
                                   + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * 0.5;
                         }
                         Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                        Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult;
+                        Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult * msfu_arr(i,j,k);
                         bdy_u_tmp(i,j,k) = new_bdy;
                     }
                 });
@@ -682,7 +686,7 @@ convert_wrfbdy_data (const Box& domain,
                                    + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * 0.5;
                         }
                         Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                        Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;
+                        Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult * msfv_arr(i,j,k);
                         bdy_v_tmp(i,j,k) = new_bdy;
                     }
                 });

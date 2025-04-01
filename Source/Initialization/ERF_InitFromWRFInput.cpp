@@ -39,6 +39,8 @@ convert_wrfbdy_data (const Box& domain,
                      const MultiFab& mf_MUB,
                      const MultiFab& mf_C1H,
                      const MultiFab& mf_C2H,
+                     const MultiFab& mapfac_u,
+                     const MultiFab& mapfac_v,
                      const MultiFab& xvel,
                      const MultiFab& yvel,
                      const MultiFab& cons,
@@ -706,20 +708,25 @@ ERF::init_from_wrfinput (int lev)
         Print() << "Running with specification width: " << real_set_width
                 << " and relaxation width: " << real_width - real_set_width << std::endl;
 
+        // This will decouple the boundary quantities from the column mass
         convert_wrfbdy_data(domain,bdy_data_xlo,
                             mf_MUB, mf_C1H, mf_C2H,
+                            *mapfac_u[lev], *mapfac_v[lev],
                             lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                             geom[lev], use_moist);
         convert_wrfbdy_data(domain,bdy_data_xhi,
                             mf_MUB, mf_C1H, mf_C2H,
+                            *mapfac_u[lev], *mapfac_v[lev],
                             lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                             geom[lev], use_moist);
         convert_wrfbdy_data(domain,bdy_data_ylo,
                             mf_MUB, mf_C1H, mf_C2H,
+                            *mapfac_u[lev], *mapfac_v[lev],
                             lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                             geom[lev], use_moist);
         convert_wrfbdy_data(domain,bdy_data_yhi,
                             mf_MUB, mf_C1H, mf_C2H,
+                            *mapfac_u[lev], *mapfac_v[lev],
                             lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                             geom[lev], use_moist);
     } // init_type == Real && lev == 0

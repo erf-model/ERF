@@ -79,7 +79,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         // Offset only applies to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
 
-
         // Ghost cells to be filled
         IntVect ng_vect = (var_idx == Vars::cons) ? ngvect_cons : ngvect_vels;
 
