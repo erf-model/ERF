@@ -1374,8 +1374,10 @@ ERF::init_only (int lev, Real time)
     auto& lev_old = vars_old[lev];
 
 #ifndef ERF_USE_NETCDF
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid),
-                                     "init_type cannot be 'WRFInput' or 'MetGrid' if we don't build with netcdf!");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
+                                       (solverChoice.init_type != InitType::Metgrid ) &&
+                                       (solverChoice.init_type != InitType::NCFile  )  ),
+                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
 #endif
 
     // Loop over grids at this level to initialize our grid data
@@ -1411,6 +1413,25 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
+        init_from_wrfinput(lev);
+        if (lev==0) {
+            if ((start_time > 0) && (start_time != t_new[lev])) {
+                Print() << "Ignoring specified start_time="
+                        << std::setprecision(timeprecision) << start_time
+                        << std::endl;
+            }
+            start_time = t_new[lev];
+        }
+        use_datetime = true;
+
+        // The physbc's need the terrain but are needed for initHSE
+        if (!solverChoice.use_real_bcs) {
+            make_physbcs(lev);
+        }
+    }
+    else if (solverChoice.init_type == InitType::NCFile)
+    {
+        // The base state is initialized by reading from a Netcdf file
         init_from_wrfinput(lev);
         if (lev==0) {
             if ((start_time > 0) && (start_time != t_new[lev])) {
@@ -1735,12 +1756,13 @@ ERF::ReadParameters ()
 
     // If init from WRFInput or Metgrid make sure a valid file name is present
     if ((solverChoice.init_type == InitType::WRFInput) ||
-        (solverChoice.init_type == InitType::Metgrid) ) {
+        (solverChoice.init_type == InitType::Metgrid)  ||
+        (solverChoice.init_type == InitType::NCFile) ) {
         for (int lev = 0; lev <= max_level; lev++) {
             int num_files = nc_init_file[lev].size();
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present for init type WRFInput or Metgrid.");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present for init type WRFInput, Metgrid or NCFile.");
             for (int j = 0; j < num_files; j++) {
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[lev][j].empty(), "Valid file name must be present for init type WRFInput or Metgrid.");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[lev][j].empty(), "Valid file name must be present for init type WRFInput, Metgrid or NCFile.");
             } //j
         } // lev
     } // InitType
@@ -1779,7 +1801,8 @@ ERF::ParameterSanityChecks ()
     AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt[0] > 0.);
 
     // We don't allow use_real_bcs to be true if init_type is not either InitType::WRFInput or InitType::Metgrid
-    AMREX_ALWAYS_ASSERT(!solverChoice.use_real_bcs || ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
+    AMREX_ALWAYS_ASSERT( !solverChoice.use_real_bcs ||
+                        ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
     AMREX_ALWAYS_ASSERT(real_set_width >= 0);
