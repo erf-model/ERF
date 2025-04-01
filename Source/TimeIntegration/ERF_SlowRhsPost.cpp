@@ -100,8 +100,6 @@ void erf_slow_rhs_post (int level, int finest_level,
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
-    amrex::Print() << "IN POST " << std::endl;
-
     const BCRec* bc_ptr_d = domain_bcs_type_d.data();
     const BCRec* bc_ptr_h = domain_bcs_type_h.data();
 
