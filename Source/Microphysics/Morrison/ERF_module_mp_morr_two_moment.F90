@@ -1262,7 +1262,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
             endif
 #endif
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -1316,7 +1316,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                END IF
              END IF
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -1396,7 +1396,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
          EFFG(K) = 0.
        END IF
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -2048,7 +2048,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NC3DTEN(K) = NC3DTEN(K)+ (-NPRA(K)-NPRC(K))
       NR3DTEN(K) = NR3DTEN(K)+ (NPRC1(K)+NRAGG(K)-NPRACG(K))
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                  i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -2113,7 +2113,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QV3DTEN(K) = QV3DTEN(K)-PCC(K)
       T3DTEN(K) = T3DTEN(K)+PCC(K)*XXLV(K)/CPM(K)
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
-#if 1
+#if 0
       ! Fortran version
       if (i == 93 .and. j == 3 .and. k == 18) then
          write(10, '(i5,i5,i5,14(es24.16))') &
@@ -3316,7 +3316,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       T3DTEN(K) = T3DTEN(K)+PCC(K)*XXLV(K)/CPM(K)
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -3477,7 +3477,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
         DLAMG=MAX(DLAMG,LAMMING)
         DLAMG=MIN(DLAMG,LAMMAXG)
       END IF
-#if 1
+#if 0
 ! Fortran version
 if ((i == 93 .and. j == 3 .and. k == 18)) then
     write(10, '(i5,i5,i5,15(es24.16))') &
@@ -3688,7 +3688,7 @@ endif
       QGSTEN(K) = QGSTEN(K)+FALTNDG/NSTEP/RHO(k)
       NG3DTEN(K) = NG3DTEN(K)+FALTNDNG/NSTEP/RHO(k)
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
                 i,j,k,n,nstep,qcsten(k),faltndc,rho(k),FALTNDC/NSTEP/RHO(k)
@@ -3728,7 +3728,7 @@ endif
 
         DO K=KTS,KTE
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qcsten(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -3742,7 +3742,7 @@ endif
         QG3DTEN(K)=QG3DTEN(K)+QGSTEN(K)
         QNI3DTEN(K)=QNI3DTEN(K)+QNISTEN(K)
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -3773,7 +3773,7 @@ endif
           NS3D(k)        = NS3D(k)+NS3DTEN(k)*DT
           NR3D(k)        = NR3D(k)+NR3DTEN(k)*DT
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -3804,7 +3804,7 @@ endif
             QVQVS(K) = QV3D(K)/QVS(K)
             QVQVSI(K) = QV3D(K)/QVI(K)
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -3873,7 +3873,7 @@ endif
          EFFG(K) = 0.
        END IF
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -3911,7 +3911,7 @@ endif
            NC3D(K)=0.
         END IF
 ! Fortran version
-#if 1
+#if 0
         if (i == 93 .and. j == 3 .and. k == 18) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
