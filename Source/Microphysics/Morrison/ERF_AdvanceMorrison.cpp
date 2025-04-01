@@ -2096,22 +2096,11 @@ constexpr Real gamma_function(Real x) {
               if (dumc(i,j,k) >= m_qsmall) {
                 unc(i,j,k) = acn(i,j,k) * gamma_function(1. + m_bc + pgam) / (std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam + 1.));
                 umc(i,j,k) = acn(i,j,k) * gamma_function(4. + m_bc + pgam) / (std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam + 4.));
-                if(i==93&&j==3&&k==18) {
-                  printf("%24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e \n", acn(i,j,k) , gamma_function(4. + m_bc + pgam) , dlamc(i,j,k) , std::pow(dlamc(i,j,k), m_bc) , gamma_function(pgam + 4.),pgam,m_bc);
-                }
-                if(i==93&&j==3&&k==18) {
-                  printf("%24.24e %24.24e %24.24e \n", gamma_function(4. + m_bc + pgam) ,gamma_function(pgam + 4.),pgam);
-                }
-                if(i==93&&j==3&&k==18) {
-                  printf("%24.24e %24.24e %24.24e \n", erf_gammafff(4. + m_bc + pgam) ,erf_gammafff(pgam + 4.),pgam);
-                }
               } else {
                 umc(i,j,k) = 0.;
                 unc(i,j,k) = 0.;
               }
-                if(i==93&&j==3&&k==18) {
-                  Print()<<fc(i,j,k)<<"\t"<<umc(i,j,k)<<std::endl;
-                }
+
               // CLOUD ICE
               if (dumi(i,j,k) >= m_qsmall) {
                 uni(i,j,k) = ain(i,j,k) * m_cons27 / std::pow(dlami(i,j,k), m_bi);
@@ -2174,9 +2163,7 @@ constexpr Real gamma_function(Real x) {
               fnc(i,j,k) = unc(i,j,k);        // CLOUD NUMBER FALL SPEED
               fg(i,j,k) = umg(i,j,k);         // GRAUPEL FALL SPEED
               fng(i,j,k) = ung(i,j,k);        // GRAUPEL NUMBER FALL SPEED
-                if(i==93&&j==3&&k==18) {
-                  Print()<<fc(i,j,k)<<"\t"<<umc(i,j,k)<<std::endl;
-                }
+
               // V3.3 MODIFY FALLSPEED BELOW LEVEL OF PRECIP
               if (fr(i,j,k) < 1.e-10) {
                 fr(i,j,k) = fr(i,j,k+1);
@@ -2241,9 +2228,6 @@ constexpr Real gamma_function(Real x) {
                 faloutns(i,j,k) = fns(i,j,k) * dumfns(i,j,k);
                 faloutnr(i,j,k) = fnr(i,j,k) * dumfnr(i,j,k);
                 faloutc(i,j,k) = fc(i,j,k) * dumc(i,j,k);
-                if(i==93&&j==3&&k==18) {
-                  Print()<<fc(i,j,k)<<"\t"<<dumc(i,j,k)<<std::endl;
-                }
                 faloutnc(i,j,k) = fnc(i,j,k) * dumfnc(i,j,k);
                 faloutg(i,j,k) = fg(i,j,k) * dumg(i,j,k);
                 faloutng(i,j,k) = fng(i,j,k) * dumfng(i,j,k);
@@ -2272,9 +2256,6 @@ constexpr Real gamma_function(Real x) {
               ns3dten(i,j,k) = ns3dten(i,j,k) - faltndns(i,j,k) / nstep / rho(i,j,k);
               nr3dten(i,j,k) = nr3dten(i,j,k) - faltndnr(i,j,k) / nstep / rho(i,j,k);
               qcsten(i,j,k) = qcsten(i,j,k) - faltndc(i,j,k) / nstep / rho(i,j,k);
-              if(i==93&&j==3) {
-                Print()<<qcsten(i,j,k)<<"\t"<<(faltndc(i,j,k) / nstep / rho(i,j,k))<<"\t"<<faltndc(i,j,k)<<"\t"<<nstep<<"\t"<<rho(i,j,k)<<std::endl;
-              }
               nc3dten(i,j,k) = nc3dten(i,j,k) - faltndnc(i,j,k) / nstep / rho(i,j,k);
               qgsten(i,j,k) = qgsten(i,j,k) - faltndg(i,j,k) / nstep / rho(i,j,k);
               ng3dten(i,j,k) = ng3dten(i,j,k) - faltndng(i,j,k) / nstep / rho(i,j,k);
@@ -2301,9 +2282,6 @@ constexpr Real gamma_function(Real x) {
                 faltndns(i,j,k) = (faloutns(i,j,k+1) - faloutns(i,j,k)) / dzq(i,j,k);
                 faltndnr(i,j,k) = (faloutnr(i,j,k+1) - faloutnr(i,j,k)) / dzq(i,j,k);
                 faltndc(i,j,k) = (faloutc(i,j,k+1) - faloutc(i,j,k)) / dzq(i,j,k);
-                if(i==93&&j==3&&k==18) {
-                  Print()<<faltndc(i,j,k)<<"\t"<<(faloutc(i,j,k+1) - faloutc(i,j,k)) / dzq(i,j,k)<<"\t"<<faloutc(i,j,k+1)<<"\t"<<faloutc(i,j,k)<<"\t"<<dzq(i,j,k)<<std::endl;
-                }
                 faltndnc(i,j,k) = (faloutnc(i,j,k+1) - faloutnc(i,j,k)) / dzq(i,j,k);
                 faltndg(i,j,k) = (faloutg(i,j,k+1) - faloutg(i,j,k)) / dzq(i,j,k);
                 faltndng(i,j,k) = (faloutng(i,j,k+1) - faloutng(i,j,k)) / dzq(i,j,k);
@@ -2316,9 +2294,6 @@ constexpr Real gamma_function(Real x) {
                 ns3dten(i,j,k) = ns3dten(i,j,k) + faltndns(i,j,k) / nstep / rho(i,j,k);
                 nr3dten(i,j,k) = nr3dten(i,j,k) + faltndnr(i,j,k) / nstep / rho(i,j,k);
                 qcsten(i,j,k) = qcsten(i,j,k) + faltndc(i,j,k) / nstep / rho(i,j,k);
-                if(i==93&&j==3&&k==18) {
-                  Print()<<qcsten(i,j,k)<<"\t"<<(faltndc(i,j,k) / nstep / rho(i,j,k))<<"\t"<<faltndc(i,j,k)<<"\t"<<nstep<<"\t"<<rho(i,j,k)<<std::endl;
-                }
                 nc3dten(i,j,k) = nc3dten(i,j,k) + faltndnc(i,j,k) / nstep / rho(i,j,k);
                 qgsten(i,j,k) = qgsten(i,j,k) + faltndg(i,j,k) / nstep / rho(i,j,k);
                 ng3dten(i,j,k) = ng3dten(i,j,k) + faltndng(i,j,k) / nstep / rho(i,j,k);

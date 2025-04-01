@@ -3462,20 +3462,11 @@ endif
       IF (DUMC(K).GE.QSMALL) THEN
       UNC =  ACN(K)*GAMMA(1.+BC+PGAM(K))/ (DLAMC**BC*GAMMA(PGAM(K)+1.))
       UMC = ACN(K)*GAMMA(4.+BC+PGAM(K))/  (DLAMC**BC*GAMMA(PGAM(K)+4.))
-      if(i.eq.93 .and.j.eq.3.and.k.eq.18) then
-         write(*,'(7(es24.16))'),      ACN(K),GAMMA(4.+BC+PGAM(K)),  DLAMC,DLAMC**BC,GAMMA(PGAM(K)+4.),PGAM(K),BC
-      endif
-      if(i.eq.93 .and.j.eq.3.and.k.eq.18) then
-         write(*,'(3(es32.24))'),      GAMMA(4.+BC+PGAM(K)), GAMMA(PGAM(K)+4.),PGAM(K)
-         write(*,'(3(es32.24))'),      exp(log_GAMMA(4.+BC+PGAM(K))), exp(log_GAMMA(PGAM(K)+4.)),PGAM(K)
-      endif
       ELSE
       UMC = 0.
       UNC = 0.
       END IF
-      if(i.eq.93 .and.j.eq.3.and.k.eq.18) then
-         print*,      FC(K),UMC
-      endif
+
       IF (DUMI(K).GE.QSMALL) THEN
       UNI =  AIN(K)*CONS27/DLAMI**BI
       UMI = AIN(K)*CONS28/(DLAMI**BI)
@@ -3533,9 +3524,7 @@ endif
       FNC(K) = UNC
       FG(K) = UMG
       FNG(K) = UNG
-      if(i.eq.93 .and.j.eq.3.and.k.eq.18) then
-         print*,      FC(K),UMC
-      endif
+
 ! V3.3 MODIFY FALLSPEED BELOW LEVEL OF PRECIP
 
         IF (K.LE.KTE-1) THEN
@@ -3601,9 +3590,6 @@ endif
       FALOUTNS(K) = FNS(K)*DUMFNS(K)
       FALOUTNR(K) = FNR(K)*DUMFNR(K)
       FALOUTC(K) = FC(K)*DUMC(K)
-      if(i.eq.93 .and.j.eq.3.and.k.eq.18) then
-         print*,      FC(K),DUMC(K)
-      endif
       FALOUTNC(K) = FNC(K)*DUMFNC(K)
       FALOUTG(K) = FG(K)*DUMG(K)
       FALOUTNG(K) = FNG(K)*DUMFNG(K)
@@ -3631,9 +3617,6 @@ endif
       NS3DTEN(K) = NS3DTEN(K)-FALTNDNS/NSTEP/RHO(k)
       NR3DTEN(K) = NR3DTEN(K)-FALTNDNR/NSTEP/RHO(k)
       QCSTEN(K) = QCSTEN(K)-FALTNDC/NSTEP/RHO(k)
-      if(i.eq.93 .and.j.eq.3) then
-      print*,      QCSTEN(K) , FALTNDC/NSTEP/RHO(k) , FALTNDC, NSTEP , RHO(k)
-      endif
       NC3DTEN(K) = NC3DTEN(K)-FALTNDNC/NSTEP/RHO(k)
       QGSTEN(K) = QGSTEN(K)-FALTNDG/NSTEP/RHO(k)
       NG3DTEN(K) = NG3DTEN(K)-FALTNDNG/NSTEP/RHO(k)
@@ -3657,9 +3640,6 @@ endif
       FALTNDNS = (FALOUTNS(K+1)-FALOUTNS(K))/DZQ(K)
       FALTNDNR = (FALOUTNR(K+1)-FALOUTNR(K))/DZQ(K)
       FALTNDC = (FALOUTC(K+1)-FALOUTC(K))/DZQ(K)
-      if(i.eq.93 .and.j.eq.3.and.k.eq.18) then
-         print*,      FALTNDC,(FALOUTC(K+1)-FALOUTC(K))/DZQ(K),FALOUTC(K+1),FALOUTC(K),DZQ(K)
-      endif
       FALTNDNC = (FALOUTNC(K+1)-FALOUTNC(K))/DZQ(K)
       FALTNDG = (FALOUTG(K+1)-FALOUTG(K))/DZQ(K)
       FALTNDNG = (FALOUTNG(K+1)-FALOUTNG(K))/DZQ(K)
@@ -3673,10 +3653,6 @@ endif
       NS3DTEN(K) = NS3DTEN(K)+FALTNDNS/NSTEP/RHO(k)
       NR3DTEN(K) = NR3DTEN(K)+FALTNDNR/NSTEP/RHO(k)
       QCSTEN(K) = QCSTEN(K)+FALTNDC/NSTEP/RHO(k)
-      if(i.eq.93 .and.j.eq.3.and.k.eq.18) then
-      print*,      QCSTEN(K) , FALTNDC/NSTEP/RHO(k) , FALTNDC, NSTEP , RHO(k)
-      STOP
-      endif
       NC3DTEN(K) = NC3DTEN(K)+FALTNDNC/NSTEP/RHO(k)
       QGSTEN(K) = QGSTEN(K)+FALTNDG/NSTEP/RHO(k)
       NG3DTEN(K) = NG3DTEN(K)+FALTNDNG/NSTEP/RHO(k)
@@ -4191,7 +4167,7 @@ endif
 
 
       END FUNCTION POLYSVP
-#if 1
+
 !------------------------------------------------------------------------------
 
       REAL(C_DOUBLE) FUNCTION GAMMA(X)
@@ -4426,266 +4402,7 @@ endif
       RETURN
 ! ---------- LAST LINE OF GAMMA ----------
       END FUNCTION GAMMA
-#else
 !------------------------------------------------------------------------------
-
-      REAL(C_DOUBLE) FUNCTION GAMMA(X)
-!----------------------------------------------------------------------
-!
-! THIS ROUTINE CALCULATES THE GAMMA FUNCTION FOR A REAL(C_DOUBLE) ARGUMENT X.
-!   COMPUTATION IS BASED ON AN ALGORITHM OUTLINED IN REFERENCE 1.
-!   THE PROGRAM USES RATIONAL FUNCTIONS THAT APPROXIMATE THE GAMMA
-!   FUNCTION TO AT LEAST 20 SIGNIFICANT DECIMAL DIGITS.  COEFFICIENTS
-!   FOR THE APPROXIMATION OVER THE INTERVAL (1,2) ARE UNPUBLISHED.
-!   THOSE FOR THE APPROXIMATION FOR X .GE. 12 ARE FROM REFERENCE 2.
-!   THE ACCURACY ACHIEVED DEPENDS ON THE ARITHMETIC SYSTEM, THE
-!   COMPILER, THE INTRINSIC FUNCTIONS, AND PROPER SELECTION OF THE
-!   MACHINE-DEPENDENT CONSTANTS.
-!
-!
-!*******************************************************************
-!*******************************************************************
-!
-! EXPLANATION OF MACHINE-DEPENDENT CONSTANTS
-!
-! BETA   - RADIX FOR THE FLOATING-POINT REPRESENTATION
-! MAXEXP - THE SMALLEST POSITIVE POWER OF BETA THAT OVERFLOWS
-! XBIG   - THE LARGEST ARGUMENT FOR WHICH GAMMA(X) IS REPRESENTABLE
-!          IN THE MACHINE, I.E., THE SOLUTION TO THE EQUATION
-!                  GAMMA(XBIG) = BETA**MAXEXP
-! XINF   - THE LARGEST MACHINE REPRESENTABLE FLOATING-POINT NUMBER;
-!          APPROXIMATELY BETA**MAXEXP
-! EPS    - THE SMALLEST POSITIVE FLOATING-POINT NUMBER SUCH THAT
-!          1.0+EPS .GT. 1.0
-! XMININ - THE SMALLEST POSITIVE FLOATING-POINT NUMBER SUCH THAT
-!          1/XMININ IS MACHINE REPRESENTABLE
-!
-!     APPROXIMATE VALUES FOR SOME IMPORTANT MACHINES ARE:
-!
-!                            BETA       MAXEXP        XBIG
-!
-! CRAY-1         (S.P.)        2         8191        966.961
-! CYBER 180/855
-!   UNDER NOS    (S.P.)        2         1070        177.803
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (S.P.)        2          128        35.040
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (D.P.)        2         1024        171.624
-! IBM 3033       (D.P.)       16           63        57.574
-! VAX D-FORMAT   (D.P.)        2          127        34.844
-! VAX G-FORMAT   (D.P.)        2         1023        171.489
-!
-!                            XINF         EPS        XMININ
-!
-! CRAY-1         (S.P.)   5.45E+2465   7.11E-15    1.84E-2466
-! CYBER 180/855
-!   UNDER NOS    (S.P.)   1.26E+322    3.55E-15    3.14E-294
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (S.P.)   3.40E+38     1.19E-7     1.18E-38
-! IEEE (IBM/XT,
-!   SUN, ETC.)   (D.P.)   1.79D+308    2.22D-16    2.23D-308
-! IBM 3033       (D.P.)   7.23D+75     2.22D-16    1.39D-76
-! VAX D-FORMAT   (D.P.)   1.70D+38     1.39D-17    5.88D-39
-! VAX G-FORMAT   (D.P.)   8.98D+307    1.11D-16    1.12D-308
-!
-!*******************************************************************
-!*******************************************************************
-!
-! ERROR RETURNS
-!
-!  THE PROGRAM RETURNS THE VALUE XINF FOR SINGULARITIES OR
-!     WHEN OVERFLOW WOULD OCCUR.  THE COMPUTATION IS BELIEVED
-!     TO BE FREE OF UNDERFLOW AND OVERFLOW.
-!
-!
-!  INTRINSIC FUNCTIONS REQUIRED ARE:
-!
-!     INT, DBLE, EXP, LOG, REAL(C_DOUBLE), SIN
-!
-!
-! REFERENCES:  AN OVERVIEW OF SOFTWARE DEVELOPMENT FOR SPECIAL
-!              FUNCTIONS   W. J. CODY, LECTURE NOTES IN MATHEMATICS,
-!              506, NUMERICAL ANALYSIS DUNDEE, 1975, G. A. WATSON
-!              (ED.), SPRINGER VERLAG, BERLIN, 1976.
-!
-!              COMPUTER APPROXIMATIONS, HART, ET. AL., WILEY AND
-!              SONS, NEW YORK, 1968.
-!
-!  LATEST MODIFICATION: OCTOBER 12, 1989
-!
-!  AUTHORS: W. J. CODY AND L. STOLTZ
-!           APPLIED MATHEMATICS DIVISION
-!           ARGONNE NATIONAL LABORATORY
-!           ARGONNE, IL 60439
-!
-!----------------------------------------------------------------------
-      implicit none
-      INTEGER I,N
-      LOGICAL PARITY
-      REAL(C_DOUBLE)                                                          &
-          CONV,EPS,FACT,HALF,ONE,RES,SUM,TWELVE,                    &
-          TWO,X,XBIG,XDEN,XINF,XMININ,XNUM,Y,Y1,YSQ,Z,ZERO
-      REAL(C_DOUBLE), DIMENSION(7) :: C
-      REAL(C_DOUBLE), DIMENSION(8) :: P
-      REAL(C_DOUBLE), DIMENSION(8) :: Q
-!----------------------------------------------------------------------
-!  MATHEMATICAL CONSTANTS
-!----------------------------------------------------------------------
-      DATA ONE,HALF,TWELVE,TWO,ZERO/1.0E0,0.5E0,12.0E0,2.0E0,0.0E0/
-      DATA XBIG,XMININ,EPS/35.040E0,1.18E-38,1.19E-7/,XINF/3.4E38/
-
-!----------------------------------------------------------------------
-!  MACHINE DEPENDENT PARAMETERS
-!----------------------------------------------------------------------
-      DATA XBIG,XMININ,EPS/35.040E0,1.18E-38,1.19E-7/,XINF/3.4E38/
-!----------------------------------------------------------------------
-!  NUMERATOR AND DENOMINATOR COEFFICIENTS FOR RATIONAL MINIMAX
-!     APPROXIMATION OVER (1,2).
-!----------------------------------------------------------------------
-      DATA P/-1.71618513886549492533811E+0,2.47656508055759199108314E+1,  &
-             -3.79804256470945635097577E+2,6.29331155312818442661052E+2,  &
-             8.66966202790413211295064E+2,-3.14512729688483675254357E+4,  &
-             -3.61444134186911729807069E+4,6.64561438202405440627855E+4/
-      DATA Q/-3.08402300119738975254353E+1,3.15350626979604161529144E+2,  &
-             -1.01515636749021914166146E+3,-3.10777167157231109440444E+3, &
-              2.25381184209801510330112E+4,4.75584627752788110767815E+3,  &
-            -1.34659959864969306392456E+5,-1.15132259675553483497211E+5/
-!----------------------------------------------------------------------
-!  COEFFICIENTS FOR MINIMAX APPROXIMATION OVER (12, INF).
-!----------------------------------------------------------------------
-      DATA C/-1.910444077728E-03,8.4171387781295E-04,                      &
-           -5.952379913043012E-04,7.93650793500350248E-04,                                 &
-           -2.777777777777681622553E-03,8.333333333333333331554247E-02,    &
-            5.7083835261E-03/
-!----------------------------------------------------------------------
-!  STATEMENT FUNCTIONS FOR CONVERSION BETWEEN INTEGER AND FLOAT
-!----------------------------------------------------------------------
-      CONV(I) = REAL(I)
-      PARITY=.FALSE.
-      FACT=ONE
-      N=0
-      Y=X
-      
-      PRINT *, "GAMMA: Initial Y = ", Y
-      
-      IF(Y.LE.ZERO)THEN
-!----------------------------------------------------------------------
-!  ARGUMENT IS NEGATIVE
-!----------------------------------------------------------------------
-        Y=-X
-        Y1=AINT(Y)
-        RES=Y-Y1
-        IF(RES.NE.ZERO)THEN
-          IF(Y1.NE.AINT(Y1*HALF)*TWO)PARITY=.TRUE.
-          FACT=-PI/SIN(PI*RES)
-          Y=Y+ONE
-          PRINT *, "GAMMA: After reflection formula: Y = ", Y, ", FACT = ", FACT, ", PARITY = ", PARITY
-        ELSE
-          PRINT *, "GAMMA: Singularity detected, returning XINF = ", XINF
-          RES=XINF
-          GOTO 900
-        ENDIF
-      ENDIF
-!----------------------------------------------------------------------
-!  ARGUMENT IS POSITIVE
-!----------------------------------------------------------------------
-      IF(Y.LT.EPS)THEN
-!----------------------------------------------------------------------
-!  ARGUMENT .LT. EPS
-!----------------------------------------------------------------------
-        IF(Y.GE.XMININ)THEN
-          RES=ONE/Y
-          PRINT *, "GAMMA: Small argument result: RES = ", RES
-        ELSE
-          PRINT *, "GAMMA: Argument too small, returning XINF = ", XINF
-          RES=XINF
-          GOTO 900
-        ENDIF
-      ELSEIF(Y.LT.TWELVE)THEN
-        ! Medium range argument
-        PRINT *, "GAMMA: Medium range branch (EPS <= Y < 12)"
-        Y1=Y
-        IF(Y.LT.ONE)THEN
-!----------------------------------------------------------------------
-!  0.0 .LT. ARGUMENT .LT. 1.0
-!----------------------------------------------------------------------
-          Z=Y
-          Y=Y+ONE
-        ELSE
-!----------------------------------------------------------------------
-!  1.0 .LT. ARGUMENT .LT. 12.0, REDUCE ARGUMENT IF NECESSARY
-!----------------------------------------------------------------------
-          N=INT(Y)-1
-          Y=Y-CONV(N)
-          Z=Y-ONE
-        ENDIF
-!----------------------------------------------------------------------
-!  EVALUATE APPROXIMATION FOR 1.0 .LT. ARGUMENT .LT. 2.0
-!----------------------------------------------------------------------
-        XNUM=ZERO
-        XDEN=ONE
-        DO I=1,8
-          XNUM=(XNUM+P(I))*Z
-          XDEN=XDEN*Z+Q(I)
-        END DO
-        RES=XNUM/XDEN+ONE
-        PRINT *, "GAMMA: After approximation: RES = ", RES
-        
-        IF(Y1.LT.Y)THEN
-!----------------------------------------------------------------------
-!  ADJUST RESULT FOR CASE  0.0 .LT. ARGUMENT .LT. 1.0
-!----------------------------------------------------------------------
-          RES=RES/Y1
-          PRINT *, "GAMMA: Adjusted for Y < 1: RES = ", RES
-        ELSEIF(Y1.GT.Y)THEN
-!----------------------------------------------------------------------
-!  ADJUST RESULT FOR CASE  2.0 .LT. ARGUMENT .LT. 12.0
-!----------------------------------------------------------------------
-          DO I=1,N
-            RES=RES*Y
-            Y=Y+ONE
-            PRINT *, "GAMMA: Multiplication ", I, ": RES = ", RES, ", Y = ", Y
-          END DO
-        ENDIF
-      ELSE
-!----------------------------------------------------------------------
-!  EVALUATE FOR ARGUMENT .GE. 12.0,
-!----------------------------------------------------------------------
-        IF(Y.LE.XBIG)THEN
-          YSQ=Y*Y
-          SUM=C(7)
-          DO I=1,6
-            SUM=SUM/YSQ+C(I)
-            PRINT *, "GAMMA: Sum step ", I, ": SUM = ", SUM
-          END DO
-          SUM=SUM/Y-Y+xxx
-          SUM=SUM+(Y-HALF)*LOG(Y)
-          PRINT *, "GAMMA: Before exp: SUM = ", SUM
-          RES=EXP(SUM)
-          PRINT *, "GAMMA: After exp: RES = ", RES
-        ELSE
-          PRINT *, "GAMMA: Argument too large, returning XINF = ", XINF
-          RES=XINF
-          GOTO 900
-        ENDIF
-      ENDIF
-      
-      ! Final adjustments
-      IF(PARITY)THEN
-        RES=-RES
-        PRINT *, "GAMMA: Applied parity adjustment: RES = ", RES
-      ENDIF
-      IF(FACT.NE.ONE)THEN
-        RES=FACT/RES
-        PRINT *, "GAMMA: Applied reflection adjustment: RES = ", RES
-      ENDIF
-      
-  900 GAMMA=RES
-      PRINT *, "GAMMA: Final result = ", RES
-      RETURN
-! ---------- LAST LINE OF GAMMA ----------
-    END FUNCTION GAMMA
-#endif
 #if 0
       REAL(C_DOUBLE) FUNCTION DERF1(X)
       IMPLICIT NONE
