@@ -515,6 +515,45 @@ constexpr Real gamma_function(Real x) {
           precs_fab.setVal(0.0);
           precg_fab.setVal(0.0);
 
+          // Create FArrayBox for slope parameters and PSD variables
+          amrex::FArrayBox lamc_fab(grown_box, 1);
+          amrex::FArrayBox lami_fab(grown_box, 1);
+          amrex::FArrayBox lams_fab(grown_box, 1);
+          amrex::FArrayBox lamr_fab(grown_box, 1);
+          amrex::FArrayBox lamg_fab(grown_box, 1);
+          amrex::FArrayBox cdist1_fab(grown_box, 1);
+          amrex::FArrayBox n0i_fab(grown_box, 1);
+          amrex::FArrayBox n0s_fab(grown_box, 1);
+          amrex::FArrayBox n0r_fab(grown_box, 1);
+          amrex::FArrayBox n0g_fab(grown_box, 1);
+          amrex::FArrayBox pgam_fab(grown_box, 1);
+
+          // Get Array4 objects for each parameter
+          auto const& lamc = lamc_fab.array();
+          auto const& lami = lami_fab.array();
+          auto const& lams = lams_fab.array();
+          auto const& lamr = lamr_fab.array();
+          auto const& lamg = lamg_fab.array();
+          auto const& cdist1 = cdist1_fab.array();
+          auto const& n0i = n0i_fab.array();
+          auto const& n0s = n0s_fab.array();
+          auto const& n0r = n0r_fab.array();
+          auto const& n0g = n0g_fab.array();
+          auto const& pgam = pgam_fab.array();
+
+          // Initialize all values to zero
+          lamc_fab.setVal(0.0);
+          lami_fab.setVal(0.0);
+          lams_fab.setVal(0.0);
+          lamr_fab.setVal(0.0);
+          lamg_fab.setVal(0.0);
+          cdist1_fab.setVal(0.0);
+          n0i_fab.setVal(0.0);
+          n0s_fab.setVal(0.0);
+          n0r_fab.setVal(0.0);
+          n0g_fab.setVal(0.0);
+          pgam_fab.setVal(0.0);
+
           // Prepare data pointers for Fortran call
           // These would be passed directly to the Fortran interface
           double dummy_reflectivity = 0.0;
