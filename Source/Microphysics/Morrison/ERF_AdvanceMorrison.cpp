@@ -1290,13 +1290,8 @@ constexpr Real gamma_function(Real x) {
           // NOTE: Currently all Array4 values are copied to locals
           //       This means we're not updating or outputing anything
           ////////////////////////////////////////////////////////////
-          ParallelFor( boxD, [=] AMREX_GPU_DEVICE (int i, int j, int )
+            ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
          {
-           int ltrue=0;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
-           int nstep;                        // NSTEP: Timestep counter
-           int iinum=m_inum;                      // iinum: Integer control variable
-
-           for(int k=klo; k<=khi; k++) {
             // Tendencies and mixing ratios
             qc3d(i,j,k) = qcl_arr(i,j,k);   // CLOUD WATER MIXING RATIO
             qi3d(i,j,k) = qci_arr(i,j,k);   // CLOUD ICE MIXING RATIO
@@ -1317,7 +1312,14 @@ constexpr Real gamma_function(Real x) {
             qrcu1d(i,j,k) = qrcuten_arr(i,j,k);              // RAIN FROM CUMULUS PARAMETERIZATION
             qscu1d(i,j,k) = qscuten_arr(i,j,k);              // SNOW FROM CUMULUS PARAMETERIZATION
             qicu1d(i,j,k) = qicuten_arr(i,j,k);              // ICE FROM CUMULUS PARAMETERIZATION
+         });
+          ParallelFor( boxD, [=] AMREX_GPU_DEVICE (int i, int j, int )
+         {
+           int ltrue=0;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
+           int nstep;                        // NSTEP: Timestep counter
+           int iinum=m_inum;                      // iinum: Integer control variable
 
+           for(int k=klo; k<=khi; k++) {
             // Model input parameters
             //amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
             //amrex::Real lami;               // LAMI: Slope parameter for cloud ice (m^-1)
