@@ -118,6 +118,9 @@ constexpr Real xxx = 0.9189385332046727417803297;
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real wrf_gamma (amrex::Real x)
 {
+    // Debug: using printf since it's GPU compatible
+//    printf("wrf_gamma: Input value x = %g\n", x);
+
     // Local variables
     int i, n;
     bool parity = false;
@@ -174,19 +177,25 @@ amrex::Real wrf_gamma (amrex::Real x)
     n = 0;
     y = x;
 
+//    printf("wrf_gamma: Initial y = %g\n", y);
+
     if (y <= zero) {
         // Argument is negative
+//        printf("wrf_gamma: Handling negative argument\n");
         y = -x;
         y1 = std::floor(y);
         res = y - y1;
         if (res != zero) {
             if (y1 != std::floor(y1 * half) * two)
                 parity = true;
-            Real pi= 3.1415926535897932384626434;//amrex::Math::pi<Real>();
+            Real pi=amrex::Math::pi<Real>();
             fact = -pi / std::sin(pi * res);
             y = y + one;
+//            printf("wrf_gamma: After reflection formula: y = %g, fact = %g, parity = %d\n", 
+//                   y, fact, parity);
         }
         else {
+//            printf("wrf_gamma: Singularity detected, returning xinf = %g\n", xinf);
             res = xinf;
             return res;
         }
@@ -195,29 +204,37 @@ amrex::Real wrf_gamma (amrex::Real x)
     // Argument is positive
     if (y < eps) {
         // Argument < eps
+//        printf("wrf_gamma: Small argument branch (y < eps)\n");
         if (y >= xminin) {
             res = one / y;
+//            printf("wrf_gamma: Small argument result: res = %g\n", res);
         }
         else {
+//            printf("wrf_gamma: Argument too small, returning xinf = %g\n", xinf);
             res = xinf;
             return res;
         }
     }
     else if (y < twelve) {
+        // Medium range argument
+//        printf("wrf_gamma: Medium range branch (eps <= y < 12)\n");
         y1 = y;
         if (y < one) {
             // 0.0 < argument < 1.0
+//            printf("wrf_gamma: Sub-branch: 0 < y < 1\n");
             z = y;
             y = y + one;
         }
         else {
             // 1.0 < argument < 12.0, reduce argument if necessary
             n = static_cast<int>(y) - 1;
+//            printf("wrf_gamma: Sub-branch: 1 <= y < 12, n = %d\n", n);
             y = y - static_cast<amrex::Real>(n);
             z = y - one;
         }
 
-        // Evaluate approximation for 1.0 < argument < 2.0
+        // Evaluate approximation
+//        printf("wrf_gamma: Before approximation: z = %g, y = %g\n", z, y);
         xnum = zero;
         xden = one;
         for (i = 0; i < 8; i++) {
@@ -225,51 +242,63 @@ amrex::Real wrf_gamma (amrex::Real x)
             xden = xden * z + q[i];
         }
         res = xnum / xden + one;
+//        printf("wrf_gamma: After approximation: res = %g\n", res);
 
         if (y1 < y) {
             // Adjust result for case 0.0 < argument < 1.0
             res = res / y1;
+//            printf("wrf_gamma: Adjusted for y < 1: res = %g\n", res);
         }
         else if (y1 > y) {
-            // Adjust result for case 2.0 < argument < 12.0
+            // Adjust for 2.0 < argument < 12.0
+//            printf("wrf_gamma: Adjusting for y > 2 with %d multiplications\n", n);
             for (i = 0; i < n; i++) {
                 res = res * y;
                 y = y + one;
+//                printf("wrf_gamma: Multiplication %d: res = %g, y = %g\n", i+1, res, y);
             }
         }
     }
     else {
-        // Evaluate for argument >= 12.0
+        // Large argument
+//        printf("wrf_gamma: Large argument branch (y >= 12)\n");
         if (y <= xbig) {
             ysq = y * y;
             sum = c[6];
             for (i = 0; i < 6; i++) {
                 sum = sum / ysq + c[i];
+//                printf("wrf_gamma: Sum step %d: sum = %g\n", i+1, sum);
             }
             sum = sum / y - y + xxx;
             sum = sum + (y - half) * std::log(y);
+//            printf("wrf_gamma: Before exp: sum = %g\n", sum);
             res = std::exp(sum);
+//            printf("wrf_gamma: After exp: res = %g\n", res);
         }
         else {
+//            printf("wrf_gamma: Argument too large, returning xinf = %g\n", xinf);
             res = xinf;
             return res;
         }
     }
 
-    // Final adjustments and return
-    if (parity)
+    // Final adjustments
+    if (parity) {
         res = -res;
-    if (fact != one)
+//        printf("wrf_gamma: Applied parity adjustment: res = %g\n", res);
+    }
+    if (fact != one) {
         res = fact / res;
+//        printf("wrf_gamma: Applied reflection adjustment: res = %g\n", res);
+    }
     
+//    printf("wrf_gamma: Final result = %g\n", res);
     return res;
 }
 
-// Gamma function using the standard C++ tgamma function
+// Gamma function using the custom wrf implementation of the gamma function
 constexpr Real gamma_function(Real x) {
-  // Note: std::tgamma may not be constexpr in all compilers
-  // but this will work at runtime in any case
-  return gamma(x);
+  return wrf_gamma(x);
 }
   /**
    * Helper function to calculate saturation vapor pressure for water or ice.
@@ -421,7 +450,6 @@ constexpr Real gamma_function(Real x) {
           amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             dz_arr(i,j,k) = dz_val;
           });
-
           amrex::Box grown_boxD(grown_box); grown_boxD.makeSlab(2,0);
           // Arrays to store precipitation rates
           amrex::FArrayBox    rainncv_fab(grown_boxD, 1);
@@ -2066,8 +2094,8 @@ constexpr Real gamma_function(Real x) {
 
               // CLOUD WATER
               if (dumc(i,j,k) >= m_qsmall) {
-                unc(i,j,k) = acn(i,j,k) * gamma_function(1. + m_bc + pgam) / (dlamc(i,j,k) * std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam + 1.));
-                umc(i,j,k) = acn(i,j,k) * gamma_function(4. + m_bc + pgam) / (dlamc(i,j,k) * std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam + 4.));
+                unc(i,j,k) = acn(i,j,k) * gamma_function(1. + m_bc + pgam) / (std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam + 1.));
+                umc(i,j,k) = acn(i,j,k) * gamma_function(4. + m_bc + pgam) / (std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam + 4.));
                 if(i==93&&j==3&&k==18) {
                   printf("%24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e \n", acn(i,j,k) , gamma_function(4. + m_bc + pgam) , dlamc(i,j,k) , std::pow(dlamc(i,j,k), m_bc) , gamma_function(pgam + 4.),pgam,m_bc);
                 }
@@ -2081,7 +2109,9 @@ constexpr Real gamma_function(Real x) {
                 umc(i,j,k) = 0.;
                 unc(i,j,k) = 0.;
               }
-
+                if(i==93&&j==3&&k==18) {
+                  Print()<<fc(i,j,k)<<"\t"<<umc(i,j,k)<<std::endl;
+                }
               // CLOUD ICE
               if (dumi(i,j,k) >= m_qsmall) {
                 uni(i,j,k) = ain(i,j,k) * m_cons27 / std::pow(dlami(i,j,k), m_bi);
@@ -2145,7 +2175,7 @@ constexpr Real gamma_function(Real x) {
               fg(i,j,k) = umg(i,j,k);         // GRAUPEL FALL SPEED
               fng(i,j,k) = ung(i,j,k);        // GRAUPEL NUMBER FALL SPEED
                 if(i==93&&j==3&&k==18) {
-                  Print()<<fc(i,j,k)<<"\t"<<dumc(i,j,k)<<std::endl;
+                  Print()<<fc(i,j,k)<<"\t"<<umc(i,j,k)<<std::endl;
                 }
               // V3.3 MODIFY FALLSPEED BELOW LEVEL OF PRECIP
               if (fr(i,j,k) < 1.e-10) {

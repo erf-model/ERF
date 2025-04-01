@@ -260,11 +260,9 @@ SUBROUTINE MORR_TWO_MOMENT_INIT(morr_rimed_ice) ! RAS
       INTEGER, INTENT(IN):: morr_rimed_ice ! RAS
 
       integer n,i
-      Real test
+
       print *,'IN MORR_TWO_MOMENT_INIT '
-      test = GAMMA(4+4.829501842840712377835644E+00)
-      print*, "GAMMA",test
-        STOP
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -3475,7 +3473,9 @@ endif
       UMC = 0.
       UNC = 0.
       END IF
-
+      if(i.eq.93 .and.j.eq.3.and.k.eq.18) then
+         print*,      FC(K),UMC
+      endif
       IF (DUMI(K).GE.QSMALL) THEN
       UNI =  AIN(K)*CONS27/DLAMI**BI
       UMI = AIN(K)*CONS28/(DLAMI**BI)
@@ -3534,7 +3534,7 @@ endif
       FG(K) = UMG
       FNG(K) = UNG
       if(i.eq.93 .and.j.eq.3.and.k.eq.18) then
-         print*,      FC(K),DUMC(K)
+         print*,      FC(K),UMC
       endif
 ! V3.3 MODIFY FALLSPEED BELOW LEVEL OF PRECIP
 
@@ -4191,7 +4191,7 @@ endif
 
 
       END FUNCTION POLYSVP
-#if 0
+#if 1
 !------------------------------------------------------------------------------
 
       REAL(C_DOUBLE) FUNCTION GAMMA(X)
