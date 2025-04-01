@@ -191,7 +191,7 @@ amrex::Real wrf_gamma (amrex::Real x)
             Real pi=amrex::Math::pi<Real>();
             fact = -pi / std::sin(pi * res);
             y = y + one;
-//            printf("wrf_gamma: After reflection formula: y = %g, fact = %g, parity = %d\n", 
+//            printf("wrf_gamma: After reflection formula: y = %g, fact = %g, parity = %d\n",
 //                   y, fact, parity);
         }
         else {
@@ -291,7 +291,7 @@ amrex::Real wrf_gamma (amrex::Real x)
         res = fact / res;
 //        printf("wrf_gamma: Applied reflection adjustment: res = %g\n", res);
     }
-    
+
 //    printf("wrf_gamma: Final result = %g\n", res);
     return res;
 }
@@ -896,7 +896,7 @@ constexpr Real gamma_function(Real x) {
 
             // Create dummy arrays for tendencies
             amrex::FArrayBox qc3dten_fab(grown_box, 1);   // CLOUD WATER MIXING RATIO TENDENCY
-            amrex::FArrayBox qi3dten_fab(grown_box, 1);   // CLOUD ICE MIXING RATIO TENDENCY  
+            amrex::FArrayBox qi3dten_fab(grown_box, 1);   // CLOUD ICE MIXING RATIO TENDENCY
             amrex::FArrayBox qni3dten_fab(grown_box, 1);  // SNOW MIXING RATIO TENDENCY
             amrex::FArrayBox qr3dten_fab(grown_box, 1);   // RAIN MIXING RATIO TENDENCY
             amrex::FArrayBox ni3dten_fab(grown_box, 1);   // CLOUD ICE NUMBER CONCENTRATION
@@ -1301,7 +1301,7 @@ constexpr Real gamma_function(Real x) {
             qc3d(i,j,k) = qcl_arr(i,j,k);   // CLOUD WATER MIXING RATIO
             qi3d(i,j,k) = qci_arr(i,j,k);   // CLOUD ICE MIXING RATIO
             qni3d(i,j,k) = qps_arr(i,j,k);  // SNOW MIXING RATIO
-            qr3d(i,j,k) = qpr_arr(i,j,k);   // RAIN MIXING RATIO 
+            qr3d(i,j,k) = qpr_arr(i,j,k);   // RAIN MIXING RATIO
             ni3d(i,j,k) = ni_arr(i,j,k);    // CLOUD ICE NUMBER CONCENTRATION
             ns3d(i,j,k) = ns_arr(i,j,k);    // SNOW NUMBER CONCENTRATION
             nr3d(i,j,k) = nr_arr(i,j,k);    // RAIN NUMBER CONCENTRATION
@@ -1996,7 +1996,7 @@ constexpr Real gamma_function(Real x) {
                 if (qc3d(i,j,k) >= 1.0e-6) {
                   // HM ADD 12/13/06, REPLACE WITH NEWER FORMULA
                   // FROM KHAIROUTDINOV AND KOGAN 2000, MWR
-                  prc = 1350.0 * std::pow(qc3d(i,j,k), 2.47) * 
+                  prc = 1350.0 * std::pow(qc3d(i,j,k), 2.47) *
                     std::pow((nc3d(i,j,k)/1.0e6*rho(i,j,k)), -1.79);
 
                   // note: nprc1 is change in Nr,
@@ -2025,17 +2025,17 @@ constexpr Real gamma_function(Real x) {
                   uns = std::min(uns, 1.2*dum);
                   umr = std::min(umr, 9.1*dum);
                   unr = std::min(unr, 9.1*dum);
-    
+
 
                   // hm fix, 2/12/13
                   // for above freezing conditions to get accelerated melting of snow,
                   // we need collection of rain by snow (following Lin et al. 1983)
                   ////////////////////////Might need pow expanding
-                  pracs = m_cons41 * (std::sqrt(std::pow(1.2*umr-0.95*ums, 2) + 
-                                                0.08*ums*umr) * rho(i,j,k) * 
-                                      n0r * n0s / std::pow(lamr, 3) * 
-                                      (5.0/(std::pow(lamr, 3) * lams) + 
-                                       2.0/(std::pow(lamr, 2) * std::pow(lams, 2)) + 
+                  pracs = m_cons41 * (std::sqrt(std::pow(1.2*umr-0.95*ums, 2) +
+                                                0.08*ums*umr) * rho(i,j,k) *
+                                      n0r * n0s / std::pow(lamr, 3) *
+                                      (5.0/(std::pow(lamr, 3) * lams) +
+                                       2.0/(std::pow(lamr, 2) * std::pow(lams, 2)) +
                                        0.5/(lamr * std::pow(lams, 3))));
                 }
                 // ADD COLLECTION OF GRAUPEL BY RAIN ABOVE FREEZING
@@ -2043,7 +2043,7 @@ constexpr Real gamma_function(Real x) {
                 // ASSUME SHED DROPS ARE 1 MM IN SIZE
 
                 if (qr3d(i,j,k) >= 1.0e-8 && qg3d(i,j,k) >= 1.0e-8) {
-                  
+
                   amrex::Real umg = agn(i,j,k) * m_cons7 / std::pow(lamg, m_bg);
                   amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr, m_br);
                   amrex::Real ung = agn(i,j,k) * m_cons8 / std::pow(lamg, m_bg);
@@ -2058,20 +2058,20 @@ constexpr Real gamma_function(Real x) {
                   unr = std::min(unr, 9.1*dum);
 
                   // PRACG IS MIXING RATIO OF RAIN PER SEC COLLECTED BY GRAUPEL/HAIL
-                  pracg = m_cons41 * (std::sqrt(std::pow(1.2*umr-0.95*umg, 2) + 
-                                                0.08*umg*umr) * rho(i,j,k) * 
-                                      n0r * n0g / std::pow(lamr, 3) * 
-                                      (5.0/(std::pow(lamr, 3) * lamg) + 
-                                       2.0/(std::pow(lamr, 2) * std::pow(lamg, 2)) + 
+                  pracg = m_cons41 * (std::sqrt(std::pow(1.2*umr-0.95*umg, 2) +
+                                                0.08*umg*umr) * rho(i,j,k) *
+                                      n0r * n0g / std::pow(lamr, 3) *
+                                      (5.0/(std::pow(lamr, 3) * lamg) +
+                                       2.0/(std::pow(lamr, 2) * std::pow(lamg, 2)) +
                                        0.5/(lamr * std::pow(lamg, 3))));
 
                   // ASSUME 1 MM DROPS ARE SHED, GET NUMBER SHED PER SEC
                   dum = pracg/5.2e-7;
 
-                  npracg = m_cons32 * rho(i,j,k) * (std::sqrt(1.7*std::pow(unr-ung, 2) + 
-                                                              0.3*unr*ung) * n0r * n0g * 
-                                                    (1.0/(std::pow(lamr, 3) * lamg) + 
-                                                     1.0/(std::pow(lamr, 2) * std::pow(lamg, 2)) + 
+                  npracg = m_cons32 * rho(i,j,k) * (std::sqrt(1.7*std::pow(unr-ung, 2) +
+                                                              0.3*unr*ung) * n0r * n0g *
+                                                    (1.0/(std::pow(lamr, 3) * lamg) +
+                                                     1.0/(std::pow(lamr, 2) * std::pow(lamg, 2)) +
                                                      1.0/(lamr * std::pow(lamg, 3))));
                   // hm 7/15/13, remove limit so that the number of collected drops can smaller than
                   // number of shed drops
@@ -2106,10 +2106,10 @@ constexpr Real gamma_function(Real x) {
                 }
                 // CALCULATE EVAP OF RAIN (RUTLEDGE AND HOBBS 1983)
                 if (qr3d(i,j,k) >= m_qsmall) {
-                  epsr = 2.0 * m_pi * n0r * rho(i,j,k) * dv * 
-                    (m_f1r/(lamr*lamr) + 
-                     m_f2r * std::sqrt(arn(i,j,k)*rho(i,j,k)/mu(i,j,k)) * 
-                     std::pow(sc_schmidt, 1.0/3.0) * m_cons9 / 
+                  epsr = 2.0 * m_pi * n0r * rho(i,j,k) * dv *
+                    (m_f1r/(lamr*lamr) +
+                     m_f2r * std::sqrt(arn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
+                     std::pow(sc_schmidt, 1.0/3.0) * m_cons9 /
                      std::pow(lamr, m_cons34));
                 } else {
                   epsr = 0.0;
@@ -2132,20 +2132,20 @@ constexpr Real gamma_function(Real x) {
                   dum = -m_cpw/xlf * (t3d(i,j,k) - 273.15) * pracs;
 
                   // hm fix 1/20/15
-                  psmlt = 2.0 * m_pi * n0s * kap * (273.15 - t3d(i,j,k)) / 
-                    xlf * (m_f1s/(lams*lams) + 
-                           m_f2s * std::sqrt(asn(i,j,k)*rho(i,j,k)/mu(i,j,k)) * 
-                           std::pow(sc_schmidt, 1.0/3.0) * m_cons10 / 
+                  psmlt = 2.0 * m_pi * n0s * kap * (273.15 - t3d(i,j,k)) /
+                    xlf * (m_f1s/(lams*lams) +
+                           m_f2s * std::sqrt(asn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
+                           std::pow(sc_schmidt, 1.0/3.0) * m_cons10 /
                            std::pow(lams, m_cons35)) + dum;
 
                   // IN WATER SUBSATURATION, SNOW MELTS AND EVAPORATES
                   if (qvqvs < 1.0) {
-                    epss = 2.0 * m_pi * n0s * rho(i,j,k) * dv * 
-                      (m_f1s/(lams*lams) + 
-                       m_f2s * std::sqrt(asn(i,j,k)*rho(i,j,k)/mu(i,j,k)) * 
-                       std::pow(sc_schmidt, 1.0/3.0) * m_cons10 / 
+                    epss = 2.0 * m_pi * n0s * rho(i,j,k) * dv *
+                      (m_f1s/(lams*lams) +
+                       m_f2s * std::sqrt(asn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
+                       std::pow(sc_schmidt, 1.0/3.0) * m_cons10 /
                        std::pow(lams, m_cons35));
-        
+
                     // hm fix 8/4/08
                     evpms = (qv3d(i,j,k) - qvs) * epss / ab;
                     evpms = std::max(evpms, psmlt);
@@ -2162,21 +2162,21 @@ constexpr Real gamma_function(Real x) {
 
                   dum = -m_cpw/xlf * (t3d(i,j,k) - 273.15) * pracg;
 
-                  // hm fix 1/20/15               
-                  pgmlt = 2.0 * m_pi * n0g * kap * (273.15 - t3d(i,j,k)) / 
-                    xlf * (m_f1s/(lamg*lamg) + 
-                           m_f2s * std::sqrt(agn(i,j,k)*rho(i,j,k)/mu(i,j,k)) * 
-                           std::pow(sc_schmidt, 1.0/3.0) * m_cons11 / 
+                  // hm fix 1/20/15
+                  pgmlt = 2.0 * m_pi * n0g * kap * (273.15 - t3d(i,j,k)) /
+                    xlf * (m_f1s/(lamg*lamg) +
+                           m_f2s * std::sqrt(agn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
+                           std::pow(sc_schmidt, 1.0/3.0) * m_cons11 /
                            std::pow(lamg, m_cons36)) + dum;
 
                   // IN WATER SUBSATURATION, GRAUPEL MELTS AND EVAPORATES
                   if (qvqvs < 1.0) {
-                    epsg = 2.0 * m_pi * n0g * rho(i,j,k) * dv * 
-                      (m_f1s/(lamg*lamg) + 
-                       m_f2s * std::sqrt(agn(i,j,k)*rho(i,j,k)/mu(i,j,k)) * 
-                       std::pow(sc_schmidt, 1.0/3.0) * m_cons11 / 
+                    epsg = 2.0 * m_pi * n0g * rho(i,j,k) * dv *
+                      (m_f1s/(lamg*lamg) +
+                       m_f2s * std::sqrt(agn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
+                       std::pow(sc_schmidt, 1.0/3.0) * m_cons11 /
                        std::pow(lamg, m_cons36));
-        
+
                     // hm fix 8/4/08
                     evpmg = (qv3d(i,j,k) - qvs) * epsg / ab;
                     evpmg = std::max(evpmg, pgmlt);
@@ -2233,8 +2233,8 @@ constexpr Real gamma_function(Real x) {
                 // Update tendencies
                 qv3dten(i,j,k) = qv3dten(i,j,k) + (-pre - evpms - evpmg);
 
-                t3dten(i,j,k) = t3dten(i,j,k) + (pre * xxlv + 
-                                                 (evpms + evpmg) * xxls + 
+                t3dten(i,j,k) = t3dten(i,j,k) + (pre * xxlv +
+                                                 (evpms + evpmg) * xxls +
                                                  (psmlt + pgmlt - pracs - pracg) * xlf) / cpm;
 
                 qc3dten(i,j,k) = qc3dten(i,j,k) + (-pra - prc);
@@ -2321,13 +2321,1033 @@ constexpr Real gamma_function(Real x) {
               }
 #endif
             } else {
-            // not implmented : ELSE  ! TEMPERATURE < 273.15
-              printf("ERROR: Microphysics not fully implmented in C++, missing cold\n");
+              //......................................................................
+              // ALLOW FOR CONSTANT DROPLET NUMBER
+              // INUM = 0, PREDICT DROPLET NUMBER
+              // INUM = 1, SET CONSTANT DROPLET NUMBER
+
+              if (m_inum == 1) {
+                // CONVERT NDCNST FROM CM-3 TO KG-1
+                // Note: NDCNST constant would need to be defined elsewhere
+                nc3d(i,j,k) = m_ndcnst * 1.0e6 / rho(i,j,k); // Set cloud droplet number concentration
+              }
+
+              ni3d(i,j,k) = amrex::max(0.0,ni3d(i,j,k));
+              ns3d(i,j,k) = amrex::max(0.0,ns3d(i,j,k));
+              nc3d(i,j,k) = amrex::max(0.0,nc3d(i,j,k));
+              nr3d(i,j,k) = amrex::max(0.0,nr3d(i,j,k));
+              ng3d(i,j,k) = amrex::max(0.0,ng3d(i,j,k));
+
+              // ========================================================================
+              // USING WRF APPROACH FOR SIZE DISTRIBUTION PARAMETERS
+              // ========================================================================
+              // Rain
+              if (qr3d(i,j,k) >= m_qsmall) {
+                // Calculate lambda parameter using cons26 (pi*rhow/6)
+                lamr = pow(m_cons26 * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
+
+                // Check for slope and adjust vars
+                if (lamr < m_lamminr) {
+                  lamr = m_lamminr;
+                  n0r = pow(lamr, 4.0) * qr3d(i,j,k) / m_cons26;
+                  nr3d(i,j,k) = n0r / lamr;  // Update number concentration
+                } else if (lamr > m_lammaxr) {
+                  lamr = m_lammaxr;
+                  n0r = pow(lamr, 4.0) * qr3d(i,j,k) / m_cons26;
+                  nr3d(i,j,k) = n0r / lamr;  // Update number concentration
+                } else {
+                  // Calculate intercept parameter using WRF formula
+                  n0r = pow(lamr, 4.0) * qr3d(i,j,k) / m_cons26;
+                }
+              }
+
+              // Cloud droplets
+              if (qc3d(i,j,k) >= m_qsmall) {
+                // Calculate air density factor (moist air density)
+                amrex::Real dum = pres(i,j,k)/(287.15*t3d(i,j,k));
+
+                // MARTIN ET AL. (1994) FORMULA FOR PGAM (WRF implementation)
+                pgam = 0.0005714*(nc3d(i,j,k)/1.0e6*dum) + 0.2714;
+                pgam = 1.0/(pgam*pgam) - 1.0;
+                pgam = amrex::max(pgam, 2.0);
+                pgam = amrex::min(pgam, 10.0);
+
+                // Calculate gamma function values
+                amrex::Real gamma_pgam_plus_1 = gamma_function(pgam + 1.0);
+                amrex::Real gamma_pgam_plus_4 = gamma_function(pgam + 4.0);
+
+                // Calculate lambda parameter
+                lamc = pow((m_cons26 * nc3d(i,j,k) * gamma_pgam_plus_4) / (qc3d(i,j,k) * gamma_pgam_plus_1), 1.0/3.0);
+
+                // Lambda bounds from WRF - 60 micron max diameter, 1 micron min diameter
+                amrex::Real lambda_min = (pgam + 1.0)/60.0e-6;
+                amrex::Real lambda_max = (pgam + 1.0)/1.0e-6;
+
+                // Check bounds and update number concentration if needed
+                if (lamc < lambda_min) {
+                  lamc = lambda_min;
+                  // Update cloud droplet number using the same formula as in WRF
+                  nc3d(i,j,k) = exp(3.0*log(lamc) + log(qc3d(i,j,k)) +
+                                    log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
+                } else if (lamc > lambda_max) {
+                  lamc = lambda_max;
+                  // Update cloud droplet number using the same formula as in WRF
+                  nc3d(i,j,k) = exp(3.0*log(lamc) + log(qc3d(i,j,k)) +
+                                    log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
+                }
+
+                // Calculate intercept parameter
+                cdist1 = nc3d(i,j,k) / gamma_pgam_plus_1;
+              }
+
+              // Snow
+              if (qni3d(i,j,k) >= m_qsmall) {
+                // Calculate lambda parameter
+                lams = pow(m_cons1 * ns3d(i,j,k) / qni3d(i,j,k), 1.0/ds0);
+
+                // Calculate intercept parameter
+                n0s = ns3d(i,j,k) * lams;
+
+                // Check for slope and adjust vars
+                if (lams < m_lammins) {
+                  lams = m_lammins;
+                  n0s = pow(lams, 4.0) * qni3d(i,j,k) / m_cons1;
+                  ns3d(i,j,k) = n0s / lams;  // Update number concentration
+                } else if (lams > m_lammaxs) {
+                  lams = m_lammaxs;
+                  n0s = pow(lams, 4.0) * qni3d(i,j,k) / m_cons1;
+                  ns3d(i,j,k) = n0s / lams;  // Update number concentration
+                }
+              }
+
+              // Cloud ice
+              if (qi3d(i,j,k) >= m_qsmall) {
+                // Calculate lambda parameter
+                lami = pow(m_cons12 * ni3d(i,j,k) / qi3d(i,j,k), 1.0/3.0);
+
+                // Calculate intercept parameter (initial calculation)
+                n0i = ni3d(i,j,k) * lami;
+
+                // Check for slope (apply bounds)
+                if (lami < m_lammini) {
+                  lami = m_lammini;
+                  // Recalculate n0i when lambda is adjusted
+                  n0i = pow(lami, 4.0) * qi3d(i,j,k) / m_cons12;
+                  // Update ni3d when lambda is adjusted
+                  ni3d(i,j,k) = n0i / lami;
+                } else if (lami > m_lammaxi) {
+                  lami = m_lammaxi;
+                  // Recalculate n0i when lambda is adjusted
+                  n0i = pow(lami, 4.0) * qi3d(i,j,k) / m_cons12;
+                  // Update ni3d when lambda is adjusted
+                  ni3d(i,j,k) = n0i / lami;
+                }
+              }
+
+              // Graupel
+              if (qg3d(i,j,k) >= m_qsmall) {
+                // Calculate lambda parameter
+                lamg = pow(m_cons2 * ng3d(i,j,k) / qg3d(i,j,k), 1.0/dg0);
+
+                // Calculate intercept parameter
+                n0g = ng3d(i,j,k) * lamg;
+
+                // Check for slope and adjust vars
+                if (lamg < m_lamming) {
+                  lamg = m_lamming;
+                  n0g = pow(lamg, 4.0) * qg3d(i,j,k) / m_cons2;
+                  ng3d(i,j,k) = n0g / lamg;  // Update number concentration
+                } else if (lamg > m_lammaxg) {
+                  lamg = m_lammaxg;
+                  n0g = pow(lamg, 4.0) * qg3d(i,j,k) / m_cons2;
+                  ng3d(i,j,k) = n0g / lamg;  // Update number concentration
+                }
+              }
+#if 0
+                // C++ version
+                if ((i >= 86 && i <= 101 && j >= 0 && j <= 3 && k >= 8 && k <= 23 &&
+                     (i-86)%2 == 0 && j%2 == 0 && (k-8)%2 == 0) ||
+                    (i == 92 && j == 0 && k == 17) ||
+                    (((i == 168 || i == 169 || i == 190 || i == 191) &&
+                      (j == 0 || j == 3) &&
+                      (k == 0 || k == 1 || k == 126 || k == 127))) ||
+                    (i == 175 && j == 1 && k == 50) ||
+                    (i == 180 && j == 2 && k == 75) ||
+                    (i == 185 && j == 1 && k == 100) ||
+                    (i == 170 && j == 0 && k == 30) ||
+                    (i == 188 && j == 3 && k == 60) ||
+                    (i == 178 && j == 2 && k == 40) ||
+                    (i == 183 && j == 0 && k == 80) ||
+                    (i == 173 && j == 3 && k == 110) ||
+                    (i == 186 && j == 1 && k == 90) ||
+                    (i == 177 && j == 2 && k == 65)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+                          i, j, k, lamr, n0r, pgam, lamc, nc3d(i,j,k), lams, n0s, ns3d(i,j,k), lamg, n0g, ng3d(i,j,k));
+                }
+#endif
+                ////////////////////// Second instance of ZERO OUT PROCESS RATES
+                // Zero out process rates
+                mnuccc = 0.0;      // Change Q due to contact freezing droplets (MNUCCC)
+                nnuccc = 0.0;      // Change N due to contact freezing droplets (NNUCCC)
+                prc = 0.0;         // Autoconversion droplets (PRC)
+                nprc = 0.0;        // Change NC autoconversion droplets (NPRC)
+                nprc1 = 0.0;       // Change NR autoconversion droplets (NPRC1)
+                nsagg = 0.0;       // Self-collection of snow (NSAGG)
+                psacws = 0.0;      // Change Q droplet accretion by snow (PSACWS)
+                npsacws = 0.0;     // Change N droplet accretion by snow (NPSACWS)
+                psacwi = 0.0;      // Change Q droplet accretion by cloud ice (PSACWI)
+                npsacwi = 0.0;     // Change N droplet accretion by cloud ice (NPSACWI)
+                pracs = 0.0;       // Change Q rain-snow collection (PRACS)
+                npracs = 0.0;      // Change N rain-snow collection (NPRACS)
+                nmults = 0.0;      // Ice multiplication due to riming droplets by snow (NMULTS)
+                qmults = 0.0;      // Change Q due to ice multiplication droplets/snow (QMULTS)
+                nmultr = 0.0;      // Ice multiplication due to riming rain by snow (NMULTR)
+                qmultr = 0.0;      // Change Q due to ice multiplication rain/snow (QMULTR)
+                nmultg = 0.0;      // Ice multiplication due to accretion droplets by graupel (NMULTG)
+                qmultg = 0.0;      // Change Q due to ice multiplication droplets/graupel (QMULTG)
+                nmultrg = 0.0;     // Ice multiplication due to accretion rain by graupel (NMULTRG)
+                qmultrg = 0.0;     // Change Q due to ice multiplication rain/graupel (QMULTRG)
+                mnuccr = 0.0;      // Change Q due to contact freezing rain (MNUCCR)
+                nnuccr = 0.0;      // Change N due to contact freezing rain (NNUCCR)
+                pra = 0.0;         // Accretion droplets by rain (PRA)
+                npra = 0.0;        // Change N due to droplet accretion by rain (NPRA)
+                nragg = 0.0;       // Self-collection/breakup of rain (NRAGG)
+                prci = 0.0;        // Change Q autoconversion cloud ice to snow (PRCI)
+                nprci = 0.0;       // Change N autoconversion cloud ice by snow (NPRCI)
+                prai = 0.0;        // Change Q accretion cloud ice by snow (PRAI)
+                nprai = 0.0;       // Change N accretion cloud ice (NPRAI)
+                nnuccd = 0.0;      // Change N freezing aerosol (primary ice nucleation) (NNUCCD)
+                mnuccd = 0.0;      // Change Q freezing aerosol (primary ice nucleation) (MNUCCD)
+                pcc = 0.0;         // Condensation/evaporation droplets (PCC)
+                pre = 0.0;         // Evaporation of rain (PRE)
+                prd = 0.0;         // Deposition cloud ice (PRD)
+                prds = 0.0;        // Deposition snow (PRDS)
+                eprd = 0.0;        // Sublimation cloud ice (EPRD)
+                eprds = 0.0;       // Sublimation snow (EPRDS)
+                nsubc = 0.0;       // Loss of NC during evaporation (NSUBC)
+                nsubi = 0.0;       // Loss of NI during sublimation (NSUBI)
+                nsubs = 0.0;       // Loss of NS during sublimation (NSUBS)
+                nsubr = 0.0;       // Loss of NR during evaporation (NSUBR)
+                piacr = 0.0;       // Change QR, ice-rain collection (PIACR)
+                niacr = 0.0;       // Change N, ice-rain collection (NIACR)
+                praci = 0.0;       // Change QI, ice-rain collection (PRACI)
+                piacrs = 0.0;      // Change QR, ice rain collision, added to snow (PIACRS)
+                niacrs = 0.0;      // Change N, ice rain collision, added to snow (NIACRS)
+                pracis = 0.0;      // Change QI, ice rain collision, added to snow (PRACIS)
+
+                // Graupel processes
+                pracg = 0.0;       // Change in Q collection rain by graupel (PRACG)
+                psacr = 0.0;       // Conversion due to collection of snow by rain (PSACR)
+                psacwg = 0.0;      // Change in Q collection droplets by graupel (PSACWG)
+                pgsacw = 0.0;      // Conversion Q to graupel due to collection droplets by snow (PGSACW)
+                pgracs = 0.0;      // Conversion Q to graupel due to collection rain by snow (PGRACS)
+                prdg = 0.0;        // Deposition of graupel (PRDG)
+                eprdg = 0.0;       // Sublimation of graupel (EPRDG)
+                npracg = 0.0;      // Change N collection rain by graupel (NPRACG)
+                npsacwg = 0.0;     // Change N collection droplets by graupel (NPSACWG)
+                nscng = 0.0;       // Change N conversion to graupel due to collection droplets by snow (NSCNG)
+                ngracs = 0.0;      // Change N conversion to graupel due to collection rain by snow (NGRACS)
+                nsubg = 0.0;       // Change N sublimation/deposition of graupel (NSUBG)
+
+                ////////////////////// CALCULATION OF MICROPHYSICAL PROCESS RATES
+                // FREEZING OF CLOUD DROPLETS - ONLY ALLOWED BELOW -4C
+                if (qc3d(i,j,k) >= m_qsmall && t3d(i,j,k) < 269.15) {
+                  // NUMBER OF CONTACT NUCLEI (M^-3) FROM MEYERS ET AL., 1992
+                  // FACTOR OF 1000 IS TO CONVERT FROM L^-1 TO M^-3
+                  // MEYERS CURVE
+                  amrex::Real nacnt = std::exp(-2.80 + 0.262 * (273.15 - t3d(i,j,k))) * 1000.0;
+
+                  // MEAN FREE PATH
+                  dum = 7.37 * t3d(i,j,k) / (288.0 * 10.0 * pres(i,j,k)) / 100.0;
+
+                  // EFFECTIVE DIFFUSIVITY OF CONTACT NUCLEI
+                  // BASED ON BROWNIAN DIFFUSION
+                  amrex::Real dap = m_cons37 * t3d(i,j,k) * (1.0 + dum / m_rin) / mu(i,j,k);
+
+                  // CONTACT FREEZING
+                  mnuccc = m_cons38 * dap * nacnt * std::exp(std::log(cdist1) +
+                                                             std::log(gamma_function(pgam + 5.0)) - 4.0 * std::log(lamc));
+                  nnuccc = 2.0 * m_pi * dap * nacnt * cdist1 *
+                    gamma_function(pgam + 2.0) / lamc;
+
+                  // IMMERSION FREEZING (BIGG 1953)
+                  // hm 7/15/13 fix for consistency w/ original formula
+                  mnuccc = mnuccc + m_cons39 *
+                    std::exp(std::log(cdist1) + std::log(gamma_function(7.0 + pgam)) - 6.0 * std::log(lamc)) *
+                    (std::exp(m_aimm * (273.15 - t3d(i,j,k))) - 1.0);
+
+                  nnuccc = nnuccc +
+                    m_cons40 * std::exp(std::log(cdist1) + std::log(gamma_function(pgam + 4.0)) - 3.0 * std::log(lamc)) *
+                    (std::exp(m_aimm * (273.15 - t3d(i,j,k))) - 1.0);
+
+                  // PUT IN A CATCH HERE TO PREVENT DIVERGENCE BETWEEN NUMBER CONC. AND
+                  // MIXING RATIO, SINCE STRICT CONSERVATION NOT CHECKED FOR NUMBER CONC
+                  nnuccc = std::min(nnuccc, nc3d(i,j,k) / dt);
+                }
+
+                // AUTOCONVERSION OF CLOUD LIQUID WATER TO RAIN
+                // FORMULA FROM BEHENG (1994)
+                // USING NUMERICAL SIMULATION OF STOCHASTIC COLLECTION EQUATION
+                // AND INITIAL CLOUD DROPLET SIZE DISTRIBUTION SPECIFIED
+                // AS A GAMMA DISTRIBUTION
+
+                // USE MINIMUM VALUE OF 1.E-6 TO PREVENT FLOATING POINT ERROR
+                if (qc3d(i,j,k) >= 1.0e-6) {
+                  // hm add 12/13/06, replace with newer formula
+                  // from khairoutdinov and kogan 2000, mwr
+                  prc = 1350.0 * std::pow(qc3d(i,j,k), 2.47) *
+                    std::pow((nc3d(i,j,k) / 1.0e6 * rho(i,j,k)), -1.79);
+
+                  // note: nprc1 is change in nr,
+                  // nprc is change in nc
+                  nprc1 = prc / m_cons29;
+                  nprc = prc / (qc3d(i,j,k) / nc3d(i,j,k));
+
+                  // hm bug fix 3/20/12
+                  nprc = std::min(nprc, nc3d(i,j,k) / dt);
+                  nprc1 = std::min(nprc1, nprc);
+                }
+
+                // SNOW AGGREGATION FROM PASSARELLI, 1978, USED BY REISNER, 1998
+                // THIS IS HARD-WIRED FOR BS = 0.4 FOR NOW
+                if (qni3d(i,j,k) >= 1.0e-8) {
+                  nsagg = m_cons15 * asn(i,j,k) * std::pow(rho(i,j,k), ((2.0 + m_bs) / 3.0)) *
+                    std::pow(qni3d(i,j,k), ((2.0 + m_bs) / 3.0)) *
+                    std::pow((ns3d(i,j,k) * rho(i,j,k)), ((4.0 - m_bs) / 3.0)) / rho(i,j,k);
+                }
+
+                // ACCRETION OF CLOUD DROPLETS ONTO SNOW/GRAUPEL
+                // HERE USE CONTINUOUS COLLECTION EQUATION WITH
+                // SIMPLE GRAVITATIONAL COLLECTION KERNEL IGNORING
+
+                // SNOW
+                if (qni3d(i,j,k) >= 1.0e-8 && qc3d(i,j,k) >= m_qsmall) {
+                  psacws = m_cons13 * asn(i,j,k) * qc3d(i,j,k) * rho(i,j,k) *
+                    n0s / std::pow(lams, (m_bs + 3.0));
+
+                  npsacws = m_cons13 * asn(i,j,k) * nc3d(i,j,k) * rho(i,j,k) *
+                    n0s / std::pow(lams, (m_bs + 3.0));
+                }
+
+                // COLLECTION OF CLOUD WATER BY GRAUPEL
+                if (qg3d(i,j,k) >= 1.0e-8 && qc3d(i,j,k) >= m_qsmall) {
+                  psacwg = m_cons14 * agn(i,j,k) * qc3d(i,j,k) * rho(i,j,k) *
+                    n0g / std::pow(lamg, (m_bg + 3.0));
+
+                  npsacwg = m_cons14 * agn(i,j,k) * nc3d(i,j,k) * rho(i,j,k) *
+                    n0g / std::pow(lamg, (m_bg + 3.0));
+                }
+
+                // hm, add 12/13/06
+                // CLOUD ICE COLLECTING DROPLETS, ASSUME THAT CLOUD ICE MEAN DIAM > 100 MICRON
+                // BEFORE RIMING CAN OCCUR
+                // ASSUME THAT RIME COLLECTED ON CLOUD ICE DOES NOT LEAD
+                // TO HALLET-MOSSOP SPLINTERING
+                if (qi3d(i,j,k) >= 1.0e-8 && qc3d(i,j,k) >= m_qsmall) {
+                  // PUT IN SIZE DEPENDENT COLLECTION EFFICIENCY BASED ON STOKES LAW
+                  // FROM THOMPSON ET AL. 2004, MWR
+                  if (1.0 / lami >= 100.0e-6) {
+                    psacwi = m_cons16 * ain(i,j,k) * qc3d(i,j,k) * rho(i,j,k) *
+                      n0i / std::pow(lami, (m_bi + 3.0));
+
+                    npsacwi = m_cons16 * ain(i,j,k) * nc3d(i,j,k) * rho(i,j,k) *
+                      n0i / std::pow(lami, (m_bi + 3.0));
+                  }
+                }
+
+                // ACCRETION OF RAIN WATER BY SNOW
+                // FORMULA FROM IKAWA AND SAITO, 1991, USED BY REISNER ET AL, 1998
+                if (qr3d(i,j,k) >= 1.0e-8 && qni3d(i,j,k) >= 1.0e-8) {
+                  amrex::Real ums = asn(i,j,k) * m_cons3 / std::pow(lams, m_bs);
+                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr, m_br);
+                  amrex::Real uns = asn(i,j,k) * m_cons5 / std::pow(lams, m_bs);
+                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr, m_br);
+
+                  // SET REASLISTIC LIMITS ON FALLSPEEDS
+                  // bug fix, 10/08/09
+                  dum = std::pow(m_rhosu / rho(i,j,k), 0.54);
+                  ums = std::min(ums, 1.2 * dum);
+                  uns = std::min(uns, 1.2 * dum);
+                  umr = std::min(umr, 9.1 * dum);
+                  unr = std::min(unr, 9.1 * dum);
+
+                  pracs = m_cons41 * (std::sqrt(std::pow(1.2 * umr - 0.95 * ums, 2) +
+                                                0.08 * ums * umr) * rho(i,j,k) * n0r * n0s /
+                                      std::pow(lamr, 3) * (5.0 / (std::pow(lamr, 3) * lams) +
+                                                           2.0 / (std::pow(lamr, 2) * std::pow(lams, 2)) +
+                                                           0.5 / (lamr * std::pow(lams, 3))));
+
+                  npracs = m_cons32 * rho(i,j,k) * std::sqrt(1.7 * std::pow(unr - uns, 2) +
+                                                             0.3 * unr * uns) * n0r * n0s *
+                    (1.0 / (std::pow(lamr, 3) * lams) +
+                     1.0 / (std::pow(lamr, 2) * std::pow(lams, 2)) +
+                     1.0 / (lamr * std::pow(lams, 3)));
+
+                  // MAKE SURE PRACS DOESN'T EXCEED TOTAL RAIN MIXING RATIO
+                  // AS THIS MAY OTHERWISE RESULT IN TOO MUCH TRANSFER OF WATER DURING
+                  // RIME-SPLINTERING
+                  pracs = std::min(pracs, qr3d(i,j,k) / dt);
+
+                  // COLLECTION OF SNOW BY RAIN - NEEDED FOR GRAUPEL CONVERSION CALCULATIONS
+                  // ONLY CALCULATE IF SNOW AND RAIN MIXING RATIOS EXCEED 0.1 G/KG
+                  // hm modify for wrfv3.1
+                  if (qni3d(i,j,k) >= 0.1e-3 && qr3d(i,j,k) >= 0.1e-3) {
+                    psacr = m_cons31 * (std::sqrt(std::pow(1.2 * umr - 0.95 * ums, 2) +
+                                                  0.08 * ums * umr) * rho(i,j,k) * n0r * n0s /
+                                        std::pow(lams, 3) * (5.0 / (std::pow(lams, 3) * lamr) +
+                                                             2.0 / (std::pow(lams, 2) * std::pow(lamr, 2)) +
+                                                             0.5 / (lams * std::pow(lamr, 3))));
+                  }
+                }
+
+                // COLLECTION OF RAINWATER BY GRAUPEL, FROM IKAWA AND SAITO 1990,
+                // USED BY REISNER ET AL 1998
+                if (qr3d(i,j,k) >= 1.0e-8 && qg3d(i,j,k) >= 1.0e-8) {
+                  amrex::Real umg = agn(i,j,k) * m_cons7 / std::pow(lamg, m_bg);
+                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr, m_br);
+                  amrex::Real ung = agn(i,j,k) * m_cons8 / std::pow(lamg, m_bg);
+                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr, m_br);
+
+                  // SET REASLISTIC LIMITS ON FALLSPEEDS
+                  // bug fix, 10/08/09
+                  dum = std::pow(m_rhosu / rho(i,j,k), 0.54);
+                  umg = std::min(umg, 20.0 * dum);
+                  ung = std::min(ung, 20.0 * dum);
+                  umr = std::min(umr, 9.1 * dum);
+                  unr = std::min(unr, 9.1 * dum);
+
+                  pracg = m_cons41 * (std::sqrt(std::pow(1.2 * umr - 0.95 * umg, 2) +
+                                                0.08 * umg * umr) * rho(i,j,k) * n0r * n0g /
+                                      std::pow(lamr, 3) * (5.0 / (std::pow(lamr, 3) * lamg) +
+                                                           2.0 / (std::pow(lamr, 2) * std::pow(lamg, 2)) +
+                                                           0.5 / (lamr * std::pow(lamg, 3))));
+
+                  npracg = m_cons32 * rho(i,j,k) * std::sqrt(1.7 * std::pow(unr - ung, 2) +
+                                                             0.3 * unr * ung) * n0r * n0g *
+                    (1.0 / (std::pow(lamr, 3) * lamg) +
+                     1.0 / (std::pow(lamr, 2) * std::pow(lamg, 2)) +
+                     1.0 / (lamr * std::pow(lamg, 3)));
+
+                  // MAKE SURE PRACG DOESN'T EXCEED TOTAL RAIN MIXING RATIO
+                  // AS THIS MAY OTHERWISE RESULT IN TOO MUCH TRANSFER OF WATER DURING
+                  // RIME-SPLINTERING
+                  pracg = std::min(pracg, qr3d(i,j,k) / dt);
+                }
+
+                // RIME-SPLINTERING - SNOW
+                // HALLET-MOSSOP (1974)
+                // NUMBER OF SPLINTERS FORMED IS BASED ON MASS OF RIMED WATER
+                // hm add threshold snow and droplet mixing ratio for rime-splintering
+                // to limit rime-splintering in stratiform clouds
+                // these thresholds correspond with graupel thresholds in rh 1984
+                //v1.4
+                if (qni3d(i,j,k) >= 0.1e-3) {
+                  if (qc3d(i,j,k) >= 0.5e-3 || qr3d(i,j,k) >= 0.1e-3) {
+                    if (psacws > 0.0 || pracs > 0.0) {
+                      if (t3d(i,j,k) < 270.16 && t3d(i,j,k) > 265.16) {
+                        amrex::Real fmult = 0.0;
+
+                        if (t3d(i,j,k) > 270.16) {
+                          fmult = 0.0;
+                        } else if (t3d(i,j,k) <= 270.16 && t3d(i,j,k) > 268.16) {
+                          fmult = (270.16 - t3d(i,j,k)) / 2.0;
+                        } else if (t3d(i,j,k) >= 265.16 && t3d(i,j,k) <= 268.16) {
+                          fmult = (t3d(i,j,k) - 265.16) / 3.0;
+                        } else if (t3d(i,j,k) < 265.16) {
+                          fmult = 0.0;
+                        }
+
+                        // 1000 IS TO CONVERT FROM KG TO G
+                        // SPLINTERING FROM DROPLETS ACCRETED ONTO SNOW
+                        if (psacws > 0.0) {
+                          nmults = 35.0e4 * psacws * fmult * 1000.0;
+                          qmults = nmults * m_mmult;
+
+                          // CONSTRAIN SO THAT TRANSFER OF MASS FROM SNOW TO ICE CANNOT BE MORE MASS
+                          // THAN WAS RIMED ONTO SNOW
+                          qmults = std::min(qmults, psacws);
+                          psacws = psacws - qmults;
+                        }
+
+                        // RIMING AND SPLINTERING FROM ACCRETED RAINDROPS
+                        if (pracs > 0.0) {
+                          nmultr = 35.0e4 * pracs * fmult * 1000.0;
+                          qmultr = nmultr * m_mmult;
+
+                          // CONSTRAIN SO THAT TRANSFER OF MASS FROM SNOW TO ICE CANNOT BE MORE MASS
+                          // THAN WAS RIMED ONTO SNOW
+                          qmultr = std::min(qmultr, pracs);
+                          pracs = pracs - qmultr;
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // RIME-SPLINTERING - GRAUPEL
+                // HALLET-MOSSOP (1974)
+                // NUMBER OF SPLINTERS FORMED IS BASED ON MASS OF RIMED WATER
+                // hm add threshold snow mixing ratio for rime-splintering
+                // to limit rime-splintering in stratiform clouds
+                // v1.4
+                if (qg3d(i,j,k) >= 0.1e-3) {
+                  if (qc3d(i,j,k) >= 0.5e-3 || qr3d(i,j,k) >= 0.1e-3) {
+                    if (psacwg > 0.0 || pracg > 0.0) {
+                      if (t3d(i,j,k) < 270.16 && t3d(i,j,k) > 265.16) {
+                        amrex::Real fmult = 0.0;
+
+                        if (t3d(i,j,k) > 270.16) {
+                          fmult = 0.0;
+                        } else if (t3d(i,j,k) <= 270.16 && t3d(i,j,k) > 268.16) {
+                          fmult = (270.16 - t3d(i,j,k)) / 2.0;
+                        } else if (t3d(i,j,k) >= 265.16 && t3d(i,j,k) <= 268.16) {
+                          fmult = (t3d(i,j,k) - 265.16) / 3.0;
+                        } else if (t3d(i,j,k) < 265.16) {
+                          fmult = 0.0;
+                        }
+
+                        // 1000 IS TO CONVERT FROM KG TO G
+                        // SPLINTERING FROM DROPLETS ACCRETED ONTO GRAUPEL
+                        if (psacwg > 0.0) {
+                          nmultg = 35.0e4 * psacwg * fmult * 1000.0;
+                          qmultg = nmultg * m_mmult;
+
+                          // CONSTRAIN SO THAT TRANSFER OF MASS FROM GRAUPEL TO ICE CANNOT BE MORE MASS
+                          // THAN WAS RIMED ONTO GRAUPEL
+                          qmultg = std::min(qmultg, psacwg);
+                          psacwg = psacwg - qmultg;
+                        }
+
+                        // RIMING AND SPLINTERING FROM ACCRETED RAINDROPS
+                        if (pracg > 0.0) {
+                          nmultrg = 35.0e4 * pracg * fmult * 1000.0;
+                          qmultrg = nmultrg * m_mmult;
+
+                          // CONSTRAIN SO THAT TRANSFER OF MASS FROM GRAUPEL TO ICE CANNOT BE MORE MASS
+                          // THAN WAS RIMED ONTO GRAUPEL
+                          qmultrg = std::min(qmultrg, pracg);
+                          pracg = pracg - qmultrg;
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // CONVERSION OF RIMED CLOUD WATER ONTO SNOW TO GRAUPEL/HAIL
+                if (psacws > 0.0) {
+                  // ONLY ALLOW CONVERSION IF QNI > 0.1 AND QC > 0.5 G/KG FOLLOWING RUTLEDGE AND HOBBS (1984)
+                  if (qni3d(i,j,k) >= 0.1e-3 && qc3d(i,j,k) >= 0.5e-3) {
+                    // PORTION OF RIMING CONVERTED TO GRAUPEL (REISNER ET AL. 1998, ORIGINALLY IS1991)
+                    pgsacw = std::min(psacws, m_cons17 * dt * n0s * qc3d(i,j,k) * qc3d(i,j,k) *
+                                      asn(i,j,k) * asn(i,j,k) /
+                                      (rho(i,j,k) * std::pow(lams, (2.0 * m_bs + 2.0))));
+
+                    // MIX RAT CONVERTED INTO GRAUPEL AS EMBRYO (REISNER ET AL. 1998, ORIG M1990)
+                    dum = std::max(m_rhosn / (m_rhog - m_rhosn) * pgsacw, 0.0);
+
+                    // NUMBER CONCENTRAITON OF EMBRYO GRAUPEL FROM RIMING OF SNOW
+                    nscng = dum / m_mg0 * rho(i,j,k);
+                    // LIMIT MAX NUMBER CONVERTED TO SNOW NUMBER
+                    nscng = std::min(nscng, ns3d(i,j,k) / dt);
+
+                    // PORTION OF RIMING LEFT FOR SNOW
+                    psacws = psacws - pgsacw;
+                  }
+                }
+
+                // CONVERSION OF RIMED RAINWATER ONTO SNOW CONVERTED TO GRAUPEL
+                if (pracs > 0.0) {
+                  // ONLY ALLOW CONVERSION IF QNI > 0.1 AND QR > 0.1 G/KG FOLLOWING RUTLEDGE AND HOBBS (1984)
+                  if (qni3d(i,j,k) >= 0.1e-3 && qr3d(i,j,k) >= 0.1e-3) {
+                    // PORTION OF COLLECTED RAINWATER CONVERTED TO GRAUPEL (REISNER ET AL. 1998)
+                    dum = m_cons18 * std::pow(4.0 / lams, 3) * std::pow(4.0 / lams, 3) /
+                      (m_cons18 * std::pow(4.0 / lams, 3) * std::pow(4.0 / lams, 3) +
+                       m_cons19 * std::pow(4.0 / lamr, 3) * std::pow(4.0 / lamr, 3));
+                    dum = std::min(dum, 1.0);
+                    dum = std::max(dum, 0.0);
+
+                    pgracs = (1.0 - dum) * pracs;
+                    ngracs = (1.0 - dum) * npracs;
+
+                    // LIMIT MAX NUMBER CONVERTED TO MIN OF EITHER RAIN OR SNOW NUMBER CONCENTRATION
+                    ngracs = std::min(ngracs, nr3d(i,j,k) / dt);
+                    ngracs = std::min(ngracs, ns3d(i,j,k) / dt);
+
+                    // AMOUNT LEFT FOR SNOW PRODUCTION
+                    pracs = pracs - pgracs;
+                    npracs = npracs - ngracs;
+
+                    // CONVERSION TO GRAUPEL DUE TO COLLECTION OF SNOW BY RAIN
+                    psacr = psacr * (1.0 - dum);
+                  }
+                }
+
+                // FREEZING OF RAIN DROPS
+                // FREEZING ALLOWED BELOW -4 C
+                if (t3d(i,j,k) < 269.15 && qr3d(i,j,k) >= m_qsmall) {
+                  // IMMERSION FREEZING (BIGG 1953)
+                  // hm fix 7/15/13 for consistency w/ original formula
+                  mnuccr = m_cons20 * nr3d(i,j,k) * (std::exp(m_aimm * (273.15 - t3d(i,j,k))) - 1.0) /
+                    std::pow(lamr, 3) / std::pow(lamr, 3);
+
+                  nnuccr = m_pi * nr3d(i,j,k) * m_bimm * (std::exp(m_aimm * (273.15 - t3d(i,j,k))) - 1.0) /
+                    std::pow(lamr, 3);
+
+                  // PREVENT DIVERGENCE BETWEEN MIXING RATIO AND NUMBER CONC
+                  nnuccr = std::min(nnuccr, nr3d(i,j,k) / dt);
+                }
+
+                // ACCRETION OF CLOUD LIQUID WATER BY RAIN
+                // CONTINUOUS COLLECTION EQUATION WITH
+                // GRAVITATIONAL COLLECTION KERNEL, DROPLET FALL SPEED NEGLECTED
+                if (qr3d(i,j,k) >= 1.0e-8 && qc3d(i,j,k) >= 1.0e-8) {
+                  // 12/13/06 hm add, replace with newer formula from
+                  // khairoutdinov and kogan 2000, mwr
+                  dum = qc3d(i,j,k) * qr3d(i,j,k);
+                  pra = 67.0 * std::pow(dum, 1.15);
+                  npra = pra / (qc3d(i,j,k) / nc3d(i,j,k));
+                }
+
+                // SELF-COLLECTION OF RAIN DROPS
+                // FROM BEHENG(1994)
+                // FROM NUMERICAL SIMULATION OF THE STOCHASTIC COLLECTION EQUATION
+                // AS DESCRINED ABOVE FOR AUTOCONVERSION
+                if (qr3d(i,j,k) >= 1.0e-8) {
+                  // include breakup add 10/09/09
+                  amrex::Real dum1 = 300.0e-6;
+                  if (1.0 / lamr < dum1) {
+                    dum = 1.0;
+                  } else if (1.0 / lamr >= dum1) {
+                    dum = 2.0 - std::exp(2300.0 * (1.0 / lamr - dum1));
+                  }
+                  nragg = -5.78 * dum * nr3d(i,j,k) * qr3d(i,j,k) * rho(i,j,k);
+                }
+
+                // AUTOCONVERSION OF CLOUD ICE TO SNOW
+                // FOLLOWING HARRINGTON ET AL. (1995) WITH MODIFICATION
+                // HERE IT IS ASSUMED THAT AUTOCONVERSION CAN ONLY OCCUR WHEN THE
+                // ICE IS GROWING, I.E. IN CONDITIONS OF ICE SUPERSATURATION
+                if (qi3d(i,j,k) >= 1.0e-8 && qvqvsi >= 1.0) {
+                  nprci = m_cons21 * (qv3d(i,j,k) - qvi) * rho(i,j,k) *
+                    n0i * std::exp(-lami * m_dcs) * dv / abi;
+                  prci = m_cons22 * nprci;
+                  nprci = std::min(nprci, ni3d(i,j,k) / dt);
+                }
+
+                // ACCRETION OF CLOUD ICE BY SNOW
+                // FOR THIS CALCULATION, IT IS ASSUMED THAT THE VS >> VI
+                // AND DS >> DI FOR CONTINUOUS COLLECTION
+                if (qni3d(i,j,k) >= 1.0e-8 && qi3d(i,j,k) >= m_qsmall) {
+                  prai = m_cons23 * asn(i,j,k) * qi3d(i,j,k) * rho(i,j,k) * n0s /
+                    std::pow(lams, (m_bs + 3.0));
+                  nprai = m_cons23 * asn(i,j,k) * ni3d(i,j,k) *
+                    rho(i,j,k) * n0s /
+                    std::pow(lams, (m_bs + 3.0));
+                  nprai = std::min(nprai, ni3d(i,j,k) / dt);
+                }
+
+                // hm, add 12/13/06, collision of rain and ice to produce snow or graupel
+                // follows reisner et al. 1998
+                // assumed fallspeed and size of ice crystal << than for rain
+                if (qr3d(i,j,k) >= 1.0e-8 && qi3d(i,j,k) >= 1.0e-8 && t3d(i,j,k) <= 273.15) {
+                  // allow graupel formation from rain-ice collisions only if rain mixing ratio > 0.1 g/kg,
+                  // otherwise add to snow
+                  if (qr3d(i,j,k) >= 0.1e-3) {
+                    niacr = m_cons24 * ni3d(i,j,k) * n0r* arn(i,j,k) /
+                      std::pow(lamr, (m_br + 3.0)) * rho(i,j,k);
+                    piacr = m_cons25 * ni3d(i,j,k) * n0r * arn(i,j,k) /
+                      std::pow(lamr, (m_br + 3.0)) / std::pow(lamr, 3) * rho(i,j,k);
+                    praci = m_cons24 * qi3d(i,j,k) * n0r * arn(i,j,k) /
+                      std::pow(lamr, (m_br + 3.0)) * rho(i,j,k);
+                    niacr = std::min(niacr, nr3d(i,j,k) / dt);
+                    niacr = std::min(niacr, ni3d(i,j,k) / dt);
+                  } else {
+                    niacrs = m_cons24 * ni3d(i,j,k) * n0r * arn(i,j,k) /
+                      std::pow(lamr, (m_br + 3.0)) * rho(i,j,k);
+                    piacrs = m_cons25 * ni3d(i,j,k) * n0r * arn(i,j,k) /
+                      std::pow(lamr, (m_br + 3.0)) / std::pow(lamr, 3) * rho(i,j,k);
+                    pracis = m_cons24 * qi3d(i,j,k) * n0r * arn(i,j,k) /
+                      std::pow(lamr, (m_br + 3.0)) * rho(i,j,k);
+                    niacrs = std::min(niacrs, nr3d(i,j,k) / dt);
+                    niacrs = std::min(niacrs, ni3d(i,j,k) / dt);
+                  }
+                }
+
+                // NUCLEATION OF CLOUD ICE FROM HOMOGENEOUS AND HETEROGENEOUS FREEZING ON AEROSOL
+                if (m_inuc == 0) {
+                  // ADD THRESHOLD ACCORDING TO GREG THOMSPON
+                  if ((qvqvs >= 0.999 && t3d(i,j,k) <= 265.15) || qvqvsi >= 1.08) {
+                    // hm, modify dec. 5, 2006, replace with cooper curve
+                    amrex::Real kc2 = 0.005 * std::exp(0.304 * (273.15 - t3d(i,j,k))) * 1000.0; // CONVERT FROM L-1 TO M-3
+                    // LIMIT TO 500 L-1
+                    kc2 = std::min(kc2, 500.0e3);
+                    kc2 = std::max(kc2 / rho(i,j,k), 0.0);  // CONVERT TO KG-1
+
+                    if (kc2 > ni3d(i,j,k) + ns3d(i,j,k) + ng3d(i,j,k)) {
+                      nnuccd = (kc2 - ni3d(i,j,k) - ns3d(i,j,k) - ng3d(i,j,k)) / dt;
+                      mnuccd = nnuccd * m_mi0;
+                    }
+                  }
+                } else if (m_inuc == 1) {
+                  if (t3d(i,j,k) < 273.15 && qvqvsi > 1.0) {
+                    amrex::Real kc2 = 0.16 * 1000.0 / rho(i,j,k);  // CONVERT FROM L-1 TO KG-1
+                    if (kc2 > ni3d(i,j,k) + ns3d(i,j,k) + ng3d(i,j,k)) {
+                      nnuccd = (kc2 - ni3d(i,j,k) - ns3d(i,j,k) - ng3d(i,j,k)) / dt;
+                      mnuccd = nnuccd * m_mi0;
+                    }
+                  }
+                }
+
+                // CALCULATE EVAP/SUB/DEP TERMS FOR QI,QNI,QR
+                // NO VENTILATION FOR CLOUD ICE
+                amrex::Real epsi = 0.0;
+                if (qi3d(i,j,k) >= m_qsmall) {
+                  epsi = 2.0 * m_pi * n0i * rho(i,j,k) * dv / (lami * lami);
+                }
+
+                // VENTILATION FOR SNOW
+                amrex::Real epss = 0.0;
+                if (qni3d(i,j,k) >= m_qsmall) {
+                  epss = 2.0 * m_pi * n0s * rho(i,j,k) * dv *
+                    (m_f1s / (lams * lams) +
+                     m_f2s * std::pow(asn(i,j,k) * rho(i,j,k) / mu(i,j,k), 0.5) *
+                     std::pow(sc_schmidt, (1.0 / 3.0)) * m_cons10 /
+                     std::pow(lams, m_cons35));
+                }
+
+                // Ventilation for graupel
+                amrex::Real epsg = 0.0;
+                if (qg3d(i,j,k) >= m_qsmall) {
+                  epsg = 2.0 * m_pi * n0g * rho(i,j,k) * dv *
+                    (m_f1s / (lamg * lamg) +
+                     m_f2s * std::pow(agn(i,j,k) * rho(i,j,k) / mu(i,j,k), 0.5) *
+                     std::pow(sc_schmidt, (1.0 / 3.0)) * m_cons11 /
+                     std::pow(lamg, m_cons36));
+                }
+
+                // VENTILATION FOR RAIN
+                amrex::Real epsr = 0.0;
+                if (qr3d(i,j,k) >= m_qsmall) {
+                  epsr = 2.0 * m_pi * n0r * rho(i,j,k) * dv *
+                    (m_f1r / (lamr * lamr) +
+                     m_f2r * std::pow(arn(i,j,k) * rho(i,j,k) / mu(i,j,k), 0.5) *
+                     std::pow(sc_schmidt, (1.0 / 3.0)) * m_cons9 /
+                     std::pow(lamr, m_cons34));
+                }
+
+                // ONLY INCLUDE REGION OF ICE SIZE DIST < DCS
+                // DUM IS FRACTION OF D*N(D) < DCS
+                // LOGIC BELOW FOLLOWS THAT OF HARRINGTON ET AL. 1995 (JAS)
+                if (qi3d(i,j,k) >= m_qsmall) {
+                  dum = (1.0 - std::exp(-lami * m_dcs) * (1.0 + lami * m_dcs));
+                  prd = epsi * (qv3d(i,j,k) - qvi) / abi * dum;
+                } else {
+                  dum = 0.0;
+                }
+
+                // ADD DEPOSITION IN TAIL OF ICE SIZE DIST TO SNOW IF SNOW IS PRESENT
+                if (qni3d(i,j,k) >= m_qsmall) {
+                  prds = epss * (qv3d(i,j,k) - qvi) / abi +
+                    epsi * (qv3d(i,j,k) - qvi) / abi * (1.0 - dum);
+                } else {
+                  // OTHERWISE ADD TO CLOUD ICE
+                  prd = prd + epsi * (qv3d(i,j,k) - qvi) / abi * (1.0 - dum);
+                }
+
+                // VAPOR DPEOSITION ON GRAUPEL
+                prdg = epsg * (qv3d(i,j,k) - qvi) / abi;
+
+                // NO CONDENSATION ONTO RAIN, ONLY EVAP
+                if (qv3d(i,j,k) < qvs) {
+                  pre = epsr * (qv3d(i,j,k) - qvs) / ab;
+                  pre = std::min(pre, 0.0);
+                } else {
+                  pre = 0.0;
+                }
+
+                // MAKE SURE NOT PUSHED INTO ICE SUPERSAT/SUBSAT
+                // FORMULA FROM REISNER 2 SCHEME
+                dum = (qv3d(i,j,k) - qvi) / dt;
+
+                amrex::Real fudgef = 0.9999;
+                amrex::Real sum_dep = prd + prds + mnuccd + prdg;
+
+                if ((dum > 0.0 && sum_dep > dum * fudgef) ||
+                    (dum < 0.0 && sum_dep < dum * fudgef)) {
+                  mnuccd = fudgef * mnuccd * dum / sum_dep;
+                  prd = fudgef * prd * dum / sum_dep;
+                  prds = fudgef * prds * dum / sum_dep;
+                  prdg = fudgef * prdg * dum / sum_dep;
+                }
+
+                // IF CLOUD ICE/SNOW/GRAUPEL VAP DEPOSITION IS NEG, THEN ASSIGN TO SUBLIMATION PROCESSES
+                if (prd < 0.0) {
+                  eprd = prd;
+                  prd = 0.0;
+                }
+                if (prds < 0.0) {
+                  eprds = prds;
+                  prds = 0.0;
+                }
+                if (prdg < 0.0) {
+                  eprdg = prdg;
+                  prdg = 0.0;
+                }
+
+                // CONSERVATION OF WATER
+                // THIS IS ADOPTED LOOSELY FROM MM5 RESINER CODE. HOWEVER, HERE WE
+                // ONLY ADJUST PROCESSES THAT ARE NEGATIVE, RATHER THAN ALL PROCESSES.
+
+                // IF MIXING RATIOS LESS THAN QSMALL, THEN NO DEPLETION OF WATER
+                // THROUGH MICROPHYSICAL PROCESSES, SKIP CONSERVATION
+
+                // NOTE: CONSERVATION CHECK NOT APPLIED TO NUMBER CONCENTRATION SPECIES. ADDITIONAL CATCH
+                // BELOW WILL PREVENT NEGATIVE NUMBER CONCENTRATION
+                // FOR EACH MICROPHYSICAL PROCESS WHICH PROVIDES A SOURCE FOR NUMBER, THERE IS A CHECK
+                // TO MAKE SURE THAT CAN'T EXCEED TOTAL NUMBER OF DEPLETED SPECIES WITH THE TIME
+                // STEP
+
+                // ****SENSITIVITY - NO ICE
+                if (m_iliq == 1) {
+                  mnuccc = 0.0;
+                  nnuccc = 0.0;
+                  mnuccr = 0.0;
+                  nnuccr = 0.0;
+                  mnuccd = 0.0;
+                  nnuccd = 0.0;
+                }
+
+                // ****SENSITIVITY - NO GRAUPEL
+                if (m_igraup == 1) {
+                  pracg = 0.0;
+                  psacr = 0.0;
+                  psacwg = 0.0;
+                  prdg = 0.0;
+                  eprdg = 0.0;
+                  evpmg = 0.0;
+                  pgmlt = 0.0;
+                  npracg = 0.0;
+                  npsacwg = 0.0;
+                  nscng = 0.0;
+                  ngracs = 0.0;
+                  nsubg = 0.0;
+                  ngmltg = 0.0;
+                  ngmltr = 0.0;
+
+                  // fix 053011
+                  piacrs = piacrs + piacr;
+                  piacr = 0.0;
+
+                  // fix 070713
+                  pracis = pracis + praci;
+                  praci = 0.0;
+                  psacws = psacws + pgsacw;
+                  pgsacw = 0.0;
+                  pracs = pracs + pgracs;
+                  pgracs = 0.0;
+                }
+
+                // CONSERVATION OF QC
+                dum = (prc + pra + mnuccc + psacws + psacwi + qmults + psacwg + pgsacw + qmultg) * dt;
+
+                if (dum > qc3d(i,j,k) && qc3d(i,j,k) >= m_qsmall) {
+                  amrex::Real ratio = qc3d(i,j,k) / dum;
+
+                  prc = prc * ratio;
+                  pra = pra * ratio;
+                  mnuccc = mnuccc * ratio;
+                  psacws = psacws * ratio;
+                  psacwi = psacwi * ratio;
+                  qmults = qmults * ratio;
+                  qmultg = qmultg * ratio;
+                  psacwg = psacwg * ratio;
+                  pgsacw = pgsacw * ratio;
+                }
+
+                // CONSERVATION OF QI
+                dum = (-prd - mnuccc + prci + prai - qmults - qmultg - qmultr - qmultrg
+                       - mnuccd + praci + pracis - eprd - psacwi) * dt;
+
+                if (dum > qi3d(i,j,k) && qi3d(i,j,k) >= m_qsmall) {
+                  amrex::Real ratio = (qi3d(i,j,k) / dt + prd + mnuccc + qmults + qmultg + qmultr + qmultrg +
+                                       mnuccd + psacwi) /
+                    (prci + prai + praci + pracis - eprd);
+
+                  prci = prci * ratio;
+                  prai = prai * ratio;
+                  praci = praci * ratio;
+                  pracis = pracis * ratio;
+                  eprd = eprd * ratio;
+                }
+
+                // CONSERVATION OF QR
+                dum = ((pracs - pre) + (qmultr + qmultrg - prc) + (mnuccr - pra) +
+                       piacr + piacrs + pgracs + pracg) * dt;
+
+                if (dum > qr3d(i,j,k) && qr3d(i,j,k) >= m_qsmall) {
+                  amrex::Real ratio = (qr3d(i,j,k) / dt + prc + pra) /
+                    (-pre + qmultr + qmultrg + pracs + mnuccr + piacr + piacrs + pgracs + pracg);
+
+                  pre = pre * ratio;
+                  pracs = pracs * ratio;
+                  qmultr = qmultr * ratio;
+                  qmultrg = qmultrg * ratio;
+                  mnuccr = mnuccr * ratio;
+                  piacr = piacr * ratio;
+                  piacrs = piacrs * ratio;
+                  pgracs = pgracs * ratio;
+                  pracg = pracg * ratio;
+                }
+
+                // CONSERVATION OF QNI
+                if (m_igraup == 0) {
+                  dum = (-prds - psacws - prai - prci - pracs - eprds + psacr - piacrs - pracis) * dt;
+
+                  if (dum > qni3d(i,j,k) && qni3d(i,j,k) >= m_qsmall) {
+                    amrex::Real ratio = (qni3d(i,j,k) / dt + prds + psacws + prai + prci + pracs + piacrs + pracis) /
+                      (-eprds + psacr);
+
+                    eprds = eprds * ratio;
+                    psacr = psacr * ratio;
+                  }
+                } else if (m_igraup == 1) {
+                  // FOR NO GRAUPEL, NEED TO INCLUDE FREEZING OF RAIN FOR SNOW
+                  dum = (-prds - psacws - prai - prci - pracs - eprds + psacr - piacrs - pracis - mnuccr) * dt;
+
+                  if (dum > qni3d(i,j,k) && qni3d(i,j,k) >= m_qsmall) {
+                    amrex::Real ratio = (qni3d(i,j,k) / dt + prds + psacws + prai + prci + pracs + piacrs + pracis + mnuccr) /
+                      (-eprds + psacr);
+
+                    eprds = eprds * ratio;
+                    psacr = psacr * ratio;
+                  }
+                }
+
+                // CONSERVATION OF QG
+                dum = (-psacwg - pracg - pgsacw - pgracs - prdg - mnuccr - eprdg - piacr - praci - psacr) * dt;
+
+                if (dum > qg3d(i,j,k) && qg3d(i,j,k) >= m_qsmall) {
+                  amrex::Real ratio = (qg3d(i,j,k) / dt + psacwg + pracg + pgsacw + pgracs + prdg + mnuccr + psacr +
+                                       piacr + praci) / (-eprdg);
+
+                  eprdg = eprdg * ratio;
+                }
+
+                // TENDENCIES
+                qv3dten(i,j,k) = qv3dten(i,j,k) + (-pre - prd - prds - mnuccd - eprd - eprds - prdg - eprdg);
+
+                // bug fix hm, 3/1/11, include piacr and piacrs
+                t3dten(i,j,k) = t3dten(i,j,k) + (pre * xxlv +
+                                                 (prd + prds + mnuccd + eprd + eprds + prdg + eprdg) * xxls +
+                                                 (psacws + psacwi + mnuccc + mnuccr + qmults + qmultg + qmultr + qmultrg + pracs +
+                                                  psacwg + pracg + pgsacw + pgracs + piacr + piacrs) * xlf) / cpm;
+
+                qc3dten(i,j,k) = qc3dten(i,j,k) +
+                  (-pra - prc - mnuccc + pcc -
+                   psacws - psacwi - qmults - qmultg - psacwg - pgsacw);
+
+                qi3dten(i,j,k) = qi3dten(i,j,k) +
+                  (prd + eprd + psacwi + mnuccc - prci -
+                   prai + qmults + qmultg + qmultr + qmultrg + mnuccd - praci - pracis);
+
+                qr3dten(i,j,k) = qr3dten(i,j,k) +
+                  (pre + pra + prc - pracs - mnuccr - qmultr - qmultrg -
+                   piacr - piacrs - pracg - pgracs);
+
+                if (m_igraup == 0) {
+                  qni3dten(i,j,k) = qni3dten(i,j,k) +
+                    (prai + psacws + prds + pracs + prci + eprds - psacr + piacrs + pracis);
+
+                  ns3dten(i,j,k) = ns3dten(i,j,k) + (nsagg + nprci - nscng - ngracs + niacrs);
+
+                  qg3dten(i,j,k) = qg3dten(i,j,k) + (pracg + psacwg + pgsacw + pgracs +
+                                                     prdg + eprdg + mnuccr + piacr + praci + psacr);
+
+                  ng3dten(i,j,k) = ng3dten(i,j,k) + (nscng + ngracs + nnuccr + niacr);
+                } else if (m_igraup == 1) {
+                  // FOR NO GRAUPEL, NEED TO INCLUDE FREEZING OF RAIN FOR SNOW
+                  qni3dten(i,j,k) = qni3dten(i,j,k) +
+                    (prai + psacws + prds + pracs + prci + eprds - psacr + piacrs + pracis + mnuccr);
+
+                  ns3dten(i,j,k) = ns3dten(i,j,k) + (nsagg + nprci - nscng - ngracs + niacrs + nnuccr);
+                }
+
+                nc3dten(i,j,k) = nc3dten(i,j,k) + (-nnuccc - npsacws -
+                                                   npra - nprc - npsacwi - npsacwg);
+
+                ni3dten(i,j,k) = ni3dten(i,j,k) +
+                  (nnuccc - nprci - nprai + nmults + nmultg + nmultr + nmultrg +
+                   nnuccd - niacr - niacrs);
+
+                nr3dten(i,j,k) = nr3dten(i,j,k) + (nprc1 - npracs - nnuccr +
+                                                   nragg - niacr - niacrs - npracg - ngracs);
+
+                // hm add, wrf-chem, add tendencies for c2prec
+                c2prec = pra + prc + psacws + qmults + qmultg + psacwg +
+                  pgsacw + mnuccc + psacwi;
+
+                // CALCULATE SATURATION ADJUSTMENT TO CONDENSE EXTRA VAPOR ABOVE
+                // WATER SATURATION
+                dumt = t3d(i,j,k) + dt * t3dten(i,j,k);
+                dumqv = qv3d(i,j,k) + dt * qv3dten(i,j,k);
+
+                // hm, add fix for low pressure, 5/12/10
+                dum = std::min(0.99 * pres(i,j,k), calc_saturation_vapor_pressure(dumt, 0));
+                dumqss = m_ep_2 * dum / (pres(i,j,k) - dum);
+
+                dumqc = qc3d(i,j,k) + dt * qc3dten(i,j,k);
+                dumqc = std::max(dumqc, 0.0);
+
+                // SATURATION ADJUSTMENT FOR LIQUID
+                dums = dumqv - dumqss;
+
+                pcc = dums / (1.0 + std::pow(xxlv, 2) * dumqss / (cpm * m_Rv * std::pow(dumt, 2))) / dt;
+
+                if (pcc * dt + dumqc < 0.0) {
+                  pcc = -dumqc / dt;
+                }
+
+                qv3dten(i,j,k) = qv3dten(i,j,k) - pcc;
+                t3dten(i,j,k) = t3dten(i,j,k) + pcc * xxlv / cpm;
+                qc3dten(i,j,k) = qc3dten(i,j,k) + pcc;
+
+                // SUBLIMATE, MELT, OR EVAPORATE NUMBER CONCENTRATION
+                // THIS FORMULATION ASSUMES 1:1 RATIO BETWEEN MASS LOSS AND
+                // LOSS OF NUMBER CONCENTRATION
+                if (eprd < 0.0) {
+                  dum = eprd * dt / qi3d(i,j,k);
+                  dum = std::max(-1.0, dum);
+                  nsubi = dum * ni3d(i,j,k) / dt;
+                }
+
+                if (eprds < 0.0) {
+                  dum = eprds * dt / qni3d(i,j,k);
+                  dum = std::max(-1.0, dum);
+                  nsubs = dum * ns3d(i,j,k) / dt;
+                }
+
+                if (pre < 0.0) {
+                  dum = pre * dt / qr3d(i,j,k);
+                  dum = std::max(-1.0, dum);
+                  nsubr = dum * nr3d(i,j,k) / dt;
+                }
+
+                if (eprdg < 0.0) {
+                  dum = eprdg * dt / qg3d(i,j,k);
+                  dum = std::max(-1.0, dum);
+                  nsubg = dum * ng3d(i,j,k) / dt;
+                }
+
+                // UPDATE TENDENCIES
+                ni3dten(i,j,k) = ni3dten(i,j,k) + nsubi;
+                ns3dten(i,j,k) = ns3dten(i,j,k) + nsubs;
+                ng3dten(i,j,k) = ng3dten(i,j,k) + nsubg;
+                nr3dten(i,j,k) = nr3dten(i,j,k) + nsubr;
             }
-              ltrue = 1;
-              skipPrecip = false;
+            ltrue = 1;
+            skipPrecip = false;
             }
-//            label_200:
+            //            label_200:
 
            }
             for(int k=klo; k<=khi; k++) {
@@ -2967,7 +3987,7 @@ constexpr Real gamma_function(Real x) {
                   pgam = std::min(pgam, 10.0);
 
                   // CALCULATE LAMC
-                  lamc = std::pow(m_cons26 * nc3d(i,j,k) * gamma_function(pgam + 4.0) / 
+                  lamc = std::pow(m_cons26 * nc3d(i,j,k) * gamma_function(pgam + 4.0) /
                                   (qc3d(i,j,k) * gamma_function(pgam + 1.0)), 1.0/3.0);
 
                   // LAMMIN, 60 MICRON DIAMETER
@@ -2977,11 +3997,11 @@ constexpr Real gamma_function(Real x) {
 
                   if (lamc < lammin) {
                     lamc = lammin;
-                    nc3d(i,j,k) = std::exp(3.0 * std::log(lamc) + std::log(qc3d(i,j,k)) + 
+                    nc3d(i,j,k) = std::exp(3.0 * std::log(lamc) + std::log(qc3d(i,j,k)) +
                                            std::log(gamma_function(pgam + 1.0)) - std::log(gamma_function(pgam + 4.0))) / m_cons26;
                   } else if (lamc > lammax) {
                     lamc = lammax;
-                    nc3d(i,j,k) = std::exp(3.0 * std::log(lamc) + std::log(qc3d(i,j,k)) + 
+                    nc3d(i,j,k) = std::exp(3.0 * std::log(lamc) + std::log(qc3d(i,j,k)) +
                                            std::log(gamma_function(pgam + 1.0)) - std::log(gamma_function(pgam + 4.0))) / m_cons26;
                   }
                 }
