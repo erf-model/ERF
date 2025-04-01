@@ -1262,8 +1262,8 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
             endif
 #endif
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -1316,8 +1316,8 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                END IF
              END IF
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -1396,8 +1396,8 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
          EFFG(K) = 0.
        END IF
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -1431,7 +1431,23 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
             ACN(K) = G*RHOW/(18.*MU(K))
 ! HM ADD GRAUPEL 8/28/06
             AGN(K) = DUM*AG
-
+#if 1
+            ! Fortran version
+            if (i == 95 .and. j == 3 .and. k == 28) then
+               ! Line 1: indices and main calculated variables
+               write(10, '(i5,i5,i5,a8,es24.16,a14,es24.16,a14,es24.16,a14,es24.16)') &
+                    i,j,k,"mu(k):",mu(k),"ain(k):",ain(k),"arn(k):",arn(k),"asn(k):",asn(k)
+               ! Line 2: more calculated variables plus input variables
+               write(10, '(a14,es24.16,a14,es24.16,a16,es24.16,a14,es24.16)') &
+                    "acn(k):",acn(k),"agn(k):",agn(k),"t3d(k):",t3d(k),"rho(k):",rho(k)
+               ! Line 3: constants and temporary values
+               write(10, '(a14,es24.16,a6,es24.16,a6,es24.16,a6,es24.16,a6,es24.16)') &
+                    "dum(k):",dum,"ai:",ai,"ar:",ar,"as:",as,"ac:",ac
+               ! Line 4: final constants
+               write(10, '(a6,es24.16,a2,es24.16,a6,es24.16,a10,es24.16)') &
+                    "ag:",ag,"g:",g,"rhow:",rhow,"rhosu:",rhosu
+            endif
+#endif
 !hm 4/7/09 bug fix, initialize lami to prevent later division by zero
             LAMI(K)=0.
 
@@ -2048,8 +2064,8 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NC3DTEN(K) = NC3DTEN(K)+ (-NPRA(K)-NPRC(K))
       NR3DTEN(K) = NR3DTEN(K)+ (NPRC1(K)+NRAGG(K)-NPRACG(K))
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                  i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -2113,9 +2129,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QV3DTEN(K) = QV3DTEN(K)-PCC(K)
       T3DTEN(K) = T3DTEN(K)+PCC(K)*XXLV(K)/CPM(K)
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
-#if 0
+#if 1
       ! Fortran version
-      if (i == 93 .and. j == 3 .and. k == 18) then
+      if (i == 95 .and. j == 3 .and. k == 28) then
          write(10, '(i5,i5,i5,14(es24.16))') &
               i,j,k,t3d(k),qv3d(k),pres(k),qc3d(k),t3dten(k),qv3dten(k),qc3dten(k), &
               dumt,dumqv,dum,dumqss,dumqc,dums,pcc(k)
@@ -2468,7 +2484,32 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                 NPRC1(K) = MIN(NPRC1(K),NPRC(K))
 
          END IF
-
+#if 0
+      ! Fortran version
+      if (i == 95 .and. j == 3 .and. k == 28) then
+         ! Line 1: indices and first variables
+         write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
+              i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
+         ! Line 2: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              eprd(k),eprds(k),prdg(k),eprdg(k),"xxls:",xxls(k)
+         ! Line 3: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              psacws(k),psacwi(k),mnuccc(k),mnuccr(k),"qmults:",qmults(k)
+         ! Line 4: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              qmultg(k),qmultr(k),qmultrg(k),pracs(k),"psacwg:",psacwg(k)
+         ! Line 5: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              pracg(k),pgsacw(k),pgracs(k),piacr(k),"piacrs:",piacrs(k)
+         ! Line 6: final variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              xlf(k),cpm(k),pcc(k),pra(k),"prc:",prc(k)
+         ! Line 7: final variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              prci(k),prai(k),praci(k),pracis(k),"---END---:",0.0
+      endif
+#endif
 !.......................................................................
 ! SELF-COLLECTION OF DROPLET NOT INCLUDED IN KK2000 SCHEME
 
@@ -2512,7 +2553,34 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                   N0G(K)/                        &
                   LAMG(K)**(BG+3.)
             END IF
-
+#if 1
+      ! Fortran version
+      if (i == 95 .and. j == 3 .and. k == 28) then
+         ! Line 1: indices and first variables
+         write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
+              i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
+         ! Line 2: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              eprd(k),eprds(k),prdg(k),eprdg(k),"xxls:",xxls(k)
+         ! Line 3: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              psacws(k),psacwi(k),mnuccc(k),mnuccr(k),"qmults:",qmults(k)
+         ! Line 4: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              qmultg(k),qmultr(k),qmultrg(k),pracs(k),"psacwg:",psacwg(k)
+         ! Line 5: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              pracg(k),pgsacw(k),pgracs(k),piacr(k),"piacrs:",piacrs(k)
+         ! Line 6: final variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              xlf(k),cpm(k),pcc(k),pra(k),"prc:",prc(k)
+         ! Line 7: final variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              prci(k),prai(k),praci(k),pracis(k),"---END---:",0.0
+         write(10, '(4(es24.16),a10,es24.16)') &
+              asn(k),cons13,agn(k),cons14,"---END---:",bg
+      endif
+#endif
 !.......................................................................
 ! HM, ADD 12/13/06
 ! CLOUD ICE COLLECTING DROPLETS, ASSUME THAT CLOUD ICE MEAN DIAM > 100 MICRON
@@ -3073,7 +3141,32 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
               EPRDG(K)=PRDG(K)
               PRDG(K)=0.
            END IF
-
+#if 1
+      ! Fortran version
+      if (i == 95 .and. j == 3 .and. k == 28) then
+         ! Line 1: indices and first variables
+         write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
+              i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
+         ! Line 2: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              eprd(k),eprds(k),prdg(k),eprdg(k),"xxls:",xxls(k)
+         ! Line 3: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              psacws(k),psacwi(k),mnuccc(k),mnuccr(k),"qmults:",qmults(k)
+         ! Line 4: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              qmultg(k),qmultr(k),qmultrg(k),pracs(k),"psacwg:",psacwg(k)
+         ! Line 5: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              pracg(k),pgsacw(k),pgracs(k),piacr(k),"piacrs:",piacrs(k)
+         ! Line 6: final variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              xlf(k),cpm(k),pcc(k),pra(k),"prc:",prc(k)
+         ! Line 7: final variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              prci(k),prai(k),praci(k),pracis(k),"---END---:",0.0
+      endif
+#endif
 !.......................................................................
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 
@@ -3254,7 +3347,32 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QR3DTEN(K) = QR3DTEN(K)+                                      &
                  (PRE(K)+PRA(K)+PRC(K)-PRACS(K)-MNUCCR(K)-QMULTR(K)-QMULTRG(K) &
              -PIACR(K)-PIACRS(K)-PRACG(K)-PGRACS(K))
-
+#if 1
+      ! Fortran version
+      if (i == 95 .and. j == 3 .and. k == 28) then
+         ! Line 1: indices and first variables
+         write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
+              i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
+         ! Line 2: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              eprd(k),eprds(k),prdg(k),eprdg(k),"xxls:",xxls(k)
+         ! Line 3: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              psacws(k),psacwi(k),mnuccc(k),mnuccr(k),"qmults:",qmults(k)
+         ! Line 4: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              qmultg(k),qmultr(k),qmultrg(k),pracs(k),"psacwg:",psacwg(k)
+         ! Line 5: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              pracg(k),pgsacw(k),pgracs(k),piacr(k),"piacrs:",piacrs(k)
+         ! Line 6: final variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              xlf(k),cpm(k),pcc(k),pra(k),"prc:",prc(k)
+         ! Line 7: final variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              prci(k),prai(k),praci(k),pracis(k),"---END---:",0.0
+      endif
+#endif
       IF (IGRAUP.EQ.0) THEN
 
       QNI3DTEN(K) = QNI3DTEN(K)+                                    &
@@ -3316,8 +3434,8 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       T3DTEN(K) = T3DTEN(K)+PCC(K)*XXLV(K)/CPM(K)
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3477,9 +3595,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
         DLAMG=MAX(DLAMG,LAMMING)
         DLAMG=MIN(DLAMG,LAMMAXG)
       END IF
-#if 0
+#if 1
 ! Fortran version
-if ((i == 93 .and. j == 3 .and. k == 18)) then
+if ((i == 95 .and. j == 3 .and. k == 28)) then
     write(10, '(i5,i5,i5,15(es24.16))') &
         i,j,k,dumi(k),dumqs(k),dumr(k),dumfni(k),dumfns(k),dumfnr(k),dumc(k),dumfnc(k),dumg(k),dumfng(k), &
         dlami,dlamr,pgam(k),dlamc,dlams,dlamg
@@ -3688,8 +3806,8 @@ endif
       QGSTEN(K) = QGSTEN(K)+FALTNDG/NSTEP/RHO(k)
       NG3DTEN(K) = NG3DTEN(K)+FALTNDNG/NSTEP/RHO(k)
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
                 i,j,k,n,nstep,qcsten(k),faltndc,rho(k),FALTNDC/NSTEP/RHO(k)
         endif
@@ -3728,8 +3846,8 @@ endif
 
         DO K=KTS,KTE
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qcsten(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3742,8 +3860,8 @@ endif
         QG3DTEN(K)=QG3DTEN(K)+QGSTEN(K)
         QNI3DTEN(K)=QNI3DTEN(K)+QNISTEN(K)
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3773,8 +3891,8 @@ endif
           NS3D(k)        = NS3D(k)+NS3DTEN(k)*DT
           NR3D(k)        = NR3D(k)+NR3DTEN(k)*DT
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3804,8 +3922,8 @@ endif
             QVQVS(K) = QV3D(K)/QVS(K)
             QVQVSI(K) = QV3D(K)/QVI(K)
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3873,8 +3991,8 @@ endif
          EFFG(K) = 0.
        END IF
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3911,8 +4029,8 @@ endif
            NC3D(K)=0.
         END IF
 ! Fortran version
-#if 0
-        if (i == 93 .and. j == 3 .and. k == 18) then
+#if 1
+        if (i == 95 .and. j == 3 .and. k == 28) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif

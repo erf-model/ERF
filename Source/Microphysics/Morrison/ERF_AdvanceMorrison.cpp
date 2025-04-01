@@ -658,7 +658,7 @@ constexpr Real gamma_function(Real x) {
           m_ep_2 = m_Rd / m_Rv;     // Molecular weight ratio (Rd/Rv)
 
           // Reference density
-          m_rhosu = 85000.0/(m_Rd*273.15);  // Standard air density at 850 mb (kg/m^3)
+          m_rhosu = 85000.0/(287.15*273.15);  // Standard air density at 850 mb (kg/m^3)
 
           // Densities for different hydrometeor species
           m_rhow = 997.0;     // Density of liquid water (kg/m^3)
@@ -1554,8 +1554,8 @@ constexpr Real gamma_function(Real x) {
                       i, j, k, xxlv, xxls, cpm, evs, eis, t3d(i,j,k), CP, qv3d(i,j,k), pres(i,j,k));
             }
 #endif
-#if 0
-              if ((i == 93 && j == 3 && k == 18)) {
+#if 1
+              if ((i == 95 && j == 3 && k == 28)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
 #endif
@@ -1610,8 +1610,8 @@ constexpr Real gamma_function(Real x) {
                 qc3d(i,j,k) = 0.0; // temporary update: set cloud water to zero
               }
             }
-#if 0
-              if ((i == 93 && j == 3 && k == 18)) {
+#if 1
+              if ((i == 95 && j == 3 && k == 28)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
 #endif
@@ -1687,8 +1687,8 @@ constexpr Real gamma_function(Real x) {
               ng3d(i,j,k) = 0.0;
               effg(i,j,k) = 0.0;
             }
-#if 0
-              if ((i == 93 && j == 3 && k == 18)) {
+#if 1
+              if ((i == 95 && j == 3 && k == 28)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
 #endif
@@ -1715,7 +1715,26 @@ constexpr Real gamma_function(Real x) {
 
             // HM ADD GRAUPEL 8/28/06
             agn(i,j,k) = dum * m_ag; // budget equation: calculate graupel fall speed parameter
+#if 1
+            // C++ version
+            if (i == 95 && j == 3 && k == 28) {
+              // Line 1: indices and main calculated variables
+              fprintf(file, "%5d %5d %5d mu(i,j,k): %24.16e ain(i,j,k): %24.16e arn(i,j,k): %24.16e asn(i,j,k): %24.16e\n",
+                      i, j, k, mu(i,j,k), ain(i,j,k), arn(i,j,k), asn(i,j,k));
 
+              // Line 2: more calculated variables plus input variables
+              fprintf(file, "acn(i,j,k): %24.16e agn(i,j,k): %24.16e t3d(i,j,k): %24.16e rho(i,j,k): %24.16e\n",
+                      acn(i,j,k), agn(i,j,k), t3d(i,j,k), rho(i,j,k));
+
+              // Line 3: constants and temporary values
+              fprintf(file, "dum: %24.16e m_ai: %24.16e m_ar: %24.16e m_as: %24.16e m_ac: %24.16e\n",
+                      dum, m_ai, m_ar, m_as, m_ac);
+
+              // Line 4: final constants
+              fprintf(file, "m_ag: %24.16e m_g: %24.16e m_rhow: %24.16e m_rhosu: %24.16e\n",
+                      m_ag, m_g, m_rhow, m_rhosu);
+            }
+#endif
             // hm 4/7/09 bug fix, initialize lami to prevent later division by zero
             lami = 0.0; // temporary update: initialize LAMI
 
@@ -1750,6 +1769,11 @@ constexpr Real gamma_function(Real x) {
 
             // CASE FOR TEMPERATURE ABOVE FREEZING
             if (t3d(i,j,k) >= 273.15) {
+#if 0
+                if (i == 95 && j == 3 && k == 28) {
+                  fprintf(file, "warm\n");
+                }
+#endif
               //......................................................................
               // ALLOW FOR CONSTANT DROPLET NUMBER
               // INUM = 0, PREDICT DROPLET NUMBER
@@ -2247,9 +2271,9 @@ constexpr Real gamma_function(Real x) {
                 nc3dten(i,j,k) = nc3dten(i,j,k) + (-npra - nprc);
                 nr3dten(i,j,k) = nr3dten(i,j,k) + (nprc1 + nragg - npracg);
 
-#if 0
-                if (i == 93 && j == 3 && k == 18) {
-                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+#if 1
+                if (i == 95 && j == 3 && k == 28) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e cold\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
 
@@ -2289,6 +2313,12 @@ constexpr Real gamma_function(Real x) {
                 ns3dten(i,j,k) = ns3dten(i,j,k) + nsmlts;
                 ng3dten(i,j,k) = ng3dten(i,j,k) + ngmltg;
                 nr3dten(i,j,k) = nr3dten(i,j,k) + (nsubr - nsmltr - ngmltr);
+#if 0
+                if (i == 95 && j == 3 && k == 28) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e cold\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                }
+#endif
+
               }
               //Right after 300 CONTINUE
 //            label_300:
@@ -2313,14 +2343,19 @@ constexpr Real gamma_function(Real x) {
               qv3dten(i,j,k) -= pcc;
               t3dten(i,j,k) += pcc * xxlv / cpm;
               qc3dten(i,j,k) += pcc;
-#if 0
-              if (i == 93 && j == 3 && k == 18) {
+#if 1
+              if (i == 95 && j == 3 && k == 28) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                         i, j, k, t3d(i,j,k), qv3d(i,j,k), pres(i,j,k), qc3d(i,j,k), t3dten(i,j,k), qv3dten(i,j,k), qc3dten(i,j,k),
                         dumt, dumqv, dum, dumqss, dumqc, dums, pcc);
               }
 #endif
             } else {
+#if 1
+                if (i == 95 && j == 3 && k == 28) {
+                  fprintf(file, "cold\n");
+                }
+#endif
               //......................................................................
               // ALLOW FOR CONSTANT DROPLET NUMBER
               // INUM = 0, PREDICT DROPLET NUMBER
@@ -2607,7 +2642,32 @@ constexpr Real gamma_function(Real x) {
                   nprc = std::min(nprc, nc3d(i,j,k) / dt);
                   nprc1 = std::min(nprc1, nprc);
                 }
-
+#if 0
+                // C++ version
+                if (i == 95 && j == 3 && k == 28) {
+                  // Line 1: indices and first variables
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
+                  // Line 2: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          eprd, eprds, prdg, eprdg, "xxls:", xxls);
+                  // Line 3: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          psacws, psacwi, mnuccc, mnuccr, "qmults:", qmults);
+                  // Line 4: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          qmultg, qmultr, qmultrg, pracs, "psacwg:", psacwg);
+                  // Line 5: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          pracg, pgsacw, pgracs, piacr, "piacrs:", piacrs);
+                  // Line 6: final variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          xlf, cpm, pcc, pra, "prc:", prc);
+                  // Line 7: final variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          prci, prai, praci, pracis, "---END---:", 0.0);
+                }
+#endif
                 // SNOW AGGREGATION FROM PASSARELLI, 1978, USED BY REISNER, 1998
                 // THIS IS HARD-WIRED FOR BS = 0.4 FOR NOW
                 if (qni3d(i,j,k) >= 1.0e-8) {
@@ -2637,7 +2697,34 @@ constexpr Real gamma_function(Real x) {
                   npsacwg = m_cons14 * agn(i,j,k) * nc3d(i,j,k) * rho(i,j,k) *
                     n0g / std::pow(lamg, (m_bg + 3.0));
                 }
-
+#if 1
+                // C++ version
+                if (i == 95 && j == 3 && k == 28) {
+                  // Line 1: indices and first variables
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
+                  // Line 2: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          eprd, eprds, prdg, eprdg, "xxls:", xxls);
+                  // Line 3: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          psacws, psacwi, mnuccc, mnuccr, "qmults:", qmults);
+                  // Line 4: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          qmultg, qmultr, qmultrg, pracs, "psacwg:", psacwg);
+                  // Line 5: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          pracg, pgsacw, pgracs, piacr, "piacrs:", piacrs);
+                  // Line 6: final variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          xlf, cpm, pcc, pra, "prc:", prc);
+                  // Line 7: final variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          prci, prai, praci, pracis, "---END---:", 0.0);
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          asn(i,j,k), m_cons13, agn(i,j,k), m_cons14, "---END---:", m_bg);
+                }
+#endif
                 // hm, add 12/13/06
                 // CLOUD ICE COLLECTING DROPLETS, ASSUME THAT CLOUD ICE MEAN DIAM > 100 MICRON
                 // BEFORE RIMING CAN OCCUR
@@ -3093,7 +3180,32 @@ constexpr Real gamma_function(Real x) {
                   eprdg = prdg;
                   prdg = 0.0;
                 }
-
+#if 1
+                // C++ version
+                if (i == 95 && j == 3 && k == 28) {
+                  // Line 1: indices and first variables
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
+                  // Line 2: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          eprd, eprds, prdg, eprdg, "xxls:", xxls);
+                  // Line 3: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          psacws, psacwi, mnuccc, mnuccr, "qmults:", qmults);
+                  // Line 4: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          qmultg, qmultr, qmultrg, pracs, "psacwg:", psacwg);
+                  // Line 5: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          pracg, pgsacw, pgracs, piacr, "piacrs:", piacrs);
+                  // Line 6: final variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          xlf, cpm, pcc, pra, "prc:", prc);
+                  // Line 7: final variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          prci, prai, praci, pracis, "---END---:", 0.0);
+                }
+#endif
                 // CONSERVATION OF WATER
                 // THIS IS ADOPTED LOOSELY FROM MM5 RESINER CODE. HOWEVER, HERE WE
                 // ONLY ADJUST PROCESSES THAT ARE NEGATIVE, RATHER THAN ALL PROCESSES.
@@ -3253,7 +3365,32 @@ constexpr Real gamma_function(Real x) {
                 qr3dten(i,j,k) = qr3dten(i,j,k) +
                   (pre + pra + prc - pracs - mnuccr - qmultr - qmultrg -
                    piacr - piacrs - pracg - pgracs);
-
+#if 1
+                // C++ version
+                if (i == 95 && j == 3 && k == 28) {
+                  // Line 1: indices and first variables
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
+                  // Line 2: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          eprd, eprds, prdg, eprdg, "xxls:", xxls);
+                  // Line 3: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          psacws, psacwi, mnuccc, mnuccr, "qmults:", qmults);
+                  // Line 4: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          qmultg, qmultr, qmultrg, pracs, "psacwg:", psacwg);
+                  // Line 5: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          pracg, pgsacw, pgracs, piacr, "piacrs:", piacrs);
+                  // Line 6: final variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          xlf, cpm, pcc, pra, "prc:", prc);
+                  // Line 7: final variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          prci, prai, praci, pracis, "---END---:", 0.0);
+                }
+#endif
                 if (m_igraup == 0) {
                   qni3dten(i,j,k) = qni3dten(i,j,k) +
                     (prai + psacws + prds + pracs + prci + eprds - psacr + piacrs + pracis);
@@ -3310,7 +3447,11 @@ constexpr Real gamma_function(Real x) {
                 qv3dten(i,j,k) = qv3dten(i,j,k) - pcc;
                 t3dten(i,j,k) = t3dten(i,j,k) + pcc * xxlv / cpm;
                 qc3dten(i,j,k) = qc3dten(i,j,k) + pcc;
-
+#if 1
+                if (i == 95 && j == 3 && k == 28) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e cold\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                }
+#endif
                 // SUBLIMATE, MELT, OR EVAPORATE NUMBER CONCENTRATION
                 // THIS FORMULATION ASSUMES 1:1 RATIO BETWEEN MASS LOSS AND
                 // LOSS OF NUMBER CONCENTRATION
@@ -3343,6 +3484,13 @@ constexpr Real gamma_function(Real x) {
                 ns3dten(i,j,k) = ns3dten(i,j,k) + nsubs;
                 ng3dten(i,j,k) = ng3dten(i,j,k) + nsubg;
                 nr3dten(i,j,k) = nr3dten(i,j,k) + nsubr;
+#if 0
+              if (i == 95 && j == 3 && k == 28) {
+                fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+                        i, j, k, t3d(i,j,k), qv3d(i,j,k), pres(i,j,k), qc3d(i,j,k), t3dten(i,j,k), qv3dten(i,j,k), qc3dten(i,j,k),
+                        dumt, dumqv, dum, dumqss, dumqc, dums, pcc);
+              }
+#endif
             }
             ltrue = 1;
             skipPrecip = false;
@@ -3462,9 +3610,9 @@ constexpr Real gamma_function(Real x) {
               }
 
               // Calculate number-weighted and mass-weighted terminal fall speeds
-#if 0
+#if 1
               // C++ version
-              if ((i == 93 && j == 3 && k == 18)) {
+              if ((i == 95 && j == 3 && k == 28)) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                         i, j, k, dumi(i,j,k), dumqs(i,j,k), dumr(i,j,k), dumfni(i,j,k), dumfns(i,j,k), dumfnr(i,j,k), dumc(i,j,k), dumfnc(i,j,k), dumg(i,j,k), dumfng(i,j,k),
                         dlami(i,j,k), dlamr(i,j,k), pgam, dlamc(i,j,k), dlams(i,j,k), dlamg(i,j,k));
@@ -3675,8 +3823,8 @@ constexpr Real gamma_function(Real x) {
                 nc3dten(i,j,k) = nc3dten(i,j,k) + faltndnc(i,j,k) / nstep / rho(i,j,k);
                 qgsten(i,j,k) = qgsten(i,j,k) + faltndg(i,j,k) / nstep / rho(i,j,k);
                 ng3dten(i,j,k) = ng3dten(i,j,k) + faltndng(i,j,k) / nstep / rho(i,j,k);
-#if 0
-                if (i == 93 && j == 3 && k == 18) {
+#if 1
+                if (i == 95 && j == 3 && k == 28) {
                   fprintf(file, "%5d %5d %5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k,n,nstep, qcsten(i,j,k), faltndc(i,j,k) ,rho(i,j,k), faltndc(i,j,k) / nstep / rho(i,j,k));
                 }
 #endif
@@ -3727,8 +3875,8 @@ constexpr Real gamma_function(Real x) {
               amrex::Real n0r;                // N0RR: Intercept parameter for rain (kg^-1 m^-1)
               amrex::Real n0g;                // N0G: Intercept parameter for graupel (kg^-1 m^-1)
               amrex::Real pgam;               // PGAM: Spectral shape parameter for droplets
-#if 0
-                if (i == 93 && j == 3 && k == 18) {
+#if 1
+                if (i == 95 && j == 3 && k == 28) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qcsten(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -3738,8 +3886,8 @@ constexpr Real gamma_function(Real x) {
               qc3dten(i,j,k) = qc3dten(i,j,k) + qcsten(i,j,k);
               qg3dten(i,j,k) = qg3dten(i,j,k) + qgsten(i,j,k);
               qni3dten(i,j,k) = qni3dten(i,j,k) + qnisten(i,j,k);
-#if 0
-                if (i == 93 && j == 3 && k == 18) {
+#if 1
+                if (i == 95 && j == 3 && k == 28) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -3763,8 +3911,8 @@ constexpr Real gamma_function(Real x) {
               ni3d(i,j,k) = ni3d(i,j,k) + ni3dten(i,j,k)*dt;
               ns3d(i,j,k) = ns3d(i,j,k) + ns3dten(i,j,k)*dt;
               nr3d(i,j,k) = nr3d(i,j,k) + nr3dten(i,j,k)*dt;
-#if 0
-                if (i == 93 && j == 3 && k == 18) {
+#if 1
+                if (i == 95 && j == 3 && k == 28) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -3820,8 +3968,8 @@ constexpr Real gamma_function(Real x) {
                   qc3d(i,j,k) = 0.0;
                 }
               }
-#if 0
-                if (i == 93 && j == 3 && k == 18) {
+#if 1
+                if (i == 95 && j == 3 && k == 28) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -3869,8 +4017,8 @@ constexpr Real gamma_function(Real x) {
                 ng3d(i,j,k) = 0.0;
                 effg(i,j,k) = 0.0;
               }
-#if 0
-                if (i == 93 && j == 3 && k == 18) {
+#if 1
+                if (i == 95 && j == 3 && k == 28) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
@@ -3912,8 +4060,8 @@ constexpr Real gamma_function(Real x) {
                   ni3d(i,j,k) = ni3d(i,j,k) + nc3d(i,j,k);
                   nc3d(i,j,k) = 0.0;
                 }
-#if 0
-                if (i == 93 && j == 3 && k == 18) {
+#if 1
+                if (i == 95 && j == 3 && k == 28) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
 #endif
