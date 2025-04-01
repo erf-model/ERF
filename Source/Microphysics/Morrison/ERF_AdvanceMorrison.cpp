@@ -2379,20 +2379,20 @@ constexpr Real gamma_function(Real x) {
               // Rain
               if (qr3d(i,j,k) >= m_qsmall) {
                 // Calculate lambda parameter using cons26 (pi*rhow/6)
-                lamr = pow(m_cons26 * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
+                lamr = pow(m_pi * m_rhow * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
 
                 // Check for slope and adjust vars
                 if (lamr < m_lamminr) {
                   lamr = m_lamminr;
-                  n0r = pow(lamr, 4.0) * qr3d(i,j,k) / m_cons26;
+                  n0r = pow(lamr, 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
                   nr3d(i,j,k) = n0r / lamr;  // Update number concentration
                 } else if (lamr > m_lammaxr) {
                   lamr = m_lammaxr;
-                  n0r = pow(lamr, 4.0) * qr3d(i,j,k) / m_cons26;
+                  n0r = pow(lamr, 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
                   nr3d(i,j,k) = n0r / lamr;  // Update number concentration
                 } else {
                   // Calculate intercept parameter using WRF formula
-                  n0r = pow(lamr, 4.0) * qr3d(i,j,k) / m_cons26;
+                  n0r = pow(lamr, 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
                 }
               }
 
@@ -2498,25 +2498,10 @@ constexpr Real gamma_function(Real x) {
                   ng3d(i,j,k) = n0g / lamg;  // Update number concentration
                 }
               }
-#if 0
+#if 1
                 // C++ version
-                if ((i >= 86 && i <= 101 && j >= 0 && j <= 3 && k >= 8 && k <= 23 &&
-                     (i-86)%2 == 0 && j%2 == 0 && (k-8)%2 == 0) ||
-                    (i == 92 && j == 0 && k == 17) ||
-                    (((i == 168 || i == 169 || i == 190 || i == 191) &&
-                      (j == 0 || j == 3) &&
-                      (k == 0 || k == 1 || k == 126 || k == 127))) ||
-                    (i == 175 && j == 1 && k == 50) ||
-                    (i == 180 && j == 2 && k == 75) ||
-                    (i == 185 && j == 1 && k == 100) ||
-                    (i == 170 && j == 0 && k == 30) ||
-                    (i == 188 && j == 3 && k == 60) ||
-                    (i == 178 && j == 2 && k == 40) ||
-                    (i == 183 && j == 0 && k == 80) ||
-                    (i == 173 && j == 3 && k == 110) ||
-                    (i == 186 && j == 1 && k == 90) ||
-                    (i == 177 && j == 2 && k == 65)) {
-                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+                if (i == 95 && j == 3 && k == 28) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e ng\n",
                           i, j, k, lamr, n0r, pgam, lamc, nc3d(i,j,k), lams, n0s, ns3d(i,j,k), lamg, n0g, ng3d(i,j,k));
                 }
 #endif
@@ -2757,7 +2742,7 @@ constexpr Real gamma_function(Real x) {
                   uns = std::min(uns, 1.2 * dum);
                   umr = std::min(umr, 9.1 * dum);
                   unr = std::min(unr, 9.1 * dum);
-
+#if 0
                   pracs = m_cons41 * (std::sqrt(std::pow(1.2 * umr - 0.95 * ums, 2) +
                                                 0.08 * ums * umr) * rho(i,j,k) * n0r * n0s /
                                       std::pow(lamr, 3) * (5.0 / (std::pow(lamr, 3) * lams) +
@@ -2769,6 +2754,20 @@ constexpr Real gamma_function(Real x) {
                     (1.0 / (std::pow(lamr, 3) * lams) +
                      1.0 / (std::pow(lamr, 2) * std::pow(lams, 2)) +
                      1.0 / (lamr * std::pow(lams, 3)));
+#else
+                  pracs = m_cons41 * (std::sqrt((1.2 * umr - 0.95 * ums)*(1.2 * umr - 0.95 * ums)+
+                                                0.08 * ums * umr)*rho(i,j,k)*
+                                      n0r*n0s/(lamr*lamr*lamr)*
+                                      (5.0 / ((lamr*lamr*lamr)*lams)+
+                                       2.0 / ((lamr*lamr)*(lams*lams))+
+                                       0.5/(lamr*(lams*lams*lams))));
+
+                  npracs = m_cons32 * rho(i,j,k) * std::sqrt(1.7 * std::pow(unr - uns, 2) +
+                                                             0.3 * unr * uns) * n0r * n0s *
+                    (1.0 / (std::pow(lamr, 3) * lams) +
+                     1.0 / (std::pow(lamr, 2) * std::pow(lams, 2)) +
+                     1.0 / (lamr * std::pow(lams, 3)));
+#endif
 
                   // MAKE SURE PRACS DOESN'T EXCEED TOTAL RAIN MIXING RATIO
                   // AS THIS MAY OTHERWISE RESULT IN TOO MUCH TRANSFER OF WATER DURING

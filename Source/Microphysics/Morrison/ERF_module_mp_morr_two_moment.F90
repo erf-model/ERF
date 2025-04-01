@@ -1670,24 +1670,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NG3D(K) = N0G(K)/LAMG(K)
       END IF
       END IF
-#if 0
+#if 1
       ! Fortran version
-      if ((i >= 86 .and. i <= 101 .and. j >= 0 .and. j <= 3 .and. k >= 8 .and. k <= 23 .and. &
-           mod(i-86,2) == 0 .and. mod(j,2) == 0 .and. mod(k-8,2) == 0) .or. &
-           (i == 92 .and. j == 0 .and. k == 17) .or. &
-           (((i == 168 .or. i == 169 .or. i == 190 .or. i == 191) .and. &
-           (j == 0 .or. j == 3) .and. &
-           (k == 0 .or. k == 1 .or. k == 126 .or. k == 127))) .or. &
-           (i == 175 .and. j == 1 .and. k == 50) .or. &
-           (i == 180 .and. j == 2 .and. k == 75) .or. &
-           (i == 185 .and. j == 1 .and. k == 100) .or. &
-           (i == 170 .and. j == 0 .and. k == 30) .or. &
-           (i == 188 .and. j == 3 .and. k == 60) .or. &
-           (i == 178 .and. j == 2 .and. k == 40) .or. &
-           (i == 183 .and. j == 0 .and. k == 80) .or. &
-           (i == 173 .and. j == 3 .and. k == 110) .or. &
-           (i == 186 .and. j == 1 .and. k == 90) .or. &
-           (i == 177 .and. j == 2 .and. k == 65)) then
+      if (i == 95 .and. j == 3 .and. k == 28) then
          write(10, '(i5,i5,i5,12(es24.16))') &
               i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
       endif
@@ -2326,7 +2311,13 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NG3D(K) = N0G(K)/LAMG(K)
       END IF
       END IF
-
+#if 1
+      ! Fortran version
+      if (i == 95 .and. j == 3 .and. k == 28) then
+         write(10, '(i5,i5,i5,12(es24.16))') &
+              i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
+      endif
+#endif
 !.....................................................................
 ! ZERO OUT PROCESS RATES
 
