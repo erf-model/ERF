@@ -261,9 +261,9 @@ struct TurbChoice {
 
     // Common Flags
     bool use_kturb = false;     // Any turbulence modeling?
-    bool use_keqn = false;      // Any microscale turbulence modeling (LES, RANS) with TKE closure? Need to populate SmnSmn_lev for production term.
+    bool use_keqn = false;      // Any microscale turbulence modeling (LES, RANS) with TKE closure? Then need to populate SmnSmn_lev for production term.
     bool use_pbl_tke = false;   // Any mesoscale  turbulence modeling (PBL) with TKE closure?
-    bool use_tke = false;       // Any TKE closure?
+    bool use_tke = false;       // Any TKE closure (meso or microscale)?
 
     // Model coefficients - YSU
     // TODO: Add parmparse for all of these above
@@ -273,8 +273,8 @@ struct TurbChoice {
     amrex::Real pbl_ysu_land_Ribcr = 0.25; // Critical Bulk Richardson number of Land for stable conditions
     amrex::Real pbl_ysu_unst_Ribcr = 0.0;  // Critical Bulk Richardson number for unstable conditions
 
-    // QKE stuff - default is to use it, if MYNN2.5 PBL is used default is turb transport in Z-direction only
-    bool diffuse_KE_3D = true;
-    bool advect_KE = true;
+    // TKE/QKE stuff
+    bool advect_KE = true; // if MYNN2.5 PBL is used default is turb transport in Z-direction only
+    bool diffuse_KE_3D = true; // if numerical diffusion is turned on
 };
 #endif

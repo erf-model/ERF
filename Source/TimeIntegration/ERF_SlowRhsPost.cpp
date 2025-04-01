@@ -118,7 +118,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_use_KE         = tc.use_tke;
     const bool l_need_SmnSmn    = tc.use_keqn;
-    const bool l_advect_KE      = (tc.use_pbl_tke && tc.advect_KE);
+    const bool l_advect_KE      = tc.advect_KE;
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) || tc.use_kturb);
     const bool l_use_turb       = tc.use_kturb;
     const bool exp_most         = (solverChoice.use_explicit_most);
