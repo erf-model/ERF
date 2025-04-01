@@ -115,6 +115,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
+    const bool l_anelastic   = solverChoice.anelastic[level];
+
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_use_KE         = ( (tc.les_type  == LESType::Deardorff) ||
                                     (tc.rans_type == RANSType::kEqn) ||
@@ -305,7 +307,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // We have projected the velocities stored in S_data but we will use
         //    the velocities stored in S_scratch to update the scalars, so
         //    we need to copy from S_data (projected) into S_scratch
-        if (solverChoice.anelastic[level]) {
+        if (l_anelastic) {
             Box tbx_inc = mfi.nodaltilebox(0);
             Box tby_inc = mfi.nodaltilebox(1);
             Box tbz_inc = mfi.nodaltilebox(2);
@@ -494,7 +496,27 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } else {
+                } else if (l_anelastic && (nrk == 1)) { // not moving and ( (anelastic) and second RK stage) )
+
+                    ParallelFor(tbx, num_comp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = start_comp + nn;
+                        cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
+
+                        // Re-construct the cell_rhs used in the first RK stage
+                        Real dt_times_old_cell_rhs = cur_cons(i,j,k,n) - old_cons(i,j,k,n);
+
+                        // Add the time-averaged RHS to the old state
+                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + 0.5 * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
+
+                        if (ivar == RhoKE_comp) {
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
+                        } else if (ivar >= RhoQ1_comp) {
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 0.0);
+                        }
+                    });
+
+                } else { // not moving and ( (not anelastic) or (first RK stage) )
 
                     ParallelFor(tbx, num_comp,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
@@ -508,7 +530,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } // moving or not?
+                } // moving, anelastic or neither?
 
             } // is_valid
         } // ivar
