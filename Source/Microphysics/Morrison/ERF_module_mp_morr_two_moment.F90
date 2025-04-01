@@ -1261,6 +1261,13 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                     i,j,k,xxlv(k),xxls(k),cpm(k),evs(k),eis(k),t3d(k),CP,qv3d(k),pres(k)
             endif
 #endif
+! Fortran version
+#if 1
+        if (i == 93 .and. j == 3 .and. k == 18) then
+            write(10, '(i5,i5,i5,4(es24.16))') &
+                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+        endif
+#endif
 ! MAKE SURE ICE SATURATION DOESN'T EXCEED WATER SAT. NEAR FREEZING
 
             IF (EIS(K).GT.EVS(K)) EIS(K) = EVS(K)
@@ -1308,7 +1315,13 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                   QC3D(K)=0.
                END IF
              END IF
-
+! Fortran version
+#if 1
+        if (i == 93 .and. j == 3 .and. k == 18) then
+            write(10, '(i5,i5,i5,4(es24.16))') &
+                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+        endif
+#endif
              IF (QVQVSI(K).LT.0.9) THEN
                IF (QI3D(K).LT.1.E-8) THEN
                   QV3D(K)=QV3D(K)+QI3D(K)
@@ -1382,7 +1395,13 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
          NG3D(K) = 0.
          EFFG(K) = 0.
        END IF
-
+! Fortran version
+#if 1
+        if (i == 93 .and. j == 3 .and. k == 18) then
+            write(10, '(i5,i5,i5,4(es24.16))') &
+                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+        endif
+#endif
 ! INITIALIZE SEDIMENTATION TENDENCIES FOR MIXING RATIO
 
       QRSTEN(K) = 0.
@@ -2028,7 +2047,13 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 !      NG3DTEN(K) = NG3DTEN(K)
       NC3DTEN(K) = NC3DTEN(K)+ (-NPRA(K)-NPRC(K))
       NR3DTEN(K) = NR3DTEN(K)+ (NPRC1(K)+NRAGG(K)-NPRACG(K))
-
+! Fortran version
+#if 1
+        if (i == 93 .and. j == 3 .and. k == 18) then
+            write(10, '(i5,i5,i5,4(es24.16))') &
+                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+        endif
+#endif
 ! HM ADD, WRF-CHEM, ADD TENDENCIES FOR C2PREC
 
         C2PREC(K) = PRA(K)+PRC(K)
@@ -2088,10 +2113,10 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QV3DTEN(K) = QV3DTEN(K)-PCC(K)
       T3DTEN(K) = T3DTEN(K)+PCC(K)*XXLV(K)/CPM(K)
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
-#if 0
+#if 1
       ! Fortran version
       if (i == 93 .and. j == 3 .and. k == 18) then
-         write(10, '(i5,i5,i5,10(es24.16))') &
+         write(10, '(i5,i5,i5,14(es24.16))') &
               i,j,k,t3d(k),qv3d(k),pres(k),qc3d(k),t3dten(k),qv3dten(k),qc3dten(k), &
               dumt,dumqv,dum,dumqss,dumqc,dums,pcc(k)
       endif
@@ -3290,7 +3315,13 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QV3DTEN(K) = QV3DTEN(K)-PCC(K)
       T3DTEN(K) = T3DTEN(K)+PCC(K)*XXLV(K)/CPM(K)
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
-
+! Fortran version
+#if 1
+        if (i == 93 .and. j == 3 .and. k == 18) then
+            write(10, '(i5,i5,i5,4(es24.16))') &
+                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+        endif
+#endif
 !.......................................................................
 ! ACTIVATION OF CLOUD DROPLETS
 ! ACTIVATION OF DROPLET CURRENTLY NOT CALCULATED
@@ -3448,7 +3479,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END IF
 #if 0
 ! Fortran version
-if ((i == 92 .and. j == 0 .and. k == 17)) then
+if ((i == 93 .and. j == 3 .and. k == 18)) then
     write(10, '(i5,i5,i5,15(es24.16))') &
         i,j,k,dumi(k),dumqs(k),dumr(k),dumfni(k),dumfns(k),dumfnr(k),dumc(k),dumfnc(k),dumg(k),dumfng(k), &
         dlami,dlamr,pgam(k),dlamc,dlams,dlamg

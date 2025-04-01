@@ -1285,7 +1285,7 @@ constexpr Real gamma_function(Real x) {
          {
            int ltrue=0;                      // LTRUE: SWITCH = 0: NO HYDROMETEORS IN COLUMN, = 1: HYDROMETEORS IN COLUMN
            int nstep;                        // NSTEP: Timestep counter
-           int iinum;                      // iinum: Integer control variable
+           int iinum=m_inum;                      // iinum: Integer control variable
 
            for(int k=klo; k<=khi; k++) {
             // Tendencies and mixing ratios
@@ -1545,6 +1545,11 @@ constexpr Real gamma_function(Real x) {
                       i, j, k, xxlv, xxls, cpm, evs, eis, t3d(i,j,k), CP, qv3d(i,j,k), pres(i,j,k));
             }
 #endif
+#if 1
+              if ((i == 93 && j == 3 && k == 18)) {
+              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+              }
+#endif
             // MAKE SURE ICE SATURATION DOESN'T EXCEED WATER SAT. NEAR FREEZING
             if (eis > evs) {
               eis = evs; // temporary update: adjust ice saturation pressure
@@ -1596,7 +1601,11 @@ constexpr Real gamma_function(Real x) {
                 qc3d(i,j,k) = 0.0; // temporary update: set cloud water to zero
               }
             }
-
+#if 1
+              if ((i == 93 && j == 3 && k == 18)) {
+              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+              }
+#endif
             if (qvqvsi < 0.9) {
               if (qi3d(i,j,k) < 1.0e-8) {
                 qv3d(i,j,k) += qi3d(i,j,k); // budget equation: transfer cloud ice to vapor
@@ -1669,7 +1678,11 @@ constexpr Real gamma_function(Real x) {
               ng3d(i,j,k) = 0.0;
               effg(i,j,k) = 0.0;
             }
-
+#if 1
+              if ((i == 93 && j == 3 && k == 18)) {
+              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+              }
+#endif
             // INITIALIZE SEDIMENTATION TENDENCIES FOR MIXING RATIO
             qrsten(i,j,k) = 0.0;  // temporary update: initialize QRSTEN
             qisten(i,j,k) = 0.0;  // temporary update: initialize QISTEN
@@ -1937,7 +1950,336 @@ constexpr Real gamma_function(Real x) {
                 }
 #endif
                 ////////////////////// First instance of ZERO OUT PROCESS RATES
-                      printf("ERROR: Concentrations not fully implmented in C++");
+                // Zero out process rates
+                prc = 0.0;         // Cloud water to rain conversion rate (PRC)
+                nprc = 0.0;        // Change in cloud droplet number due to autoconversion (NPRC)
+                nprc1 = 0.0;       // Change in rain number due to autoconversion (NPRC1)
+                pra = 0.0;         // Accretion of cloud water by rain (PRA)
+                npra = 0.0;        // Change in cloud droplet number due to accretion by rain (NPRA)
+                nragg = 0.0;       // Self-collection/breakup of rain (NRAGG)
+                nsmlts = 0.0;      // Loss of snow number during melting (NSMLTS)
+                nsmltr = 0.0;      // Change in rain number due to snow melting (NSMLTR)
+                evpms = 0.0;       // Melting snow evaporation rate (EVPMS)
+                pcc = 0.0;         // Condensation/evaporation of cloud water (PCC)
+                pre = 0.0;         // Evaporation of rain (PRE)
+                nsubc = 0.0;       // Loss of cloud droplet number during evaporation (NSUBC)
+                nsubr = 0.0;       // Loss of rain number during evaporation (NSUBR)
+                pracg = 0.0;       // Collection of rain by graupel (PRACG)
+                npracg = 0.0;      // Change in number due to collection of rain by graupel (NPRACG)
+                psmlt = 0.0;       // Melting of snow (PSMLT)
+                pgmlt = 0.0;       // Melting of graupel (PGMLT)
+                evpmg = 0.0;       // Evaporation of melting graupel (EVPMG)
+                pracs = 0.0;       // Collection of snow by rain (PRACS)
+                npracs = 0.0;      // Change in number due to collection of snow by rain (NPRACS)
+                ngmltg = 0.0;      // Loss of graupel number during melting (NGMLTG)
+                ngmltr = 0.0;      // Change in rain number due to graupel melting (NGMLTR)
+
+                // CALCULATION OF MICROPHYSICAL PROCESS RATES, T > 273.15 K
+
+                // AUTOCONVERSION OF CLOUD LIQUID WATER TO RAIN
+                // FORMULA FROM BEHENG (1994)
+                // USING NUMERICAL SIMULATION OF STOCHASTIC COLLECTION EQUATION
+                // AND INITIAL CLOUD DROPLET SIZE DISTRIBUTION SPECIFIED
+                // AS A GAMMA DISTRIBUTION
+
+                // USE MINIMUM VALUE OF 1.E-6 TO PREVENT FLOATING POINT ERROR
+
+                if (qc3d(i,j,k) >= 1.0e-6) {
+                  // HM ADD 12/13/06, REPLACE WITH NEWER FORMULA
+                  // FROM KHAIROUTDINOV AND KOGAN 2000, MWR
+                  prc = 1350.0 * std::pow(qc3d(i,j,k), 2.47) * 
+                    std::pow((nc3d(i,j,k)/1.0e6*rho(i,j,k)), -1.79);
+
+                  // note: nprc1 is change in Nr,
+                  // nprc is change in Nc
+                  nprc1 = prc / m_cons29;
+                  nprc = prc / (qc3d(i,j,k) / nc3d(i,j,k));
+
+                  // hm bug fix 3/20/12
+                  nprc = std::min(nprc, nc3d(i,j,k) / dt);
+                  nprc1 = std::min(nprc1, nprc);
+                }
+
+                // HM ADD 12/13/06, COLLECTION OF SNOW BY RAIN ABOVE FREEZING
+                // FORMULA FROM IKAWA AND SAITO (1991)
+
+                if (qr3d(i,j,k) >= 1.0e-8 && qni3d(i,j,k) >= 1.0e-8) {
+                  amrex::Real ums = asn(i,j,k) * m_cons3 / std::pow(lams, m_bs);
+                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr, m_br);
+                  amrex::Real uns = asn(i,j,k) * m_cons5 / std::pow(lams, m_bs);
+                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr, m_br);
+
+                  // SET REALISTIC LIMITS ON FALLSPEEDS
+                  // bug fix, 10/08/09
+                  dum = std::pow(m_rhosu/rho(i,j,k), 0.54);
+                  ums = std::min(ums, 1.2*dum);
+                  uns = std::min(uns, 1.2*dum);
+                  umr = std::min(umr, 9.1*dum);
+                  unr = std::min(unr, 9.1*dum);
+    
+
+                  // hm fix, 2/12/13
+                  // for above freezing conditions to get accelerated melting of snow,
+                  // we need collection of rain by snow (following Lin et al. 1983)
+                  ////////////////////////Might need pow expanding
+                  pracs = m_cons41 * (std::sqrt(std::pow(1.2*umr-0.95*ums, 2) + 
+                                                0.08*ums*umr) * rho(i,j,k) * 
+                                      n0r * n0s / std::pow(lamr, 3) * 
+                                      (5.0/(std::pow(lamr, 3) * lams) + 
+                                       2.0/(std::pow(lamr, 2) * std::pow(lams, 2)) + 
+                                       0.5/(lamr * std::pow(lams, 3))));
+                }
+                // ADD COLLECTION OF GRAUPEL BY RAIN ABOVE FREEZING
+                // ASSUME ALL RAIN COLLECTION BY GRAUPEL ABOVE FREEZING IS SHED
+                // ASSUME SHED DROPS ARE 1 MM IN SIZE
+
+                if (qr3d(i,j,k) >= 1.0e-8 && qg3d(i,j,k) >= 1.0e-8) {
+                  
+                  amrex::Real umg = agn(i,j,k) * m_cons7 / std::pow(lamg, m_bg);
+                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr, m_br);
+                  amrex::Real ung = agn(i,j,k) * m_cons8 / std::pow(lamg, m_bg);
+                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr, m_br);
+
+                  // SET REALISTIC LIMITS ON FALLSPEEDS
+                  // bug fix, 10/08/09
+                  dum = std::pow(m_rhosu/rho(i,j,k), 0.54);
+                  umg = std::min(umg, 20.0*dum);
+                  ung = std::min(ung, 20.0*dum);
+                  umr = std::min(umr, 9.1*dum);
+                  unr = std::min(unr, 9.1*dum);
+
+                  // PRACG IS MIXING RATIO OF RAIN PER SEC COLLECTED BY GRAUPEL/HAIL
+                  pracg = m_cons41 * (std::sqrt(std::pow(1.2*umr-0.95*umg, 2) + 
+                                                0.08*umg*umr) * rho(i,j,k) * 
+                                      n0r * n0g / std::pow(lamr, 3) * 
+                                      (5.0/(std::pow(lamr, 3) * lamg) + 
+                                       2.0/(std::pow(lamr, 2) * std::pow(lamg, 2)) + 
+                                       0.5/(lamr * std::pow(lamg, 3))));
+
+                  // ASSUME 1 MM DROPS ARE SHED, GET NUMBER SHED PER SEC
+                  dum = pracg/5.2e-7;
+
+                  npracg = m_cons32 * rho(i,j,k) * (std::sqrt(1.7*std::pow(unr-ung, 2) + 
+                                                              0.3*unr*ung) * n0r * n0g * 
+                                                    (1.0/(std::pow(lamr, 3) * lamg) + 
+                                                     1.0/(std::pow(lamr, 2) * std::pow(lamg, 2)) + 
+                                                     1.0/(lamr * std::pow(lamg, 3))));
+                  // hm 7/15/13, remove limit so that the number of collected drops can smaller than
+                  // number of shed drops
+                  npracg = npracg - dum;
+                }
+                // ACCRETION OF CLOUD LIQUID WATER BY RAIN
+                // CONTINUOUS COLLECTION EQUATION WITH
+                // GRAVITATIONAL COLLECTION KERNEL, DROPLET FALL SPEED NEGLECTED
+
+                if (qr3d(i,j,k) >= 1.0e-8 && qc3d(i,j,k) >= 1.0e-8) {
+                  // 12/13/06 HM ADD, REPLACE WITH NEWER FORMULA FROM
+                  // KHAIROUTDINOV AND KOGAN 2000, MWR
+                  dum = qc3d(i,j,k) * qr3d(i,j,k);
+                  pra = 67.0 * std::pow(dum, 1.15);
+                  npra = pra / (qc3d(i,j,k) / nc3d(i,j,k));
+                }
+
+                // SELF-COLLECTION OF RAIN DROPS
+                // FROM BEHENG(1994)
+                // FROM NUMERICAL SIMULATION OF THE STOCHASTIC COLLECTION EQUATION
+                // AS DESCRIBED ABOVE FOR AUTOCONVERSION
+
+                if (qr3d(i,j,k) >= 1.0e-8) {
+                  // include breakup add 10/09/09
+                  dum1 = 300.0e-6;
+                  if (1.0/lamr < dum1) {
+                    dum = 1.0;
+                  } else {
+                    dum = 2.0 - std::exp(2300.0 * (1.0/lamr - dum1));
+                  }
+                  nragg = -5.78 * dum * nr3d(i,j,k) * qr3d(i,j,k) * rho(i,j,k);
+                }
+                // CALCULATE EVAP OF RAIN (RUTLEDGE AND HOBBS 1983)
+                if (qr3d(i,j,k) >= m_qsmall) {
+                  epsr = 2.0 * m_pi * n0r * rho(i,j,k) * dv * 
+                    (m_f1r/(lamr*lamr) + 
+                     m_f2r * std::sqrt(arn(i,j,k)*rho(i,j,k)/mu(i,j,k)) * 
+                     std::pow(sc_schmidt, 1.0/3.0) * m_cons9 / 
+                     std::pow(lamr, m_cons34));
+                } else {
+                  epsr = 0.0;
+                }
+
+                // NO CONDENSATION ONTO RAIN, ONLY EVAP ALLOWED
+                if (qv3d(i,j,k) < qvs) {
+                  pre = epsr * (qv3d(i,j,k) - qvs) / ab;
+                  pre = std::min(pre, 0.0);
+                } else {
+                  pre = 0.0;
+                }
+                // MELTING OF SNOW
+                // SNOW MAY PERSIST ABOVE FREEZING, FORMULA FROM RUTLEDGE AND HOBBS, 1984
+                // IF WATER SUPERSATURATION, SNOW MELTS TO FORM RAIN
+
+                if (qni3d(i,j,k) >= 1.0e-8) {
+                  // fix 053011
+                  // HM, MODIFY FOR V3.2, ADD ACCELERATED MELTING DUE TO COLLISION WITH RAIN
+                  dum = -m_cpw/xlf * (t3d(i,j,k) - 273.15) * pracs;
+
+                  // hm fix 1/20/15
+                  psmlt = 2.0 * m_pi * n0s * kap * (273.15 - t3d(i,j,k)) / 
+                    xlf * (m_f1s/(lams*lams) + 
+                           m_f2s * std::sqrt(asn(i,j,k)*rho(i,j,k)/mu(i,j,k)) * 
+                           std::pow(sc_schmidt, 1.0/3.0) * m_cons10 / 
+                           std::pow(lams, m_cons35)) + dum;
+
+                  // IN WATER SUBSATURATION, SNOW MELTS AND EVAPORATES
+                  if (qvqvs < 1.0) {
+                    epss = 2.0 * m_pi * n0s * rho(i,j,k) * dv * 
+                      (m_f1s/(lams*lams) + 
+                       m_f2s * std::sqrt(asn(i,j,k)*rho(i,j,k)/mu(i,j,k)) * 
+                       std::pow(sc_schmidt, 1.0/3.0) * m_cons10 / 
+                       std::pow(lams, m_cons35));
+        
+                    // hm fix 8/4/08
+                    evpms = (qv3d(i,j,k) - qvs) * epss / ab;
+                    evpms = std::max(evpms, psmlt);
+                    psmlt = psmlt - evpms;
+                  }
+                }
+                // MELTING OF GRAUPEL
+                // GRAUPEL MAY PERSIST ABOVE FREEZING, FORMULA FROM RUTLEDGE AND HOBBS, 1984
+                // IF WATER SUPERSATURATION, GRAUPEL MELTS TO FORM RAIN
+
+                if (qg3d(i,j,k) >= 1.0e-8) {
+                  // fix 053011
+                  // HM, MODIFY FOR V3.2, ADD ACCELERATED MELTING DUE TO COLLISION WITH RAIN
+
+                  dum = -m_cpw/xlf * (t3d(i,j,k) - 273.15) * pracg;
+
+                  // hm fix 1/20/15               
+                  pgmlt = 2.0 * m_pi * n0g * kap * (273.15 - t3d(i,j,k)) / 
+                    xlf * (m_f1s/(lamg*lamg) + 
+                           m_f2s * std::sqrt(agn(i,j,k)*rho(i,j,k)/mu(i,j,k)) * 
+                           std::pow(sc_schmidt, 1.0/3.0) * m_cons11 / 
+                           std::pow(lamg, m_cons36)) + dum;
+
+                  // IN WATER SUBSATURATION, GRAUPEL MELTS AND EVAPORATES
+                  if (qvqvs < 1.0) {
+                    epsg = 2.0 * m_pi * n0g * rho(i,j,k) * dv * 
+                      (m_f1s/(lamg*lamg) + 
+                       m_f2s * std::sqrt(agn(i,j,k)*rho(i,j,k)/mu(i,j,k)) * 
+                       std::pow(sc_schmidt, 1.0/3.0) * m_cons11 / 
+                       std::pow(lamg, m_cons36));
+        
+                    // hm fix 8/4/08
+                    evpmg = (qv3d(i,j,k) - qvs) * epsg / ab;
+                    evpmg = std::max(evpmg, pgmlt);
+                    pgmlt = pgmlt - evpmg;
+                  }
+                }
+                // HM, V3.2
+                // RESET PRACG AND PRACS TO ZERO, THIS IS DONE BECAUSE THERE IS NO
+                // TRANSFER OF MASS FROM SNOW AND GRAUPEL TO RAIN DIRECTLY FROM COLLECTION
+                // ABOVE FREEZING, IT IS ONLY USED FOR ENHANCEMENT OF MELTING AND SHEDDING
+
+                pracg = 0.0;
+                pracs = 0.0;
+                // CONSERVATION OF QC
+                dum = (prc + pra) * dt;
+
+                if (dum > qc3d(i,j,k) && qc3d(i,j,k) >= m_qsmall) {
+                  ratio = qc3d(i,j,k) / dum;
+                  prc = prc * ratio;
+                  pra = pra * ratio;
+                }
+
+                // CONSERVATION OF SNOW
+                dum = (-psmlt - evpms + pracs) * dt;
+
+                if (dum > qni3d(i,j,k) && qni3d(i,j,k) >= m_qsmall) {
+                  // NO SOURCE TERMS FOR SNOW AT T > FREEZING
+                  ratio = qni3d(i,j,k) / dum;
+                  psmlt = psmlt * ratio;
+                  evpms = evpms * ratio;
+                  pracs = pracs * ratio;
+                }
+
+                // CONSERVATION OF GRAUPEL
+                dum = (-pgmlt - evpmg + pracg) * dt;
+
+                if (dum > qg3d(i,j,k) && qg3d(i,j,k) >= m_qsmall) {
+                  // NO SOURCE TERM FOR GRAUPEL ABOVE FREEZING
+                  ratio = qg3d(i,j,k) / dum;
+                  pgmlt = pgmlt * ratio;
+                  evpmg = evpmg * ratio;
+                  pracg = pracg * ratio;
+                }
+
+                // CONSERVATION OF QR
+                // HM 12/13/06, ADDED CONSERVATION OF RAIN SINCE PRE IS NEGATIVE
+
+                dum = (-pracs - pracg - pre - pra - prc + psmlt + pgmlt) * dt;
+
+                if (dum > qr3d(i,j,k) && qr3d(i,j,k) >= m_qsmall) {
+                  ratio = (qr3d(i,j,k)/dt + pracs + pracg + pra + prc - psmlt - pgmlt) / (-pre);
+                  pre = pre * ratio;
+                }
+                // Update tendencies
+                qv3dten(i,j,k) = qv3dten(i,j,k) + (-pre - evpms - evpmg);
+
+                t3dten(i,j,k) = t3dten(i,j,k) + (pre * xxlv + 
+                                                 (evpms + evpmg) * xxls + 
+                                                 (psmlt + pgmlt - pracs - pracg) * xlf) / cpm;
+
+                qc3dten(i,j,k) = qc3dten(i,j,k) + (-pra - prc);
+                qr3dten(i,j,k) = qr3dten(i,j,k) + (pre + pra + prc - psmlt - pgmlt + pracs + pracg);
+                qni3dten(i,j,k) = qni3dten(i,j,k) + (psmlt + evpms - pracs);
+                qg3dten(i,j,k) = qg3dten(i,j,k) + (pgmlt + evpmg - pracg);
+
+                // fix 053011
+                // HM, bug fix 5/12/08, npracg is subtracted from nr not ng
+                nc3dten(i,j,k) = nc3dten(i,j,k) + (-npra - nprc);
+                nr3dten(i,j,k) = nr3dten(i,j,k) + (nprc1 + nragg - npracg);
+
+#if 1
+                if (i == 93 && j == 3 && k == 18) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                }
+#endif
+
+                // HM ADD, WRF-CHEM, ADD TENDENCIES FOR C2PREC
+                c2prec = pra + prc;
+
+                if (pre < 0.0) {
+                  dum = pre * dt / qr3d(i,j,k);
+                  dum = std::max(-1.0, dum);
+                  nsubr = dum * nr3d(i,j,k) / dt;
+                }
+
+                if (evpms + psmlt < 0.0) {
+                  dum = (evpms + psmlt) * dt / qni3d(i,j,k);
+                  dum = std::max(-1.0, dum);
+                  nsmlts = dum * ns3d(i,j,k) / dt;
+                }
+
+                if (psmlt < 0.0) {
+                  dum = psmlt * dt / qni3d(i,j,k);
+                  dum = std::max(-1.0, dum);
+                  nsmltr = dum * ns3d(i,j,k) / dt;
+                }
+
+                if (evpmg + pgmlt < 0.0) {
+                  dum = (evpmg + pgmlt) * dt / qg3d(i,j,k);
+                  dum = std::max(-1.0, dum);
+                  ngmltg = dum * ng3d(i,j,k) / dt;
+                }
+
+                if (pgmlt < 0.0) {
+                  dum = pgmlt * dt / qg3d(i,j,k);
+                  dum = std::max(-1.0, dum);
+                  ngmltr = dum * ng3d(i,j,k) / dt;
+                }
+
+                ns3dten(i,j,k) = ns3dten(i,j,k) + nsmlts;
+                ng3dten(i,j,k) = ng3dten(i,j,k) + ngmltg;
+                nr3dten(i,j,k) = nr3dten(i,j,k) + (nsubr - nsmltr - ngmltr);
               }
               //Right after 300 CONTINUE
 //            label_300:
@@ -1962,7 +2304,7 @@ constexpr Real gamma_function(Real x) {
               qv3dten(i,j,k) -= pcc;
               t3dten(i,j,k) += pcc * xxlv / cpm;
               qc3dten(i,j,k) += pcc;
-#if 0
+#if 1
               if (i == 93 && j == 3 && k == 18) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                         i, j, k, t3d(i,j,k), qv3d(i,j,k), pres(i,j,k), qc3d(i,j,k), t3dten(i,j,k), qv3dten(i,j,k), qc3dten(i,j,k),
@@ -2091,7 +2433,14 @@ constexpr Real gamma_function(Real x) {
               }
 
               // Calculate number-weighted and mass-weighted terminal fall speeds
-
+#if 0
+              // C++ version
+              if ((i == 93 && j == 3 && k == 18)) {
+                fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+                        i, j, k, dumi(i,j,k), dumqs(i,j,k), dumr(i,j,k), dumfni(i,j,k), dumfns(i,j,k), dumfnr(i,j,k), dumc(i,j,k), dumfnc(i,j,k), dumg(i,j,k), dumfng(i,j,k),
+                        dlami(i,j,k), dlamr(i,j,k), pgam, dlamc(i,j,k), dlams(i,j,k), dlamg(i,j,k));
+              }
+#endif
               // CLOUD WATER
               if (dumc(i,j,k) >= m_qsmall) {
                 unc(i,j,k) = acn(i,j,k) * gamma_function(1. + m_bc + pgam) / (std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam + 1.));
