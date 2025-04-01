@@ -496,7 +496,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } else if (l_anelastic && (nrk == 1)) { // not moving and anelastic and in second of two RK stages
+                } else if (l_anelastic && (nrk == 1)) { // not moving and ( (anelastic) and second RK stage) )
 
                     ParallelFor(tbx, num_comp,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
@@ -516,7 +516,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } else { // not moving and not anelastic
+                } else { // not moving and ( (not anelastic) or (first RK stage) )
 
                     ParallelFor(tbx, num_comp,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
