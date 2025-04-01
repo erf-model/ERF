@@ -939,6 +939,15 @@ constexpr Real gamma_function(Real x) {
             auto const& ns3d = ns3d_fab.array();        // SNOW NUMBER CONCENTRATION (1/KG)
             auto const& nr3d = nr3d_fab.array();        // RAIN NUMBER CONCENTRATION (1/KG)
 
+            // Initialize mixing ratios and number concentrations to zero
+            qc3d_fab.setVal(0.0);
+            qi3d_fab.setVal(0.0);
+            qni3d_fab.setVal(0.0);
+            qr3d_fab.setVal(0.0);
+            ni3d_fab.setVal(0.0);
+            ns3d_fab.setVal(0.0);
+            nr3d_fab.setVal(0.0);
+
             // Create arrays for temperature, vapor, and pressure variables
             amrex::FArrayBox t3dten_fab(grown_box, 1);    // TEMPERATURE TENDENCY
             amrex::FArrayBox qv3dten_fab(grown_box, 1);   // WATER VAPOR MIXING RATIO TENDENCY
@@ -1545,7 +1554,7 @@ constexpr Real gamma_function(Real x) {
                       i, j, k, xxlv, xxls, cpm, evs, eis, t3d(i,j,k), CP, qv3d(i,j,k), pres(i,j,k));
             }
 #endif
-#if 0
+#if 1
               if ((i == 93 && j == 3 && k == 18)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
@@ -1601,7 +1610,7 @@ constexpr Real gamma_function(Real x) {
                 qc3d(i,j,k) = 0.0; // temporary update: set cloud water to zero
               }
             }
-#if 0
+#if 1
               if ((i == 93 && j == 3 && k == 18)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
@@ -1678,7 +1687,7 @@ constexpr Real gamma_function(Real x) {
               ng3d(i,j,k) = 0.0;
               effg(i,j,k) = 0.0;
             }
-#if 0
+#if 1
               if ((i == 93 && j == 3 && k == 18)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
@@ -2238,7 +2247,7 @@ constexpr Real gamma_function(Real x) {
                 nc3dten(i,j,k) = nc3dten(i,j,k) + (-npra - nprc);
                 nr3dten(i,j,k) = nr3dten(i,j,k) + (nprc1 + nragg - npracg);
 
-#if 0
+#if 1
                 if (i == 93 && j == 3 && k == 18) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
                 }
@@ -2304,7 +2313,7 @@ constexpr Real gamma_function(Real x) {
               qv3dten(i,j,k) -= pcc;
               t3dten(i,j,k) += pcc * xxlv / cpm;
               qc3dten(i,j,k) += pcc;
-#if 0
+#if 1
               if (i == 93 && j == 3 && k == 18) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                         i, j, k, t3d(i,j,k), qv3d(i,j,k), pres(i,j,k), qc3d(i,j,k), t3dten(i,j,k), qv3dten(i,j,k), qc3dten(i,j,k),
@@ -2433,7 +2442,7 @@ constexpr Real gamma_function(Real x) {
               }
 
               // Calculate number-weighted and mass-weighted terminal fall speeds
-#if 0
+#if 1
               // C++ version
               if ((i == 93 && j == 3 && k == 18)) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
@@ -2567,7 +2576,7 @@ constexpr Real gamma_function(Real x) {
               dumfng(i,j,k) = dumfng(i,j,k) * rho(i,j,k);   // Graupel number * density
             }
             // Main time stepping loop for sedimentation
-            for (int n = 0; n <= nstep; n++) {
+            for (int n = 1; n <= nstep; n++) {
               // Calculate initial fallout for each hydrometeor type for all levels
               for (int k = klo; k <= khi; k++) {
                 faloutr(i,j,k) = fr(i,j,k) * dumr(i,j,k);
@@ -2646,7 +2655,11 @@ constexpr Real gamma_function(Real x) {
                 nc3dten(i,j,k) = nc3dten(i,j,k) + faltndnc(i,j,k) / nstep / rho(i,j,k);
                 qgsten(i,j,k) = qgsten(i,j,k) + faltndg(i,j,k) / nstep / rho(i,j,k);
                 ng3dten(i,j,k) = ng3dten(i,j,k) + faltndng(i,j,k) / nstep / rho(i,j,k);
-
+#if 1
+                if (i == 93 && j == 3 && k == 18) {
+                  fprintf(file, "%5d %5d %5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k,n,nstep, qcsten(i,j,k), faltndc(i,j,k) ,rho(i,j,k), faltndc(i,j,k) / nstep / rho(i,j,k));
+                }
+#endif
                 // Update temporary working variables
                 dumr(i,j,k) = dumr(i,j,k) + faltndr(i,j,k) * dt / nstep;
                 dumi(i,j,k) = dumi(i,j,k) + faltndi(i,j,k) * dt / nstep;
@@ -2671,7 +2684,6 @@ constexpr Real gamma_function(Real x) {
               snowprt(i,j,k) += (falouti(i,j,kts) + falouts(i,j,kts)) * dt / nstep;
               grplprt(i,j,k) += faloutg(i,j,kts) * dt / nstep;
             }
-            printf("ERROR: Sedimentation not implmented in C++\n");
             for(int k=klo; k<=khi; k++) {
               amrex::Real evs;                // EVS: Saturation vapor pressure
               amrex::Real eis;                // EIS: Ice saturation vapor pressure
@@ -2695,14 +2707,22 @@ constexpr Real gamma_function(Real x) {
               amrex::Real n0r;                // N0RR: Intercept parameter for rain (kg^-1 m^-1)
               amrex::Real n0g;                // N0G: Intercept parameter for graupel (kg^-1 m^-1)
               amrex::Real pgam;               // PGAM: Spectral shape parameter for droplets
-
+#if 1
+                if (i == 93 && j == 3 && k == 18) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qcsten(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                }
+#endif
               // ADD ON SEDIMENTATION TENDENCIES FOR MIXING RATIO TO REST OF TENDENCIES
               qr3dten(i,j,k) = qr3dten(i,j,k) + qrsten(i,j,k);
               qi3dten(i,j,k) = qi3dten(i,j,k) + qisten(i,j,k);
               qc3dten(i,j,k) = qc3dten(i,j,k) + qcsten(i,j,k);
               qg3dten(i,j,k) = qg3dten(i,j,k) + qgsten(i,j,k);
               qni3dten(i,j,k) = qni3dten(i,j,k) + qnisten(i,j,k);
-
+#if 1
+                if (i == 93 && j == 3 && k == 18) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                }
+#endif
               // PUT ALL CLOUD ICE IN SNOW CATEGORY IF MEAN DIAMETER EXCEEDS 2 * dcs
               // bug fix
               if (qi3d(i,j,k) >= m_qsmall && t3d(i,j,k) < 273.15 && dlami(i,j,k) >= 1.e-10) {
@@ -2723,7 +2743,11 @@ constexpr Real gamma_function(Real x) {
               ni3d(i,j,k) = ni3d(i,j,k) + ni3dten(i,j,k)*dt;
               ns3d(i,j,k) = ns3d(i,j,k) + ns3dten(i,j,k)*dt;
               nr3d(i,j,k) = nr3d(i,j,k) + nr3dten(i,j,k)*dt;
-
+#if 1
+                if (i == 93 && j == 3 && k == 18) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                }
+#endif
               if (m_igraup == 0) {
                 qg3d(i,j,k) = qg3d(i,j,k) + qg3dten(i,j,k)*dt;
                 ng3d(i,j,k) = ng3d(i,j,k) + ng3dten(i,j,k)*dt;
@@ -2776,7 +2800,11 @@ constexpr Real gamma_function(Real x) {
                   qc3d(i,j,k) = 0.0;
                 }
               }
-
+#if 1
+                if (i == 93 && j == 3 && k == 18) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                }
+#endif
               if (qvqvsi < 0.9) {
                 if (qi3d(i,j,k) < 1.0e-8) {
                   qv3d(i,j,k) += qi3d(i,j,k);
@@ -2821,6 +2849,11 @@ constexpr Real gamma_function(Real x) {
                 ng3d(i,j,k) = 0.0;
                 effg(i,j,k) = 0.0;
               }
+#if 1
+                if (i == 93 && j == 3 && k == 18) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                }
+#endif
               /*
               // Skip calculations if there is no cloud/precipitation water
               if ((qc3d(i,j,k) < m_qsmall &&    // CLOUD WATER MIXING RATIO (KG/KG)
@@ -2859,7 +2892,11 @@ constexpr Real gamma_function(Real x) {
                   ni3d(i,j,k) = ni3d(i,j,k) + nc3d(i,j,k);
                   nc3d(i,j,k) = 0.0;
                 }
-
+#if 1
+                if (i == 93 && j == 3 && k == 18) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                }
+#endif
                 // HOMOGENEOUS FREEZING OF RAIN
                 if (m_igraup == 0) {
                   if (t3d(i,j,k) <= 233.15 && qr3d(i,j,k) >= m_qsmall) {
