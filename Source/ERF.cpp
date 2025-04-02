@@ -1027,12 +1027,12 @@ ERF::InitData_post ()
     }
 
 #ifdef ERF_USE_WW3_COUPLING
-    int lev = 0;
+    int my_lev = 0;
     amrex::Print() <<  " About to call send_to_ww3 from ERF.cpp" << std::endl;
-    send_to_ww3(lev);
+    send_to_ww3(my_lev);
     amrex::Print() <<  " About to call read_waves from ERF.cpp"  << std::endl;
-    read_waves(lev);
-   // send_to_ww3(lev);
+    read_waves(my_lev);
+   // send_to_ww3(my_lev);
 #endif
 
     // Configure ABLMost params if used MostWall boundary condition
