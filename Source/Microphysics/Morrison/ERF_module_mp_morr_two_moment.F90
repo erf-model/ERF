@@ -1402,11 +1402,16 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
-#if 1
+#if 0
       ! Fortran version
       if (i == 91 .and. j == 3 .and. k == 58) then
-         write(10, '(i5,i5,i5,12(es24.16))') &
-              i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
+         write(10, '(i5,i5,i5,3(es24.16))') &
+              i,j,k,lamr(k),n0rr(k),pgam(k)
+         write(10, '(i5,i5,i5,8(es24.16))') &
+         i,j,k,lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
+!         write(10, '(i5,i5,i5,3(es24.16))') &
+!              i,j,k,lamr(k),n0rr(k),pgam(k)
+         print*,              i,j,k,lamr(k),n0rr(k),pgam(k)
          write(10,*) " ng start"
          write(10, '(i5,i5,i5,7(es24.16))') &
                           i, j, k, qg3d(k), qsmall, cons2, dg, lamming, lammaxg,rhog

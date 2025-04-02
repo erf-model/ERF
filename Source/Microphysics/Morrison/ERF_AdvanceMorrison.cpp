@@ -451,6 +451,7 @@ constexpr Real gamma_function(Real x) {
             dz_arr(i,j,k) = dz_val;
           });
           amrex::Box grown_boxD(grown_box); grown_boxD.makeSlab(2,0);
+          amrex::Box DDgrown_box(grown_box); DDgrown_box.makeSlab(0,0); DDgrown_box.makeSlab(1,0);
           // Arrays to store precipitation rates
           amrex::FArrayBox    rainncv_fab(grown_boxD, 1);
           amrex::FArrayBox         sr_fab(grown_boxD, 1);     // Ratio of snow to total precipitation
@@ -516,17 +517,17 @@ constexpr Real gamma_function(Real x) {
           precg_fab.setVal(0.0);
 
           // Create FArrayBox for slope parameters and PSD variables
-          amrex::FArrayBox lamc_fab(grown_box, 1);
-          amrex::FArrayBox lami_fab(grown_box, 1);
-          amrex::FArrayBox lams_fab(grown_box, 1);
-          amrex::FArrayBox lamr_fab(grown_box, 1);
-          amrex::FArrayBox lamg_fab(grown_box, 1);
-          amrex::FArrayBox cdist1_fab(grown_box, 1);
-          amrex::FArrayBox n0i_fab(grown_box, 1);
-          amrex::FArrayBox n0s_fab(grown_box, 1);
-          amrex::FArrayBox n0r_fab(grown_box, 1);
-          amrex::FArrayBox n0g_fab(grown_box, 1);
-          amrex::FArrayBox pgam_fab(grown_box, 1);
+          amrex::FArrayBox lamc_fab(DDgrown_box, 1);
+          amrex::FArrayBox lami_fab(DDgrown_box, 1);
+          amrex::FArrayBox lams_fab(DDgrown_box, 1);
+          amrex::FArrayBox lamr_fab(DDgrown_box, 1);
+          amrex::FArrayBox lamg_fab(DDgrown_box, 1);
+          amrex::FArrayBox cdist1_fab(DDgrown_box, 1);
+          amrex::FArrayBox n0i_fab(DDgrown_box, 1);
+          amrex::FArrayBox n0s_fab(DDgrown_box, 1);
+          amrex::FArrayBox n0r_fab(DDgrown_box, 1);
+          amrex::FArrayBox n0g_fab(DDgrown_box, 1);
+          amrex::FArrayBox pgam_fab(DDgrown_box, 1);
 
           // Get Array4 objects for each parameter
           auto const& lamc = lamc_fab.array();
@@ -1361,7 +1362,7 @@ constexpr Real gamma_function(Real x) {
            for(int k=klo; k<=khi; k++) {
             // Model input parameters
             //amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
-            //amrex::Real lami(i,j,k);               // LAMI: Slope parameter for cloud ice (m^-1)
+            //amrex::Real lami(0,0,k);               // LAMI: Slope parameter for cloud ice (m^-1)
 #if 1
 
             // Microphysical processes
@@ -1721,11 +1722,13 @@ constexpr Real gamma_function(Real x) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
               }
 #endif
-#if 1
+#if 0
                 // C++ version
                 if (i == 91 && j == 3 && k == 58) {
-                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e start\n",
-                          i, j, k, lamr(i,j,k), n0r(i,j,k), pgam(i,j,k), lamc(i,j,k), nc3d(i,j,k), lams(i,j,k), n0s(i,j,k), ns3d(i,j,k), lamg(i,j,k), n0g(i,j,k), ng3d(i,j,k));
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e \n",
+                          i, j, k, lamr(0,0,k), n0r(0,0,k), pgam(0,0,k));
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e start\n",
+                          i, j, k, lamc(0,0,k), nc3d(i,j,k), lams(0,0,k), n0s(0,0,k), ns3d(i,j,k), lamg(0,0,k), n0g(0,0,k), ng3d(i,j,k));
                 }
                 // C++ version
                 if (i == 91 && j == 3 && k == 58) {
@@ -1776,8 +1779,8 @@ constexpr Real gamma_function(Real x) {
                       m_ag, m_g, m_rhow, m_rhosu);
             }
 #endif
-            // hm 4/7/09 bug fix, initialize lami(i,j,k) to prevent later division by zero
-            lami(i,j,k) = 0.0; // temporary update: initialize LAMI
+            // hm 4/7/09 bug fix, initialize lami(0,0,k) to prevent later division by zero
+            lami(0,0,k) = 0.0; // temporary update: initialize LAMI
 
             // If there is no cloud/precip water, and if subsaturated, then skip microphysics for this level
             bool skipMicrophysics = false;
@@ -1867,20 +1870,20 @@ constexpr Real gamma_function(Real x) {
                 // Rain
                 if (qr3d(i,j,k) >= m_qsmall) {
                   // Calculate lambda parameter using cons26 (pi*rhow/6)
-                  lamr(i,j,k) = pow(m_pi * m_rhow * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
+                  lamr(0,0,k) = pow(m_pi * m_rhow * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
 
                   // Check for slope and adjust vars
-                  if (lamr(i,j,k) < m_lamminr) {
-                    lamr(i,j,k) = m_lamminr;
-                    n0r(i,j,k) = pow(lamr(i,j,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
-                    nr3d(i,j,k) = n0r(i,j,k) / lamr(i,j,k);  // Update number concentration
-                  } else if (lamr(i,j,k) > m_lammaxr) {
-                    lamr(i,j,k) = m_lammaxr;
-                    n0r(i,j,k) = pow(lamr(i,j,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
-                    nr3d(i,j,k) = n0r(i,j,k) / lamr(i,j,k);  // Update number concentration
+                  if (lamr(0,0,k) < m_lamminr) {
+                    lamr(0,0,k) = m_lamminr;
+                    n0r(0,0,k) = pow(lamr(0,0,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
+                    nr3d(i,j,k) = n0r(0,0,k) / lamr(0,0,k);  // Update number concentration
+                  } else if (lamr(0,0,k) > m_lammaxr) {
+                    lamr(0,0,k) = m_lammaxr;
+                    n0r(0,0,k) = pow(lamr(0,0,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
+                    nr3d(i,j,k) = n0r(0,0,k) / lamr(0,0,k);  // Update number concentration
                   } else {
                     // Calculate intercept parameter using WRF formula
-                    n0r(i,j,k) = pow(lamr(i,j,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
+                    n0r(0,0,k) = pow(lamr(0,0,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
                   }
                 }
 #if 1
@@ -1894,100 +1897,100 @@ constexpr Real gamma_function(Real x) {
                   amrex::Real dum = pres(i,j,k)/(287.15*t3d(i,j,k));
 
                   // MARTIN ET AL. (1994) FORMULA FOR PGAM (WRF implementation)
-                  pgam(i,j,k) = 0.0005714*(nc3d(i,j,k)/1.0e6*dum) + 0.2714;
-                  pgam(i,j,k) = 1.0/(pgam(i,j,k)*pgam(i,j,k)) - 1.0;
-                  pgam(i,j,k) = amrex::max(pgam(i,j,k), 2.0);
-                  pgam(i,j,k) = amrex::min(pgam(i,j,k), 10.0);
+                  pgam(0,0,k) = 0.0005714*(nc3d(i,j,k)/1.0e6*dum) + 0.2714;
+                  pgam(0,0,k) = 1.0/(pgam(0,0,k)*pgam(0,0,k)) - 1.0;
+                  pgam(0,0,k) = amrex::max(pgam(0,0,k), 2.0);
+                  pgam(0,0,k) = amrex::min(pgam(0,0,k), 10.0);
 
                   // Calculate gamma function values
-                  amrex::Real gamma_pgam_plus_1 = gamma_function(pgam(i,j,k) + 1.0);
-                  amrex::Real gamma_pgam_plus_4 = gamma_function(pgam(i,j,k) + 4.0);
+                  amrex::Real gamma_pgam_plus_1 = gamma_function(pgam(0,0,k) + 1.0);
+                  amrex::Real gamma_pgam_plus_4 = gamma_function(pgam(0,0,k) + 4.0);
 
                   // Calculate lambda parameter
-                  lamc(i,j,k) = pow((m_cons26 * nc3d(i,j,k) * gamma_pgam_plus_4) / (qc3d(i,j,k) * gamma_pgam_plus_1), 1.0/3.0);
+                  lamc(0,0,k) = pow((m_cons26 * nc3d(i,j,k) * gamma_pgam_plus_4) / (qc3d(i,j,k) * gamma_pgam_plus_1), 1.0/3.0);
 
                   // Lambda bounds from WRF - 60 micron max diameter, 1 micron min diameter
-                  amrex::Real lambda_min = (pgam(i,j,k) + 1.0)/60.0e-6;
-                  amrex::Real lambda_max = (pgam(i,j,k) + 1.0)/1.0e-6;
+                  amrex::Real lambda_min = (pgam(0,0,k) + 1.0)/60.0e-6;
+                  amrex::Real lambda_max = (pgam(0,0,k) + 1.0)/1.0e-6;
 
                   // Check bounds and update number concentration if needed
-                  if (lamc(i,j,k) < lambda_min) {
-                    lamc(i,j,k) = lambda_min;
+                  if (lamc(0,0,k) < lambda_min) {
+                    lamc(0,0,k) = lambda_min;
                     // Update cloud droplet number using the same formula as in WRF
-                    nc3d(i,j,k) = exp(3.0*log(lamc(i,j,k)) + log(qc3d(i,j,k)) +
+                    nc3d(i,j,k) = exp(3.0*log(lamc(0,0,k)) + log(qc3d(i,j,k)) +
                                log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
-                  } else if (lamc(i,j,k) > lambda_max) {
-                    lamc(i,j,k) = lambda_max;
+                  } else if (lamc(0,0,k) > lambda_max) {
+                    lamc(0,0,k) = lambda_max;
                     // Update cloud droplet number using the same formula as in WRF
-                    nc3d(i,j,k) = exp(3.0*log(lamc(i,j,k)) + log(qc3d(i,j,k)) +
+                    nc3d(i,j,k) = exp(3.0*log(lamc(0,0,k)) + log(qc3d(i,j,k)) +
                                log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
                   }
 
                   // Calculate intercept parameter
-                  cdist1(i,j,k) = nc3d(i,j,k) * pow(lamc(i,j,k), pgam(i,j,k)+1) / gamma_pgam_plus_1;
+                  cdist1(0,0,k) = nc3d(i,j,k) * pow(lamc(0,0,k), pgam(0,0,k)+1) / gamma_pgam_plus_1;
                 }
 
                 // Snow
                 if (qni3d(i,j,k) >= m_qsmall) {
                   // Calculate lambda parameter
-                  lams(i,j,k) = pow(m_cons1 * ns3d(i,j,k) / qni3d(i,j,k), 1.0/ds0);
+                  lams(0,0,k) = pow(m_cons1 * ns3d(i,j,k) / qni3d(i,j,k), 1.0/ds0);
 
                   // Calculate intercept parameter
-                  n0s(i,j,k) = ns3d(i,j,k) * lams(i,j,k);
+                  n0s(0,0,k) = ns3d(i,j,k) * lams(0,0,k);
 
                   // Check for slope and adjust vars
-                  if (lams(i,j,k) < m_lammins) {
-                    lams(i,j,k) = m_lammins;
-                    n0s(i,j,k) = pow(lams(i,j,k), 4.0) * qni3d(i,j,k) / m_cons1;
-                    ns3d(i,j,k) = n0s(i,j,k) / lams(i,j,k);  // Update number concentration
-                  } else if (lams(i,j,k) > m_lammaxs) {
-                    lams(i,j,k) = m_lammaxs;
-                    n0s(i,j,k) = pow(lams(i,j,k), 4.0) * qni3d(i,j,k) / m_cons1;
-                    ns3d(i,j,k) = n0s(i,j,k) / lams(i,j,k);  // Update number concentration
+                  if (lams(0,0,k) < m_lammins) {
+                    lams(0,0,k) = m_lammins;
+                    n0s(0,0,k) = pow(lams(0,0,k), 4.0) * qni3d(i,j,k) / m_cons1;
+                    ns3d(i,j,k) = n0s(0,0,k) / lams(0,0,k);  // Update number concentration
+                  } else if (lams(0,0,k) > m_lammaxs) {
+                    lams(0,0,k) = m_lammaxs;
+                    n0s(0,0,k) = pow(lams(0,0,k), 4.0) * qni3d(i,j,k) / m_cons1;
+                    ns3d(i,j,k) = n0s(0,0,k) / lams(0,0,k);  // Update number concentration
                   }
                 }
 
                 // Cloud ice
                 if (qi3d(i,j,k) >= m_qsmall) {
                   // Calculate lambda parameter
-                  lami(i,j,k) = pow(m_cons12 * ni3d(i,j,k) / qi3d(i,j,k), 1.0/3.0);
+                  lami(0,0,k) = pow(m_cons12 * ni3d(i,j,k) / qi3d(i,j,k), 1.0/3.0);
 
                   // Calculate intercept parameter (initial calculation)
-                  n0i(i,j,k) = ni3d(i,j,k) * lami(i,j,k);
+                  n0i(0,0,k) = ni3d(i,j,k) * lami(0,0,k);
 
                   // Check for slope (apply bounds)
-                  if (lami(i,j,k) < m_lammini) {
-                    lami(i,j,k) = m_lammini;
-                    // Recalculate n0i(i,j,k) when lambda is adjusted
-                    n0i(i,j,k) = pow(lami(i,j,k), 4.0) * qi3d(i,j,k) / m_cons12;
+                  if (lami(0,0,k) < m_lammini) {
+                    lami(0,0,k) = m_lammini;
+                    // Recalculate n0i(0,0,k) when lambda is adjusted
+                    n0i(0,0,k) = pow(lami(0,0,k), 4.0) * qi3d(i,j,k) / m_cons12;
                     // Update ni3d when lambda is adjusted
-                    ni3d(i,j,k) = n0i(i,j,k) / lami(i,j,k);
-                  } else if (lami(i,j,k) > m_lammaxi) {
-                    lami(i,j,k) = m_lammaxi;
-                    // Recalculate n0i(i,j,k) when lambda is adjusted
-                    n0i(i,j,k) = pow(lami(i,j,k), 4.0) * qi3d(i,j,k) / m_cons12;
+                    ni3d(i,j,k) = n0i(0,0,k) / lami(0,0,k);
+                  } else if (lami(0,0,k) > m_lammaxi) {
+                    lami(0,0,k) = m_lammaxi;
+                    // Recalculate n0i(0,0,k) when lambda is adjusted
+                    n0i(0,0,k) = pow(lami(0,0,k), 4.0) * qi3d(i,j,k) / m_cons12;
                     // Update ni3d when lambda is adjusted
-                    ni3d(i,j,k) = n0i(i,j,k) / lami(i,j,k);
+                    ni3d(i,j,k) = n0i(0,0,k) / lami(0,0,k);
                   }
                 }
 
                 // Graupel
                 if (qg3d(i,j,k) >= m_qsmall) {
                   // Calculate lambda parameter
-                  lamg(i,j,k) = pow(m_cons2 * ng3d(i,j,k) / qg3d(i,j,k), 1.0/dg0);
+                  lamg(0,0,k) = pow(m_cons2 * ng3d(i,j,k) / qg3d(i,j,k), 1.0/dg0);
 
                   // Calculate intercept parameter
-                  n0g(i,j,k) = ng3d(i,j,k) * lamg(i,j,k);
+                  n0g(0,0,k) = ng3d(i,j,k) * lamg(0,0,k);
 
                   // Check for slope and adjust vars
-                  if (lamg(i,j,k) < m_lamming) {
-                    lamg(i,j,k) = m_lamming;
-                    n0g(i,j,k) = pow(lamg(i,j,k), 4.0) * qg3d(i,j,k) / m_cons2;
-                    ng3d(i,j,k) = n0g(i,j,k) / lamg(i,j,k);  // Update number concentration
-                  } else if (lamg(i,j,k) > m_lammaxg) {
-                    lamg(i,j,k) = m_lammaxg;
-                    n0g(i,j,k) = pow(lamg(i,j,k), 4.0) * qg3d(i,j,k) / m_cons2;
-                    ng3d(i,j,k) = n0g(i,j,k) / lamg(i,j,k);  // Update number concentration
+                  if (lamg(0,0,k) < m_lamming) {
+                    lamg(0,0,k) = m_lamming;
+                    n0g(0,0,k) = pow(lamg(0,0,k), 4.0) * qg3d(i,j,k) / m_cons2;
+                    ng3d(i,j,k) = n0g(0,0,k) / lamg(0,0,k);  // Update number concentration
+                  } else if (lamg(0,0,k) > m_lammaxg) {
+                    lamg(0,0,k) = m_lammaxg;
+                    n0g(0,0,k) = pow(lamg(0,0,k), 4.0) * qg3d(i,j,k) / m_cons2;
+                    ng3d(i,j,k) = n0g(0,0,k) / lamg(0,0,k);  // Update number concentration
                   }
                 }
 #if 0
@@ -2009,7 +2012,7 @@ constexpr Real gamma_function(Real x) {
                     (i == 186 && j == 1 && k == 90) ||
                     (i == 177 && j == 2 && k == 65)) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
-                          i, j, k, lamr(i,j,k), n0r(i,j,k), pgam(i,j,k), lamc(i,j,k), nc3d(i,j,k), lams(i,j,k), n0s(i,j,k), ns3d(i,j,k), lamg(i,j,k), n0g(i,j,k), ng3d(i,j,k));
+                          i, j, k, lamr(0,0,k), n0r(0,0,k), pgam(0,0,k), lamc(0,0,k), nc3d(i,j,k), lams(0,0,k), n0s(0,0,k), ns3d(i,j,k), lamg(0,0,k), n0g(0,0,k), ng3d(i,j,k));
                 }
 #endif
                 ////////////////////// First instance of ZERO OUT PROCESS RATES
@@ -2067,10 +2070,10 @@ constexpr Real gamma_function(Real x) {
                 // FORMULA FROM IKAWA AND SAITO (1991)
 
                 if (qr3d(i,j,k) >= 1.0e-8 && qni3d(i,j,k) >= 1.0e-8) {
-                  amrex::Real ums = asn(i,j,k) * m_cons3 / std::pow(lams(i,j,k), m_bs);
-                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
-                  amrex::Real uns = asn(i,j,k) * m_cons5 / std::pow(lams(i,j,k), m_bs);
-                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real ums = asn(i,j,k) * m_cons3 / std::pow(lams(0,0,k), m_bs);
+                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(0,0,k), m_br);
+                  amrex::Real uns = asn(i,j,k) * m_cons5 / std::pow(lams(0,0,k), m_bs);
+                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(0,0,k), m_br);
 
                   // SET REALISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
@@ -2087,10 +2090,10 @@ constexpr Real gamma_function(Real x) {
                   ////////////////////////Might need pow expanding
                   pracs = m_cons41 * (std::sqrt(std::pow(1.2*umr-0.95*ums, 2) +
                                                 0.08*ums*umr) * rho(i,j,k) *
-                                      n0r(i,j,k) * n0s(i,j,k) / std::pow(lamr(i,j,k), 3) *
-                                      (5.0/(std::pow(lamr(i,j,k), 3) * lams(i,j,k)) +
-                                       2.0/(std::pow(lamr(i,j,k), 2) * std::pow(lams(i,j,k), 2)) +
-                                       0.5/(lamr(i,j,k) * std::pow(lams(i,j,k), 3))));
+                                      n0r(0,0,k) * n0s(0,0,k) / std::pow(lamr(0,0,k), 3) *
+                                      (5.0/(std::pow(lamr(0,0,k), 3) * lams(0,0,k)) +
+                                       2.0/(std::pow(lamr(0,0,k), 2) * std::pow(lams(0,0,k), 2)) +
+                                       0.5/(lamr(0,0,k) * std::pow(lams(0,0,k), 3))));
                 }
                 // ADD COLLECTION OF GRAUPEL BY RAIN ABOVE FREEZING
                 // ASSUME ALL RAIN COLLECTION BY GRAUPEL ABOVE FREEZING IS SHED
@@ -2098,10 +2101,10 @@ constexpr Real gamma_function(Real x) {
 
                 if (qr3d(i,j,k) >= 1.0e-8 && qg3d(i,j,k) >= 1.0e-8) {
 
-                  amrex::Real umg = agn(i,j,k) * m_cons7 / std::pow(lamg(i,j,k), m_bg);
-                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
-                  amrex::Real ung = agn(i,j,k) * m_cons8 / std::pow(lamg(i,j,k), m_bg);
-                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real umg = agn(i,j,k) * m_cons7 / std::pow(lamg(0,0,k), m_bg);
+                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(0,0,k), m_br);
+                  amrex::Real ung = agn(i,j,k) * m_cons8 / std::pow(lamg(0,0,k), m_bg);
+                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(0,0,k), m_br);
 
                   // SET REALISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
@@ -2114,19 +2117,19 @@ constexpr Real gamma_function(Real x) {
                   // PRACG IS MIXING RATIO OF RAIN PER SEC COLLECTED BY GRAUPEL/HAIL
                   pracg = m_cons41 * (std::sqrt(std::pow(1.2*umr-0.95*umg, 2) +
                                                 0.08*umg*umr) * rho(i,j,k) *
-                                      n0r(i,j,k) * n0g(i,j,k) / std::pow(lamr(i,j,k), 3) *
-                                      (5.0/(std::pow(lamr(i,j,k), 3) * lamg(i,j,k)) +
-                                       2.0/(std::pow(lamr(i,j,k), 2) * std::pow(lamg(i,j,k), 2)) +
-                                       0.5/(lamr(i,j,k) * std::pow(lamg(i,j,k), 3))));
+                                      n0r(0,0,k) * n0g(0,0,k) / std::pow(lamr(0,0,k), 3) *
+                                      (5.0/(std::pow(lamr(0,0,k), 3) * lamg(0,0,k)) +
+                                       2.0/(std::pow(lamr(0,0,k), 2) * std::pow(lamg(0,0,k), 2)) +
+                                       0.5/(lamr(0,0,k) * std::pow(lamg(0,0,k), 3))));
 
                   // ASSUME 1 MM DROPS ARE SHED, GET NUMBER SHED PER SEC
                   dum = pracg/5.2e-7;
 
                   npracg = m_cons32 * rho(i,j,k) * (std::sqrt(1.7*std::pow(unr-ung, 2) +
-                                                              0.3*unr*ung) * n0r(i,j,k) * n0g(i,j,k) *
-                                                    (1.0/(std::pow(lamr(i,j,k), 3) * lamg(i,j,k)) +
-                                                     1.0/(std::pow(lamr(i,j,k), 2) * std::pow(lamg(i,j,k), 2)) +
-                                                     1.0/(lamr(i,j,k) * std::pow(lamg(i,j,k), 3))));
+                                                              0.3*unr*ung) * n0r(0,0,k) * n0g(0,0,k) *
+                                                    (1.0/(std::pow(lamr(0,0,k), 3) * lamg(0,0,k)) +
+                                                     1.0/(std::pow(lamr(0,0,k), 2) * std::pow(lamg(0,0,k), 2)) +
+                                                     1.0/(lamr(0,0,k) * std::pow(lamg(0,0,k), 3))));
                   // hm 7/15/13, remove limit so that the number of collected drops can smaller than
                   // number of shed drops
                   npracg = npracg - dum;
@@ -2151,20 +2154,20 @@ constexpr Real gamma_function(Real x) {
                 if (qr3d(i,j,k) >= 1.0e-8) {
                   // include breakup add 10/09/09
                   dum1 = 300.0e-6;
-                  if (1.0/lamr(i,j,k) < dum1) {
+                  if (1.0/lamr(0,0,k) < dum1) {
                     dum = 1.0;
                   } else {
-                    dum = 2.0 - std::exp(2300.0 * (1.0/lamr(i,j,k) - dum1));
+                    dum = 2.0 - std::exp(2300.0 * (1.0/lamr(0,0,k) - dum1));
                   }
                   nragg = -5.78 * dum * nr3d(i,j,k) * qr3d(i,j,k) * rho(i,j,k);
                 }
                 // CALCULATE EVAP OF RAIN (RUTLEDGE AND HOBBS 1983)
                 if (qr3d(i,j,k) >= m_qsmall) {
-                  epsr = 2.0 * m_pi * n0r(i,j,k) * rho(i,j,k) * dv *
-                    (m_f1r/(lamr(i,j,k)*lamr(i,j,k)) +
+                  epsr = 2.0 * m_pi * n0r(0,0,k) * rho(i,j,k) * dv *
+                    (m_f1r/(lamr(0,0,k)*lamr(0,0,k)) +
                      m_f2r * std::sqrt(arn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
                      std::pow(sc_schmidt, 1.0/3.0) * m_cons9 /
-                     std::pow(lamr(i,j,k), m_cons34));
+                     std::pow(lamr(0,0,k), m_cons34));
                 } else {
                   epsr = 0.0;
                 }
@@ -2186,19 +2189,19 @@ constexpr Real gamma_function(Real x) {
                   dum = -m_cpw/xlf * (t3d(i,j,k) - 273.15) * pracs;
 
                   // hm fix 1/20/15
-                  psmlt = 2.0 * m_pi * n0s(i,j,k) * kap * (273.15 - t3d(i,j,k)) /
-                    xlf * (m_f1s/(lams(i,j,k)*lams(i,j,k)) +
+                  psmlt = 2.0 * m_pi * n0s(0,0,k) * kap * (273.15 - t3d(i,j,k)) /
+                    xlf * (m_f1s/(lams(0,0,k)*lams(0,0,k)) +
                            m_f2s * std::sqrt(asn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
                            std::pow(sc_schmidt, 1.0/3.0) * m_cons10 /
-                           std::pow(lams(i,j,k), m_cons35)) + dum;
+                           std::pow(lams(0,0,k), m_cons35)) + dum;
 
                   // IN WATER SUBSATURATION, SNOW MELTS AND EVAPORATES
                   if (qvqvs < 1.0) {
-                    epss = 2.0 * m_pi * n0s(i,j,k) * rho(i,j,k) * dv *
-                      (m_f1s/(lams(i,j,k)*lams(i,j,k)) +
+                    epss = 2.0 * m_pi * n0s(0,0,k) * rho(i,j,k) * dv *
+                      (m_f1s/(lams(0,0,k)*lams(0,0,k)) +
                        m_f2s * std::sqrt(asn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
                        std::pow(sc_schmidt, 1.0/3.0) * m_cons10 /
-                       std::pow(lams(i,j,k), m_cons35));
+                       std::pow(lams(0,0,k), m_cons35));
 
                     // hm fix 8/4/08
                     evpms = (qv3d(i,j,k) - qvs) * epss / ab;
@@ -2217,19 +2220,19 @@ constexpr Real gamma_function(Real x) {
                   dum = -m_cpw/xlf * (t3d(i,j,k) - 273.15) * pracg;
 
                   // hm fix 1/20/15
-                  pgmlt = 2.0 * m_pi * n0g(i,j,k) * kap * (273.15 - t3d(i,j,k)) /
-                    xlf * (m_f1s/(lamg(i,j,k)*lamg(i,j,k)) +
+                  pgmlt = 2.0 * m_pi * n0g(0,0,k) * kap * (273.15 - t3d(i,j,k)) /
+                    xlf * (m_f1s/(lamg(0,0,k)*lamg(0,0,k)) +
                            m_f2s * std::sqrt(agn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
                            std::pow(sc_schmidt, 1.0/3.0) * m_cons11 /
-                           std::pow(lamg(i,j,k), m_cons36)) + dum;
+                           std::pow(lamg(0,0,k), m_cons36)) + dum;
 
                   // IN WATER SUBSATURATION, GRAUPEL MELTS AND EVAPORATES
                   if (qvqvs < 1.0) {
-                    epsg = 2.0 * m_pi * n0g(i,j,k) * rho(i,j,k) * dv *
-                      (m_f1s/(lamg(i,j,k)*lamg(i,j,k)) +
+                    epsg = 2.0 * m_pi * n0g(0,0,k) * rho(i,j,k) * dv *
+                      (m_f1s/(lamg(0,0,k)*lamg(0,0,k)) +
                        m_f2s * std::sqrt(agn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
                        std::pow(sc_schmidt, 1.0/3.0) * m_cons11 /
-                       std::pow(lamg(i,j,k), m_cons36));
+                       std::pow(lamg(0,0,k), m_cons36));
 
                     // hm fix 8/4/08
                     evpmg = (qv3d(i,j,k) - qvs) * epsg / ab;
@@ -2409,20 +2412,20 @@ constexpr Real gamma_function(Real x) {
               // Rain
               if (qr3d(i,j,k) >= m_qsmall) {
                 // Calculate lambda parameter using cons26 (pi*rhow/6)
-                lamr(i,j,k) = pow(m_pi * m_rhow * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
+                lamr(0,0,k) = pow(m_pi * m_rhow * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
 
                 // Check for slope and adjust vars
-                if (lamr(i,j,k) < m_lamminr) {
-                  lamr(i,j,k) = m_lamminr;
-                  n0r(i,j,k) = pow(lamr(i,j,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
-                  nr3d(i,j,k) = n0r(i,j,k) / lamr(i,j,k);  // Update number concentration
-                } else if (lamr(i,j,k) > m_lammaxr) {
-                  lamr(i,j,k) = m_lammaxr;
-                  n0r(i,j,k) = pow(lamr(i,j,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
-                  nr3d(i,j,k) = n0r(i,j,k) / lamr(i,j,k);  // Update number concentration
+                if (lamr(0,0,k) < m_lamminr) {
+                  lamr(0,0,k) = m_lamminr;
+                  n0r(0,0,k) = pow(lamr(0,0,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
+                  nr3d(i,j,k) = n0r(0,0,k) / lamr(0,0,k);  // Update number concentration
+                } else if (lamr(0,0,k) > m_lammaxr) {
+                  lamr(0,0,k) = m_lammaxr;
+                  n0r(0,0,k) = pow(lamr(0,0,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
+                  nr3d(i,j,k) = n0r(0,0,k) / lamr(0,0,k);  // Update number concentration
                 } else {
                   // Calculate intercept parameter using WRF formula
-                  n0r(i,j,k) = pow(lamr(i,j,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
+                  n0r(0,0,k) = pow(lamr(0,0,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
                 }
               }
 
@@ -2432,87 +2435,87 @@ constexpr Real gamma_function(Real x) {
                 amrex::Real dum = pres(i,j,k)/(287.15*t3d(i,j,k));
 
                 // MARTIN ET AL. (1994) FORMULA FOR PGAM (WRF implementation)
-                pgam(i,j,k) = 0.0005714*(nc3d(i,j,k)/1.0e6*dum) + 0.2714;
-                pgam(i,j,k) = 1.0/(pgam(i,j,k)*pgam(i,j,k)) - 1.0;
-                pgam(i,j,k) = amrex::max(pgam(i,j,k), 2.0);
-                pgam(i,j,k) = amrex::min(pgam(i,j,k), 10.0);
+                pgam(0,0,k) = 0.0005714*(nc3d(i,j,k)/1.0e6*dum) + 0.2714;
+                pgam(0,0,k) = 1.0/(pgam(0,0,k)*pgam(0,0,k)) - 1.0;
+                pgam(0,0,k) = amrex::max(pgam(0,0,k), 2.0);
+                pgam(0,0,k) = amrex::min(pgam(0,0,k), 10.0);
 
                 // Calculate gamma function values
-                amrex::Real gamma_pgam_plus_1 = gamma_function(pgam(i,j,k) + 1.0);
-                amrex::Real gamma_pgam_plus_4 = gamma_function(pgam(i,j,k) + 4.0);
+                amrex::Real gamma_pgam_plus_1 = gamma_function(pgam(0,0,k) + 1.0);
+                amrex::Real gamma_pgam_plus_4 = gamma_function(pgam(0,0,k) + 4.0);
 
                 // Calculate lambda parameter
-                lamc(i,j,k) = pow((m_cons26 * nc3d(i,j,k) * gamma_pgam_plus_4) / (qc3d(i,j,k) * gamma_pgam_plus_1), 1.0/3.0);
+                lamc(0,0,k) = pow((m_cons26 * nc3d(i,j,k) * gamma_pgam_plus_4) / (qc3d(i,j,k) * gamma_pgam_plus_1), 1.0/3.0);
 
                 // Lambda bounds from WRF - 60 micron max diameter, 1 micron min diameter
-                amrex::Real lambda_min = (pgam(i,j,k) + 1.0)/60.0e-6;
-                amrex::Real lambda_max = (pgam(i,j,k) + 1.0)/1.0e-6;
+                amrex::Real lambda_min = (pgam(0,0,k) + 1.0)/60.0e-6;
+                amrex::Real lambda_max = (pgam(0,0,k) + 1.0)/1.0e-6;
 
                 // Check bounds and update number concentration if needed
-                if (lamc(i,j,k) < lambda_min) {
-                  lamc(i,j,k) = lambda_min;
+                if (lamc(0,0,k) < lambda_min) {
+                  lamc(0,0,k) = lambda_min;
                   // Update cloud droplet number using the same formula as in WRF
-                  nc3d(i,j,k) = exp(3.0*log(lamc(i,j,k)) + log(qc3d(i,j,k)) +
+                  nc3d(i,j,k) = exp(3.0*log(lamc(0,0,k)) + log(qc3d(i,j,k)) +
                                     log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
-                } else if (lamc(i,j,k) > lambda_max) {
-                  lamc(i,j,k) = lambda_max;
+                } else if (lamc(0,0,k) > lambda_max) {
+                  lamc(0,0,k) = lambda_max;
                   // Update cloud droplet number using the same formula as in WRF
-                  nc3d(i,j,k) = exp(3.0*log(lamc(i,j,k)) + log(qc3d(i,j,k)) +
+                  nc3d(i,j,k) = exp(3.0*log(lamc(0,0,k)) + log(qc3d(i,j,k)) +
                                     log(gamma_pgam_plus_1) - log(gamma_pgam_plus_4))/ m_cons26;
                 }
 
                 // Calculate intercept parameter
-                cdist1(i,j,k) = nc3d(i,j,k) / gamma_pgam_plus_1;
+                cdist1(0,0,k) = nc3d(i,j,k) / gamma_pgam_plus_1;
               }
 
               // Snow
               if (qni3d(i,j,k) >= m_qsmall) {
                 // Calculate lambda parameter
-                lams(i,j,k) = pow(m_cons1 * ns3d(i,j,k) / qni3d(i,j,k), 1.0/ds0);
+                lams(0,0,k) = pow(m_cons1 * ns3d(i,j,k) / qni3d(i,j,k), 1.0/ds0);
 
                 // Calculate intercept parameter
-                n0s(i,j,k) = ns3d(i,j,k) * lams(i,j,k);
+                n0s(0,0,k) = ns3d(i,j,k) * lams(0,0,k);
 
                 // Check for slope and adjust vars
-                if (lams(i,j,k) < m_lammins) {
-                  lams(i,j,k) = m_lammins;
-                  n0s(i,j,k) = pow(lams(i,j,k), 4.0) * qni3d(i,j,k) / m_cons1;
-                  ns3d(i,j,k) = n0s(i,j,k) / lams(i,j,k);  // Update number concentration
-                } else if (lams(i,j,k) > m_lammaxs) {
-                  lams(i,j,k) = m_lammaxs;
-                  n0s(i,j,k) = pow(lams(i,j,k), 4.0) * qni3d(i,j,k) / m_cons1;
-                  ns3d(i,j,k) = n0s(i,j,k) / lams(i,j,k);  // Update number concentration
+                if (lams(0,0,k) < m_lammins) {
+                  lams(0,0,k) = m_lammins;
+                  n0s(0,0,k) = pow(lams(0,0,k), 4.0) * qni3d(i,j,k) / m_cons1;
+                  ns3d(i,j,k) = n0s(0,0,k) / lams(0,0,k);  // Update number concentration
+                } else if (lams(0,0,k) > m_lammaxs) {
+                  lams(0,0,k) = m_lammaxs;
+                  n0s(0,0,k) = pow(lams(0,0,k), 4.0) * qni3d(i,j,k) / m_cons1;
+                  ns3d(i,j,k) = n0s(0,0,k) / lams(0,0,k);  // Update number concentration
                 }
               }
 
               // Cloud ice
               if (qi3d(i,j,k) >= m_qsmall) {
                 // Calculate lambda parameter
-                lami(i,j,k) = pow(m_cons12 * ni3d(i,j,k) / qi3d(i,j,k), 1.0/3.0);
+                lami(0,0,k) = pow(m_cons12 * ni3d(i,j,k) / qi3d(i,j,k), 1.0/3.0);
 
                 // Calculate intercept parameter (initial calculation)
-                n0i(i,j,k) = ni3d(i,j,k) * lami(i,j,k);
+                n0i(0,0,k) = ni3d(i,j,k) * lami(0,0,k);
 
                 // Check for slope (apply bounds)
-                if (lami(i,j,k) < m_lammini) {
-                  lami(i,j,k) = m_lammini;
-                  // Recalculate n0i(i,j,k) when lambda is adjusted
-                  n0i(i,j,k) = pow(lami(i,j,k), 4.0) * qi3d(i,j,k) / m_cons12;
+                if (lami(0,0,k) < m_lammini) {
+                  lami(0,0,k) = m_lammini;
+                  // Recalculate n0i(0,0,k) when lambda is adjusted
+                  n0i(0,0,k) = pow(lami(0,0,k), 4.0) * qi3d(i,j,k) / m_cons12;
                   // Update ni3d when lambda is adjusted
-                  ni3d(i,j,k) = n0i(i,j,k) / lami(i,j,k);
-                } else if (lami(i,j,k) > m_lammaxi) {
-                  lami(i,j,k) = m_lammaxi;
-                  // Recalculate n0i(i,j,k) when lambda is adjusted
-                  n0i(i,j,k) = pow(lami(i,j,k), 4.0) * qi3d(i,j,k) / m_cons12;
+                  ni3d(i,j,k) = n0i(0,0,k) / lami(0,0,k);
+                } else if (lami(0,0,k) > m_lammaxi) {
+                  lami(0,0,k) = m_lammaxi;
+                  // Recalculate n0i(0,0,k) when lambda is adjusted
+                  n0i(0,0,k) = pow(lami(0,0,k), 4.0) * qi3d(i,j,k) / m_cons12;
                   // Update ni3d when lambda is adjusted
-                  ni3d(i,j,k) = n0i(i,j,k) / lami(i,j,k);
+                  ni3d(i,j,k) = n0i(0,0,k) / lami(0,0,k);
                 }
               }
 #if 1
                 // C++ version
                 if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e ng\n",
-                          i, j, k, lamr(i,j,k), n0r(i,j,k), pgam(i,j,k), lamc(i,j,k), nc3d(i,j,k), lams(i,j,k), n0s(i,j,k), ns3d(i,j,k), lamg(i,j,k), n0g(i,j,k), ng3d(i,j,k));
+                          i, j, k, lamr(0,0,k), n0r(0,0,k), pgam(0,0,k), lamc(0,0,k), nc3d(i,j,k), lams(0,0,k), n0s(0,0,k), ns3d(i,j,k), lamg(0,0,k), n0g(0,0,k), ng3d(i,j,k));
                 }
                 // C++ version
                 if (i == 91 && j == 3 && k == 58) {
@@ -2523,27 +2526,27 @@ constexpr Real gamma_function(Real x) {
               // Graupel
               if (qg3d(i,j,k) >= m_qsmall) {
                 // Calculate lambda parameter
-                lamg(i,j,k) = pow(m_cons2 * ng3d(i,j,k) / qg3d(i,j,k), 1.0/dg0);
+                lamg(0,0,k) = pow(m_cons2 * ng3d(i,j,k) / qg3d(i,j,k), 1.0/dg0);
 
                 // Calculate intercept parameter
-                n0g(i,j,k) = ng3d(i,j,k) * lamg(i,j,k);
+                n0g(0,0,k) = ng3d(i,j,k) * lamg(0,0,k);
 
                 // Check for slope and adjust vars
-                if (lamg(i,j,k) < m_lamming) {
-                  lamg(i,j,k) = m_lamming;
-                  n0g(i,j,k) = pow(lamg(i,j,k), 4.0) * qg3d(i,j,k) / m_cons2;
-                  ng3d(i,j,k) = n0g(i,j,k) / lamg(i,j,k);  // Update number concentration
-                } else if (lamg(i,j,k) > m_lammaxg) {
-                  lamg(i,j,k) = m_lammaxg;
-                  n0g(i,j,k) = pow(lamg(i,j,k), 4.0) * qg3d(i,j,k) / m_cons2;
-                  ng3d(i,j,k) = n0g(i,j,k) / lamg(i,j,k);  // Update number concentration
+                if (lamg(0,0,k) < m_lamming) {
+                  lamg(0,0,k) = m_lamming;
+                  n0g(0,0,k) = pow(lamg(0,0,k), 4.0) * qg3d(i,j,k) / m_cons2;
+                  ng3d(i,j,k) = n0g(0,0,k) / lamg(0,0,k);  // Update number concentration
+                } else if (lamg(0,0,k) > m_lammaxg) {
+                  lamg(0,0,k) = m_lammaxg;
+                  n0g(0,0,k) = pow(lamg(0,0,k), 4.0) * qg3d(i,j,k) / m_cons2;
+                  ng3d(i,j,k) = n0g(0,0,k) / lamg(0,0,k);  // Update number concentration
                 }
               }
 #if 1
                 // C++ version
                 if (i == 91 && j == 3 && k == 58) {
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e ng\n",
-                          i, j, k, lamr(i,j,k), n0r(i,j,k), pgam(i,j,k), lamc(i,j,k), nc3d(i,j,k), lams(i,j,k), n0s(i,j,k), ns3d(i,j,k), lamg(i,j,k), n0g(i,j,k), ng3d(i,j,k));
+                          i, j, k, lamr(0,0,k), n0r(0,0,k), pgam(0,0,k), lamc(0,0,k), nc3d(i,j,k), lams(0,0,k), n0s(0,0,k), ns3d(i,j,k), lamg(0,0,k), n0g(0,0,k), ng3d(i,j,k));
                 }
                 // C++ version
                 if (i == 91 && j == 3 && k == 58) {
@@ -2631,19 +2634,19 @@ constexpr Real gamma_function(Real x) {
                   amrex::Real dap = m_cons37 * t3d(i,j,k) * (1.0 + dum / m_rin) / mu(i,j,k);
 
                   // CONTACT FREEZING
-                  mnuccc = m_cons38 * dap * nacnt * std::exp(std::log(cdist1(i,j,k)) +
-                                                             std::log(gamma_function(pgam(i,j,k) + 5.0)) - 4.0 * std::log(lamc(i,j,k)));
-                  nnuccc = 2.0 * m_pi * dap * nacnt * cdist1(i,j,k) *
-                    gamma_function(pgam(i,j,k) + 2.0) / lamc(i,j,k);
+                  mnuccc = m_cons38 * dap * nacnt * std::exp(std::log(cdist1(0,0,k)) +
+                                                             std::log(gamma_function(pgam(0,0,k) + 5.0)) - 4.0 * std::log(lamc(0,0,k)));
+                  nnuccc = 2.0 * m_pi * dap * nacnt * cdist1(0,0,k) *
+                    gamma_function(pgam(0,0,k) + 2.0) / lamc(0,0,k);
 
                   // IMMERSION FREEZING (BIGG 1953)
                   // hm 7/15/13 fix for consistency w/ original formula
                   mnuccc = mnuccc + m_cons39 *
-                    std::exp(std::log(cdist1(i,j,k)) + std::log(gamma_function(7.0 + pgam(i,j,k))) - 6.0 * std::log(lamc(i,j,k))) *
+                    std::exp(std::log(cdist1(0,0,k)) + std::log(gamma_function(7.0 + pgam(0,0,k))) - 6.0 * std::log(lamc(0,0,k))) *
                     (std::exp(m_aimm * (273.15 - t3d(i,j,k))) - 1.0);
 
                   nnuccc = nnuccc +
-                    m_cons40 * std::exp(std::log(cdist1(i,j,k)) + std::log(gamma_function(pgam(i,j,k) + 4.0)) - 3.0 * std::log(lamc(i,j,k))) *
+                    m_cons40 * std::exp(std::log(cdist1(0,0,k)) + std::log(gamma_function(pgam(0,0,k) + 4.0)) - 3.0 * std::log(lamc(0,0,k))) *
                     (std::exp(m_aimm * (273.15 - t3d(i,j,k))) - 1.0);
 
                   // PUT IN A CATCH HERE TO PREVENT DIVERGENCE BETWEEN NUMBER CONC. AND
@@ -2714,19 +2717,19 @@ constexpr Real gamma_function(Real x) {
                 // SNOW
                 if (qni3d(i,j,k) >= 1.0e-8 && qc3d(i,j,k) >= m_qsmall) {
                   psacws = m_cons13 * asn(i,j,k) * qc3d(i,j,k) * rho(i,j,k) *
-                    n0s(i,j,k) / std::pow(lams(i,j,k), (m_bs + 3.0));
+                    n0s(0,0,k) / std::pow(lams(0,0,k), (m_bs + 3.0));
 
                   npsacws = m_cons13 * asn(i,j,k) * nc3d(i,j,k) * rho(i,j,k) *
-                    n0s(i,j,k) / std::pow(lams(i,j,k), (m_bs + 3.0));
+                    n0s(0,0,k) / std::pow(lams(0,0,k), (m_bs + 3.0));
                 }
 
                 // COLLECTION OF CLOUD WATER BY GRAUPEL
                 if (qg3d(i,j,k) >= 1.0e-8 && qc3d(i,j,k) >= m_qsmall) {
                   psacwg = m_cons14 * agn(i,j,k) * qc3d(i,j,k) * rho(i,j,k) *
-                    n0g(i,j,k) / std::pow(lamg(i,j,k), (m_bg + 3.0));
+                    n0g(0,0,k) / std::pow(lamg(0,0,k), (m_bg + 3.0));
 
                   npsacwg = m_cons14 * agn(i,j,k) * nc3d(i,j,k) * rho(i,j,k) *
-                    n0g(i,j,k) / std::pow(lamg(i,j,k), (m_bg + 3.0));
+                    n0g(0,0,k) / std::pow(lamg(0,0,k), (m_bg + 3.0));
                 }
 #if 1
                 // C++ version
@@ -2764,22 +2767,22 @@ constexpr Real gamma_function(Real x) {
                 if (qi3d(i,j,k) >= 1.0e-8 && qc3d(i,j,k) >= m_qsmall) {
                   // PUT IN SIZE DEPENDENT COLLECTION EFFICIENCY BASED ON STOKES LAW
                   // FROM THOMPSON ET AL. 2004, MWR
-                  if (1.0 / lami(i,j,k) >= 100.0e-6) {
+                  if (1.0 / lami(0,0,k) >= 100.0e-6) {
                     psacwi = m_cons16 * ain(i,j,k) * qc3d(i,j,k) * rho(i,j,k) *
-                      n0i(i,j,k) / std::pow(lami(i,j,k), (m_bi + 3.0));
+                      n0i(0,0,k) / std::pow(lami(0,0,k), (m_bi + 3.0));
 
                     npsacwi = m_cons16 * ain(i,j,k) * nc3d(i,j,k) * rho(i,j,k) *
-                      n0i(i,j,k) / std::pow(lami(i,j,k), (m_bi + 3.0));
+                      n0i(0,0,k) / std::pow(lami(0,0,k), (m_bi + 3.0));
                   }
                 }
 
                 // ACCRETION OF RAIN WATER BY SNOW
                 // FORMULA FROM IKAWA AND SAITO, 1991, USED BY REISNER ET AL, 1998
                 if (qr3d(i,j,k) >= 1.0e-8 && qni3d(i,j,k) >= 1.0e-8) {
-                  amrex::Real ums = asn(i,j,k) * m_cons3 / std::pow(lams(i,j,k), m_bs);
-                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
-                  amrex::Real uns = asn(i,j,k) * m_cons5 / std::pow(lams(i,j,k), m_bs);
-                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real ums = asn(i,j,k) * m_cons3 / std::pow(lams(0,0,k), m_bs);
+                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(0,0,k), m_br);
+                  amrex::Real uns = asn(i,j,k) * m_cons5 / std::pow(lams(0,0,k), m_bs);
+                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(0,0,k), m_br);
 
                   // SET REASLISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
@@ -2790,29 +2793,29 @@ constexpr Real gamma_function(Real x) {
                   unr = std::min(unr, 9.1 * dum);
 #if 0
                   pracs = m_cons41 * (std::sqrt(std::pow(1.2 * umr - 0.95 * ums, 2) +
-                                                0.08 * ums * umr) * rho(i,j,k) * n0r(i,j,k) * n0s(i,j,k) /
-                                      std::pow(lamr(i,j,k), 3) * (5.0 / (std::pow(lamr(i,j,k), 3) * lams(i,j,k)) +
-                                                           2.0 / (std::pow(lamr(i,j,k), 2) * std::pow(lams(i,j,k), 2)) +
-                                                           0.5 / (lamr(i,j,k) * std::pow(lams(i,j,k), 3))));
+                                                0.08 * ums * umr) * rho(i,j,k) * n0r(0,0,k) * n0s(0,0,k) /
+                                      std::pow(lamr(0,0,k), 3) * (5.0 / (std::pow(lamr(0,0,k), 3) * lams(0,0,k)) +
+                                                           2.0 / (std::pow(lamr(0,0,k), 2) * std::pow(lams(0,0,k), 2)) +
+                                                           0.5 / (lamr(0,0,k) * std::pow(lams(0,0,k), 3))));
 
                   npracs = m_cons32 * rho(i,j,k) * std::sqrt(1.7 * std::pow(unr - uns, 2) +
-                                                             0.3 * unr * uns) * n0r(i,j,k) * n0s(i,j,k) *
-                    (1.0 / (std::pow(lamr(i,j,k), 3) * lams(i,j,k)) +
-                     1.0 / (std::pow(lamr(i,j,k), 2) * std::pow(lams(i,j,k), 2)) +
-                     1.0 / (lamr(i,j,k) * std::pow(lams(i,j,k), 3)));
+                                                             0.3 * unr * uns) * n0r(0,0,k) * n0s(0,0,k) *
+                    (1.0 / (std::pow(lamr(0,0,k), 3) * lams(0,0,k)) +
+                     1.0 / (std::pow(lamr(0,0,k), 2) * std::pow(lams(0,0,k), 2)) +
+                     1.0 / (lamr(0,0,k) * std::pow(lams(0,0,k), 3)));
 #else
                   pracs = m_cons41 * (std::sqrt((1.2 * umr - 0.95 * ums)*(1.2 * umr - 0.95 * ums)+
                                                 0.08 * ums * umr)*rho(i,j,k)*
-                                      n0r(i,j,k)*n0s(i,j,k)/(lamr(i,j,k)*lamr(i,j,k)*lamr(i,j,k))*
-                                      (5.0 / ((lamr(i,j,k)*lamr(i,j,k)*lamr(i,j,k))*lams(i,j,k))+
-                                       2.0 / ((lamr(i,j,k)*lamr(i,j,k))*(lams(i,j,k)*lams(i,j,k)))+
-                                       0.5/(lamr(i,j,k)*(lams(i,j,k)*lams(i,j,k)*lams(i,j,k)))));
+                                      n0r(0,0,k)*n0s(0,0,k)/(lamr(0,0,k)*lamr(0,0,k)*lamr(0,0,k))*
+                                      (5.0 / ((lamr(0,0,k)*lamr(0,0,k)*lamr(0,0,k))*lams(0,0,k))+
+                                       2.0 / ((lamr(0,0,k)*lamr(0,0,k))*(lams(0,0,k)*lams(0,0,k)))+
+                                       0.5/(lamr(0,0,k)*(lams(0,0,k)*lams(0,0,k)*lams(0,0,k)))));
 
                   npracs = m_cons32 * rho(i,j,k) * std::sqrt(1.7 * std::pow(unr - uns, 2) +
-                                                             0.3 * unr * uns) * n0r(i,j,k) * n0s(i,j,k) *
-                    (1.0 / (std::pow(lamr(i,j,k), 3) * lams(i,j,k)) +
-                     1.0 / (std::pow(lamr(i,j,k), 2) * std::pow(lams(i,j,k), 2)) +
-                     1.0 / (lamr(i,j,k) * std::pow(lams(i,j,k), 3)));
+                                                             0.3 * unr * uns) * n0r(0,0,k) * n0s(0,0,k) *
+                    (1.0 / (std::pow(lamr(0,0,k), 3) * lams(0,0,k)) +
+                     1.0 / (std::pow(lamr(0,0,k), 2) * std::pow(lams(0,0,k), 2)) +
+                     1.0 / (lamr(0,0,k) * std::pow(lams(0,0,k), 3)));
 #endif
 
                   // MAKE SURE PRACS DOESN'T EXCEED TOTAL RAIN MIXING RATIO
@@ -2825,20 +2828,20 @@ constexpr Real gamma_function(Real x) {
                   // hm modify for wrfv3.1
                   if (qni3d(i,j,k) >= 0.1e-3 && qr3d(i,j,k) >= 0.1e-3) {
                     psacr = m_cons31 * (std::sqrt(std::pow(1.2 * umr - 0.95 * ums, 2) +
-                                                  0.08 * ums * umr) * rho(i,j,k) * n0r(i,j,k) * n0s(i,j,k) /
-                                        std::pow(lams(i,j,k), 3) * (5.0 / (std::pow(lams(i,j,k), 3) * lamr(i,j,k)) +
-                                                             2.0 / (std::pow(lams(i,j,k), 2) * std::pow(lamr(i,j,k), 2)) +
-                                                             0.5 / (lams(i,j,k) * std::pow(lamr(i,j,k), 3))));
+                                                  0.08 * ums * umr) * rho(i,j,k) * n0r(0,0,k) * n0s(0,0,k) /
+                                        std::pow(lams(0,0,k), 3) * (5.0 / (std::pow(lams(0,0,k), 3) * lamr(0,0,k)) +
+                                                             2.0 / (std::pow(lams(0,0,k), 2) * std::pow(lamr(0,0,k), 2)) +
+                                                             0.5 / (lams(0,0,k) * std::pow(lamr(0,0,k), 3))));
                   }
                 }
 
                 // COLLECTION OF RAINWATER BY GRAUPEL, FROM IKAWA AND SAITO 1990,
                 // USED BY REISNER ET AL 1998
                 if (qr3d(i,j,k) >= 1.0e-8 && qg3d(i,j,k) >= 1.0e-8) {
-                  amrex::Real umg = agn(i,j,k) * m_cons7 / std::pow(lamg(i,j,k), m_bg);
-                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
-                  amrex::Real ung = agn(i,j,k) * m_cons8 / std::pow(lamg(i,j,k), m_bg);
-                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real umg = agn(i,j,k) * m_cons7 / std::pow(lamg(0,0,k), m_bg);
+                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(0,0,k), m_br);
+                  amrex::Real ung = agn(i,j,k) * m_cons8 / std::pow(lamg(0,0,k), m_bg);
+                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(0,0,k), m_br);
 
                   // SET REASLISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
@@ -2849,16 +2852,16 @@ constexpr Real gamma_function(Real x) {
                   unr = std::min(unr, 9.1 * dum);
 
                   pracg = m_cons41 * (std::sqrt(std::pow(1.2 * umr - 0.95 * umg, 2) +
-                                                0.08 * umg * umr) * rho(i,j,k) * n0r(i,j,k) * n0g(i,j,k) /
-                                      std::pow(lamr(i,j,k), 3) * (5.0 / (std::pow(lamr(i,j,k), 3) * lamg(i,j,k)) +
-                                                           2.0 / (std::pow(lamr(i,j,k), 2) * std::pow(lamg(i,j,k), 2)) +
-                                                           0.5 / (lamr(i,j,k) * std::pow(lamg(i,j,k), 3))));
+                                                0.08 * umg * umr) * rho(i,j,k) * n0r(0,0,k) * n0g(0,0,k) /
+                                      std::pow(lamr(0,0,k), 3) * (5.0 / (std::pow(lamr(0,0,k), 3) * lamg(0,0,k)) +
+                                                           2.0 / (std::pow(lamr(0,0,k), 2) * std::pow(lamg(0,0,k), 2)) +
+                                                           0.5 / (lamr(0,0,k) * std::pow(lamg(0,0,k), 3))));
 
                   npracg = m_cons32 * rho(i,j,k) * std::sqrt(1.7 * std::pow(unr - ung, 2) +
-                                                             0.3 * unr * ung) * n0r(i,j,k) * n0g(i,j,k) *
-                    (1.0 / (std::pow(lamr(i,j,k), 3) * lamg(i,j,k)) +
-                     1.0 / (std::pow(lamr(i,j,k), 2) * std::pow(lamg(i,j,k), 2)) +
-                     1.0 / (lamr(i,j,k) * std::pow(lamg(i,j,k), 3)));
+                                                             0.3 * unr * ung) * n0r(0,0,k) * n0g(0,0,k) *
+                    (1.0 / (std::pow(lamr(0,0,k), 3) * lamg(0,0,k)) +
+                     1.0 / (std::pow(lamr(0,0,k), 2) * std::pow(lamg(0,0,k), 2)) +
+                     1.0 / (lamr(0,0,k) * std::pow(lamg(0,0,k), 3)));
 
                   // MAKE SURE PRACG DOESN'T EXCEED TOTAL RAIN MIXING RATIO
                   // AS THIS MAY OTHERWISE RESULT IN TOO MUCH TRANSFER OF WATER DURING
@@ -2970,9 +2973,9 @@ constexpr Real gamma_function(Real x) {
                   // ONLY ALLOW CONVERSION IF QNI > 0.1 AND QC > 0.5 G/KG FOLLOWING RUTLEDGE AND HOBBS (1984)
                   if (qni3d(i,j,k) >= 0.1e-3 && qc3d(i,j,k) >= 0.5e-3) {
                     // PORTION OF RIMING CONVERTED TO GRAUPEL (REISNER ET AL. 1998, ORIGINALLY IS1991)
-                    pgsacw = std::min(psacws, m_cons17 * dt * n0s(i,j,k) * qc3d(i,j,k) * qc3d(i,j,k) *
+                    pgsacw = std::min(psacws, m_cons17 * dt * n0s(0,0,k) * qc3d(i,j,k) * qc3d(i,j,k) *
                                       asn(i,j,k) * asn(i,j,k) /
-                                      (rho(i,j,k) * std::pow(lams(i,j,k), (2.0 * m_bs + 2.0))));
+                                      (rho(i,j,k) * std::pow(lams(0,0,k), (2.0 * m_bs + 2.0))));
 
                     // MIX RAT CONVERTED INTO GRAUPEL AS EMBRYO (REISNER ET AL. 1998, ORIG M1990)
                     dum = std::max(m_rhosn / (m_rhog - m_rhosn) * pgsacw, 0.0);
@@ -2992,9 +2995,9 @@ constexpr Real gamma_function(Real x) {
                   // ONLY ALLOW CONVERSION IF QNI > 0.1 AND QR > 0.1 G/KG FOLLOWING RUTLEDGE AND HOBBS (1984)
                   if (qni3d(i,j,k) >= 0.1e-3 && qr3d(i,j,k) >= 0.1e-3) {
                     // PORTION OF COLLECTED RAINWATER CONVERTED TO GRAUPEL (REISNER ET AL. 1998)
-                    dum = m_cons18 * std::pow(4.0 / lams(i,j,k), 3) * std::pow(4.0 / lams(i,j,k), 3) /
-                      (m_cons18 * std::pow(4.0 / lams(i,j,k), 3) * std::pow(4.0 / lams(i,j,k), 3) +
-                       m_cons19 * std::pow(4.0 / lamr(i,j,k), 3) * std::pow(4.0 / lamr(i,j,k), 3));
+                    dum = m_cons18 * std::pow(4.0 / lams(0,0,k), 3) * std::pow(4.0 / lams(0,0,k), 3) /
+                      (m_cons18 * std::pow(4.0 / lams(0,0,k), 3) * std::pow(4.0 / lams(0,0,k), 3) +
+                       m_cons19 * std::pow(4.0 / lamr(0,0,k), 3) * std::pow(4.0 / lamr(0,0,k), 3));
                     dum = std::min(dum, 1.0);
                     dum = std::max(dum, 0.0);
 
@@ -3020,10 +3023,10 @@ constexpr Real gamma_function(Real x) {
                   // IMMERSION FREEZING (BIGG 1953)
                   // hm fix 7/15/13 for consistency w/ original formula
                   mnuccr = m_cons20 * nr3d(i,j,k) * (std::exp(m_aimm * (273.15 - t3d(i,j,k))) - 1.0) /
-                    std::pow(lamr(i,j,k), 3) / std::pow(lamr(i,j,k), 3);
+                    std::pow(lamr(0,0,k), 3) / std::pow(lamr(0,0,k), 3);
 
                   nnuccr = m_pi * nr3d(i,j,k) * m_bimm * (std::exp(m_aimm * (273.15 - t3d(i,j,k))) - 1.0) /
-                    std::pow(lamr(i,j,k), 3);
+                    std::pow(lamr(0,0,k), 3);
 
                   // PREVENT DIVERGENCE BETWEEN MIXING RATIO AND NUMBER CONC
                   nnuccr = std::min(nnuccr, nr3d(i,j,k) / dt);
@@ -3047,10 +3050,10 @@ constexpr Real gamma_function(Real x) {
                 if (qr3d(i,j,k) >= 1.0e-8) {
                   // include breakup add 10/09/09
                   amrex::Real dum1 = 300.0e-6;
-                  if (1.0 / lamr(i,j,k) < dum1) {
+                  if (1.0 / lamr(0,0,k) < dum1) {
                     dum = 1.0;
-                  } else if (1.0 / lamr(i,j,k) >= dum1) {
-                    dum = 2.0 - std::exp(2300.0 * (1.0 / lamr(i,j,k) - dum1));
+                  } else if (1.0 / lamr(0,0,k) >= dum1) {
+                    dum = 2.0 - std::exp(2300.0 * (1.0 / lamr(0,0,k) - dum1));
                   }
                   nragg = -5.78 * dum * nr3d(i,j,k) * qr3d(i,j,k) * rho(i,j,k);
                 }
@@ -3061,7 +3064,7 @@ constexpr Real gamma_function(Real x) {
                 // ICE IS GROWING, I.E. IN CONDITIONS OF ICE SUPERSATURATION
                 if (qi3d(i,j,k) >= 1.0e-8 && qvqvsi >= 1.0) {
                   nprci = m_cons21 * (qv3d(i,j,k) - qvi) * rho(i,j,k) *
-                    n0i(i,j,k) * std::exp(-lami(i,j,k) * m_dcs) * dv / abi;
+                    n0i(0,0,k) * std::exp(-lami(0,0,k) * m_dcs) * dv / abi;
                   prci = m_cons22 * nprci;
                   nprci = std::min(nprci, ni3d(i,j,k) / dt);
                 }
@@ -3070,11 +3073,11 @@ constexpr Real gamma_function(Real x) {
                 // FOR THIS CALCULATION, IT IS ASSUMED THAT THE VS >> VI
                 // AND DS >> DI FOR CONTINUOUS COLLECTION
                 if (qni3d(i,j,k) >= 1.0e-8 && qi3d(i,j,k) >= m_qsmall) {
-                  prai = m_cons23 * asn(i,j,k) * qi3d(i,j,k) * rho(i,j,k) * n0s(i,j,k) /
-                    std::pow(lams(i,j,k), (m_bs + 3.0));
+                  prai = m_cons23 * asn(i,j,k) * qi3d(i,j,k) * rho(i,j,k) * n0s(0,0,k) /
+                    std::pow(lams(0,0,k), (m_bs + 3.0));
                   nprai = m_cons23 * asn(i,j,k) * ni3d(i,j,k) *
-                    rho(i,j,k) * n0s(i,j,k) /
-                    std::pow(lams(i,j,k), (m_bs + 3.0));
+                    rho(i,j,k) * n0s(0,0,k) /
+                    std::pow(lams(0,0,k), (m_bs + 3.0));
                   nprai = std::min(nprai, ni3d(i,j,k) / dt);
                 }
 
@@ -3085,21 +3088,21 @@ constexpr Real gamma_function(Real x) {
                   // allow graupel formation from rain-ice collisions only if rain mixing ratio > 0.1 g/kg,
                   // otherwise add to snow
                   if (qr3d(i,j,k) >= 0.1e-3) {
-                    niacr = m_cons24 * ni3d(i,j,k) * n0r(i,j,k)* arn(i,j,k) /
-                      std::pow(lamr(i,j,k), (m_br + 3.0)) * rho(i,j,k);
-                    piacr = m_cons25 * ni3d(i,j,k) * n0r(i,j,k) * arn(i,j,k) /
-                      std::pow(lamr(i,j,k), (m_br + 3.0)) / std::pow(lamr(i,j,k), 3) * rho(i,j,k);
-                    praci = m_cons24 * qi3d(i,j,k) * n0r(i,j,k) * arn(i,j,k) /
-                      std::pow(lamr(i,j,k), (m_br + 3.0)) * rho(i,j,k);
+                    niacr = m_cons24 * ni3d(i,j,k) * n0r(0,0,k)* arn(i,j,k) /
+                      std::pow(lamr(0,0,k), (m_br + 3.0)) * rho(i,j,k);
+                    piacr = m_cons25 * ni3d(i,j,k) * n0r(0,0,k) * arn(i,j,k) /
+                      std::pow(lamr(0,0,k), (m_br + 3.0)) / std::pow(lamr(0,0,k), 3) * rho(i,j,k);
+                    praci = m_cons24 * qi3d(i,j,k) * n0r(0,0,k) * arn(i,j,k) /
+                      std::pow(lamr(0,0,k), (m_br + 3.0)) * rho(i,j,k);
                     niacr = std::min(niacr, nr3d(i,j,k) / dt);
                     niacr = std::min(niacr, ni3d(i,j,k) / dt);
                   } else {
-                    niacrs = m_cons24 * ni3d(i,j,k) * n0r(i,j,k) * arn(i,j,k) /
-                      std::pow(lamr(i,j,k), (m_br + 3.0)) * rho(i,j,k);
-                    piacrs = m_cons25 * ni3d(i,j,k) * n0r(i,j,k) * arn(i,j,k) /
-                      std::pow(lamr(i,j,k), (m_br + 3.0)) / std::pow(lamr(i,j,k), 3) * rho(i,j,k);
-                    pracis = m_cons24 * qi3d(i,j,k) * n0r(i,j,k) * arn(i,j,k) /
-                      std::pow(lamr(i,j,k), (m_br + 3.0)) * rho(i,j,k);
+                    niacrs = m_cons24 * ni3d(i,j,k) * n0r(0,0,k) * arn(i,j,k) /
+                      std::pow(lamr(0,0,k), (m_br + 3.0)) * rho(i,j,k);
+                    piacrs = m_cons25 * ni3d(i,j,k) * n0r(0,0,k) * arn(i,j,k) /
+                      std::pow(lamr(0,0,k), (m_br + 3.0)) / std::pow(lamr(0,0,k), 3) * rho(i,j,k);
+                    pracis = m_cons24 * qi3d(i,j,k) * n0r(0,0,k) * arn(i,j,k) /
+                      std::pow(lamr(0,0,k), (m_br + 3.0)) * rho(i,j,k);
                     niacrs = std::min(niacrs, nr3d(i,j,k) / dt);
                     niacrs = std::min(niacrs, ni3d(i,j,k) / dt);
                   }
@@ -3134,44 +3137,44 @@ constexpr Real gamma_function(Real x) {
                 // NO VENTILATION FOR CLOUD ICE
                 amrex::Real epsi = 0.0;
                 if (qi3d(i,j,k) >= m_qsmall) {
-                  epsi = 2.0 * m_pi * n0i(i,j,k) * rho(i,j,k) * dv / (lami(i,j,k) * lami(i,j,k));
+                  epsi = 2.0 * m_pi * n0i(0,0,k) * rho(i,j,k) * dv / (lami(0,0,k) * lami(0,0,k));
                 }
 
                 // VENTILATION FOR SNOW
                 amrex::Real epss = 0.0;
                 if (qni3d(i,j,k) >= m_qsmall) {
-                  epss = 2.0 * m_pi * n0s(i,j,k) * rho(i,j,k) * dv *
-                    (m_f1s / (lams(i,j,k) * lams(i,j,k)) +
+                  epss = 2.0 * m_pi * n0s(0,0,k) * rho(i,j,k) * dv *
+                    (m_f1s / (lams(0,0,k) * lams(0,0,k)) +
                      m_f2s * std::pow(asn(i,j,k) * rho(i,j,k) / mu(i,j,k), 0.5) *
                      std::pow(sc_schmidt, (1.0 / 3.0)) * m_cons10 /
-                     std::pow(lams(i,j,k), m_cons35));
+                     std::pow(lams(0,0,k), m_cons35));
                 }
 
                 // Ventilation for graupel
                 amrex::Real epsg = 0.0;
                 if (qg3d(i,j,k) >= m_qsmall) {
-                  epsg = 2.0 * m_pi * n0g(i,j,k) * rho(i,j,k) * dv *
-                    (m_f1s / (lamg(i,j,k) * lamg(i,j,k)) +
+                  epsg = 2.0 * m_pi * n0g(0,0,k) * rho(i,j,k) * dv *
+                    (m_f1s / (lamg(0,0,k) * lamg(0,0,k)) +
                      m_f2s * std::pow(agn(i,j,k) * rho(i,j,k) / mu(i,j,k), 0.5) *
                      std::pow(sc_schmidt, (1.0 / 3.0)) * m_cons11 /
-                     std::pow(lamg(i,j,k), m_cons36));
+                     std::pow(lamg(0,0,k), m_cons36));
                 }
 
                 // VENTILATION FOR RAIN
                 amrex::Real epsr = 0.0;
                 if (qr3d(i,j,k) >= m_qsmall) {
-                  epsr = 2.0 * m_pi * n0r(i,j,k) * rho(i,j,k) * dv *
-                    (m_f1r / (lamr(i,j,k) * lamr(i,j,k)) +
+                  epsr = 2.0 * m_pi * n0r(0,0,k) * rho(i,j,k) * dv *
+                    (m_f1r / (lamr(0,0,k) * lamr(0,0,k)) +
                      m_f2r * std::pow(arn(i,j,k) * rho(i,j,k) / mu(i,j,k), 0.5) *
                      std::pow(sc_schmidt, (1.0 / 3.0)) * m_cons9 /
-                     std::pow(lamr(i,j,k), m_cons34));
+                     std::pow(lamr(0,0,k), m_cons34));
                 }
 
                 // ONLY INCLUDE REGION OF ICE SIZE DIST < DCS
                 // DUM IS FRACTION OF D*N(D) < DCS
                 // LOGIC BELOW FOLLOWS THAT OF HARRINGTON ET AL. 1995 (JAS)
                 if (qi3d(i,j,k) >= m_qsmall) {
-                  dum = (1.0 - std::exp(-lami(i,j,k) * m_dcs) * (1.0 + lami(i,j,k) * m_dcs));
+                  dum = (1.0 - std::exp(-lami(0,0,k) * m_dcs) * (1.0 + lami(0,0,k) * m_dcs));
                   prd = epsi * (qv3d(i,j,k) - qvi) / abi * dum;
                 } else {
                   dum = 0.0;
@@ -3615,15 +3618,15 @@ constexpr Real gamma_function(Real x) {
               // CLOUD DROPLETS
               if (dumc(i,j,k) >= m_qsmall) {
                 dum = pres(i,j,k) / (287.15 * t3d(i,j,k));
-                pgam(i,j,k) = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
-                pgam(i,j,k) = 1.0 / (pgam(i,j,k) * pgam(i,j,k)) - 1.0;
-                pgam(i,j,k) = amrex::max(pgam(i,j,k), 2.0);
-                pgam(i,j,k) = amrex::min(pgam(i,j,k), 10.0);
+                pgam(0,0,k) = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
+                pgam(0,0,k) = 1.0 / (pgam(0,0,k) * pgam(0,0,k)) - 1.0;
+                pgam(0,0,k) = amrex::max(pgam(0,0,k), 2.0);
+                pgam(0,0,k) = amrex::min(pgam(0,0,k), 10.0);
 
-                dlamc(i,j,k) = std::pow(m_cons26 * dumfnc(i,j,k) * gamma_function(pgam(i,j,k) + 4.0) /
-                                        (dumc(i,j,k) * gamma_function(pgam(i,j,k) + 1.0)), 1.0/3.0);
-                lammin = (pgam(i,j,k) + 1.0) / 60.0e-6;
-                lammax = (pgam(i,j,k) + 1.0) / 1.0e-6;
+                dlamc(i,j,k) = std::pow(m_cons26 * dumfnc(i,j,k) * gamma_function(pgam(0,0,k) + 4.0) /
+                                        (dumc(i,j,k) * gamma_function(pgam(0,0,k) + 1.0)), 1.0/3.0);
+                lammin = (pgam(0,0,k) + 1.0) / 60.0e-6;
+                lammax = (pgam(0,0,k) + 1.0) / 1.0e-6;
                 dlamc(i,j,k) = amrex::max(dlamc(i,j,k), lammin);
                 dlamc(i,j,k) = amrex::min(dlamc(i,j,k), lammax);
               }
@@ -3648,13 +3651,13 @@ constexpr Real gamma_function(Real x) {
               if ((i == 91 && j == 3 && k == 58)) {
                 fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                         i, j, k, dumi(i,j,k), dumqs(i,j,k), dumr(i,j,k), dumfni(i,j,k), dumfns(i,j,k), dumfnr(i,j,k), dumc(i,j,k), dumfnc(i,j,k), dumg(i,j,k), dumfng(i,j,k),
-                        dlami(i,j,k), dlamr(i,j,k), pgam(i,j,k), dlamc(i,j,k), dlams(i,j,k), dlamg(i,j,k));
+                        dlami(i,j,k), dlamr(i,j,k), pgam(0,0,k), dlamc(i,j,k), dlams(i,j,k), dlamg(i,j,k));
               }
 #endif
               // CLOUD WATER
               if (dumc(i,j,k) >= m_qsmall) {
-                unc(i,j,k) = acn(i,j,k) * gamma_function(1. + m_bc + pgam(i,j,k)) / (std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam(i,j,k) + 1.));
-                umc(i,j,k) = acn(i,j,k) * gamma_function(4. + m_bc + pgam(i,j,k)) / (std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam(i,j,k) + 4.));
+                unc(i,j,k) = acn(i,j,k) * gamma_function(1. + m_bc + pgam(0,0,k)) / (std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam(0,0,k) + 1.));
+                umc(i,j,k) = acn(i,j,k) * gamma_function(4. + m_bc + pgam(0,0,k)) / (std::pow(dlamc(i,j,k), m_bc) * gamma_function(pgam(0,0,k) + 4.));
               } else {
                 umc(i,j,k) = 0.;
                 unc(i,j,k) = 0.;
@@ -4115,34 +4118,34 @@ constexpr Real gamma_function(Real x) {
 
                 // CLOUD ICE
                 if (qi3d(i,j,k) >= m_qsmall) {
-                  lami(i,j,k) = std::pow(m_cons12 * ni3d(i,j,k) / qi3d(i,j,k), 1.0/m_di);
+                  lami(0,0,k) = std::pow(m_cons12 * ni3d(i,j,k) / qi3d(i,j,k), 1.0/m_di);
                   // CHECK FOR SLOPE
                   // ADJUST VARS
-                  if (lami(i,j,k) < m_lammini) {
-                    lami(i,j,k) = m_lammini;
-                    n0i(i,j,k) = std::pow(lami(i,j,k), 4) * qi3d(i,j,k) / m_cons12;
-                    ni3d(i,j,k) = n0i(i,j,k) / lami(i,j,k);
-                  } else if (lami(i,j,k) > m_lammaxi) {
-                    lami(i,j,k) = m_lammaxi;
-                    n0i(i,j,k) = std::pow(lami(i,j,k), 4) * qi3d(i,j,k) / m_cons12;
-                    ni3d(i,j,k) = n0i(i,j,k) / lami(i,j,k);
+                  if (lami(0,0,k) < m_lammini) {
+                    lami(0,0,k) = m_lammini;
+                    n0i(0,0,k) = std::pow(lami(0,0,k), 4) * qi3d(i,j,k) / m_cons12;
+                    ni3d(i,j,k) = n0i(0,0,k) / lami(0,0,k);
+                  } else if (lami(0,0,k) > m_lammaxi) {
+                    lami(0,0,k) = m_lammaxi;
+                    n0i(0,0,k) = std::pow(lami(0,0,k), 4) * qi3d(i,j,k) / m_cons12;
+                    ni3d(i,j,k) = n0i(0,0,k) / lami(0,0,k);
                   }
                 }
 
                 // RAIN
                 if (qr3d(i,j,k) >= m_qsmall) {
-                  lamr(i,j,k) = std::pow(m_pi * m_rhow * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
+                  lamr(0,0,k) = std::pow(m_pi * m_rhow * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
 
                   // CHECK FOR SLOPE
                   // ADJUST VARS
-                  if (lamr(i,j,k) < m_lamminr) {
-                    lamr(i,j,k) = m_lamminr;
-                    n0r(i,j,k) = std::pow(lamr(i,j,k), 4) * qr3d(i,j,k) / (m_pi * m_rhow);
-                    nr3d(i,j,k) = n0r(i,j,k) / lamr(i,j,k);
-                  } else if (lamr(i,j,k) > m_lammaxr) {
-                    lamr(i,j,k) = m_lammaxr;
-                    n0r(i,j,k) = std::pow(lamr(i,j,k), 4) * qr3d(i,j,k) / (m_pi * m_rhow);
-                    nr3d(i,j,k) = n0r(i,j,k) / lamr(i,j,k);
+                  if (lamr(0,0,k) < m_lamminr) {
+                    lamr(0,0,k) = m_lamminr;
+                    n0r(0,0,k) = std::pow(lamr(0,0,k), 4) * qr3d(i,j,k) / (m_pi * m_rhow);
+                    nr3d(i,j,k) = n0r(0,0,k) / lamr(0,0,k);
+                  } else if (lamr(0,0,k) > m_lammaxr) {
+                    lamr(0,0,k) = m_lammaxr;
+                    n0r(0,0,k) = std::pow(lamr(0,0,k), 4) * qr3d(i,j,k) / (m_pi * m_rhow);
+                    nr3d(i,j,k) = n0r(0,0,k) / lamr(0,0,k);
                   }
                 }
 
@@ -4150,62 +4153,62 @@ constexpr Real gamma_function(Real x) {
                 // MARTIN ET AL. (1994) FORMULA FOR PGAM
                 if (qc3d(i,j,k) >= m_qsmall) {
                   amrex::Real dum = pres(i,j,k) / (287.15 * t3d(i,j,k));
-                  pgam(i,j,k) = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
-                  pgam(i,j,k) = 1.0 / (pgam(i,j,k) * pgam(i,j,k)) - 1.0;
-                  pgam(i,j,k) = std::max(pgam(i,j,k), 2.0);
-                  pgam(i,j,k) = std::min(pgam(i,j,k), 10.0);
+                  pgam(0,0,k) = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
+                  pgam(0,0,k) = 1.0 / (pgam(0,0,k) * pgam(0,0,k)) - 1.0;
+                  pgam(0,0,k) = std::max(pgam(0,0,k), 2.0);
+                  pgam(0,0,k) = std::min(pgam(0,0,k), 10.0);
 
                   // CALCULATE LAMC
-                  lamc(i,j,k) = std::pow(m_cons26 * nc3d(i,j,k) * gamma_function(pgam(i,j,k) + 4.0) /
-                                  (qc3d(i,j,k) * gamma_function(pgam(i,j,k) + 1.0)), 1.0/3.0);
+                  lamc(0,0,k) = std::pow(m_cons26 * nc3d(i,j,k) * gamma_function(pgam(0,0,k) + 4.0) /
+                                  (qc3d(i,j,k) * gamma_function(pgam(0,0,k) + 1.0)), 1.0/3.0);
 
                   // LAMMIN, 60 MICRON DIAMETER
                   // LAMMAX, 1 MICRON
-                  amrex::Real lammin = (pgam(i,j,k) + 1.0) / 60.0e-6;
-                  amrex::Real lammax = (pgam(i,j,k) + 1.0) / 1.0e-6;
+                  amrex::Real lammin = (pgam(0,0,k) + 1.0) / 60.0e-6;
+                  amrex::Real lammax = (pgam(0,0,k) + 1.0) / 1.0e-6;
 
-                  if (lamc(i,j,k) < lammin) {
-                    lamc(i,j,k) = lammin;
-                    nc3d(i,j,k) = std::exp(3.0 * std::log(lamc(i,j,k)) + std::log(qc3d(i,j,k)) +
-                                           std::log(gamma_function(pgam(i,j,k) + 1.0)) - std::log(gamma_function(pgam(i,j,k) + 4.0))) / m_cons26;
-                  } else if (lamc(i,j,k) > lammax) {
-                    lamc(i,j,k) = lammax;
-                    nc3d(i,j,k) = std::exp(3.0 * std::log(lamc(i,j,k)) + std::log(qc3d(i,j,k)) +
-                                           std::log(gamma_function(pgam(i,j,k) + 1.0)) - std::log(gamma_function(pgam(i,j,k) + 4.0))) / m_cons26;
+                  if (lamc(0,0,k) < lammin) {
+                    lamc(0,0,k) = lammin;
+                    nc3d(i,j,k) = std::exp(3.0 * std::log(lamc(0,0,k)) + std::log(qc3d(i,j,k)) +
+                                           std::log(gamma_function(pgam(0,0,k) + 1.0)) - std::log(gamma_function(pgam(0,0,k) + 4.0))) / m_cons26;
+                  } else if (lamc(0,0,k) > lammax) {
+                    lamc(0,0,k) = lammax;
+                    nc3d(i,j,k) = std::exp(3.0 * std::log(lamc(0,0,k)) + std::log(qc3d(i,j,k)) +
+                                           std::log(gamma_function(pgam(0,0,k) + 1.0)) - std::log(gamma_function(pgam(0,0,k) + 4.0))) / m_cons26;
                   }
                 }
 
                 // SNOW
                 if (qni3d(i,j,k) >= m_qsmall) {
-                  lams(i,j,k) = std::pow(m_cons1 * ns3d(i,j,k) / qni3d(i,j,k), 1.0/m_ds);
+                  lams(0,0,k) = std::pow(m_cons1 * ns3d(i,j,k) / qni3d(i,j,k), 1.0/m_ds);
 
                   // CHECK FOR SLOPE
                   // ADJUST VARS
-                  if (lams(i,j,k) < m_lammins) {
-                    lams(i,j,k) = m_lammins;
-                    n0s(i,j,k) = std::pow(lams(i,j,k), 4) * qni3d(i,j,k) / m_cons1;
-                    ns3d(i,j,k) = n0s(i,j,k) / lams(i,j,k);
-                  } else if (lams(i,j,k) > m_lammaxs) {
-                    lams(i,j,k) = m_lammaxs;
-                    n0s(i,j,k) = std::pow(lams(i,j,k), 4) * qni3d(i,j,k) / m_cons1;
-                    ns3d(i,j,k) = n0s(i,j,k) / lams(i,j,k);
+                  if (lams(0,0,k) < m_lammins) {
+                    lams(0,0,k) = m_lammins;
+                    n0s(0,0,k) = std::pow(lams(0,0,k), 4) * qni3d(i,j,k) / m_cons1;
+                    ns3d(i,j,k) = n0s(0,0,k) / lams(0,0,k);
+                  } else if (lams(0,0,k) > m_lammaxs) {
+                    lams(0,0,k) = m_lammaxs;
+                    n0s(0,0,k) = std::pow(lams(0,0,k), 4) * qni3d(i,j,k) / m_cons1;
+                    ns3d(i,j,k) = n0s(0,0,k) / lams(0,0,k);
                   }
                 }
 
                 // GRAUPEL
                 if (qg3d(i,j,k) >= m_qsmall) {
-                  lamg(i,j,k) = std::pow(m_cons2 * ng3d(i,j,k) / qg3d(i,j,k), 1.0/m_dg);
+                  lamg(0,0,k) = std::pow(m_cons2 * ng3d(i,j,k) / qg3d(i,j,k), 1.0/m_dg);
 
                   // CHECK FOR SLOPE
                   // ADJUST VARS
-                  if (lamg(i,j,k) < m_lamming) {
-                    lamg(i,j,k) = m_lamming;
-                    n0g(i,j,k) = std::pow(lamg(i,j,k), 4) * qg3d(i,j,k) / m_cons2;
-                    ng3d(i,j,k) = n0g(i,j,k) / lamg(i,j,k);
-                  } else if (lamg(i,j,k) > m_lammaxg) {
-                    lamg(i,j,k) = m_lammaxg;
-                    n0g(i,j,k) = std::pow(lamg(i,j,k), 4) * qg3d(i,j,k) / m_cons2;
-                    ng3d(i,j,k) = n0g(i,j,k) / lamg(i,j,k);
+                  if (lamg(0,0,k) < m_lamming) {
+                    lamg(0,0,k) = m_lamming;
+                    n0g(0,0,k) = std::pow(lamg(0,0,k), 4) * qg3d(i,j,k) / m_cons2;
+                    ng3d(i,j,k) = n0g(0,0,k) / lamg(0,0,k);
+                  } else if (lamg(0,0,k) > m_lammaxg) {
+                    lamg(0,0,k) = m_lammaxg;
+                    n0g(0,0,k) = std::pow(lamg(0,0,k), 4) * qg3d(i,j,k) / m_cons2;
+                    ng3d(i,j,k) = n0g(0,0,k) / lamg(0,0,k);
                   }
                 }
               }
@@ -4213,31 +4216,31 @@ constexpr Real gamma_function(Real x) {
 //            label_500:
               // CALCULATE EFFECTIVE RADIUS
               if (qi3d(i,j,k) >= m_qsmall) {
-                effi(i,j,k) = 3.0 / lami(i,j,k) / 2.0 * 1.0e6;
+                effi(i,j,k) = 3.0 / lami(0,0,k) / 2.0 * 1.0e6;
               } else {
                 effi(i,j,k) = 25.0;
               }
 
               if (qni3d(i,j,k) >= m_qsmall) {
-                effs(i,j,k) = 3.0 / lams(i,j,k) / 2.0 * 1.0e6;
+                effs(i,j,k) = 3.0 / lams(0,0,k) / 2.0 * 1.0e6;
               } else {
                 effs(i,j,k) = 25.0;
               }
 
               if (qr3d(i,j,k) >= m_qsmall) {
-                effr(i,j,k) = 3.0 / lamr(i,j,k) / 2.0 * 1.0e6;
+                effr(i,j,k) = 3.0 / lamr(0,0,k) / 2.0 * 1.0e6;
               } else {
                 effr(i,j,k) = 25.0;
               }
 
               if (qc3d(i,j,k) >= m_qsmall) {
-                effc(i,j,k) = gamma_function(pgam(i,j,k) + 4.0) / gamma_function(pgam(i,j,k) + 3.0) / lamc(i,j,k) / 2.0 * 1.0e6;
+                effc(i,j,k) = gamma_function(pgam(0,0,k) + 4.0) / gamma_function(pgam(0,0,k) + 3.0) / lamc(0,0,k) / 2.0 * 1.0e6;
               } else {
                 effc(i,j,k) = 25.0;
               }
 
               if (qg3d(i,j,k) >= m_qsmall) {
-                effg(i,j,k) = 3.0 / lamg(i,j,k) / 2.0 * 1.0e6;
+                effg(i,j,k) = 3.0 / lamg(0,0,k) / 2.0 * 1.0e6;
               } else {
                 effg(i,j,k) = 25.0;
               }
