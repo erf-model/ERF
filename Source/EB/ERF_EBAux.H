@@ -24,6 +24,7 @@ class eb_aux_
 
     void set_verbose ( ) { m_verbose = 1; }
 
+    [[nodiscard]] const amrex::FabArray<amrex::EBCellFlagFab>& getMultiEBCellFlagFab () const;
     [[nodiscard]] const amrex::MultiFab& getVolFrac () const;
     [[nodiscard]] const amrex::MultiCutFab& getVolCent () const;
     [[nodiscard]] const amrex::MultiCutFab& getBndryArea () const;
@@ -40,9 +41,7 @@ class eb_aux_
     // int m_defined;
 
     amrex::FabArray<amrex::EBCellFlagFab>* m_cellflags = nullptr;
-
     amrex::MultiFab* m_volfrac = nullptr;
-
     amrex::MultiCutFab* m_volcent = nullptr;
     amrex::MultiCutFab* m_bndryarea = nullptr;
     amrex::MultiCutFab* m_bndrycent = nullptr;
