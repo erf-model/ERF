@@ -675,23 +675,35 @@ ERF::InitData_pre ()
         init_bcs();
     }
 
-    // Verify BCs are compatible with solver choice
+    // Verify solver choices
     for (int lev(0); lev <= max_level; ++lev) {
-        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+        // BC compatibility
+        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25)   ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
-            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
+             phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST )
+        {
             Abort("MYNN2.5/MYNNEDMF/YSU PBL Model requires MOST at lower boundary");
         }
-
         if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
              (solverChoice.turbChoice[lev].Ce_wall > 0) &&
              (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) &&
              (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::slip_wall) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) ) {
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) )
+        {
             Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
         }
 
+        // mesoscale diffusion
+        if ((geom[lev].CellSize(0) > 2000.) || (geom[lev].CellSize(1) > 2000.))
+        {
+            if ( (solverChoice.turbChoice[lev].les_type == LESType::Smagorinsky) &&
+                 (!solverChoice.turbChoice[lev].smag2d)) {
+                Warning("Should use 2-D Smagorinsky for mesoscale resolution");
+            } else if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
+                Warning("Should not use Deardorff LES for mesoscale resolution");
+            }
+        }
     }
 }
 

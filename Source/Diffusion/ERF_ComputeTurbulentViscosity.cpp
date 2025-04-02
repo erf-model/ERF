@@ -55,6 +55,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     if (turbChoice.les_type == LESType::Smagorinsky)
     {
       Real Cs = turbChoice.Cs;
+      bool smag2d = turbChoice.smag2d;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -85,7 +86,12 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
           ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
+              Real SmnSmn;
+              if (smag2d) {
+                SmnSmn = ComputeSmnSmn2D(i,j,k,tau11,tau22,tau12);
+              } else {
+                SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
+            }
               Real dxInv = cellSizeInv[0];
               Real dyInv = cellSizeInv[1];
               Real dzInv = cellSizeInv[2];
@@ -103,10 +109,11 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                   mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
               } else {
                   Real DeltaH = std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
-                  Real DeltaV = 1.0 / dzInv;
-
                   mu_turb(i, j, k, EddyDiff::Mom_h) = Cs*Cs*DeltaH*DeltaH * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-                  mu_turb(i, j, k, EddyDiff::Mom_v) = Cs*Cs*DeltaV*DeltaV * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                  if (!smag2d) {
+                      Real DeltaV = 1.0 / dzInv;
+                      mu_turb(i, j, k, EddyDiff::Mom_v) = Cs*Cs*DeltaV*DeltaV * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                  }
               }
 
               // Calculate SFS quantities

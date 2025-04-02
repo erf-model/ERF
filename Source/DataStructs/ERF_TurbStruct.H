@@ -3,7 +3,7 @@
 
 #include <ERF_MYNNStruct.H>
 
-AMREX_ENUM(LESType, None, Smagorinsky, Deardorff);
+AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
@@ -38,6 +38,12 @@ struct TurbChoice {
         std::string les_type_string = "None";
         query_one_or_per_level(pp, "les_type", les_type, lev, max_level);
 
+        // Handle 2-D Smag
+        if (les_type == LESType::Smagorinsky2D) {
+            les_type = LESType::Smagorinsky;
+            smag2d = true;
+        }
+
         // Which RANS closure?
         std::string rans_type_string = "None";
         query_one_or_per_level(pp, "rans_type", rans_type, lev, max_level);
@@ -56,6 +62,9 @@ struct TurbChoice {
             if (les_type != LESType::None) {
                 amrex::Print() << "Selected a PBL model and an LES model: " <<
                     "Using PBL for vertical transport, LES for horizontal" << std::endl;
+            }
+            if (les_type == LESType::Smagorinsky) {
+                if (!smag2d) amrex::Error("If using Smagorinsky with a PBL model, the 2-D formulation should be used");
             } else if (les_type == LESType::Deardorff) {
                 amrex::Error("It is not recommended to use Deardorff LES and a PBL model");
             }
@@ -95,6 +104,7 @@ struct TurbChoice {
 
         // LES constants...
         query_one_or_per_level(pp, "Cs"  ,Cs, lev, max_level);
+
         query_one_or_per_level(pp, "Pr_t",Pr_t, lev, max_level);
         query_one_or_per_level(pp, "Sc_t",Sc_t, lev, max_level);
 
@@ -138,6 +148,10 @@ struct TurbChoice {
             if (Cs == 0) {
                 amrex::Error("Need to specify Cs for Smagorsinky LES");
             }
+            if (smag2d && mix_isotropic) {
+                amrex::Print << "Turning off mix_isotropic for 2-D Smagorinsky" << std::endl;
+                mix_isotropic = false;
+            }
         }
     }
 
@@ -148,7 +162,11 @@ struct TurbChoice {
         if (les_type == LESType::None && rans_type == RANSType::None && pbl_type == PBLType::None) {
             amrex::Print() << "    Using DNS model at level " << lev << std::endl;
         } else if  (les_type == LESType::Smagorinsky) {
-            amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
+            if (smag2d) {
+                amrex::Print() << "    Using 2D Smagorinsky LES model at level " << lev << std::endl;
+            } else {
+                amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
+            }
         } else if  (les_type == LESType::Deardorff) {
             amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
         } else if  (rans_type == RANSType::kEqn) {
@@ -225,8 +243,9 @@ struct TurbChoice {
     amrex::Real Sc_t = 1.0;
     amrex::Real Sc_t_inv = 1.0;
 
-    // Smagorinsky Cs coefficient
+    // Smagorinsky
     amrex::Real Cs = 0.0;
+    bool smag2d = false;
 
     // Deardorff
     amrex::Real Ce = 0.93;
