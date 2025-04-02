@@ -149,7 +149,7 @@ struct TurbChoice {
                 amrex::Error("Need to specify Cs for Smagorsinky LES");
             }
             if (smag2d && mix_isotropic) {
-                amrex::Print << "Turning off mix_isotropic for 2-D Smagorinsky" << std::endl;
+                amrex::Print() << "Turning off mix_isotropic for 2-D Smagorinsky" << std::endl;
                 mix_isotropic = false;
             }
         }
