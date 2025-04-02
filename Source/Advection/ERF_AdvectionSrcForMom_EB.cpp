@@ -98,7 +98,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
     Array4<const Real      > u_afrac_x = (ebfact.get_u_const_factory())->getAreaFrac()[0]->const_array(mfi);
     Array4<const Real      > u_afrac_y = (ebfact.get_u_const_factory())->getAreaFrac()[1]->const_array(mfi);
     Array4<const Real      > u_afrac_z = (ebfact.get_u_const_factory())->getAreaFrac()[2]->const_array(mfi);
-    
+
     // EB v-factory
     Array4<const EBCellFlag> v_cflag   = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
     Array4<const Real      > v_vfrac   = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
@@ -184,7 +184,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         {
             if ( w_afrac_x(i,j,k)>0.){
                 flx_w_arr[0](i,j,k) = 0.25 * w_afrac_x(i,j,k)
-                                    * (rho_u(i,j,k) + rho_u(i,j, k-1)) * mf_u_inv(i,j,0) 
+                                    * (rho_u(i,j,k) + rho_u(i,j, k-1)) * mf_u_inv(i,j,0)
                                     * (w(i-1,j,k) + w(i,j,k));
             } else {
                 flx_w_arr[0](i,j,k) = 0.;
@@ -280,13 +280,13 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
             Real advectionSrc = ( (flx_u_arr[0](i+1, j  , k  ) - flx_u_arr[0](i, j, k)) * dxInv * mfsq
                                 + (flx_u_arr[1](i  , j+1, k  ) - flx_u_arr[1](i, j, k)) * dyInv * mfsq
                                 + (flx_u_arr[2](i  , j  , k+1) - flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
-            rho_u_rhs(i, j, k) = -advectionSrc;    
+            rho_u_rhs(i, j, k) = -advectionSrc;
         } else {
             rho_u_rhs(i, j, k) = 0.;
         }
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {       
+    {
         if (v_vfrac(i,j,k)>0.) {
             Real mfsq = mf_v(i,j,0) * mf_v(i,j,0);
 

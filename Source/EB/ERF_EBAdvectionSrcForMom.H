@@ -34,7 +34,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                             const AdvType vert_adv_type,
                             const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_u_arr,
                             const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_v_arr,
-                            const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_w_arr,    
+                            const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_w_arr,
                             const int lo_z_face, const int hi_z_face)
 {
     // Instantiate the appropriate structs
@@ -105,7 +105,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_u_arr[0](i,j,k) = u_afrac_x(i,j,k) * rho_u_avg * interpx;
-        } 
+        }
         else
         {
             flx_u_arr[0](i,j,k) = 0.;
@@ -152,7 +152,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_u_arr[1](i,j,k) = u_afrac_y(i,j,k) * rho_v_avg * interpy;
-        } 
+        }
         else
         {
             flx_u_arr[1](i,j,k) = 0.;
@@ -199,7 +199,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_u_arr[2](i,j,k) = u_afrac_z(i,j,k) * rho_w_avg * interpz;
-        } 
+        }
         else
         {
             flx_u_arr[2](i,j,k) = 0.;
@@ -252,7 +252,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_v_arr[0](i,j,k) = v_afrac_x(i,j,k) * rho_u_avg * interpx;
-        } 
+        }
         else
         {
             flx_v_arr[0](i,j,k) = 0.;
@@ -297,7 +297,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_v_arr[1](i,j,k) = v_afrac_y(i,j,k) * rho_v_avg * interpy;
-        } 
+        }
         else
         {
             flx_v_arr[1](i,j,k) = 0.;
@@ -344,7 +344,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_v_arr[2](i,j,k) = v_afrac_z(i,j,k) * rho_w_avg * interpz;
-        } 
+        }
         else
         {
             flx_v_arr[2](i,j,k) = 0.;
@@ -397,7 +397,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_w_arr[0](i,j,k) = w_afrac_x(i,j,k) * rho_u_avg * interpx;
-        } 
+        }
         else
         {
             flx_w_arr[0](i,j,k) = 0.;
@@ -444,7 +444,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_w_arr[1](i,j,k) = w_afrac_y(i,j,k) * rho_v_avg * interpy;
-        } 
+        }
         else
         {
             flx_w_arr[1](i,j,k) = 0.;
@@ -463,7 +463,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 amrex::Real rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
 
                 int kcell = 0;
-    
+
                 if (rho_w_avg>0.)
                 {
                     for (int kk=0; kk<ncells_w_vert; ++kk) {
@@ -482,7 +482,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                         kcell++;
                     }
                 }
-    
+
                 // Adjust available cell numbers near the top and bottom boundaries
 
                 if (k == hi_z_face || k == lo_z_face+1) {
@@ -492,7 +492,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
 
                 // Interpolate w using the highest-order scheme
-    
+
                 amrex::Real interpz = 0.;
                 if (kcell==ncells_w_vert) {
                     interp_w_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
@@ -505,7 +505,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
                 flx_w_arr[2](i,j,k) = w_afrac_z(i,j,k) * rho_w_avg * interpz;
             } // lo_z_face, hi_z_face
-        } 
+        }
         else
         {
             flx_w_arr[2](i,j,k) = 0.;
