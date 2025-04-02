@@ -1265,7 +1265,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
 ! MAKE SURE ICE SATURATION DOESN'T EXCEED WATER SAT. NEAR FREEZING
@@ -1319,7 +1319,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
              IF (QVQVSI(K).LT.0.9) THEN
@@ -1399,7 +1399,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
 #if 0
@@ -1584,7 +1584,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
 !......................................................................
@@ -2058,7 +2058,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                 i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
 ! HM ADD, WRF-CHEM, ADD TENDENCIES FOR C2PREC
@@ -3446,7 +3446,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
 !.......................................................................
@@ -3872,7 +3872,7 @@ endif
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
 ! PUT ALL CLOUD ICE IN SNOW CATEGORY IF MEAN DIAMETER EXCEEDS 2 * dcs
@@ -3903,7 +3903,7 @@ endif
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
           IF (IGRAUP.EQ.0) THEN
@@ -3934,7 +3934,7 @@ endif
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
 ! AT SUBSATURATION, REMOVE SMALL AMOUNTS OF CLOUD/PRECIP WATER
@@ -4003,7 +4003,7 @@ endif
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
 !..................................
@@ -4041,7 +4041,7 @@ endif
 #if 1
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qc3d(k),qc3dten(k),nr3d(k),nr3dten(k)
+                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
         endif
 #endif
 ! HOMOGENEOUS FREEZING OF RAIN

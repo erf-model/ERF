@@ -1586,7 +1586,7 @@ constexpr Real gamma_function(Real x) {
 #endif
 #if 1
               if ((i == 91 && j == 3 && k == 58)) {
-              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qi3d(i,j,k), qi3dten(i,j,k),t3d(i,j,k), t3dten(i,j,k));
               }
 #endif
             // MAKE SURE ICE SATURATION DOESN'T EXCEED WATER SAT. NEAR FREEZING
@@ -1642,7 +1642,7 @@ constexpr Real gamma_function(Real x) {
             }
 #if 1
               if ((i == 91 && j == 3 && k == 58)) {
-              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qi3d(i,j,k), qi3dten(i,j,k),t3d(i,j,k), t3dten(i,j,k));
               }
 #endif
             if (qvqvsi < 0.9) {
@@ -1719,7 +1719,7 @@ constexpr Real gamma_function(Real x) {
             }
 #if 1
               if ((i == 91 && j == 3 && k == 58)) {
-              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qi3d(i,j,k), qi3dten(i,j,k),t3d(i,j,k), t3dten(i,j,k));
               }
 #endif
 #if 0
@@ -3912,13 +3912,13 @@ constexpr Real gamma_function(Real x) {
               qni3dten(i,j,k) = qni3dten(i,j,k) + qnisten(i,j,k);
 #if 1
                 if (i == 91 && j == 3 && k == 58) {
-                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qi3d(i,j,k), qi3dten(i,j,k),t3d(i,j,k), t3dten(i,j,k));
                 }
 #endif
               // PUT ALL CLOUD ICE IN SNOW CATEGORY IF MEAN DIAMETER EXCEEDS 2 * dcs
               // bug fix
-              if (qi3d(i,j,k) >= m_qsmall && t3d(i,j,k) < 273.15 && dlami(i,j,k) >= 1.e-10) {
-                if (1.0/dlami(i,j,k) >= 2.0*m_dcs) {
+              if (qi3d(i,j,k) >= m_qsmall && t3d(i,j,k) < 273.15 && lami(0,0,k) >= 1.e-10) {
+                if (1.0/lami(0,0,k) >= 2.0*m_dcs) {
                   qni3dten(i,j,k) = qni3dten(i,j,k) + qi3d(i,j,k)/dt + qi3dten(i,j,k);
                   ns3dten(i,j,k) = ns3dten(i,j,k) + ni3d(i,j,k)/dt + ni3dten(i,j,k);
                   qi3dten(i,j,k) = -qi3d(i,j,k)/dt;
@@ -3937,7 +3937,7 @@ constexpr Real gamma_function(Real x) {
               nr3d(i,j,k) = nr3d(i,j,k) + nr3dten(i,j,k)*dt;
 #if 1
                 if (i == 91 && j == 3 && k == 58) {
-                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qi3d(i,j,k), qi3dten(i,j,k),t3d(i,j,k), t3dten(i,j,k));
                 }
 #endif
               if (m_igraup == 0) {
@@ -3994,7 +3994,7 @@ constexpr Real gamma_function(Real x) {
               }
 #if 1
                 if (i == 91 && j == 3 && k == 58) {
-                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qi3d(i,j,k), qi3dten(i,j,k),t3d(i,j,k), t3dten(i,j,k));
                 }
 #endif
               if (qvqvsi < 0.9) {
@@ -4043,7 +4043,7 @@ constexpr Real gamma_function(Real x) {
               }
 #if 1
                 if (i == 91 && j == 3 && k == 58) {
-                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qi3d(i,j,k), qi3dten(i,j,k),t3d(i,j,k), t3dten(i,j,k));
                 }
 #endif
               /*
@@ -4086,7 +4086,7 @@ constexpr Real gamma_function(Real x) {
                 }
 #if 1
                 if (i == 91 && j == 3 && k == 58) {
-                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qc3d(i,j,k), qc3dten(i,j,k),nr3d(i,j,k), nr3dten(i,j,k));
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qi3d(i,j,k), qi3dten(i,j,k),t3d(i,j,k), t3dten(i,j,k));
                 }
 #endif
                 // HOMOGENEOUS FREEZING OF RAIN
