@@ -71,29 +71,31 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         {
             amrex::Real rho_u_avg = 0.5 * (rho_u(i-1,j,k) * mf_u_inv(i-1,j,0) + rho_u(i,j,k) * mf_u_inv(i,j,0));
 
-            int icell{0};
+            int icell = 0;
 
             if (rho_u_avg>0.)
             {
-                for (icell=0; icell<ncells_u_horz; ++icell) {
-                    if (u_cflag(i-icell-1,j,k).isCovered()) {
+                for (int ii=0; ii<ncells_u_horz; ++ii) {
+                    if (u_cflag(i-ii-1,j,k).isCovered()) {
                         break;
                     }
+                    icell++;
                 }
             }
             else if (rho_u_avg<0.)
             {
-                for (icell=0; icell<ncells_u_horz; ++icell) {
-                    if (u_cflag(i+icell,j,k).isCovered()) {
+                for (int ii=0; ii<ncells_u_horz; ++ii) {
+                    if (u_cflag(i+ii,j,k).isCovered()) {
                         break;
                     }
+                    icell++;
                 }
             }
 
             // Interpolate u using the highest-order scheme
 
-            amrex::Real interpx{0.};
-            if (icell==ncells_u_horz-1) {
+            amrex::Real interpx = 0.;
+            if (icell==ncells_u_horz) {
                 interp_u_horz.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
             } else {
                 if (icell==1) {
@@ -116,29 +118,31 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         {
             amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) * mf_v_inv(i,j,0) + rho_v(i-1,j,k) * mf_v_inv(i-1,j,0));
 
-            int jcell{0};
+            int jcell = 0;
 
             if (rho_v_avg>0.)
             {
-                for (jcell=0; jcell<ncells_u_horz; ++jcell) {
-                    if (u_cflag(i,j-jcell-1,k).isCovered()) {
+                for (int jj=0; jj<ncells_u_horz; ++jj) {
+                    if (u_cflag(i,j-jj-1,k).isCovered()) {
                         break;
                     }
+                    jcell++;
                 }
             }
             else if (rho_v_avg<0.)
             {
-                for (jcell=0; jcell<ncells_u_horz; ++jcell) {
-                    if (u_cflag(i,j+jcell,k).isCovered()) {
+                for (int jj=0; jj<ncells_u_horz; ++jj) {
+                    if (u_cflag(i,j+jj,k).isCovered()) {
                         break;
                     }
+                    jcell++;
                 }
             }
 
             // Interpolate u using the highest-order scheme
 
-            amrex::Real interpy{0.};
-            if (jcell==ncells_u_horz-1) {
+            amrex::Real interpy = 0.;
+            if (jcell==ncells_u_horz) {
                 interp_u_horz.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
             } else {
                 if (jcell==1) {
@@ -161,29 +165,31 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         {
             amrex::Real rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i-1,j,k));
 
-            int kcell{0};
+            int kcell = 0;
 
             if (rho_w_avg>0.)
             {
-                for (kcell=0; kcell<ncells_u_vert; ++kcell) {
-                    if (u_cflag(i,j,k-kcell-1).isCovered()) {
+                for (int kk=0; kk<ncells_u_vert; ++kk) {
+                    if (u_cflag(i,j,k-kk-1).isCovered()) {
                         break;
                     }
+                    kcell++;
                 }
             }
             else if (rho_w_avg<0.)
             {
-                for (kcell=0; kcell<ncells_u_vert; ++kcell) {
-                    if (u_cflag(i,j,k+kcell).isCovered()) {
+                for (int kk=0; kk<ncells_u_vert; ++kk) {
+                    if (u_cflag(i,j,k+kk).isCovered()) {
                         break;
                     }
+                    kcell++;
                 }
             }
 
             // Interpolate u using the highest-order scheme
 
-            amrex::Real interpz{0.};
-            if (kcell==ncells_u_vert-1) {
+            amrex::Real interpz = 0.;
+            if (kcell==ncells_u_vert) {
                 interp_u_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
             } else {
                 if (kcell==1) {
@@ -212,29 +218,31 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         {
             amrex::Real rho_u_avg = 0.5 * (rho_u(i,j,k) * mf_u_inv(i,j,0) + rho_u(i,j-1,k) * mf_u_inv(i,j-1,0));
 
-            int icell{0};
+            int icell = 0;
 
             if (rho_u_avg>0.)
             {
-                for (icell=0; icell<ncells_v_horz; ++icell) {
-                    if (v_cflag(i-icell-1,j,k).isCovered()) {
+                for (int ii=0; ii<ncells_v_horz; ++ii) {
+                    if (v_cflag(i-ii-1,j,k).isCovered()) {
                         break;
                     }
+                    icell++;
                 }
             }
             else if (rho_u_avg<0.)
             {
-                for (icell=0; icell<ncells_v_horz; ++icell) {
-                    if (v_cflag(i+icell,j,k).isCovered()) {
+                for (int ii=0; ii<ncells_v_horz; ++ii) {
+                    if (v_cflag(i+ii,j,k).isCovered()) {
                         break;
                     }
+                    icell++;
                 }
             }
 
             // Interpolate v using the highest-order scheme
 
-            amrex::Real interpx{0.};
-            if (icell==ncells_v_horz-1) {
+            amrex::Real interpx = 0.;
+            if (icell==ncells_v_horz) {
                 interp_v_horz.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
             } else {
                 if (icell==1) {
@@ -257,20 +265,20 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         {
             amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) * mf_v_inv(i,j,0) + rho_v(i,j-1,k) * mf_v_inv(i,j-1,0));
 
-            int jcell{0};
+            int jcell = 0;
 
             if (rho_v_avg>0.)
             {
-                for (jcell=0; jcell<ncells_v_horz; ++jcell) {
-                    if (v_cflag(i,j-jcell-1,k).isCovered()) {
+                for (int jj=0; jj<ncells_v_horz; ++jj) {
+                    if (v_cflag(i,j-jj-1,k).isCovered()) {
                         break;
                     }
                 }
             }
             else if (rho_v_avg<0.)
             {
-                for (jcell=0; jcell<ncells_v_horz; ++jcell) {
-                    if (v_cflag(i,j+jcell,k).isCovered()) {
+                for (int jj=0; jj<ncells_v_horz; ++jj) {
+                    if (v_cflag(i,j+jj,k).isCovered()) {
                         break;
                     }
                 }
@@ -278,8 +286,8 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
             // Interpolate v using the highest-order scheme
 
-            amrex::Real interpy{0.};
-            if (jcell==ncells_v_horz-1) {
+            amrex::Real interpy = 0.;
+            if (jcell==ncells_v_horz) {
                 interp_v_horz.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
             } else {
                 if (jcell==1) {
@@ -302,29 +310,31 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         {
             amrex::Real rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j-1,k));
 
-            int kcell{0};
+            int kcell = 0;
 
             if (rho_w_avg>0.)
             {
-                for (kcell=0; kcell<ncells_v_vert; ++kcell) {
-                    if (v_cflag(i,j,k-kcell-1).isCovered()) {
+                for (int kk=0; kk<ncells_v_vert; ++kk) {
+                    if (v_cflag(i,j,k-kk-1).isCovered()) {
                         break;
                     }
+                    kcell++;
                 }
             }
             else if (rho_w_avg<0.)
             {
-                for (kcell=0; kcell<ncells_v_vert; ++kcell) {
-                    if (v_cflag(i,j,k+kcell).isCovered()) {
+                for (int kk=0; kk<ncells_v_vert; ++kk) {
+                    if (v_cflag(i,j,k+kk).isCovered()) {
                         break;
                     }
+                    kcell++;
                 }
             }
 
             // Interpolate v using the highest-order scheme
 
-            amrex::Real interpz{0.};
-            if (kcell==ncells_v_vert-1) {
+            amrex::Real interpz = 0.;
+            if (kcell==ncells_v_vert) {
                 interp_v_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
             } else {
                 if (kcell==1) {
@@ -353,29 +363,31 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         {
             amrex::Real rho_u_avg = 0.5 * (rho_u(i,j,k) + rho_u(i,j,k-1)) * mf_u_inv(i,j,0);
 
-            int icell{0};
+            int icell = 0;
 
             if (rho_u_avg>0.)
             {
-                for (icell=0; icell<ncells_w_horz; ++icell) {
-                    if (w_cflag(i-icell-1,j,k).isCovered()) {
+                for (int ii=0; ii<ncells_w_horz; ++ii) {
+                    if (w_cflag(i-ii-1,j,k).isCovered()) {
                         break;
                     }
+                    icell++;
                 }
             }
             else if (rho_u_avg<0.)
             {
-                for (icell=0; icell<ncells_w_horz; ++icell) {
-                    if (w_cflag(i+icell,j,k).isCovered()) {
+                for (int ii=0; ii<ncells_w_horz; ++ii) {
+                    if (w_cflag(i+ii,j,k).isCovered()) {
                         break;
                     }
+                    icell++;
                 }
             }
 
             // Interpolate w using the highest-order scheme
 
-            amrex::Real interpx{0.};
-            if (icell==ncells_w_horz-1) {
+            amrex::Real interpx = 0.;
+            if (icell==ncells_w_horz) {
                 interp_w_horz.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
             } else {
                 if (icell==1) {
@@ -398,29 +410,31 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
         {
             amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_v_inv(i,j,0);
 
-            int jcell{0};
+            int jcell = 0;
 
             if (rho_v_avg>0.)
             {
-                for (jcell=0; jcell<ncells_w_horz; ++jcell) {
-                    if (w_cflag(i,j-jcell-1,k).isCovered()) {
+                for (int jj=0; jj<ncells_w_horz; ++jj) {
+                    if (w_cflag(i,j-jj-1,k).isCovered()) {
                         break;
                     }
+                    jcell++;
                 }
             }
             else if (rho_v_avg<0.)
             {
-                for (jcell=0; jcell<ncells_w_horz; ++jcell) {
-                    if (w_cflag(i,j+jcell,k).isCovered()) {
+                for (int jj=0; jj<ncells_w_horz; ++jj) {
+                    if (w_cflag(i,j+jj,k).isCovered()) {
                         break;
                     }
+                    jcell++;
                 }
             }
 
             // Interpolate w using the highest-order scheme
 
-            amrex::Real interpy{0.};
-            if (jcell==ncells_w_horz-1) {
+            amrex::Real interpy = 0.;
+            if (jcell==ncells_w_horz) {
                 interp_w_horz.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
             } else {
                 if (jcell==1) {
@@ -448,22 +462,24 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
             } else {
                 amrex::Real rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
 
-                int kcell{0};
+                int kcell = 0;
     
                 if (rho_w_avg>0.)
                 {
-                    for (kcell=0; kcell<ncells_w_vert; ++kcell) {
-                        if (w_cflag(i,j,k-kcell-1).isCovered()) {
+                    for (int kk=0; kk<ncells_w_vert; ++kk) {
+                        if (w_cflag(i,j,k-kk-1).isCovered()) {
                             break;
                         }
+                        kcell++;
                     }
                 }
                 else if (rho_w_avg<0.)
                 {
-                    for (kcell=0; kcell<ncells_w_vert; ++kcell) {
-                        if (w_cflag(i,j,k+kcell).isCovered()) {
+                    for (int kk=0; kk<ncells_w_vert; ++kk) {
+                        if (w_cflag(i,j,k+kk).isCovered()) {
                             break;
                         }
+                        kcell++;
                     }
                 }
     
@@ -477,8 +493,8 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 
                 // Interpolate w using the highest-order scheme
     
-                amrex::Real interpz{0.};
-                if (kcell==ncells_w_vert-1) {
+                amrex::Real interpz = 0.;
+                if (kcell==ncells_w_vert) {
                     interp_w_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 } else {
                     if (kcell==1) {
