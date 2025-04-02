@@ -1,4 +1,4 @@
-
+!#define PRINT_DEBUG
 !WRF:MODEL_LAYER:PHYSICS
 !
 
@@ -1262,7 +1262,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
             endif
 #endif
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
@@ -1316,7 +1316,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                END IF
              END IF
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
@@ -1396,7 +1396,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
          EFFG(K) = 0.
        END IF
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
@@ -1446,7 +1446,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
             ACN(K) = G*RHOW/(18.*MU(K))
 ! HM ADD GRAUPEL 8/28/06
             AGN(K) = DUM*AG
-#if 1
+#ifdef PRINT_DEBUG
             ! Fortran version
             if (i == 91 .and. j == 3 .and. k == 58) then
                ! Line 1: indices and main calculated variables
@@ -1538,7 +1538,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
           QG3D(K) = 0.
           NG3D(K) = 0.
        END IF
-#if 1
+#ifdef PRINT_DEBUG
        ! Fortran version
        if  (i == 91 .and. j == 3 .and. k == 58) then
           write(10, '(i5,i5,i5,8(es24.16))') &
@@ -1581,7 +1581,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NR3D(K) = N0RR(K)/LAMR(K)
       END IF
       END IF
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                  i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
@@ -1675,7 +1675,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NG3D(K) = N0G(K)/LAMG(K)
       END IF
       END IF
-#if 1
+#ifdef PRINT_DEBUG
       ! Fortran version
       if (i == 91 .and. j == 3 .and. k == 58) then
          write(10, '(i5,i5,i5,12(es24.16))') &
@@ -2055,7 +2055,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NC3DTEN(K) = NC3DTEN(K)+ (-NPRA(K)-NPRC(K))
       NR3DTEN(K) = NR3DTEN(K)+ (NPRC1(K)+NRAGG(K)-NPRACG(K))
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                  i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
@@ -2120,7 +2120,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QV3DTEN(K) = QV3DTEN(K)-PCC(K)
       T3DTEN(K) = T3DTEN(K)+PCC(K)*XXLV(K)/CPM(K)
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
-#if 1
+#ifdef PRINT_DEBUG
       ! Fortran version
       if (i == 91 .and. j == 3 .and. k == 58) then
          write(10, '(i5,i5,i5,14(es24.16))') &
@@ -2291,7 +2291,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NS3D(K) = N0S(K)/LAMS(K)
       END IF
       END IF
-#if 1
+#ifdef PRINT_DEBUG
       ! Fortran version
       if (i == 91 .and. j == 3 .and. k == 58) then
          write(10, '(i5,i5,i5,12(es24.16))') &
@@ -2326,7 +2326,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NG3D(K) = N0G(K)/LAMG(K)
       END IF
       END IF
-#if 1
+#ifdef PRINT_DEBUG
       ! Fortran version
       if (i == 91 .and. j == 3 .and. k == 58) then
          write(10, '(i5,i5,i5,12(es24.16))') &
@@ -2493,7 +2493,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                 NPRC1(K) = MIN(NPRC1(K),NPRC(K))
 
          END IF
-#if 0
+#ifdef PRINT_DEBUG
       ! Fortran version
       if (i == 91 .and. j == 3 .and. k == 58) then
          ! Line 1: indices and first variables
@@ -2562,7 +2562,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                   N0G(K)/                        &
                   LAMG(K)**(BG+3.)
             END IF
-#if 1
+#ifdef PRINT_DEBUG
       ! Fortran version
       if (i == 91 .and. j == 3 .and. k == 58) then
          ! Line 1: indices and first variables
@@ -3150,7 +3150,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
               EPRDG(K)=PRDG(K)
               PRDG(K)=0.
            END IF
-#if 1
+#ifdef PRINT_DEBUG
       ! Fortran version
       if (i == 91 .and. j == 3 .and. k == 58) then
          ! Line 1: indices and first variables
@@ -3356,7 +3356,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QR3DTEN(K) = QR3DTEN(K)+                                      &
                  (PRE(K)+PRA(K)+PRC(K)-PRACS(K)-MNUCCR(K)-QMULTR(K)-QMULTRG(K) &
              -PIACR(K)-PIACRS(K)-PRACG(K)-PGRACS(K))
-#if 1
+#ifdef PRINT_DEBUG
       ! Fortran version
       if (i == 91 .and. j == 3 .and. k == 58) then
          ! Line 1: indices and first variables
@@ -3443,7 +3443,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       T3DTEN(K) = T3DTEN(K)+PCC(K)*XXLV(K)/CPM(K)
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
@@ -3604,7 +3604,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
         DLAMG=MAX(DLAMG,LAMMING)
         DLAMG=MIN(DLAMG,LAMMAXG)
       END IF
-#if 1
+#ifdef PRINT_DEBUG
 ! Fortran version
 if ((i == 91 .and. j == 3 .and. k == 58)) then
     write(10, '(i5,i5,i5,15(es24.16))') &
@@ -3815,7 +3815,7 @@ endif
       QGSTEN(K) = QGSTEN(K)+FALTNDG/NSTEP/RHO(k)
       NG3DTEN(K) = NG3DTEN(K)+FALTNDNG/NSTEP/RHO(k)
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
                 i,j,k,n,nstep,qcsten(k),faltndc,rho(k),FALTNDC/NSTEP/RHO(k)
@@ -3855,7 +3855,7 @@ endif
 
         DO K=KTS,KTE
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qcsten(k),qc3dten(k),nr3d(k),nr3dten(k)
@@ -3869,7 +3869,7 @@ endif
         QG3DTEN(K)=QG3DTEN(K)+QGSTEN(K)
         QNI3DTEN(K)=QNI3DTEN(K)+QNISTEN(K)
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
@@ -3900,7 +3900,7 @@ endif
           NS3D(k)        = NS3D(k)+NS3DTEN(k)*DT
           NR3D(k)        = NR3D(k)+NR3DTEN(k)*DT
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
@@ -3931,7 +3931,7 @@ endif
             QVQVS(K) = QV3D(K)/QVS(K)
             QVQVSI(K) = QV3D(K)/QVI(K)
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
@@ -4000,7 +4000,7 @@ endif
          EFFG(K) = 0.
        END IF
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
@@ -4038,7 +4038,7 @@ endif
            NC3D(K)=0.
         END IF
 ! Fortran version
-#if 1
+#ifdef PRINT_DEBUG
         if (i == 91 .and. j == 3 .and. k == 58) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
