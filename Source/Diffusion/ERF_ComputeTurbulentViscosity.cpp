@@ -109,8 +109,12 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
                 } else {
                     Real DeltaH = std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
-                    mu_turb(i, j, k, EddyDiff::Mom_h) = Cs*Cs*DeltaH*DeltaH * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-                    if (!smag2d) {
+                    Real Kmh = Cs*Cs*DeltaH*DeltaH * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                    Kmh = amrex::min(Kmh, 10*DeltaH);
+                    mu_turb(i, j, k, EddyDiff::Mom_h) = Kmh;
+                    if (smag2d) {
+                        mu_turb(i, j, k, EddyDiff::Mom_v) = 0.0;
+                    } else {
                         Real DeltaV = 1.0 / dzInv;
                         mu_turb(i, j, k, EddyDiff::Mom_v) = Cs*Cs*DeltaV*DeltaV * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
                     }
