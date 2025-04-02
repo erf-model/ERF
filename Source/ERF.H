@@ -41,7 +41,7 @@
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
 #include <ERF_InputSpongeData.H>
-#include <ERF_SGSDiff.H>
+#include <ERF_SurfaceLayer.H>
 #include <ERF_Derive.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
@@ -486,8 +486,8 @@ public:
     // read checkpoint file from disk
     void ReadCheckpointFile ();
 
-    // read checkpoint file from disk -- called after instantiating m_sgsdiff
-    void ReadCheckpointFileSGSDiff ();
+    // read checkpoint file from disk -- called after instantiating m_SurfaceLayer
+    void ReadCheckpointFileSurfaceLayer ();
 
     void init_zphys            (int lev, amrex::Real time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
@@ -1168,7 +1168,7 @@ private:
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
-    std::unique_ptr<SGSDiff>          m_sgsdiff = nullptr;
+    std::unique_ptr<SurfaceLayer>     m_SurfaceLayer = nullptr;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
     //

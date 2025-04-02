@@ -9,7 +9,7 @@
 
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
-#include "ERF_SGSDiff.H"
+#include "ERF_SurfaceLayer.H"
 #include "ERF_Advection.H"
 #include "ERF_Diffusion.H"
 #include "ERF_EddyViscosity.H"
@@ -38,7 +38,7 @@ void erf_make_tau_terms (int level, int nrk,
                                amrex::MultiFab* eddyDiffs,
                          const amrex::Geometry geom,
                          const SolverChoice& solverChoice,
-                         std::unique_ptr<SGSDiff>& sgsdiff,
+                         std::unique_ptr<SurfaceLayer>& SurfLayer,
                          std::unique_ptr<amrex::MultiFab>& dJ,
                          std::unique_ptr<amrex::MultiFab>& mapfac_m,
                          std::unique_ptr<amrex::MultiFab>& mapfac_u,
@@ -85,7 +85,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                             amrex::MultiFab* Diss,
                       const amrex::Geometry geom,
                       const SolverChoice& solverChoice,
-                      std::unique_ptr<SGSDiff>& sgsdiff,
+                      std::unique_ptr<SurfaceLayer>& SurfLayer,
                       const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                       const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
@@ -132,7 +132,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                              amrex::MultiFab* Diss,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
-                       std::unique_ptr<SGSDiff>& sgsdiff,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
                        const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                        const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
@@ -195,7 +195,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                        amrex::MultiFab* Diss,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
-                       std::unique_ptr<SGSDiff>& sgsdiff,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
                        const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                        const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                        std::unique_ptr<amrex::MultiFab>& z_phys_nd,

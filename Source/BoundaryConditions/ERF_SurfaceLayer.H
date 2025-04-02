@@ -1,21 +1,21 @@
-#ifndef ERF_SGSDIFF_H
-#define ERF_SGSDIFF_H
+#ifndef ERF_SURFACELAYER_H
+#define ERF_SURFACELAYER_H
 
-#include <AMReX_Geometry.H>
-#include <AMReX_ParmParse.H>
-#include <AMReX_FArrayBox.H>
-#include <AMReX_MultiFab.H>
-#include <AMReX_iMultiFab.H>
-#include <AMReX_Interpolater.H>
+#include "AMReX_Geometry.H"
+#include "AMReX_ParmParse.H"
+#include "AMReX_FArrayBox.H"
+#include "AMReX_MultiFab.H"
+#include "AMReX_iMultiFab.H"
+#include "AMReX_Interpolater.H"
 
-#include <ERF_IndexDefines.H>
-#include <ERF_Constants.H>
-#include <ERF_MOSTAverage.H>
-#include <ERF_MOSTStress.H>
-#include <ERF_TerrainMetrics.H>
-#include <ERF_PBLHeight.H>
+#include "ERF_IndexDefines.H"
+#include "ERF_Constants.H"
+#include "ERF_MOSTAverage.H"
+#include "ERF_MOSTStress.H"
+#include "ERF_TerrainMetrics.H"
+#include "ERF_PBLHeight.H"
 
-/** Monin-Obukhov surface layer profile
+/** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
  * van der Laan, P., Kelly, M. C., & Sørensen, N. N. (2017). A new k-epsilon
  * model consistent with Monin-Obukhov similarity theory. Wind Energy,
@@ -26,22 +26,22 @@
  * Demetri P Lalas and Corrado F Ratto, January 1996,
  * https://doi.org/10.1142/2975.
  */
-class SGSDiff
+class SurfaceLayer
 {
 
 public:
 
     // Constructor
-    explicit SGSDiff (const amrex::Vector<amrex::Geometry>& geom,
-                      bool& use_rot_sgsdiff,
-                      std::string a_pp_prefix,
-                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
-                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
-                      const TerrainType& a_terrain_type,
-                      amrex::Real start_bdy_time = 0.0,
-                      amrex::Real bdy_time_interval = 0.0)
+    explicit SurfaceLayer (const amrex::Vector<amrex::Geometry>& geom,
+                           bool& use_rot_surface_flux,
+                           std::string a_pp_prefix,
+                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
+                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                           const TerrainType& a_terrain_type,
+                           amrex::Real start_bdy_time = 0.0,
+                           amrex::Real bdy_time_interval = 0.0)
     : m_geom(geom),
-      m_rotate(use_rot_sgsdiff),
+      m_rotate(use_rot_surface_flux),
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_ma(geom,(z_phys_nd[0]!=nullptr),a_pp_prefix,a_terrain_type)
@@ -54,11 +54,11 @@ public:
         pp.query("most.z0", z0_const);
 
         // Specify how to compute the flux
-        if (use_rot_sgsdiff) {
+        if (use_rot_surface_flux) {
             flux_type = FluxCalcType::ROTATE;
         } else {
             std::string flux_string{"moeng"};
-            pp.query("sgsdiff.flux_type", flux_string);
+            pp.query("surface_layer.flux_type", flux_string);
             if (flux_string == "donelan") {
                 flux_type = FluxCalcType::DONELAN;
             } else if (flux_string == "moeng") {
@@ -181,20 +181,20 @@ public:
     } // constructor
 
     void
-    make_SGSDiff_at_level (const int& lev,
-                           int nlevs,
-                           const amrex::Vector<amrex::MultiFab*>& mfv,
-                           std::unique_ptr<amrex::MultiFab>& Theta_prim,
-                           std::unique_ptr<amrex::MultiFab>& Qv_prim,
-                           std::unique_ptr<amrex::MultiFab>& Qr_prim,
-                           std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                           amrex::MultiFab* Hwave,
-                           amrex::MultiFab* Lwave,
-                           amrex::MultiFab* eddyDiffs,
-                           amrex::Vector<amrex::MultiFab*> lsm_data,
-                           amrex::Vector<amrex::MultiFab*> lsm_flux,
-                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
-                           amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
+    make_SurfaceLayer_at_level (const int& lev,
+                                int nlevs,
+                                const amrex::Vector<amrex::MultiFab*>& mfv,
+                                std::unique_ptr<amrex::MultiFab>& Theta_prim,
+                                std::unique_ptr<amrex::MultiFab>& Qv_prim,
+                                std::unique_ptr<amrex::MultiFab>& Qr_prim,
+                                std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                amrex::MultiFab* Hwave,
+                                amrex::MultiFab* Lwave,
+                                amrex::MultiFab* eddyDiffs,
+                                amrex::Vector<amrex::MultiFab*> lsm_data,
+                                amrex::Vector<amrex::MultiFab*> lsm_flux,
+                                amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
+                                amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
     {
         // Update MOST Average
         m_ma.make_MOSTAverage_at_level(lev, mfv, Theta_prim, Qv_prim, Qr_prim, z_phys_nd);
@@ -351,40 +351,40 @@ public:
                     bool is_land);
 
     void
-    impose_sgsdiff_bcs (const int& lev,
-                        amrex::Vector<const amrex::MultiFab*> mfs,
-                        amrex::MultiFab* xxmom_flux,
-                        amrex::MultiFab* yymom_flux,
-                        amrex::MultiFab* zzmom_flux,
-                        amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
-                        amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
-                        amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
-                        amrex::MultiFab* xheat_flux,
-                        amrex::MultiFab* yheat_flux,
-                        amrex::MultiFab* zheat_flux,
-                        amrex::MultiFab* xqv_flux,
-                        amrex::MultiFab* yqv_flux,
-                        amrex::MultiFab* zqv_flux,
-                        amrex::MultiFab* z_phys);
+    impose_SurfaceLayer_bcs (const int& lev,
+                             amrex::Vector<const amrex::MultiFab*> mfs,
+                             amrex::MultiFab* xxmom_flux,
+                             amrex::MultiFab* yymom_flux,
+                             amrex::MultiFab* zzmom_flux,
+                             amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
+                             amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                             amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
+                             amrex::MultiFab* xheat_flux,
+                             amrex::MultiFab* yheat_flux,
+                             amrex::MultiFab* zheat_flux,
+                             amrex::MultiFab* xqv_flux,
+                             amrex::MultiFab* yqv_flux,
+                             amrex::MultiFab* zqv_flux,
+                             amrex::MultiFab* z_phys);
 
     template <typename FluxCalc>
     void
-    compute_sgsdiff_bcs (const int& lev,
-                         amrex::Vector<const amrex::MultiFab*> mfs,
-                         amrex::MultiFab* xxmom_flux,
-                         amrex::MultiFab* yymom_flux,
-                         amrex::MultiFab* zzmom_flux,
-                         amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
-                         amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
-                         amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
-                         amrex::MultiFab* xheat_flux,
-                         amrex::MultiFab* yheat_flux,
-                         amrex::MultiFab* zheat_flux,
-                         amrex::MultiFab* xqv_flux,
-                         amrex::MultiFab* yqv_flux,
-                         amrex::MultiFab* zqv_flux,
-                         amrex::MultiFab* z_phys,
-                         const FluxCalc& flux_comp);
+    compute_SurfaceLayer_bcs (const int& lev,
+                              amrex::Vector<const amrex::MultiFab*> mfs,
+                              amrex::MultiFab* xxmom_flux,
+                              amrex::MultiFab* yymom_flux,
+                              amrex::MultiFab* zzmom_flux,
+                              amrex::MultiFab* xymom_flux, amrex::MultiFab* yxmom_flux,
+                              amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                              amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
+                              amrex::MultiFab* xheat_flux,
+                              amrex::MultiFab* yheat_flux,
+                              amrex::MultiFab* zheat_flux,
+                              amrex::MultiFab* xqv_flux,
+                              amrex::MultiFab* yqv_flux,
+                              amrex::MultiFab* zqv_flux,
+                              amrex::MultiFab* z_phys,
+                              const FluxCalc& flux_comp);
 
     void
     time_interp_sst (const int& lev,
@@ -567,4 +567,4 @@ private:
     amrex::Vector<amrex::MultiFab*>  m_eddyDiffs_lev;
 };
 
-#endif /* SGSDIFF_H */
+#endif /* SURFACELAYER_H */

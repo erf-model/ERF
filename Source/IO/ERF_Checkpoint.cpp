@@ -219,13 +219,13 @@ ERF::WriteCheckpointFile () const
         MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ng);
         VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
 
-        if (m_sgsdiff && m_sgsdiff->have_variable_sea_roughness())  {
+        if (m_SurfaceLayer && m_SurfaceLayer->have_variable_sea_roughness())  {
             amrex::Print() << "Writing variable surface roughness" << std::endl;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
             MultiFab z0(ba2d,dmap[lev],1,ng);
             for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                Array4<const Real> const& fab_arr = m_sgsdiff->get_z0(lev)->const_array();
+                Array4<const Real> const& fab_arr = m_SurfaceLayer->get_z0(lev)->const_array();
                 Array4<      Real> const&  z0_arr = z0.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     z0_arr(i,j,k) = fab_arr(i,j,k);
@@ -579,15 +579,15 @@ ERF::ReadCheckpointFile ()
         VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_v"));
         MultiFab::Copy(*mapfac_v[lev],mf_v,0,0,1,ng);
 
-        if (m_sgsdiff && m_sgsdiff->have_variable_sea_roughness())  {
+        if (m_SurfaceLayer && m_SurfaceLayer->have_variable_sea_roughness())  {
             amrex::Print() << "Reading variable surface roughness" << std::endl;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
             MultiFab z0(ba2d,dmap[lev],1,ng);
             VisMF::Read(z0, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
             for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                FArrayBox* sgsdiff_z0 = (m_sgsdiff->get_z0(lev));
-                sgsdiff_z0->copy<RunOn::Host>(z0[mfi], bx);
+                FArrayBox* SurfLayer_z0 = (m_SurfaceLayer->get_z0(lev));
+                SurfLayer_z0->copy<RunOn::Host>(z0[mfi], bx);
             }
         }
 
@@ -736,7 +736,7 @@ ERF::ReadCheckpointFile ()
  * This is called after the ABLMost object is instantiated.
  */
 void
-ERF::ReadCheckpointFileSGSDiff ()
+ERF::ReadCheckpointFileSurfaceLayer ()
 {
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -747,12 +747,12 @@ ERF::ReadCheckpointFileSGSDiff ()
         }
         BoxArray ba2d(std::move(bl2d));
 
-        if (m_sgsdiff->have_variable_sea_roughness())  {
+        if (m_SurfaceLayer->have_variable_sea_roughness())  {
             amrex::Print() << "Reading variable surface roughness" << std::endl;
             IntVect ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
             MultiFab z0_in(ba2d,dmap[lev],1,ng);
             VisMF::Read(z0_in, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
-            auto z0 = const_cast<FArrayBox*>(m_sgsdiff->get_z0(lev));
+            auto z0 = const_cast<FArrayBox*>(m_SurfaceLayer->get_z0(lev));
             for (amrex::MFIter mfi(z0_in); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
                 z0->copy<RunOn::Host>(z0_in[mfi], bx);

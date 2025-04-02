@@ -62,14 +62,14 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const Array4<const Real>& tm_arr,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
-                        const bool use_sgsdiff)
+                        const bool use_SurfLayer)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_N()",DiffusionSrcForState_N);
 
     DiffChoice diffChoice = solverChoice.diffChoice;
     TurbChoice turbChoice = solverChoice.turbChoice[level];
 
-    amrex::ignore_unused(use_sgsdiff);
+    amrex::ignore_unused(use_SurfLayer);
 
     const Real dx_inv = cellSizeInv[0];
     const Real dy_inv = cellSizeInv[1];
@@ -295,7 +295,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && k==dom_lo.z);
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k==dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -305,20 +305,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
                                                            - 3. * cell_prim(i, j, k-1, prim_index)
                                                       + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (sgsdiff_on_zlo && (qty_index == RhoTheta_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (sgsdiff_on_zlo && (qty_index == RhoQ1_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!sgsdiff_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     hfx_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!sgsdiff_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ2_comp) {
@@ -415,7 +415,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -425,20 +425,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
                                                            - 3. * cell_prim(i, j, k-1, prim_index)
                                                       + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (sgsdiff_on_zlo && (qty_index == RhoTheta_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (sgsdiff_on_zlo && (qty_index == RhoQ1_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!sgsdiff_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     hfx_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!sgsdiff_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ2_comp) {
@@ -532,7 +532,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -542,20 +542,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
                                                            - 3. * cell_prim(i, j, k-1, prim_index)
                                                       + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (sgsdiff_on_zlo && (qty_index == RhoTheta_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (sgsdiff_on_zlo && (qty_index == RhoQ1_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!sgsdiff_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     hfx_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!sgsdiff_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ2_comp) {
@@ -647,7 +647,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool sgsdiff_on_zlo = ( use_sgsdiff && k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -657,20 +657,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
                                                            - 3. * cell_prim(i, j, k-1, prim_index)
                                                       + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (sgsdiff_on_zlo && (qty_index == RhoTheta_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (sgsdiff_on_zlo && (qty_index == RhoQ1_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!sgsdiff_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     hfx_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!sgsdiff_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ2_comp) {

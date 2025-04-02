@@ -184,7 +184,7 @@ enum struct ERF_BC {
     no_slip_wall,
     slip_wall,
     periodic,
-    sgsdiff,
+    surface_layer,
     undefined
 };
 
@@ -199,7 +199,7 @@ enum mathematicalBndryTypes : int {
     reflect_even =  1,
     foextrap     =  2,
     ext_dir      =  3,
-    sgsdiff          =  101,
+    surface_layer    =  101,
     ext_dir_prim     =  102,
     ext_dir_ingested =  103,
     neumann          =  104,

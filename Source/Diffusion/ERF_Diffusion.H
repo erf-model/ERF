@@ -7,7 +7,7 @@
 
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
-#include "ERF_SGSDiff.H"
+#include "ERF_SurfaceLayer.H"
 
 void DiffusionSrcForMom_N (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                            const amrex::Array4<      amrex::Real>& rho_u_rhs,
@@ -67,7 +67,7 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& tm_arr,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
-                             const bool use_sgsdiff);
+                             const bool use_SurfLayer);
 
 void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,
@@ -104,7 +104,7 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& tm_arr,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
-                             const bool use_sgsdiff);
+                             const bool use_SurfLayer);
 
 void ComputeStressConsVisc_N (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex::Box tbxyz, amrex::Real mu_eff,
                               const amrex::Array4<const amrex::Real>& cell_data,

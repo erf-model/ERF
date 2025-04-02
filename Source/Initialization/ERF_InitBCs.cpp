@@ -259,10 +259,10 @@ void ERF::init_bcs ()
                m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori] = theta_grad_in;
             }
         }
-        else if (bc_type == "sgsdiff")
+        else if (bc_type == "surface_layer")
         {
-              phys_bc_type[ori] = ERF_BC::sgsdiff;
-            domain_bc_type[ori] = "sgsdiff";
+              phys_bc_type[ori] = ERF_BC::surface_layer;
+            domain_bc_type[ori] = "surface_layer";
         }
         else
         {
@@ -421,7 +421,7 @@ void ERF::init_bcs ()
                     }
                 }
             }
-            else if ( bct == ERF_BC::sgsdiff )
+            else if ( bct == ERF_BC::surface_layer )
             {
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
                 domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::hoextrap);
@@ -640,7 +640,7 @@ void ERF::init_bcs ()
                     }
                 }
             }
-            else if ( bct == ERF_BC::sgsdiff )
+            else if ( bct == ERF_BC::surface_layer )
             {
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
                 for (int i = 0; i < NBCVAR_max; i++) {

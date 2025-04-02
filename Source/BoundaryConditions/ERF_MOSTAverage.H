@@ -1,14 +1,15 @@
 #ifndef ERF_MOSTAverage_H
 #define ERF_MOSTAverage_H
 
-#include <AMReX_Gpu.H>
-#include <AMReX_FArrayBox.H>
-#include <AMReX_MultiFab.H>
-#include <AMReX_iMultiFab.H>
-#include <AMReX_ParmParse.H>
-#include <ERF_IndexDefines.H>
-#include <ERF_TerrainMetrics.H>
-#include <ERF_DataStruct.H>
+#include "AMReX_Gpu.H"
+#include "AMReX_FArrayBox.H"
+#include "AMReX_MultiFab.H"
+#include "AMReX_iMultiFab.H"
+#include "AMReX_ParmParse.H"
+
+#include "ERF_IndexDefines.H"
+#include "ERF_TerrainMetrics.H"
+#include "ERF_DataStruct.H"
 
 class MOSTAverage {
 public:
@@ -145,7 +146,7 @@ public:
         }
 
         amrex::ignore_unused(found);
-        AMREX_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
         const amrex::RealVect lx((xp - plo[0])*dxi[0] + 0.5,
                                  (yp - plo[1])*dxi[1] + 0.5,

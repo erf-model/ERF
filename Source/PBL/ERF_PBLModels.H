@@ -13,7 +13,7 @@
  * @param[out] eddyViscosity Holds turbulent viscosity
  * @param[in] geom Problem geometry
  * @param[in] turbChoice Container with turbulence parameters
- * @param[in] sgsdiff Pointer to Monin-Obukhov class if instantiated
+ * @param[in] SurfLayer Pointer to Monin-Obukhov class if instantiated
  * @param[in] use_moisture If we have microphysics enabled
  * @param[in] level Current level
  * @param[in] bc_ptr Pointer to array with boundary condition info
@@ -27,7 +27,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
                           amrex::MultiFab& eddyViscosity,
                           const amrex::Geometry& geom,
                           const TurbChoice& turbChoice,
-                          std::unique_ptr<SGSDiff>& sgsdiff,
+                          std::unique_ptr<SurfaceLayer>& SurfLayer,
                           bool use_terrain_fitted_coords,
                           bool use_moisture,
                           int level,
@@ -48,7 +48,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
  * @param[out] eddyViscosity Holds turbulent viscosity
  * @param[in] geom Problem geometry
  * @param[in] turbChoice Container with turbulence parameters
- * @param[in] sgsdiff Pointer to Monin-Obukhov class if instantiated
+ * @param[in] SurfLayer Pointer to Monin-Obukhov class if instantiated
  * @param[in] use_moisture If we have microphysics enabled
  * @param[in] level Current level
  * @param[in] bc_ptr Pointer to array with boundary condition info
@@ -62,7 +62,7 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
                             amrex::MultiFab& eddyViscosity,
                             const amrex::Geometry& geom,
                             const TurbChoice& turbChoice,
-                            std::unique_ptr<SGSDiff>& sgsdiff,
+                            std::unique_ptr<SurfaceLayer>& SurfLayer,
                             bool use_terrain_fitted_coords,
                             bool use_moisture,
                             int level,
@@ -83,7 +83,7 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
  * @param[out] eddyViscosity Holds turbulent viscosity
  * @param[in] geom Problem geometry
  * @param[in] turbChoice Container with turbulence parameters
- * @param[in] sgsdiff Pointer to Monin-Obukhov class if instantiated
+ * @param[in] SurfLayer Pointer to Monin-Obukhov class if instantiated
  * @param[in] use_moisture If we have microphysics enabled
  * @param[in] level Current level
  * @param[in] bc_ptr Pointer to array with boundary condition info
@@ -97,7 +97,7 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
                        amrex::MultiFab& eddyViscosity,
                        const amrex::Geometry& geom,
                        const TurbChoice& turbChoice,
-                       std::unique_ptr<SGSDiff>& sgsdiff,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
                        bool use_terrain_fitted_coords,
                        bool use_moisture,
                        int level,

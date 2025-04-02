@@ -93,8 +93,8 @@ void ERF::advance_dycore(int level,
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
-    const bool use_sgsdiff = (m_sgsdiff != nullptr);
-    const FArrayBox* z_0   = (use_sgsdiff) ? m_sgsdiff->get_z0(level) : nullptr;
+    const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
+    const FArrayBox* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -218,7 +218,7 @@ void ERF::advance_dycore(int level,
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], solverChoice,
-                                  m_sgsdiff, z_0, l_use_terrain_fitted_coords,
+                                  m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
                                   l_use_moisture, level, bc_ptr_h);
     }
 

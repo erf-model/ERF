@@ -1,6 +1,6 @@
 /** \file ERF_ComputeTurbulentViscosity.cpp */
 
-#include "ERF_SGSDiff.H"
+#include "ERF_SurfaceLayer.H"
 #include "ERF_EddyViscosity.H"
 #include "ERF_Diffusion.H"
 #include "ERF_PBLModels.H"
@@ -37,7 +37,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                                    const MultiFab& mapfac_u, const MultiFab& mapfac_v,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav,
-                                   std::unique_ptr<SGSDiff>& /*sgsdiff*/)
+                                   std::unique_ptr<SurfaceLayer>& /*SurfLayer*/)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const Box& domain = geom.Domain();
@@ -101,7 +101,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                                      - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
 
               // - heat flux
-              //   (Note: If using SGSDiff, the value at k=0 will
+              //   (Note: If using SurfaceLayer, the value at k=0 will
               //    be overwritten)
               hfx_x(i,j,k) = 0.0;
               hfx_y(i,j,k) = 0.0;
@@ -190,7 +190,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
 
                 // - heat flux
-                //   (Note: If using SGSdiff, the value at k=0 will
+                //   (Note: If using SurfaceLayer, the value at k=0 will
                 //    be overwritten)
                 hfx_x(i,j,k) = 0.0;
                 hfx_y(i,j,k) = 0.0;
@@ -296,11 +296,11 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/,
                                     const std::unique_ptr<MultiFab>& z_phys_nd,
                                     const TurbChoice& turbChoice,
                                     const Real const_grav,
-                                    std::unique_ptr<SGSDiff>& sgsdiff,
+                                    std::unique_ptr<SurfaceLayer>& SurfLayer,
                                     const FArrayBox* z_0)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
-    const bool use_sgsdiff = (sgsdiff != nullptr);
+    const bool use_SurfLayer = (SurfLayer != nullptr);
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
@@ -328,7 +328,7 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/,
             Box bxcc = mfi.tilebox();
 
             const Array4<Real const>& d_arr  = wdist.const_array(mfi);
-            const Array4<Real const>& z0_arr = (use_sgsdiff) ? z_0->const_array() : Array4<Real const>{};
+            const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array() : Array4<Real const>{};
 
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& hfx_x   = Hfx1.array(mfi);
@@ -407,7 +407,7 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/,
                 diss(i, j, k) = cell_data(i, j, k, Rho_comp) * Cmu0_pow3 * std::pow(tke,1.5) / length;
 
                 // - heat flux
-                //   (Note: If using SGSDiff, the value at k=0 will
+                //   (Note: If using SurfaceLayer, the value at k=0 will
                 //    be overwritten)
                 hfx_x(i, j, k) = 0.0;
                 hfx_y(i, j, k) = 0.0;
@@ -514,7 +514,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                 const MultiFab& mapfac_u, const MultiFab& mapfac_v,
                                 const std::unique_ptr<MultiFab>& z_phys_nd,
                                 const SolverChoice& solverChoice,
-                                std::unique_ptr<SGSDiff>& sgsdiff,
+                                std::unique_ptr<SurfaceLayer>& SurfLayer,
                                 const amrex::FArrayBox* z_0,
                                 const bool& use_terrain_fitted_coords,
                                 const bool& use_moisture,
@@ -536,7 +536,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     TurbChoice turbChoice = solverChoice.turbChoice[level];
     const Real const_grav = solverChoice.gravity;
 
-    if (!sgsdiff) {
+    if (!SurfLayer) {
         AMREX_ALWAYS_ASSERT(!vert_only);
     }
 
@@ -551,7 +551,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                      geom, use_terrain_fitted_coords,
                                      mapfac_u, mapfac_v,
                                      z_phys_nd, turbChoice, const_grav,
-                                     sgsdiff);
+                                     SurfLayer);
     }
 
     if (turbChoice.rans_type != RANSType::None) {
@@ -564,26 +564,26 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                       geom, use_terrain_fitted_coords,
                                       mapfac_u, mapfac_v,
                                       z_phys_nd, turbChoice, const_grav,
-                                      sgsdiff, z_0);
+                                      SurfLayer, z_0);
     }
 
     if (turbChoice.pbl_type == PBLType::MYNN25) {
         ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
-                                 geom, turbChoice, sgsdiff,
+                                 geom, turbChoice, SurfLayer,
                                  use_terrain_fitted_coords, use_moisture,
                                  level, bc_ptr, vert_only, z_phys_nd,
                                  solverChoice.RhoQv_comp, solverChoice.RhoQc_comp,
                                  solverChoice.RhoQr_comp);
     } else if (turbChoice.pbl_type == PBLType::MYNNEDMF) {
         ComputeDiffusivityMYNNEDMF(xvel, yvel, cons_in, eddyViscosity,
-                                   geom, turbChoice, sgsdiff,
+                                   geom, turbChoice, SurfLayer,
                                    use_terrain_fitted_coords, use_moisture,
                                    level, bc_ptr, vert_only, z_phys_nd,
                                    solverChoice.RhoQv_comp, solverChoice.RhoQc_comp,
                                    solverChoice.RhoQr_comp);
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
-                              geom, turbChoice, sgsdiff,
+                              geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd);
     }

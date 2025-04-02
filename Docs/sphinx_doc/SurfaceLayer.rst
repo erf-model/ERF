@@ -2,18 +2,18 @@
  .. role:: cpp(code)
     :language: c++
 
-.. _sec:sgsdiff:
+.. _sec::surface_layer
 
-SGSDiff Boundaries
--------------------
-The subgrid scale diffusion condition provides an abstraction layer for users to directly specify
-the diffusive fluxes at a boundary via a multitude of methods. More specifically, the sgsdiff condition
-applies and impenetrable condition for the boundary normal velocity but higher order extrapolation for
-all the other variables. It then allows a user to specify a method for calculating the diffusive fluxes
+Surface Layer Boundaries
+------------------------
+The surface layer provides an abstraction layer for users to directly specify
+diffusive fluxes at a boundary via a multitude of methods. More specifically, the surface layer condition
+applies an impenetrable condition for the boundary normal velocity but higher order extrapolation for
+all the other variables and then allows a user to specify a method for calculating the diffusive fluxes
 
 ::
 
-   erf.sgsdiff.flux_type    = STRING    #flux types (donelan, moeng, custom)
+   erf.surface_layer.flux_type    = STRING    #flux types (donelan, moeng, custom)
 
 The ``donelan`` flux type employs bulk drag coefficients to compute the diffusive stresses while the ``moeng`` type
 employs Moeng's formulation for Monin-Obukhov similarity theory (MOST) and ``custom`` allows the user to directly
@@ -109,7 +109,7 @@ and the characteristic surface layer temperature
 MOST Implementation
 ~~~~~~~~~~~~~~~~~~~
 
-As noted in :ref:`sec:sgsdiff`, the boundary conditions for velocity, temperature, and water vapor do not change
+As noted in :ref:`sec:surface_layer`, the boundary conditions for velocity, temperature, and water vapor do not change
 with the flux type. Therefore, the MOST implementation in ERF is a specific method for computing the diffusive fluxes, which are directly written into the stress tensor/vector. The MOST pathway is structured to allow either the surface temperature (:math:`\theta_0`) or surface temperature flux (:math:`\overline{w^{'}\theta^{'}}`) to be enforced. To compute the MOST flux, the following algorithm is applied:
 
 #. Horizontal (planar) averages :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are computed at a reference height :math:`z_{ref}` assumed to be within the surface layer.
@@ -143,8 +143,8 @@ with the flux type. Therefore, the MOST implementation in ERF is a specific meth
 
    Finally, it must be noted that using terrain-fitted coorindates will modify the surface normal and tangent vectors.
    Consequently, the MOST implementation with terrain-fitted coorindates will formally require local vector rotations.
-   Stress rotations with MOST are a work in progress but may be activated with ``erf.use_rotate_sgsdiff = true``.
-   Therefore, running with terrain (``erf.terrain_type = StaticFittedMesh``) and with MOST (``sgsdiff.flux_type = "moeng"``) is not recommended.
+   Stress rotations with MOST are a work in progress but may be activated with ``erf.use_rotate_surface_flux = true``.
+   Therefore, running with terrain (``erf.terrain_type = StaticFittedMesh``) and with MOST (``surface_flux.flux_type = "moeng"``) is not recommended.
 
 MOST Inputs
 ~~~~~~~~~~~~~~~~~~~

@@ -23,7 +23,7 @@ void ERF::poisson_wall_dist (int lev)
 
     bool havewall{false};
     Orientation zlo(Direction::z, Orientation::low);
-    if ( ( phys_bc_type[zlo] == ERF_BC::sgsdiff                            ) ||
+    if ( ( phys_bc_type[zlo] == ERF_BC::surface_layer                      ) ||
          ( phys_bc_type[zlo] == ERF_BC::no_slip_wall                       ) )/*||
          ((phys_bc_type[zlo] == ERF_BC::slip_wall) && (dom_hi.z > dom_lo.z)) )*/
     {

@@ -26,7 +26,7 @@ The information for each face is preceded by
 ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or ``zhi``.
 
 Currently available type of boundary conditions are
-``inflow``, ``outflow``, ``inflow_outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``sgsdiff``.
+``inflow``, ``outflow``, ``inflow_outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``surface_layer``.
 (Spelling of the type matters; capitalization does not.)
 
 For example, setting
@@ -72,7 +72,7 @@ We use the following options preceded by ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``z
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
 | symmetry      | reflect_odd  | reflect_even   | reflect_even   | reflect_even             | reflect_even  |
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
-| sgsdiff       | ext_dir      | hoextrap       | hoextrap       | hoextrap                 | hoextrap      |
+| surface_layer | ext_dir      | hoextrap       | hoextrap       | hoextrap                 | hoextrap      |
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
 
 Here ``ext_dir``, ``foextrap``, and ``reflect_even`` refer to AMReX keywords.   The ``ext_dir`` type
@@ -82,9 +82,9 @@ same value in the last valid cell/face. By contrast, ``hoextrap``, or "higher or
 does a linear extrapolation from the two nearest valid values. The ``neumann`` condition
 is an ERF-specific boundary type that allows a user to specify a variable gradient. Currently, the
 ``neumann`` BC is only supported for theta to allow for weak capping inversion
-(:math:`\partial \theta / \partial z`) at the top domain. The ``sgsdiff`` condition is an ERF-specific
+(:math:`\partial \theta / \partial z`) at the top domain. The ``surface_layer`` condition is an ERF-specific
 boundary type that employs the above set of boundary conditions but also directly specifies the
-subgrid scale diffusive fluxes; see :ref:`sec:sgsdiff` for more information.
+subgrid scale diffusive fluxes; see :ref:`sec:surface_layer` for more information.
 
 As an example,
 

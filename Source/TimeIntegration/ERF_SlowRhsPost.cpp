@@ -29,7 +29,7 @@ using namespace amrex;
  * @param[in] Diss dissipation of turbulent kinetic energy
  * @param[in]  geom   Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
- * @param[in]  sgsdiff  Pointer to SGSDiff class for Monin-Obukhov Similarity Theory boundary condition
+ * @param[in]  SurfLayer  Pointer to SurfaceLayer class for Monin-Obukhov Similarity Theory boundary condition
  * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
  * @param[in] z_phys_nd height coordinate at nodes
  * @param[in] ax area fractions on x-faces
@@ -70,7 +70,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         MultiFab* Diss,
                         const Geometry geom,
                         const SolverChoice& solverChoice,
-                        std::unique_ptr<SGSDiff>& sgsdiff,
+                        std::unique_ptr<SurfaceLayer>& SurfLayer,
                         const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                         const Vector<BCRec>& domain_bcs_type_h,
                         std::unique_ptr<MultiFab>& z_phys_nd,
@@ -107,8 +107,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
 
-    const MultiFab* t_mean_mf = nullptr;
-    if (sgsdiff) t_mean_mf = sgsdiff->get_mac_avg(level,2);
+    const MultiFab*  t_mean_mf = nullptr;
+    if (SurfLayer) { t_mean_mf = SurfLayer->get_mac_avg(level,2); }
 
     const bool l_use_terrain      = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
@@ -135,7 +135,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.pbl_type  == PBLType::MYNN25      ||
                                     tc.pbl_type  == PBLType::MYNNEDMF    ||
                                     tc.pbl_type  == PBLType::YSU );
-    const bool l_rotate         = (solverChoice.use_rotate_sgsdiff);
+    const bool l_rotate         = (solverChoice.use_rotate_surface_flux);
 
     const Box& domain = geom.Domain();
 
@@ -352,7 +352,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> diffflux_x, diffflux_y, diffflux_z;
         Array4<Real> hfx_x, hfx_y, hfx_z, diss;
         Array4<Real> q1fx_x, q1fx_y, q1fx_z, q2fx_z;
-        const bool use_sgsdiff = (sgsdiff != nullptr);
+        const bool use_SurfLayer = (SurfLayer != nullptr);
 
         if (l_use_diff) {
             diffflux_x = dflux_x->array(mfi);
@@ -437,7 +437,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_sgsdiff);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                                new_cons, cur_prim, cell_rhs,
@@ -445,7 +445,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_sgsdiff);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
                     }
                 } // use_diff
             } // valid slow var

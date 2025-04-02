@@ -209,9 +209,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // ********************************************************************************************
-    // Define Theta_prim storage if using sgsdiff BC
+    // Define Theta_prim storage if using surface_layer BC
     // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::sgsdiff) {
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
         Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
         if (solverChoice.moisture_type != MoistureType::None) {
             Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
@@ -387,7 +387,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_need_SmnSmn = ( (solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
                            (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) );
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
-    bool l_rotate      = (  solverChoice.use_rotate_sgsdiff  );
+    bool l_rotate      = (  solverChoice.use_rotate_surface_flux  );
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));

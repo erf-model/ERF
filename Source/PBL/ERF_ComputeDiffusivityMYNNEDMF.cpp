@@ -5,7 +5,7 @@
 #include <functional>
 #include <limits>
 
-#include "ERF_SGSDiff.H"
+#include "ERF_SurfaceLayer.H"
 #include "ERF_DirectionSelector.H"
 #include "ERF_Diffusion.H"
 #include "ERF_Constants.H"
@@ -4180,7 +4180,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                             MultiFab& eddyViscosity,
                             const Geometry& geom,
                             const TurbChoice& turbChoice,
-                            std::unique_ptr<SGSDiff>& sgsdiff,
+                            std::unique_ptr<SurfaceLayer>& SurfLayer,
                             bool use_terrain_fitted_coords,
                             bool use_moisture,
                             int level,
@@ -4288,11 +4288,11 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
         Real d_kappa   = KAPPA;
         Real d_gravity = CONST_GRAV;
 
-        const auto& t_mean_mf = sgsdiff->get_mac_avg(level,4); // theta_v
-        const auto& q_mean_mf = sgsdiff->get_mac_avg(level,3); // q_v
-        const auto& u_star_mf = sgsdiff->get_u_star(level);
-        const auto& t_star_mf = sgsdiff->get_t_star(level);
-        const auto& q_star_mf = sgsdiff->get_q_star(level);
+        const auto& t_mean_mf = SurfLayer->get_mac_avg(level,4); // theta_v
+        const auto& q_mean_mf = SurfLayer->get_mac_avg(level,3); // q_v
+        const auto& u_star_mf = SurfLayer->get_u_star(level);
+        const auto& t_star_mf = SurfLayer->get_t_star(level);
+        const auto& q_star_mf = SurfLayer->get_q_star(level);
 
         const auto& tm_arr     = t_mean_mf->const_array(mfi);
         const auto& qm_arr     = q_mean_mf->const_array(mfi);

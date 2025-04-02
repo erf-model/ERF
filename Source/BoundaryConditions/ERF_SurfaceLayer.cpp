@@ -1,4 +1,4 @@
-#include "ERF_SGSDiff.H"
+#include "ERF_SurfaceLayer.H"
 
 using namespace amrex;
 
@@ -9,9 +9,9 @@ using namespace amrex;
  * @param[in] max_iters maximum iterations to use
  */
 void
-SGSDiff::update_fluxes (const int& lev,
-                        const Real& time,
-                        int max_iters)
+SurfaceLayer::update_fluxes (const int& lev,
+                             const Real& time,
+                             int max_iters)
 {
     // Update SST data if we have a valid pointer
     if (m_sst_lev[lev][0]) time_interp_sst(lev, time);
@@ -142,10 +142,10 @@ SGSDiff::update_fluxes (const int& lev,
  */
 template <typename FluxIter>
 void
-SGSDiff::compute_fluxes (const int& lev,
-                         const int& max_iters,
-                         const FluxIter& most_flux,
-                         bool is_land)
+SurfaceLayer::compute_fluxes (const int& lev,
+                              const int& max_iters,
+                              const FluxIter& most_flux,
+                              bool is_land)
 {
     // Pointers to the computed averages
     const auto *const tm_ptr  = m_ma.get_average(lev,2); // potential temperature
@@ -208,74 +208,74 @@ SGSDiff::compute_fluxes (const int& lev,
  * @param[in] eddyDiffs Diffusion coefficients from turbulence model
  */
 void
-SGSDiff::impose_sgsdiff_bcs (const int& lev,
-                             Vector<const MultiFab*> mfs,
-                             MultiFab* xxmom_flux,
-                             MultiFab* yymom_flux,
-                             MultiFab* zzmom_flux,
-                             MultiFab* xymom_flux, MultiFab* yxmom_flux,
-                             MultiFab* xzmom_flux, MultiFab* zxmom_flux,
-                             MultiFab* yzmom_flux, MultiFab* zymom_flux,
-                             MultiFab* xheat_flux,
-                             MultiFab* yheat_flux,
-                             MultiFab* zheat_flux,
-                             MultiFab* xqv_flux,
-                             MultiFab* yqv_flux,
-                             MultiFab* zqv_flux,
-                             MultiFab* z_phys)
+SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
+                                       Vector<const MultiFab*> mfs,
+                                       MultiFab* xxmom_flux,
+                                       MultiFab* yymom_flux,
+                                       MultiFab* zzmom_flux,
+                                       MultiFab* xymom_flux, MultiFab* yxmom_flux,
+                                       MultiFab* xzmom_flux, MultiFab* zxmom_flux,
+                                       MultiFab* yzmom_flux, MultiFab* zymom_flux,
+                                       MultiFab* xheat_flux,
+                                       MultiFab* yheat_flux,
+                                       MultiFab* zheat_flux,
+                                       MultiFab* xqv_flux,
+                                       MultiFab* yqv_flux,
+                                       MultiFab* zqv_flux,
+                                       MultiFab* z_phys)
 {
     if (flux_type == FluxCalcType::MOENG) {
         moeng_flux flux_comp;
-        compute_sgsdiff_bcs(lev,
-                            mfs,
-                            xxmom_flux,
-                            yymom_flux,
-                            zzmom_flux,
-                            xymom_flux, yxmom_flux,
-                            xzmom_flux, zxmom_flux,
-                            yzmom_flux, zymom_flux,
-                            xheat_flux, yheat_flux, zheat_flux,
-                            xqv_flux, yqv_flux, zqv_flux,
-                            z_phys, flux_comp);
+        compute_SurfaceLayer_bcs(lev,
+                                 mfs,
+                                 xxmom_flux,
+                                 yymom_flux,
+                                 zzmom_flux,
+                                 xymom_flux, yxmom_flux,
+                                 xzmom_flux, zxmom_flux,
+                                 yzmom_flux, zymom_flux,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::DONELAN) {
         donelan_flux flux_comp;
-        compute_sgsdiff_bcs(lev,
-                            mfs,
-                            xxmom_flux,
-                            yymom_flux,
-                            zzmom_flux,
-                            xymom_flux, yxmom_flux,
-                            xzmom_flux, zxmom_flux,
-                            yzmom_flux, zymom_flux,
-                            xheat_flux, yheat_flux, zheat_flux,
-                            xqv_flux, yqv_flux, zqv_flux,
-                            z_phys, flux_comp);
+        compute_SurfaceLayer_bcs(lev,
+                                 mfs,
+                                 xxmom_flux,
+                                 yymom_flux,
+                                 zzmom_flux,
+                                 xymom_flux, yxmom_flux,
+                                 xzmom_flux, zxmom_flux,
+                                 yzmom_flux, zymom_flux,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::ROTATE) {
         rotate_flux flux_comp;
-        compute_sgsdiff_bcs(lev,
-                            mfs,
-                            xxmom_flux,
-                            yymom_flux,
-                            zzmom_flux,
-                            xymom_flux, yxmom_flux,
-                            xzmom_flux, zxmom_flux,
-                            yzmom_flux, zymom_flux,
-                            xheat_flux, yheat_flux, zheat_flux,
-                            xqv_flux, yqv_flux, zqv_flux,
-                            z_phys, flux_comp);
+        compute_SurfaceLayer_bcs(lev,
+                                 mfs,
+                                 xxmom_flux,
+                                 yymom_flux,
+                                 zzmom_flux,
+                                 xymom_flux, yxmom_flux,
+                                 xzmom_flux, zxmom_flux,
+                                 yzmom_flux, zymom_flux,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 z_phys, flux_comp);
     } else {
         custom_flux flux_comp;
-        compute_sgsdiff_bcs(lev,
-                            mfs,
-                            xxmom_flux,
-                            yymom_flux,
-                            zzmom_flux,
-                            xymom_flux, yxmom_flux,
-                            xzmom_flux, zxmom_flux,
-                            yzmom_flux, zymom_flux,
-                            xheat_flux, yheat_flux, zheat_flux,
-                            xqv_flux, yqv_flux, zqv_flux,
-                            z_phys, flux_comp);
+        compute_SurfaceLayer_bcs(lev,
+                                 mfs,
+                                 xxmom_flux,
+                                 yymom_flux,
+                                 zzmom_flux,
+                                 xymom_flux, yxmom_flux,
+                                 xzmom_flux, zxmom_flux,
+                                 yzmom_flux, zymom_flux,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 z_phys, flux_comp);
     }
 }
 
@@ -290,22 +290,22 @@ SGSDiff::impose_sgsdiff_bcs (const int& lev,
  */
 template <typename FluxCalc>
 void
-SGSDiff::compute_sgsdiff_bcs (const int& lev,
-                              Vector<const MultiFab*> mfs,
-                              MultiFab* xxmom_flux,
-                              MultiFab* yymom_flux,
-                              MultiFab* zzmom_flux,
-                              MultiFab* xymom_flux, MultiFab* yxmom_flux,
-                              MultiFab* xzmom_flux, MultiFab* zxmom_flux,
-                              MultiFab* yzmom_flux, MultiFab* zymom_flux,
-                              MultiFab* xheat_flux,
-                              MultiFab* yheat_flux,
-                              MultiFab* zheat_flux,
-                              MultiFab* xqv_flux,
-                              MultiFab* yqv_flux,
-                              MultiFab* zqv_flux,
-                              MultiFab* z_phys,
-                              const FluxCalc& flux_comp)
+SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
+                                        Vector<const MultiFab*> mfs,
+                                        MultiFab* xxmom_flux,
+                                        MultiFab* yymom_flux,
+                                        MultiFab* zzmom_flux,
+                                        MultiFab* xymom_flux, MultiFab* yxmom_flux,
+                                        MultiFab* xzmom_flux, MultiFab* zxmom_flux,
+                                        MultiFab* yzmom_flux, MultiFab* zymom_flux,
+                                        MultiFab* xheat_flux,
+                                        MultiFab* yheat_flux,
+                                        MultiFab* zheat_flux,
+                                        MultiFab* xqv_flux,
+                                        MultiFab* yqv_flux,
+                                        MultiFab* zqv_flux,
+                                        MultiFab* z_phys,
+                                        const FluxCalc& flux_comp)
 {
     bool rotate = m_rotate;
     const int klo = m_geom[lev].Domain().smallEnd(2);
@@ -453,8 +453,8 @@ SGSDiff::compute_sgsdiff_bcs (const int& lev,
 }
 
 void
-SGSDiff::time_interp_sst (const int& lev,
-                          const Real& time)
+SurfaceLayer::time_interp_sst (const int& lev,
+                               const Real& time)
 {
     // Time interpolation
     Real dT = m_bdy_time_interval;
@@ -488,7 +488,7 @@ SGSDiff::time_interp_sst (const int& lev,
 }
 
 void
-SGSDiff::get_lsm_tsurf (const int& lev)
+SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -521,12 +521,12 @@ SGSDiff::get_lsm_tsurf (const int& lev)
 }
 
 void
-SGSDiff::update_pblh (const int& lev,
-                      Vector<Vector<MultiFab>>& vars,
-                      MultiFab* z_phys_cc,
-                      int RhoQv_comp,
-                      int RhoQc_comp,
-                      int RhoQr_comp)
+SurfaceLayer::update_pblh (const int& lev,
+                           Vector<Vector<MultiFab>>& vars,
+                           MultiFab* z_phys_cc,
+                           int RhoQv_comp,
+                           int RhoQc_comp,
+                           int RhoQr_comp)
 {
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
@@ -538,13 +538,13 @@ SGSDiff::update_pblh (const int& lev,
 
 template <typename PBLHeightEstimator>
 void
-SGSDiff::compute_pblh (const int& lev,
-                       Vector<Vector<MultiFab>>& vars,
-                       MultiFab* z_phys_cc,
-                       const PBLHeightEstimator& est,
-                       int RhoQv_comp,
-                       int RhoQc_comp,
-                       int RhoQr_comp)
+SurfaceLayer::compute_pblh (const int& lev,
+                            Vector<Vector<MultiFab>>& vars,
+                            MultiFab* z_phys_cc,
+                            const PBLHeightEstimator& est,
+                            int RhoQv_comp,
+                            int RhoQc_comp,
+                            int RhoQr_comp)
 {
     est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),
                      vars[lev][Vars::cons],m_lmask_lev[lev][0],
@@ -552,8 +552,8 @@ SGSDiff::compute_pblh (const int& lev,
 }
 
 void
-SGSDiff::read_custom_roughness (const int& lev,
-                                const std::string& fname)
+SurfaceLayer::read_custom_roughness (const int& lev,
+                                     const std::string& fname)
 {
     // Read the file if we are on the coarsest level
     if (lev==0) {

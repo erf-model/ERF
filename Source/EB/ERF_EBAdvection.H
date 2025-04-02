@@ -8,7 +8,7 @@
 
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
-#include "ERF_SGSDiff.H"
+#include "ERF_SurfaceLayer.H"
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
 void EBAdvectionSrcForScalars (const amrex::Box& bx,
