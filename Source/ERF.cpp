@@ -1385,13 +1385,6 @@ ERF::init_only (int lev, Real time)
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
 
-#ifndef ERF_USE_NETCDF
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
-                                       (solverChoice.init_type != InitType::Metgrid ) &&
-                                       (solverChoice.init_type != InitType::NCFile  )  ),
-                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
-#endif
-
     // Loop over grids at this level to initialize our grid data
     lev_new[Vars::cons].setVal(0.0); lev_old[Vars::cons].setVal(0.0);
     lev_new[Vars::xvel].setVal(0.0); lev_old[Vars::xvel].setVal(0.0);
@@ -1756,6 +1749,13 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+#ifndef ERF_USE_NETCDF
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
+                                       (solverChoice.init_type != InitType::Metgrid ) &&
+                                       (solverChoice.init_type != InitType::NCFile  )  ),
+                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
+#endif
 
     // Query the canopy model file name
     std::string forestfile;
