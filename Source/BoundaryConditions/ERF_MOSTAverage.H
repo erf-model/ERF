@@ -160,7 +160,7 @@ public:
         const amrex::RealVect sx_hi = lx  - ijk;
         const amrex::RealVect sx_lo = 1.0 - sx_hi;
 
-        for (int n = 0; n < interp_comp; n++)
+        for (int n = 0; n < interp_comp; n++) {
             interp_vals[n] = sx_lo[0]*sx_lo[1]*sx_lo[2]*interp_array(i-1, j-1, k-1,n) +
                              sx_lo[0]*sx_lo[1]*sx_hi[2]*interp_array(i-1, j-1, k  ,n) +
                              sx_lo[0]*sx_hi[1]*sx_lo[2]*interp_array(i-1, j  , k-1,n) +
@@ -169,6 +169,7 @@ public:
                              sx_hi[0]*sx_lo[1]*sx_hi[2]*interp_array(i  , j-1, k  ,n) +
                              sx_hi[0]*sx_hi[1]*sx_lo[2]*interp_array(i  , j  , k-1,n) +
                              sx_hi[0]*sx_hi[1]*sx_hi[2]*interp_array(i  , j  , k  ,n);
+        }
     }
 
 protected:
