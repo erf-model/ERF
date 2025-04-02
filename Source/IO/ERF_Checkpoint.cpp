@@ -225,7 +225,7 @@ ERF::WriteCheckpointFile () const
             MultiFab z0(ba2d,dmap[lev],1,ng);
             for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                Array4<const Real> const& fab_arr = m_most->get_z0(lev)->const_array();
+                Array4<const Real> const& fab_arr = m_sgsdiff->get_z0(lev)->const_array();
                 Array4<      Real> const&  z0_arr = z0.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     z0_arr(i,j,k) = fab_arr(i,j,k);
@@ -586,8 +586,8 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(z0, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
             for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                FArrayBox* most_z0 = (m_sgsdiff->get_z0(lev));
-                most_z0->copy<RunOn::Host>(z0[mfi], bx);
+                FArrayBox* sgsdiff_z0 = (m_sgsdiff->get_z0(lev));
+                sgsdiff_z0->copy<RunOn::Host>(z0[mfi], bx);
             }
         }
 
