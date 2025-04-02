@@ -3850,7 +3850,20 @@ endif
 ! hm added 7/13/13
         SNOWPRT = SNOWPRT+(FALOUTI(KTS)+FALOUTS(KTS))*DT/NSTEP
         GRPLPRT = GRPLPRT+(FALOUTG(KTS))*DT/NSTEP
-
+#ifdef PRINT_DEBUG
+        ! Fortran version
+        if (i == 100 .and. j == 3 .and. k == 27) then
+           ! Line 1: indices and precipitation accumulation variables
+           write(10, '(i5,i5,i5,a10,es24.16,a10,es24.16,a10,es24.16,a10,es24.16)') &
+                i,j,k," PRECRT: ",precrt," SNOWRT: ",snowrt," SNOWPRT: ",snowprt," GRPLPRT: ",grplprt
+           ! Line 2: fallout rate variables
+           write(10, '(a14,es24.16,a14,es24.16,a14,es24.16)') &
+                " FALOUTR(KTS): ",faloutr(kts)," FALOUTC(KTS): ",faloutc(kts)," FALOUTS(KTS): ",falouts(kts)
+           ! Line 3: additional fallout rates and time variables
+           write(10, '(a14,es24.16,a14,es24.16,a6,es24.16,a9,i10)') &
+                " FALOUTI(KTS): ",falouti(kts)," FALOUTG(KTS): ",faloutg(kts)," DT: ",dt," NSTEP: ",nstep
+        endif
+#endif
       END DO
 
         DO K=KTS,KTE

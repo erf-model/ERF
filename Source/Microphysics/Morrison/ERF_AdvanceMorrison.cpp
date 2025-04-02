@@ -3880,13 +3880,28 @@ constexpr Real gamma_function(Real x) {
               // Factor of 1000 converts from m to mm, but division by density
               // of liquid water cancels this factor of 1000
               int kts=klo;
-              precrt(i,j,k) += (faloutr(i,j,kts) + faloutc(i,j,kts) + falouts(i,j,kts) +
+              precrt(i,j,klo) += (faloutr(i,j,kts) + faloutc(i,j,kts) + falouts(i,j,kts) +
                          falouti(i,j,kts) + faloutg(i,j,kts)) * dt / nstep;
-              snowrt(i,j,k) += (falouts(i,j,kts) + falouti(i,j,kts) + faloutg(i,j,kts)) * dt / nstep;
+              snowrt(i,j,klo) += (falouts(i,j,kts) + falouti(i,j,kts) + faloutg(i,j,kts)) * dt / nstep;
 
               // Added 7/13/13
-              snowprt(i,j,k) += (falouti(i,j,kts) + falouts(i,j,kts)) * dt / nstep;
-              grplprt(i,j,k) += faloutg(i,j,kts) * dt / nstep;
+              snowprt(i,j,klo) += (falouti(i,j,kts) + falouts(i,j,kts)) * dt / nstep;
+              grplprt(i,j,klo) += faloutg(i,j,kts) * dt / nstep;
+#ifdef PRINT_DEBUG
+              if (i == 100 && j == 3 && k == 27) {
+                // Line 1: indices and precipitation accumulation variables
+                fprintf(file, "%5d %5d %5d PRECRT: %24.16e SNOWRT: %24.16e SNOWPRT: %24.16e GRPLPRT: %24.16e\n",
+                        i, j, k, precrt(i,j,klo), snowrt(i,j,klo), snowprt(i,j,klo), grplprt(i,j,klo));
+
+                // Line 2: fallout rate variables
+                fprintf(file, "FALOUTR(KTS): %24.16e FALOUTC(KTS): %24.16e FALOUTS(KTS): %24.16e\n",
+                        faloutr(i,j,kts), faloutc(i,j,kts), falouts(i,j,kts));
+
+                // Line 3: additional fallout rates and time variables
+                fprintf(file, "FALOUTI(KTS): %24.16e FALOUTG(KTS): %24.16e DT: %24.16e NSTEP: %10d\n",
+                        falouti(i,j,kts), faloutg(i,j,kts), dt, nstep);
+              }
+#endif
             }
             for(int k=klo; k<=khi; k++) {
               amrex::Real evs;                // EVS: Saturation vapor pressure
@@ -4259,9 +4274,10 @@ constexpr Real gamma_function(Real x) {
               goto label_400;
             }
          label_400:*/
-            for(int k=klo; k<=khi; k++) {
             //End of _micro
             if(use_morr_cpp_answer) {
+              for(int k=klo; k<=khi; k++) {
+
             // Transfer 1D variables back to 3D arrays
             qcl_arr(i,j,k) = qc3d(i,j,k);
             qci_arr(i,j,k) = qi3d(i,j,k);
@@ -4278,21 +4294,21 @@ constexpr Real gamma_function(Real x) {
             qv_arr(i,j,k) = qv3d(i,j,k);
 
             //Deleted wrf-check, effc, and precr type data as not used by ERF
-
-            /* // NEED gpu-compatabile summation for rain_accum, check SAM or Kessler for better example
+            /*
+            // NEED gpu-compatabile summation for rain_accum, check SAM or Kessler for better example
             rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + precrt(i,j,k);
             snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + snowprt(i,j,k);
-            graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + grplprt(i,j,k);
+            graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + grplprt(i,j,k);*/
+            rainncv_arr(i,j,k) = precrt(i,j,k);
+            snowncv_arr(i,j,k) = snowprt(i,j,k);
+            graupelncv_arr(i,j,k) = grplprt(i,j,k);
+            sr_arr(i,j,k) = snowrt(i,j,k) / (precrt(i,j,k) + 1.e-12);
+              }
             // Update precipitation accumulation variables
             // These are outside the k-loop in the original code
-            rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + precrt(i,j,k);
-            rainncv_arr(i,j) = precrt(i,j,k);
-            snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + snowprt(i,j,k);
-            snowncv_arr(i,j) = snowprt(i,j,k);
-            graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + grplprt(i,j,k);
-            graupelncv_arr(i,j) = grplprt(i,j,k);
-            sr_arr(i,j) = snowrt(i,j,k) / (precrt(i,j,k) + 1.e-12);*/
-            }
+            rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + precrt(i,j,klo);
+            snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + snowprt(i,j,klo);
+            graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + grplprt(i,j,klo);
             }
          });
           fclose(file);
