@@ -4299,10 +4299,10 @@ constexpr Real gamma_function(Real x) {
             rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + precrt(i,j,k);
             snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + snowprt(i,j,k);
             graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + grplprt(i,j,k);*/
-            rainncv_arr(i,j,k) = precrt(i,j,k);
-            snowncv_arr(i,j,k) = snowprt(i,j,k);
-            graupelncv_arr(i,j,k) = grplprt(i,j,k);
-            sr_arr(i,j,k) = snowrt(i,j,k) / (precrt(i,j,k) + 1.e-12);
+            rainncv_arr(i,j,0) = precrt(i,j,klo);
+            snowncv_arr(i,j,0) = snowprt(i,j,klo);
+            graupelncv_arr(i,j,0) = grplprt(i,j,klo);
+            sr_arr(i,j,0) = snowrt(i,j,klo) / (precrt(i,j,klo) + 1.e-12);
               }
             // Update precipitation accumulation variables
             // These are outside the k-loop in the original code
