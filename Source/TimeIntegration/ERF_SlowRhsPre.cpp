@@ -252,7 +252,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
 
-        // Boxex for momemtum fluxes
+        // Boxex for momentum fluxes
         Vector<Box> tbx_grown(AMREX_SPACEDIM);
         Vector<Box> tby_grown(AMREX_SPACEDIM);
         Vector<Box> tbz_grown(AMREX_SPACEDIM);
