@@ -17,7 +17,7 @@
 #include "ERF_NullMoist.H"
 #include "ERF_Morrison.H"
 #include <ERF_Morrison_Fortran_Interface.H>
-#define PRINT_DEBUG
+//#define PRINT_DEBUG
 using namespace amrex;
 
 constexpr Real xxx = 0.9189385332046727417803297;
@@ -1576,13 +1576,13 @@ constexpr Real gamma_function(Real x) {
             rsed = 0.0;
 
             // LATENT HEAT OF VAPORIZATION
-            xxlv = 3.1484E6 - 2370.0 * t3d(i,j,k);
+            xxlv(i,j,k) = 3.1484E6 - 2370.0 * t3d(i,j,k);
             // LATENT HEAT OF SUBLIMATION
-            xxls = 3.15E6 - 2370.0 * t3d(i,j,k) + 0.3337E6;
+            xxls(i,j,k) = 3.15E6 - 2370.0 * t3d(i,j,k) + 0.3337E6;
 
             // Assuming CP is a constant defined elsewhere (specific heat of dry air at constant pressure)
             const amrex::Real CP = 1004.5; // J/kg/K
-            cpm = CP * (1.0 + 0.887 * qv3d(i,j,k));
+            cpm(i,j,k) = CP * (1.0 + 0.887 * qv3d(i,j,k));
 
             // SATURATION VAPOR PRESSURE AND MIXING RATIO
             // hm, add fix for low pressure, 5/12/10
@@ -1595,7 +1595,7 @@ constexpr Real gamma_function(Real x) {
                 (i == 92 && j == 0 && k == 17)) {
               FILE *file = fopen("output_cpp.txt", "a");
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
-                      i, j, k, xxlv, xxls, cpm, evs, eis, t3d(i,j,k), CP, qv3d(i,j,k), pres(i,j,k));
+                      i, j, k, xxlv(i,j,k), xxls(i,j,k), cpm(i,j,k), evs, eis, t3d(i,j,k), CP, qv3d(i,j,k), pres(i,j,k));
             }
 #endif
 #ifdef PRINT_DEBUG
@@ -1645,12 +1645,12 @@ constexpr Real gamma_function(Real x) {
             if (qvqvs < 0.9) {
               if (qr3d(i,j,k) < 1.0e-8) {
                 qv3d(i,j,k) += qr3d(i,j,k); // budget equation: transfer rain to vapor
-                t3d(i,j,k) -= qr3d(i,j,k) * xxlv / cpm; // budget equation: adjust temperature
+                t3d(i,j,k) -= qr3d(i,j,k) * xxlv(i,j,k) / cpm(i,j,k); // budget equation: adjust temperature
                 qr3d(i,j,k) = 0.0; // temporary update: set rain to zero
               }
               if (qc3d(i,j,k) < 1.0e-8) {
                 qv3d(i,j,k) += qc3d(i,j,k); // budget equation: transfer cloud water to vapor
-                t3d(i,j,k) -= qc3d(i,j,k) * xxlv / cpm; // budget equation: adjust temperature
+                t3d(i,j,k) -= qc3d(i,j,k) * xxlv(i,j,k) / cpm(i,j,k); // budget equation: adjust temperature
                 qc3d(i,j,k) = 0.0; // temporary update: set cloud water to zero
               }
             }
@@ -1662,17 +1662,17 @@ constexpr Real gamma_function(Real x) {
             if (qvqvsi < 0.9) {
               if (qi3d(i,j,k) < 1.0e-8) {
                 qv3d(i,j,k) += qi3d(i,j,k); // budget equation: transfer cloud ice to vapor
-                t3d(i,j,k) -= qi3d(i,j,k) * xxls / cpm; // budget equation: adjust temperature
+                t3d(i,j,k) -= qi3d(i,j,k) * xxls(i,j,k) / cpm(i,j,k); // budget equation: adjust temperature
                 qi3d(i,j,k) = 0.0; // temporary update: set cloud ice to zero
               }
               if (qni3d(i,j,k) < 1.0e-8) {
                 qv3d(i,j,k) += qni3d(i,j,k); // budget equation: transfer snow to vapor
-                t3d(i,j,k) -= qni3d(i,j,k) * xxls / cpm; // budget equation: adjust temperature
+                t3d(i,j,k) -= qni3d(i,j,k) * xxls(i,j,k) / cpm(i,j,k); // budget equation: adjust temperature
                 qni3d(i,j,k) = 0.0; // temporary update: set snow to zero
               }
               if (qg3d(i,j,k) < 1.0e-8) {
                 qv3d(i,j,k) += qg3d(i,j,k); // budget equation: transfer graupel to vapor
-                t3d(i,j,k) -= qg3d(i,j,k) * xxls / cpm; // budget equation: adjust temperature
+                t3d(i,j,k) -= qg3d(i,j,k) * xxls(i,j,k) / cpm(i,j,k); // budget equation: adjust temperature
                 qg3d(i,j,k) = 0.0; // temporary update: set graupel to zero
               }
             }
@@ -1695,12 +1695,12 @@ constexpr Real gamma_function(Real x) {
                 (i == 186 && j == 1 && k == 90) ||
                 (i == 177 && j == 2 && k == 65)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
-                      i, j, k, xxlv, xxls, cpm, evs, eis, t3d(i,j,k), CP, qv3d(i,j,k), pres(i,j,k),
+                      i, j, k, xxlv(i,j,k), xxls(i,j,k), cpm(i,j,k), evs, eis, t3d(i,j,k), CP, qv3d(i,j,k), pres(i,j,k),
                       qvs, qvi, qvqvs, qvqvsi, rho, qr3d(i,j,k), qc3d(i,j,k), qi3d(i,j,k), qni3d(i,j,k), qg3d(i,j,k), nr3d(i,j,k), ns3d(i,j,k), ni3d(i,j,k));
             }
 #endif
             // HEAT OF FUSION
-            xlf = xxls - xxlv;
+            xlf(i,j,k) = xxls(i,j,k) - xxlv(i,j,k);
 
             // IF MIXING RATIO < QSMALL SET MIXING RATIO AND NUMBER CONC TO ZERO
             // Note: QSMALL is not defined in the variable list, so I'll define it
@@ -1820,10 +1820,10 @@ constexpr Real gamma_function(Real x) {
             // Psychometric corrections
             // Rate of change sat. mix. ratio with temperature
             dum = (m_Rv * t3d(i,j,k) * t3d(i,j,k)); // temporary update: calculate temperature factor
-            dqsdt = xxlv * qvs / dum; // budget equation: calculate DQSDT
-            dqsidt = xxls * qvi / dum; // budget equation: calculate DQSIDT
-            abi = 1.0 + dqsidt * xxls / cpm; // budget equation: calculate ABI
-            ab = 1.0 + dqsdt * xxlv / cpm; // budget equation: calculate AB
+            dqsdt = xxlv(i,j,k) * qvs / dum; // budget equation: calculate DQSDT
+            dqsidt = xxls(i,j,k) * qvi / dum; // budget equation: calculate DQSIDT
+            abi = 1.0 + dqsidt * xxls(i,j,k) / cpm(i,j,k); // budget equation: calculate ABI
+            ab = 1.0 + dqsdt * xxlv(i,j,k) / cpm(i,j,k); // budget equation: calculate AB
 
             // CASE FOR TEMPERATURE ABOVE FREEZING
             if (t3d(i,j,k) >= 273.15) {
@@ -1848,7 +1848,7 @@ constexpr Real gamma_function(Real x) {
               if (qni3d(i,j,k) < 1.0e-6) {
                 qr3d(i,j,k) = qr3d(i,j,k) + qni3d(i,j,k);         // Transfer snow to rain
                 nr3d(i,j,k) = nr3d(i,j,k) + ns3d(i,j,k);          // Transfer snow number to rain
-                t3d(i,j,k) = t3d(i,j,k) - qni3d(i,j,k) * xlf / cpm; // Adjust temperature
+                t3d(i,j,k) = t3d(i,j,k) - qni3d(i,j,k) * xlf(i,j,k) / cpm(i,j,k); // Adjust temperature
                 qni3d(i,j,k) = 0.0;                 // Set snow to zero
                 ns3d(i,j,k) = 0.0;                  // Set snow number to zero
               }
@@ -1856,7 +1856,7 @@ constexpr Real gamma_function(Real x) {
               if (qg3d(i,j,k) < 1.0e-6) {
                 qr3d(i,j,k) = qr3d(i,j,k) + qg3d(i,j,k);          // Transfer graupel to rain
                 nr3d(i,j,k) = nr3d(i,j,k) + ng3d(i,j,k);          // Transfer graupel number to rain
-                t3d(i,j,k) = t3d(i,j,k) - qg3d(i,j,k) * xlf / cpm;  // Adjust temperature
+                t3d(i,j,k) = t3d(i,j,k) - qg3d(i,j,k) * xlf(i,j,k) / cpm(i,j,k);  // Adjust temperature
                 qg3d(i,j,k) = 0.0;                  // Set graupel to zero
                 ng3d(i,j,k) = 0.0;                  // Set graupel number to zero
               }
@@ -2200,11 +2200,11 @@ constexpr Real gamma_function(Real x) {
                 if (qni3d(i,j,k) >= 1.0e-8) {
                   // fix 053011
                   // HM, MODIFY FOR V3.2, ADD ACCELERATED MELTING DUE TO COLLISION WITH RAIN
-                  dum = -m_cpw/xlf * (t3d(i,j,k) - 273.15) * pracs;
+                  dum = -m_cpw/xlf(i,j,k) * (t3d(i,j,k) - 273.15) * pracs;
 
                   // hm fix 1/20/15
                   psmlt = 2.0 * m_pi * n0s(0,0,k) * kap * (273.15 - t3d(i,j,k)) /
-                    xlf * (m_f1s/(lams(0,0,k)*lams(0,0,k)) +
+                    xlf(i,j,k) * (m_f1s/(lams(0,0,k)*lams(0,0,k)) +
                            m_f2s * std::sqrt(asn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
                            std::pow(sc_schmidt, 1.0/3.0) * m_cons10 /
                            std::pow(lams(0,0,k), m_cons35)) + dum;
@@ -2231,11 +2231,11 @@ constexpr Real gamma_function(Real x) {
                   // fix 053011
                   // HM, MODIFY FOR V3.2, ADD ACCELERATED MELTING DUE TO COLLISION WITH RAIN
 
-                  dum = -m_cpw/xlf * (t3d(i,j,k) - 273.15) * pracg;
+                  dum = -m_cpw/xlf(i,j,k) * (t3d(i,j,k) - 273.15) * pracg;
 
                   // hm fix 1/20/15
                   pgmlt = 2.0 * m_pi * n0g(0,0,k) * kap * (273.15 - t3d(i,j,k)) /
-                    xlf * (m_f1s/(lamg(0,0,k)*lamg(0,0,k)) +
+                    xlf(i,j,k) * (m_f1s/(lamg(0,0,k)*lamg(0,0,k)) +
                            m_f2s * std::sqrt(agn(i,j,k)*rho(i,j,k)/mu(i,j,k)) *
                            std::pow(sc_schmidt, 1.0/3.0) * m_cons11 /
                            std::pow(lamg(0,0,k), m_cons36)) + dum;
@@ -2304,9 +2304,9 @@ constexpr Real gamma_function(Real x) {
                 // Update tendencies
                 qv3dten(i,j,k) = qv3dten(i,j,k) + (-pre - evpms - evpmg);
 
-                t3dten(i,j,k) = t3dten(i,j,k) + (pre * xxlv +
-                                                 (evpms + evpmg) * xxls +
-                                                 (psmlt + pgmlt - pracs - pracg) * xlf) / cpm;
+                t3dten(i,j,k) = t3dten(i,j,k) + (pre * xxlv(i,j,k) +
+                                                 (evpms + evpmg) * xxls(i,j,k) +
+                                                 (psmlt + pgmlt - pracs - pracg) * xlf(i,j,k)) / cpm(i,j,k);
 
                 qc3dten(i,j,k) = qc3dten(i,j,k) + (-pra - prc);
                 qr3dten(i,j,k) = qr3dten(i,j,k) + (pre + pra + prc - psmlt - pgmlt + pracs + pracg);
@@ -2381,14 +2381,14 @@ constexpr Real gamma_function(Real x) {
 
               // Saturation adjustment for liquid
               dums = dumqv - dumqss;
-              pcc = dums / (1.0 + xxlv * xxlv * dumqss / (cpm * m_Rv * dumt * dumt)) / dt;
+              pcc = dums / (1.0 + xxlv(i,j,k) * xxlv(i,j,k) * dumqss / (cpm(i,j,k) * m_Rv * dumt * dumt)) / dt;
               if (pcc * dt + dumqc < 0.0) {
                 pcc = -dumqc / dt;
               }
 
               // Update tendencies
               qv3dten(i,j,k) -= pcc;
-              t3dten(i,j,k) += pcc * xxlv / cpm;
+              t3dten(i,j,k) += pcc * xxlv(i,j,k) / cpm(i,j,k);
               qc3dten(i,j,k) += pcc;
 #ifdef PRINT_DEBUG
               if (i == 100 && j == 3 && k == 27) {
@@ -2695,10 +2695,10 @@ constexpr Real gamma_function(Real x) {
                 if (i == 100 && j == 3 && k == 27) {
                   // Line 1: indices and first variables
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
+                          i, j, k, pre, xxlv(i,j,k), prd, prds, "mnuccd:", mnuccd);
                   // Line 2: continuing variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          eprd, eprds, prdg, eprdg, "xxls:", xxls);
+                          eprd, eprds, prdg, eprdg, "xxls(i,j,k):", xxls(i,j,k));
                   // Line 3: continuing variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           psacws, psacwi, mnuccc, mnuccr, "qmults:", qmults);
@@ -2710,7 +2710,7 @@ constexpr Real gamma_function(Real x) {
                           pracg, pgsacw, pgracs, piacr, "piacrs:", piacrs);
                   // Line 6: final variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          xlf, cpm, pcc, pra, "prc:", prc);
+                          xlf(i,j,k), cpm(i,j,k), pcc, pra, "prc:", prc);
                   // Line 7: final variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           prci, prai, praci, pracis, "---END---:", 0.0);
@@ -2750,10 +2750,10 @@ constexpr Real gamma_function(Real x) {
                 if (i == 100 && j == 3 && k == 27) {
                   // Line 1: indices and first variables
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
+                          i, j, k, pre, xxlv(i,j,k), prd, prds, "mnuccd:", mnuccd);
                   // Line 2: continuing variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          eprd, eprds, prdg, eprdg, "xxls:", xxls);
+                          eprd, eprds, prdg, eprdg, "xxls(i,j,k):", xxls(i,j,k));
                   // Line 3: continuing variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           psacws, psacwi, mnuccc, mnuccr, "qmults:", qmults);
@@ -2765,7 +2765,7 @@ constexpr Real gamma_function(Real x) {
                           pracg, pgsacw, pgracs, piacr, "piacrs:", piacrs);
                   // Line 6: final variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          xlf, cpm, pcc, pra, "prc:", prc);
+                          xlf(i,j,k), cpm(i,j,k), pcc, pra, "prc:", prc);
                   // Line 7: final variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           prci, prai, praci, pracis, "---END---:", 0.0);
@@ -3233,10 +3233,10 @@ constexpr Real gamma_function(Real x) {
                 if (i == 100 && j == 3 && k == 27) {
                   // Line 1: indices and first variables
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
+                          i, j, k, pre, xxlv(i,j,k), prd, prds, "mnuccd:", mnuccd);
                   // Line 2: continuing variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          eprd, eprds, prdg, eprdg, "xxls:", xxls);
+                          eprd, eprds, prdg, eprdg, "xxls(i,j,k):", xxls(i,j,k));
                   // Line 3: continuing variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           psacws, psacwi, mnuccc, mnuccr, "qmults:", qmults);
@@ -3248,7 +3248,7 @@ constexpr Real gamma_function(Real x) {
                           pracg, pgsacw, pgracs, piacr, "piacrs:", piacrs);
                   // Line 6: final variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          xlf, cpm, pcc, pra, "prc:", prc);
+                          xlf(i,j,k), cpm(i,j,k), pcc, pra, "prc:", prc);
                   // Line 7: final variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           prci, prai, praci, pracis, "---END---:", 0.0);
@@ -3397,10 +3397,10 @@ constexpr Real gamma_function(Real x) {
                 qv3dten(i,j,k) = qv3dten(i,j,k) + (-pre - prd - prds - mnuccd - eprd - eprds - prdg - eprdg);
 
                 // bug fix hm, 3/1/11, include piacr and piacrs
-                t3dten(i,j,k) = t3dten(i,j,k) + (pre * xxlv +
-                                                 (prd + prds + mnuccd + eprd + eprds + prdg + eprdg) * xxls +
+                t3dten(i,j,k) = t3dten(i,j,k) + (pre * xxlv(i,j,k) +
+                                                 (prd + prds + mnuccd + eprd + eprds + prdg + eprdg) * xxls(i,j,k) +
                                                  (psacws + psacwi + mnuccc + mnuccr + qmults + qmultg + qmultr + qmultrg + pracs +
-                                                  psacwg + pracg + pgsacw + pgracs + piacr + piacrs) * xlf) / cpm;
+                                                  psacwg + pracg + pgsacw + pgracs + piacr + piacrs) * xlf(i,j,k)) / cpm(i,j,k);
 
                 qc3dten(i,j,k) = qc3dten(i,j,k) +
                   (-pra - prc - mnuccc + pcc -
@@ -3418,10 +3418,10 @@ constexpr Real gamma_function(Real x) {
                 if (i == 100 && j == 3 && k == 27) {
                   // Line 1: indices and first variables
                   fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          i, j, k, pre, xxlv, prd, prds, "mnuccd:", mnuccd);
+                          i, j, k, pre, xxlv(i,j,k), prd, prds, "mnuccd:", mnuccd);
                   // Line 2: continuing variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          eprd, eprds, prdg, eprdg, "xxls:", xxls);
+                          eprd, eprds, prdg, eprdg, "xxls(i,j,k):", xxls(i,j,k));
                   // Line 3: continuing variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           psacws, psacwi, mnuccc, mnuccr, "qmults:", qmults);
@@ -3433,7 +3433,7 @@ constexpr Real gamma_function(Real x) {
                           pracg, pgsacw, pgracs, piacr, "piacrs:", piacrs);
                   // Line 6: final variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
-                          xlf, cpm, pcc, pra, "prc:", prc);
+                          xlf(i,j,k), cpm(i,j,k), pcc, pra, "prc:", prc);
                   // Line 7: final variables
                   fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
                           prci, prai, praci, pracis, "---END---:", 0.0);
@@ -3486,14 +3486,14 @@ constexpr Real gamma_function(Real x) {
                 // SATURATION ADJUSTMENT FOR LIQUID
                 dums = dumqv - dumqss;
 
-                pcc = dums / (1.0 + std::pow(xxlv, 2) * dumqss / (cpm * m_Rv * std::pow(dumt, 2))) / dt;
+                pcc = dums / (1.0 + std::pow(xxlv(i,j,k), 2) * dumqss / (cpm(i,j,k) * m_Rv * std::pow(dumt, 2))) / dt;
 
                 if (pcc * dt + dumqc < 0.0) {
                   pcc = -dumqc / dt;
                 }
 
                 qv3dten(i,j,k) = qv3dten(i,j,k) - pcc;
-                t3dten(i,j,k) = t3dten(i,j,k) + pcc * xxlv / cpm;
+                t3dten(i,j,k) = t3dten(i,j,k) + pcc * xxlv(i,j,k) / cpm(i,j,k);
                 qc3dten(i,j,k) = qc3dten(i,j,k) + pcc;
 #ifdef PRINT_DEBUG
                 if (i == 100 && j == 3 && k == 27) {
@@ -3946,18 +3946,6 @@ constexpr Real gamma_function(Real x) {
               t3d(i,j,k) = t3d(i,j,k) + t3dten(i,j,k)*dt;
               qv3d(i,j,k) = qv3d(i,j,k) + qv3dten(i,j,k)*dt;
 
-              // LATENT HEAT OF VAPORIZATION
-              xxlv = 3.1484E6 - 2370.0 * t3d(i,j,k);
-              // LATENT HEAT OF SUBLIMATION
-              xxls = 3.15E6 - 2370.0 * t3d(i,j,k) + 0.3337E6;
-
-              // HEAT OF FUSION
-              xlf = xxls - xxlv;
-
-              // Assuming CP is a constant defined elsewhere (specific heat of dry air at constant pressure)
-              const amrex::Real CP = 1004.5; // J/kg/K
-              cpm = CP * (1.0 + 0.887 * qv3d(i,j,k));
-
               // SATURATION VAPOR PRESSURE AND MIXING RATIO
               // hm, add fix for low pressure, 5/12/10
               // Assuming POLYSVP is defined elsewhere
@@ -3978,19 +3966,19 @@ constexpr Real gamma_function(Real x) {
               qvqvsi = qv3d(i,j,k) / qvi; // budget equation: calculate ice saturation ratio
 #ifdef PRINT_DEBUG
                 if (i == 100 && j == 3 && k == 27) {
-                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qvqvs,qvqvsi,qr3d(i,j,k),qc3d(i,j,k),qni3d(i,j,k),qi3d(i,j,k),qg3d(i,j,k),xxlv,cpm);
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",i,j,k, qvqvs,qvqvsi,qr3d(i,j,k),qc3d(i,j,k),qni3d(i,j,k),qi3d(i,j,k),qg3d(i,j,k),xxlv(i,j,k),cpm(i,j,k));
                 }
 #endif
               // AT SUBSATURATION, REMOVE SMALL AMOUNTS OF CLOUD/PRECIP WATER
               if (qvqvs < 0.9) {
                 if (qr3d(i,j,k) < 1.0e-8) {
                   qv3d(i,j,k) += qr3d(i,j,k);
-                  t3d(i,j,k) -= qr3d(i,j,k) * xxlv / cpm;
+                  t3d(i,j,k) -= qr3d(i,j,k) * xxlv(i,j,k) / cpm(i,j,k);
                   qr3d(i,j,k) = 0.0;
                 }
                 if (qc3d(i,j,k) < 1.0e-8) {
                   qv3d(i,j,k) += qc3d(i,j,k);
-                  t3d(i,j,k) -= qc3d(i,j,k) * xxlv / cpm;
+                  t3d(i,j,k) -= qc3d(i,j,k) * xxlv(i,j,k) / cpm(i,j,k);
                   qc3d(i,j,k) = 0.0;
                 }
               }
@@ -4002,17 +3990,17 @@ constexpr Real gamma_function(Real x) {
               if (qvqvsi < 0.9) {
                 if (qi3d(i,j,k) < 1.0e-8) {
                   qv3d(i,j,k) += qi3d(i,j,k);
-                  t3d(i,j,k) -= qi3d(i,j,k) * xxls / cpm;
+                  t3d(i,j,k) -= qi3d(i,j,k) * xxls(i,j,k) / cpm(i,j,k);
                   qi3d(i,j,k) = 0.0;
                 }
                 if (qni3d(i,j,k) < 1.0e-8) {
                   qv3d(i,j,k) += qni3d(i,j,k);
-                  t3d(i,j,k) -= qni3d(i,j,k) * xxls / cpm;
+                  t3d(i,j,k) -= qni3d(i,j,k) * xxls(i,j,k) / cpm(i,j,k);
                   qni3d(i,j,k) = 0.0;
                 }
                 if (qg3d(i,j,k) < 1.0e-8) {
                   qv3d(i,j,k) += qg3d(i,j,k);
-                  t3d(i,j,k) -= qg3d(i,j,k) * xxls / cpm;
+                  t3d(i,j,k) -= qg3d(i,j,k) * xxls(i,j,k) / cpm(i,j,k);
                   qg3d(i,j,k) = 0.0;
                 }
               }
@@ -4067,7 +4055,7 @@ constexpr Real gamma_function(Real x) {
               // ADD MELTING OF CLOUD ICE TO FORM RAIN
               if (qi3d(i,j,k) >= m_qsmall && t3d(i,j,k) >= 273.15) {
                 qr3d(i,j,k) = qr3d(i,j,k) + qi3d(i,j,k);
-                t3d(i,j,k) = t3d(i,j,k) - qi3d(i,j,k) * xlf / cpm;
+                t3d(i,j,k) = t3d(i,j,k) - qi3d(i,j,k) * xlf(i,j,k) / cpm(i,j,k);
                 qi3d(i,j,k) = 0.0;
                 nr3d(i,j,k) = nr3d(i,j,k) + ni3d(i,j,k);
                 ni3d(i,j,k) = 0.0;
@@ -4081,7 +4069,7 @@ constexpr Real gamma_function(Real x) {
                 // HOMOGENEOUS FREEZING OF CLOUD WATER
                 if (t3d(i,j,k) <= 233.15 && qc3d(i,j,k) >= m_qsmall) {
                   qi3d(i,j,k) = qi3d(i,j,k) + qc3d(i,j,k);
-                  t3d(i,j,k) = t3d(i,j,k) + qc3d(i,j,k) * xlf / cpm;
+                  t3d(i,j,k) = t3d(i,j,k) + qc3d(i,j,k) * xlf(i,j,k) / cpm(i,j,k);
                   qc3d(i,j,k) = 0.0;
                   ni3d(i,j,k) = ni3d(i,j,k) + nc3d(i,j,k);
                   nc3d(i,j,k) = 0.0;
@@ -4095,7 +4083,7 @@ constexpr Real gamma_function(Real x) {
                 if (m_igraup == 0) {
                   if (t3d(i,j,k) <= 233.15 && qr3d(i,j,k) >= m_qsmall) {
                     qg3d(i,j,k) = qg3d(i,j,k) + qr3d(i,j,k);
-                    t3d(i,j,k) = t3d(i,j,k) + qr3d(i,j,k) * xlf / cpm;
+                    t3d(i,j,k) = t3d(i,j,k) + qr3d(i,j,k) * xlf(i,j,k) / cpm(i,j,k);
                     qr3d(i,j,k) = 0.0;
                     ng3d(i,j,k) = ng3d(i,j,k) + nr3d(i,j,k);
                     nr3d(i,j,k) = 0.0;
@@ -4103,7 +4091,7 @@ constexpr Real gamma_function(Real x) {
                 } else if (m_igraup == 1) {
                   if (t3d(i,j,k) <= 233.15 && qr3d(i,j,k) >= m_qsmall) {
                     qni3d(i,j,k) = qni3d(i,j,k) + qr3d(i,j,k);
-                    t3d(i,j,k) = t3d(i,j,k) + qr3d(i,j,k) * xlf / cpm;
+                    t3d(i,j,k) = t3d(i,j,k) + qr3d(i,j,k) * xlf(i,j,k) / cpm(i,j,k);
                     qr3d(i,j,k) = 0.0;
                     ns3d(i,j,k) = ns3d(i,j,k) + nr3d(i,j,k);
                     nr3d(i,j,k) = 0.0;

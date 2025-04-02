@@ -1,4 +1,4 @@
-#define PRINT_DEBUG
+!#define PRINT_DEBUG
 !WRF:MODEL_LAYER:PHYSICS
 !
 
