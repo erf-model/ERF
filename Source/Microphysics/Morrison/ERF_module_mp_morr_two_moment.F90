@@ -1,4 +1,3 @@
-!#define PRINT_DEBUG
 !WRF:MODEL_LAYER:PHYSICS
 !
 
@@ -568,7 +567,7 @@ END SUBROUTINE MORR_TWO_MOMENT_INIT
 ! FOR QUESTIONS, CONTACT: HUGH MORRISON, E-MAIL: MORRISON@UCAR.EDU, PHONE:303-497-8916
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+!#define PRINT_DEBUG
 SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                 TH, QV, QC, QR, QI, QS, QG, NI, NS, NR, NG, &
                 RHO, PII, P, DT_IN, DZ, HT, W,          &
@@ -1263,9 +1262,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 #endif
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
 ! MAKE SURE ICE SATURATION DOESN'T EXCEED WATER SAT. NEAR FREEZING
@@ -1317,9 +1316,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
              END IF
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
              IF (QVQVSI(K).LT.0.9) THEN
@@ -1348,7 +1347,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                   (k == 0 .or. k == 1 .or. k == 126 .or. k == 127))) .or. &
                   (i == 175 .and. j == 1 .and. k == 50) .or. &
                   (i == 180 .and. j == 2 .and. k == 75) .or. &
-                  (i == 185 .and. j == 1 .and. k == 100) .or. &
+                  (i == 185 .and. j == 1 .and. k == 87) .or. &
                   (i == 170 .and. j == 0 .and. k == 30) .or. &
                   (i == 188 .and. j == 3 .and. k == 60) .or. &
                   (i == 178 .and. j == 2 .and. k == 40) .or. &
@@ -1397,14 +1396,14 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
        END IF
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
 #if 0
       ! Fortran version
-      if (i == 100 .and. j == 3 .and. k == 27) then
+      if (i == 87 .and. j == 3 .and. k == 27) then
          write(10, '(i5,i5,i5,3(es24.16))') &
               i,j,k,lamr(k),n0rr(k),pgam(k)
          write(10, '(i5,i5,i5,8(es24.16))') &
@@ -1448,7 +1447,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
             AGN(K) = DUM*AG
 #ifdef PRINT_DEBUG
             ! Fortran version
-            if (i == 100 .and. j == 3 .and. k == 27) then
+            if (i == 87 .and. j == 3 .and. k == 27) then
                ! Line 1: indices and main calculated variables
                write(10, '(i5,i5,i5,a8,es24.16,a14,es24.16,a14,es24.16,a14,es24.16)') &
                     i,j,k,"mu(k):",mu(k),"ain(k):",ain(k),"arn(k):",arn(k),"asn(k):",asn(k)
@@ -1540,7 +1539,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
        END IF
 #ifdef PRINT_DEBUG
        ! Fortran version
-       if  (i == 100 .and. j == 3 .and. k == 27) then
+       if  (i == 87 .and. j == 3 .and. k == 27) then
           write(10, '(i5,i5,i5,8(es24.16))') &
                i,j,k,t3d(k),nc3d(k),qr3d(k),nr3d(k),qni3d(k),ns3d(k),qg3d(k),ng3d(k)
        endif
@@ -1582,9 +1581,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END IF
       END IF
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                 i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
 !......................................................................
@@ -1677,7 +1676,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END IF
 #ifdef PRINT_DEBUG
       ! Fortran version
-      if (i == 100 .and. j == 3 .and. k == 27) then
+      if (i == 87 .and. j == 3 .and. k == 27) then
          write(10, '(i5,i5,i5,12(es24.16))') &
               i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
          write(10,*) " ng warm"
@@ -2056,9 +2055,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NR3DTEN(K) = NR3DTEN(K)+ (NPRC1(K)+NRAGG(K)-NPRACG(K))
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                 i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                 i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
 ! HM ADD, WRF-CHEM, ADD TENDENCIES FOR C2PREC
@@ -2122,7 +2121,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
 #ifdef PRINT_DEBUG
       ! Fortran version
-      if (i == 100 .and. j == 3 .and. k == 27) then
+      if (i == 87 .and. j == 3 .and. k == 27) then
          write(10, '(i5,i5,i5,14(es24.16))') &
               i,j,k,t3d(k),qv3d(k),pres(k),qc3d(k),t3dten(k),qv3dten(k),qc3dten(k), &
               dumt,dumqv,dum,dumqss,dumqc,dums,pcc(k)
@@ -2293,7 +2292,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END IF
 #ifdef PRINT_DEBUG
       ! Fortran version
-      if (i == 100 .and. j == 3 .and. k == 27) then
+      if (i == 87 .and. j == 3 .and. k == 27) then
          write(10, '(i5,i5,i5,12(es24.16))') &
               i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
          write(10,*) " ng cold"
@@ -2328,7 +2327,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END IF
 #ifdef PRINT_DEBUG
       ! Fortran version
-      if (i == 100 .and. j == 3 .and. k == 27) then
+      if (i == 87 .and. j == 3 .and. k == 27) then
          write(10, '(i5,i5,i5,12(es24.16))') &
               i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
          write(10,*) " ng cold"
@@ -2495,7 +2494,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
          END IF
 #ifdef PRINT_DEBUG
       ! Fortran version
-      if (i == 100 .and. j == 3 .and. k == 27) then
+      if (i == 87 .and. j == 3 .and. k == 27) then
          ! Line 1: indices and first variables
          write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
               i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
@@ -2564,7 +2563,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
             END IF
 #ifdef PRINT_DEBUG
       ! Fortran version
-      if (i == 100 .and. j == 3 .and. k == 27) then
+      if (i == 87 .and. j == 3 .and. k == 27) then
          ! Line 1: indices and first variables
          write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
               i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
@@ -3152,7 +3151,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
            END IF
 #ifdef PRINT_DEBUG
       ! Fortran version
-      if (i == 100 .and. j == 3 .and. k == 27) then
+      if (i == 87 .and. j == 3 .and. k == 27) then
          ! Line 1: indices and first variables
          write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
               i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
@@ -3358,7 +3357,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
              -PIACR(K)-PIACRS(K)-PRACG(K)-PGRACS(K))
 #ifdef PRINT_DEBUG
       ! Fortran version
-      if (i == 100 .and. j == 3 .and. k == 27) then
+      if (i == 87 .and. j == 3 .and. k == 27) then
          ! Line 1: indices and first variables
          write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
               i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
@@ -3444,9 +3443,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
 !.......................................................................
@@ -3606,7 +3605,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END IF
 #ifdef PRINT_DEBUG
 ! Fortran version
-if ((i == 100 .and. j == 3 .and. k == 27)) then
+if ((i == 87 .and. j == 3 .and. k == 27)) then
     write(10, '(i5,i5,i5,15(es24.16))') &
         i,j,k,dumi(k),dumqs(k),dumr(k),dumfni(k),dumfns(k),dumfnr(k),dumc(k),dumfnc(k),dumg(k),dumfng(k), &
         dlami,dlamr,pgam(k),dlamc,dlams,dlamg
@@ -3816,7 +3815,7 @@ endif
       NG3DTEN(K) = NG3DTEN(K)+FALTNDNG/NSTEP/RHO(k)
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
                 i,j,k,n,nstep,qcsten(k),faltndc,rho(k),FALTNDC/NSTEP/RHO(k)
         endif
@@ -3852,7 +3851,7 @@ endif
         GRPLPRT = GRPLPRT+(FALOUTG(KTS))*DT/NSTEP
 #ifdef PRINT_DEBUG
         ! Fortran version
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
            ! Line 1: indices and precipitation accumulation variables
            write(10, '(i5,i5,i5,a10,es24.16,a10,es24.16,a10,es24.16,a10,es24.16)') &
                 i,j,k," PRECRT: ",precrt," SNOWRT: ",snowrt," SNOWPRT: ",snowprt," GRPLPRT: ",grplprt
@@ -3869,7 +3868,7 @@ endif
         DO K=KTS,KTE
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
                 i,j,k,qcsten(k),qc3dten(k),nr3d(k),nr3dten(k)
         endif
@@ -3883,9 +3882,9 @@ endif
         QNI3DTEN(K)=QNI3DTEN(K)+QNISTEN(K)
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
 ! PUT ALL CLOUD ICE IN SNOW CATEGORY IF MEAN DIAMETER EXCEEDS 2 * dcs
@@ -3914,9 +3913,9 @@ endif
           NR3D(k)        = NR3D(k)+NR3DTEN(k)*DT
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
           IF (IGRAUP.EQ.0) THEN
@@ -3945,7 +3944,7 @@ endif
             QVQVSI(K) = QV3D(K)/QVI(K)
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,9(es24.16))') &
                 i,j,k,qvqvs(k),qvqvsi(k),qr3d(k),qc3d(k),qni3d(k),qi3d(k),qg3d(k),xxlv(k),cpm(k)
         endif
@@ -3966,9 +3965,9 @@ endif
                END IF
              END IF
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
              IF (QVQVSI(K).LT.0.9) THEN
@@ -4019,9 +4018,9 @@ endif
        END IF
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
 !..................................
@@ -4057,9 +4056,9 @@ endif
         END IF
 ! Fortran version
 #ifdef PRINT_DEBUG
-        if (i == 100 .and. j == 3 .and. k == 27) then
+        if (i == 87 .and. j == 3 .and. k == 27) then
             write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qi3d(k),qi3dten(k),t3d(k),t3dten(k)
+                i,j,k,qr3d(k),qr3dten(k),nr3d(k),nr3dten(k)
         endif
 #endif
 ! HOMOGENEOUS FREEZING OF RAIN
