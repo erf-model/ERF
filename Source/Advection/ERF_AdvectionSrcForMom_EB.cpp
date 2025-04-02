@@ -70,22 +70,6 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
 {
     BL_PROFILE_VAR("AdvectionSrcForMom_EB", AdvectionSrcForMom_EB);
 
-    // // SK *******************************************************
-    // ParallelFor(bxx, bxy, bxz,
-    //     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    //     {
-    //         rho_u_rhs(i, j, k) = 0.0;
-    //     },
-    //     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    //     {
-    //         rho_v_rhs(i, j, k) = 0.0;
-    //     },
-    //     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    //     {
-    //         rho_w_rhs(i, j, k) = 0.0;
-    //     });
-    // // SK *******************************************************
-
     AMREX_ALWAYS_ASSERT(bxz.smallEnd(2) > 0);
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -320,15 +304,12 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
             Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 
             Real advectionSrc = ( (flx_w_arr[0](i+1, j  , k  ) - flx_w_arr[0](i, j, k)) * dxInv * mfsq
-                              + (flx_w_arr[1](i  , j+1, k  ) - flx_w_arr[1](i, j, k)) * dyInv * mfsq
-                              + (flx_w_arr[2](i  , j  , k+1) - flx_w_arr[2](i, j, k)) * dzInv ) / w_vfrac(i,j,k);
+                                + (flx_w_arr[1](i  , j+1, k  ) - flx_w_arr[1](i, j, k)) * dyInv * mfsq
+                                + (flx_w_arr[2](i  , j  , k+1) - flx_w_arr[2](i, j, k)) * dzInv ) / w_vfrac(i,j,k);
             rho_w_rhs(i, j, k) = -advectionSrc;
         } else {
             rho_w_rhs(i, j, k) = 0;
         }
     });
 
-
-
 }
-

@@ -104,7 +104,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_u_UPW3.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
                 }
             }
-            flx_u_arr[0](i,j,k) = rho_u_avg * interpx;
+            flx_u_arr[0](i,j,k) = u_afrac_x(i,j,k) * rho_u_avg * interpx;
         } 
         else
         {
@@ -151,7 +151,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_u_UPW3.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
                 }
             }
-            flx_u_arr[1](i,j,k) = rho_v_avg * interpy;
+            flx_u_arr[1](i,j,k) = u_afrac_y(i,j,k) * rho_v_avg * interpy;
         } 
         else
         {
@@ -198,7 +198,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_u_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 }
             }
-            flx_u_arr[2](i,j,k) = rho_w_avg * interpz;
+            flx_u_arr[2](i,j,k) = u_afrac_z(i,j,k) * rho_w_avg * interpz;
         } 
         else
         {
@@ -251,7 +251,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_v_UPW3.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
                 }
             }
-            flx_v_arr[0](i,j,k) = rho_u_avg * interpx;
+            flx_v_arr[0](i,j,k) = v_afrac_x(i,j,k) * rho_u_avg * interpx;
         } 
         else
         {
@@ -296,7 +296,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_v_UPW3.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
                 }
             }
-            flx_v_arr[1](i,j,k) = rho_v_avg * interpy;
+            flx_v_arr[1](i,j,k) = v_afrac_y(i,j,k) * rho_v_avg * interpy;
         } 
         else
         {
@@ -343,7 +343,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_v_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 }
             }
-            flx_v_arr[2](i,j,k) = rho_w_avg * interpz;
+            flx_v_arr[2](i,j,k) = v_afrac_z(i,j,k) * rho_w_avg * interpz;
         } 
         else
         {
@@ -396,7 +396,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_w_UPW3.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
                 }
             }
-            flx_w_arr[0](i,j,k) = rho_u_avg * interpx;
+            flx_w_arr[0](i,j,k) = w_afrac_x(i,j,k) * rho_u_avg * interpx;
         } 
         else
         {
@@ -443,7 +443,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_w_UPW3.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
                 }
             }
-            flx_w_arr[1](i,j,k) = rho_v_avg * interpy;
+            flx_w_arr[1](i,j,k) = w_afrac_y(i,j,k) * rho_v_avg * interpy;
         } 
         else
         {
@@ -455,7 +455,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( w_afrac_z(i,j,k) > 0. )
         {
-            if (k==lo_z_face || k==hi_z_face) {
+            if (k==lo_z_face || k==hi_z_face+1) {
 
                 flx_w_arr[2](i,j,k) = rho_w(i,j,k) * w(i,j,k);
 
@@ -485,9 +485,9 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     
                 // Adjust available cell numbers near the top and bottom boundaries
 
-                if (k == hi_z_face-1 || k == lo_z_face+1) {
+                if (k == hi_z_face || k == lo_z_face+1) {
                     kcell=std::min(kcell,1);
-                } else if (k == hi_z_face-2 || k == hi_z_face-1 || k == lo_z_face+1 || k == lo_z_face+2 ) {
+                } else if (k == hi_z_face-1 || k == lo_z_face+2 ) {
                     kcell=std::min(kcell,2);
                 }
 
@@ -503,7 +503,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                         interp_w_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                     }
                 }
-                flx_w_arr[2](i,j,k) = rho_w_avg * interpz;
+                flx_w_arr[2](i,j,k) = w_afrac_z(i,j,k) * rho_w_avg * interpz;
             } // lo_z_face, hi_z_face
         } 
         else
@@ -562,6 +562,7 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                 lo_z_face, hi_z_face);
     } else if (vert_adv_type == AdvType::Upwind_3rd) {
+        amrex::Print()<<"SK: EBAdvectionSrcForMomWrapper<InterpType_H,UPWIND3,UPWINDALL>"<< std::endl;
         EBAdvectionSrcForMomWrapper<InterpType_H,UPWIND3,UPWINDALL>(
                                 bxx_grown, bxy_grown, bxz_grown,
                                 rho_u, rho_v, rho_w, u, v, w,

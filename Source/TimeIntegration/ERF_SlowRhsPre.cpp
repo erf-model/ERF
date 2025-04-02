@@ -348,7 +348,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 flux_tmp[dir].setVal<RunOn::Device>(0.);
             }
         }
-
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM> flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM> flx_u_arr{{AMREX_D_DECL(flux_u[0].array(), flux_u[1].array(), flux_u[2].array())}};
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM> flx_v_arr{{AMREX_D_DECL(flux_v[0].array(), flux_v[1].array(), flux_v[2].array())}};
