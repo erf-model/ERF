@@ -54,94 +54,94 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     //***********************************************************************************
     if (turbChoice.les_type == LESType::Smagorinsky)
     {
-      Real Cs = turbChoice.Cs;
-      bool smag2d = turbChoice.smag2d;
+        Real Cs = turbChoice.Cs;
+        bool smag2d = turbChoice.smag2d;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-      for (MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-      {
-          // NOTE: This gets us the lateral ghost cells for lev>0; which
-          //       have been filled from FP Two Levels.
-          Box bxcc  = mfi.growntilebox(1) & domain;
+        for (MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            // NOTE: This gets us the lateral ghost cells for lev>0; which
+            //       have been filled from FP Two Levels.
+            Box bxcc  = mfi.growntilebox(1) & domain;
 
-          const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-          const Array4<Real>& hfx_x   = Hfx1.array(mfi);
-          const Array4<Real>& hfx_y   = Hfx2.array(mfi);
-          const Array4<Real>& hfx_z   = Hfx3.array(mfi);
-          const Array4<Real const > &cell_data = cons_in.array(mfi);
+            const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
+            const Array4<Real>& hfx_x   = Hfx1.array(mfi);
+            const Array4<Real>& hfx_y   = Hfx2.array(mfi);
+            const Array4<Real>& hfx_z   = Hfx3.array(mfi);
+            const Array4<Real const > &cell_data = cons_in.array(mfi);
 
-          Array4<Real const> tau11 = Tau11.array(mfi);
-          Array4<Real const> tau22 = Tau22.array(mfi);
-          Array4<Real const> tau33 = Tau33.array(mfi);
-          Array4<Real const> tau12 = Tau12.array(mfi);
-          Array4<Real const> tau13 = Tau13.array(mfi);
-          Array4<Real const> tau23 = Tau23.array(mfi);
+            Array4<Real const> tau11 = Tau11.array(mfi);
+            Array4<Real const> tau22 = Tau22.array(mfi);
+            Array4<Real const> tau33 = Tau33.array(mfi);
+            Array4<Real const> tau12 = Tau12.array(mfi);
+            Array4<Real const> tau13 = Tau13.array(mfi);
+            Array4<Real const> tau23 = Tau23.array(mfi);
 
-          Array4<Real const> mf_u = mapfac_u.array(mfi);
-          Array4<Real const> mf_v = mapfac_v.array(mfi);
+            Array4<Real const> mf_u = mapfac_u.array(mfi);
+            Array4<Real const> mf_v = mapfac_v.array(mfi);
 
-          Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
+            Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
-          ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-          {
-              Real SmnSmn;
-              if (smag2d) {
-                SmnSmn = ComputeSmnSmn2D(i,j,k,tau11,tau22,tau12);
-              } else {
-                SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
-            }
-              Real dxInv = cellSizeInv[0];
-              Real dyInv = cellSizeInv[1];
-              Real dzInv = cellSizeInv[2];
-              if (use_terrain) {
-                  // the terrain grid is only deformed in z for now
-                  dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
-              }
+            ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real SmnSmn;
+                if (smag2d) {
+                    SmnSmn = ComputeSmnSmn2D(i,j,k,tau11,tau22,tau12);
+                } else {
+                    SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
+                }
+                Real dxInv = cellSizeInv[0];
+                Real dyInv = cellSizeInv[1];
+                Real dzInv = cellSizeInv[2];
+                if (use_terrain) {
+                    // the terrain grid is only deformed in z for now
+                    dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+                }
 
-              if (isotropic) {
-                  Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
-                  Real Delta      = std::cbrt(cellVolMsf);
-                  Real CsDeltaSqr = Cs*Cs*Delta*Delta;
+                if (isotropic) {
+                    Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                    Real Delta      = std::cbrt(cellVolMsf);
+                    Real CsDeltaSqr = Cs*Cs*Delta*Delta;
 
-                  mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-                  mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
-              } else {
-                  Real DeltaH = std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
-                  mu_turb(i, j, k, EddyDiff::Mom_h) = Cs*Cs*DeltaH*DeltaH * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-                  if (!smag2d) {
-                      Real DeltaV = 1.0 / dzInv;
-                      mu_turb(i, j, k, EddyDiff::Mom_v) = Cs*Cs*DeltaV*DeltaV * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-                  }
-              }
+                    mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                    mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
+                } else {
+                    Real DeltaH = std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                    mu_turb(i, j, k, EddyDiff::Mom_h) = Cs*Cs*DeltaH*DeltaH * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                    if (!smag2d) {
+                        Real DeltaV = 1.0 / dzInv;
+                        mu_turb(i, j, k, EddyDiff::Mom_v) = Cs*Cs*DeltaV*DeltaV * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                    }
+                }
 
-              // Calculate SFS quantities
-              Real dtheta_dz;
-              if (use_most && k==klo) {
-                  if (exp_most) {
-                      dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                  - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
-                  } else {
-                      dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
-                                            / cell_data(i,j,k  ,Rho_comp)
-                                        + 4 * cell_data(i,j,k+1,RhoTheta_comp)
-                                            / cell_data(i,j,k+1,Rho_comp)
-                                        -     cell_data(i,j,k+2,RhoTheta_comp)
-                                            / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
-                  }
-              } else {
-                  dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                    - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
-              }
-              // - heat flux
-              //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
-              //    be overwritten when BCs are applied)
-              hfx_x(i,j,k) = 0.0;
-              hfx_y(i,j,k) = 0.0;
-              hfx_z(i,j,k) = -inv_Pr_t*mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
-          });
-      }
+                // Calculate SFS quantities
+                Real dtheta_dz;
+                if (use_most && k==klo) {
+                    if (exp_most) {
+                        dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                    - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
+                    } else {
+                        dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
+                                              / cell_data(i,j,k  ,Rho_comp)
+                                          + 4 * cell_data(i,j,k+1,RhoTheta_comp)
+                                              / cell_data(i,j,k+1,Rho_comp)
+                                          -     cell_data(i,j,k+2,RhoTheta_comp)
+                                              / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
+                    }
+                } else {
+                    dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                      - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+                }
+                // - heat flux
+                //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
+                //    be overwritten when BCs are applied)
+                hfx_x(i,j,k) = 0.0;
+                hfx_y(i,j,k) = 0.0;
+                hfx_z(i,j,k) = -inv_Pr_t*mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
+            });
+        }
     }
     // DEARDORFF: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
