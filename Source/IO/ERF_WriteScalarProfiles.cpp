@@ -28,9 +28,9 @@ ERF::sum_integrated_quantities (Real time)
     Real scal_ml = 0.0;
 
 #if 1
-    mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,*mapfac_m[0],true,false);
+    mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,*mapfac_m[0],false);
     for (int lev = 0; lev <= finest_level; lev++) {
-        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,*mapfac_m[lev],true,true);
+        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,*mapfac_m[lev],true);
     }
 #else
     for (int lev = 0; lev <= finest_level; lev++) {
@@ -49,18 +49,18 @@ ERF::sum_integrated_quantities (Real time)
             });
         }
         if (lev == 0) {
-            mass_sl = volWgtSumMF(0,pert_dens,0,*mapfac_m[0],true,false);
+            mass_sl = volWgtSumMF(0,pert_dens,0,*mapfac_m[0],false);
         }
-        mass_ml += volWgtSumMF(lev,pert_dens,0,*mapfac_m[lev],true,true);
+        mass_ml += volWgtSumMF(lev,pert_dens,0,*mapfac_m[lev],true);
     } // lev
 #endif
 
-    Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,*mapfac_m[0],true,false);
-    Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,*mapfac_m[0],true,false);
+    Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,*mapfac_m[0],false);
+    Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,*mapfac_m[0],false);
 
     for (int lev = 0; lev <= finest_level; lev++) {
-        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,*mapfac_m[lev],true,true);
-        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,*mapfac_m[lev],true,true);
+        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,*mapfac_m[lev],true);
+        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,*mapfac_m[lev],true);
     }
 
     Gpu::HostVector<Real> h_avg_ustar; h_avg_ustar.resize(1);
@@ -217,16 +217,28 @@ ERF::sum_derived_quantities (Real time)
     // Multiply the MF holding 1/2(u^2 + v^2 + w^2) by rho to get  1/2 rho (u^2 + v^2 + w^2)
     MultiFab::Multiply(r_wted_magvelsq, vars_new[lev][Vars::cons], 0, 0, 1, 0);
 
-    Real  unwted_avg = volWgtSumMF(lev, unwted_magvelsq, 0, *mapfac_m[lev],true,false);
-    Real  r_wted_avg = volWgtSumMF(lev, r_wted_magvelsq, 0, *mapfac_m[lev],true,false);
-    Real enstrsq_avg = volWgtSumMF(lev, enstrophysq,     0, *mapfac_m[lev],true,false);
+    Real  unwted_avg = volWgtSumMF(lev, unwted_magvelsq, 0, *mapfac_m[lev],false);
+    Real  r_wted_avg = volWgtSumMF(lev, r_wted_magvelsq, 0, *mapfac_m[lev],false);
+    Real enstrsq_avg = volWgtSumMF(lev, enstrophysq,     0, *mapfac_m[lev],false);
 
     Real vol = geom[lev].ProbDomain().volume(); // Volume of the domain;
      unwted_avg /= vol;
      r_wted_avg /= vol;
     enstrsq_avg /= vol;
 
-    if (ParallelDescriptor::IOProcessor()) {
+    const int nfoo = 3;
+    Real foo[nfoo] = {unwted_avg,r_wted_avg,enstrsq_avg};
+#ifdef AMREX_LAZY
+    Lazy::QueueReduction([=]() mutable {
+#endif
+    ParallelDescriptor::ReduceRealSum(
+        foo, nfoo, ParallelDescriptor::IOProcessorNumber());
+
+      if (ParallelDescriptor::IOProcessor()) {
+        int i = 0;
+        unwted_avg  = foo[i++];
+        r_wted_avg  = foo[i++];
+        enstrsq_avg = foo[i++];
 
         std::ostream& data_log_der = DerDataLog(0);
 
@@ -243,7 +255,10 @@ ERF::sum_derived_quantities (Real time)
         data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  << enstrsq_avg;
         data_log_der << std::endl;
 
-    } // if IOProcessor
+      } // if IOProcessor
+#ifdef AMREX_LAZY
+    }
+#endif
 }
 
 Real
@@ -449,7 +464,7 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
 Real
 ERF::volWgtSumMF (int lev,
                   const MultiFab& mf, int comp,
-                  const MultiFab& mapfac, bool local, bool finemask)
+                  const MultiFab& mapfac, bool finemask)
 {
     BL_PROFILE("ERF::volWgtSumMF()");
 
@@ -481,11 +496,13 @@ ERF::volWgtSumMF (int lev,
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
     }
-    sum = MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
 
-    if (!local) {
-      ParallelDescriptor::ReduceRealSum(sum);
-    }
+    //
+    // Note that when we send in local = true, NO ParallelAllReduce::Sum
+    //      is called inside the Dot product -- we will do that before we print
+    //
+    bool local = true;
+    sum = MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
 
     return sum;
 }

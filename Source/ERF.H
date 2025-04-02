@@ -278,8 +278,7 @@ public:
     // Perform the volume-weighted sum
     amrex::Real
     volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp,
-                 const amrex::MultiFab& mapfac,
-                 bool local, bool finemask);
+                 const amrex::MultiFab& mapfac, bool finemask);
 
     // Decide if it is time to take an action
     static bool is_it_time_for_action (int nstep, amrex::Real time, amrex::Real dt,
