@@ -130,8 +130,8 @@ public:
         bool found = false;
         amrex::Real zval= 0.0;
         int kmax  = ubound(z_arr).z;
-        int i_new = (int) (xp * dxi[0] - 0.5);
-        int j_new = (int) (yp * dxi[1] - 0.5);
+        int i_new = (int) std::round(xp * dxi[0] - 0.5);
+        int j_new = (int) std::round(yp * dxi[1] - 0.5);
         amrex::Real z_target = zp;
         for (int lk(0); lk<kmax; ++lk) {
             amrex::Real z_lo = 0.25 * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
