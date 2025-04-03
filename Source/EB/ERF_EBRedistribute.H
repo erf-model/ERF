@@ -16,14 +16,4 @@ void redistribute_term (int ncomp,
                         amrex::BCRec const* bc,
                         amrex::Real const dt);
 
-void redistribute_term (amrex::MFIter const& mfi,
-                        int ncomp,
-                        const amrex::Geometry& geom,
-                        amrex::MultiFab& result,
-                        amrex::MultiFab& result_tmp,
-                        amrex::MultiFab const& state,
-                        amrex::EBFArrayBoxFactory const& ebfact,
-                        amrex::BCRec const* bc,
-                        amrex::Real const dt);
-
 #endif
