@@ -26,7 +26,7 @@ class eb_aux_
 
     [[nodiscard]] const amrex::FabArray<amrex::EBCellFlagFab>& getMultiEBCellFlagFab () const;
     [[nodiscard]] const amrex::MultiFab& getVolFrac () const;
-    [[nodiscard]] const amrex::MultiCutFab& getVolCent () const;
+    [[nodiscard]] const amrex::MultiCutFab& getCentroid () const;
     [[nodiscard]] const amrex::MultiCutFab& getBndryArea () const;
     [[nodiscard]] const amrex::MultiCutFab& getBndryCent () const;
     [[nodiscard]] const amrex::MultiCutFab& getBndryNorm () const;

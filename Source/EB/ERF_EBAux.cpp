@@ -631,7 +631,7 @@ eb_aux_::getVolFrac () const
 }
 
 const MultiCutFab&
-eb_aux_::getVolCent () const
+eb_aux_::getCentroid () const
 {
     AMREX_ASSERT(m_volcent != nullptr);
     return *m_volcent;
