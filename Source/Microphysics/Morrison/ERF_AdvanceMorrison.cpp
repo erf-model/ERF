@@ -931,6 +931,8 @@ constexpr Real gamma_function(Real x) {
           amrex::Box boxD(box); boxD.makeSlab(2,0);
           bool run_morr_cpp = true;
           bool use_morr_cpp_answer = false;
+          ParmParse pp("erf");
+          pp.query("use_morr_cpp_answer", use_morr_cpp_answer);
           bool run_morr_fort = !use_morr_cpp_answer;
           if(run_morr_cpp) {
 
