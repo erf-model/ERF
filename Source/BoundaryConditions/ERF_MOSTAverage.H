@@ -128,11 +128,16 @@ public:
     {
         // Search to get z/k
         bool found = false;
-        amrex::Real zval= 0.0;
-        int kmax  = ubound(z_arr).z;
-        int i_new = (int) std::round(xp * dxi[0] - 0.5);
-        int j_new = (int) std::round(yp * dxi[1] - 0.5);
+        int kmax   = ubound(z_arr).z;
+        amrex::Real zval     = 0.0;
         amrex::Real z_target = zp;
+
+        // Map position to i,j (must be same mapping in cpp file)
+        amrex::Real ireal = (xp - plo[0]) * dxi[0];
+        amrex::Real jreal = (yp - plo[1]) * dxi[1];
+        int i_new = (int) (ireal - 0.5);
+        int j_new = (int) (jreal - 0.5);
+
         for (int lk(0); lk<kmax; ++lk) {
             amrex::Real z_lo = 0.25 * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
                                       + z_arr(i_new,j_new+1,lk  ) + z_arr(i_new+1,j_new+1,lk  ) );
@@ -140,7 +145,7 @@ public:
                                       + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
             if (z_target > z_lo && z_target < z_hi){
                 found = true;
-                zval = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + 0.5;
+                zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + 0.5;
                 break;
             }
         }
@@ -148,9 +153,8 @@ public:
         amrex::ignore_unused(found);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
-        const amrex::RealVect lx((xp - plo[0])*dxi[0] + 0.5,
-                                 (yp - plo[1])*dxi[1] + 0.5,
-                                  zval);
+        // NOTE: This is the point ahead of the current i,j (e.g. i/j_new + 1)
+        const amrex::RealVect lx(ireal + 0.5, jreal + 0.5, zval);
 
         const amrex::IntVect ijk = lx.floor();
 
