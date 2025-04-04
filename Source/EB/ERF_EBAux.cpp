@@ -52,6 +52,17 @@ define( int const& a_idim,
   m_bndrycent = new MultiCutFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], *m_cellflags);
   m_bndrynorm = new MultiCutFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], *m_cellflags);
 
+  // Initialize with zeros
+  m_volfrac->setVal(0.0);
+  m_volcent->setVal(0.0);
+  for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+    m_areafrac[idim]->setVal(0.0);
+    m_facecent[idim]->setVal(0.0);
+  }
+  m_bndryarea->setVal(0.0);
+  m_bndrycent->setVal(0.0);
+  m_bndrynorm->setVal(0.0);
+
   const auto& FlagFab = a_factory->getMultiEBCellFlagFab(); // EBFArrayBoxFactory, EBDataCollection
 
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
@@ -613,7 +624,7 @@ define( int const& a_idim,
 
     }
 
-  }
+  } // MFIter
 }
 
 const FabArray<EBCellFlagFab>&
