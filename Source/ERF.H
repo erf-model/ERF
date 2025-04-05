@@ -1187,8 +1187,11 @@ private:
 
     static AMREX_FORCE_INLINE
     int
-    ComputeGhostCells (const AdvChoice& advChoice, bool use_num_diff)
+    ComputeGhostCells (const SolverChoice& sc)
     {
+        const AdvChoice advChoice = sc.advChoice;
+        const bool use_num_diff = sc.use_num_diff;
+
         if (use_num_diff)
         {
             return 3;
