@@ -53,7 +53,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         SuperDropletsMoist()
         {
             m_qmoist_size = 7;
-            m_qstate_size = 3; // qv, qc, qr
+            m_qstate_moist_size = 3; // qv, qc, qr
             m_name = "super_droplets_moisture";
         }
 
@@ -121,9 +121,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief returns number of conserved variables in this moisture model */
-        inline virtual int Qstate_Size () override
+        inline virtual int Qstate_Moist_Size () override
         {
-            return m_qstate_size;
+            return m_qstate_moist_size;
         }
 
         /*! \brief returns pointer to super-droplets particle container */
@@ -187,7 +187,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! number of microphysics variables */
         int m_qmoist_size;
         /*! number of state variables for this moisture model */
-        int m_qstate_size;
+        int m_qstate_moist_size;
 
         Real m_dt; /*!< timestep */
         Vector<int> m_mic_var_map; /*!< moisture model variables map */
