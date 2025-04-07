@@ -601,7 +601,7 @@ END SUBROUTINE MORR_TWO_MOMENT_INIT
 ! FOR QUESTIONS, CONTACT: HUGH MORRISON, E-MAIL: MORRISON@UCAR.EDU, PHONE:303-497-8916
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!#define PRINT_DEBUG
+#define PRINT_DEBUG
 SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                 TH, QV, QC, QR, QI, QS, QG, NI, NS, NR, NG, &
                 RHO, PII, P, DT_IN, DZ, HT, W,          &
@@ -2421,15 +2421,18 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 
       NS3D(K) = N0S(K)/LAMS(K)
       END IF
-      END IF
+   END IF
+   
 #ifdef PRINT_DEBUG
       ! Fortran version
       if ((i == 83 .and. j == 3 .and. k == 13) .or. &
           (i == 83 .and. j == 3 .and. k == 12) .or. &
           (i == 87 .and. j == 3 .and. k == 26) .or. &
           (i == 96 .and. j == 3 .and. k == 26)) then
-         write(10, '(i5,i5,i5,12(es24.16))') &
-              i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
+         write(10, '(i5,i5,i5,5(es24.16))') &
+              i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k)
+         write(10, '(i5,i5,i5,7(es24.16))') &
+              i,j,k,lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k),qni3d(k)
          write(10,*) " ng cold"
          write(10, '(i5,i5,i5,7(es24.16))') &
                           i, j, k, qg3d(k), qsmall, cons2, dg, lamming, lammaxg,rhog
