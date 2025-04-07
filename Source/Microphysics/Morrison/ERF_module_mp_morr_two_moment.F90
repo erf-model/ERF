@@ -317,7 +317,41 @@ SUBROUTINE MORR_TWO_MOMENT_INIT(morr_rimed_ice) ! RAS
 
       ISUB = 0
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#define WARM_ONLY
+#ifdef WARM_ONLY
 
+! SWITCH FOR LIQUID-ONLY RUN
+! ILIQ = 0, INCLUDE ICE
+! ILIQ = 1, LIQUID ONLY, NO ICE
+
+      ILIQ = 1
+
+! SWITCH FOR ICE NUCLEATION
+! INUC = 0, USE FORMULA FROM RASMUSSEN ET AL. 2002 (MID-LATITUDE)
+!      = 1, USE MPACE OBSERVATIONS (ARCTIC ONLY)
+
+      INUC = 0
+
+! SWITCH FOR GRAUPEL/HAIL NO GRAUPEL/HAIL
+! IGRAUP = 0, INCLUDE GRAUPEL/HAIL
+! IGRAUP = 1, NO GRAUPEL/HAIL
+
+      IGRAUP = 1
+
+! HM ADDED 11/7/07
+! SWITCH FOR HAIL/GRAUPEL
+! IHAIL = 0, DENSE PRECIPITATING ICE IS GRAUPEL
+! IHAIL = 1, DENSE PRECIPITATING ICE IS HAIL
+! NOTE ---> RECOMMEND IHAIL = 1 FOR CONTINENTAL DEEP CONVECTION
+
+      !IHAIL = 0 !changed to namelist option (morr_rimed_ice) by RAS
+      ! Check if namelist option is feasible, otherwise default to graupel - RAS
+      IF (morr_rimed_ice .eq. 1) THEN
+         IHAIL = 1
+      ELSE
+         IHAIL = 0
+      ENDIF
+#else
 
 ! SWITCH FOR LIQUID-ONLY RUN
 ! ILIQ = 0, INCLUDE ICE
@@ -350,7 +384,7 @@ SUBROUTINE MORR_TWO_MOMENT_INIT(morr_rimed_ice) ! RAS
       ELSE
          IHAIL = 0
       ENDIF
-
+#endif
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! SET PHYSICAL CONSTANTS
