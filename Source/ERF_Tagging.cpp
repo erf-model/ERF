@@ -98,7 +98,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     (ref_tags[j].Field() == "terrain_blanking") )
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
-		} else if (ref_tags[j].Field() == "velmag") {
+        } else if (ref_tags[j].Field() == "velmag") {
             mf->setVal(0.0);
             ParmParse pp(pp_prefix);
             Vector<std::string> refinement_indicators;
@@ -463,25 +463,25 @@ ERF::HurricaneTracker(int levc,
         eye_x = h_coords[0]/h_found[0];
         eye_y = h_coords[1]/h_found[0];
 
-     	Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
+         Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
 
-    	for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
-        	TagBox& tag = tags[mfi];
-        	auto tag_arr = tag.array();  // Get device-accessible array
+        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+            TagBox& tag = tags[mfi];
+            auto tag_arr = tag.array();  // Get device-accessible array
 
-        	const Box& tile_box = mfi.tilebox(); // The box for this tile
+            const Box& tile_box = mfi.tilebox(); // The box for this tile
 
-        	ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            	// Compute cell center coordinates
-            	Real x = prob_lo[0] + (i + 0.5) * dx[0];
-            	Real y = prob_lo[1] + (j + 0.5) * dx[1];
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                // Compute cell center coordinates
+                Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                Real y = prob_lo[1] + (j + 0.5) * dx[1];
 
-            	Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
+                Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
 
-            	if (dist < rad_tag) {
-                	tag_arr(i,j,k) = TagBox::SET;
-            	}
-        	});
-    	}
-	}
+                if (dist < rad_tag) {
+                    tag_arr(i,j,k) = TagBox::SET;
+                }
+            });
+        }
+    }
 }

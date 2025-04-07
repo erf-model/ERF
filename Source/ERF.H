@@ -148,7 +148,7 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
-	void HurricaneTracker (int lev,
+    void HurricaneTracker (int lev,
                           const amrex::MultiFab& U_new,
                           const amrex::MultiFab& V_new,
                           const amrex::MultiFab& W_new,
