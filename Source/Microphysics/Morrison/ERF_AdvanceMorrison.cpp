@@ -17,7 +17,7 @@
 #include "ERF_NullMoist.H"
 #include "ERF_Morrison.H"
 #include <ERF_Morrison_Fortran_Interface.H>
-#define PRINT_DEBUG
+//#define PRINT_DEBUG
 using namespace amrex;
 
 constexpr Real xxx = 0.9189385332046727417803297;
@@ -1592,12 +1592,18 @@ constexpr Real gamma_function(Real x) {
             ssed = 0.0;
             gsed = 0.0;
             rsed = 0.0;
-
+#define LATENT_HEATING_OFF
+#ifndef LATENT_HEATING_OFF
             // LATENT HEAT OF VAPORIZATION
             xxlv(i,j,k) = 3.1484E6 - 2370.0 * t3d(i,j,k);
             // LATENT HEAT OF SUBLIMATION
             xxls(i,j,k) = 3.15E6 - 2370.0 * t3d(i,j,k) + 0.3337E6;
-
+#else
+            // LATENT HEAT OF VAPORIZATION
+            xxlv(i,j,k) = 0.0;
+            // LATENT HEAT OF SUBLIMATION
+            xxls(i,j,k) = 0.0;
+#endif
             // Assuming CP is a constant defined elsewhere (specific heat of dry air at constant pressure)
             const amrex::Real CP = 1004.5; // J/kg/K
             cpm(i,j,k) = CP * (1.0 + 0.887 * qv3d(i,j,k));
