@@ -562,7 +562,6 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                 lo_z_face, hi_z_face);
     } else if (vert_adv_type == AdvType::Upwind_3rd) {
-        amrex::Print()<<"SK: EBAdvectionSrcForMomWrapper<InterpType_H,UPWIND3,UPWINDALL>"<< std::endl;
         EBAdvectionSrcForMomWrapper<InterpType_H,UPWIND3,UPWINDALL>(
                                 bxx_grown, bxy_grown, bxz_grown,
                                 rho_u, rho_v, rho_w, u, v, w,
