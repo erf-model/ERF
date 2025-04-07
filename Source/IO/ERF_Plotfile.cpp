@@ -212,8 +212,8 @@ ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::stri
             if (first_call) {
                 Print() << getEnumNameString(solverChoice.moisture_type)
                         << ": the following additional variables are available to plot:\n";
-                for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
-                    Print() << "    " << particle_mesh_plot_names[i] << "\n";
+                for (int i = 0; i < microphysics_plot_names.size(); i++) {
+                    Print() << "    " << microphysics_plot_names[i] << "\n";
                 }
                 first_call = false;
             }
