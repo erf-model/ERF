@@ -1552,6 +1552,15 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 
             ABI(K) = 1.+DQSIDT*XXLS(K)/CPM(K)
             AB(K) = 1.+DQSDT*XXLV(K)/CPM(K)
+#ifdef PRINT_DEBUG
+        if ((i == 83 .and. j == 3 .and. k == 13) .or. &
+            (i == 83 .and. j == 3 .and. k == 12) .or. &
+            (i == 87 .and. j == 3 .and. k == 26) .or. &
+            (i == 96 .and. j == 3 .and. k == 26)) then
+            write(10, '(i5,i5,i5,7(es24.16))') &
+                 i,j,k,dqsdt,qvs(k),RV,DUM,RV*t3d(k)**2,xxlv(k),cpm(k)
+        endif
+#endif
 !
 !.....................................................................
 !.....................................................................
@@ -1941,7 +1950,16 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
            ELSE
               PRE(K) = 0.
            END IF
-
+#ifdef PRINT_DEBUG
+      ! Fortran version
+      if ((i == 83 .and. j == 3 .and. k == 13) .or. &
+          (i == 83 .and. j == 3 .and. k == 12) .or. &
+          (i == 87 .and. j == 3 .and. k == 26) .or. &
+          (i == 96 .and. j == 3 .and. k == 26)) then
+         write(10, '(5(es24.16))') &
+              PRE(K),EPSR,QV3D(K),QVS(K),AB(K)
+      endif
+#endif
 !.......................................................................
 ! MELTING OF SNOW
 
@@ -2089,7 +2107,16 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
         RATIO = (QR3D(K)/DT+PRACS(K)+PRACG(K)+PRA(K)+PRC(K)-PSMLT(K)-PGMLT(K))/ &
                         (-PRE(K))
         PRE(K) = PRE(K)*RATIO
-
+#ifdef PRINT_DEBUG
+      ! Fortran version
+      if ((i == 83 .and. j == 3 .and. k == 13) .or. &
+          (i == 83 .and. j == 3 .and. k == 12) .or. &
+          (i == 87 .and. j == 3 .and. k == 26) .or. &
+          (i == 96 .and. j == 3 .and. k == 26)) then
+         write(10, '(4(es24.16))') &
+              PRE(K),RATIO,DUM,QR3D(K)
+      endif
+#endif
         END IF
 
 !....................................
@@ -2103,6 +2130,40 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QR3DTEN(K) = QR3DTEN(K)+(PRE(K)+PRA(K)+PRC(K)-PSMLT(K)-PGMLT(K)+PRACS(K)+PRACG(K))
       QNI3DTEN(K) = QNI3DTEN(K)+(PSMLT(K)+EVPMS(K)-PRACS(K))
       QG3DTEN(K) = QG3DTEN(K)+(PGMLT(K)+EVPMG(K)-PRACG(K))
+#ifdef PRINT_DEBUG
+      ! Fortran version
+      if ((i == 83 .and. j == 3 .and. k == 13) .or. &
+          (i == 83 .and. j == 3 .and. k == 12) .or. &
+          (i == 87 .and. j == 3 .and. k == 26) .or. &
+          (i == 96 .and. j == 3 .and. k == 26)) then
+         ! Line 1: indices and first variables
+         write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
+              i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
+         ! Line 2: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              eprd(k),eprds(k),prdg(k),eprdg(k),"xxls:",xxls(k)
+         ! Line 3: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              psacws(k),psacwi(k),mnuccc(k),mnuccr(k),"qmults:",qmults(k)
+         ! Line 4: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              qmultg(k),qmultr(k),qmultrg(k),pracs(k),"psacwg:",psacwg(k)
+         ! Line 5: continuing variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              pracg(k),pgsacw(k),pgracs(k),piacr(k),"piacrs:",piacrs(k)
+         ! Line 6: final variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              xlf(k),cpm(k),pcc(k),pra(k),"prc:",prc(k)
+         ! Line 7: final variables
+         write(10, '(4(es24.16),a10,es24.16)') &
+              prci(k),prai(k),praci(k),pracis(k),"---END---:",0.0
+         write(10, '(4(es24.16),a10,es24.16)') &
+              evpms(k),evpmg(k),psmlt(k),pgmlt(k),"---END---:",0.0
+         write(10, '(7(es24.16))') &
+              PRE(K),XXLV(K),(EVPMS(K)+EVPMG(K)),XXLS(K),&
+                    (PSMLT(K)+PGMLT(K)-PRACS(K)-PRACG(K)),XLF(K),CPM(K)
+      endif
+#endif
 ! fix 053011
 !      NS3DTEN(K) = NS3DTEN(K)-NPRACS(K)
 ! HM, bug fix 5/12/08, npracg is subtracted from nr not ng

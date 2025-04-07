@@ -1617,7 +1617,10 @@ constexpr Real gamma_function(Real x) {
             }
 #endif
 #ifdef PRINT_DEBUG
-              if ((i == 123 && j == 3 && k == 24)) {
+            if ((i == 83 && j == 3 && k == 13) ||
+                (i == 83 && j == 3 && k == 12) ||
+                (i == 87 && j == 3 && k == 26) ||
+                (i == 96 && j == 3 && k == 26)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, t3d(i,j,k), t3dten(i,j,k), xxlv(i,j,k), cpm(i,j,k));
               }
 #endif
@@ -1673,7 +1676,10 @@ constexpr Real gamma_function(Real x) {
               }
             }
 #ifdef PRINT_DEBUG
-              if ((i == 123 && j == 3 && k == 24)) {
+            if ((i == 83 && j == 3 && k == 13) ||
+                (i == 83 && j == 3 && k == 12) ||
+                (i == 87 && j == 3 && k == 26) ||
+                (i == 96 && j == 3 && k == 26)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, t3d(i,j,k), t3dten(i,j,k), xxlv(i,j,k), cpm(i,j,k));
               }
 #endif
@@ -1750,7 +1756,10 @@ constexpr Real gamma_function(Real x) {
               effg(i,j,k) = 0.0;
             }
 #ifdef PRINT_DEBUG
-              if ((i == 123 && j == 3 && k == 24)) {
+            if ((i == 83 && j == 3 && k == 13) ||
+                (i == 83 && j == 3 && k == 12) ||
+                (i == 87 && j == 3 && k == 26) ||
+                (i == 96 && j == 3 && k == 26)) {
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, t3d(i,j,k), t3dten(i,j,k), xxlv(i,j,k), cpm(i,j,k));
               }
 #endif
@@ -1846,12 +1855,20 @@ constexpr Real gamma_function(Real x) {
 
             // Psychometric corrections
             // Rate of change sat. mix. ratio with temperature
-            dum = (m_Rv * t3d(i,j,k) * t3d(i,j,k)); // temporary update: calculate temperature factor
+            dum = (m_Rv * std::pow(t3d(i,j,k),2)); // temporary update: calculate temperature factor
             dqsdt = xxlv(i,j,k) * qvs / dum; // budget equation: calculate DQSDT
             dqsidt = xxls(i,j,k) * qvi / dum; // budget equation: calculate DQSIDT
             abi = 1.0 + dqsidt * xxls(i,j,k) / cpm(i,j,k); // budget equation: calculate ABI
             ab = 1.0 + dqsdt * xxlv(i,j,k) / cpm(i,j,k); // budget equation: calculate AB
 
+#ifdef PRINT_DEBUG
+                if ((i == 83 && j == 3 && k == 13) ||
+                    (i == 83 && j == 3 && k == 12) ||
+                    (i == 87 && j == 3 && k == 26) ||
+                    (i == 96 && j == 3 && k == 26)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e ab\n",i,j,k, dqsdt,qvs,m_Rv, dum,m_Rv*pow(t3d(i,j,k),2), xxlv(i,j,k), cpm(i,j,k));
+                }
+#endif
             // CASE FOR TEMPERATURE ABOVE FREEZING
             if (t3d(i,j,k) >= 273.15) {
 #if 0
@@ -2206,6 +2223,14 @@ constexpr Real gamma_function(Real x) {
                 } else {
                   pre = 0.0;
                 }
+#ifdef PRINT_DEBUG
+                if ((i == 83 && j == 3 && k == 13) ||
+                    (i == 83 && j == 3 && k == 12) ||
+                    (i == 87 && j == 3 && k == 26) ||
+                    (i == 96 && j == 3 && k == 26)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e set pre\n",i,j,k, pre,epsr,qv3d(i,j,k), qvs, ab);
+                }
+#endif
                 // MELTING OF SNOW
                 // SNOW MAY PERSIST ABOVE FREEZING, FORMULA FROM RUTLEDGE AND HOBBS, 1984
                 // IF WATER SUPERSATURATION, SNOW MELTS TO FORM RAIN
@@ -2313,6 +2338,14 @@ constexpr Real gamma_function(Real x) {
                 if (dum > qr3d(i,j,k) && qr3d(i,j,k) >= m_qsmall) {
                   ratio = (qr3d(i,j,k)/dt + pracs + pracg + pra + prc - psmlt - pgmlt) / (-pre);
                   pre = pre * ratio;
+#ifdef PRINT_DEBUG
+                if ((i == 83 && j == 3 && k == 13) ||
+                    (i == 83 && j == 3 && k == 12) ||
+                    (i == 87 && j == 3 && k == 26) ||
+                    (i == 96 && j == 3 && k == 26)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e reset pre ratio\n",i,j,k, pre,ratio,dum,qr3d(i,j,k));
+                }
+#endif
                 }
                 // Update tendencies
                 qv3dten(i,j,k) = qv3dten(i,j,k) + (-pre - evpms - evpmg);
@@ -2330,7 +2363,39 @@ constexpr Real gamma_function(Real x) {
                 // HM, bug fix 5/12/08, npracg is subtracted from nr not ng
                 nc3dten(i,j,k) = nc3dten(i,j,k) + (-npra - nprc);
                 nr3dten(i,j,k) = nr3dten(i,j,k) + (nprc1 + nragg - npracg);
-
+#ifdef PRINT_DEBUG
+                // C++ version
+                if ((i == 83 && j == 3 && k == 13) ||
+                    (i == 83 && j == 3 && k == 12) ||
+                    (i == 87 && j == 3 && k == 26) ||
+                    (i == 96 && j == 3 && k == 26)) {
+                  // Line 1: indices and first variables
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          i, j, k, pre, xxlv(i,j,k), prd, prds, "mnuccd:", mnuccd);
+                  // Line 2: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          eprd, eprds, prdg, eprdg, "xxls(i,j,k):", xxls(i,j,k));
+                  // Line 3: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          psacws, psacwi, mnuccc, mnuccr, "qmults:", qmults);
+                  // Line 4: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          qmultg, qmultr, qmultrg, pracs, "psacwg:", psacwg);
+                  // Line 5: continuing variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          pracg, pgsacw, pgracs, piacr, "piacrs:", piacrs);
+                  // Line 6: final variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          xlf(i,j,k), cpm(i,j,k), pcc, pra, "prc:", prc);
+                  // Line 7: final variables
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          prci, prai, praci, pracis, "---END---:", 0.0);
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %10s%24.16e\n",
+                          evpms, evpmg, psmlt, pgmlt, "---END---:", 0.0);
+                  fprintf(file, "%24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
+                          pre , xxlv(i,j,k),(evpms + evpmg), xxls(i,j,k),(psmlt + pgmlt - pracs - pracg),xlf(i,j,k),cpm(i,j,k));
+                }
+#endif
 #ifdef PRINT_DEBUG
                 if ((i == 83 && j == 3 && k == 13) ||
                     (i == 83 && j == 3 && k == 12) ||
