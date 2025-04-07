@@ -103,7 +103,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             ParmParse pp(pp_prefix);
             Vector<std::string> refinement_indicators;
             pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
-            Real velmag_threshold;
+            Real velmag_threshold = 1e10;
             for (int i=0; i<refinement_indicators.size(); ++i)
             {
                 if(refinement_indicators[i]=="hurricane_tracker"){
