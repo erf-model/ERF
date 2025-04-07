@@ -112,10 +112,16 @@ public:
         return m_moist_model[0]->Qmoist_Size();
     }
 
-    /*! \brief get the number of moisture-model-related conserved state variables */
-    int Get_Qstate_Size () override
+    /*! \brief get the number of  microphysics conserved moist (water-related) state variables */
+    int Get_Qstate_Moist_Size () override
     {
-        return m_moist_model[0]->Qstate_Size();
+        return m_moist_model[0]->Qstate_Moist_Size();
+    }
+
+    /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
+    int Get_Qstate_NonMoist_Size () override
+    {
+        return m_moist_model[0]->Qstate_NonMoist_Size();
     }
 
     /*! \brief get the indices and names of moisture model variables for restart

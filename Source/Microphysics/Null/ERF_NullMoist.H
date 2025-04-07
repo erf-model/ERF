@@ -55,7 +55,11 @@ public:
 
     virtual
     int
-    Qstate_Size () { return NullMoist::m_qstate_size; }
+    Qstate_Moist_Size () { return NullMoist::m_qstate_moist_size; }
+
+    virtual
+    int
+    Qstate_NonMoist_Size () { return NullMoist::m_qstate_nonmoist_size; }
 
     virtual
     void
@@ -67,7 +71,8 @@ public:
 
 private:
     int m_qmoist_size = 0;
-    int m_qstate_size = 0;
+    int m_qstate_moist_size = 0;
+    int m_qstate_nonmoist_size = 0;
 };
 
 #endif
