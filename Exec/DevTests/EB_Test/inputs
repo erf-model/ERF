@@ -66,7 +66,8 @@ erf.alpha_C = 0.0
 
 erf.init_type = "uniform"
 
-erf.terrain_type = EB
+erf.terrain_type = "EB"
+erf.write_eb_surface = TRUE
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

@@ -105,7 +105,7 @@ public:
     Qmoist_Ptr (const int& varIdx) override
     {
         AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
-        return mic_fab_vars[MicVarMap[varIdx]].get();
+        return nullptr;
     }
 
     int
@@ -189,14 +189,11 @@ public:
     }
 
 private:
-    // Number of qmoist variables (qv, qc)
-    int m_qmoist_size = 2;
+    // Number of qmoist variables (no precipitating comps to accumulate)
+    int m_qmoist_size = 0;
 
     // Number of qstate variables
     int m_qstate_size = 2;
-
-    // MicVar map (Qmoist indices -> MicVar enum)
-    amrex::Vector<int> MicVarMap;
 
     // geometry
     amrex::Geometry m_geom;

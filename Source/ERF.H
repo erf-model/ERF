@@ -278,8 +278,7 @@ public:
     // Perform the volume-weighted sum
     amrex::Real
     volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp,
-                 const amrex::MultiFab& mapfac,
-                 bool local, bool finemask);
+                 const amrex::MultiFab& mapfac, bool finemask);
 
     // Decide if it is time to take an action
     static bool is_it_time_for_action (int nstep, amrex::Real time, amrex::Real dt,
@@ -477,18 +476,6 @@ public:
     void MakeEBGeometry ();
     void make_eb_box ();
     void make_eb_regular ();
-    void redistribute_term (int lev, int ncomp,
-                            amrex::MultiFab& result,
-                            amrex::MultiFab& result_tmp,
-                            amrex::MultiFab const& state,
-                            amrex::BCRec const* bc,
-                            amrex::Real const dt);
-    void redistribute_term (amrex::MFIter const& mfi, int lev, int ncomp,
-                            amrex::MultiFab& result,
-                            amrex::MultiFab& result_tmp,
-                            amrex::MultiFab const& state,
-                            amrex::BCRec const* bc,
-                            amrex::Real const dt);
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
@@ -772,7 +759,7 @@ private:
     amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
 
     std::unique_ptr<Microphysics> micro;
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
 
     // Variables for wind farm parametrization models
 

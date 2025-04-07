@@ -26,7 +26,7 @@ The information for each face is preceded by
 ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or ``zhi``.
 
 Currently available type of boundary conditions are
-``inflow``, ``outflow``, ``inflow_outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``MOST``.
+``inflow``, ``outflow``, ``open``, ``inflow_outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``MOST``.
 (Spelling of the type matters; capitalization does not.)
 
 For example, setting

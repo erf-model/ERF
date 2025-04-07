@@ -161,16 +161,16 @@ ERF::WriteCheckpointFile () const
 
         // We must read and write qmoist with ghost cells because we don't directly impose BCs on these vars
         // Write the moisture model restart variables
-        std::vector<int> qmoist_indices(0);
-        std::vector<std::string> qmoist_names(0);
+        std::vector<int> qmoist_indices;
+        std::vector<std::string> qmoist_names;
         micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_indices, qmoist_names);
         int qmoist_nvar = qmoist_indices.size();
         for (int var = 0; var < qmoist_nvar; var++) {
-           IntVect ng_moist = qmoist[lev][qmoist_indices[var]]->nGrowVect();
-           const int ncomp = 1;
-           MultiFab moist_vars(grids[lev],dmap[lev],ncomp,ng_moist);
-           MultiFab::Copy(moist_vars,*(qmoist[lev][qmoist_indices[var]]),0,0,ncomp,ng_moist);
-           VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", qmoist_names[var]));
+            const int ncomp  = 1;
+            IntVect ng_moist = qmoist[lev][qmoist_indices[var]]->nGrowVect();
+            MultiFab moist_vars(grids[lev],dmap[lev],ncomp,ng_moist);
+            MultiFab::Copy(moist_vars,*(qmoist[lev][qmoist_indices[var]]),0,0,ncomp,ng_moist);
+            VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", qmoist_names[var]));
         }
 
 #if defined(ERF_USE_WINDFARM)
@@ -224,7 +224,11 @@ ERF::WriteCheckpointFile () const
             MultiFab z0(ba2d,dmap[lev],1,ng);
             for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                z0[mfi].copy<RunOn::Host>(*(m_most->get_z0(lev)), bx);
+                Array4<const Real> const& fab_arr = m_most->get_z0(lev)->const_array();
+                Array4<      Real> const&  z0_arr = z0.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    z0_arr(i,j,k) = fab_arr(i,j,k);
+                });
             }
             VisMF::Write(z0, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
         }
@@ -517,16 +521,16 @@ ERF::ReadCheckpointFile ()
         }
 
         // Read in the moisture model restart variables
-        std::vector<int> qmoist_indices(0);
-        std::vector<std::string> qmoist_names(0);
+        std::vector<int> qmoist_indices;
+        std::vector<std::string> qmoist_names;
         micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_indices, qmoist_names);
         int qmoist_nvar = qmoist_indices.size();
         for (int var = 0; var < qmoist_nvar; var++) {
+            const int ncomp  = 1;
             IntVect ng_moist = qmoist[lev][qmoist_indices[var]]->nGrowVect();
-            const int ncomp_moist = 1;
-            MultiFab moist_vars(grids[lev],dmap[lev],ncomp_moist,ng_moist);
+            MultiFab moist_vars(grids[lev],dmap[lev],ncomp,ng_moist);
             VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", qmoist_names[var]));
-            MultiFab::Copy(*(qmoist[lev][qmoist_indices[var]]),moist_vars,0,0,ncomp_moist,ng_moist);
+            MultiFab::Copy(*(qmoist[lev][qmoist_indices[var]]),moist_vars,0,0,ncomp,ng_moist);
         }
 
 #if defined(ERF_USE_WINDFARM)

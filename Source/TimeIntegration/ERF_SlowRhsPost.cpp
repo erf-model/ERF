@@ -2,6 +2,7 @@
 #include <ERF_SrcHeaders.H>
 #include <ERF_TI_slow_headers.H>
 #include <ERF_EBAdvection.H>
+#include <ERF_EBRedistribute.H>
 
 using namespace amrex;
 
@@ -113,6 +114,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
+
+    const bool l_anelastic   = solverChoice.anelastic[level];
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_use_KE         = ( (tc.les_type  == LESType::Deardorff) ||
@@ -304,7 +307,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // We have projected the velocities stored in S_data but we will use
         //    the velocities stored in S_scratch to update the scalars, so
         //    we need to copy from S_data (projected) into S_scratch
-        if (solverChoice.anelastic[level]) {
+        if (l_anelastic) {
             Box tbx_inc = mfi.nodaltilebox(0);
             Box tby_inc = mfi.nodaltilebox(1);
             Box tbz_inc = mfi.nodaltilebox(2);
@@ -493,7 +496,27 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } else {
+                } else if (l_anelastic && (nrk == 1)) { // not moving and ( (anelastic) and second RK stage) )
+
+                    ParallelFor(tbx, num_comp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = start_comp + nn;
+                        cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
+
+                        // Re-construct the cell_rhs used in the first RK stage
+                        Real dt_times_old_cell_rhs = cur_cons(i,j,k,n) - old_cons(i,j,k,n);
+
+                        // Add the time-averaged RHS to the old state
+                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + 0.5 * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
+
+                        if (ivar == RhoKE_comp) {
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
+                        } else if (ivar >= RhoQ1_comp) {
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 0.0);
+                        }
+                    });
+
+                } else { // not moving and ( (not anelastic) or (first RK stage) )
 
                     ParallelFor(tbx, num_comp,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
@@ -507,7 +530,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } // moving or not?
+                } // moving, anelastic or neither?
 
             } // is_valid
         } // ivar
@@ -566,5 +589,60 @@ void erf_slow_rhs_post (int level, int finest_level,
         } // two-way coupling
         } // end profile
       } // mfi
+
+      if (solverChoice.terrain_type == TerrainType::EB)
+      {
+          // start_comp and num_comp
+          for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
+          {
+              if (is_valid_slow_var[ivar])
+              {
+                  start_comp = ivar;
+                  if (ivar >= RhoQ1_comp) {
+                      num_comp = nvars - RhoQ1_comp;
+                  } else {
+                      num_comp = 1;
+                  }
+              }
+          }
+
+          // Redistribute cons states (cell-centered)
+          const int num_comp_total{S_rhs[IntVars::cons].nComp()};
+          MultiFab dUdt_tmp(ba, dm, num_comp_total, S_rhs[IntVars::cons].nGrow(), MFInfo(), ebfact);
+          dUdt_tmp.setVal(0.);
+          MultiFab::Copy(dUdt_tmp, S_rhs[IntVars::cons], start_comp, start_comp, num_comp, S_rhs[IntVars::cons].nGrow());
+          dUdt_tmp.FillBoundary(geom.periodicity());
+          dUdt_tmp.setDomainBndry(1.234e10, 0, num_comp_total, geom);
+
+          S_old[IntVars::cons].FillBoundary(geom.periodicity());
+          S_old[IntVars::cons].setDomainBndry(1.234e10, 0, num_comp_total, geom);
+
+          // Update S_rhs by Redistribution.
+          // To-do: Currently, redistributing all the scalar variables.
+          //        This needs to be redistributed only for num_comp variables starting from ivar, for efficiency.
+          redistribute_term ( num_comp_total, geom, S_rhs[IntVars::cons], dUdt_tmp,
+                              S_old[IntVars::cons], ebfact, bc_ptr_d, dt);
+
+          // Update state using the updated S_rhs. (NOTE: redistribute_term returns RHS not state variables.)
+          for ( MFIter mfi(S_new[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+          {
+            Box tbx  = mfi.tilebox();
+            const Array4<Real>& snew = S_new[IntVars::cons].array(mfi);
+            const Array4<Real>& sold = S_old[IntVars::cons].array(mfi);
+            const Array4<Real>& srhs = S_rhs[IntVars::cons].array(mfi);
+            Array4<const Real> detJ_arr = ebfact.getVolFrac().const_array(mfi);
+
+            ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
+            {
+                if (detJ_arr(i,j,k) > 0.0) {
+                    const int n = start_comp + nn;
+                    snew(i,j,k,n) = sold(i,j,k,n) + dt * srhs(i,j,k,n);
+                }
+            });
+          }
+
+          // Redistribute momentum states (face-centered) will be added here.
+      } // EB
+
     } // OMP
 }
