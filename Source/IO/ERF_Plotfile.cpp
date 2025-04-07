@@ -194,6 +194,27 @@ ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::stri
     }
 #endif
 
+    {
+        Vector<std::string> microphysics_plot_names;
+        micro->GetPlotVarNames(microphysics_plot_names);
+        if (microphysics_plot_names.size() > 0) {
+            static bool first_call = true;
+            if (first_call) {
+                Print() << getEnumNameString(solverChoice.moisture_type)
+                        << ": the following additional variables are available to plot:\n";
+                for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+                    Print() << "    " << particle_mesh_plot_names[i] << "\n";
+                }
+                first_call = false;
+            }
+            for (auto& plot_name : microphysics_plot_names) {
+                if (containerHasElement(plot_var_names, plot_name)) {
+                    tmp_plot_names.push_back(plot_name);
+                }
+            }
+        }
+    }
+
     for (int i = 0; i < tmp_plot_names.size(); i++) {
         a_plot_var_names.push_back( tmp_plot_names[i] );
     }
@@ -1251,6 +1272,20 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             }
         }
 #endif
+
+        {
+            Vector<std::string> microphysics_plot_names;
+            micro->GetPlotVarNames(microphysics_plot_names);
+            for (auto& plot_name : microphysics_plot_names) {
+                if (containerHasElement(plot_var_names, plot_name)) {
+                    MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+                    temp_dat.setVal(0);
+                    micro->GetPlotVar(plot_name, temp_dat, lev);
+                    MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
+            }
+        }
 
         if (containerHasElement(plot_var_names, "volfrac")) {
             if ( solverChoice.terrain_type == TerrainType::EB ||

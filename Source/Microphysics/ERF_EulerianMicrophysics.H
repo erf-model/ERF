@@ -129,6 +129,20 @@ public:
         m_moist_model[a_lev]->Qmoist_Restart_Vars(a_sc, a_idx, a_names);
     }
 
+    /*! \brief Returns a list of additional plot variable names */
+    virtual void GetPlotVarNames (amrex::Vector<std::string>& a_vec) const override
+    {
+        m_moist_model[0]->GetPlotVarNames(a_vec);
+    }
+
+    /*! \brief Fills in a MultiFab for plotting */
+    virtual void GetPlotVar (const std::string& a_name,
+                             amrex::MultiFab& a_mf,
+                             const int a_lev) const override
+    {
+        m_moist_model[a_lev]->GetPlotVar(a_name, a_mf);
+    }
+
 protected:
 
     /*! \brief Create and set the specified moisture model */
