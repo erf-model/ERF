@@ -564,13 +564,13 @@ constexpr Real gamma_function(Real x) {
           // Microphysics options/switches
           int m_iact = 2;    // CCN activation option (1: power-law, 2: lognormal aerosol)
           int m_inum = 1;    // Droplet number option (0: predict, 1: constant)
-//#define WARM_ONLY
+#define WARM_ONLY
 #ifdef WARM_ONLY
-          int m_iliq = 0;    // Liquid-only option (0: include ice, 1: liquid only)
+          int m_iliq = 1;    // Liquid-only option (0: include ice, 1: liquid only)
           int m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
           [[maybe_unused]] int m_ibase = 2;   // Cloud base activation option
           int m_isub = 0;    // Sub-grid vertical velocity option
-          int m_igraup = 0;  // Graupel option (0: include graupel, 1: no graupel)
+          int m_igraup = 1;  // Graupel option (0: include graupel, 1: no graupel)
           int m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
 #else
           int m_iliq = 0;    // Liquid-only option (0: include ice, 1: liquid only)
@@ -933,8 +933,13 @@ constexpr Real gamma_function(Real x) {
           // Set microphysics control parameters
           m_iact = 2;  // Lognormal aerosol activation
           m_inuc = 0;      // Mid-latitude ice nucleation (Cooper)
+#ifdef WARM_ONLY
+          m_iliq = 1;           // Include ice processes
+          m_igraup = 1;         // Include graupel processes
+#else
           m_iliq = 0;           // Include ice processes
           m_igraup = 0;         // Include graupel processes
+#endif
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
@@ -4076,7 +4081,7 @@ constexpr Real gamma_function(Real x) {
 
               // ****SENSITIVITY - NO ICE
               if ((m_iliq == 1)) {
-                 printf("m_iliq: %g\n",m_iliq);//                goto label_778;
+                 printf("m_iliq: %d\n",m_iliq);//                goto label_778;
               } else {
 
                 // HOMOGENEOUS FREEZING OF CLOUD WATER
