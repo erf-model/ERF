@@ -1089,14 +1089,14 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
         // NOTE: Protect against accessing non-existent data
         if (use_moisture) {
-            int n_qstate   = micro->Get_Qstate_Size();
+            int n_qstate_moist   = micro->Get_Qstate_Moist_Size();
 
             // Moist density
             if(containerHasElement(plot_var_names, "moist_density"))
             {
                 int n_start = RhoQ1_comp; // qv
                 int n_end   = RhoQ2_comp; // qc
-                if (n_qstate > 3) n_end = RhoQ3_comp; // qi
+                if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], Rho_comp, mf_comp, 1, 0);
                 for (int n_comp(n_start); n_comp <= n_end; ++n_comp) {
                     MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
@@ -1110,7 +1110,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             {
                 int n_start = RhoQ1_comp; // qv
                 int n_end   = RhoQ2_comp; // qc
-                if (n_qstate > 3) n_end = RhoQ3_comp; // qi
+                if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
                 for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
                     MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
@@ -1119,21 +1119,21 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 mf_comp += 1;
             }
 
-            if(containerHasElement(plot_var_names, "qv") && (n_qstate >= 1))
+            if(containerHasElement(plot_var_names, "qv") && (n_qstate_moist >= 1))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ1_comp, mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if(containerHasElement(plot_var_names, "qc") && (n_qstate >= 2))
+            if(containerHasElement(plot_var_names, "qc") && (n_qstate_moist >= 2))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ2_comp, mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if(containerHasElement(plot_var_names, "qi") && (n_qstate >= 4))
+            if(containerHasElement(plot_var_names, "qi") && (n_qstate_moist >= 4))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ3_comp, mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
@@ -1142,9 +1142,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
             // Precipitating components
             //--------------------------------------------------------------------------
-            if(containerHasElement(plot_var_names, "qp") && (n_qstate >= 3))
+            if(containerHasElement(plot_var_names, "qp") && (n_qstate_moist >= 3))
             {
-                int n_start = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
+                int n_start = (n_qstate_moist > 3) ? RhoQ4_comp : RhoQ3_comp;
                 int n_end   = ncomp_cons - 1;
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
                 for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
@@ -1154,22 +1154,22 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 mf_comp += 1;
             }
 
-            if(containerHasElement(plot_var_names, "qrain") && (n_qstate >= 3))
+            if(containerHasElement(plot_var_names, "qrain") && (n_qstate_moist >= 3))
             {
-                int n_start = (n_qstate > 3) ? RhoQ4_comp : RhoQ3_comp;
+                int n_start = (n_qstate_moist > 3) ? RhoQ4_comp : RhoQ3_comp;
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start , mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp, mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if(containerHasElement(plot_var_names, "qsnow") && (n_qstate >= 5))
+            if(containerHasElement(plot_var_names, "qsnow") && (n_qstate_moist >= 5))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ5_comp, mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if(containerHasElement(plot_var_names, "qgraup") && (n_qstate >= 6))
+            if(containerHasElement(plot_var_names, "qgraup") && (n_qstate_moist >= 6))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ6_comp, mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
