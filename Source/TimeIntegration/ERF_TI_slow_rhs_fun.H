@@ -177,7 +177,7 @@
                              z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level],
                              stretched_dz_d[level], p0_new, pp_inc[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                             EBFactory(level),
+                             get_eb(level),
                              fr_as_crse, fr_as_fine);
 
             add_thin_body_sources(xmom_src, ymom_src, zmom_src,
@@ -286,7 +286,7 @@
                              z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
                              stretched_dz_d[level], p0, pp_inc[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                             EBFactory(level),
+                             get_eb(level),
                              fr_as_crse, fr_as_fine);
 
             add_thin_body_sources(xmom_src, ymom_src, zmom_src,
@@ -499,7 +499,7 @@
                          z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
                          stretched_dz_d[level], p0, pp_inc[level],
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                         EBFactory(level),
+                         get_eb(level),
                          fr_as_crse, fr_as_fine);
 
          add_thin_body_sources(xmom_src, ymom_src, zmom_src,

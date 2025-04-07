@@ -616,6 +616,13 @@ define( int const& a_idim,
   }
 }
 
+const FabArray<EBCellFlagFab>&
+eb_aux_::getMultiEBCellFlagFab () const
+{
+    AMREX_ASSERT(m_cellflags != nullptr);
+    return *m_cellflags;
+}
+
 const MultiFab&
 eb_aux_::getVolFrac () const
 {

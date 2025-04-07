@@ -58,7 +58,7 @@ public:
              const amrex::Real& dt_advance,
              const int& nstep)
     {
-        m_lsm_model[lev]->Advance(lev, cons_in, xvel_in, yvel_in, hfx3_out, qfx3_out, dt_advance, nstep);
+        m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in, hfx3_out, qfx3_out, dt_advance, nstep);
     }
 
     void
