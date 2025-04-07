@@ -79,6 +79,14 @@ public:
                                           std::vector<int>&,
                                           std::vector<std::string>& ) const = 0;
 
+    /*! \brief Returns a list of additional plot variable names */
+    virtual void GetPlotVarNames (amrex::Vector<std::string>& a_vec) const = 0;
+
+    /*! \brief Fills in a MultiFab for plotting */
+    virtual void GetPlotVar (const std::string& a_name,
+                             amrex::MultiFab& a_mf,
+                             const int a_lev) const = 0;
+
     /*! \brief query if a specified moisture model is Eulerian or Lagrangian */
     static MoistureModelType modelType (const MoistureType a_moisture_type)
     {
@@ -98,7 +106,6 @@ public:
             return MoistureModelType::Undefined;
         }
     }
-
 private:
 
 };
