@@ -2471,7 +2471,7 @@ constexpr Real gamma_function(Real x) {
 
               // Saturation adjustment for liquid
               dums = dumqv - dumqss;
-              pcc = dums / (1.0 + xxlv(i,j,k) * xxlv(i,j,k) * dumqss / (cpm(i,j,k) * m_Rv * dumt * dumt)) / dt;
+              pcc = dums / (1.0 + std::pow(xxlv(i,j,k), 2) * dumqss / (cpm(i,j,k) * m_Rv * std::pow(dumt, 2))) / dt;
               if (pcc * dt + dumqc < 0.0) {
                 pcc = -dumqc / dt;
               }
@@ -2555,7 +2555,7 @@ constexpr Real gamma_function(Real x) {
 
                 // MARTIN ET AL. (1994) FORMULA FOR PGAM (WRF implementation)
                 pgam(i,j,k) = 0.0005714*(nc3d(i,j,k)/1.0e6*dum) + 0.2714;
-                pgam(i,j,k) = 1.0/(pgam(i,j,k)*pgam(i,j,k)) - 1.0;
+                pgam(i,j,k) = 1.0/(std::pow(pgam(i,j,k), 2)) - 1.0;
                 pgam(i,j,k) = amrex::max(pgam(i,j,k), 2.0);
                 pgam(i,j,k) = amrex::min(pgam(i,j,k), 10.0);
 
@@ -4325,7 +4325,7 @@ constexpr Real gamma_function(Real x) {
                 if (qc3d(i,j,k) >= m_qsmall) {
                   amrex::Real dum = pres(i,j,k) / (287.15 * t3d(i,j,k));
                   pgam(i,j,k) = 0.0005714 * (nc3d(i,j,k) / 1.0e6 * dum) + 0.2714;
-                  pgam(i,j,k) = 1.0 / (pgam(i,j,k) * pgam(i,j,k)) - 1.0;
+                  pgam(i,j,k) = 1.0/(std::pow(pgam(i,j,k), 2)) - 1.0;
                   pgam(i,j,k) = std::max(pgam(i,j,k), 2.0);
                   pgam(i,j,k) = std::min(pgam(i,j,k), 10.0);
 
