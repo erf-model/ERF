@@ -10,6 +10,7 @@
 #include <AMReX_TableData.H>
 #include <AMReX_MultiFabUtil.H>
 
+#include "ERF.H"
 #include "ERF_Constants.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_IndexDefines.H"
@@ -1361,6 +1362,7 @@ constexpr Real gamma_function(Real x) {
             xlf_fab.setVal(0.0);
 
             FILE *file = fopen("output_cpp.txt", "a");
+            fprintf(file, "============================ %-8d ============================\n", debug_step);
           ////////////////////////////////////////////////////////////
           // ParallelFor for testing partial C++ implementation
           // NOTE: Currently all Array4 values are copied to locals
@@ -1918,7 +1920,7 @@ constexpr Real gamma_function(Real x) {
               if (qc3d(i,j,k) < m_qsmall && qni3d(i,j,k) < 1.0e-8 && qr3d(i,j,k) < m_qsmall && qg3d(i,j,k) < 1.0e-8) {
                 skipConcentrations=true;//                goto label_300;
               }
-#if 1
+#if 0
               // C++ version
               if ((i == 83 && j == 3 && k == 13) ||
                   (i == 83 && j == 3 && k == 12) ||
@@ -4241,7 +4243,7 @@ constexpr Real gamma_function(Real x) {
 
               // ****SENSITIVITY - NO ICE
               if ((m_iliq == 1)) {
-                 printf("m_iliq: %d\n",m_iliq);//                goto label_778;
+                Real dontdoanything=m_iliq;//printf("m_iliq: %d\n",m_iliq);//                goto label_778;
               } else {
 
                 // HOMOGENEOUS FREEZING OF CLOUD WATER
@@ -4484,7 +4486,7 @@ constexpr Real gamma_function(Real x) {
           if(run_morr_fort) {
           mp_morr_two_moment_c
           (
-              1,  // ITIMESTEP - Use 1 for simplicity
+              debug_step,  // ITIMESTEP - Use 1 for simplicity
 
               // 3D arrays in Fortran expected order (assume column-major for Fortran)
               theta_arr.dataPtr(),      // TH

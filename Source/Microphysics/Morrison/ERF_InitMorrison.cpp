@@ -76,6 +76,7 @@ Morrison::Init (const MultiFab& cons_in,
         zmid.resize({zlo}, {zhi});
     }
 
+    debug_step = 0;
     int morr_rimed_ice = 0; // This is used to set something called "ihail"
     morr_two_moment_init_c(morr_rimed_ice);
 }
@@ -138,6 +139,7 @@ Morrison::Copy_State_to_Micro (const MultiFab& cons_in)
             pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)); //  * 0.01;
         });
     }
+    debug_step++;
 }
 
 

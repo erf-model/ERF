@@ -776,7 +776,9 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
    END DO
    END DO
    END DO
-
+   open(unit=10, file='output_F.txt', status='unknown', position='append')
+   write(10, '(A,I8,A)') "============================ ", ITIMESTEP, " ============================"
+   close(10)
    do i=its,ite      ! i loop (east-west)
    do j=jts,jte      ! j loop (north-south)
    !
@@ -840,7 +842,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
 
 !jdf  end do
 
-      call MORR_TWO_MOMENT_MICRO(i,j,kts,kte,QC_TEND1D, QI_TEND1D, QNI_TEND1D, QR_TEND1D,   &
+      call MORR_TWO_MOMENT_MICRO(i,j,ITIMESTEP,kts,kte,QC_TEND1D, QI_TEND1D, QNI_TEND1D, QR_TEND1D,   &
                                  NI_TEND1D, NS_TEND1D, NR_TEND1D,               &
                                  QC1D, QI1D, QS1D, QR1D,NI1D, NS1D, NR1D,       &
                                  T_TEND1D,QV_TEND1D, T1D, QV1D, P1D, DZ1D, W1D, &
@@ -923,7 +925,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
-      SUBROUTINE MORR_TWO_MOMENT_MICRO(i,j,kts,kte,                                                   &
+      SUBROUTINE MORR_TWO_MOMENT_MICRO(i,j,istep,kts,kte,                                                   &
                                        QC3DTEN,QI3DTEN,QNI3DTEN,QR3DTEN,                              &
                                        NI3DTEN,NS3DTEN,NR3DTEN,QC3D,QI3D,QNI3D,QR3D,NI3D,NS3D,NR3D,   &
                                        T3DTEN,QV3DTEN,T3D,QV3D,PRES,DZQ,W3D,PRECRT,SNOWRT,            &
@@ -961,7 +963,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! INPUT NUMBER OF GRID CELLS
 
 ! INPUT/OUTPUT PARAMETERS                                 ! DESCRIPTION (UNITS)
-      INTEGER, INTENT( IN)  :: i,j,kts,kte
+      INTEGER, INTENT( IN)  :: i,j,istep,kts,kte
 
       REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::  QC3DTEN            ! CLOUD WATER MIXING RATIO TENDENCY (KG/KG/S)
       REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::  QI3DTEN            ! CLOUD ICE MIXING RATIO TENDENCY (KG/KG/S)

@@ -286,6 +286,9 @@ private:
     // timestep
     amrex::Real dt;
 
+    // debug step number
+    int debug_step;
+
     // number of vertical levels
     int nlev, zlo, zhi;
 
