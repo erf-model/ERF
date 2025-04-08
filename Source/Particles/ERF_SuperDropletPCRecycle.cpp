@@ -69,9 +69,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
         for (int i = 0; i < n_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
-                                                    + SuperDropletsRealIdxSoA_RT::ncomps
-                                                    + i ).data();
+            aerosol_mass_ptrs[i] = soa.GetRealData(s_idx(i)).data();
         }
 
         ParallelForRNG(n, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept

@@ -473,9 +473,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
 
         GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
         for (int i = 0; i < n_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
-                                                    + SuperDropletsRealIdxSoA_RT::ncomps
-                                                    + i ).data() + size_old;
+            aerosol_mass_ptrs[i] = soa.GetRealData(s_idx(i)).data() + size_old;
         }
 
         Gpu::DeviceVector<Real> aerosol_mass_d(n_aerosols*np);
@@ -692,9 +690,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
 
         GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
         for (int i = 0; i < n_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
-                                                    + SuperDropletsRealIdxSoA_RT::ncomps
-                                                    + i ).data();
+            aerosol_mass_ptrs[i] = soa.GetRealData(s_idx(i)).data();
         }
 
         auto condensate_mass_density = a_rhoc[pti.index()].array();

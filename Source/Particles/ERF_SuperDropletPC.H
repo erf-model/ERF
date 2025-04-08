@@ -58,6 +58,14 @@ enum struct SDMassChangeTIMethod {
     RK3BS, RK4, BE, CN, DIRK2
 };
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int s_idx(const int a_i /*!< Species index */)
+{
+    return    SuperDropletsRealIdxSoA::ncomps
+            + SuperDropletsRealIdxSoA_RT::ncomps
+            + a_i;
+}
+
 using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
 using MFPtr = std::unique_ptr<amrex::MultiFab>;
 using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;

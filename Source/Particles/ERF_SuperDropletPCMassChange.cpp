@@ -66,9 +66,7 @@ void SuperDropletPC::MassChange ( int                                         a_
             Vector<ParticleReal> aerosol_mol_weight_h(num_aerosols);
             Vector<int> aerosol_solubility_h(num_aerosols);
             for (int i = 0; i < num_aerosols; i++) {
-                aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
-                                                        + SuperDropletsRealIdxSoA_RT::ncomps
-                                                        + i ).data();
+                aerosol_mass_ptrs[i] = soa.GetRealData(s_idx(i)).data();
                 aerosol_mol_weight_h[i] = m_aerosol_mat[i]->molWeight();
                 aerosol_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
             }

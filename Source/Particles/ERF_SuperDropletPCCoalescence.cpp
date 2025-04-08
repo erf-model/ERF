@@ -131,9 +131,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         /* aerosol masses */
         SDAerosolMassArr aerosol_mass_ptrs;
         for (int i = 0; i < num_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
-                                                    + SuperDropletsRealIdxSoA_RT::ncomps
-                                                    + i ).data();
+            aerosol_mass_ptrs[i] = soa.GetRealData(s_idx(i)).data();
         }
 
         int grid = pti.index();

@@ -68,9 +68,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
         GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
         for (int i = 0; i < n_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
-                                                    + SuperDropletsRealIdxSoA_RT::ncomps
-                                                    + i ).data();
+            aerosol_mass_ptrs[i] = soa.GetRealData(s_idx(i)).data();
         }
 
         Gpu::Buffer<Long> deactivated_particles({0});
