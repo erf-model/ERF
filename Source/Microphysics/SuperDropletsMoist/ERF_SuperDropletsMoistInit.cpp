@@ -8,7 +8,6 @@
 void SuperDropletsMoist::Define (SolverChoice& a_sc /*!< Solver choices */)
 {
     m_fac_cond = lcond / a_sc.c_p;
-    readInputs();
 }
 
 /*! Read inputs from file */

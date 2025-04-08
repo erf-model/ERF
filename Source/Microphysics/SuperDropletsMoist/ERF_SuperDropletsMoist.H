@@ -115,6 +115,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             m_qstate_moist_size = 3; // qv, qc, qr
             m_qstate_nonmoist_size = -1; // intentional
             m_name = "super_droplets_moisture";
+            readInputs();
         }
 
         /*! \brief Destructor */
