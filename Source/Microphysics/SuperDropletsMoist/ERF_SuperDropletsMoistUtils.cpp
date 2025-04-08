@@ -38,6 +38,18 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k) + q_r_arr(i,j,k); });
 
+        for (int v = 0; v < m_vapours.size(); v++) {
+            auto q_v_arr = m_mic_fab_vars[s_qv_idx(v)]->array(mfi);
+            auto q_c_arr = m_mic_fab_vars[s_qc_idx(v)]->const_array(mfi);
+            auto q_t_arr = m_mic_fab_vars[s_qt_idx(v)]->array(mfi);
+            auto qv_comp = q_qv_idx(v);
+            ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                q_v_arr(i,j,k) = states_arr(i,j,k,qv_comp) / states_arr(i,j,k,Rho_comp);
+                q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k);
+            });
+        }
+
     }
 
     // Compute pressure and temperature
@@ -84,6 +96,27 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
 
     }
 
+    for (int v = 0; m_vapours.size(); v++) {
+        // TODO
+        //auto& species = m_vapours[v];
+        //species.computeSaturationVapFrac((*m_mic_fab_vars[s_sr_idx(v)]),
+        //                                 (*m_mic_fab_vars[MicVar_SD::temperature]),
+        //                                 (*m_mic_fab_vars[MicVar_SD::pressure]) );
+        for (   MFIter mfi((*m_mic_fab_vars[s_sr_idx(v)]),
+                TilingIfNotGPU()); mfi.isValid();
+                ++mfi ) {
+
+            Box bx = mfi.tilebox();
+            bx.grow( m_mic_fab_vars[s_sr_idx(v)]->nGrowVect() );
+
+            const Array4<Real>& sr_arr = m_mic_fab_vars[s_sr_idx(v)]->array(mfi);
+            const Array4<Real const>& qv_arr = m_mic_fab_vars[s_qv_idx(v)]->const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            { sr_arr(i,j,k,0) = qv_arr(i,j,k,0) / sr_arr(i,j,k,0); });
+        }
+    }
+
     for (auto i(0); i < MicVar_SD::NumVars; i++) {
         m_mic_fab_vars[i]->FillBoundary(m_geom.periodicity());
     }
@@ -113,6 +146,18 @@ void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conse
             states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
             states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
         });
+
+        for (int v = 0; v < m_vapours.size(); v++) {
+            auto q_v_arr = m_mic_fab_vars[s_qv_idx(v)]->array(mfi);
+            auto q_c_arr = m_mic_fab_vars[s_qc_idx(v)]->array(mfi);
+            auto qv_comp = q_qv_idx(v);
+            auto qc_comp = q_qc_idx(v);
+            ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                states_arr(i,j,k,qv_comp) = states_arr(i,j,k,Rho_comp)*q_v_arr(i,j,k);
+                states_arr(i,j,k,qc_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
+            });
+        }
     }
 
     a_cons_vars.FillBoundary(m_geom.periodicity());
@@ -131,6 +176,11 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
     computeQcQr();
     computeQt();
     rainAccumulation();
+
+    computeQcSpecies();
+    computeQtSpecies();
+    speciesAccumulation();
+
     if (!m_kinematic_mode) { Copy_Micro_to_State(a_cons_vars); }
 }
 
@@ -251,6 +301,78 @@ void SuperDropletsMoist::rainAccumulation ()
         });
     }
 
+}
+
+/*! compute condensate mixing ratio for non-water species */
+void SuperDropletsMoist::computeQcSpecies ()
+{
+    for (int v = 0; v < m_vapours.size(); v++) {
+        //TODO m_super_droplets->speciesMassDensity(*(m_mic_fab_vars[s_qc_idx(v)]), v);
+        if (m_dimensionality == SDMSimulationDim::one_d_z) {
+            for ( MFIter mfi(*m_mic_fab_vars[s_qc_idx(v)]); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                int imin = bx.smallEnd(0);
+                int jmin = bx.smallEnd(1);
+                auto q_c_arr = m_mic_fab_vars[s_qc_idx(v)]->array(mfi);
+
+                ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                { q_c_arr(i,j,k) = q_c_arr(imin,jmin,k); });
+            }
+        }
+
+        densityToRatio(*(m_mic_fab_vars[s_qc_idx(v)]));
+    }
+}
+
+/*! compute qt (total) for non-water species */
+void SuperDropletsMoist::computeQtSpecies ()
+{
+    for (int v = 0; v < m_vapours.size(); v++) {
+        for ( MFIter mfi(*m_mic_fab_vars[s_qt_idx(v)]); mfi.isValid(); ++mfi) {
+
+            Box bx = mfi.tilebox();
+            bx.grow(m_mic_fab_vars[MicVar_SD::q_t]->nGrowVect());
+
+            auto q_c_arr = m_mic_fab_vars[s_qc_idx(v)]->const_array(mfi);
+            auto q_v_arr = m_mic_fab_vars[s_qv_idx(v)]->const_array(mfi);
+            auto q_t_arr = m_mic_fab_vars[s_qt_idx(v)]->array(mfi);
+
+            ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            { q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k); });
+        }
+    }
+}
+
+/*! Compute ground accumulation for non-water species */
+void SuperDropletsMoist::speciesAccumulation ()
+{
+    auto domain = m_geom.Domain();
+    const auto dx = m_geom.CellSizeArray();
+    int k_lo = domain.smallEnd(2);
+    auto dt = m_dt;
+
+    for (int v = 0; v < m_vapours.size(); v++) {
+        MultiFab mf_zflux( m_mic_fab_vars[s_sr_idx(v)]->boxArray(),
+                           m_mic_fab_vars[s_sr_idx(v)]->DistributionMap(),
+                           1,
+                           m_mic_fab_vars[s_sr_idx(v)]->nGrowVect() );
+        //TODO m_super_droplets->speciesMassFlux(mf_zflux, v, 2);
+
+        for ( MFIter mfi((*m_mic_fab_vars[MicVar_SD::rain_accum]),TilingIfNotGPU());
+              mfi.isValid(); ++mfi ) {
+            Box bx = mfi.tilebox();
+            const Array4<Real const>& zflux_arr = mf_zflux.const_array(mfi);
+            const Array4<Real>& accum_arr = m_mic_fab_vars[s_sr_idx(v)]->array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                if (k == k_lo) {
+                    auto accum = std::max(0.0, -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
+                    accum_arr(i,j,k) += accum;
+                }
+            });
+        }
+    }
 }
 
 #endif

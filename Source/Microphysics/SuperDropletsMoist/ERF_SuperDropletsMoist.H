@@ -27,6 +27,65 @@ namespace MicVar_SD {
     };
 }
 
+namespace MicVar_SD_Species {
+    enum {
+        q_t = 0,    /*!< Total density ratio */
+        q_v,        /*!< Vapour density ratio */
+        q_c,        /*!< Condensate density ratio */
+        sr,         /*!< Saturation ratio */
+        accum,      /*!< Ground accumulation */
+        NumVars
+    };
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int q_qv_idx (const int a_i /*!< species index */ )
+{
+    return      MicVar_SD::NumVars
+            +   a_i*MicVar_SD_Species::NumVars
+            +   MicVar_SD_Species::q_v;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int s_qt_idx (const int a_i /*!< species index */ )
+{
+    return      MicVar_SD::NumVars
+            +   a_i*MicVar_SD_Species::NumVars
+            +   MicVar_SD_Species::q_t;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int s_qv_idx (const int a_i /*!< species index */ )
+{
+    return      MicVar_SD::NumVars
+            +   a_i*MicVar_SD_Species::NumVars
+            +   MicVar_SD_Species::q_v;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int s_qc_idx (const int a_i /*!< species index */ )
+{
+    return      MicVar_SD::NumVars
+            +   a_i*MicVar_SD_Species::NumVars
+            +   MicVar_SD_Species::q_c;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int s_sr_idx (const int a_i /*!< species index */ )
+{
+    return      MicVar_SD::NumVars
+            +   a_i*MicVar_SD_Species::NumVars
+            +   MicVar_SD_Species::sr;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int s_accum_idx (const int a_i /*!< species index */ )
+{
+    return      MicVar_SD::NumVars
+            +   a_i*MicVar_SD_Species::NumVars
+            +   MicVar_SD_Species::accum;
+}
+
 /*! \brief List of super-droplet moisture model initializations */
 namespace SuperDropletsMoistInitializations
 {
@@ -54,6 +113,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         {
             m_qmoist_size = 7;
             m_qstate_moist_size = 3; // qv, qc, qr
+            m_qstate_nonmoist_size = -1; // intentional
             m_name = "super_droplets_moisture";
         }
 
@@ -120,10 +180,17 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_qmoist_size;
         }
 
-        /*! \brief returns number of conserved variables in this moisture model */
+        /*! \brief returns number of moist conserved variables */
         inline virtual int Qstate_Moist_Size () override
         {
             return m_qstate_moist_size;
+        }
+
+        /*! \brief returns number of non-water species conserved variables */
+        inline virtual int Qstate_NonMoist_Size () override
+        {
+            AMREX_ALWAYS_ASSERT(m_qstate_nonmoist_size >= 0);
+            return m_qstate_nonmoist_size;
         }
 
         /*! \brief returns pointer to super-droplets particle container */
@@ -143,8 +210,17 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief compute qt (total) */
         virtual void computeQt ();
 
+        /*! \brief compute condensate mixing ratio for non-water species */
+        virtual void computeQcSpecies ();
+
+        /*! \brief compute qt (total) for non-water species */
+        virtual void computeQtSpecies ();
+
         /*! \brief Compute rain accumulation */
         virtual void rainAccumulation ();
+
+        /*! \brief Compute rain accumulation */
+        virtual void speciesAccumulation ();
 
         /*! \brief Convert a multifab containing density of something to its mixing ratio */
         void densityToRatio ( MultiFab&, const int a_comp = 0 );
@@ -155,6 +231,84 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void phaseChange (  const Real&,
                                     const Vector<MFPtr>&,
                                     const bool );
+
+        virtual void GetPlotVarNames (Vector<std::string>& a_names) const override
+        {
+            for (int v = 0; v < m_vapours.size(); v++) {
+                a_names.push_back("qv_"+m_vapours[v]);
+                a_names.push_back("qc_"+m_vapours[v]);
+                a_names.push_back("qt_"+m_vapours[v]);
+                a_names.push_back("sat_ratio_"+m_vapours[v]);
+                a_names.push_back("accum_"+m_vapours[v]);
+            }
+        }
+
+        virtual void GetPlotVar (const std::string& a_name,
+                                 MultiFab& a_mf )  const
+        {
+            AMREX_ASSERT(a_mf.nComp() >= 1);
+            for (int v = 0; v < m_vapours.size(); v++) {
+                {
+                    std::string varname = "qv_" + m_vapours[v];
+                    if (a_name == varname) {
+                        MultiFab::Copy( a_mf,
+                                        *m_mic_fab_vars[s_qv_idx(v)],
+                                        0, 0, 1, IntVect::TheZeroVector() );
+                        return;
+                    }
+                }
+                {
+                    std::string varname = "qc_" + m_vapours[v];
+                    if (a_name == varname) {
+                        MultiFab::Copy( a_mf,
+                                        *m_mic_fab_vars[s_qc_idx(v)],
+                                        0, 0, 1, IntVect::TheZeroVector() );
+                        return;
+                    }
+                }
+                {
+                    std::string varname = "qt_" + m_vapours[v];
+                    if (a_name == varname) {
+                        MultiFab::Copy( a_mf,
+                                        *m_mic_fab_vars[s_qt_idx(v)],
+                                        0, 0, 1, IntVect::TheZeroVector() );
+                        return;
+                    }
+                }
+                {
+                    std::string varname = "sat_ratio_" + m_vapours[v];
+                    if (a_name == varname) {
+                        MultiFab::Copy( a_mf,
+                                        *m_mic_fab_vars[s_sr_idx(v)],
+                                        0, 0, 1, IntVect::TheZeroVector() );
+                        return;
+                    }
+                }
+                {
+                    std::string varname = "accum_" + m_vapours[v];
+                    if (a_name == varname) {
+                        MultiFab::Copy( a_mf,
+                                        *m_mic_fab_vars[s_accum_idx(v)],
+                                        0, 0, 1, IntVect::TheZeroVector() );
+                        return;
+                    }
+                }
+            }
+            amrex::Abort("SuperDropletsMoist::GetPlotVar() called with invalid name");
+            return;
+        }
+
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        int q_qv_idx (const int a_i /*!< species index */ )
+        {
+            return RhoQ1_comp + m_qstate_moist_size + 2*a_i + 0;
+        }
+
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        int q_qc_idx (const int a_i /*!< species index */ )
+        {
+            return RhoQ1_comp + m_qstate_moist_size + 2*a_i + 1;
+        }
 
     protected:
 
@@ -186,14 +340,19 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! number of microphysics variables */
         int m_qmoist_size;
-        /*! number of state variables for this moisture model */
+        /*! number of water-related state variables for this moisture model */
         int m_qstate_moist_size;
+        /*! number of non-water-related state variables for this moisture model */
+        int m_qstate_nonmoist_size;
 
         Real m_dt; /*!< timestep */
         Vector<int> m_mic_var_map; /*!< moisture model variables map */
 
         /*! moisture model variables */
-        Array<FabPtr, MicVar_SD::NumVars> m_mic_fab_vars;
+        Vector<FabPtr> m_mic_fab_vars;
+
+        /*! names of vapours (other than water) */
+        std::vector<std::string> m_vapours;
 
         /*! names of aerosols */
         std::vector<std::string> m_aerosols;
