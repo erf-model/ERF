@@ -18,14 +18,14 @@
 #include "ERF_NullMoist.H"
 #include "ERF_Morrison.H"
 #include <ERF_Morrison_Fortran_Interface.H>
-#define PRINT_DEBUG
+//#define PRINT_DEBUG
 #ifdef PRINT_DEBUG
 #define IS_DEBUG_POINT(i, j, k, debug_step) \
-  (debug_step > 80 && \
-   ((i == 83 && j == 3 && k == 13) || \
-    (i == 83 && j == 3 && k == 12) || \
-    (i == 87 && j == 3 && k == 26) || \
-    (i == 96 && j == 3 && k == 26)))
+  (debug_step >= 0 && \
+   ((i == 76 && j == 3 && k == 8)))
+#else
+#define IS_DEBUG_POINT(i, j, k, debug_step) \
+  (false)
 #endif
 using namespace amrex;
 
@@ -1924,6 +1924,7 @@ constexpr Real gamma_function(Real x) {
                 if (qr3d(i,j,k) >= m_qsmall) {
                   // Calculate lambda parameter using cons26 (pi*rhow/6)
                   lamr(i,j,k) = pow(m_pi * m_rhow * nr3d(i,j,k) / qr3d(i,j,k), 1.0/3.0);
+                  n0r(i,j,k) = nr3d(i,j,k)*lamr(i,j,k);
 
                   // Check for slope and adjust vars
                   if (lamr(i,j,k) < m_lamminr) {
@@ -1934,9 +1935,6 @@ constexpr Real gamma_function(Real x) {
                     lamr(i,j,k) = m_lammaxr;
                     n0r(i,j,k) = pow(lamr(i,j,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
                     nr3d(i,j,k) = n0r(i,j,k) / lamr(i,j,k);  // Update number concentration
-                  } else {
-                    // Calculate intercept parameter using WRF formula
-                    n0r(i,j,k) = pow(lamr(i,j,k), 4.0) * qr3d(i,j,k) / (m_pi * m_rhow);
                   }
                 }
 
@@ -2201,7 +2199,15 @@ constexpr Real gamma_function(Real x) {
                 } else {
                   epsr = 0.0;
                 }
-
+#ifdef PRINT_DEBUG
+                if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e set epsr\n",
+                          i, j, k, pre, epsr, qv3d(i,j,k), qvs, ab,
+                          qr3d(i,j,k), m_qsmall, m_pi, n0r(i,j,k), rho(i,j,k), dv,
+                          m_f1r, lamr(i,j,k), m_f2r, arn(i,j,k), mu(i,j,k),
+                          sc_schmidt, m_cons9, m_cons34);
+                }
+#endif
                 // NO CONDENSATION ONTO RAIN, ONLY EVAP ALLOWED
                 if (qv3d(i,j,k) < qvs) {
                   pre = epsr * (qv3d(i,j,k) - qvs) / ab;

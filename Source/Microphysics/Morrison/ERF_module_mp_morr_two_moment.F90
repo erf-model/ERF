@@ -601,14 +601,14 @@ END SUBROUTINE MORR_TWO_MOMENT_INIT
 ! FOR QUESTIONS, CONTACT: HUGH MORRISON, E-MAIL: MORRISON@UCAR.EDU, PHONE:303-497-8916
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#define PRINT_DEBUG
+!#define PRINT_DEBUG
 #ifdef PRINT_DEBUG
 #define IS_DEBUG_POINT(i, j, k, istep) \
-  (istep > 80 .and. \
-   ((i == 83 .and. j == 3 .and. k == 13) .or. \
-    (i == 83 .and. j == 3 .and. k == 12) .or. \
-    (i == 87 .and. j == 3 .and. k == 26) .or. \
-    (i == 96 .and. j == 3 .and. k == 26)))
+  (istep >= 0 .and. \
+  ((i == 76 .and. j == 3 .and. k == 8)))
+#else
+#define IS_DEBUG_POINT(i, j, k, istep) \
+  (.false.)
 #endif
 SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                 TH, QV, QC, QR, QI, QS, QG, NI, NS, NR, NG, &
@@ -1936,7 +1936,16 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       ELSE
       EPSR = 0.
       END IF
-
+#ifdef PRINT_DEBUG
+      ! Fortran version
+      if (IS_DEBUG_POINT(i, j, k, istep)) then
+         write(10, '(3i6, 19(es24.16))') i, j, k, &
+              PRE(K), EPSR, QV3D(K), QVS(K), AB(K), &
+              QR3D(K), QSMALL, PI, N0RR(K), RHO(K), DV(K), &
+              F1R, LAMR(K), F2R, ARN(K), MU(K), &
+              SC(K), CONS9, CONS34
+      endif
+#endif
 ! NO CONDENSATION ONTO RAIN, ONLY EVAP ALLOWED
 
            IF (QV3D(K).LT.QVS(K)) THEN
