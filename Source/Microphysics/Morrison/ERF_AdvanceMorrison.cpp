@@ -18,11 +18,12 @@
 #include "ERF_NullMoist.H"
 #include "ERF_Morrison.H"
 #include <ERF_Morrison_Fortran_Interface.H>
-//#define PRINT_DEBUG
+#define PRINT_DEBUG
 #ifdef PRINT_DEBUG
 #define IS_DEBUG_POINT(i, j, k, debug_step) \
   (debug_step >= 0 && \
-   ((i == 76 && j == 3 && k == 8)))
+   ((i == 80 && j == 3 && k == 127) || \
+    (i == 123 && j == 3 && k == 127)))
 #else
 #define IS_DEBUG_POINT(i, j, k, debug_step) \
   (false)
@@ -959,6 +960,7 @@ constexpr Real gamma_function(Real x) {
           pp.query("use_morr_cpp_answer", use_morr_cpp_answer);
           Print()<<"use_morr_cpp_answer"<<use_morr_cpp_answer<<std::endl;
           bool run_morr_fort = !use_morr_cpp_answer;
+          std::string filename = std::string("output_cpp") + std::to_string(use_morr_cpp_answer) + ".txt";
           if(run_morr_cpp) {
 
             // Create dummy arrays for tendencies
@@ -1369,7 +1371,7 @@ constexpr Real gamma_function(Real x) {
             cpm_fab.setVal(0.0);
             xlf_fab.setVal(0.0);
 
-            FILE *file = fopen("output_cpp.txt", "a");
+            FILE *file = fopen(filename.c_str(), "a");
             fprintf(file, "============================ %-8d ============================\n", debug_step);
           ////////////////////////////////////////////////////////////
           // ParallelFor for testing partial C++ implementation
@@ -1627,7 +1629,7 @@ constexpr Real gamma_function(Real x) {
             if ((i >= 86 && i <= 101 && j >= 0 && j <= 3 && k >= 8 && k <= 23 &&
                  (i-86)%2 == 0 && j%2 == 0 && (k-8)%2 == 0) ||
                 (i == 92 && j == 0 && k == 17)) {
-              FILE *file = fopen("output_cpp.txt", "a");
+              FILE *file = fopen("output_cpp2.txt", "a");
               fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e %24.16e\n",
                       i, j, k, xxlv(i,j,k), xxls(i,j,k), cpm(i,j,k), evs, eis, t3d(i,j,k), CP, qv3d(i,j,k), pres(i,j,k));
             }
@@ -1710,6 +1712,11 @@ constexpr Real gamma_function(Real x) {
                 qg3d(i,j,k) = 0.0; // temporary update: set graupel to zero
               }
             }
+#ifdef PRINT_DEBUG
+            if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+              fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, t3d(i,j,k), t3dten(i,j,k), xxlv(i,j,k), cpm(i,j,k));
+              }
+#endif
 #if 0
             // C++ version
             if ((i >= 86 && i <= 101 && j >= 0 && j <= 3 && k >= 8 && k <= 23 &&
@@ -1836,6 +1843,11 @@ constexpr Real gamma_function(Real x) {
             bool skipPrecip = true; // set with if statement
             if (qc3d(i,j,k) < QSMALL && qi3d(i,j,k) < QSMALL && qni3d(i,j,k) < QSMALL && qr3d(i,j,k) < QSMALL && qg3d(i,j,k) < QSMALL) {
               if ((t3d(i,j,k) < 273.15 && qvqvsi < 0.999) || (t3d(i,j,k) >= 273.15 && qvqvs < 0.999)) {
+#if 0
+              if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+                fprintf(file,"%5d %5d %5d skip200 \n",i,j,k);
+                 }
+#endif
                 skipMicrophysics = true;//                goto label_200;
               }
             }
@@ -1899,7 +1911,11 @@ constexpr Real gamma_function(Real x) {
                 qg3d(i,j,k) = 0.0;                  // Set graupel to zero
                 ng3d(i,j,k) = 0.0;                  // Set graupel number to zero
               }
-
+#ifdef PRINT_DEBUG
+                if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, t3d(i,j,k), t3dten(i,j,k), xxlv(i,j,k), cpm(i,j,k));
+                }
+#endif
               // Skip to label 300 if concentrations are below thresholds
               if (qc3d(i,j,k) < m_qsmall && qni3d(i,j,k) < 1.0e-8 && qr3d(i,j,k) < m_qsmall && qg3d(i,j,k) < 1.0e-8) {
                 skipConcentrations=true;//                goto label_300;
@@ -3622,6 +3638,11 @@ constexpr Real gamma_function(Real x) {
         // hm added 7/13/13
             snowprt(i,j,k) = 0.0;
             grplprt(i,j,k) = 0.0;
+#ifdef PRINT_DEBUG
+                if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+                  fprintf(file, "%5d %5d %5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k,ltrue,nstep, precrt(i,j,k), snowrt(i,j,k) ,snowprt(i,j,k), grplprt(i,j,k));
+                }
+#endif
             }
             nstep = 1;
             if(ltrue != 0) {
@@ -3835,7 +3856,12 @@ constexpr Real gamma_function(Real x) {
 
               // Calculate number of steps (dt and nstep would need to be defined elsewhere)
               int nstep = std::max(static_cast<int>(rgvm(i,j,k) * dt / dzq(i,j,k) + 1.), nstep);
-
+#ifdef PRINT_DEBUG
+                if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+                  fprintf(file, "%5d %5d %5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k,ltrue,nstep, precrt(i,j,k), snowrt(i,j,k) ,snowprt(i,j,k), grplprt(i,j,k));
+                  fprintf(file, "%5d %5d %5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k,khi-1,klo, precrt(i,j,k), snowrt(i,j,k) ,snowprt(i,j,k), grplprt(i,j,k));
+                }
+#endif
               // MULTIPLY VARIABLES BY RHO
               dumr(i,j,k) = dumr(i,j,k) * rho(i,j,k);       // Rain water content * density
               dumi(i,j,k) = dumi(i,j,k) * rho(i,j,k);       // Cloud ice content * density
@@ -3957,7 +3983,7 @@ constexpr Real gamma_function(Real x) {
               snowprt(i,j,klo) += (falouti(i,j,kts) + falouts(i,j,kts)) * dt / nstep;
               grplprt(i,j,klo) += faloutg(i,j,kts) * dt / nstep;
 #ifdef PRINT_DEBUG
-              if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+              if (IS_DEBUG_POINT(i, j, klo, debug_step)) {
                 // Line 1: indices and precipitation accumulation variables
                 fprintf(file, "%5d %5d %5d PRECRT: %24.16e SNOWRT: %24.16e SNOWPRT: %24.16e GRPLPRT: %24.16e\n",
                         i, j, k, precrt(i,j,klo), snowrt(i,j,klo), snowprt(i,j,klo), grplprt(i,j,klo));
@@ -4029,7 +4055,11 @@ constexpr Real gamma_function(Real x) {
               // ADD TEMPERATURE AND WATER VAPOR TENDENCIES FROM MICROPHYSICS
               t3d(i,j,k) = t3d(i,j,k) + t3dten(i,j,k)*dt;
               qv3d(i,j,k) = qv3d(i,j,k) + qv3dten(i,j,k)*dt;
-
+#ifdef PRINT_DEBUG
+                if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, t3d(i,j,k), t3dten(i,j,k), xxlv(i,j,k), cpm(i,j,k));
+                }
+#endif
               // SATURATION VAPOR PRESSURE AND MIXING RATIO
               // hm, add fix for low pressure, 5/12/10
               // Assuming POLYSVP is defined elsewhere
@@ -4088,7 +4118,11 @@ constexpr Real gamma_function(Real x) {
                   qg3d(i,j,k) = 0.0;
                 }
               }
-
+#ifdef PRINT_DEBUG
+                if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, t3d(i,j,k), t3dten(i,j,k), xxlv(i,j,k), cpm(i,j,k));
+                }
+#endif
               // IF MIXING RATIO < QSMALL SET MIXING RATIO AND NUMBER CONC TO ZERO
               if (qc3d(i,j,k) < m_qsmall) {
                 qc3d(i,j,k) = 0.0;
@@ -4146,7 +4180,11 @@ constexpr Real gamma_function(Real x) {
                 nr3d(i,j,k) = nr3d(i,j,k) + ni3d(i,j,k);
                 ni3d(i,j,k) = 0.0;
               }
-
+#ifdef PRINT_DEBUG
+                if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, t3d(i,j,k), t3dten(i,j,k), xxlv(i,j,k), cpm(i,j,k));
+                }
+#endif
               // ****SENSITIVITY - NO ICE
               if ((m_iliq == 1)) {
                 Real dontdoanything=m_iliq;//printf("m_iliq: %d\n",m_iliq);//                goto label_778;
@@ -4183,6 +4221,12 @@ constexpr Real gamma_function(Real x) {
                     nr3d(i,j,k) = 0.0;
                   }
                 }
+#ifdef PRINT_DEBUG
+                if (IS_DEBUG_POINT(i, j, k, debug_step)) {
+                  fprintf(file, "%5d %5d %5d %24.16e %24.16e %24.16e %24.16e\n",i,j,k, t3d(i,j,k), t3dten(i,j,k), xxlv(i,j,k), cpm(i,j,k));
+                }
+#endif
+
               }
 //            label_778:
                 // MAKE SURE NUMBER CONCENTRATIONS AREN'T NEGATIVE

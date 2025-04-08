@@ -601,11 +601,12 @@ END SUBROUTINE MORR_TWO_MOMENT_INIT
 ! FOR QUESTIONS, CONTACT: HUGH MORRISON, E-MAIL: MORRISON@UCAR.EDU, PHONE:303-497-8916
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!#define PRINT_DEBUG
+#define PRINT_DEBUG
 #ifdef PRINT_DEBUG
 #define IS_DEBUG_POINT(i, j, k, istep) \
   (istep >= 0 .and. \
-  ((i == 76 .and. j == 3 .and. k == 8)))
+  ((i == 80 .and. j == 3 .and. k == 127) .or. \
+   (i == 123 .and. j == 3 .and. k == 127)))
 #else
 #define IS_DEBUG_POINT(i, j, k, istep) \
   (.false.)
@@ -1390,7 +1391,14 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                   T3D(K)=T3D(K)-QG3D(K)*XXLS(K)/CPM(K)
                   QG3D(K)=0.
                END IF
-             END IF
+            END IF
+            ! Fortran version
+#ifdef PRINT_DEBUG
+        if (IS_DEBUG_POINT(i, j, k, istep)) then
+            write(10, '(i5,i5,i5,4(es24.16))') &
+                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
+        endif
+#endif
 #if 0
              if ((i >= 86 .and. i <= 101 .and. j >= 0 .and. j <= 3 .and. k >= 8 .and. k <= 23 .and. &
                   mod(i-86,2) == 0 .and. mod(j,2) == 0 .and. mod(k-8,2) == 0) .or. &
@@ -1527,8 +1535,26 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                 QNI3D(K).LT.QSMALL.AND. &
                  QR3D(K).LT.QSMALL.AND. &
                  QG3D(K).LT.QSMALL) THEN
-                     IF (T3D(K).LT.273.15.AND.QVQVSI(K).LT.0.999) GOTO 200
-                     IF (T3D(K).GE.273.15.AND.QVQVS(K).LT.0.999) GOTO 200
+            IF (T3D(K).LT.273.15.AND.QVQVSI(K).LT.0.999) then
+#ifdef 0
+            ! Fortran version
+            if (IS_DEBUG_POINT(i, j, k, istep)) then
+               write(10, '(i5,i5,i5,a8)') &
+                    i,j,k,"skip200 "
+            endif
+#endif
+               GOTO 200
+            endif
+            IF (T3D(K).GE.273.15.AND.QVQVS(K).LT.0.999) then
+#ifdef 0
+            ! Fortran version
+            if (IS_DEBUG_POINT(i, j, k, istep)) then
+               write(10, '(i5,i5,i5,a8)') &
+                    i,j,k,"skip200 "
+            endif
+#endif
+               GOTO 200
+            endif
             END IF
 
 ! THERMAL CONDUCTIVITY FOR AIR
@@ -3635,7 +3661,15 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       GRPLPRT = 0.
 
 ! IF THERE ARE NO HYDROMETEORS, THEN SKIP TO END OF SUBROUTINE
-
+      DO K = KTS,KTE
+! Fortran version
+#ifdef PRINT_DEBUG
+        if (IS_DEBUG_POINT(i, j, k, istep)) then
+            write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
+                i,j,k,ltrue,nstep,precrt,snowrt, snowprt, grplprt
+        endif
+#endif
+     END DO
         IF (LTRUE.EQ.0) GOTO 400
 
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
@@ -3843,7 +3877,15 @@ endif
       RGVM = MAX(FR(K),FI(K),FS(K),FC(K),FNI(K),FNR(K),FNS(K),FNC(K),FG(K),FNG(K))
 ! VVT CHANGED IFIX -> INT (GENERIC FUNCTION)
       NSTEP = MAX(INT(RGVM*DT/DZQ(K)+1.),NSTEP)
-
+! Fortran version
+#ifdef PRINT_DEBUG
+        if (IS_DEBUG_POINT(i, j, k, istep)) then
+            write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
+                 i,j,k,ltrue,nstep,precrt,snowrt, snowprt, grplprt
+            write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
+                i,j,k,kte-1,kts,precrt,snowrt, snowprt, grplprt
+        endif
+#endif
 ! MULTIPLY VARIABLES BY RHO
       DUMR(k) = DUMR(k)*RHO(K)
       DUMI(k) = DUMI(k)*RHO(K)
@@ -3972,7 +4014,7 @@ endif
         GRPLPRT = GRPLPRT+(FALOUTG(KTS))*DT/NSTEP
 #ifdef PRINT_DEBUG
         ! Fortran version
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
+        if (IS_DEBUG_POINT(i, j, kts, istep)) then
            ! Line 1: indices and precipitation accumulation variables
            write(10, '(i5,i5,i5,a10,es24.16,a10,es24.16,a10,es24.16,a10,es24.16)') &
                 i,j,k," PRECRT: ",precrt," SNOWRT: ",snowrt," SNOWPRT: ",snowprt," GRPLPRT: ",grplprt
@@ -4047,7 +4089,13 @@ endif
 ! ADD TEMPERATURE AND WATER VAPOR TENDENCIES FROM MICROPHYSICS
           T3D(K)         = T3D(K)+T3DTEN(k)*DT
           QV3D(K)        = QV3D(K)+QV3DTEN(k)*DT
-
+! Fortran version
+#ifdef PRINT_DEBUG
+        if (IS_DEBUG_POINT(i, j, k, istep)) then
+            write(10, '(i5,i5,i5,4(es24.16))') &
+                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
+        endif
+#endif
 ! SATURATION VAPOR PRESSURE AND MIXING RATIO
 
 ! hm, add fix for low pressure, 5/12/10
@@ -4108,7 +4156,13 @@ endif
                   QG3D(K)=0.
                END IF
              END IF
-
+! Fortran version
+#ifdef PRINT_DEBUG
+        if (IS_DEBUG_POINT(i, j, k, istep)) then
+            write(10, '(i5,i5,i5,4(es24.16))') &
+                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
+        endif
+#endif
 !..................................................................
 ! IF MIXING RATIO < QSMALL SET MIXING RATIO AND NUMBER CONC TO ZERO
 
@@ -4166,7 +4220,13 @@ endif
            NR3D(K) = NR3D(K)+NI3D(K)
            NI3D(K) = 0.
         END IF
-
+! Fortran version
+#ifdef PRINT_DEBUG
+        if (IS_DEBUG_POINT(i, j, k, istep)) then
+            write(10, '(i5,i5,i5,4(es24.16))') &
+                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
+        endif
+#endif
 ! ****SENSITIVITY - NO ICE
         IF (ILIQ.EQ.1) GOTO 778
 
@@ -4209,7 +4269,13 @@ endif
         END IF
 
         END IF
-
+! Fortran version
+#ifdef PRINT_DEBUG
+        if (IS_DEBUG_POINT(i, j, k, istep)) then
+            write(10, '(i5,i5,i5,4(es24.16))') &
+                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
+        endif
+#endif
  778    CONTINUE
 
 ! MAKE SURE NUMBER CONCENTRATIONS AREN'T NEGATIVE
