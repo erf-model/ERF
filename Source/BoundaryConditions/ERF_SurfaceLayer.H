@@ -57,8 +57,10 @@ public:
         if (use_rot_surface_flux) {
             flux_type = FluxCalcType::ROTATE;
         } else {
+            std::string flux_string_in;
             std::string flux_string{"moeng"};
-            pp.query("surface_layer.flux_type", flux_string);
+            auto read_flux = pp.query("surface_layer.flux_type", flux_string_in);
+            if (read_flux) { flux_string = amrex::toLower(flux_string_in); }
             if (flux_string == "donelan") {
                 flux_type = FluxCalcType::DONELAN;
             } else if (flux_string == "moeng") {
@@ -73,15 +75,17 @@ public:
         // Include w* to handle free convection (Beljaars 1995, QJRMS)
         pp.query("most.include_wstar", m_include_wstar);
 
+        std::string pblh_string_in;
         std::string pblh_string{"none"};
-        pp.query("most.pblh_calc", pblh_string);
+        auto read_pblh = pp.query("most.pblh_calc", pblh_string_in);
+        if (read_pblh) { pblh_string = amrex::toLower(pblh_string_in); }
         if (pblh_string == "none") {
             pblh_type = PBLHeightCalcType::None;
-        } else if (pblh_string == "MYNN25") {
+        } else if (pblh_string == "mynn25") {
             pblh_type = PBLHeightCalcType::MYNN25;
-        } else if (pblh_string == "MYNNEDMF") {
+        } else if (pblh_string == "mynnedmf") {
             pblh_type = PBLHeightCalcType::MYNN25;
-        } else if (pblh_string == "YSU") {
+        } else if (pblh_string == "ysu") {
             pblh_type = PBLHeightCalcType::YSU;
         } else {
             amrex::Abort("Undefined PBLH calc type!");
@@ -133,8 +137,10 @@ public:
         }
 
         // Specify how to compute the surface flux over land (if there is any)
+        std::string rough_land_string_in;
         std::string rough_land_string{"constant"};
-        pp.query("most.roughness_type_land", rough_land_string);
+        auto read_rough_land = pp.query("most.roughness_type_land", rough_land_string_in);
+        if (read_rough_land) { rough_land_string = amrex::toLower(rough_land_string_in); }
         if (rough_land_string == "constant") {
             rough_type_land = RoughCalcType::CONSTANT;
         } else {
@@ -142,8 +148,10 @@ public:
         }
 
         // Specify how to compute the surface flux over sea (if there is any)
+        std::string rough_sea_string_in;
         std::string rough_sea_string{"charnock"};
-        pp.query("most.roughness_type_sea", rough_sea_string);
+        auto read_rough_sea = pp.query("most.roughness_type_sea", rough_sea_string_in);
+        if (read_rough_sea) { rough_sea_string = amrex::toLower(rough_sea_string_in); }
         if (rough_sea_string == "charnock") {
             rough_type_sea = RoughCalcType::CHARNOCK;
             pp.query("most.charnock_constant",cnk_a);

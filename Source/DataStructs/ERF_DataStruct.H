@@ -327,7 +327,7 @@ struct SolverChoice {
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
         pp.query("has_lat_lon", has_lat_lon);
-        if (has_lat_lon) { pp.query("variable_coriolis", variable_coriolis); }
+        pp.query("variable_coriolis", variable_coriolis);
 
         // Include Rayleigh damping (separate flags for each variable)
         pp.query("rayleigh_damp_U", rayleigh_damp_U);
