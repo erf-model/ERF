@@ -38,6 +38,52 @@ struct SuperDropletsRealIdxSoA_RT
 /*! \brief Int-type struct-of-array attributes of a super-droplet */
 using SuperDropletsIntIdxSoA = ERFParticlesIntIdxSoA;
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int idx_a(const int a_i, /*!< Species index */
+                 const int a_num_a, /*!< Number of aerosols */
+                 const int a_num_s  /*!< Number of species */)
+{
+    amrex::ignore_unused(a_num_a);
+    amrex::ignore_unused(a_num_s);
+    return    SuperDropletsRealIdxSoA::ncomps
+            + SuperDropletsRealIdxSoA_RT::ncomps
+            + a_i;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int idx_s(const int a_i, /*!< Species index */
+                 const int a_num_a, /*!< Number of aerosols */
+                 const int a_num_s  /*!< Number of species */)
+{
+    amrex::ignore_unused(a_num_s);
+    return    SuperDropletsRealIdxSoA::ncomps
+            + SuperDropletsRealIdxSoA_RT::ncomps
+            + a_num_a
+            + a_i;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int ridx_a(const int a_i, /*!< Species index */
+                 const int a_num_a, /*!< Number of aerosols */
+                 const int a_num_s  /*!< Number of species */)
+{
+    amrex::ignore_unused(a_num_a);
+    amrex::ignore_unused(a_num_s);
+    return    SuperDropletsRealIdxSoA_RT::ncomps
+            + a_i;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int ridx_s(const int a_i, /*!< Species index */
+                 const int a_num_a, /*!< Number of aerosols */
+                 const int a_num_s  /*!< Number of species */)
+{
+    amrex::ignore_unused(a_num_s);
+    return    SuperDropletsRealIdxSoA_RT::ncomps
+            + a_num_a
+            + a_i;
+}
+
 /*! \brief Types of terminal velocity models */
 enum struct SDTerminalVelocityType {
     RogersYau,
@@ -58,14 +104,7 @@ enum struct SDMassChangeTIMethod {
     RK3BS, RK4, BE, CN, DIRK2
 };
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_idx(const int a_i /*!< Species index */)
-{
-    return    SuperDropletsRealIdxSoA::ncomps
-            + SuperDropletsRealIdxSoA_RT::ncomps
-            + a_i;
-}
-
+using SDSpeciesMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_species_max>;
 using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
 using MFPtr = std::unique_ptr<amrex::MultiFab>;
 using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
@@ -76,24 +115,26 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Constructor */
         SuperDropletPC (  amrex::ParGDBBase* a_gdb,
-                          const std::string& a_vap_mat,
+                          const std::vector<std::string>& a_species_mat,
                           const std::vector<std::string>& a_aerosol_mat,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_gdb, a_name)
         {
-            define(a_vap_mat, a_aerosol_mat);
+            m_idx_w = -1;
+            define(a_species_mat, a_aerosol_mat);
         }
 
         /*! \brief Constructor */
         SuperDropletPC (  const amrex::Geometry& a_geom,
                           const amrex::DistributionMapping& a_dmap,
                           const amrex::BoxArray& a_ba,
-                          const std::string& a_vap_mat,
+                          const std::vector<std::string>& a_species_mat,
                           const std::vector<std::string>& a_aerosol_mat,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_geom, a_dmap, a_ba, a_name)
         {
-            define(a_vap_mat, a_aerosol_mat);
+            m_idx_w = -1;
+            define(a_species_mat, a_aerosol_mat);
         }
 
         /*! \brief Destructor */
@@ -105,15 +146,28 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Set vapour material */
-        virtual inline void setVapourMaterial ( const std::string& a_name )
+        virtual inline void setSpeciesMaterial ( const std::string& a_name )
         {
-            m_vapour_mat = std::make_unique<MaterialProperties>(a_name);
+            if (a_name == MaterialNames::h2o) {
+                m_idx_w = m_species_mat.size();
+            }
+            m_species_mat.push_back(std::make_unique<MaterialProperties>(a_name));
+        }
+
+        /*! \brief Set aerosol material */
+        virtual inline void setSpeciesMaterial ( const std::vector<std::string>& a_names )
+        {
+            for (auto& name : a_names) { setSpeciesMaterial(name); }
         }
 
         /*! \brief Get vapour material */
-        [[nodiscard]] virtual inline MaterialProperties& getVapourMaterial() const
+        [[nodiscard]] virtual inline const MaterialProperties& getSpeciesMaterial(const std::string& a_name) const
         {
-            return (*m_vapour_mat);
+            for (auto& species : m_species_mat) {
+                if (species->name() == a_name) { return *species; }
+            }
+            amrex::Abort("SuperDropletPC::getSpeciesMaterial() - species not found");
+            return *m_species_mat[0];
         }
 
         /*! \brief Set aerosol material */
@@ -125,9 +179,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Set aerosol material */
         virtual inline void setAerosolMaterial ( const std::vector<std::string>& a_names )
         {
-            for (unsigned long i = 0; i < a_names.size(); i++) {
-                setAerosolMaterial( a_names[i] );
-            }
+            for (auto& name : a_names) { setAerosolMaterial(name); }
         }
 
         /*! \brief Get real-type particle attribute names */
@@ -188,6 +240,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int,
                                     amrex::Real,
+                                    const std::string&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
@@ -216,36 +269,40 @@ class SuperDropletPC : public ERFPC
         [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
         /*! \brief Compute and print diagnostics */
-        virtual void Diagnostics (const int&, const bool);
+        virtual void Diagnostics (const int, const bool);
         /*! \brief Compute mass density distribution */
-        virtual void ComputeDistributions (  const int&,
-                                             const amrex::ParticleReal&,
-                                             const amrex::ParticleReal& );
+        virtual void ComputeDistributions (  const int,
+                                             const amrex::ParticleReal,
+                                             const amrex::ParticleReal );
 
         /*! \brief Compute the particle number density on a mesh */
-        virtual void numberDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
+        virtual void numberDensity ( amrex::MultiFab&, const int a_comp=0 ) const;
         /*! \brief Compute the particle mass density on a mesh */
-        virtual void massDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
+        virtual void massDensity ( amrex::MultiFab&, const int a_comp=0 ) const;
+        /*! \brief Compute the mass flux component on a mesh */
+        virtual void massFlux ( amrex::MultiFab&, const int, const int a_comp=0 ) const;
+
         /*! \brief Compute the condensate mass density on a mesh */
-        virtual void massDensityCondensate ( amrex::MultiFab& a_mf ) const
+        virtual void speciesMassDensity ( amrex::MultiFab& a_mf, const int a_i ) const
         {
-            massDensityCondensate(a_mf, 0.0, 0.0);
+            speciesMassDensity(a_mf, a_i, 0.0, DBL_MAX);
         }
         /*! \brief Compute the condensate mass density on a mesh */
-        virtual void massDensityCondensate ( amrex::MultiFab&,
-                                             const amrex::Real,
-                                             const amrex::Real,
-                                             const int& a_comp = 0) const;
-        /*! \brief Compute the mass flux component on a mesh */
-        virtual void massFlux ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
+        virtual void speciesMassDensity ( amrex::MultiFab&,
+                                          const int,
+                                          const amrex::Real,
+                                          const amrex::Real,
+                                          const int a_comp = 0) const;
         /*! \brief Compute the condensate mass flux component on a mesh */
-        virtual void massFluxCondensate ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
+        virtual void speciesMassFlux ( amrex::MultiFab&, const int, const int, const int a_comp=0 ) const;
+
         /*! \brief Compute the aerosol mass density on a mesh */
-        virtual void aerosolMassDensity ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
+        virtual void aerosolMassDensity ( amrex::MultiFab&, const int, const int a_comp=0 ) const;
         /*! \brief Compute the aerosol mass flux component on a mesh */
-        virtual void aerosolMassFlux ( amrex::MultiFab&, const int&, const int&, const int& a_comp=0 ) const;
+        virtual void aerosolMassFlux ( amrex::MultiFab&, const int, const int, const int a_comp=0 ) const;
+
         /*! \brief Compute the particle effective radius on a mesh */
-        virtual void effectiveRadius ( amrex::MultiFab&, const int& a_comp=0 ) const;
+        virtual void effectiveRadius ( amrex::MultiFab&, const int a_comp=0 ) const;
 
         /*! \brief Applies boundary treatment to the particle container */
         virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr& );
@@ -263,8 +320,9 @@ class SuperDropletPC : public ERFPC
         bool m_density_scaling; /*!< Scale initial number density with air density */
         bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
 
+        int m_num_species; /*!< Number of vapour/condensate species */
+        std::vector<std::unique_ptr<MaterialProperties>> m_species_mat; /*!< Vapour/condensate material */
         int m_num_aerosols; /*!< Number of aerosols */
-        std::unique_ptr<MaterialProperties> m_vapour_mat; /*!< Vapour material */
         std::vector<std::unique_ptr<MaterialProperties>> m_aerosol_mat; /*!< Aerosol materials */
 
         /* Mass change equation Newton solver parameters */
@@ -303,6 +361,9 @@ class SuperDropletPC : public ERFPC
         /*! random engine */
         std::mt19937 m_rndeng;
 
+        /*! species index of water */
+        int m_idx_w;
+
         /*! \brief read inputs from file */
         virtual void readInputs () override;
 
@@ -312,7 +373,8 @@ class SuperDropletPC : public ERFPC
     private:
 
         /*! \brief define super-droplets */
-        void define ( const std::string&, const std::vector<std::string>& );
+        void define ( const std::vector<std::string>&,
+                      const std::vector<std::string>& );
 
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();

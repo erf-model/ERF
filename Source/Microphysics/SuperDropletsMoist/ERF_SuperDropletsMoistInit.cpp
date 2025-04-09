@@ -35,7 +35,6 @@ void SuperDropletsMoist::readInputs ()
     pp.query("radius_raindrop", m_r_rain);
 
     // whether to run in kinematic mode
-    m_update_qv = true;
     m_kinematic_mode = false;
     pp.query("kinematic_mode", m_kinematic_mode);
 
@@ -47,19 +46,23 @@ void SuperDropletsMoist::readInputs ()
     m_recycle_particles = false;
     pp.query("recycle_particles", m_recycle_particles);
 
-    // get vapour names (other than water)
-    m_vapours.clear();
-    std::string vapour_input = "vapours";
-    if (pp.contains(vapour_input.c_str())) {
-        int num_vapours = pp.countval(vapour_input.c_str());
-        for (int i = 0; i < num_vapours; i++) {
-            std::string vap_name;
-            pp.get(vapour_input.c_str(), vap_name, i);
-            m_vapours.push_back(vap_name);
+
+    // get vapour/condensate species names
+    m_species.clear();
+    // add water
+    m_idx_w = m_species.size();
+    m_species.push_back(MaterialNames::h2o);
+    // add other species
+    std::string species_input = "species";
+    if (pp.contains(species_input.c_str())) {
+        int num_species = pp.countval(species_input.c_str());
+        std::string sp_name;
+        for (int i = 0; i < num_species; i++) {
+            pp.get(species_input.c_str(), sp_name, i);
+            m_species.push_back(sp_name);
         }
     }
-
-    m_qstate_nonmoist_size = m_vapours.size()*2; // qv, qc for each
+    m_qstate_nonmoist_size = (m_species.size()-1)*2; // qv, qc for each
 
     // get aerosol names
     m_aerosols.clear();
@@ -115,7 +118,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
 
     /* allocate microphysics multifabs */
     m_mic_fab_vars.resize( MicVar_SD::NumVars
-                          +m_vapours.size()*MicVar_SD_Species::NumVars);
+                          +(m_species.size()-1)*MicVar_SD_Species::NumVars);
     for (auto i(0); i < m_mic_fab_vars.size(); i++) {
       m_mic_fab_vars[i] = std::make_shared<MultiFab> ( a_cons_vars.boxArray(),
                                                        a_cons_vars.DistributionMap(),
@@ -125,12 +128,10 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
     }
 
     /* create the super-droplet particle container */
-    std::string vapour_mat = MaterialNames::h2o; // water
     m_super_droplets = new SuperDropletPC ( a_geom,
                                             a_cons_vars.DistributionMap(),
                                             a_cons_vars.boxArray(),
-                                            vapour_mat,
-                                            //TODO m_vapours,
+                                            m_species,
                                             m_aerosols,
                                             m_name );
 
@@ -241,27 +242,30 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         }
     }
 
-    computeQcQr();
-    computeQt();
+    computeQcQrWater();
+    computeQtWater();
 
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
         const auto& box = mfi.tilebox();
         auto states_arr = a_cons_vars.array(mfi);
         auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
+        auto q_r_arr = m_mic_fab_vars[MicVar_SD::q_r]->array(mfi);
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
+            states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
         });
     }
 
-    for (int v = 0; v < m_vapours.size(); v++) {
-        computeQcSpecies();
-        computeQtSpecies();
+    computeQcSpecies();
+    computeQtSpecies();
+
+    for (int is = 1; is < m_species.size(); is++) {
         for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
             const auto& box = mfi.tilebox();
             auto states_arr = a_cons_vars.array(mfi);
-            auto q_c_arr = m_mic_fab_vars[s_qc_idx(v)]->array(mfi);
-            auto qc_comp = q_qc_idx(v);
+            auto q_c_arr = m_mic_fab_vars[s_qc_idx(is)]->array(mfi);
+            auto qc_comp = q_qc_idx(is);
             ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 states_arr(i,j,k,qc_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
@@ -270,8 +274,6 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
     }
 
     m_super_droplets->Diagnostics(-1, true);
-
-    if (m_kinematic_mode) { m_update_qv = false; }
 
     return;
 }

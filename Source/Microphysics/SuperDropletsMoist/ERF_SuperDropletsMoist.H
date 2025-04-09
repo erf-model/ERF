@@ -39,50 +39,47 @@ namespace MicVar_SD_Species {
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int q_qv_idx (const int a_i /*!< species index */ )
-{
-    return      MicVar_SD::NumVars
-            +   a_i*MicVar_SD_Species::NumVars
-            +   MicVar_SD_Species::q_v;
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_qt_idx (const int a_i /*!< species index */ )
 {
+    AMREX_ALWAYS_ASSERT(a_i > 0);
     return      MicVar_SD::NumVars
-            +   a_i*MicVar_SD_Species::NumVars
+            +   (a_i-1)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_t;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_qv_idx (const int a_i /*!< species index */ )
 {
+    AMREX_ALWAYS_ASSERT(a_i > 0);
     return      MicVar_SD::NumVars
-            +   a_i*MicVar_SD_Species::NumVars
+            +   (a_i-1)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_v;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_qc_idx (const int a_i /*!< species index */ )
 {
+    AMREX_ALWAYS_ASSERT(a_i > 0);
     return      MicVar_SD::NumVars
-            +   a_i*MicVar_SD_Species::NumVars
+            +   (a_i-1)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_c;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_sr_idx (const int a_i /*!< species index */ )
 {
+    AMREX_ALWAYS_ASSERT(a_i > 0);
     return      MicVar_SD::NumVars
-            +   a_i*MicVar_SD_Species::NumVars
+            +   (a_i-1)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::sr;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_accum_idx (const int a_i /*!< species index */ )
 {
+    AMREX_ALWAYS_ASSERT(a_i > 0);
     return      MicVar_SD::NumVars
-            +   a_i*MicVar_SD_Species::NumVars
+            +   (a_i-1)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::accum;
 }
 
@@ -115,6 +112,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             m_qstate_moist_size = 3; // qv, qc, qr
             m_qstate_nonmoist_size = -1; // intentional
             m_name = "super_droplets_moisture";
+            m_idx_w = -1;
             readInputs();
         }
 
@@ -205,17 +203,43 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_name;
         }
 
-        /*! \brief compute condensate mixing ratio */
-        virtual void computeQcQr ();
+        /*! \brief compute cloud/rain mixing ratio */
+        virtual void computeQcQrWater ();
 
-        /*! \brief compute qt (total) */
-        virtual void computeQt ();
+        /*! \brief compute condensate for all non-water species */
+        virtual void computeQcSpecies ()
+        {
+            for (int is = 1; is < m_species.size(); is++) { computeQcSpecies(is); }
+        }
 
-        /*! \brief compute condensate mixing ratio for non-water species */
-        virtual void computeQcSpecies ();
+        /*! \brief compute condensate mixing ratio for a non-water species */
+        virtual void computeQcSpecies (const  int a_i);
 
-        /*! \brief compute qt (total) for non-water species */
-        virtual void computeQtSpecies ();
+        /*! \brief compute condensate mixing ratio for a species */
+        virtual void computeQc (const  int a_i)
+        {
+            if (a_i == m_idx_w) { computeQcQrWater(); }
+            else                { computeQcSpecies(a_i); }
+        }
+
+        /*! \brief compute total water mixing ratio */
+        virtual void computeQtWater ();
+
+        /*! \brief compute qt (total) for all non-water species */
+        virtual void computeQtSpecies ()
+        {
+            for (int is = 1; is < m_species.size(); is++) { computeQtSpecies(is); }
+        }
+
+        /*! \brief compute qt (total) for a non-water species */
+        virtual void computeQtSpecies (const  int a_i);
+
+        /*! \brief compute qt (total) for a species */
+        virtual void computeQt (const  int a_i)
+        {
+            if (a_i == m_idx_w) { computeQtWater(); }
+            else                { computeQtSpecies(a_i); }
+        }
 
         /*! \brief Compute rain accumulation */
         virtual void rainAccumulation ();
@@ -235,12 +259,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         virtual void GetPlotVarNames (Vector<std::string>& a_names) const override
         {
-            for (int v = 0; v < m_vapours.size(); v++) {
-                a_names.push_back("qv_"+m_vapours[v]);
-                a_names.push_back("qc_"+m_vapours[v]);
-                a_names.push_back("qt_"+m_vapours[v]);
-                a_names.push_back("sat_ratio_"+m_vapours[v]);
-                a_names.push_back("accum_"+m_vapours[v]);
+            for (int v = 1; v < m_species.size(); v++) {
+                a_names.push_back("qv_"+m_species[v]);
+                a_names.push_back("qc_"+m_species[v]);
+                a_names.push_back("qt_"+m_species[v]);
+                a_names.push_back("sat_ratio_"+m_species[v]);
+                a_names.push_back("accum_"+m_species[v]);
             }
         }
 
@@ -248,9 +272,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                  MultiFab& a_mf )  const
         {
             AMREX_ASSERT(a_mf.nComp() >= 1);
-            for (int v = 0; v < m_vapours.size(); v++) {
+            for (int v = 1; v < m_species.size(); v++) {
                 {
-                    std::string varname = "qv_" + m_vapours[v];
+                    std::string varname = "qv_" + m_species[v];
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_qv_idx(v)],
@@ -259,7 +283,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     }
                 }
                 {
-                    std::string varname = "qc_" + m_vapours[v];
+                    std::string varname = "qc_" + m_species[v];
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_qc_idx(v)],
@@ -268,7 +292,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     }
                 }
                 {
-                    std::string varname = "qt_" + m_vapours[v];
+                    std::string varname = "qt_" + m_species[v];
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_qt_idx(v)],
@@ -277,7 +301,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     }
                 }
                 {
-                    std::string varname = "sat_ratio_" + m_vapours[v];
+                    std::string varname = "sat_ratio_" + m_species[v];
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_sr_idx(v)],
@@ -286,7 +310,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     }
                 }
                 {
-                    std::string varname = "accum_" + m_vapours[v];
+                    std::string varname = "accum_" + m_species[v];
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_accum_idx(v)],
@@ -302,13 +326,15 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         int q_qv_idx (const int a_i /*!< species index */ )
         {
-            return RhoQ1_comp + m_qstate_moist_size + 2*a_i + 0;
+            AMREX_ALWAYS_ASSERT(a_i > 0);
+            return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-1) + 0;
         }
 
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         int q_qc_idx (const int a_i /*!< species index */ )
         {
-            return RhoQ1_comp + m_qstate_moist_size + 2*a_i + 1;
+            AMREX_ALWAYS_ASSERT(a_i > 0);
+            return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-1) + 1;
         }
 
     protected:
@@ -352,8 +378,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! moisture model variables */
         Vector<FabPtr> m_mic_fab_vars;
 
-        /*! names of vapours (other than water) */
-        std::vector<std::string> m_vapours;
+        /*! names of vapour/condensate species */
+        std::vector<std::string> m_species;
 
         /*! names of aerosols */
         std::vector<std::string> m_aerosols;
@@ -364,14 +390,14 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! kinematic mode? */
         bool m_kinematic_mode;
 
-        /*! update qv from dycore */
-        bool m_update_qv;
-
         /*! Dimensionality of simulation*/
         SDMSimulationDim m_dimensionality;
 
         /*! recycle particles */
         bool m_recycle_particles;
+
+        /*! species index of water */
+        int m_idx_w;
 
         /*! \brief read inputs */
         virtual void readInputs();

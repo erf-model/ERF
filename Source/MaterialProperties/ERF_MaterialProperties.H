@@ -70,7 +70,7 @@ class MaterialProperties {
         [[nodiscard]] inline bool isSoluble() const { return m_is_soluble; }
 
         /*! \brief Compute saturation pressure */
-        inline void computeSaturationPressure ( amrex::MultiFab& a_e, const amrex::MultiFab& a_T)
+        inline void computeSaturationPressure ( amrex::MultiFab& a_e, const amrex::MultiFab& a_T) const
         {
             m_saturation_pressure_func(a_e, a_T);
         }
@@ -78,7 +78,7 @@ class MaterialProperties {
         /*! \brief Compute saturation vapour fraction */
         inline void computeSaturationVapFrac  ( amrex::MultiFab&         a_S,
                                                 const amrex::MultiFab&   a_T,
-                                                const amrex::MultiFab&   a_p )
+                                                const amrex::MultiFab&   a_p ) const
         {
             m_saturation_vapfrac_func(a_S, a_T, a_p);
         }

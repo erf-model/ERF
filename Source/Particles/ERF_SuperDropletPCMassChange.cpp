@@ -13,6 +13,7 @@ using namespace SDMassChangeUtils;
 /*! Compute mass change of particles due to evaporation and condensation */
 void SuperDropletPC::MassChange ( int                                         a_lev,
                                   Real                                        a_dt,
+                                  const std::string&                          a_vap_name,
                                   const MultiFab&                             a_temperature,
                                   const MultiFab&                             a_sat_pressure,
                                   const MultiFab&                             a_sat_ratio,
@@ -30,9 +31,19 @@ void SuperDropletPC::MassChange ( int                                         a_
 
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
+    const int num_species  = m_num_species;
     const int num_aerosols = m_num_aerosols;
-    const Real mat_density = m_vapour_mat->density();
-    const std::string vap_name = m_vapour_mat->name();
+
+    int idx_vap = -1;
+    Real mat_density = -1;
+    for (int i = 0; i < m_num_species; i++) {
+        if (m_species_mat[i]->name() == a_vap_name) {
+            idx_vap = i;
+            mat_density = m_species_mat[i]->density();
+        }
+    }
+    AMREX_ALWAYS_ASSERT(idx_vap >= 0);
+    AMREX_ALWAYS_ASSERT(mat_density >= 0);
 
     const bool log_unconverged = m_mass_change_logging;
     [[maybe_unused]] FILE* file_handle = m_mass_change_log;
@@ -59,6 +70,27 @@ void SuperDropletPC::MassChange ( int                                         a_
         auto* condt_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
 #endif
 
+        SDSpeciesMassArr species_mass_ptrs;
+        Gpu::DeviceVector<ParticleReal> species_mol_weight(num_species);
+        Gpu::DeviceVector<int> species_solubility(num_species);
+        {
+            Vector<ParticleReal> species_mol_weight_h(num_species);
+            Vector<int> species_solubility_h(num_species);
+            for (int i = 0; i < num_species; i++) {
+                species_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_aerosols,num_species)).data();
+                species_mol_weight_h[i] = m_species_mat[i]->molWeight();
+                species_solubility_h[i] = static_cast<int>(m_species_mat[i]->isSoluble());
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        species_mol_weight_h.begin(),
+                        species_mol_weight_h.end(),
+                        species_mol_weight.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        species_solubility_h.begin(),
+                        species_solubility_h.end(),
+                        species_solubility.begin() );
+        }
+
         SDAerosolMassArr aerosol_mass_ptrs;
         Gpu::DeviceVector<ParticleReal> aerosol_mol_weight(num_aerosols);
         Gpu::DeviceVector<int> aerosol_solubility(num_aerosols);
@@ -66,7 +98,7 @@ void SuperDropletPC::MassChange ( int                                         a_
             Vector<ParticleReal> aerosol_mol_weight_h(num_aerosols);
             Vector<int> aerosol_solubility_h(num_aerosols);
             for (int i = 0; i < num_aerosols; i++) {
-                aerosol_mass_ptrs[i] = soa.GetRealData(s_idx(i)).data();
+                aerosol_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_aerosols,num_species)).data();
                 aerosol_mol_weight_h[i] = m_aerosol_mat[i]->molWeight();
                 aerosol_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
             }
@@ -85,20 +117,20 @@ void SuperDropletPC::MassChange ( int                                         a_
         const auto& temperature_arr = a_temperature[grid].array();
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-        dRdt<ParticleReal> drdt{ m_vapour_mat->coeffCurv(),
-                                 m_vapour_mat->coeffVPSolute(),
-                                 m_vapour_mat->latHeatVap(),
+        dRdt<ParticleReal> drdt{ m_species_mat[idx_vap]->coeffCurv(),
+                                 m_species_mat[idx_vap]->coeffVPSolute(),
+                                 m_species_mat[idx_vap]->latHeatVap(),
                                  therco, /* ERF_Constants.H */
-                                 m_vapour_mat->Rv(),
+                                 m_species_mat[idx_vap]->Rv(),
                                  mat_density,
                                  diffelq /* ERF_Constants.H */};
 #endif
 
-        dRsqdt<ParticleReal> drsqdt{ m_vapour_mat->coeffCurv(),
-                                     m_vapour_mat->coeffVPSolute(),
-                                     m_vapour_mat->latHeatVap(),
+        dRsqdt<ParticleReal> drsqdt{ m_species_mat[idx_vap]->coeffCurv(),
+                                     m_species_mat[idx_vap]->coeffVPSolute(),
+                                     m_species_mat[idx_vap]->latHeatVap(),
                                      therco, /* ERF_Constants.H */
-                                     m_vapour_mat->Rv(),
+                                     m_species_mat[idx_vap]->Rv(),
                                      mat_density,
                                      diffelq /* ERF_Constants.H */};
 
@@ -115,6 +147,8 @@ void SuperDropletPC::MassChange ( int                                         a_
         auto cfl = m_mass_change_cfl;
         auto ti_choice = m_mass_change_ti;
 
+        auto species_mw_arr = species_mol_weight.data();
+        auto species_sol_arr = species_solubility.data();
         auto aero_mw_arr = aerosol_mol_weight.data();
         auto aero_sol_arr = aerosol_solubility.data();
 
@@ -136,6 +170,11 @@ void SuperDropletPC::MassChange ( int                                         a_
             }
 
             ParticleReal solute_moles = 0.0;
+            for (int j = 0; j < num_species; j++) {
+                if (species_sol_arr[j] && (j != idx_vap)) {
+                    solute_moles += (species_mass_ptrs[j][i]/species_mw_arr[j]);
+                }
+            }
             for (int j = 0; j < num_aerosols; j++) {
                 if (aero_sol_arr[j]) {
                     solute_moles += (aerosol_mass_ptrs[j][i]/aero_mw_arr[j]);

@@ -27,6 +27,8 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
                                 ParticleReal* const a_mass, /*!< mass */
                                 ParticleReal* const a_radius, /*!< radius */
                                 ParticleReal* const a_mult, /*!< multiplicity */
+                                const int a_n_species, /*!< number of species */
+                                const SDSpeciesMassArr& a_species_masses, /*!< species masses*/
                                 const int a_n_aerosols, /*!< number of aerosols */
                                 const SDAerosolMassArr& a_aero_masses /*!< aerosol masses*/)
 {
@@ -45,6 +47,9 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
                             + a_radius[i]*a_radius[i]*a_radius[i];
             a_radius[i] = std::cbrt(r3);
             a_mass[i] += gamma*a_mass[j];
+            for (int n = 0; n < a_n_species; n++) {
+                a_species_masses[n][i] += gamma*a_species_masses[n][j];
+            }
             for (int n = 0; n < a_n_aerosols; n++) {
                 a_aero_masses[n][i] += gamma*a_aero_masses[n][j];
             }
@@ -61,6 +66,10 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
             a_radius[i] = a_radius[j] = std::cbrt(r3);
             a_mass[j] += gamma*a_mass[i];
             a_mass[i] = a_mass[j];
+            for (int n = 0; n < a_n_species; n++) {
+                a_species_masses[n][j] += gamma*a_species_masses[n][i];
+                a_species_masses[n][i] = a_species_masses[n][j];
+            }
             for (int n = 0; n < a_n_aerosols; n++) {
                 a_aero_masses[n][j] += gamma*a_aero_masses[n][i];
                 a_aero_masses[n][i] = a_aero_masses[n][j];
@@ -89,6 +98,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto domain = geom.Domain();
 
     const int num_aerosols = m_num_aerosols;
+    const int num_species  = m_num_species;
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     const ParticleReal inv_bin_size
         = 1.0 / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
@@ -128,10 +138,16 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
 
+        /* species masses */
+        SDSpeciesMassArr species_mass_ptrs;
+        for (int i = 0; i < num_species; i++) {
+            species_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_aerosols,num_species)).data();
+        }
+
         /* aerosol masses */
         SDAerosolMassArr aerosol_mass_ptrs;
         for (int i = 0; i < num_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(s_idx(i)).data();
+            aerosol_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_aerosols,num_species)).data();
         }
 
         int grid = pti.index();
@@ -221,7 +237,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
 
-        ParticleReal condensate_density = m_vapour_mat->density();
+        const auto rho_w = m_species_mat[m_idx_w]->density();
+
         Gpu::DeviceVector<ParticleReal> aero_density_d;
         {
             Vector<ParticleReal> aero_density_h;
@@ -366,7 +383,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                                                 aero_mass_2,
                                                                 aero_vol_1,
                                                                 aero_vol_2,
-                                                                condensate_density,
+                                                                rho_w,
                                                                 pressure,
                                                                 temperature );
                 if (k_brown < 0.0) {
@@ -411,6 +428,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                  mass_ptr,
                                  radius_ptr,
                                  mult_ptr,
+                                 num_species,
+                                 species_mass_ptrs,
                                  num_aerosols,
                                  aerosol_mass_ptrs );
         } );

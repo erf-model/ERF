@@ -42,8 +42,12 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
 
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
-    const Real rho_w = m_vapour_mat->density();
-    const int num_aerosols = m_num_aerosols;
+
+    const int num_sp = m_num_species;
+    const int num_ae = m_num_aerosols;
+
+    const Real rho_w = m_species_mat[m_idx_w]->density();
+    int idx_w = m_idx_w;
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -80,30 +84,55 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
-        SDAerosolMassArr aerosol_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> aerosol_density(num_aerosols);
-        Gpu::DeviceVector<int> aerosol_solubility(num_aerosols);
-        Vector<ParticleReal> aerosol_density_h(num_aerosols);
-        Vector<int> aerosol_solubility_h(num_aerosols);
-        for (int i = 0; i < num_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(s_idx(i)).data();
-            aerosol_density_h[i] = m_aerosol_mat[i]->density();
-            aerosol_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
+        SDSpeciesMassArr sp_mass_ptrs;
+        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
+        Gpu::DeviceVector<int> sp_solubility(num_sp);
+        {
+            Vector<ParticleReal> sp_density_h(num_sp);
+            Vector<int> sp_solubility_h(num_sp);
+            for (int i = 0; i < num_sp; i++) {
+                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
+                sp_density_h[i] = m_species_mat[i]->density();
+                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->isSoluble());
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_density_h.begin(),
+                        sp_density_h.end(),
+                        sp_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_solubility_h.begin(),
+                        sp_solubility_h.end(),
+                        sp_solubility.begin() );
         }
-        Gpu::copy(  Gpu::hostToDevice,
-                    aerosol_density_h.begin(),
-                    aerosol_density_h.end(),
-                    aerosol_density.begin() );
-        Gpu::copy(  Gpu::hostToDevice,
-                    aerosol_solubility_h.begin(),
-                    aerosol_solubility_h.end(),
-                    aerosol_solubility.begin() );
 
-        TerminalVelocity<ParticleReal> term_vel { m_vapour_mat->density() };
+        SDAerosolMassArr ae_mass_ptrs;
+        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
+        Gpu::DeviceVector<int> ae_solubility(num_ae);
+        {
+            Vector<ParticleReal> ae_density_h(num_ae);
+            Vector<int> ae_solubility_h(num_ae);
+            for (int i = 0; i < num_ae; i++) {
+                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
+                ae_density_h[i] = m_aerosol_mat[i]->density();
+                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_density_h.begin(),
+                        ae_density_h.end(),
+                        ae_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_solubility_h.begin(),
+                        ae_solubility_h.end(),
+                        ae_solubility.begin() );
+        }
+
+        TerminalVelocity<ParticleReal> term_vel { m_species_mat[m_idx_w]->density() };
         auto term_vel_type = m_term_vel_type;
 
-        auto aero_rho_arr = aerosol_density.data();
-        auto aero_sol_arr = aerosol_solubility.data();
+        auto sp_rho_arr = sp_density.data();
+        auto sp_sol_arr = sp_solubility.data();
+        auto ae_rho_arr = ae_density.data();
+        auto ae_sol_arr = ae_solubility.data();
 
         ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -128,12 +157,22 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 ParticleReal m_s = 0.0;
                 ParticleReal m_p = 0.0;
                 ParticleReal rho_p = 0.0;
-                for (int j = 0; j < num_aerosols; j++) {
-                    if (aero_sol_arr[j]) {
-                        m_s += aerosol_mass_ptrs[j][i];
+                for (int j = 0; j < num_sp; j++) {
+                    if (j != idx_w) {
+                        if (sp_sol_arr[j]) {
+                            m_s += sp_mass_ptrs[j][i];
+                        } else {
+                            m_p += sp_mass_ptrs[j][i];
+                            rho_p += sp_rho_arr[j]*sp_mass_ptrs[j][i];
+                        }
+                    }
+                }
+                for (int j = 0; j < num_ae; j++) {
+                    if (ae_sol_arr[j]) {
+                        m_s += ae_mass_ptrs[j][i];
                     } else {
-                        m_p += aerosol_mass_ptrs[j][i];
-                        rho_p += aero_rho_arr[j]*aerosol_mass_ptrs[j][i];
+                        m_p += ae_mass_ptrs[j][i];
+                        rho_p += ae_rho_arr[j]*ae_mass_ptrs[j][i];
                     }
                 }
                 if (m_p > 0.0) { rho_p /= m_p; }

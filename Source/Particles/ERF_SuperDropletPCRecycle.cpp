@@ -30,9 +30,10 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     const auto dx_h = Geom(m_lev).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
-    const Real mat_density = m_vapour_mat->density();
+    const int idx_w = m_idx_w;
+    const Real rho_w = m_species_mat[m_idx_w]->density();
+    const int n_species  = m_num_species;
     const int n_aerosols = m_num_aerosols;
-    const int n_aerosols_max = SupDropInit::num_aerosols_max;
 
     // number of super-droplets per cell
     int num_sd_per_cell = m_num_sd_per_cell;
@@ -67,9 +68,14 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
-        GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
+        SDSpeciesMassArr species_mass_ptrs;
+        for (int i = 0; i < n_species; i++) {
+            species_mass_ptrs[i] = soa.GetRealData(idx_a(i,n_aerosols,n_species)).data();
+        }
+
+        SDAerosolMassArr aerosol_mass_ptrs;
         for (int i = 0; i < n_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(s_idx(i)).data();
+            aerosol_mass_ptrs[i] = soa.GetRealData(idx_a(i,n_aerosols,n_species)).data();
         }
 
         ParallelForRNG(n, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
@@ -96,13 +102,19 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             p.pos(1) = y_min + Random(rnd_engine)*(y_max - y_min);
             p.pos(2) = z_min + Random(rnd_engine)*(z_max - z_min);
 
+            for (int ctr = 0; ctr < n_species; ctr++) {
+                species_mass_ptrs[ctr][i] = 0.0;
+            }
             // Reset radius and condensate mass
             auto par_radius = 1.0e-15;
             radius_ptr[i] = par_radius;
             auto cond_mass = (4.0/3.0)*PI
-                             * par_radius*par_radius*par_radius*mat_density;
+                             * par_radius*par_radius*par_radius*rho_w;
+            species_mass_ptrs[idx_w][i] = cond_mass;
             ParticleReal aerosol_mass_total = 0.0;
-            for (int ctr = 0; ctr < n_aerosols; ctr++) { aerosol_mass_total += aerosol_mass_ptrs[ctr][i]; }
+            for (int ctr = 0; ctr < n_aerosols; ctr++) {
+                aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
+            }
             mass_ptr[i] = cond_mass + aerosol_mass_total;
 
             // Set multiplicity to an averaged multiplicity

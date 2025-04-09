@@ -11,149 +11,181 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                                        const Vector<std::unique_ptr<MultiFab>>& a_z, /*!< terrain */
                                        const bool a_update_qv )
 {
-    // Get vapour material properties object
-    auto& vapour_mat = m_super_droplets->getVapourMaterial();
+    for (int is = 0; is < m_species.size(); is++) {
+        auto& species = m_species[is];
+        auto& vapour_mat = m_super_droplets->getSpeciesMaterial(species);
 
-    // Compute saturation pressure
-    MultiFab mf_sat_pressure(   m_mic_fab_vars[MicVar_SD::pressure]->boxArray(),
-                                m_mic_fab_vars[MicVar_SD::pressure]->DistributionMap(),
-                                1,
-                                m_mic_fab_vars[MicVar_SD::pressure]->nGrowVect() );
-    vapour_mat.computeSaturationPressure( mf_sat_pressure,
-                                          (*m_mic_fab_vars[MicVar_SD::temperature]) );
-    mf_sat_pressure.FillBoundary();
-
-    for (int substep = 0; substep < m_num_substeps_phase_change; substep++) {
-
-        auto dt_s = a_dt / static_cast<Real>(m_num_substeps_phase_change);
-
-        // Compute saturation ratio
-        vapour_mat.computeSaturationVapFrac(    (*m_mic_fab_vars[MicVar_SD::rh]),
-                                                (*m_mic_fab_vars[MicVar_SD::temperature]),
-                                                (*m_mic_fab_vars[MicVar_SD::pressure]) );
-
-        for (   MFIter mfi((*m_mic_fab_vars[MicVar_SD::rh]),
-                TilingIfNotGPU()); mfi.isValid();
-                ++mfi ) {
-
-            Box bx = mfi.tilebox();
-            bx.grow( m_mic_fab_vars[MicVar_SD::rh]->nGrowVect() );
-
-            const Array4<Real>& sr_arr = m_mic_fab_vars[MicVar_SD::rh]->array(mfi);
-            const Array4<Real const>& qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            { sr_arr(i,j,k,0) = qv_arr(i,j,k,0) / sr_arr(i,j,k,0); });
-
+        MultiFab* qv_ptr = nullptr;
+        MultiFab* qc_ptr = nullptr;
+        MultiFab* qt_ptr = nullptr;
+        MultiFab* sr_ptr = nullptr;
+        if (is == m_idx_w) {
+            qv_ptr = m_mic_fab_vars[MicVar_SD::q_v].get();
+            qc_ptr = m_mic_fab_vars[MicVar_SD::q_c].get();
+            qt_ptr = m_mic_fab_vars[MicVar_SD::q_t].get();
+            sr_ptr = m_mic_fab_vars[MicVar_SD::rh].get();
+        } else {
+            qv_ptr = m_mic_fab_vars[s_qv_idx(is)].get();
+            qc_ptr = m_mic_fab_vars[s_qc_idx(is)].get();
+            qt_ptr = m_mic_fab_vars[s_qt_idx(is)].get();
+            sr_ptr = m_mic_fab_vars[s_sr_idx(is)].get();
         }
 
-        (*m_mic_fab_vars[MicVar_SD::rh]).FillBoundary();
+        // Compute saturation pressure
+        MultiFab mf_sat_pressure(   m_mic_fab_vars[MicVar_SD::pressure]->boxArray(),
+                                    m_mic_fab_vars[MicVar_SD::pressure]->DistributionMap(),
+                                    1,
+                                    m_mic_fab_vars[MicVar_SD::pressure]->nGrowVect() );
+        vapour_mat.computeSaturationPressure( mf_sat_pressure,
+                                              (*m_mic_fab_vars[MicVar_SD::temperature]) );
+        mf_sat_pressure.FillBoundary();
 
-        // Compute total water content qt
-        computeQt();
+        for (int substep = 0; substep < m_num_substeps_phase_change; substep++) {
 
-        // Compute super-droplets mass change
-        m_super_droplets->MassChange (  0,
-                                        dt_s,
-                                        (*m_mic_fab_vars[MicVar_SD::temperature]),
-                                        mf_sat_pressure,
-                                        (*m_mic_fab_vars[MicVar_SD::rh]),
-                                        a_z );
+            auto dt_s = a_dt / static_cast<Real>(m_num_substeps_phase_change);
 
-        // Compute new condensate mixing ratio
-        computeQcQr();
-
-        if (a_update_qv) {
-
-            // Update vapour mixing ratio
-            for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_v]); mfi.isValid(); ++mfi) {
-
-                Box bx = mfi.tilebox();
-                bx.grow(m_mic_fab_vars[MicVar_SD::q_v]->nGrowVect());
-
-                auto qt_arr = m_mic_fab_vars[MicVar_SD::q_t]->const_array(mfi);
-                auto qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
-                auto dqc_arr = m_mic_fab_vars[MicVar_SD::dqcdt]->array(mfi);
-                auto qc_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
-                auto qr_arr = m_mic_fab_vars[MicVar_SD::q_r]->array(mfi);
-                auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
-                auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->array(mfi);
-
-                auto fac_cond = m_fac_cond;
-                ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    AMREX_ALWAYS_ASSERT(qr_arr(i,j,k) >= 0.0);
-                    auto old_qv = qv_arr(i,j,k);
-                    auto qw = qc_arr(i,j,k) + qr_arr(i,j,k);
-                    if (qw > qt_arr(i,j,k)) {
-                        qv_arr(i,j,k) = 0.0;
-                        if (qr_arr(i,j,k) > qt_arr(i,j,k)) {
-                            qc_arr(i,j,k) = 0.0;
-                        } else {
-                            qc_arr(i,j,k) = qt_arr(i,j,k) - qr_arr(i,j,k);
-                        }
-                    } else {
-                        qv_arr(i,j,k) = qt_arr(i,j,k) - (qc_arr(i,j,k) + qr_arr(i,j,k));
-                    }
-                    AMREX_ALWAYS_ASSERT(qv_arr(i,j,k) >= 0.0);
-                    AMREX_ALWAYS_ASSERT(qc_arr(i,j,k) >= 0.0);
-                    dqc_arr(i,j,k) = - (qv_arr(i,j,k) - old_qv) / dt_s;
-
-                    auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
-                    theta_arr(i,j,k) += theta_over_T * fac_cond * (old_qv-qv_arr(i,j,k));
-                });
-
-            }
-
-            const auto& gvec = (*m_mic_fab_vars[MicVar_SD::temperature]).nGrowVect();
-            // Update pressure and temperature
-            for (MFIter mfi(*m_mic_fab_vars[MicVar_SD::temperature], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-
-                Box bx = mfi.tilebox();
-                bx.grow(gvec);
-
-                const Array4<Real>& t_arr = m_mic_fab_vars[MicVar_SD::temperature]->array(mfi);
-                const Array4<Real>& p_arr = m_mic_fab_vars[MicVar_SD::pressure]->array(mfi);
-
-                const Array4<Real const>& rho_arr = m_mic_fab_vars[MicVar_SD::rho]->const_array(mfi);
-                const Array4<Real const>& theta_arr = m_mic_fab_vars[MicVar_SD::theta]->const_array(mfi);
-                const Array4<Real const>& qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
-
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                {
-                    t_arr(i,j,k,0) = getTgivenRandRTh(  rho_arr(i,j,k,0),
-                                                        rho_arr(i,j,k,0)*theta_arr(i,j,k,0),
-                                                        qv_arr(i,j,k,0));
-                    p_arr(i,j,k,0) = getPgivenRTh(  rho_arr(i,j,k,0)*theta_arr(i,j,k,0),
-                                                    qv_arr(i,j,k,0));
-                });
-            }
-
-            // Update saturation ratio
-            vapour_mat.computeSaturationVapFrac(    (*m_mic_fab_vars[MicVar_SD::rh]),
+            // Compute saturation ratio
+            vapour_mat.computeSaturationVapFrac(    (*sr_ptr),
                                                     (*m_mic_fab_vars[MicVar_SD::temperature]),
                                                     (*m_mic_fab_vars[MicVar_SD::pressure]) );
 
-            for (   MFIter mfi((*m_mic_fab_vars[MicVar_SD::rh]),
+            for (   MFIter mfi((*sr_ptr),
                     TilingIfNotGPU()); mfi.isValid();
                     ++mfi ) {
 
                 Box bx = mfi.tilebox();
-                bx.grow( m_mic_fab_vars[MicVar_SD::rh]->nGrowVect() );
+                bx.grow( sr_ptr->nGrowVect() );
 
-                const Array4<Real>& sr_arr = m_mic_fab_vars[MicVar_SD::rh]->array(mfi);
-                const Array4<Real const>& qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
+                const Array4<Real>& sr_arr = sr_ptr->array(mfi);
+                const Array4<Real const>& qv_arr = qv_ptr->const_array(mfi);
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 { sr_arr(i,j,k,0) = qv_arr(i,j,k,0) / sr_arr(i,j,k,0); });
 
             }
 
-            (*m_mic_fab_vars[MicVar_SD::rh]).FillBoundary();
+            (*sr_ptr).FillBoundary();
 
+            // Compute total water content qt
+            computeQt(is);
+
+            // Compute super-droplets mass change
+            m_super_droplets->MassChange (  0,
+                                            dt_s,
+                                            m_species[is],
+                                            (*m_mic_fab_vars[MicVar_SD::temperature]),
+                                            mf_sat_pressure,
+                                            (*sr_ptr),
+                                            a_z );
+
+            // Compute new condensate mixing ratio
+            computeQc(is);
+
+            if (a_update_qv) {
+
+                // Update vapour mixing ratio
+                for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_v]); mfi.isValid(); ++mfi) {
+
+                    Box bx = mfi.tilebox();
+                    bx.grow(m_mic_fab_vars[MicVar_SD::q_v]->nGrowVect());
+
+                    auto qt_arr = qt_ptr->const_array(mfi);
+                    auto qv_arr = qv_ptr->array(mfi);
+                    auto qc_arr = qc_ptr->array(mfi);
+
+                    auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
+                    auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->array(mfi);
+                    auto dqc_arr = m_mic_fab_vars[MicVar_SD::dqcdt]->array(mfi);
+                    auto qr_arr = m_mic_fab_vars[MicVar_SD::q_r]->array(mfi);
+
+                    auto fac_cond = m_fac_cond;
+                    bool is_water = (is == m_idx_w);
+
+                    ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        auto old_qv = qv_arr(i,j,k);
+                        if (is_water) {
+                            auto qw = qc_arr(i,j,k) + qr_arr(i,j,k);
+                            if (qw > qt_arr(i,j,k)) {
+                                qv_arr(i,j,k) = 0.0;
+                                if (qr_arr(i,j,k) > qt_arr(i,j,k)) {
+                                    qc_arr(i,j,k) = 0.0;
+                                    qr_arr(i,j,k) = qt_arr(i,j,k);
+                                } else {
+                                    qc_arr(i,j,k) = qt_arr(i,j,k) - qr_arr(i,j,k);
+                                }
+                            } else {
+                                qv_arr(i,j,k) = qt_arr(i,j,k) - qw;
+                            }
+                            AMREX_ALWAYS_ASSERT(qr_arr(i,j,k) >= 0.0);
+                        } else {
+                            if (qc_arr(i,j,k) > qt_arr(i,j,k)) {
+                                qv_arr(i,j,k) = 0.0;
+                                qc_arr(i,j,k) = qt_arr(i,j,k);
+                            } else {
+                                qv_arr(i,j,k) = qt_arr(i,j,k) - qc_arr(i,j,k);
+                            }
+                        }
+                        AMREX_ALWAYS_ASSERT(qv_arr(i,j,k) >= 0.0);
+                        AMREX_ALWAYS_ASSERT(qc_arr(i,j,k) >= 0.0);
+
+                        if (is_water) { dqc_arr(i,j,k) = - (qv_arr(i,j,k) - old_qv) / dt_s; }
+
+                        auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
+                        theta_arr(i,j,k) += theta_over_T * fac_cond * (old_qv-qv_arr(i,j,k));
+                    });
+
+                }
+
+                // Update pressure and temperature
+                const auto& gvec = (*m_mic_fab_vars[MicVar_SD::temperature]).nGrowVect();
+                for (MFIter mfi(*m_mic_fab_vars[MicVar_SD::temperature], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+                    Box bx = mfi.tilebox();
+                    bx.grow(gvec);
+
+                    const Array4<Real>& t_arr = m_mic_fab_vars[MicVar_SD::temperature]->array(mfi);
+                    const Array4<Real>& p_arr = m_mic_fab_vars[MicVar_SD::pressure]->array(mfi);
+
+                    const Array4<Real const>& rho_arr = m_mic_fab_vars[MicVar_SD::rho]->const_array(mfi);
+                    const Array4<Real const>& theta_arr = m_mic_fab_vars[MicVar_SD::theta]->const_array(mfi);
+                    const Array4<Real const>& qv_arr = qv_ptr->const_array(mfi);
+
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        t_arr(i,j,k,0) = getTgivenRandRTh(  rho_arr(i,j,k,0),
+                                                            rho_arr(i,j,k,0)*theta_arr(i,j,k,0),
+                                                            qv_arr(i,j,k,0));
+                        p_arr(i,j,k,0) = getPgivenRTh(  rho_arr(i,j,k,0)*theta_arr(i,j,k,0),
+                                                        qv_arr(i,j,k,0));
+                    });
+                }
+
+                // Update saturation ratio
+                vapour_mat.computeSaturationVapFrac(    (*sr_ptr),
+                                                        (*m_mic_fab_vars[MicVar_SD::temperature]),
+                                                        (*m_mic_fab_vars[MicVar_SD::pressure]) );
+
+                for (   MFIter mfi((*m_mic_fab_vars[MicVar_SD::rh]),
+                        TilingIfNotGPU()); mfi.isValid();
+                        ++mfi ) {
+
+                    Box bx = mfi.tilebox();
+                    bx.grow( m_mic_fab_vars[MicVar_SD::rh]->nGrowVect() );
+
+                    const Array4<Real>& sr_arr = sr_ptr->array(mfi);
+                    const Array4<Real const>& qv_arr = qv_ptr->const_array(mfi);
+
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    { sr_arr(i,j,k,0) = qv_arr(i,j,k,0) / sr_arr(i,j,k,0); });
+
+                }
+
+                (*sr_ptr).FillBoundary();
+
+            }
         }
     }
-
 }
 
 #endif
