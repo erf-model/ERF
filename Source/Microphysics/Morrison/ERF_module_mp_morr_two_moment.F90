@@ -1542,7 +1542,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                  QR3D(K).LT.QSMALL.AND. &
                  QG3D(K).LT.QSMALL) THEN
             IF (T3D(K).LT.273.15.AND.QVQVSI(K).LT.0.999) then
-#ifdef 0
+#if 0
             ! Fortran version
             if (IS_DEBUG_POINT(i, j, k, istep)) then
                write(10, '(i5,i5,i5,a8)') &
@@ -1552,7 +1552,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                GOTO 200
             endif
             IF (T3D(K).GE.273.15.AND.QVQVS(K).LT.0.999) then
-#ifdef 0
+#if 0
             ! Fortran version
             if (IS_DEBUG_POINT(i, j, k, istep)) then
                write(10, '(i5,i5,i5,a8)') &

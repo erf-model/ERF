@@ -1,6 +1,10 @@
 AMREX_HOME      ?= $(ERF_HOME)/Submodules/AMReX
-
+ifeq ($(USE_MORR_FORT), TRUE)
+DEFINES += -DERF_USE_MORR_FORT
+BL_NO_FORT = FALSE
+else
 BL_NO_FORT = TRUE
+endif
 
 USE_EB = TRUE
 
@@ -158,11 +162,6 @@ endif
 
 ifeq ($(USE_WW3_COUPLING), TRUE)
 DEFINES += -DERF_USE_WW3_COUPLING
-endif
-
-ifeq ($(USE_MORR_FORT), TRUE)
-DEFINES += -DERF_USE_MORR_FORT
-BL_NO_FORT = FALSE
 endif
 
 ifeq ($(USE_MORR_WARM_ONLY), TRUE)
