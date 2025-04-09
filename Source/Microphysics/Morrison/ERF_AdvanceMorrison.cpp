@@ -18,7 +18,9 @@
 #include "ERF_NullMoist.H"
 #include "ERF_Morrison.H"
 #include <ERF_Morrison_Fortran_Interface.H>
+#ifdef ERF_USE_MORR_PRINT_DEBUG
 #define PRINT_DEBUG
+#endif
 #ifdef PRINT_DEBUG
 #define IS_DEBUG_POINT(i, j, k, debug_step) \
   (debug_step >= 0 && \
@@ -574,7 +576,9 @@ constexpr Real gamma_function(Real x) {
           // Microphysics options/switches
           int m_iact = 2;    // CCN activation option (1: power-law, 2: lognormal aerosol)
           int m_inum = 1;    // Droplet number option (0: predict, 1: constant)
+#ifdef ERF_USE_MORR_WARM_ONLY
 #define WARM_ONLY
+#endif
 #ifdef WARM_ONLY
           int m_iliq = 1;    // Liquid-only option (0: include ice, 1: liquid only)
           int m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
@@ -1604,7 +1608,9 @@ constexpr Real gamma_function(Real x) {
             ssed = 0.0;
             gsed = 0.0;
             rsed = 0.0;
+#ifdef ERF_USE_MORR_LATENT_HEATING_OFF
 #define LATENT_HEATING_OFF
+#endif
 #ifndef LATENT_HEATING_OFF
             // LATENT HEAT OF VAPORIZATION
             xxlv(i,j,k) = 3.1484E6 - 2370.0 * t3d(i,j,k);

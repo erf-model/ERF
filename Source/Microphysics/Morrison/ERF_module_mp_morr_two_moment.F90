@@ -317,7 +317,9 @@ SUBROUTINE MORR_TWO_MOMENT_INIT(morr_rimed_ice) ! RAS
 
       ISUB = 0
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#ifdef ERF_USE_MORR_WARM_ONLY
 #define WARM_ONLY
+#endif
 #ifdef WARM_ONLY
 
 ! SWITCH FOR LIQUID-ONLY RUN
@@ -601,7 +603,9 @@ END SUBROUTINE MORR_TWO_MOMENT_INIT
 ! FOR QUESTIONS, CONTACT: HUGH MORRISON, E-MAIL: MORRISON@UCAR.EDU, PHONE:303-497-8916
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#ifdef ERF_USE_MORR_PRINT_DEBUG
 #define PRINT_DEBUG
+#endif
 #ifdef PRINT_DEBUG
 #define IS_DEBUG_POINT(i, j, k, istep) \
   (istep >= 0 .and. \
@@ -1280,7 +1284,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                 SSED(K)=0.
                 GSED(K)=0.
                 RSED(K)=0.
+#ifdef ERF_USE_MORR_LATENT_HEATING_OFF
 #define LATENT_HEATING_OFF
+#endif
 #ifndef LATENT_HEATING_OFF
 ! LATENT HEAT OF VAPORATION
 
