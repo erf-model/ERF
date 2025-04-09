@@ -40,17 +40,17 @@ define( int const& a_idim,
   }
 
   m_volfrac = new MultiFab(grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
-  m_volcent = new MultiCutFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], *m_cellflags);
+  m_volcent = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
       const BoxArray& faceba = amrex::convert(a_grids, IntVect::TheDimensionVector(idim));
-      m_areafrac[idim] = new MultiCutFab(faceba, a_dmap, 1, a_ngrow[2], *m_cellflags);
-      m_facecent[idim] = new MultiCutFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], *m_cellflags);
+      m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+      m_facecent[idim] = new MultiFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
   }
 
-  m_bndryarea = new MultiCutFab(grids, a_dmap, 1, a_ngrow[2], *m_cellflags);
-  m_bndrycent = new MultiCutFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], *m_cellflags);
-  m_bndrynorm = new MultiCutFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], *m_cellflags);
+  m_bndryarea = new MultiFab(grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrycent = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrynorm = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   // Initialize with zeros
   m_volfrac->setVal(0.0);
@@ -625,6 +625,19 @@ define( int const& a_idim,
     }
 
   } // MFIter
+
+  // Fill Boundary
+
+  m_volfrac->FillBoundary(a_geom.periodicity());
+  m_volcent->FillBoundary(a_geom.periodicity());
+  for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+    m_areafrac[idim]->FillBoundary(a_geom.periodicity());
+    m_facecent[idim]->FillBoundary(a_geom.periodicity());
+  }
+  m_bndryarea->FillBoundary(a_geom.periodicity());
+  m_bndrycent->FillBoundary(a_geom.periodicity());
+  m_bndrynorm->FillBoundary(a_geom.periodicity());
+
 }
 
 const FabArray<EBCellFlagFab>&
@@ -641,42 +654,42 @@ eb_aux_::getVolFrac () const
     return *m_volfrac;
 }
 
-const MultiCutFab&
+const MultiFab&
 eb_aux_::getCentroid () const
 {
     AMREX_ASSERT(m_volcent != nullptr);
     return *m_volcent;
 }
 
-const MultiCutFab&
+const MultiFab&
 eb_aux_::getBndryArea () const
 {
     AMREX_ASSERT(m_bndryarea != nullptr);
     return *m_bndryarea;
 }
 
-const MultiCutFab&
+const MultiFab&
 eb_aux_::getBndryCent () const
 {
     AMREX_ASSERT(m_bndrycent != nullptr);
     return *m_bndrycent;
 }
 
-const MultiCutFab&
+const MultiFab&
 eb_aux_::getBndryNorm () const
 {
     AMREX_ASSERT(m_bndrynorm != nullptr);
     return *m_bndrynorm;
 }
 
-Array<const MultiCutFab*, AMREX_SPACEDIM>
+Array<const MultiFab*, AMREX_SPACEDIM>
 eb_aux_::getAreaFrac () const
 {
     AMREX_ASSERT(m_areafrac[0] != nullptr);
     return {AMREX_D_DECL(m_areafrac[0], m_areafrac[1], m_areafrac[2])};
 }
 
-Array<const MultiCutFab*, AMREX_SPACEDIM>
+Array<const MultiFab*, AMREX_SPACEDIM>
 eb_aux_::getFaceCent () const
 {
     AMREX_ASSERT(m_facecent[0] != nullptr);
