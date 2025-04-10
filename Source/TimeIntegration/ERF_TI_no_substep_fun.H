@@ -197,7 +197,7 @@
                     dUdt_mom[i].setVal(0.);
                     MultiFab::Copy(dUdt_mom[i], F_slow[1+i], 0, 0, F_slow[1+i].nComp(), F_slow[1+i].nGrow());
                     dUdt_mom[i].FillBoundary(fine_geom.periodicity());
-                    dUdt_mom[i].setDomainBndry(1.234e10, 0, ncomp_fast[1+i], fine_geom);        
+                    dUdt_mom[i].setDomainBndry(1.234e10, 0, ncomp_fast[1+i], fine_geom);
                 }
 
                 for (int i = 0; i < AMREX_SPACEDIM; ++i) {

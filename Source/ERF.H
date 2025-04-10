@@ -1239,11 +1239,11 @@ private:
                || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7Z) )
             { ngrow = 4; }
             else
-            { 
+            {
                 if (sc.terrain_type == TerrainType::EB){
                     ngrow = 3;
                 } else {
-                    ngrow = 2; 
+                    ngrow = 2;
                 }
             }
         }
