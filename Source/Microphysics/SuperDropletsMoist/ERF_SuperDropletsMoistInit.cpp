@@ -231,9 +231,11 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         const auto& box = mfi.tilebox();
         auto states_arr = a_cons_vars.array(mfi);
         auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
+        auto q_r_arr = m_mic_fab_vars[MicVar_SD::q_r]->array(mfi);
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
+            states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
         });
     }
 

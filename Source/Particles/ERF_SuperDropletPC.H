@@ -221,7 +221,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute the condensate mass density on a mesh */
         virtual void massDensityCondensate ( amrex::MultiFab& a_mf ) const
         {
-            massDensityCondensate(a_mf, 0.0, 0.0);
+            massDensityCondensate(a_mf, 0.0, DBL_MAX);
         }
         /*! \brief Compute the condensate mass density on a mesh */
         virtual void massDensityCondensate ( amrex::MultiFab&,
