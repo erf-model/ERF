@@ -120,7 +120,6 @@
                     // Commenting out the update is a HACK while developing the EB capability
                     if (solverChoice.terrain_type == TerrainType::EB)
                     {
-
                         const Array4<const Real>& vfrac_u = (get_eb(level).get_u_const_factory())->getVolFrac().const_array(mfi);
                         const Array4<const Real>& vfrac_v = (get_eb(level).get_v_const_factory())->getVolFrac().const_array(mfi);
                         const Array4<const Real>& vfrac_w = (get_eb(level).get_w_const_factory())->getVolFrac().const_array(mfi);
@@ -283,6 +282,7 @@
                 } // MFIter
 
             } // EB
+
         } // omp
 
         // Even if we update all the conserved variables we don't need
