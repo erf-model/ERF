@@ -1,10 +1,11 @@
 Version_Two_Dot_One_double
 3
-9
+10
 xvel
 yvel
 zvel
 particle_mass
+temperature
 radius
 multiplicity
 terminal_velocity

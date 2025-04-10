@@ -285,7 +285,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute the condensate mass density on a mesh */
         virtual void speciesMassDensity ( amrex::MultiFab& a_mf, const int a_i ) const
         {
-            speciesMassDensity(a_mf, a_i, 0.0, 0.0);
+            speciesMassDensity(a_mf, a_i, 0.0, DBL_MAX);
         }
         /*! \brief Compute the condensate mass density on a mesh */
         virtual void speciesMassDensity ( amrex::MultiFab&,

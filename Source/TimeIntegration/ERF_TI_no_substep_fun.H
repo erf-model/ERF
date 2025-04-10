@@ -122,13 +122,19 @@
                     {
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
+                            // ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
+                            ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
+                                                      + slow_dt * fslow[IntVars::xmom](i,j,k);
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
+                            // ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
+                            ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
+                                                      + slow_dt * fslow[IntVars::ymom](i,j,k);
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
+                            // ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
+                            ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
+                                                      + slow_dt * fslow[IntVars::zmom](i,j,k);
                         });
 
                     } else {
