@@ -53,8 +53,6 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
                 q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k);
             });
         }
-
-
     }
 
     // Compute pressure and temperature

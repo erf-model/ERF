@@ -253,7 +253,6 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
-            states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
         });
     }
 
