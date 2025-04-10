@@ -168,14 +168,14 @@ NOAH::Init (const MultiFab& cons_in,
 };
 
 void
-NOAH::Advance (const int& lev,
-               MultiFab& cons_in,
-               MultiFab& xvel_in,
-               MultiFab& yvel_in,
-               MultiFab* hfx3_out,
-               MultiFab* qfx3_out,
-               const amrex::Real& dt,
-               const int& nstep) {
+NOAH::Advance_With_State (const int& lev,
+                          MultiFab& cons_in,
+                          MultiFab& xvel_in,
+                          MultiFab& yvel_in,
+                          MultiFab* hfx3_out,
+                          MultiFab* qfx3_out,
+                          const amrex::Real& dt,
+                          const int& nstep) {
 
     Box domain = m_geom.Domain();
 

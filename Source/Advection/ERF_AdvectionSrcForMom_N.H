@@ -217,8 +217,7 @@ AdvectionSrcForZMom_N (int i, int j, int k,
         zflux_hi =  rho_w(i,j,k) * w(i,j,k);
     } else {
         rho_w_avg_hi = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
-        if (k == hi_z_face-1)
-        {
+        if (k == hi_z_face-1) {
             interp_w_wall.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi,AdvType::Centered_2nd);
         } else if (k == hi_z_face-2 || k == lo_z_face+1) {
             if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {

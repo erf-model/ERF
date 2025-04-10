@@ -1,3 +1,18 @@
+#25.04
+    -- Fix anelastic RK2 for slow vars (#2226)
+
+    -- Add init type NCFile (#2223)
+
+    -- Fix epoch time on GPU (#2221)
+
+    -- State redistribution w/ EB (#2217)
+
+    -- Qmoist only holds micro specific vars now (#2214)
+
+    -- Adaptive time step at start up (#2210)
+
+    -- NOAH-MP LSM (#2196) 
+
 #25.03
     -- Fix interpolation when reading terrain from file (#2164)
  
