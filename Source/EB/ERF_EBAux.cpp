@@ -107,7 +107,7 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
-                  dx, domain, bnorm, bcent, flag,
+                  dx, bx, domain, bnorm, bcent, flag,
                   aux_flag, aux_vfrac, aux_vcent,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
@@ -134,17 +134,17 @@ define( int const& a_idim,
         aux_fcent_y(i,j,k,0) = 0.0; aux_fcent_y(i,j,k,1) = 0.0;
         aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
 
-        if (i==domain.bigEnd(0)) {
+        if (i==bx.bigEnd(0)) {
           aux_afrac_x(i+1,j,k) = 0.0;
           aux_fcent_x(i+1,j,k,0) = 0.0;
           aux_fcent_x(i+1,j,k,1) = 0.0;
         }
-        if (j==domain.bigEnd(1)) {
+        if (j==bx.bigEnd(1)) {
           aux_afrac_y(i,j+1,k) = 0.0;
           aux_fcent_y(i,j+1,k,0) = 0.0;
           aux_fcent_y(i,j+1,k,1) = 0.0;
         }
-        if (k==domain.bigEnd(2)) {
+        if (k==bx.bigEnd(2)) {
           aux_afrac_z(i,j,k+1) = 0.0;
           aux_fcent_z(i,j,k+1,0) = 0.0;
           aux_fcent_z(i,j,k+1,1) = 0.0;
@@ -189,17 +189,17 @@ define( int const& a_idim,
           aux_fcent_y(i,j,k,0) = 0.0; aux_fcent_y(i,j,k,1) = 0.0;
           aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
 
-          if (i==domain.bigEnd(0)) {
+          if (i==bx.bigEnd(0)) {
             aux_afrac_x(i+1,j,k) = 1.0;
             aux_fcent_x(i+1,j,k,0) = 0.0;
             aux_fcent_x(i+1,j,k,1) = 0.0;
           }
-          if (j==domain.bigEnd(1)) {
+          if (j==bx.bigEnd(1)) {
             aux_afrac_y(i,j+1,k) = 1.0;
             aux_fcent_y(i,j+1,k,0) = 0.0;
             aux_fcent_y(i,j+1,k,1) = 0.0;
           }
-          if (k==domain.bigEnd(2)) {
+          if (k==bx.bigEnd(2)) {
             aux_afrac_z(i,j,k+1) = 1.0;
             aux_fcent_z(i,j,k+1,0) = 0.0;
             aux_fcent_z(i,j,k+1,1) = 0.0;
@@ -249,14 +249,6 @@ define( int const& a_idim,
           RealBox lo_rbx(lo_arr.data(), hi_arr.data());
 
           eb_cut_cell_ lo_eb_cc(flag(iv_lo), lo_rbx, lo_point, lo_normal);
-
-          // // SK *******************************************************
-          // if(idim==0 && i==16 && j==0 && k==0) {
-          //   std::cout<<"SK: EBAux/ MyProc() = "<< ParallelDescriptor::MyProc() <<" " << iv_lo <<" " << flag(iv_lo).isSingleValued() << " " << lo_rbx << " " << lo_point << " " << lo_normal << std::endl;
-          //   // std::cout<<"SK: EBAux/ MyProc() = "<< ParallelDescriptor::MyProc() << ", bx = "<< bx
-          //   // << ", lo_eb_cc.areaLo(0) = "<<i <<" "<<j<<" "<<k<<" "<< lo_eb_cc.areaLo(0) << std::endl;
-          // }
-          // // SK *******************************************************
 
           // cell iv_lo covered (regular) imples lo_eb_cc is covered (regular)
           // The inverse is not always true.
