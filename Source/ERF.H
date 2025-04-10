@@ -214,6 +214,7 @@ public:
     // Diagnostics
     void sum_integrated_quantities (amrex::Real time);
     void sum_derived_quantities (amrex::Real time);
+    void sum_energy_quantities (amrex::Real time);
 
     void write_1D_profiles (amrex::Real time);
     void write_1D_profiles_stag (amrex::Real time);
@@ -1374,6 +1375,19 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordDerDataInfo");
     }
 
+    void setRecordEnergyDataInfo (int i, const std::string& filename) // NOLINT
+    {
+        if (amrex::ParallelDescriptor::IOProcessor())
+        {
+            energy_datalog[i] = std::make_unique<std::fstream>();
+            energy_datalog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+            if (!energy_datalog[i]->good()) {
+                amrex::FileOpenFailed(filename);
+            }
+        }
+        amrex::ParallelDescriptor::Barrier("ERF::setRecordDerDataInfo");
+    }
+
     void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename) // NOLINT
     {
         amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
@@ -1413,10 +1427,12 @@ private:
     amrex::Real sampler_per = -1.0;
     std::unique_ptr<SampleData> data_sampler = nullptr;
 
-    amrex::Vector<std::unique_ptr<std::fstream> > datalog;
-    amrex::Vector<std::unique_ptr<std::fstream> > der_datalog;
-    amrex::Vector<std::string>     datalogname;
-    amrex::Vector<std::string> der_datalogname;
+    amrex::Vector<std::unique_ptr<std::fstream> >        datalog;
+    amrex::Vector<std::unique_ptr<std::fstream> >    der_datalog;
+    amrex::Vector<std::unique_ptr<std::fstream> > energy_datalog;
+    amrex::Vector<std::string>        datalogname;
+    amrex::Vector<std::string>    der_datalogname;
+    amrex::Vector<std::string> energy_datalogname;
 
     amrex::Vector<std::unique_ptr<std::fstream> > sampleptlog;
     amrex::Vector<std::string> sampleptlogname;

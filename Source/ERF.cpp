@@ -568,6 +568,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
         sum_integrated_quantities(time);
         sum_derived_quantities(time);
+        sum_energy_quantities(time);
     }
 
     if (solverChoice.pert_type == PerturbationType::Source ||
@@ -1178,8 +1179,9 @@ ERF::InitData_post ()
         datalog.resize(num_datalogs);
         datalogname.resize(num_datalogs);
         pp.queryarr("data_log",datalogname,0,num_datalogs);
-        for (int i = 0; i < num_datalogs; i++)
+        for (int i = 0; i < num_datalogs; i++) {
             setRecordDataInfo(i,datalogname[i]);
+        }
     }
 
     if (pp.contains("der_data_log"))
@@ -1188,8 +1190,20 @@ ERF::InitData_post ()
         der_datalog.resize(num_der_datalogs);
         der_datalogname.resize(num_der_datalogs);
         pp.queryarr("der_data_log",der_datalogname,0,num_der_datalogs);
-        for (int i = 0; i < num_der_datalogs; i++)
+        for (int i = 0; i < num_der_datalogs; i++) {
             setRecordDerDataInfo(i,der_datalogname[i]);
+        }
+    }
+
+    if (pp.contains("energy_data_log"))
+    {
+        int num_energy_datalogs = pp.countval("energy_data_log");
+        energy_datalog.resize(num_energy_datalogs);
+        energy_datalogname.resize(num_energy_datalogs);
+        pp.queryarr("energy_data_log",energy_datalogname,0,num_energy_datalogs);
+        for (int i = 0; i < num_energy_datalogs; i++) {
+            setRecordEnergyDataInfo(i,energy_datalogname[i]);
+        }
     }
 
 
@@ -1266,6 +1280,7 @@ ERF::InitData_post ()
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
         sum_derived_quantities(t_new[0]);
+        sum_energy_quantities(t_new[0]);
     }
 
     // Create object to do line and plane sampling if needed

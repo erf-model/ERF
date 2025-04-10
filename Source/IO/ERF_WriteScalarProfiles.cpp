@@ -221,7 +221,17 @@ ERF::sum_derived_quantities (Real time)
     Real  r_wted_avg = volWgtSumMF(lev, r_wted_magvelsq, 0, *mapfac_m[lev],false);
     Real enstrsq_avg = volWgtSumMF(lev, enstrophysq,     0, *mapfac_m[lev],false);
 
-    Real vol = geom[lev].ProbDomain().volume(); // Volume of the domain;
+    // Get volume including terrain (consistent with volWgtSumMF routine)
+    Real vol = geom[lev].ProbDomain().volume();
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        MultiFab volume(grids[lev], dmap[lev], 1, 0);
+        auto const& dx = geom[lev].CellSizeArray();
+        Real cell_vol  = dx[0]*dx[1]*dx[2];
+        volume.setVal(cell_vol);
+        MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
+        vol = volume.sum();
+    }
+
      unwted_avg /= vol;
      r_wted_avg /= vol;
     enstrsq_avg /= vol;
@@ -254,6 +264,126 @@ ERF::sum_derived_quantities (Real time)
         data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  <<  r_wted_avg;
         data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  << enstrsq_avg;
         data_log_der << std::endl;
+
+      } // if IOProcessor
+#ifdef AMREX_LAZY
+    }
+#endif
+}
+
+void
+ERF::sum_energy_quantities (Real time)
+{
+    if ( (verbose <= 0) || (energy_datalog.size() <= 0) ) { return; }
+
+    int lev = 0;
+
+    AMREX_ALWAYS_ASSERT(lev == 0);
+
+    // ************************************************************************
+    // WARNING: we are not filling ghost cells other than periodic outside the domain
+    // ************************************************************************
+
+    MultiFab mf_cc_vel(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
+    mf_cc_vel.setVal(0.); // We just do this to avoid uninitialized values
+
+    // Average all three components of velocity (on faces) to the cell center
+    average_face_to_cellcenter(mf_cc_vel,0,
+                               Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],
+                                                        &vars_new[lev][Vars::yvel],
+                                                        &vars_new[lev][Vars::zvel]});
+    mf_cc_vel.FillBoundary(geom[lev].periodicity());
+
+    if (!geom[lev].isPeriodic(0) || !geom[lev].isPeriodic(1) || !geom[lev].isPeriodic(2)) {
+        amrex::Warning("Ghost cells outside non-periodic physical boundaries are not filled -- vel set to 0 there");
+    }
+
+    MultiFab tot_mass  (grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
+    MultiFab tot_energy(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
+
+    auto const& dx = geom[lev].CellSizeArray();
+    bool is_moist = (solverChoice.moisture_type != MoistureType::None);
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(tot_mass, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+
+        const Array4<Real>& cc_vel_arr     = mf_cc_vel.array(mfi);
+        const Array4<Real>& tot_mass_arr   = tot_mass.array(mfi);
+        const Array4<Real>& tot_energy_arr = tot_energy.array(mfi);
+        const Array4<const Real>& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
+        const Array4<const Real>& z_arr    = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) :
+                                                                Array4<const Real>{};
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : 0.0;
+            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : 0.0;
+            Real Qt   = Qv + Qc;
+            Real Rhod = cons_arr(i,j,k,Rho_comp);
+            Real Rhot = Rhod * (1.0 + Qt);
+            Real Temp = getTgivenRandRTh(Rhod, cons_arr(i,j,k,RhoTheta_comp), Qv);
+            Real TKE  = 0.5 * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
+                              + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
+                              + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
+            Real zval = (z_arr) ? z_arr(i,j,k) : Real(k)*dx[2];
+
+            Real Cv   = Cp_d - R_d;
+            Real Cvv  = Cp_v - R_v;
+            Real Cpv  = Cp_v;
+
+            tot_mass_arr(i,j,k)   = Rhot;
+            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cpv*Qc)*Temp - L_v*Qc
+                                           + (1.0 + Qt)*TKE + (1.0 + Qt)*CONST_GRAV*zval );
+
+        });
+
+    }
+
+    Real  tot_mass_avg   = volWgtSumMF(lev, tot_mass  , 0, *mapfac_m[lev],false);
+    Real  tot_energy_avg = volWgtSumMF(lev, tot_energy, 0, *mapfac_m[lev],false);
+
+    // Get volume including terrain (consistent with volWgtSumMF routine)
+    Real vol = geom[lev].ProbDomain().volume();
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        MultiFab volume(grids[lev], dmap[lev], 1, 0);
+        Real cell_vol = dx[0]*dx[1]*dx[2];
+        volume.setVal(cell_vol);
+        MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
+        vol = volume.sum();
+    }
+
+    // Divide by the volume
+     tot_mass_avg   /= vol;
+     tot_energy_avg /= vol;
+
+    const int nfoo = 2;
+    Real foo[nfoo] = {tot_mass_avg,tot_energy_avg};
+#ifdef AMREX_LAZY
+    Lazy::QueueReduction([=]() mutable {
+#endif
+    ParallelDescriptor::ReduceRealSum(
+        foo, nfoo, ParallelDescriptor::IOProcessorNumber());
+
+      if (ParallelDescriptor::IOProcessor()) {
+        int i = 0;
+        tot_mass_avg   = foo[i++];
+        tot_energy_avg = foo[i++];
+
+        std::ostream& data_log_energy = *energy_datalog[0];
+
+        if (time == 0.0) {
+            data_log_energy << std::setw(datwidth) << "          time";
+            data_log_energy << std::setw(datwidth) << "      tot_mass";
+            data_log_energy << std::setw(datwidth) << "    tot_energy";
+            data_log_energy << std::endl;
+        }
+        data_log_energy << std::setw(datwidth) << std::setprecision(timeprecision) << time;
+        data_log_energy << std::setw(datwidth) << std::setprecision(datprecision)  << tot_mass_avg;
+        data_log_energy << std::setw(datwidth) << std::setprecision(datprecision)  << tot_energy_avg;
+        data_log_energy << std::endl;
 
       } // if IOProcessor
 #ifdef AMREX_LAZY
