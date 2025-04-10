@@ -309,7 +309,8 @@ amrex::Real wrf_gamma (amrex::Real x)
 }
 
 // Gamma function using the custom wrf implementation of the gamma function
-constexpr Real gamma_function(Real x) {
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real gamma_function(Real x) {
   return wrf_gamma(x);
 }
   /**
