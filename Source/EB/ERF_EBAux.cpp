@@ -456,15 +456,15 @@ define( int const& a_idim,
             aux_fcent_y(i,j,k,0) = 0.0; aux_fcent_y(i,j,k,1) = 0.0;
             aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
 
-            if (i==domain.bigEnd(0)) {
+            if (i==bx.bigEnd(0)) {
               aux_afrac_x(i+1,j,k) = 1.0;
               aux_fcent_x(i+1,j,k,0) = 0.0; aux_fcent_x(i+1,j,k,1) = 0.0;
             }
-            if (j==domain.bigEnd(1)) {
+            if (j==bx.bigEnd(1)) {
               aux_afrac_y(i,j+1,k) = 1.0;
               aux_fcent_y(i,j+1,k,0) = 0.0; aux_fcent_y(i,j+1,k,1) = 0.0;
             }
-            if (k==domain.bigEnd(2)) {
+            if (k==bx.bigEnd(2)) {
               aux_afrac_z(i,j,k+1) = 1.0;
               aux_fcent_z(i,j,k+1,0) = 0.0; aux_fcent_z(i,j,k+1,1) = 0.0;
             }
@@ -523,17 +523,17 @@ define( int const& a_idim,
             aux_afrac_y(i,j,k) = (idim == 1) ? lo_areaLo_y : lo_areaLo_y + hi_areaLo_y;
             aux_afrac_z(i,j,k) = (idim == 2) ? lo_areaLo_z : lo_areaLo_z + hi_areaLo_z;
 
-            if (i==domain.bigEnd(0)) {
+            if (i==bx.bigEnd(0)) {
               Real lo_areaHi_x {lo_eb_cc.areaHi(0)};
               Real hi_areaHi_x {hi_eb_cc.areaHi(0)};
               aux_afrac_x(i+1,j,k) = (idim == 0) ? hi_areaHi_x : lo_areaHi_x + hi_areaHi_x;
             }
-            if (j==domain.bigEnd(1)) {
+            if (j==bx.bigEnd(1)) {
               Real lo_areaHi_y {lo_eb_cc.areaHi(1)};
               Real hi_areaHi_y {hi_eb_cc.areaHi(1)};
               aux_afrac_y(i,j+1,k) = (idim == 1) ? hi_areaHi_y : lo_areaHi_y + hi_areaHi_y;
             }
-            if (k==domain.bigEnd(2)) {
+            if (k==bx.bigEnd(2)) {
               Real lo_areaHi_z {lo_eb_cc.areaHi(2)};
               Real hi_areaHi_z {hi_eb_cc.areaHi(2)};
               aux_afrac_z(i,j,k+1) = (idim == 2) ? hi_areaHi_z : lo_areaHi_z + hi_areaHi_z;
@@ -616,7 +616,7 @@ define( int const& a_idim,
               aux_fcent_z(i,j,k,1) = lo_centLo_z[1];      // y
             }
 
-            if (i==domain.bigEnd(0)) {
+            if (i==bx.bigEnd(0)) {
               Real lo_areaHi_x {lo_eb_cc.areaHi(0)};
               Real hi_areaHi_x {hi_eb_cc.areaHi(0)};
               RealVect lo_centHi_x {lo_eb_cc.centHi(0)};
@@ -644,7 +644,7 @@ define( int const& a_idim,
                                       : 0.0;
               }
             }
-            if (j==domain.bigEnd(1)) {
+            if (j==bx.bigEnd(1)) {
               Real lo_areaHi_y {lo_eb_cc.areaHi(1)};
               Real hi_areaHi_y {hi_eb_cc.areaHi(1)};
               RealVect lo_centHi_y {lo_eb_cc.centHi(1)};
@@ -672,7 +672,7 @@ define( int const& a_idim,
                                       : 0.0;
               }
             }
-            if (k==domain.bigEnd(2)) {
+            if (k==bx.bigEnd(2)) {
               Real lo_areaHi_z {lo_eb_cc.areaHi(2)};
               Real hi_areaHi_z {hi_eb_cc.areaHi(2)};
               RealVect lo_centHi_z {lo_eb_cc.centHi(2)};
