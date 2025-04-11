@@ -1395,7 +1395,7 @@ Real gamma_function(Real x) {
 #if 1
 
             // Microphysical processes
-            amrex::Real nsubc;              // NSUBC: Loss of NC during evaporation
+            [[maybe_unused]] amrex::Real nsubc;              // NSUBC: Loss of NC during evaporation
             amrex::Real nsubi;              // NSUBI: Loss of NI during sublimation
             amrex::Real nsubs;              // NSUBS: Loss of NS during sublimation
             amrex::Real nsubr;              // NSUBR: Loss of NR during evaporation
@@ -1430,7 +1430,7 @@ Real gamma_function(Real x) {
             amrex::Real qmultr;             // QMULTR: Change Q due to ice multiplication rain/snow
             amrex::Real pracs;              // PRACS: Change Q rain-snow collection
             amrex::Real npracs;             // NPRACS: Change N rain-snow collection
-            amrex::Real pccn;               // PCCN: Change Q droplet activation
+            [[maybe_unused]] amrex::Real pccn;               // PCCN: Change Q droplet activation
             amrex::Real psmlt;              // PSMLT: Change Q melting snow to rain
             amrex::Real evpms;              // EVPMS: Change Q melting snow evaporating
             amrex::Real nsmlts;             // NSMLTS: Change N melting snow
@@ -1491,22 +1491,22 @@ Real gamma_function(Real x) {
             amrex::Real dum;                // DUM: General dummy variable
 #if 1
             amrex::Real dum1;               // DUM1: General dummy variable
-            amrex::Real dum2;               // DUM2: General dummy variable
+            [[maybe_unused]] amrex::Real dum2;               // DUM2: General dummy variable
             amrex::Real dumt;               // DUMT: Dummy variable for temperature
             amrex::Real dumqv;              // DUMQV: Dummy variable for water vapor
             amrex::Real dumqss;             // DUMQSS: Dummy saturation mixing ratio
-            amrex::Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
+            [[maybe_unused]] amrex::Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
             amrex::Real dums;               // DUMS: General dummy variable
 #endif
             // Prognostic supersaturation
             amrex::Real dqsdt;              // DQSDT: Change of saturation mixing ratio with temperature
             amrex::Real dqsidt;             // DQSIDT: Change in ice saturation mixing ratio with temperature
-#if 1
+
             amrex::Real epsi;               // EPSI: 1/phase relaxation time (see M2005), ice
             amrex::Real epss;               // EPSS: 1/phase relaxation time (see M2005), snow
             amrex::Real epsr;               // EPSR: 1/phase relaxation time (see M2005), rain
             amrex::Real epsg;               // EPSG: 1/phase relaxation time (see M2005), graupel
-
+#if 0
             // Droplet activation variables
             amrex::Real tauc;               // TAUC: Phase relaxation time (see M2005), droplets
             amrex::Real taur;               // TAUR: Phase relaxation time (see M2005), rain
@@ -1526,23 +1526,26 @@ Real gamma_function(Real x) {
             amrex::Real sat1;               // SAT1: Dummy saturation
             amrex::Real sigvl;              // SIGVL: Surface tension liquid/vapor
             amrex::Real kel;                // KEL: Kelvin parameter
+#endif
             amrex::Real kc2;                // KC2: Total ice nucleation rate
+#if 0
             amrex::Real cry;                // CRY: Aerosol activation parameter
             amrex::Real kry;                // KRY: Aerosol activation parameter
 
             // More working/dummy variables
             amrex::Real dumqi;              // DUMQI: Dummy variable for ice mixing ratio
             amrex::Real dumni;              // DUMNI: Dummy variable for ice number concentration
+#endif
             amrex::Real di0;                // DC0: Characteristic diameter for ice
-            amrex::Real dc0;                // DC0: Characteristic diameter for cloud droplets
+            [[maybe_unused]] amrex::Real dc0;                // DC0: Characteristic diameter for cloud droplets
             amrex::Real ds0;                // DS0: Characteristic diameter for snow
             amrex::Real dg0;                // DG0: Characteristic diameter for graupel
             amrex::Real dumqc;              // DUMQC: Dummy variable for cloud water mixing ratio
-            amrex::Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
+            [[maybe_unused]] amrex::Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
             amrex::Real ratio;              // RATIO: General ratio variable
             amrex::Real sum_dep;            // SUM_DEP: Sum of deposition/sublimation
             amrex::Real fudgef;             // FUDGEF: Adjustment factor
-
+#if 0
             // Effective vertical velocity (M/S)
             amrex::Real wef;                // WEF: Effective vertical velocity
 
@@ -1567,12 +1570,12 @@ Real gamma_function(Real x) {
             int idrop;                      // IDROP: Switch for droplet activation scheme
 #endif
             // For WRF-CHEM
-            amrex::Real c2prec;             // C2PREC: Cloud to precipitation conversion
-            amrex::Real csed;               // CSED: Cloud sedimentation
-            amrex::Real ised;               // ISED: Ice sedimentation
-            amrex::Real ssed;               // SSED: Snow sedimentation
-            amrex::Real gsed;               // GSED: Graupel sedimentation
-            amrex::Real rsed;               // RSED: Rain sedimentation
+            [[maybe_unused]] amrex::Real c2prec;             // C2PREC: Cloud to precipitation conversion
+            [[maybe_unused]] amrex::Real csed;               // CSED: Cloud sedimentation
+            [[maybe_unused]] amrex::Real ised;               // ISED: Ice sedimentation
+            [[maybe_unused]] amrex::Real ssed;               // SSED: Snow sedimentation
+            [[maybe_unused]] amrex::Real gsed;               // GSED: Graupel sedimentation
+            [[maybe_unused]] amrex::Real rsed;               // RSED: Rain sedimentation
             [[maybe_unused]] amrex::Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
 
             // NC3DTEN LOCAL ARRAY INITIALIZED
@@ -1940,7 +1943,7 @@ Real gamma_function(Real x) {
                 // Cloud droplets
                 if (qc3d(i,j,k) >= m_qsmall) {
                   // Calculate air density factor (moist air density)
-                  amrex::Real dum = pres(i,j,k)/(287.15*t3d(i,j,k));
+                  dum = pres(i,j,k)/(287.15*t3d(i,j,k));
 
                   // MARTIN ET AL. (1994) FORMULA FOR PGAM (WRF implementation)
                   pgam(i,j,k) = 0.0005714*(nc3d(i,j,k)/1.0e6*dum) + 0.2714;
@@ -2512,7 +2515,7 @@ Real gamma_function(Real x) {
               // Cloud droplets
               if (qc3d(i,j,k) >= m_qsmall) {
                 // Calculate air density factor (moist air density)
-                amrex::Real dum = pres(i,j,k)/(287.15*t3d(i,j,k));
+                dum = pres(i,j,k)/(287.15*t3d(i,j,k));
 
                 // MARTIN ET AL. (1994) FORMULA FOR PGAM (WRF implementation)
                 pgam(i,j,k) = 0.0005714*(nc3d(i,j,k)/1.0e6*dum) + 0.2714;
@@ -3117,7 +3120,7 @@ Real gamma_function(Real x) {
                 // AS DESCRINED ABOVE FOR AUTOCONVERSION
                 if (qr3d(i,j,k) >= 1.0e-8) {
                   // include breakup add 10/09/09
-                  amrex::Real dum1 = 300.0e-6;
+                  dum1 = 300.0e-6;
                   if (1.0 / lamr(i,j,k) < dum1) {
                     dum = 1.0;
                   } else if (1.0 / lamr(i,j,k) >= dum1) {
@@ -3181,7 +3184,7 @@ Real gamma_function(Real x) {
                   // ADD THRESHOLD ACCORDING TO GREG THOMSPON
                   if ((qvqvs >= 0.999 && t3d(i,j,k) <= 265.15) || qvqvsi >= 1.08) {
                     // hm, modify dec. 5, 2006, replace with cooper curve
-                    amrex::Real kc2 = 0.005 * std::exp(0.304 * (273.15 - t3d(i,j,k))) * 1000.0; // CONVERT FROM L-1 TO M-3
+                    kc2 = 0.005 * std::exp(0.304 * (273.15 - t3d(i,j,k))) * 1000.0; // CONVERT FROM L-1 TO M-3
                     // LIMIT TO 500 L-1
                     kc2 = std::min(kc2, 500.0e3);
                     kc2 = std::max(kc2 / rho(i,j,k), 0.0);  // CONVERT TO KG-1
@@ -3193,7 +3196,7 @@ Real gamma_function(Real x) {
                   }
                 } else if (m_inuc == 1) {
                   if (t3d(i,j,k) < 273.15 && qvqvsi > 1.0) {
-                    amrex::Real kc2 = 0.16 * 1000.0 / rho(i,j,k);  // CONVERT FROM L-1 TO KG-1
+                    kc2 = 0.16 * 1000.0 / rho(i,j,k);  // CONVERT FROM L-1 TO KG-1
                     if (kc2 > ni3d(i,j,k) + ns3d(i,j,k) + ng3d(i,j,k)) {
                       nnuccd = (kc2 - ni3d(i,j,k) - ns3d(i,j,k) - ng3d(i,j,k)) / dt;
                       mnuccd = nnuccd * m_mi0;
@@ -3203,13 +3206,13 @@ Real gamma_function(Real x) {
 
                 // CALCULATE EVAP/SUB/DEP TERMS FOR QI,QNI,QR
                 // NO VENTILATION FOR CLOUD ICE
-                amrex::Real epsi = 0.0;
+                epsi = 0.0;
                 if (qi3d(i,j,k) >= m_qsmall) {
                   epsi = 2.0 * m_pi * n0i(i,j,k) * rho(i,j,k) * dv / (lami(i,j,k) * lami(i,j,k));
                 }
 
                 // VENTILATION FOR SNOW
-                amrex::Real epss = 0.0;
+                epss = 0.0;
                 if (qni3d(i,j,k) >= m_qsmall) {
                   epss = 2.0 * m_pi * n0s(i,j,k) * rho(i,j,k) * dv *
                     (m_f1s / (lams(i,j,k) * lams(i,j,k)) +
@@ -3219,7 +3222,7 @@ Real gamma_function(Real x) {
                 }
 
                 // Ventilation for graupel
-                amrex::Real epsg = 0.0;
+                epsg = 0.0;
                 if (qg3d(i,j,k) >= m_qsmall) {
                   epsg = 2.0 * m_pi * n0g(i,j,k) * rho(i,j,k) * dv *
                     (m_f1s / (lamg(i,j,k) * lamg(i,j,k)) +
@@ -3229,7 +3232,7 @@ Real gamma_function(Real x) {
                 }
 
                 // VENTILATION FOR RAIN
-                amrex::Real epsr = 0.0;
+                epsr = 0.0;
                 if (qr3d(i,j,k) >= m_qsmall) {
                   epsr = 2.0 * m_pi * n0r(i,j,k) * rho(i,j,k) * dv *
                     (m_f1r / (lamr(i,j,k) * lamr(i,j,k)) +
@@ -3272,8 +3275,8 @@ Real gamma_function(Real x) {
                 // FORMULA FROM REISNER 2 SCHEME
                 dum = (qv3d(i,j,k) - qvi) / dt;
 
-                amrex::Real fudgef = 0.9999;
-                amrex::Real sum_dep = prd + prds + mnuccd + prdg;
+                fudgef = 0.9999;
+                sum_dep = prd + prds + mnuccd + prdg;
 
                 if ((dum > 0.0 && sum_dep > dum * fudgef) ||
                     (dum < 0.0 && sum_dep < dum * fudgef)) {
