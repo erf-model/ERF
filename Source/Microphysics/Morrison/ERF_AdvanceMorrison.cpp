@@ -1181,7 +1181,6 @@ Real gamma_function(Real x) {
             amrex::FArrayBox faltndr_fab(grown_box, 1);
             amrex::FArrayBox faltndi_fab(grown_box, 1);
             amrex::FArrayBox faltndni_fab(grown_box, 1);
-            amrex::FArrayBox rho2_fab(grown_box, 1);
             amrex::FArrayBox dumqs_fab(grown_box, 1);
             amrex::FArrayBox dumfns_fab(grown_box, 1);
             amrex::FArrayBox ums_fab(grown_box, 1);
@@ -1213,13 +1212,6 @@ Real gamma_function(Real x) {
             amrex::FArrayBox faloutnr_fab(grown_box, 1);
             amrex::FArrayBox faltndnr_fab(grown_box, 1);
             amrex::FArrayBox fnr_fab(grown_box, 1);
-            amrex::FArrayBox dumqi_fab(grown_box, 1);
-            amrex::FArrayBox dumni_fab(grown_box, 1);
-            amrex::FArrayBox dumqc_fab(grown_box, 1);
-            amrex::FArrayBox dumqr_fab(grown_box, 1);
-            amrex::FArrayBox ratio_fab(grown_box, 1);
-            amrex::FArrayBox sum_dep_fab(grown_box, 1);
-            amrex::FArrayBox fudgef_fab(grown_box, 1);
             amrex::FArrayBox dlams_fab(grown_box, 1);
             amrex::FArrayBox dlamr_fab(grown_box, 1);
             amrex::FArrayBox dlami_fab(grown_box, 1);
@@ -1247,7 +1239,6 @@ Real gamma_function(Real x) {
             auto const& faltndr = faltndr_fab.array();
             auto const& faltndi = faltndi_fab.array();
             auto const& faltndni = faltndni_fab.array();
-            auto const& rho2 = rho2_fab.array();
             auto const& dumqs = dumqs_fab.array();
             auto const& dumfns = dumfns_fab.array();
             auto const& ums = ums_fab.array();
@@ -1279,13 +1270,6 @@ Real gamma_function(Real x) {
             auto const& faloutnr = faloutnr_fab.array();
             auto const& faltndnr = faltndnr_fab.array();
             auto const& fnr = fnr_fab.array();
-            auto const& dumqi = dumqi_fab.array();
-            auto const& dumni = dumni_fab.array();
-            auto const& dumqc = dumqc_fab.array();
-            auto const& dumqr = dumqr_fab.array();
-            auto const& ratio = ratio_fab.array();
-            auto const& sum_dep = sum_dep_fab.array();
-            auto const& fudgef = fudgef_fab.array();
             auto const& dlams = dlams_fab.array();
             auto const& dlamr = dlamr_fab.array();
             auto const& dlami = dlami_fab.array();
@@ -1318,7 +1302,6 @@ Real gamma_function(Real x) {
             faltndr_fab.setVal(0.0);
             faltndi_fab.setVal(0.0);
             faltndni_fab.setVal(0.0);
-            rho2_fab.setVal(0.0);
             dumqs_fab.setVal(0.0);
             dumfns_fab.setVal(0.0);
             ums_fab.setVal(0.0);
@@ -1350,13 +1333,6 @@ Real gamma_function(Real x) {
             faloutnr_fab.setVal(0.0);
             faltndnr_fab.setVal(0.0);
             fnr_fab.setVal(0.0);
-            dumqi_fab.setVal(0.0);
-            dumni_fab.setVal(0.0);
-            dumqc_fab.setVal(0.0);
-            dumqr_fab.setVal(0.0);
-            ratio_fab.setVal(0.0);
-            sum_dep_fab.setVal(0.0);
-            fudgef_fab.setVal(0.0);
 
             // Create FArrayBoxes for thermodynamic variables
             amrex::FArrayBox xxls_fab(grown_box, 1);  // Latent heat of sublimation
@@ -3403,7 +3379,7 @@ Real gamma_function(Real x) {
                 dum = (prc + pra + mnuccc + psacws + psacwi + qmults + psacwg + pgsacw + qmultg) * dt;
 
                 if (dum > qc3d(i,j,k) && qc3d(i,j,k) >= m_qsmall) {
-                  amrex::Real ratio = qc3d(i,j,k) / dum;
+                  ratio = qc3d(i,j,k) / dum;
 
                   prc = prc * ratio;
                   pra = pra * ratio;
@@ -3421,7 +3397,7 @@ Real gamma_function(Real x) {
                        - mnuccd + praci + pracis - eprd - psacwi) * dt;
 
                 if (dum > qi3d(i,j,k) && qi3d(i,j,k) >= m_qsmall) {
-                  amrex::Real ratio = (qi3d(i,j,k) / dt + prd + mnuccc + qmults + qmultg + qmultr + qmultrg +
+                  ratio = (qi3d(i,j,k) / dt + prd + mnuccc + qmults + qmultg + qmultr + qmultrg +
                                        mnuccd + psacwi) /
                     (prci + prai + praci + pracis - eprd);
 
@@ -3437,7 +3413,7 @@ Real gamma_function(Real x) {
                        piacr + piacrs + pgracs + pracg) * dt;
 
                 if (dum > qr3d(i,j,k) && qr3d(i,j,k) >= m_qsmall) {
-                  amrex::Real ratio = (qr3d(i,j,k) / dt + prc + pra) /
+                  ratio = (qr3d(i,j,k) / dt + prc + pra) /
                     (-pre + qmultr + qmultrg + pracs + mnuccr + piacr + piacrs + pgracs + pracg);
 
                   pre = pre * ratio;
@@ -3456,7 +3432,7 @@ Real gamma_function(Real x) {
                   dum = (-prds - psacws - prai - prci - pracs - eprds + psacr - piacrs - pracis) * dt;
 
                   if (dum > qni3d(i,j,k) && qni3d(i,j,k) >= m_qsmall) {
-                    amrex::Real ratio = (qni3d(i,j,k) / dt + prds + psacws + prai + prci + pracs + piacrs + pracis) /
+                    ratio = (qni3d(i,j,k) / dt + prds + psacws + prai + prci + pracs + piacrs + pracis) /
                       (-eprds + psacr);
 
                     eprds = eprds * ratio;
@@ -3467,7 +3443,7 @@ Real gamma_function(Real x) {
                   dum = (-prds - psacws - prai - prci - pracs - eprds + psacr - piacrs - pracis - mnuccr) * dt;
 
                   if (dum > qni3d(i,j,k) && qni3d(i,j,k) >= m_qsmall) {
-                    amrex::Real ratio = (qni3d(i,j,k) / dt + prds + psacws + prai + prci + pracs + piacrs + pracis + mnuccr) /
+                    ratio = (qni3d(i,j,k) / dt + prds + psacws + prai + prci + pracs + piacrs + pracis + mnuccr) /
                       (-eprds + psacr);
 
                     eprds = eprds * ratio;
@@ -3479,7 +3455,7 @@ Real gamma_function(Real x) {
                 dum = (-psacwg - pracg - pgsacw - pgracs - prdg - mnuccr - eprdg - piacr - praci - psacr) * dt;
 
                 if (dum > qg3d(i,j,k) && qg3d(i,j,k) >= m_qsmall) {
-                  amrex::Real ratio = (qg3d(i,j,k) / dt + psacwg + pracg + pgsacw + pgracs + prdg + mnuccr + psacr +
+                  ratio = (qg3d(i,j,k) / dt + psacwg + pracg + pgsacw + pgracs + prdg + mnuccr + psacr +
                                        piacr + praci) / (-eprdg);
 
                   eprdg = eprdg * ratio;
@@ -3663,8 +3639,7 @@ Real gamma_function(Real x) {
 
               amrex::Real dum;                // DUM: General dummy variable
 
-              amrex::Real di0;                // DC0: Characteristic diameter for ice
-              amrex::Real dc0;                // DC0: Characteristic diameter for cloud droplets
+              amrex::Real di0;                // DI0: Characteristic diameter for ice
               amrex::Real ds0;                // DS0: Characteristic diameter for snow
               amrex::Real dg0;                // DG0: Characteristic diameter for graupel
               amrex::Real lammax;             // LAMMAX: Maximum value for slope parameter
@@ -3937,7 +3912,7 @@ Real gamma_function(Real x) {
               dumfng(i,j,k) = dumfng(i,j,k) - faltndng(i,j,k) * dt / nstep;
 
               // Process remaining levels from top to bottom
-              for (int k = khi-1; k >= klo; k--) {
+              for (k = khi-1; k >= klo; k--) {
                 // Calculate tendencies based on difference between levels
                 faltndr(i,j,k) = (faloutr(i,j,k+1) - faloutr(i,j,k)) / dzq(i,j,k);
                 faltndi(i,j,k) = (falouti(i,j,k+1) - falouti(i,j,k)) / dzq(i,j,k);
@@ -4193,9 +4168,7 @@ Real gamma_function(Real x) {
                 }
 #endif
               // ****SENSITIVITY - NO ICE
-              if ((m_iliq == 1)) {
-                Real dontdoanything=m_iliq;//printf("m_iliq: %d\n",m_iliq);//                goto label_778;
-              } else {
+              if ((m_iliq != 1)) {
 
                 // HOMOGENEOUS FREEZING OF CLOUD WATER
                 if (t3d(i,j,k) <= 233.15 && qc3d(i,j,k) >= m_qsmall) {
@@ -4234,7 +4207,10 @@ Real gamma_function(Real x) {
                 }
 #endif
 
-              }
+              }/* else {
+                Real dontdoanything=m_iliq;//printf("m_iliq: %d\n",m_iliq);//                goto label_778;
+              }*/
+
 //            label_778:
                 // MAKE SURE NUMBER CONCENTRATIONS AREN'T NEGATIVE
                 ni3d(i,j,k) = std::max(0.0, ni3d(i,j,k));
