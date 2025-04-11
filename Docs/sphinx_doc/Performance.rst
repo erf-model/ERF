@@ -57,4 +57,4 @@ A weak scaling test was also performed on GPUs with a mesh size of :math:`(256,2
    :figwidth: 45%
    :align: left
 
-   **Weak scaling on GPUs with and without GPU-aware MPI.**
+   **Weak scaling on GPUs on Perlmutter (NVIDIA A100), Frontier (AMD MI250X (1 GCD)) and Aurora (Intel Max Series GPUs PVC)**
