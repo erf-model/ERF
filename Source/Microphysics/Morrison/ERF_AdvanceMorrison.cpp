@@ -584,14 +584,14 @@ Real gamma_function(Real x) {
           int m_iliq = 1;    // Liquid-only option (0: include ice, 1: liquid only)
           int m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
           [[maybe_unused]] int m_ibase = 2;   // Cloud base activation option
-          int m_isub = 0;    // Sub-grid vertical velocity option
+          [[maybe_unused]] int m_isub = 0;    // Sub-grid vertical velocity option
           int m_igraup = 1;  // Graupel option (0: include graupel, 1: no graupel)
           int m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
 #else
           int m_iliq = 0;    // Liquid-only option (0: include ice, 1: liquid only)
           int m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
           [[maybe_unused]] int m_ibase = 2;   // Cloud base activation option
-          int m_isub = 0;    // Sub-grid vertical velocity option
+          [[maybe_unused]] int m_isub = 0;    // Sub-grid vertical velocity option
           int m_igraup = 0;  // Graupel option (0: include graupel, 1: no graupel)
           int m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
 #endif
@@ -683,8 +683,8 @@ Real gamma_function(Real x) {
           amrex::Real m_cons11, m_cons12, m_cons13, m_cons14, m_cons15;
           amrex::Real m_cons16, m_cons17, m_cons18, m_cons19, m_cons20;
           amrex::Real m_cons21, m_cons22, m_cons23, m_cons24, m_cons25;
-          amrex::Real m_cons26, m_cons27, m_cons28, m_cons29, m_cons30;
-          amrex::Real m_cons31, m_cons32, m_cons33, m_cons34, m_cons35;
+          amrex::Real m_cons26, m_cons27, m_cons28, m_cons29; [[maybe_unused]] amrex::Real m_cons30;
+          amrex::Real m_cons31, m_cons32, m_cons34, m_cons35; [[maybe_unused]] amrex::Real m_cons33;
           amrex::Real m_cons36, m_cons37, m_cons38, m_cons39, m_cons40;
           amrex::Real m_cons41;
 #if 0
