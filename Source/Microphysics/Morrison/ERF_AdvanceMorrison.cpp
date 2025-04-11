@@ -595,7 +595,7 @@ Real gamma_function(Real x) {
           int m_igraup = 0;  // Graupel option (0: include graupel, 1: no graupel)
           int m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
 #endif
-          bool m_do_radar_ref = false;  // Radar reflectivity calculation flag
+          [[maybe_unused]] bool m_do_radar_ref = false;  // Radar reflectivity calculation flag
 
           // Physical constants
           amrex::Real m_pi;          // Pi constant
@@ -615,7 +615,7 @@ Real gamma_function(Real x) {
 
           // Fall speed parameters (V=AD^B)
           amrex::Real m_ai, m_bi;    // Cloud ice fall speed parameters
-          amrex::Real m_ac, m_bc;    // Cloud droplet fall speed parameters
+          [[maybe_unused]] amrex::Real m_ac, m_bc;    // Cloud droplet fall speed parameters
           amrex::Real m_as, m_bs;    // Snow fall speed parameters
           amrex::Real m_ar, m_br;    // Rain fall speed parameters
           amrex::Real m_ag, m_bg;    // Graupel/hail fall speed parameters
@@ -653,29 +653,29 @@ Real gamma_function(Real x) {
           amrex::Real m_ndcnst = 250.0;  // Droplet number concentration (cm^-3)
 
           // CCN spectra parameters (for IACT = 1)
-          amrex::Real m_k1;          // Exponent in CCN activation formula
-          amrex::Real m_c1;          // Coefficient in CCN activation formula (cm^-3)
+          [[maybe_unused]] amrex::Real m_k1;          // Exponent in CCN activation formula
+          [[maybe_unused]] amrex::Real m_c1;          // Coefficient in CCN activation formula (cm^-3)
 
           // Aerosol activation parameters (for IACT = 2)
-          amrex::Real m_mw;          // Molecular weight water (kg/mol)
-          amrex::Real m_osm;         // Osmotic coefficient
-          amrex::Real m_vi;          // Number of ions dissociated in solution
-          amrex::Real m_epsm;        // Aerosol soluble fraction
-          amrex::Real m_rhoa;        // Aerosol bulk density (kg/m^3)
-          amrex::Real m_map;         // Molecular weight aerosol (kg/mol)
-          amrex::Real m_ma;          // Molecular weight of air (kg/mol)
-          amrex::Real m_rr;          // Universal gas constant (J/mol/K)
-          amrex::Real m_bact;        // Activation parameter
-          amrex::Real m_rm1;         // Geometric mean radius, mode 1 (m)
-          amrex::Real m_rm2;         // Geometric mean radius, mode 2 (m)
+          [[maybe_unused]] amrex::Real m_mw;          // Molecular weight water (kg/mol)
+          [[maybe_unused]] amrex::Real m_osm;         // Osmotic coefficient
+          [[maybe_unused]] amrex::Real m_vi;          // Number of ions dissociated in solution
+          [[maybe_unused]] amrex::Real m_epsm;        // Aerosol soluble fraction
+          [[maybe_unused]] amrex::Real m_rhoa;        // Aerosol bulk density (kg/m^3)
+          [[maybe_unused]] amrex::Real m_map;         // Molecular weight aerosol (kg/mol)
+          [[maybe_unused]] amrex::Real m_ma;          // Molecular weight of air (kg/mol)
+          [[maybe_unused]] amrex::Real m_rr;          // Universal gas constant (J/mol/K)
+          [[maybe_unused]] amrex::Real m_bact;        // Activation parameter
+          [[maybe_unused]] amrex::Real m_rm1;         // Geometric mean radius, mode 1 (m)
+          [[maybe_unused]] amrex::Real m_rm2;         // Geometric mean radius, mode 2 (m)
           amrex::Real m_nanew1;      // Total aerosol concentration, mode 1 (m^-3)
           amrex::Real m_nanew2;      // Total aerosol concentration, mode 2 (m^-3)
-          amrex::Real m_sig1;        // Standard deviation of aerosol dist, mode 1
-          amrex::Real m_sig2;        // Standard deviation of aerosol dist, mode 2
-          amrex::Real m_f11;         // Correction factor for activation, mode 1
-          amrex::Real m_f12;         // Correction factor for activation, mode 1
-          amrex::Real m_f21;         // Correction factor for activation, mode 2
-          amrex::Real m_f22;         // Correction factor for activation, mode 2
+          [[maybe_unused]] amrex::Real m_sig1;        // Standard deviation of aerosol dist, mode 1
+          [[maybe_unused]] amrex::Real m_sig2;        // Standard deviation of aerosol dist, mode 2
+          [[maybe_unused]] amrex::Real m_f11;         // Correction factor for activation, mode 1
+          [[maybe_unused]] amrex::Real m_f12;         // Correction factor for activation, mode 1
+          [[maybe_unused]] amrex::Real m_f21;         // Correction factor for activation, mode 2
+          [[maybe_unused]] amrex::Real m_f22;         // Correction factor for activation, mode 2
 
           // Precomputed constants for efficiency
           amrex::Real m_cons1, m_cons2, m_cons3, m_cons4, m_cons5;
@@ -687,12 +687,12 @@ Real gamma_function(Real x) {
           amrex::Real m_cons31, m_cons32, m_cons33, m_cons34, m_cons35;
           amrex::Real m_cons36, m_cons37, m_cons38, m_cons39, m_cons40;
           amrex::Real m_cons41;
-
+#if 0
           // Radar reflectivity parameters
           amrex::Real m_xam_r, m_xbm_r, m_xmu_r;  // Rain reflectivity parameters
           amrex::Real m_xam_s, m_xbm_s, m_xmu_s;  // Snow reflectivity parameters
           amrex::Real m_xam_g, m_xbm_g, m_xmu_g;  // Graupel reflectivity parameters
-#if 0
+
           amrex::Real m_lambda_radar;  // Radar wavelength (10 cm)
           amrex::Real m_k_w;           // K_w parameter for liquid water
           amrex::Real m_lamda4;        // Lambda^4 for radar calculation
@@ -933,7 +933,7 @@ Real gamma_function(Real x) {
             m_f12 = 0.5 * std::exp(2.5 * std::pow(std::log(m_sig2), 2));
             m_f22 = 1.0 + 0.25 * std::log(m_sig2);
           }
-
+#if 0
           // Initialize radar reflectivity parameters
           m_xam_r = m_pi * m_rhow / 6.0;
           m_xbm_r = 3.0;
@@ -944,7 +944,7 @@ Real gamma_function(Real x) {
           m_xam_g = m_cg;
           m_xbm_g = m_dg;
           m_xmu_g = 0.0;
-
+#endif
           // Set microphysics control parameters
           m_iact = 2;  // Lognormal aerosol activation
           m_inuc = 0;      // Mid-latitude ice nucleation (Cooper)
