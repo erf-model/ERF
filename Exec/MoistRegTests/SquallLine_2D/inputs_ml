@@ -48,8 +48,8 @@ amr.n_error_buf  = 3 3
 ################################ MULTILEVEL ################################
 
 # CHECKPOINT FILES
-amr.check_file      = chk        # root name of checkpoint file
-amr.check_int       = 1000       # number of timesteps between checkpoints
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 1000       # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1         = plt        # root name of plotfile
