@@ -6,9 +6,10 @@ MODULE mp_morr_two_moment_isohelper
   CONTAINS
 
   ! Initialize the Morrison microphysics scheme
-  SUBROUTINE morr_two_moment_init_c(morr_rimed_ice) BIND(C, name="morr_two_moment_init_c")
+  SUBROUTINE morr_two_moment_init_c(morr_rimed_ice, morr_noice) BIND(C, name="morr_two_moment_init_c")
     INTEGER(C_INT), VALUE, INTENT(IN) :: morr_rimed_ice
-    CALL MORR_TWO_MOMENT_INIT(morr_rimed_ice)
+    INTEGER(C_INT), VALUE, INTENT(IN) :: morr_noice
+    CALL MORR_TWO_MOMENT_INIT(morr_rimed_ice, morr_noice)
   END SUBROUTINE morr_two_moment_init_c
 
   SUBROUTINE mp_morr_two_moment_c(itimestep, &

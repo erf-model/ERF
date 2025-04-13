@@ -14,7 +14,7 @@ extern "C" {
  *
  * @param morr_rimed_ice: 0 for graupel, 1 for hail configuration
  */
-void morr_two_moment_init_c(int morr_rimed_ice);
+void morr_two_moment_init_c(int morr_rimed_ice, int morr_noice);
 
 /**
  * C interface to the Fortran MP_MORR_TWO_MOMENT routine.

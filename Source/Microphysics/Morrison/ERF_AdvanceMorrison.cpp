@@ -577,24 +577,22 @@ Real gamma_function(Real x) {
           // Microphysics options/switches
           int m_iact = 2;    // CCN activation option (1: power-law, 2: lognormal aerosol)
           int m_inum = 1;    // Droplet number option (0: predict, 1: constant)
-#ifdef ERF_USE_MORR_WARM_ONLY
-#define WARM_ONLY
-#endif
-#ifdef WARM_ONLY
-          int m_iliq = 1;    // Liquid-only option (0: include ice, 1: liquid only)
-          int m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
-          [[maybe_unused]] int m_ibase = 2;   // Cloud base activation option
-          [[maybe_unused]] int m_isub = 0;    // Sub-grid vertical velocity option
-          int m_igraup = 1;  // Graupel option (0: include graupel, 1: no graupel)
-          int m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
-#else
+
           int m_iliq = 0;    // Liquid-only option (0: include ice, 1: liquid only)
           int m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
           [[maybe_unused]] int m_ibase = 2;   // Cloud base activation option
           [[maybe_unused]] int m_isub = 0;    // Sub-grid vertical velocity option
           int m_igraup = 0;  // Graupel option (0: include graupel, 1: no graupel)
           int m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
-#endif
+
+          if(sc.moisture_type == MoistureType::Morrison_NoIce) {
+            m_iliq = 1;    // Liquid-only option (0: include ice, 1: liquid only)
+            m_inuc = 0;    // Ice nucleation option (0: mid-latitude, 1: arctic)
+            m_ibase = 2;   // Cloud base activation option
+            m_isub = 0;    // Sub-grid vertical velocity option
+            m_igraup = 1;  // Graupel option (0: include graupel, 1: no graupel)
+            m_ihail = 0;   // Graupel/hail option (0: graupel, 1: hail)
+          }
           [[maybe_unused]] bool m_do_radar_ref = false;  // Radar reflectivity calculation flag
 
           // Physical constants
