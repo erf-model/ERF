@@ -224,7 +224,11 @@ ERF::WriteCheckpointFile () const
             MultiFab z0(ba2d,dmap[lev],1,ng);
             for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                z0[mfi].copy<RunOn::Host>(*(m_most->get_z0(lev)), bx);
+                Array4<const Real> const& fab_arr = m_most->get_z0(lev)->const_array();
+                Array4<      Real> const&  z0_arr = z0.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    z0_arr(i,j,k) = fab_arr(i,j,k);
+                });
             }
             VisMF::Write(z0, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
         }
