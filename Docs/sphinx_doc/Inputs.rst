@@ -634,6 +634,14 @@ List of Parameters
 | **erf.data_log**              | Output           | Up to four     | NONE           |
 |                               | filename(s)      | strings        |                |
 +-------------------------------+------------------+----------------+----------------+
+| **erf.der_data_log**          | Output           | Up to four     | NONE           |
+|                               | filename(s) for  | strings        |                |
+|                               | derived data     |                |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.energy_data_log**       | Output           | Up to four     | NONE           |
+|                               | filename(s) for  | strings        |                |
+|                               | total energy     |                |                |
++-------------------------------+------------------+----------------+----------------+
 | **erf.profile_int**           | Interval (number)| Integer        | -1             |
 |                               | of steps between |                |                |
 |                               | outputs          |                |                |

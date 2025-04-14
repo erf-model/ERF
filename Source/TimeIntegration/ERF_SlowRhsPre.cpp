@@ -252,7 +252,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
 
-        // Boxex for momentum fluxes
+        // Boxes for momentum fluxes
         Vector<Box> tbx_grown(AMREX_SPACEDIM);
         Vector<Box> tby_grown(AMREX_SPACEDIM);
         Vector<Box> tbz_grown(AMREX_SPACEDIM);
@@ -336,22 +336,31 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             flux[dir].resize(surroundingNodes(bx,dir),2);
-            flux_u[dir].resize(tbx_grown[dir],1);
-            flux_v[dir].resize(tby_grown[dir],1);
-            flux_w[dir].resize(tbz_grown[dir],1);
             flux[dir].setVal<RunOn::Device>(0.);
-            flux_u[dir].setVal<RunOn::Device>(0.);
-            flux_v[dir].setVal<RunOn::Device>(0.);
-            flux_w[dir].setVal<RunOn::Device>(0.);
             if (l_use_mono_adv) {
                 flux_tmp[dir].resize(surroundingNodes(bx,dir),2);
                 flux_tmp[dir].setVal<RunOn::Device>(0.);
             }
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM> flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
-        const GpuArray<const Array4<Real>, AMREX_SPACEDIM> flx_u_arr{{AMREX_D_DECL(flux_u[0].array(), flux_u[1].array(), flux_u[2].array())}};
-        const GpuArray<const Array4<Real>, AMREX_SPACEDIM> flx_v_arr{{AMREX_D_DECL(flux_v[0].array(), flux_v[1].array(), flux_v[2].array())}};
-        const GpuArray<const Array4<Real>, AMREX_SPACEDIM> flx_w_arr{{AMREX_D_DECL(flux_w[0].array(), flux_w[1].array(), flux_w[2].array())}};
+
+        // Define flux arrays for momentum variables (used only for EB now)
+        GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_u_arr{};
+        GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_v_arr{};
+        GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_w_arr{};
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                flux_u[dir].resize(tbx_grown[dir],1);
+                flux_v[dir].resize(tby_grown[dir],1);
+                flux_w[dir].resize(tbz_grown[dir],1);
+                flux_u[dir].setVal<RunOn::Device>(0.);
+                flux_v[dir].setVal<RunOn::Device>(0.);
+                flux_w[dir].setVal<RunOn::Device>(0.);
+                flx_u_arr[dir] = flux_u[dir].array();
+                flx_v_arr[dir] = flux_v[dir].array();
+                flx_w_arr[dir] = flux_w[dir].array();
+            }
+        }
 
         Array4<Real> tmpx = (l_use_mono_adv) ? flux_tmp[0].array() : Array4<Real>{};
         Array4<Real> tmpy = (l_use_mono_adv) ? flux_tmp[1].array() : Array4<Real>{};
