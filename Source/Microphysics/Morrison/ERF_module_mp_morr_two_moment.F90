@@ -318,7 +318,7 @@ SUBROUTINE MORR_TWO_MOMENT_INIT(morr_rimed_ice, morr_noice) ! RAS
 
       ISUB = 0
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      if(morr_noice .eq. 0) then
+      if(morr_noice .eq. 1) then
 
 ! SWITCH FOR LIQUID-ONLY RUN
 ! ILIQ = 0, INCLUDE ICE

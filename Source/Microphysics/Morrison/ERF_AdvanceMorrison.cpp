@@ -946,13 +946,13 @@ Real gamma_function(Real x) {
           // Set microphysics control parameters
           m_iact = 2;  // Lognormal aerosol activation
           m_inuc = 0;      // Mid-latitude ice nucleation (Cooper)
-#ifdef WARM_ONLY
-          m_iliq = 1;           // Include ice processes
-          m_igraup = 1;         // Include graupel processes
-#else
-          m_iliq = 0;           // Include ice processes
-          m_igraup = 0;         // Include graupel processes
-#endif
+          if (sc.moisture_type == MoistureType::Morrison_NoIce) {
+              m_iliq = 1;           // Include ice processes
+              m_igraup = 1;         // Include graupel processes
+          } else {
+              m_iliq = 0;           // Include ice processes
+              m_igraup = 0;         // Include graupel processes
+          }
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
