@@ -274,7 +274,7 @@ ERF::sum_derived_quantities (Real time)
 void
 ERF::sum_energy_quantities (Real time)
 {
-    if ( (verbose <= 0) || (energy_datalog.size() <= 0) ) { return; }
+    if ( (verbose <= 0) || (tot_e_datalog.size() < 1) ) { return; }
 
     int lev = 0;
 
@@ -372,7 +372,7 @@ ERF::sum_energy_quantities (Real time)
         tot_mass_avg   = foo[i++];
         tot_energy_avg = foo[i++];
 
-        std::ostream& data_log_energy = *energy_datalog[0];
+        std::ostream& data_log_energy = *tot_e_datalog[0];
 
         if (time == 0.0) {
             data_log_energy << std::setw(datwidth) << "          time";

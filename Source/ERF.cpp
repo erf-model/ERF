@@ -1198,11 +1198,11 @@ ERF::InitData_post ()
     if (pp.contains("energy_data_log"))
     {
         int num_energy_datalogs = pp.countval("energy_data_log");
-        energy_datalog.resize(num_energy_datalogs);
-        energy_datalogname.resize(num_energy_datalogs);
-        pp.queryarr("energy_data_log",energy_datalogname,0,num_energy_datalogs);
+        tot_e_datalog.resize(num_energy_datalogs);
+        tot_e_datalogname.resize(num_energy_datalogs);
+        pp.queryarr("energy_data_log",tot_e_datalogname,0,num_energy_datalogs);
         for (int i = 0; i < num_energy_datalogs; i++) {
-            setRecordEnergyDataInfo(i,energy_datalogname[i]);
+            setRecordEnergyDataInfo(i,tot_e_datalogname[i]);
         }
     }
 
