@@ -49,7 +49,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // NOTE: this is where we actually allocate z_phys_nd -- but here it's called "tmp_zphys_nd"
     // We need this to be one greater than the ghost cells to handle levels > 0
 
-    int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff) + 2;
+    int ngrow = ComputeGhostCells(solverChoice) + 2;
     tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
 
     z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
@@ -126,8 +126,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth between velocity and momentum on all faces
     // ********************************************************************************************
-    int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff) + 1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff);
+    int ngrow_state = ComputeGhostCells(solverChoice) + 1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice);
 
     // ********************************************************************************************
     // New solution data containers
@@ -482,7 +482,7 @@ ERF::init_zphys (int lev, Real time)
                                   domain_bcs_type, BCVars::cons_bc);
         }
 
-        int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff) + 2;
+        int ngrow = ComputeGhostCells(solverChoice) + 2;
         Box bx(surroundingNodes(Geom(lev).Domain())); bx.grow(ngrow);
         FArrayBox terrain_fab(makeSlab(bx,2,0),1);
 

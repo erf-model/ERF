@@ -27,8 +27,6 @@ USE_ASSERTION = TRUE
 
 USE_NETCDF = TRUE
 
-#USE_WARM_NO_PRECIP = TRUE
-
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
