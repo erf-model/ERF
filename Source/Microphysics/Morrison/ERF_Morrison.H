@@ -66,18 +66,6 @@ public:
     // destructor
     virtual ~Morrison () = default;
 
-    // cloud physics
-    void Cloud (const SolverChoice& sc);
-
-    // ice physics
-    void IceFall (const SolverChoice& sc);
-
-    // precip
-    void Precip (const SolverChoice& sc);
-
-    // precip fall
-    void PrecipFall (const SolverChoice& sc);
-
     // Set up for first time
     void
     Define (SolverChoice& sc) override

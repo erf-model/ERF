@@ -371,14 +371,6 @@ Real gamma_function(Real x) {
     Morrison::Advance (const amrex::Real& dt_advance,
                        const SolverChoice& sc)
     {
-        dt = dt_advance;
-        bool use_dev_cpp=false;
-        if(use_dev_cpp) {
-        this->Cloud(sc);
-        this->IceFall(sc);
-        this->Precip(sc);
-        this->PrecipFall(sc);
-        } else {
         // Store timestep
         dt = dt_advance;
 
@@ -3923,6 +3915,5 @@ Real gamma_function(Real x) {
           // After the call, all fields are updated
           // We don't need to copy results back since we passed direct pointers
           // to our class member arrays
-        }
         }
     }
