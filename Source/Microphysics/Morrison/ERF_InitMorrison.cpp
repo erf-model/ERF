@@ -78,6 +78,7 @@ Morrison::Init (const MultiFab& cons_in,
     }
 
     debug_step = 0;
+#ifdef ERF_USE_MORR_FORT
     int morr_rimed_ice = 0; // This is used to set something called "ihail"
     amrex::ParmParse pp("erf");
     MoistureType moisture_type;
@@ -85,6 +86,7 @@ Morrison::Init (const MultiFab& cons_in,
     int morr_noice = (moisture_type == MoistureType::Morrison_NoIce);
     Print()<<"Setting No Ice flag in fortran to "<<morr_noice<<std::endl;
     morr_two_moment_init_c(morr_rimed_ice, morr_noice);
+#endif
 }
 
 
