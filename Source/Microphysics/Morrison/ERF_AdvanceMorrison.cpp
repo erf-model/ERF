@@ -392,7 +392,7 @@ Real gamma_function(Real x) {
           auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& nr_arr = mic_fab_vars[MicVar_Morr::nr]->array(mfi);
           auto const& ng_arr = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
-          auto const& rho_arr = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
+          [[maybe_unused]] auto const& rho_arr = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
           auto const& pres_arr = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           [[maybe_unused]] auto const& tabs_arr = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
           auto const& rain_accum_arr = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
@@ -413,14 +413,14 @@ Real gamma_function(Real x) {
           const int khi = box.hiVect()[2];
 
           amrex::Box grown_box(box); grown_box.grow(3);
-
+#ifdef ERF_USE_MORR_FORT
           const int ilom = grown_box.loVect()[0];
           const int ihim = grown_box.hiVect()[0];
           const int jlom = grown_box.loVect()[1];
           const int jhim = grown_box.hiVect()[1];
           const int klom = grown_box.loVect()[2];
           const int khim = grown_box.hiVect()[2];
-
+#endif
           // Calculate Exner function (PII) to convert potential temperature to temperature
           // PII = (P/P0)^(R/cp)
           amrex::FArrayBox pii_fab(grown_box, 1);
@@ -467,7 +467,7 @@ Real gamma_function(Real x) {
 
           // Create terrain height array (not actually used by Morrison scheme)
           amrex::FArrayBox ht_fab(amrex::Box(amrex::IntVect(ilo, jlo, 0), amrex::IntVect(ihi, jhi, 0)), 1);
-          auto const& ht_arr = ht_fab.array();
+          [[maybe_unused]] auto const& ht_arr = ht_fab.array();
           ht_fab.setVal(0.0);  // Not used by Morrison scheme
 
           // Create dummy arrays for cumulus tendencies (if needed)
@@ -483,6 +483,7 @@ Real gamma_function(Real x) {
           qscuten_fab.setVal(0.0);
           qicuten_fab.setVal(0.0);
 
+#ifdef ERF_USE_MORR_FORT
           // WRF-Chem related variables (optional)
           bool flag_qndrop = false;  // Flag to indicate droplet number prediction
 
@@ -511,6 +512,7 @@ Real gamma_function(Real x) {
           preci_fab.setVal(0.0);
           precs_fab.setVal(0.0);
           precg_fab.setVal(0.0);
+#endif
 
           // Create FArrayBox for slope parameters and PSD variables
           amrex::FArrayBox lamc_fab(grown_box, 1);
@@ -554,7 +556,9 @@ Real gamma_function(Real x) {
           // Prepare data pointers for Fortran call
           // These would be passed directly to the Fortran interface
           double dummy_reflectivity = 0.0;
+#ifdef ERF_USE_MORR_FORT
           double* dummy_reflectivity_ptr = &dummy_reflectivity;
+#endif
           // Example call (pseudo-code - actual interface would depend on your Fortran interop setup)
 
           // Microphysics options/switches
