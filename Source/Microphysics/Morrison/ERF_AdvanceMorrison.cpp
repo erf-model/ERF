@@ -1297,8 +1297,6 @@ Real gamma_function(Real x) {
             cpm_fab.setVal(0.0);
             xlf_fab.setVal(0.0);
 
-            FILE *file = fopen(filename.c_str(), "a");
-            fprintf(file, "============================ %-8d ============================\n", debug_step);
           ////////////////////////////////////////////////////////////
           // ParallelFor for testing partial C++ implementation
           // NOTE: Currently all Array4 values are copied to locals
@@ -3828,7 +3826,6 @@ Real gamma_function(Real x) {
             graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + grplprt(i,j,klo);
             }
          });
-          fclose(file);
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
           }
           amrex::Print()<<"fortran should run "<<run_morr_fort<<std::endl;

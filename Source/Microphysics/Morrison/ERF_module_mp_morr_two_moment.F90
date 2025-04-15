@@ -758,9 +758,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
    END DO
    END DO
    END DO
-   open(unit=10, file='output_F.txt', status='unknown', position='append')
-   write(10, '(A,I8,A)') "============================ ", ITIMESTEP, " ============================"
-   close(10)
+
    do i=its,ite      ! i loop (east-west)
    do j=jts,jte      ! j loop (north-south)
    !
@@ -1239,7 +1237,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! SET LTRUE INITIALLY TO 0
 
          LTRUE = 0
-         open(unit=10, file='output_F.txt', status='unknown', position='append')
+
 ! ATMOSPHERIC PARAMETERS THAT VARY IN TIME AND HEIGHT
          DO K = KTS,KTE
 
@@ -3997,7 +3995,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END DO !!! K LOOP
 
  400         CONTINUE
-      close(10)
+
 ! ALL DONE !!!!!!!!!!!
       RETURN
       END SUBROUTINE MORR_TWO_MOMENT_MICRO
