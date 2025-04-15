@@ -565,25 +565,6 @@ endif
          CONS39=PI*PI/36.*RHOW*BIMM
          CONS40=PI/6.*BIMM
          CONS41=PI*PI*ECR*RHOW
-#if 0
-!+---+-----------------------------------------------------------------+
-!..Set these variables needed for computing radar reflectivity.  These
-!.. get used within radar_init to create other variables used in the
-!.. radar module.
-
-         xam_r = PI*RHOW/6.
-         xbm_r = 3.
-         xmu_r = 0.
-         xam_s = CS
-         xbm_s = DS
-         xmu_s = 0.
-         xam_g = CG
-         xbm_g = DG
-         xmu_g = 0.
-
-         call radar_init
-!+---+-----------------------------------------------------------------+
-#endif
 
 END SUBROUTINE MORR_TWO_MOMENT_INIT
 
@@ -603,15 +584,6 @@ END SUBROUTINE MORR_TWO_MOMENT_INIT
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #ifdef ERF_USE_MORR_PRINT_DEBUG
 #define PRINT_DEBUG
-#endif
-#ifdef PRINT_DEBUG
-#define IS_DEBUG_POINT(i, j, k, istep) \
-  (istep >= 0 .and. \
-  ((i == 80 .and. j == 3 .and. k == 127) .or. \
-   (i == 123 .and. j == 3 .and. k == 127)))
-#else
-#define IS_DEBUG_POINT(i, j, k, istep) \
-  (.false.)
 #endif
 SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                 TH, QV, QC, QR, QI, QS, QG, NI, NS, NR, NG, &
@@ -1310,21 +1282,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 
             EVS(K) = min(0.99*pres(k),POLYSVP(T3D(K),0))   ! PA
             EIS(K) = min(0.99*pres(k),POLYSVP(T3D(K),1))   ! PA
-#if 0
-            if ((i >= 86 .and. i <= 101 .and. j >= 0 .and. j <= 3 .and. k >= 8 .and. k <= 23 .and. &
-                 mod(i-86,2) == 0 .and. mod(j,2) == 0 .and. mod(k-8,2) == 0) .or. &
-                 (i == 92 .and. j == 0 .and. k == 17)) then
-               write(10, '(i5,i5,i5,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16)') &
-                    i,j,k,xxlv(k),xxls(k),cpm(k),evs(k),eis(k),t3d(k),CP,qv3d(k),pres(k)
-            endif
-#endif
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
 ! MAKE SURE ICE SATURATION DOESN'T EXCEED WATER SAT. NEAR FREEZING
 
             IF (EIS(K).GT.EVS(K)) EIS(K) = EVS(K)
@@ -1373,12 +1331,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                END IF
              END IF
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
              IF (QVQVSI(K).LT.0.9) THEN
                IF (QI3D(K).LT.1.E-8) THEN
                   QV3D(K)=QV3D(K)+QI3D(K)
@@ -1397,36 +1349,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                END IF
             END IF
             ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
-#if 0
-             if ((i >= 86 .and. i <= 101 .and. j >= 0 .and. j <= 3 .and. k >= 8 .and. k <= 23 .and. &
-                  mod(i-86,2) == 0 .and. mod(j,2) == 0 .and. mod(k-8,2) == 0) .or. &
-                  (i == 92 .and. j == 0 .and. k == 17) .or. &
-                  (((i == 168 .or. i == 169 .or. i == 190 .or. i == 191) .and. &
-                  (j == 0 .or. j == 3) .and. &
-                  (k == 0 .or. k == 1 .or. k == 126 .or. k == 127))) .or. &
-                  (i == 175 .and. j == 1 .and. k == 50) .or. &
-                  (i == 180 .and. j == 2 .and. k == 75) .or. &
-                  (i == 185 .and. j == 1 .and. k == 123) .or. &
-                  (i == 170 .and. j == 0 .and. k == 30) .or. &
-                  (i == 188 .and. j == 3 .and. k == 60) .or. &
-                  (i == 178 .and. j == 2 .and. k == 40) .or. &
-                  (i == 183 .and. j == 0 .and. k == 80) .or. &
-                  (i == 173 .and. j == 3 .and. k == 110) .or. &
-                  (i == 186 .and. j == 1 .and. k == 90) .or. &
-                  (i == 177 .and. j == 2 .and. k == 65)) then
-                 write(10,'(i5,i5,i5,24(es24.16))') &
-!                write(10, '(i5,i5,i5,24(1pe24.16))') &
-!                write(10, '(i5,i5,i5,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16,e24.16)') &
-                     i,j,k,xxlv(k),xxls(k),cpm(k),evs(k),eis(k),t3d(k),cp,qv3d(k),pres(k), &
-                     qvs(k),qvi(k),qvqvs(k),qvqvsi(k),rho(k),qr3d(k),qc3d(k),qi3d(k),qni3d(k),qg3d(k),nr3d(k),ns3d(k),ni3d(k)
-             endif
-#endif
 ! HEAT OF FUSION
 
             XLF(K) = XXLS(K)-XXLV(K)
@@ -1460,27 +1382,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
          EFFG(K) = 0.
        END IF
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
-#if 0
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         write(10, '(i5,i5,i5,3(es24.16))') &
-              i,j,k,lamr(k),n0rr(k),pgam(k)
-         write(10, '(i5,i5,i5,8(es24.16))') &
-         i,j,k,lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
-!         write(10, '(i5,i5,i5,3(es24.16))') &
-!              i,j,k,lamr(k),n0rr(k),pgam(k)
-         print*,              i,j,k,lamr(k),n0rr(k),pgam(k)
-         write(10,*) " ng start"
-         write(10, '(i5,i5,i5,7(es24.16))') &
-                          i, j, k, qg3d(k), qsmall, cons2, dg, lamming, lammaxg,rhog
-      endif
-#endif
 ! INITIALIZE SEDIMENTATION TENDENCIES FOR MIXING RATIO
 
       QRSTEN(K) = 0.
@@ -1510,23 +1411,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
             ACN(K) = G*RHOW/(18.*MU(K))
 ! HM ADD GRAUPEL 8/28/06
             AGN(K) = DUM*AG
-#ifdef PRINT_DEBUG
-            ! Fortran version
-            if (IS_DEBUG_POINT(i, j, k, istep)) then
-               ! Line 1: indices and main calculated variables
-               write(10, '(i5,i5,i5,a8,es24.16,a14,es24.16,a14,es24.16,a14,es24.16)') &
-                    i,j,k,"mu(k):",mu(k),"ain(k):",ain(k),"arn(k):",arn(k),"asn(k):",asn(k)
-               ! Line 2: more calculated variables plus input variables
-               write(10, '(a14,es24.16,a14,es24.16,a16,es24.16,a14,es24.16)') &
-                    "acn(k):",acn(k),"agn(k):",agn(k),"t3d(k):",t3d(k),"rho(k):",rho(k)
-               ! Line 3: constants and temporary values
-               write(10, '(a14,es24.16,a6,es24.16,a6,es24.16,a6,es24.16,a6,es24.16)') &
-                    "dum(k):",dum,"ai:",ai,"ar:",ar,"as:",as,"ac:",ac
-               ! Line 4: final constants
-               write(10, '(a6,es24.16,a2,es24.16,a6,es24.16,a10,es24.16)') &
-                    "ag:",ag,"g:",g,"rhow:",rhow,"rhosu:",rhosu
-            endif
-#endif
 !hm 4/7/09 bug fix, initialize lami to prevent later division by zero
             LAMI(K)=0.
 
@@ -1540,23 +1424,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                  QR3D(K).LT.QSMALL.AND. &
                  QG3D(K).LT.QSMALL) THEN
             IF (T3D(K).LT.273.15.AND.QVQVSI(K).LT.0.999) then
-#if 0
-            ! Fortran version
-            if (IS_DEBUG_POINT(i, j, k, istep)) then
-               write(10, '(i5,i5,i5,a8)') &
-                    i,j,k,"skip200 "
-            endif
-#endif
                GOTO 200
             endif
             IF (T3D(K).GE.273.15.AND.QVQVS(K).LT.0.999) then
-#if 0
-            ! Fortran version
-            if (IS_DEBUG_POINT(i, j, k, istep)) then
-               write(10, '(i5,i5,i5,a8)') &
-                    i,j,k,"skip200 "
-            endif
-#endif
                GOTO 200
             endif
             END IF
@@ -1586,12 +1456,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 
             ABI(K) = 1.+DQSIDT*XXLS(K)/CPM(K)
             AB(K) = 1.+DQSDT*XXLV(K)/CPM(K)
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,7(es24.16))') &
-                 i,j,k,dqsdt,qvs(k),RV,DUM,RV*t3d(k)**2,xxlv(k),cpm(k)
-        endif
-#endif
 !
 !.....................................................................
 !.....................................................................
@@ -1626,13 +1490,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
           QG3D(K) = 0.
           NG3D(K) = 0.
        END IF
-#ifdef PRINT_DEBUG
-       ! Fortran version
-       if  (i == 123 .and. j == 3 .and. k == 24) then
-          write(10, '(i5,i5,i5,8(es24.16))') &
-               i,j,k,t3d(k),nc3d(k),qr3d(k),nr3d(k),qni3d(k),ns3d(k),qg3d(k),ng3d(k)
-       endif
-#endif
        IF (QC3D(K).LT.QSMALL.AND.QNI3D(K).LT.1.E-8.AND.QR3D(K).LT.QSMALL.AND.QG3D(K).LT.1.E-8) THEN
           GOTO 300
        ENDIF
@@ -1758,20 +1615,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NG3D(K) = N0G(K)/LAMG(K)
       END IF
       END IF
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                 i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
-#if 0
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         write(10, '(i5,i5,i5,12(es24.16))') &
-              i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
-         write(10,*) " ng warm"
-      endif
-#endif
 !.....................................................................
 ! ZERO OUT PROCESS RATES
 
@@ -1966,16 +1809,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       ELSE
       EPSR = 0.
       END IF
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         write(10, '(3i6, 19(es24.16))') i, j, k, &
-              PRE(K), EPSR, QV3D(K), QVS(K), AB(K), &
-              QR3D(K), QSMALL, PI, N0RR(K), RHO(K), DV(K), &
-              F1R, LAMR(K), F2R, ARN(K), MU(K), &
-              SC(K), CONS9, CONS34
-      endif
-#endif
 ! NO CONDENSATION ONTO RAIN, ONLY EVAP ALLOWED
 
            IF (QV3D(K).LT.QVS(K)) THEN
@@ -1984,13 +1817,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
            ELSE
               PRE(K) = 0.
            END IF
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         write(10, '(5(es24.16))') &
-              PRE(K),EPSR,QV3D(K),QVS(K),AB(K)
-      endif
-#endif
 !.......................................................................
 ! MELTING OF SNOW
 
@@ -2138,13 +1964,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
         RATIO = (QR3D(K)/DT+PRACS(K)+PRACG(K)+PRA(K)+PRC(K)-PSMLT(K)-PGMLT(K))/ &
                         (-PRE(K))
         PRE(K) = PRE(K)*RATIO
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         write(10, '(4(es24.16))') &
-              PRE(K),RATIO,DUM,QR3D(K)
-      endif
-#endif
         END IF
 
 !....................................
@@ -2158,37 +1977,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QR3DTEN(K) = QR3DTEN(K)+(PRE(K)+PRA(K)+PRC(K)-PSMLT(K)-PGMLT(K)+PRACS(K)+PRACG(K))
       QNI3DTEN(K) = QNI3DTEN(K)+(PSMLT(K)+EVPMS(K)-PRACS(K))
       QG3DTEN(K) = QG3DTEN(K)+(PGMLT(K)+EVPMG(K)-PRACG(K))
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         ! Line 1: indices and first variables
-         write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
-              i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
-         ! Line 2: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              eprd(k),eprds(k),prdg(k),eprdg(k),"xxls:",xxls(k)
-         ! Line 3: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              psacws(k),psacwi(k),mnuccc(k),mnuccr(k),"qmults:",qmults(k)
-         ! Line 4: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              qmultg(k),qmultr(k),qmultrg(k),pracs(k),"psacwg:",psacwg(k)
-         ! Line 5: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              pracg(k),pgsacw(k),pgracs(k),piacr(k),"piacrs:",piacrs(k)
-         ! Line 6: final variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              xlf(k),cpm(k),pcc(k),pra(k),"prc:",prc(k)
-         ! Line 7: final variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              prci(k),prai(k),praci(k),pracis(k),"---END---:",0.0
-         write(10, '(4(es24.16),a10,es24.16)') &
-              evpms(k),evpmg(k),psmlt(k),pgmlt(k),"---END---:",0.0
-         write(10, '(7(es24.16))') &
-              PRE(K),XXLV(K),(EVPMS(K)+EVPMG(K)),XXLS(K),&
-                    (PSMLT(K)+PGMLT(K)-PRACS(K)-PRACG(K)),XLF(K),CPM(K)
-      endif
-#endif
 ! fix 053011
 !      NS3DTEN(K) = NS3DTEN(K)-NPRACS(K)
 ! HM, bug fix 5/12/08, npracg is subtracted from nr not ng
@@ -2196,13 +1984,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NC3DTEN(K) = NC3DTEN(K)+ (-NPRA(K)-NPRC(K))
       NR3DTEN(K) = NR3DTEN(K)+ (NPRC1(K)+NRAGG(K)-NPRACG(K))
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                 i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-            write(10,*) "warm tendency updates"
-        endif
-#endif
 ! HM ADD, WRF-CHEM, ADD TENDENCIES FOR C2PREC
 
         C2PREC(K) = PRA(K)+PRC(K)
@@ -2262,14 +2043,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QV3DTEN(K) = QV3DTEN(K)-PCC(K)
       T3DTEN(K) = T3DTEN(K)+PCC(K)*XXLV(K)/CPM(K)
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         write(10, '(i5,i5,i5,14(es24.16))') &
-              i,j,k,t3d(k),qv3d(k),pres(k),qc3d(k),t3dten(k),qv3dten(k),qc3dten(k), &
-              dumt,dumqv,dum,dumqss,dumqc,dums,pcc(k)
-      endif
-#endif
 !.......................................................................
 ! ACTIVATION OF CLOUD DROPLETS
 ! ACTIVATION OF DROPLET CURRENTLY NOT CALCULATED
@@ -2365,12 +2138,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NR3D(K) = N0RR(K)/LAMR(K)
       END IF
       END IF
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                 i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
 !......................................................................
 ! CLOUD DROPLETS
 
@@ -2439,18 +2206,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       END IF
    END IF
    
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         write(10, '(i5,i5,i5,5(es24.16))') &
-              i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k)
-         write(10, '(i5,i5,i5,7(es24.16))') &
-              i,j,k,lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k),qni3d(k)
-         write(10,*) " ng cold"
-         write(10, '(i5,i5,i5,7(es24.16))') &
-                          i, j, k, qg3d(k), qsmall, cons2, dg, lamming, lammaxg,rhog
-      endif
-#endif
 !......................................................................
 ! GRAUPEL
 
@@ -2476,16 +2231,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NG3D(K) = N0G(K)/LAMG(K)
       END IF
       END IF
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         write(10, '(i5,i5,i5,12(es24.16))') &
-              i,j,k,lamr(k),n0rr(k),pgam(k),lamc(k),nc3d(k),lams(k),n0s(k),ns3d(k),lamg(k),n0g(k),ng3d(k)
-         write(10,*) " ng cold"
-         write(10, '(i5,i5,i5,7(es24.16))') &
-                          i, j, k, qg3d(k), qsmall, cons2, dg, lamming, lammaxg,rhog
-      endif
-#endif
 !.....................................................................
 ! ZERO OUT PROCESS RATES
 
@@ -2643,32 +2388,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                 NPRC1(K) = MIN(NPRC1(K),NPRC(K))
 
          END IF
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         ! Line 1: indices and first variables
-         write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
-              i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
-         ! Line 2: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              eprd(k),eprds(k),prdg(k),eprdg(k),"xxls:",xxls(k)
-         ! Line 3: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              psacws(k),psacwi(k),mnuccc(k),mnuccr(k),"qmults:",qmults(k)
-         ! Line 4: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              qmultg(k),qmultr(k),qmultrg(k),pracs(k),"psacwg:",psacwg(k)
-         ! Line 5: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              pracg(k),pgsacw(k),pgracs(k),piacr(k),"piacrs:",piacrs(k)
-         ! Line 6: final variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              xlf(k),cpm(k),pcc(k),pra(k),"prc:",prc(k)
-         ! Line 7: final variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              prci(k),prai(k),praci(k),pracis(k),"---END---:",0.0
-      endif
-#endif
 !.......................................................................
 ! SELF-COLLECTION OF DROPLET NOT INCLUDED IN KK2000 SCHEME
 
@@ -2712,34 +2431,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                   N0G(K)/                        &
                   LAMG(K)**(BG+3.)
             END IF
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         ! Line 1: indices and first variables
-         write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
-              i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
-         ! Line 2: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              eprd(k),eprds(k),prdg(k),eprdg(k),"xxls:",xxls(k)
-         ! Line 3: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              psacws(k),psacwi(k),mnuccc(k),mnuccr(k),"qmults:",qmults(k)
-         ! Line 4: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              qmultg(k),qmultr(k),qmultrg(k),pracs(k),"psacwg:",psacwg(k)
-         ! Line 5: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              pracg(k),pgsacw(k),pgracs(k),piacr(k),"piacrs:",piacrs(k)
-         ! Line 6: final variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              xlf(k),cpm(k),pcc(k),pra(k),"prc:",prc(k)
-         ! Line 7: final variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              prci(k),prai(k),praci(k),pracis(k),"---END---:",0.0
-         write(10, '(4(es24.16),a10,es24.16)') &
-              asn(k),cons13,agn(k),cons14,"---END---:",bg
-      endif
-#endif
 !.......................................................................
 ! HM, ADD 12/13/06
 ! CLOUD ICE COLLECTING DROPLETS, ASSUME THAT CLOUD ICE MEAN DIAM > 100 MICRON
@@ -3300,32 +2991,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
               EPRDG(K)=PRDG(K)
               PRDG(K)=0.
            END IF
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         ! Line 1: indices and first variables
-         write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
-              i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
-         ! Line 2: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              eprd(k),eprds(k),prdg(k),eprdg(k),"xxls:",xxls(k)
-         ! Line 3: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              psacws(k),psacwi(k),mnuccc(k),mnuccr(k),"qmults:",qmults(k)
-         ! Line 4: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              qmultg(k),qmultr(k),qmultrg(k),pracs(k),"psacwg:",psacwg(k)
-         ! Line 5: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              pracg(k),pgsacw(k),pgracs(k),piacr(k),"piacrs:",piacrs(k)
-         ! Line 6: final variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              xlf(k),cpm(k),pcc(k),pra(k),"prc:",prc(k)
-         ! Line 7: final variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              prci(k),prai(k),praci(k),pracis(k),"---END---:",0.0
-      endif
-#endif
 !.......................................................................
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 
@@ -3506,32 +3171,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       QR3DTEN(K) = QR3DTEN(K)+                                      &
                  (PRE(K)+PRA(K)+PRC(K)-PRACS(K)-MNUCCR(K)-QMULTR(K)-QMULTRG(K) &
              -PIACR(K)-PIACRS(K)-PRACG(K)-PGRACS(K))
-#ifdef PRINT_DEBUG
-      ! Fortran version
-      if (IS_DEBUG_POINT(i, j, k, istep)) then
-         ! Line 1: indices and first variables
-         write(10, '(i5,i5,i5,4(es24.16),a10,es24.16)') &
-              i,j,k,pre(k),xxlv(k),prd(k),prds(k),"mnuccd:",mnuccd(k)
-         ! Line 2: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              eprd(k),eprds(k),prdg(k),eprdg(k),"xxls:",xxls(k)
-         ! Line 3: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              psacws(k),psacwi(k),mnuccc(k),mnuccr(k),"qmults:",qmults(k)
-         ! Line 4: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              qmultg(k),qmultr(k),qmultrg(k),pracs(k),"psacwg:",psacwg(k)
-         ! Line 5: continuing variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              pracg(k),pgsacw(k),pgracs(k),piacr(k),"piacrs:",piacrs(k)
-         ! Line 6: final variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              xlf(k),cpm(k),pcc(k),pra(k),"prc:",prc(k)
-         ! Line 7: final variables
-         write(10, '(4(es24.16),a10,es24.16)') &
-              prci(k),prai(k),praci(k),pracis(k),"---END---:",0.0
-      endif
-#endif
       IF (IGRAUP.EQ.0) THEN
 
       QNI3DTEN(K) = QNI3DTEN(K)+                                    &
@@ -3593,12 +3232,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       T3DTEN(K) = T3DTEN(K)+PCC(K)*XXLV(K)/CPM(K)
       QC3DTEN(K) = QC3DTEN(K)+PCC(K)
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
 !.......................................................................
 ! ACTIVATION OF CLOUD DROPLETS
 ! ACTIVATION OF DROPLET CURRENTLY NOT CALCULATED
@@ -3667,12 +3300,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! IF THERE ARE NO HYDROMETEORS, THEN SKIP TO END OF SUBROUTINE
       DO K = KTS,KTE
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
-                i,j,k,ltrue,nstep,precrt,snowrt, snowprt, grplprt
-        endif
-#endif
      END DO
         IF (LTRUE.EQ.0) GOTO 400
 
@@ -3762,14 +3389,6 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
         DLAMG=MAX(DLAMG,LAMMING)
         DLAMG=MIN(DLAMG,LAMMAXG)
       END IF
-#ifdef PRINT_DEBUG
-! Fortran version
-if ((i == 123 .and. j == 3 .and. k == 24)) then
-    write(10, '(i5,i5,i5,15(es24.16))') &
-        i,j,k,dumi(k),dumqs(k),dumr(k),dumfni(k),dumfns(k),dumfnr(k),dumc(k),dumfnc(k),dumg(k),dumfng(k), &
-        dlami,dlamr,pgam(k),dlamc,dlams,dlamg
-endif
-#endif
 !......................................................................
 ! CALCULATE NUMBER-WEIGHTED AND MASS-WEIGHTED TERMINAL FALL SPEEDS
 
@@ -3882,14 +3501,6 @@ endif
 ! VVT CHANGED IFIX -> INT (GENERIC FUNCTION)
       NSTEP = MAX(INT(RGVM*DT/DZQ(K)+1.),NSTEP)
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
-                 i,j,k,ltrue,nstep,precrt,snowrt, snowprt, grplprt
-            write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
-                i,j,k,kte-1,kts,precrt,snowrt, snowprt, grplprt
-        endif
-#endif
 ! MULTIPLY VARIABLES BY RHO
       DUMR(k) = DUMR(k)*RHO(K)
       DUMI(k) = DUMI(k)*RHO(K)
@@ -3981,12 +3592,6 @@ endif
       QGSTEN(K) = QGSTEN(K)+FALTNDG/NSTEP/RHO(k)
       NG3DTEN(K) = NG3DTEN(K)+FALTNDNG/NSTEP/RHO(k)
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,i5,i5,4(es24.16))') &
-                i,j,k,n,nstep,qcsten(k),faltndc,rho(k),FALTNDC/NSTEP/RHO(k)
-        endif
-#endif
       DUMR(K) = DUMR(K)+FALTNDR*DT/NSTEP
       DUMI(K) = DUMI(K)+FALTNDI*DT/NSTEP
       DUMFNI(K) = DUMFNI(K)+FALTNDNI*DT/NSTEP
@@ -4016,30 +3621,10 @@ endif
 ! hm added 7/13/13
         SNOWPRT = SNOWPRT+(FALOUTI(KTS)+FALOUTS(KTS))*DT/NSTEP
         GRPLPRT = GRPLPRT+(FALOUTG(KTS))*DT/NSTEP
-#ifdef PRINT_DEBUG
-        ! Fortran version
-        if (IS_DEBUG_POINT(i, j, kts, istep)) then
-           ! Line 1: indices and precipitation accumulation variables
-           write(10, '(i5,i5,i5,a10,es24.16,a10,es24.16,a10,es24.16,a10,es24.16)') &
-                i,j,k," PRECRT: ",precrt," SNOWRT: ",snowrt," SNOWPRT: ",snowprt," GRPLPRT: ",grplprt
-           ! Line 2: fallout rate variables
-           write(10, '(a14,es24.16,a14,es24.16,a14,es24.16)') &
-                " FALOUTR(KTS): ",faloutr(kts)," FALOUTC(KTS): ",faloutc(kts)," FALOUTS(KTS): ",falouts(kts)
-           ! Line 3: additional fallout rates and time variables
-           write(10, '(a14,es24.16,a14,es24.16,a6,es24.16,a9,i10)') &
-                " FALOUTI(KTS): ",falouti(kts)," FALOUTG(KTS): ",faloutg(kts)," DT: ",dt," NSTEP: ",nstep
-        endif
-#endif
       END DO
 
         DO K=KTS,KTE
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,qcsten(k),qc3dten(k),nr3d(k),nr3dten(k)
-        endif
-#endif
 ! ADD ON SEDIMENTATION TENDENCIES FOR MIXING RATIO TO REST OF TENDENCIES
 
         QR3DTEN(K)=QR3DTEN(K)+QRSTEN(K)
@@ -4048,12 +3633,6 @@ endif
         QG3DTEN(K)=QG3DTEN(K)+QGSTEN(K)
         QNI3DTEN(K)=QNI3DTEN(K)+QNISTEN(K)
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
 ! PUT ALL CLOUD ICE IN SNOW CATEGORY IF MEAN DIAMETER EXCEEDS 2 * dcs
 
 !hm 4/7/09 bug fix
@@ -4079,12 +3658,6 @@ endif
           NS3D(k)        = NS3D(k)+NS3DTEN(k)*DT
           NR3D(k)        = NR3D(k)+NR3DTEN(k)*DT
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
           IF (IGRAUP.EQ.0) THEN
           QG3D(k)        = QG3D(k)+QG3DTEN(k)*DT
           NG3D(k)        = NG3D(k)+NG3DTEN(k)*DT
@@ -4094,12 +3667,6 @@ endif
           T3D(K)         = T3D(K)+T3DTEN(k)*DT
           QV3D(K)        = QV3D(K)+QV3DTEN(k)*DT
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
 ! SATURATION VAPOR PRESSURE AND MIXING RATIO
 
 ! hm, add fix for low pressure, 5/12/10
@@ -4116,12 +3683,6 @@ endif
             QVQVS(K) = QV3D(K)/QVS(K)
             QVQVSI(K) = QV3D(K)/QVI(K)
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,9(es24.16))') &
-                i,j,k,qvqvs(k),qvqvsi(k),qr3d(k),qc3d(k),qni3d(k),qi3d(k),qg3d(k),xxlv(k),cpm(k)
-        endif
-#endif
 ! AT SUBSATURATION, REMOVE SMALL AMOUNTS OF CLOUD/PRECIP WATER
 ! hm 7/9/09 change limit to 1.e-8
 
@@ -4137,12 +3698,6 @@ endif
                   QC3D(K)=0.
                END IF
              END IF
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
              IF (QVQVSI(K).LT.0.9) THEN
                IF (QI3D(K).LT.1.E-8) THEN
                   QV3D(K)=QV3D(K)+QI3D(K)
@@ -4161,12 +3716,6 @@ endif
                END IF
              END IF
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
 !..................................................................
 ! IF MIXING RATIO < QSMALL SET MIXING RATIO AND NUMBER CONC TO ZERO
 
@@ -4196,16 +3745,6 @@ endif
          EFFG(K) = 0.
        END IF
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-!            write(10, '(i5,i5,i5,4(es24.16))') &
-!                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),xlf(k),cpm(k),273.15
-        endif
-#endif
 !..................................
 ! IF THERE IS NO CLOUD/PRECIP WATER, THEN SKIP CALCULATIONS
 
@@ -4225,12 +3764,6 @@ endif
            NI3D(K) = 0.
         END IF
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
 ! ****SENSITIVITY - NO ICE
         IF (ILIQ.EQ.1) GOTO 778
 
@@ -4244,12 +3777,6 @@ endif
            NC3D(K)=0.
         END IF
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
 ! HOMOGENEOUS FREEZING OF RAIN
 
         IF (IGRAUP.EQ.0) THEN
@@ -4274,12 +3801,6 @@ endif
 
         END IF
 ! Fortran version
-#ifdef PRINT_DEBUG
-        if (IS_DEBUG_POINT(i, j, k, istep)) then
-            write(10, '(i5,i5,i5,4(es24.16))') &
-                i,j,k,t3d(k),t3dten(k),xxlv(k),cpm(k)
-        endif
-#endif
  778    CONTINUE
 
 ! MAKE SURE NUMBER CONCENTRATIONS AREN'T NEGATIVE
@@ -4815,301 +4336,6 @@ endif
 ! ---------- LAST LINE OF GAMMA ----------
       END FUNCTION GAMMA
 !------------------------------------------------------------------------------
-#if 0
-      REAL(C_DOUBLE) FUNCTION DERF1(X)
-      IMPLICIT NONE
-      REAL(C_DOUBLE) X
-      REAL(C_DOUBLE), DIMENSION(0 : 64) :: A, B
-      REAL(C_DOUBLE) W,T,Y
-      INTEGER K,I
-      DATA A/                                                 &
-         0.00000000005958930743E0, -0.00000000113739022964E0, &
-         0.00000001466005199839E0, -0.00000016350354461960E0, &
-         0.00000164610044809620E0, -0.00001492559551950604E0, &
-         0.00012055331122299265E0, -0.00085483269811296660E0, &
-         0.00522397762482322257E0, -0.02686617064507733420E0, &
-         0.11283791670954881569E0, -0.37612638903183748117E0, &
-         1.12837916709551257377E0,                                &
-         0.00000000002372510631E0, -0.00000000045493253732E0, &
-         0.00000000590362766598E0, -0.00000006642090827576E0, &
-         0.00000067595634268133E0, -0.00000621188515924000E0, &
-         0.00005103883009709690E0, -0.00037015410692956173E0, &
-         0.00233307631218880978E0, -0.01254988477182192210E0, &
-         0.05657061146827041994E0, -0.21379664776456006580E0, &
-         0.84270079294971486929E0,                                                        &
-         0.00000000000949905026E0, -0.00000000018310229805E0, &
-         0.00000000239463074000E0, -0.00000002721444369609E0, &
-         0.00000028045522331686E0, -0.00000261830022482897E0, &
-         0.00002195455056768781E0, -0.00016358986921372656E0, &
-         0.00107052153564110318E0, -0.00608284718113590151E0, &
-         0.02986978465246258244E0, -0.13055593046562267625E0, &
-         0.67493323603965504676E0,                                                        &
-         0.00000000000382722073E0, -0.00000000007421598602E0, &
-         0.00000000097930574080E0, -0.00000001126008898854E0, &
-         0.00000011775134830784E0, -0.00000111992758382650E0, &
-         0.00000962023443095201E0, -0.00007404402135070773E0, &
-         0.00050689993654144881E0, -0.00307553051439272889E0, &
-         0.01668977892553165586E0, -0.08548534594781312114E0, &
-         0.56909076642393639985E0,                                                        &
-         0.00000000000155296588E0, -0.00000000003032205868E0, &
-         0.00000000040424830707E0, -0.00000000471135111493E0, &
-         0.00000005011915876293E0, -0.00000048722516178974E0, &
-         0.00000430683284629395E0, -0.00003445026145385764E0, &
-         0.00024879276133931664E0, -0.00162940941748079288E0, &
-         0.00988786373932350462E0, -0.05962426839442303805E0, &
-         0.49766113250947636708E0 /
-      DATA (B(I), I = 0, 12) /                                  &
-         -0.00000000029734388465E0,  0.00000000269776334046E0,  &
-         -0.00000000640788827665E0, -0.00000001667820132100E0,  &
-         -0.00000021854388148686E0,  0.00000266246030457984E0,  &
-          0.00001612722157047886E0, -0.00025616361025506629E0,  &
-          0.00015380842432375365E0,  0.00815533022524927908E0,  &
-         -0.01402283663896319337E0, -0.19746892495383021487E0,  &
-          0.71511720328842845913E0 /
-      DATA (B(I), I = 13, 25) /                                 &
-         -0.00000000001951073787E0, -0.00000000032302692214E0,  &
-          0.00000000522461866919E0,  0.00000000342940918551E0,  &
-         -0.00000035772874310272E0,  0.00000019999935792654E0,  &
-          0.00002687044575042908E0, -0.00011843240273775776E0,  &
-         -0.00080991728956032271E0,  0.00661062970502241174E0,  &
-          0.00909530922354827295E0, -0.20160072778491013140E0,  &
-          0.51169696718727644908E0 /
-      DATA (B(I), I = 26, 38) /                                 &
-         0.00000000003147682272E0, -0.00000000048465972408E0,   &
-         0.00000000063675740242E0,  0.00000003377623323271E0,   &
-        -0.00000015451139637086E0, -0.00000203340624738438E0,   &
-         0.00001947204525295057E0,  0.00002854147231653228E0,   &
-        -0.00101565063152200272E0,  0.00271187003520095655E0,   &
-         0.02328095035422810727E0, -0.16725021123116877197E0,   &
-         0.32490054966649436974E0 /
-      DATA (B(I), I = 39, 51) /                                 &
-         0.00000000002319363370E0, -0.00000000006303206648E0,   &
-        -0.00000000264888267434E0,  0.00000002050708040581E0,   &
-         0.00000011371857327578E0, -0.00000211211337219663E0,   &
-         0.00000368797328322935E0,  0.00009823686253424796E0,   &
-        -0.00065860243990455368E0, -0.00075285814895230877E0,   &
-         0.02585434424202960464E0, -0.11637092784486193258E0,   &
-         0.18267336775296612024E0 /
-      DATA (B(I), I = 52, 64) /                                 &
-        -0.00000000000367789363E0,  0.00000000020876046746E0,   &
-        -0.00000000193319027226E0, -0.00000000435953392472E0,   &
-         0.00000018006992266137E0, -0.00000078441223763969E0,   &
-        -0.00000675407647949153E0,  0.00008428418334440096E0,   &
-        -0.00017604388937031815E0, -0.00239729611435071610E0,   &
-         0.02064129023876022970E0, -0.06905562880005864105E0,   &
-         0.09084526782065478489E0 /
-      W = ABS(X)
-      IF (W .LT. 2.2D0) THEN
-          T = W * W
-          K = INT(T)
-          T = T - K
-          K = K * 13
-          Y = ((((((((((((A(K) * T + A(K + 1)) * T +              &
-              A(K + 2)) * T + A(K + 3)) * T + A(K + 4)) * T +     &
-              A(K + 5)) * T + A(K + 6)) * T + A(K + 7)) * T +     &
-              A(K + 8)) * T + A(K + 9)) * T + A(K + 10)) * T +    &
-              A(K + 11)) * T + A(K + 12)) * W
-      ELSE IF (W .LT. 6.9D0) THEN
-          K = INT(W)
-          T = W - K
-          K = 13 * (K - 2)
-          Y = (((((((((((B(K) * T + B(K + 1)) * T +               &
-              B(K + 2)) * T + B(K + 3)) * T + B(K + 4)) * T +     &
-              B(K + 5)) * T + B(K + 6)) * T + B(K + 7)) * T +     &
-              B(K + 8)) * T + B(K + 9)) * T + B(K + 10)) * T +    &
-              B(K + 11)) * T + B(K + 12)
-          Y = Y * Y
-          Y = Y * Y
-          Y = Y * Y
-          Y = 1 - Y * Y
-      ELSE
-          Y = 1
-      END IF
-      IF (X .LT. 0) Y = -Y
-      DERF1 = Y
-      END FUNCTION DERF1
-
-#endif
-#if 0
-!+---+-----------------------------------------------------------------+
-
-      subroutine refl10cm_hm (qv1d, qr1d, nr1d, qs1d, ns1d, qg1d, ng1d, &
-                      t1d, p1d, dBZ, kts, kte, ii, jj)
-
-      IMPLICIT NONE
-
-!..Sub arguments
-      INTEGER, INTENT(IN):: kts, kte, ii, jj
-      REAL(C_DOUBLE), DIMENSION(kts:kte), INTENT(IN)::                            &
-                      qv1d, qr1d, nr1d, qs1d, ns1d, qg1d, ng1d, t1d, p1d
-      REAL(C_DOUBLE), DIMENSION(kts:kte), INTENT(INOUT):: dBZ
-
-!..Local variables
-      REAL(C_DOUBLE), DIMENSION(kts:kte):: temp, pres, qv, rho
-      REAL(C_DOUBLE), DIMENSION(kts:kte):: rr, nr, rs, ns, rg, ng
-
-      DOUBLE PRECISION, DIMENSION(kts:kte):: ilamr, ilamg, ilams
-      DOUBLE PRECISION, DIMENSION(kts:kte):: N0_r, N0_g, N0_s
-      DOUBLE PRECISION:: lamr, lamg, lams
-      LOGICAL, DIMENSION(kts:kte):: L_qr, L_qs, L_qg
-
-      REAL(C_DOUBLE), DIMENSION(kts:kte):: ze_rain, ze_snow, ze_graupel
-      DOUBLE PRECISION:: fmelt_s, fmelt_g
-      DOUBLE PRECISION:: cback, x, eta, f_d
-
-      INTEGER:: i, k, k_0, kbot, n
-      LOGICAL:: melti
-
-!+---+
-
-      do k = kts, kte
-         dBZ(k) = -35.0
-      enddo
-
-!+---+-----------------------------------------------------------------+
-!..Put column of data into local arrays.
-!+---+-----------------------------------------------------------------+
-      do k = kts, kte
-         temp(k) = t1d(k)
-         qv(k) = MAX(1.E-10, qv1d(k))
-         pres(k) = p1d(k)
-         rho(k) = 0.622*pres(k)/(R*temp(k)*(qv(k)+0.622))
-
-         if (qr1d(k) .gt. 1.E-9) then
-            rr(k) = qr1d(k)*rho(k)
-            nr(k) = nr1d(k)*rho(k)
-            lamr = (xam_r*xcrg(3)*xorg2*nr(k)/rr(k))**xobmr
-            ilamr(k) = 1./lamr
-            N0_r(k) = nr(k)*xorg2*lamr**xcre(2)
-            L_qr(k) = .true.
-         else
-            rr(k) = 1.E-12
-            nr(k) = 1.E-12
-            L_qr(k) = .false.
-         endif
-
-         if (qs1d(k) .gt. 1.E-9) then
-            rs(k) = qs1d(k)*rho(k)
-            ns(k) = ns1d(k)*rho(k)
-            lams = (xam_s*xcsg(3)*xosg2*ns(k)/rs(k))**xobms
-            ilams(k) = 1./lams
-            N0_s(k) = ns(k)*xosg2*lams**xcse(2)
-            L_qs(k) = .true.
-         else
-            rs(k) = 1.E-12
-            ns(k) = 1.E-12
-            L_qs(k) = .false.
-         endif
-
-         if (qg1d(k) .gt. 1.E-9) then
-            rg(k) = qg1d(k)*rho(k)
-            ng(k) = ng1d(k)*rho(k)
-            lamg = (xam_g*xcgg(3)*xogg2*ng(k)/rg(k))**xobmg
-            ilamg(k) = 1./lamg
-            N0_g(k) = ng(k)*xogg2*lamg**xcge(2)
-            L_qg(k) = .true.
-         else
-            rg(k) = 1.E-12
-            ng(k) = 1.E-12
-            L_qg(k) = .false.
-         endif
-      enddo
-
-!+---+-----------------------------------------------------------------+
-!..Locate K-level of start of melting (k_0 is level above).
-!+---+-----------------------------------------------------------------+
-      melti = .false.
-      k_0 = kts
-      do k = kte-1, kts, -1
-         if ( (temp(k).gt.273.15) .and. L_qr(k)                         &
-                                  .and. (L_qs(k+1).or.L_qg(k+1)) ) then
-            k_0 = MAX(k+1, k_0)
-            melti=.true.
-            goto 195
-         endif
-      enddo
- 195  continue
-
-!+---+-----------------------------------------------------------------+
-!..Assume Rayleigh approximation at 10 cm wavelength. Rain (all temps)
-!.. and non-water-coated snow and graupel when below freezing are
-!.. simple. Integrations of m(D)*m(D)*N(D)*dD.
-!+---+-----------------------------------------------------------------+
-
-      do k = kts, kte
-         ze_rain(k) = 1.e-22
-         ze_snow(k) = 1.e-22
-         ze_graupel(k) = 1.e-22
-         if (L_qr(k)) ze_rain(k) = N0_r(k)*xcrg(4)*ilamr(k)**xcre(4)
-         if (L_qs(k)) ze_snow(k) = (0.176/0.93) * (6.0/PI)*(6.0/PI)     &
-                                 * (xam_s/900.0)*(xam_s/900.0)          &
-                                 * N0_s(k)*xcsg(4)*ilams(k)**xcse(4)
-         if (L_qg(k)) ze_graupel(k) = (0.176/0.93) * (6.0/PI)*(6.0/PI)  &
-                                    * (xam_g/900.0)*(xam_g/900.0)       &
-                                    * N0_g(k)*xcgg(4)*ilamg(k)**xcge(4)
-      enddo
-
-!+---+-----------------------------------------------------------------+
-!..Special case of melting ice (snow/graupel) particles.  Assume the
-!.. ice is surrounded by the liquid water.  Fraction of meltwater is
-!.. extremely simple based on amount found above the melting level.
-!.. Uses code from Uli Blahak (rayleigh_soak_wetgraupel and supporting
-!.. routines).
-!+---+-----------------------------------------------------------------+
-
-      if (melti .and. k_0.ge.kts+1) then
-       do k = k_0-1, kts, -1
-
-!..Reflectivity contributed by melting snow
-          if (L_qs(k) .and. L_qs(k_0) ) then
-           fmelt_s = MAX(0.005d0, MIN(1.0d0-rs(k)/rs(k_0), 0.99d0))
-           eta = 0.d0
-           lams = 1./ilams(k)
-           do n = 1, nrbins
-              x = xam_s * xxDs(n)**xbm_s
-              call rayleigh_soak_wetgraupel (x,DBLE(xocms),DBLE(xobms), &
-                    fmelt_s, melt_outside_s, m_w_0, m_i_0, lamda_radar, &
-                    CBACK, mixingrulestring_s, matrixstring_s,          &
-                    inclusionstring_s, hoststring_s,                    &
-                    hostmatrixstring_s, hostinclusionstring_s)
-              f_d = N0_s(k)*xxDs(n)**xmu_s * DEXP(-lams*xxDs(n))
-              eta = eta + f_d * CBACK * simpson(n) * xdts(n)
-           enddo
-           ze_snow(k) = SNGL(lamda4 / (pi5 * K_w) * eta)
-          endif
-
-
-!..Reflectivity contributed by melting graupel
-
-          if (L_qg(k) .and. L_qg(k_0) ) then
-           fmelt_g = MAX(0.005d0, MIN(1.0d0-rg(k)/rg(k_0), 0.99d0))
-           eta = 0.d0
-           lamg = 1./ilamg(k)
-           do n = 1, nrbins
-              x = xam_g * xxDg(n)**xbm_g
-              call rayleigh_soak_wetgraupel (x,DBLE(xocmg),DBLE(xobmg), &
-                    fmelt_g, melt_outside_g, m_w_0, m_i_0, lamda_radar, &
-                    CBACK, mixingrulestring_g, matrixstring_g,          &
-                    inclusionstring_g, hoststring_g,                    &
-                    hostmatrixstring_g, hostinclusionstring_g)
-              f_d = N0_g(k)*xxDg(n)**xmu_g * DEXP(-lamg*xxDg(n))
-              eta = eta + f_d * CBACK * simpson(n) * xdtg(n)
-           enddo
-           ze_graupel(k) = SNGL(lamda4 / (pi5 * K_w) * eta)
-          endif
-
-       enddo
-      endif
-
-      do k = kte, kts, -1
-         dBZ(k) = 10.*log10((ze_rain(k)+ze_snow(k)+ze_graupel(k))*1.d18)
-      enddo
-
-
-      end subroutine refl10cm_hm
-
-!+---+-----------------------------------------------------------------+
-#endif
 END MODULE module_mp_morr_two_moment
 !+---+-----------------------------------------------------------------+
 !+---+-----------------------------------------------------------------+
