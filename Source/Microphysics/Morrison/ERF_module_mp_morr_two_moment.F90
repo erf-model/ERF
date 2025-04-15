@@ -2192,7 +2192,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       NS3D(K) = N0S(K)/LAMS(K)
       END IF
    END IF
-   
+
 !......................................................................
 ! GRAUPEL
 
