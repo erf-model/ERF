@@ -3368,7 +3368,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   fg(i,j,k), fng(i,j,k)});
 
               // Calculate number of steps (dt and nstep would need to be defined elsewhere)
-              int nstep = std::max(static_cast<int>(rgvm(i,j,k) * dt / dzq(i,j,k) + 1.), nstep);
+              nstep = std::max(static_cast<int>(rgvm(i,j,k) * dt / dzq(i,j,k) + 1.), nstep);
               // MULTIPLY VARIABLES BY RHO
               dumr(i,j,k) = dumr(i,j,k) * rho(i,j,k);       // Rain water content * density
               dumi(i,j,k) = dumi(i,j,k) * rho(i,j,k);       // Cloud ice content * density
