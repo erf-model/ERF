@@ -26,7 +26,7 @@ Morrison::Init (const MultiFab& cons_in,
                 std::unique_ptr<MultiFab>& z_phys_nd,
                 std::unique_ptr<MultiFab>& detJ_cc)
 {
-    dt     = dt_advance;
+    amrex::Real dt     = dt_advance;
     m_geom = geom;
     m_gtoe = grids;
 
@@ -77,7 +77,6 @@ Morrison::Init (const MultiFab& cons_in,
         zmid.resize({zlo}, {zhi});
     }
 
-    debug_step = 0;
 #ifdef ERF_USE_MORR_FORT
     int morr_rimed_ice = 0; // This is used to set something called "ihail"
     amrex::ParmParse pp("erf");
@@ -147,7 +146,6 @@ Morrison::Copy_State_to_Micro (const MultiFab& cons_in)
             pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)); //  * 0.01;
         });
     }
-    debug_step++;
 }
 
 

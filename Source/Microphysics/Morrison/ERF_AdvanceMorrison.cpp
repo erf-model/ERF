@@ -312,6 +312,7 @@ Real gamma_function(Real x) {
    * @param[in] type 0 for liquid water, 1 for ice
    * @return Saturation vapor pressure in Pascals
    */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
   amrex::Real
   calc_saturation_vapor_pressure (const amrex::Real T, const int type)
   {
@@ -372,7 +373,7 @@ Real gamma_function(Real x) {
                        const SolverChoice& sc)
     {
         // Store timestep
-        dt = dt_advance;
+        amrex::Real dt = dt_advance;
 
         // Loop through the grids
         for (amrex::MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl],TileNoZ()); mfi.isValid(); ++mfi)
@@ -3863,7 +3864,7 @@ Real gamma_function(Real x) {
 #ifdef ERF_USE_MORR_FORT
           mp_morr_two_moment_c
           (
-              debug_step,  // ITIMESTEP - Use 1 for simplicity
+              1,  // ITIMESTEP - Use 1 for simplicity
 
               // 3D arrays in Fortran expected order (assume column-major for Fortran)
               theta_arr.dataPtr(),      // TH

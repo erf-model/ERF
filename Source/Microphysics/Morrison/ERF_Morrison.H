@@ -280,12 +280,6 @@ private:
     // valid boxes on which to evolve the solution
     amrex::BoxArray m_gtoe;
 
-    // timestep
-    amrex::Real dt;
-
-    // debug step number
-    int debug_step;
-
     // number of vertical levels
     int nlev, zlo, zhi;
 
