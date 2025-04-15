@@ -83,7 +83,7 @@ Morrison::Init (const MultiFab& cons_in,
     MoistureType moisture_type;
     pp.query_enum_case_insensitive("moisture_model",moisture_type);
     int morr_noice = (moisture_type == MoistureType::Morrison_NoIce);
-    Print()<<"Setting noice to "<<morr_noice<<std::endl;
+    Print()<<"Setting No Ice flag in fortran to "<<morr_noice<<std::endl;
     morr_two_moment_init_c(morr_rimed_ice, morr_noice);
 }
 

@@ -1302,7 +1302,7 @@ Real gamma_function(Real x) {
           ////////////////////////////////////////////////////////////
           // ParallelFor for testing partial C++ implementation
           // NOTE: Currently all Array4 values are copied to locals
-          //       This means we're not updating or outputing anything
+          //       This means we're not updating or outputting anything
           ////////////////////////////////////////////////////////////
             ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
          {
