@@ -3,7 +3,9 @@ CEXE_sources += ERF_UpdateMorrison.cpp
 CEXE_sources += ERF_AdvanceMorrison.cpp
 CEXE_headers += ERF_Morrison.H
 
-F90EXE_sources += ERF_module_mp_morr_two_moment.F90
-CEXE_headers += ERF_Morrison_Fortran_Interface.H
-F90EXE_sources += ERF_module_mp_morr_two_moment_isohelper.F90
-F90EXE_sources += ERF_module_model_constants.F90
+ifeq ($(USE_MORR_FORT),TRUE)
+     F90EXE_sources += ERF_module_mp_morr_two_moment.F90
+     CEXE_headers += ERF_Morrison_Fortran_Interface.H
+     F90EXE_sources += ERF_module_mp_morr_two_moment_isohelper.F90
+     F90EXE_sources += ERF_module_model_constants.F90
+endif

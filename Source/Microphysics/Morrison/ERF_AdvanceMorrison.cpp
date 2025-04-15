@@ -17,7 +17,9 @@
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
 #include "ERF_Morrison.H"
+#ifdef ERF_USE_MORR_FORT
 #include <ERF_Morrison_Fortran_Interface.H>
+#endif
 
 using namespace amrex;
 
@@ -3830,6 +3832,7 @@ Real gamma_function(Real x) {
           }
           amrex::Print()<<"fortran should run "<<run_morr_fort<<std::endl;
           if(run_morr_fort) {
+#ifdef ERF_USE_MORR_FORT
           mp_morr_two_moment_c
           (
               debug_step,  // ITIMESTEP - Use 1 for simplicity
@@ -3893,6 +3896,9 @@ Real gamma_function(Real x) {
               precs_arr.dataPtr(),      // PRECS
               precg_arr.dataPtr()       // PRECG
           );
+#else
+          amrex::Abort("Trying to run fortran without compiling with USE_MORR_FORT=TRUE");
+#endif
         }
           //          amrex::Print()<<amrex::FArrayBox(qv_arr)<<std::endl;
           // After the call, all fields are updated
