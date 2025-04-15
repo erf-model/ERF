@@ -18,9 +18,7 @@
 #include "ERF_NullMoist.H"
 #include "ERF_Morrison.H"
 #include <ERF_Morrison_Fortran_Interface.H>
-#ifdef ERF_USE_MORR_PRINT_DEBUG
-#define PRINT_DEBUG
-#endif
+
 using namespace amrex;
 
 constexpr Real xxx = 0.9189385332046727417803297;
@@ -1339,7 +1337,6 @@ Real gamma_function(Real x) {
             // Model input parameters
             //amrex::Real dt;                 // DT: MODEL TIME STEP (SEC)
             //amrex::Real lami(i,j,k);               // LAMI: Slope parameter for cloud ice (m^-1)
-#if 1
 
             // Microphysical processes
             [[maybe_unused]] amrex::Real nsubc;              // NSUBC: Loss of NC during evaporation
@@ -1412,7 +1409,7 @@ Real gamma_function(Real x) {
             amrex::Real nmultrg;            // NMULTRG: Ice multiplication due to accretion rain by graupel
             amrex::Real qmultg;             // QMULTG: Change Q due to ice multiplication droplets/graupel
             amrex::Real qmultrg;            // QMULTRG: Change Q due to ice multiplication rain/graupel
-#endif
+
             // Time-varying atmospheric parameters
             amrex::Real kap;                // KAP: Thermal conductivity of air
             amrex::Real evs;                // EVS: Saturation vapor pressure
@@ -1428,7 +1425,6 @@ Real gamma_function(Real x) {
 
             // Dummy variables
             amrex::Real dum;                // DUM: General dummy variable
-#if 1
             amrex::Real dum1;               // DUM1: General dummy variable
             [[maybe_unused]] amrex::Real dum2;               // DUM2: General dummy variable
             amrex::Real dumt;               // DUMT: Dummy variable for temperature
@@ -1436,7 +1432,7 @@ Real gamma_function(Real x) {
             amrex::Real dumqss;             // DUMQSS: Dummy saturation mixing ratio
             [[maybe_unused]] amrex::Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
             amrex::Real dums;               // DUMS: General dummy variable
-#endif
+
             // Prognostic supersaturation
             amrex::Real dqsdt;              // DQSDT: Change of saturation mixing ratio with temperature
             amrex::Real dqsidt;             // DQSIDT: Change in ice saturation mixing ratio with temperature
@@ -1474,20 +1470,12 @@ Real gamma_function(Real x) {
             ssed = 0.0;
             gsed = 0.0;
             rsed = 0.0;
-#ifdef ERF_USE_MORR_LATENT_HEATING_OFF
-#define LATENT_HEATING_OFF
-#endif
-#ifndef LATENT_HEATING_OFF
+
             // LATENT HEAT OF VAPORIZATION
             xxlv(i,j,k) = 3.1484E6 - 2370.0 * t3d(i,j,k);
             // LATENT HEAT OF SUBLIMATION
             xxls(i,j,k) = 3.15E6 - 2370.0 * t3d(i,j,k) + 0.3337E6;
-#else
-            // LATENT HEAT OF VAPORIZATION
-            xxlv(i,j,k) = 0.0;
-            // LATENT HEAT OF SUBLIMATION
-            xxls(i,j,k) = 0.0;
-#endif
+
             // Assuming CP is a constant defined elsewhere (specific heat of dry air at constant pressure)
             const amrex::Real CP = 1004.5; // J/kg/K
             cpm(i,j,k) = CP * (1.0 + 0.887 * qv3d(i,j,k));

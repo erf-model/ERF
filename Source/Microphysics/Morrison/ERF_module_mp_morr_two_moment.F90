@@ -582,9 +582,7 @@ END SUBROUTINE MORR_TWO_MOMENT_INIT
 ! FOR QUESTIONS, CONTACT: HUGH MORRISON, E-MAIL: MORRISON@UCAR.EDU, PHONE:303-497-8916
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#ifdef ERF_USE_MORR_PRINT_DEBUG
-#define PRINT_DEBUG
-#endif
+
 SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                 TH, QV, QC, QR, QI, QS, QG, NI, NS, NR, NG, &
                 RHO, PII, P, DT_IN, DZ, HT, W,          &
@@ -1254,10 +1252,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                 SSED(K)=0.
                 GSED(K)=0.
                 RSED(K)=0.
-#ifdef ERF_USE_MORR_LATENT_HEATING_OFF
-#define LATENT_HEATING_OFF
-#endif
-#ifndef LATENT_HEATING_OFF
+
 ! LATENT HEAT OF VAPORATION
 
             XXLV(K) = 3.1484E6-2370.*T3D(K)
@@ -1265,15 +1260,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! LATENT HEAT OF SUBLIMATION
 
             XXLS(K) = 3.15E6-2370.*T3D(K)+0.3337E6
-#else
-! LATENT HEAT OF VAPORATION
 
-            XXLV(K) = 0.0
-
-! LATENT HEAT OF SUBLIMATION
-
-            XXLS(K) = 0.0
-#endif
             CPM(K) = CP*(1.+0.887*QV3D(K))
 
 ! SATURATION VAPOR PRESSURE AND MIXING RATIO
