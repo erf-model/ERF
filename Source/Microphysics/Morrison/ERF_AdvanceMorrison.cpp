@@ -1862,26 +1862,26 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // FORMULA FROM IKAWA AND SAITO (1991)
 
                 if (qr3d(i,j,k) >= 1.0e-8 && qni3d(i,j,k) >= 1.0e-8) {
-                  amrex::Real ums = asn(i,j,k) * m_cons3 / std::pow(lams(i,j,k), m_bs);
-                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
-                  amrex::Real uns = asn(i,j,k) * m_cons5 / std::pow(lams(i,j,k), m_bs);
-                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real ums_local = asn(i,j,k) * m_cons3 / std::pow(lams(i,j,k), m_bs);
+                  amrex::Real umr_local = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real uns_local = asn(i,j,k) * m_cons5 / std::pow(lams(i,j,k), m_bs);
+                  amrex::Real unr_local = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
 
                   // SET REALISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
                   dum = std::pow(m_rhosu/rho(i,j,k), 0.54);
-                  ums = std::min(ums, 1.2*dum);
-                  uns = std::min(uns, 1.2*dum);
-                  umr = std::min(umr, 9.1*dum);
-                  unr = std::min(unr, 9.1*dum);
+                  ums_local = std::min(ums_local, 1.2*dum);
+                  uns_local = std::min(uns_local, 1.2*dum);
+                  umr_local = std::min(umr_local, 9.1*dum);
+                  unr_local = std::min(unr_local, 9.1*dum);
 
 
                   // hm fix, 2/12/13
                   // for above freezing conditions to get accelerated melting of snow,
                   // we need collection of rain by snow (following Lin et al. 1983)
                   ////////////////////////Might need pow expanding
-                  pracs = m_cons41 * (std::sqrt(std::pow(1.2*umr-0.95*ums, 2) +
-                                                0.08*ums*umr) * rho(i,j,k) *
+                  pracs = m_cons41 * (std::sqrt(std::pow(1.2*umr_local-0.95*ums_local, 2) +
+                                                0.08*ums_local*umr_local) * rho(i,j,k) *
                                       n0r(i,j,k) * n0s(i,j,k) / std::pow(lamr(i,j,k), 3) *
                                       (5.0/(std::pow(lamr(i,j,k), 3) * lams(i,j,k)) +
                                        2.0/(std::pow(lamr(i,j,k), 2) * std::pow(lams(i,j,k), 2)) +
@@ -1893,22 +1893,22 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
                 if (qr3d(i,j,k) >= 1.0e-8 && qg3d(i,j,k) >= 1.0e-8) {
 
-                  amrex::Real umg = agn(i,j,k) * m_cons7 / std::pow(lamg(i,j,k), m_bg);
-                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
-                  amrex::Real ung = agn(i,j,k) * m_cons8 / std::pow(lamg(i,j,k), m_bg);
-                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real umg_local = agn(i,j,k) * m_cons7 / std::pow(lamg(i,j,k), m_bg);
+                  amrex::Real umr_local = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real ung_local = agn(i,j,k) * m_cons8 / std::pow(lamg(i,j,k), m_bg);
+                  amrex::Real unr_local = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
 
                   // SET REALISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
                   dum = std::pow(m_rhosu/rho(i,j,k), 0.54);
-                  umg = std::min(umg, 20.0*dum);
-                  ung = std::min(ung, 20.0*dum);
-                  umr = std::min(umr, 9.1*dum);
-                  unr = std::min(unr, 9.1*dum);
+                  umg_local = std::min(umg_local, 20.0*dum);
+                  ung_local = std::min(ung_local, 20.0*dum);
+                  umr_local = std::min(umr_local, 9.1*dum);
+                  unr_local = std::min(unr_local, 9.1*dum);
 
                   // PRACG IS MIXING RATIO OF RAIN PER SEC COLLECTED BY GRAUPEL/HAIL
-                  pracg = m_cons41 * (std::sqrt(std::pow(1.2*umr-0.95*umg, 2) +
-                                                0.08*umg*umr) * rho(i,j,k) *
+                  pracg = m_cons41 * (std::sqrt(std::pow(1.2*umr_local-0.95*umg_local, 2) +
+                                                0.08*umg_local*umr_local) * rho(i,j,k) *
                                       n0r(i,j,k) * n0g(i,j,k) / std::pow(lamr(i,j,k), 3) *
                                       (5.0/(std::pow(lamr(i,j,k), 3) * lamg(i,j,k)) +
                                        2.0/(std::pow(lamr(i,j,k), 2) * std::pow(lamg(i,j,k), 2)) +
@@ -1917,8 +1917,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // ASSUME 1 MM DROPS ARE SHED, GET NUMBER SHED PER SEC
                   dum = pracg/5.2e-7;
 
-                  npracg = m_cons32 * rho(i,j,k) * (std::sqrt(1.7*std::pow(unr-ung, 2) +
-                                                              0.3*unr*ung) * n0r(i,j,k) * n0g(i,j,k) *
+                  npracg = m_cons32 * rho(i,j,k) * (std::sqrt(1.7*std::pow(unr_local-ung_local, 2) +
+                                                              0.3*unr_local*ung_local) * n0r(i,j,k) * n0g(i,j,k) *
                                                     (1.0/(std::pow(lamr(i,j,k), 3) * lamg(i,j,k)) +
                                                      1.0/(std::pow(lamr(i,j,k), 2) * std::pow(lamg(i,j,k), 2)) +
                                                      1.0/(lamr(i,j,k) * std::pow(lamg(i,j,k), 3))));
@@ -2470,27 +2470,27 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // ACCRETION OF RAIN WATER BY SNOW
                 // FORMULA FROM IKAWA AND SAITO, 1991, USED BY REISNER ET AL, 1998
                 if (qr3d(i,j,k) >= 1.0e-8 && qni3d(i,j,k) >= 1.0e-8) {
-                  amrex::Real ums = asn(i,j,k) * m_cons3 / std::pow(lams(i,j,k), m_bs);
-                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
-                  amrex::Real uns = asn(i,j,k) * m_cons5 / std::pow(lams(i,j,k), m_bs);
-                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real ums_local = asn(i,j,k) * m_cons3 / std::pow(lams(i,j,k), m_bs);
+                  amrex::Real umr_local = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real uns_local = asn(i,j,k) * m_cons5 / std::pow(lams(i,j,k), m_bs);
+                  amrex::Real unr_local = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
 
                   // SET REASLISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
                   dum = std::pow(m_rhosu / rho(i,j,k), 0.54);
-                  ums = std::min(ums, 1.2 * dum);
-                  uns = std::min(uns, 1.2 * dum);
-                  umr = std::min(umr, 9.1 * dum);
-                  unr = std::min(unr, 9.1 * dum);
+                  ums_local = std::min(ums_local, 1.2 * dum);
+                  uns_local = std::min(uns_local, 1.2 * dum);
+                  umr_local = std::min(umr_local, 9.1 * dum);
+                  unr_local = std::min(unr_local, 9.1 * dum);
 
-                  pracs = m_cons41 * (std::sqrt(std::pow(1.2 * umr - 0.95 * ums, 2) +
-                                                0.08 * ums * umr) * rho(i,j,k) * n0r(i,j,k) * n0s(i,j,k) /
+                  pracs = m_cons41 * (std::sqrt(std::pow(1.2 * umr_local - 0.95 * ums_local, 2) +
+                                                0.08 * ums_local * umr_local) * rho(i,j,k) * n0r(i,j,k) * n0s(i,j,k) /
                                       std::pow(lamr(i,j,k), 3) * (5.0 / (std::pow(lamr(i,j,k), 3) * lams(i,j,k)) +
                                                            2.0 / (std::pow(lamr(i,j,k), 2) * std::pow(lams(i,j,k), 2)) +
                                                            0.5 / (lamr(i,j,k) * std::pow(lams(i,j,k), 3))));
 
-                  npracs = m_cons32 * rho(i,j,k) * std::sqrt(1.7 * std::pow(unr - uns, 2) +
-                                                             0.3 * unr * uns) * n0r(i,j,k) * n0s(i,j,k) *
+                  npracs = m_cons32 * rho(i,j,k) * std::sqrt(1.7 * std::pow(unr_local - uns_local, 2) +
+                                                             0.3 * unr_local * uns_local) * n0r(i,j,k) * n0s(i,j,k) *
                     (1.0 / (std::pow(lamr(i,j,k), 3) * lams(i,j,k)) +
                      1.0 / (std::pow(lamr(i,j,k), 2) * std::pow(lams(i,j,k), 2)) +
                      1.0 / (lamr(i,j,k) * std::pow(lams(i,j,k), 3)));
@@ -2504,8 +2504,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // ONLY CALCULATE IF SNOW AND RAIN MIXING RATIOS EXCEED 0.1 G/KG
                   // hm modify for wrfv3.1
                   if (qni3d(i,j,k) >= 0.1e-3 && qr3d(i,j,k) >= 0.1e-3) {
-                    psacr = m_cons31 * (std::sqrt(std::pow(1.2 * umr - 0.95 * ums, 2) +
-                                                  0.08 * ums * umr) * rho(i,j,k) * n0r(i,j,k) * n0s(i,j,k) /
+                    psacr = m_cons31 * (std::sqrt(std::pow(1.2 * umr_local - 0.95 * ums_local, 2) +
+                                                  0.08 * ums_local * umr_local) * rho(i,j,k) * n0r(i,j,k) * n0s(i,j,k) /
                                         std::pow(lams(i,j,k), 3) * (5.0 / (std::pow(lams(i,j,k), 3) * lamr(i,j,k)) +
                                                              2.0 / (std::pow(lams(i,j,k), 2) * std::pow(lamr(i,j,k), 2)) +
                                                              0.5 / (lams(i,j,k) * std::pow(lamr(i,j,k), 3))));
@@ -2515,27 +2515,27 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // COLLECTION OF RAINWATER BY GRAUPEL, FROM IKAWA AND SAITO 1990,
                 // USED BY REISNER ET AL 1998
                 if (qr3d(i,j,k) >= 1.0e-8 && qg3d(i,j,k) >= 1.0e-8) {
-                  amrex::Real umg = agn(i,j,k) * m_cons7 / std::pow(lamg(i,j,k), m_bg);
-                  amrex::Real umr = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
-                  amrex::Real ung = agn(i,j,k) * m_cons8 / std::pow(lamg(i,j,k), m_bg);
-                  amrex::Real unr = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real umg_local = agn(i,j,k) * m_cons7 / std::pow(lamg(i,j,k), m_bg);
+                  amrex::Real umr_local = arn(i,j,k) * m_cons4 / std::pow(lamr(i,j,k), m_br);
+                  amrex::Real ung_local = agn(i,j,k) * m_cons8 / std::pow(lamg(i,j,k), m_bg);
+                  amrex::Real unr_local = arn(i,j,k) * m_cons6 / std::pow(lamr(i,j,k), m_br);
 
                   // SET REASLISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
                   dum = std::pow(m_rhosu / rho(i,j,k), 0.54);
-                  umg = std::min(umg, 20.0 * dum);
-                  ung = std::min(ung, 20.0 * dum);
-                  umr = std::min(umr, 9.1 * dum);
-                  unr = std::min(unr, 9.1 * dum);
+                  umg_local = std::min(umg_local, 20.0 * dum);
+                  ung_local = std::min(ung_local, 20.0 * dum);
+                  umr_local = std::min(umr_local, 9.1 * dum);
+                  unr_local = std::min(unr_local, 9.1 * dum);
 
-                  pracg = m_cons41 * (std::sqrt(std::pow(1.2 * umr - 0.95 * umg, 2) +
-                                                0.08 * umg * umr) * rho(i,j,k) * n0r(i,j,k) * n0g(i,j,k) /
+                  pracg = m_cons41 * (std::sqrt(std::pow(1.2 * umr_local - 0.95 * umg_local, 2) +
+                                                0.08 * umg_local * umr_local) * rho(i,j,k) * n0r(i,j,k) * n0g(i,j,k) /
                                       std::pow(lamr(i,j,k), 3) * (5.0 / (std::pow(lamr(i,j,k), 3) * lamg(i,j,k)) +
                                                            2.0 / (std::pow(lamr(i,j,k), 2) * std::pow(lamg(i,j,k), 2)) +
                                                            0.5 / (lamr(i,j,k) * std::pow(lamg(i,j,k), 3))));
 
-                  npracg = m_cons32 * rho(i,j,k) * std::sqrt(1.7 * std::pow(unr - ung, 2) +
-                                                             0.3 * unr * ung) * n0r(i,j,k) * n0g(i,j,k) *
+                  npracg = m_cons32 * rho(i,j,k) * std::sqrt(1.7 * std::pow(unr_local - ung_local, 2) +
+                                                             0.3 * unr_local * ung_local) * n0r(i,j,k) * n0g(i,j,k) *
                     (1.0 / (std::pow(lamr(i,j,k), 3) * lamg(i,j,k)) +
                      1.0 / (std::pow(lamr(i,j,k), 2) * std::pow(lamg(i,j,k), 2)) +
                      1.0 / (lamr(i,j,k) * std::pow(lamg(i,j,k), 3)));
