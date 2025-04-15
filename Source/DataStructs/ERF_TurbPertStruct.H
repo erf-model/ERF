@@ -15,11 +15,25 @@
     the angle of the inflow into consideration.
 */
 
+AMREX_ENUM(PerturbationType,
+    Source, Direct, None
+);
+
 struct TurbulentPerturbation {
 
   public:
 
     ~TurbulentPerturbation () {}
+
+    void init_tpi_type (const PerturbationType& pert_type)
+    {
+        if (pert_type == PerturbationType::Source) {
+            pt_type = 0;
+        } else if (pert_type == PerturbationType::Direct) {
+            pt_type = 1;
+        }
+        AMREX_ALWAYS_ASSERT(pt_type >= 0);
+    }
 
     // Initializing Perturbation Region
     // Currently only support perturbation in the x and y direction
@@ -543,7 +557,7 @@ struct TurbulentPerturbation {
         */
     }
 
-    int pt_type; // TODO: May need to pass in solverChoice to replace this
+    int pt_type = -1;
 
     // Public data members
     amrex::Vector<amrex::BoxArray>                 pb_ba;  // PB box array

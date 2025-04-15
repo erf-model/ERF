@@ -61,10 +61,6 @@ AMREX_ENUM(LandSurfaceType,
     SLM, MM5, None, NOAH
 );
 
-AMREX_ENUM(PerturbationType,
-    Source, Direct, None
-);
-
 enum struct Coord {
     x, y, z
 };
