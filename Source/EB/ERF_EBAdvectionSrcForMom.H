@@ -32,9 +32,9 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                             const amrex::Real upw_frac_h,
                             const amrex::Real upw_frac_v,
                             const AdvType /*vert_adv_type*/,
-                            const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_u_arr,
-                            const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_v_arr,
-                            const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_w_arr,
+                                  amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_u_arr,
+                                  amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_v_arr,
+                                  amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_w_arr,
                             const int lo_z_face, const int hi_z_face)
 {
     // Instantiate the appropriate structs
@@ -545,9 +545,9 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                         const amrex::Real upw_frac_h,
                         const amrex::Real upw_frac_v,
                         const AdvType vert_adv_type,
-                        const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_u_arr,
-                        const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_v_arr,
-                        const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_w_arr,
+                              amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_u_arr,
+                              amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_v_arr,
+                              amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_w_arr,
                         const int lo_z_face, const int hi_z_face)
 {
     if (vert_adv_type == AdvType::Centered_2nd) {
@@ -562,7 +562,6 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                 lo_z_face, hi_z_face);
     } else if (vert_adv_type == AdvType::Upwind_3rd) {
-        amrex::Print()<<"SK: EBAdvectionSrcForMomWrapper<InterpType_H,UPWIND3,UPWINDALL>"<< std::endl;
         EBAdvectionSrcForMomWrapper<InterpType_H,UPWIND3,UPWINDALL>(
                                 bxx_grown, bxy_grown, bxz_grown,
                                 rho_u, rho_v, rho_w, u, v, w,

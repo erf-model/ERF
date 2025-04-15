@@ -62,9 +62,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                         const Real horiz_upw_frac,
                         const Real vert_upw_frac,
                         const eb_& ebfact,
-                        const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_u_arr,
-                        const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_v_arr,
-                        const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_w_arr,
+                              GpuArray<Array4<Real>, AMREX_SPACEDIM>& flx_u_arr,
+                              GpuArray<Array4<Real>, AMREX_SPACEDIM>& flx_v_arr,
+                              GpuArray<Array4<Real>, AMREX_SPACEDIM>& flx_w_arr,
                         const int lo_z_face, const int hi_z_face,
                         const Box& /*domain*/)
 {
