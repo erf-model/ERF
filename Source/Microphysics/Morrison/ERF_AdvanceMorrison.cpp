@@ -460,15 +460,19 @@ Real gamma_function(Real x) {
           auto const& graupelncv_arr = graupelncv_fab.array();
 
           // Initialize precipitation rate arrays to zero
-          rainncv_fab.setVal(0.0);
-          sr_fab.setVal(0.0);
-          snowncv_fab.setVal(0.0);
-          graupelncv_fab.setVal(0.0);
+          amrex::ParallelFor(grown_boxD, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            rainncv_arr(i,j,k) = 0.0;
+            sr_arr(i,j,k) = 0.0;
+            snowncv_arr(i,j,k) = 0.0;
+            graupelncv_arr(i,j,k) = 0.0;
+          });
 
           // Create terrain height array (not actually used by Morrison scheme)
           amrex::FArrayBox ht_fab(amrex::Box(amrex::IntVect(ilo, jlo, 0), amrex::IntVect(ihi, jhi, 0)), 1);
           [[maybe_unused]] auto const& ht_arr = ht_fab.array();
-          ht_fab.setVal(0.0);  // Not used by Morrison scheme
+          amrex::ParallelFor(amrex::Box(amrex::IntVect(ilo, jlo, 0), amrex::IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            ht_arr(i,j,k) = 0.0;  // Not used by Morrison scheme
+          });
 
           // Create dummy arrays for cumulus tendencies (if needed)
           amrex::FArrayBox qrcuten_fab(grown_box, 1);
@@ -479,9 +483,11 @@ Real gamma_function(Real x) {
           auto const& qicuten_arr = qicuten_fab.array();
 
           // Initialize tendencies to zero (no cumulus parameterization in this example)
-          qrcuten_fab.setVal(0.0);
-          qscuten_fab.setVal(0.0);
-          qicuten_fab.setVal(0.0);
+          amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            qrcuten_arr(i,j,k) = 0.0;
+            qscuten_arr(i,j,k) = 0.0;
+            qicuten_arr(i,j,k) = 0.0;
+          });
 
 #ifdef ERF_USE_MORR_FORT
           // WRF-Chem related variables (optional)
@@ -505,13 +511,15 @@ Real gamma_function(Real x) {
           auto const& precg_arr = precg_fab.array();
 
           // Initialize WRF-Chem arrays to zero
-          rainprod_fab.setVal(0.0);
-          evapprod_fab.setVal(0.0);
-          qlsink_fab.setVal(0.0);
-          precr_fab.setVal(0.0);
-          preci_fab.setVal(0.0);
-          precs_fab.setVal(0.0);
-          precg_fab.setVal(0.0);
+          amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            rainprod_arr(i,j,k) = 0.0;
+            evapprod_arr(i,j,k) = 0.0;
+            qlsink_arr(i,j,k) = 0.0;
+            precr_arr(i,j,k) = 0.0;
+            preci_arr(i,j,k) = 0.0;
+            precs_arr(i,j,k) = 0.0;
+            precg_arr(i,j,k) = 0.0;
+          });
 #endif
 
           // Create FArrayBox for slope parameters and PSD variables
@@ -541,17 +549,19 @@ Real gamma_function(Real x) {
           auto const& pgam = pgam_fab.array();
 
           // Initialize all values to zero
-          lamc_fab.setVal(0.0);
-          lami_fab.setVal(0.0);
-          lams_fab.setVal(0.0);
-          lamr_fab.setVal(0.0);
-          lamg_fab.setVal(0.0);
-          cdist1_fab.setVal(0.0);
-          n0i_fab.setVal(0.0);
-          n0s_fab.setVal(0.0);
-          n0r_fab.setVal(0.0);
-          n0g_fab.setVal(0.0);
-          pgam_fab.setVal(0.0);
+          amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            lamc(i,j,k) = 0.0;
+            lami(i,j,k) = 0.0;
+            lams(i,j,k) = 0.0;
+            lamr(i,j,k) = 0.0;
+            lamg(i,j,k) = 0.0;
+            cdist1(i,j,k) = 0.0;
+            n0i(i,j,k) = 0.0;
+            n0s(i,j,k) = 0.0;
+            n0r(i,j,k) = 0.0;
+            n0g(i,j,k) = 0.0;
+            pgam(i,j,k) = 0.0;
+          });
 
 #ifdef ERF_USE_MORR_FORT
           // Prepare data pointers for Fortran call
@@ -938,13 +948,15 @@ Real gamma_function(Real x) {
             auto const& nr3dten = nr3dten_fab.array();    // RAIN NUMBER CONCENTRATION (1/KG/S)
 
             // Initialize tendencies to zero (no precipitation implemented yet)
-            qc3dten_fab.setVal(0.0);
-            qi3dten_fab.setVal(0.0);
-            qni3dten_fab.setVal(0.0);
-            qr3dten_fab.setVal(0.0);
-            ni3dten_fab.setVal(0.0);
-            ns3dten_fab.setVal(0.0);
-            nr3dten_fab.setVal(0.0);
+            amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+              qc3dten(i,j,k) = 0.0;
+              qi3dten(i,j,k) = 0.0;
+              qni3dten(i,j,k) = 0.0;
+              qr3dten(i,j,k) = 0.0;
+              ni3dten(i,j,k) = 0.0;
+              ns3dten(i,j,k) = 0.0;
+              nr3dten(i,j,k) = 0.0;
+            });
 
             // Create arrays for mixing ratios and number concentrations
             amrex::FArrayBox qc3d_fab(grown_box, 1);    // CLOUD WATER MIXING RATIO
@@ -965,13 +977,15 @@ Real gamma_function(Real x) {
             auto const& nr3d = nr3d_fab.array();        // RAIN NUMBER CONCENTRATION (1/KG)
 
             // Initialize mixing ratios and number concentrations to zero
-            qc3d_fab.setVal(0.0);
-            qi3d_fab.setVal(0.0);
-            qni3d_fab.setVal(0.0);
-            qr3d_fab.setVal(0.0);
-            ni3d_fab.setVal(0.0);
-            ns3d_fab.setVal(0.0);
-            nr3d_fab.setVal(0.0);
+            amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+              qc3d(i,j,k) = 0.0;
+              qi3d(i,j,k) = 0.0;
+              qni3d(i,j,k) = 0.0;
+              qr3d(i,j,k) = 0.0;
+              ni3d(i,j,k) = 0.0;
+              ns3d(i,j,k) = 0.0;
+              nr3d(i,j,k) = 0.0;
+            });
 
             // Create arrays for temperature, vapor, and pressure variables
             amrex::FArrayBox t3dten_fab(grown_box, 1);    // TEMPERATURE TENDENCY
@@ -1036,16 +1050,18 @@ Real gamma_function(Real x) {
             auto const& qicu1d = qicu1d_fab.array();      // ICE FROM CUMULUS PARAMETERIZATION
 
             // Initialize tendency arrays to zero
-            t3dten_fab.setVal(0.0);
-            qv3dten_fab.setVal(0.0);
-            nc3dten_fab.setVal(0.0);
-            qg3dten_fab.setVal(0.0);
-            ng3dten_fab.setVal(0.0);
-            qgsten_fab.setVal(0.0);
-            qrsten_fab.setVal(0.0);
-            qisten_fab.setVal(0.0);
-            qnisten_fab.setVal(0.0);
-            qcsten_fab.setVal(0.0);
+            amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+              t3dten(i,j,k) = 0.0;
+              qv3dten(i,j,k) = 0.0;
+              nc3dten(i,j,k) = 0.0;
+              qg3dten(i,j,k) = 0.0;
+              ng3dten(i,j,k) = 0.0;
+              qgsten(i,j,k) = 0.0;
+              qrsten(i,j,k) = 0.0;
+              qisten(i,j,k) = 0.0;
+              qnisten(i,j,k) = 0.0;
+              qcsten(i,j,k) = 0.0;
+            });
 
             // Create arrays for precipitation rates
             amrex::FArrayBox precrt_fab(grown_box, 1);    // TOTAL PRECIP PER TIME STEP
@@ -1074,15 +1090,17 @@ Real gamma_function(Real x) {
             auto const& effg = effg_fab.array();          // GRAUPEL EFFECTIVE RADIUS (MICRON)
 
             // Initialize these arrays to zero (they will be computed later)
-            precrt_fab.setVal(0.0);
-            snowrt_fab.setVal(0.0);
-            snowprt_fab.setVal(0.0);
-            grplprt_fab.setVal(0.0);
-            effc_fab.setVal(0.0);
-            effi_fab.setVal(0.0);
-            effs_fab.setVal(0.0);
-            effr_fab.setVal(0.0);
-            effg_fab.setVal(0.0);
+            amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+              precrt(i,j,k) = 0.0;
+              snowrt(i,j,k) = 0.0;
+              snowprt(i,j,k) = 0.0;
+              grplprt(i,j,k) = 0.0;
+              effc(i,j,k) = 0.0;
+              effi(i,j,k) = 0.0;
+              effs(i,j,k) = 0.0;
+              effr(i,j,k) = 0.0;
+              effg(i,j,k) = 0.0;
+            });
 
             // Create FArrayBoxes for scalar variables
             amrex::FArrayBox rho_fab(grown_box, 1);
@@ -1103,13 +1121,15 @@ Real gamma_function(Real x) {
             auto const& agn = agn_fab.array();
 
             // Initialize all values to zero
-            rho_fab.setVal(0.0);
-            mu_fab.setVal(0.0);
-            ain_fab.setVal(0.0);
-            arn_fab.setVal(0.0);
-            asn_fab.setVal(0.0);
-            acn_fab.setVal(0.0);
-            agn_fab.setVal(0.0);
+            amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+              rho(i,j,k) = 0.0;
+              mu(i,j,k) = 0.0;
+              ain(i,j,k) = 0.0;
+              arn(i,j,k) = 0.0;
+              asn(i,j,k) = 0.0;
+              acn(i,j,k) = 0.0;
+              agn(i,j,k) = 0.0;
+            });
 
             // Create FArrayBoxes for fall speed working variables
             amrex::FArrayBox dumi_fab(grown_box, 1);
@@ -1228,62 +1248,64 @@ Real gamma_function(Real x) {
             auto const& dlamg = dlamg_fab.array();
 
             // Initialize arrays to 0
-            dlams_fab.setVal(0.0);
-            dlamr_fab.setVal(0.0);
-            dlami_fab.setVal(0.0);
-            dlamc_fab.setVal(0.0);
-            dlamg_fab.setVal(0.0);
-            dumi_fab.setVal(0.0);
-            dumr_fab.setVal(0.0);
-            dumfni_fab.setVal(0.0);
-            dumg_fab.setVal(0.0);
-            dumfng_fab.setVal(0.0);
-            uni_fab.setVal(0.0);
-            umi_fab.setVal(0.0);
-            umr_fab.setVal(0.0);
-            fr_fab.setVal(0.0);
-            fi_fab.setVal(0.0);
-            fni_fab.setVal(0.0);
-            fg_fab.setVal(0.0);
-            fng_fab.setVal(0.0);
-            rgvm_fab.setVal(0.0);
-            faloutr_fab.setVal(0.0);
-            falouti_fab.setVal(0.0);
-            faloutni_fab.setVal(0.0);
-            faltndr_fab.setVal(0.0);
-            faltndi_fab.setVal(0.0);
-            faltndni_fab.setVal(0.0);
-            dumqs_fab.setVal(0.0);
-            dumfns_fab.setVal(0.0);
-            ums_fab.setVal(0.0);
-            uns_fab.setVal(0.0);
-            fs_fab.setVal(0.0);
-            fns_fab.setVal(0.0);
-            falouts_fab.setVal(0.0);
-            faloutns_fab.setVal(0.0);
-            faloutg_fab.setVal(0.0);
-            faloutng_fab.setVal(0.0);
-            faltnds_fab.setVal(0.0);
-            faltndns_fab.setVal(0.0);
-            unr_fab.setVal(0.0);
-            faltndg_fab.setVal(0.0);
-            faltndng_fab.setVal(0.0);
-            dumc_fab.setVal(0.0);
-            dumfnc_fab.setVal(0.0);
-            unc_fab.setVal(0.0);
-            umc_fab.setVal(0.0);
-            ung_fab.setVal(0.0);
-            umg_fab.setVal(0.0);
-            fc_fab.setVal(0.0);
-            faloutc_fab.setVal(0.0);
-            faloutnc_fab.setVal(0.0);
-            faltndc_fab.setVal(0.0);
-            faltndnc_fab.setVal(0.0);
-            fnc_fab.setVal(0.0);
-            dumfnr_fab.setVal(0.0);
-            faloutnr_fab.setVal(0.0);
-            faltndnr_fab.setVal(0.0);
-            fnr_fab.setVal(0.0);
+            amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+              dlams(i,j,k) = 0.0;
+              dlamr(i,j,k) = 0.0;
+              dlami(i,j,k) = 0.0;
+              dlamc(i,j,k) = 0.0;
+              dlamg(i,j,k) = 0.0;
+              dumi(i,j,k) = 0.0;
+              dumr(i,j,k) = 0.0;
+              dumfni(i,j,k) = 0.0;
+              dumg(i,j,k) = 0.0;
+              dumfng(i,j,k) = 0.0;
+              uni(i,j,k) = 0.0;
+              umi(i,j,k) = 0.0;
+              umr(i,j,k) = 0.0;
+              fr(i,j,k) = 0.0;
+              fi(i,j,k) = 0.0;
+              fni(i,j,k) = 0.0;
+              fg(i,j,k) = 0.0;
+              fng(i,j,k) = 0.0;
+              rgvm(i,j,k) = 0.0;
+              faloutr(i,j,k) = 0.0;
+              falouti(i,j,k) = 0.0;
+              faloutni(i,j,k) = 0.0;
+              faltndr(i,j,k) = 0.0;
+              faltndi(i,j,k) = 0.0;
+              faltndni(i,j,k) = 0.0;
+              dumqs(i,j,k) = 0.0;
+              dumfns(i,j,k) = 0.0;
+              ums(i,j,k) = 0.0;
+              uns(i,j,k) = 0.0;
+              fs(i,j,k) = 0.0;
+              fns(i,j,k) = 0.0;
+              falouts(i,j,k) = 0.0;
+              faloutns(i,j,k) = 0.0;
+              faloutg(i,j,k) = 0.0;
+              faloutng(i,j,k) = 0.0;
+              faltnds(i,j,k) = 0.0;
+              faltndns(i,j,k) = 0.0;
+              unr(i,j,k) = 0.0;
+              faltndg(i,j,k) = 0.0;
+              faltndng(i,j,k) = 0.0;
+              dumc(i,j,k) = 0.0;
+              dumfnc(i,j,k) = 0.0;
+              unc(i,j,k) = 0.0;
+              umc(i,j,k) = 0.0;
+              ung(i,j,k) = 0.0;
+              umg(i,j,k) = 0.0;
+              fc(i,j,k) = 0.0;
+              faloutc(i,j,k) = 0.0;
+              faloutnc(i,j,k) = 0.0;
+              faltndc(i,j,k) = 0.0;
+              faltndnc(i,j,k) = 0.0;
+              fnc(i,j,k) = 0.0;
+              dumfnr(i,j,k) = 0.0;
+              faloutnr(i,j,k) = 0.0;
+              faltndnr(i,j,k) = 0.0;
+              fnr(i,j,k) = 0.0;
+            });
 
             // Create FArrayBoxes for thermodynamic variables
             amrex::FArrayBox xxls_fab(grown_box, 1);  // Latent heat of sublimation
@@ -1298,10 +1320,12 @@ Real gamma_function(Real x) {
             auto const& xlf = xlf_fab.array();    // XLF: Latent heat of freezing
 
             // Initialize values to zero
-            xxls_fab.setVal(0.0);
-            xxlv_fab.setVal(0.0);
-            cpm_fab.setVal(0.0);
-            xlf_fab.setVal(0.0);
+            amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+              xxls(i,j,k) = 0.0;
+              xxlv(i,j,k) = 0.0;
+              cpm(i,j,k) = 0.0;
+              xlf(i,j,k) = 0.0;
+            });
 
           ////////////////////////////////////////////////////////////
           // ParallelFor for testing partial C++ implementation
