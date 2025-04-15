@@ -668,7 +668,8 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
 
    REAL(C_DOUBLE), DIMENSION(ims:ime, jms:jme, kms:kme),          INTENT(INOUT) :: qv, qc, qr, qi, qs, qg, ni, ns, nr, TH, NG
    REAL(C_DOUBLE), DIMENSION(ims:ime, jms:jme, kms:kme), optional,INTENT(INOUT) :: qndrop
-   REAL(C_DOUBLE), DIMENSION(ims:ime, jms:jme, kms:kme), optional,INTENT(INOUT) :: QLSINK, rainprod, evapprod, PRECI,PRECS,PRECG,PRECR
+   REAL(C_DOUBLE), DIMENSION(ims:ime, jms:jme, kms:kme), optional,INTENT(INOUT) :: QLSINK, rainprod, evapprod, PRECI,PRECS,PRECG, &
+     & PRECR
    REAL(C_DOUBLE), DIMENSION(ims:ime, jms:jme, kms:kme),          INTENT(IN   ) :: pii, p, dz, rho, w
 
    REAL(C_DOUBLE), INTENT(IN):: dt_in
