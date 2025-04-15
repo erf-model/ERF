@@ -1199,30 +1199,36 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 mf_comp ++;
             }
 
-            if (solverChoice.moisture_type == MoistureType::Kessler)
+            if ( (solverChoice.moisture_type == MoistureType::Kessler) ||
+                 (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
+                 (solverChoice.moisture_type == MoistureType::SAM_NoIce) )
             {
+                int offset = ( (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
+                               (solverChoice.moisture_type == MoistureType::Morrison) ) ? 5 : 0;
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][0]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }
             else if ( (solverChoice.moisture_type == MoistureType::SAM) ||
                       (solverChoice.moisture_type == MoistureType::Morrison) )
             {
+                int offset = ( (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
+                               (solverChoice.moisture_type == MoistureType::Morrison) ) ? 5 : 0;
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][0]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "snow_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][1]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset+1]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "graup_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][2]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset+2]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }
