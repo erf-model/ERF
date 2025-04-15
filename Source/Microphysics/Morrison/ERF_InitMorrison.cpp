@@ -26,7 +26,7 @@ Morrison::Init (const MultiFab& cons_in,
                 std::unique_ptr<MultiFab>& z_phys_nd,
                 std::unique_ptr<MultiFab>& detJ_cc)
 {
-    amrex::Real dt     = dt_advance;
+    [[maybe_unused]] amrex::Real dt     = dt_advance;
     m_geom = geom;
     m_gtoe = grids;
 
