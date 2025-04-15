@@ -198,14 +198,14 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
             RealBox gridloc = RealBox(grids[lev][i], geom[lev].CellSize(), geom[lev].ProbLo());
 
             x_grid.clear(); y_grid.clear(); z_grid.clear();
-            for (auto k1 = 0; k1 < grids[lev][i].length(0); ++k1) {
-              for (auto k2 = 0; k2 < grids[lev][i].length(1); ++k2) {
-                 for (auto k3 = 0; k3 < grids[lev][i].length(2); ++k3) {
-                    x_grid.push_back(gridloc.lo(0)+geom[lev].CellSize(0)*static_cast<Real>(k1));
-                    y_grid.push_back(gridloc.lo(1)+geom[lev].CellSize(1)*static_cast<Real>(k2));
-                    z_grid.push_back(gridloc.lo(2)+geom[lev].CellSize(2)*static_cast<Real>(k3));
-                 }
-              }
+            for (auto k3 = 0; k3 < grids[lev][i].length(2); ++k3) {
+                for (auto k2 = 0; k2 < grids[lev][i].length(1); ++k2) {
+                    for (auto k1 = 0; k1 < grids[lev][i].length(0); ++k1) {
+                        x_grid.push_back(gridloc.lo(0)+geom[lev].CellSize(0)*static_cast<Real>(k1));
+                        y_grid.push_back(gridloc.lo(1)+geom[lev].CellSize(1)*static_cast<Real>(k2));
+                        z_grid.push_back(gridloc.lo(2)+geom[lev].CellSize(2)*static_cast<Real>(k3));
+                     }
+                }
             }
 
             goffset += glen;

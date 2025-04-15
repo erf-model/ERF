@@ -1203,8 +1203,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                  (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
                  (solverChoice.moisture_type == MoistureType::SAM_NoIce) )
             {
-                int offset = ( (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
-                               (solverChoice.moisture_type == MoistureType::Morrison) ) ? 5 : 0;
+                int offset = (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ? 5 : 0;
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
                     MultiFab::Copy(mf[lev],*(qmoist[lev][offset]),0,mf_comp,1,0);
@@ -1214,8 +1213,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             else if ( (solverChoice.moisture_type == MoistureType::SAM) ||
                       (solverChoice.moisture_type == MoistureType::Morrison) )
             {
-                int offset = ( (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
-                               (solverChoice.moisture_type == MoistureType::Morrison) ) ? 5 : 0;
+                int offset = (solverChoice.moisture_type == MoistureType::Morrison) ? 5 : 0;
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
                     MultiFab::Copy(mf[lev],*(qmoist[lev][offset]),0,mf_comp,1,0);
