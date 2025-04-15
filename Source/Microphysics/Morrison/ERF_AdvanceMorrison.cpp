@@ -581,7 +581,7 @@ Real gamma_function(Real x) {
           amrex::Real m_R;           // Gas constant for dry air (J/kg/K)
           amrex::Real m_Rd;           // Gas constant for dry air (J/kg/K)
           amrex::Real m_Rv;          // Gas constant for water vapor (J/kg/K)
-          amrex::Real m_cp;          // Specific heat at constant pressure (J/kg/K)
+          [[maybe_unused]] amrex::Real m_cp;          // Specific heat at constant pressure (J/kg/K)
           amrex::Real m_g;           // Gravitational acceleration (m/s^2)
           amrex::Real m_ep_2;        // Molecular weight ratio (Rd/Rv)
 
@@ -1614,7 +1614,6 @@ Real gamma_function(Real x) {
             // If there is no cloud/precip water, and if subsaturated, then skip microphysics for this level
             bool skipMicrophysics = false;
             bool skipConcentrations = false;
-            bool skipPrecip = true; // set with if statement
             if (qc3d(i,j,k) < QSMALL && qi3d(i,j,k) < QSMALL && qni3d(i,j,k) < QSMALL && qr3d(i,j,k) < QSMALL && qg3d(i,j,k) < QSMALL) {
               if ((t3d(i,j,k) < 273.15 && qvqvsi < 0.999) || (t3d(i,j,k) >= 273.15 && qvqvs < 0.999)) {
                 skipMicrophysics = true;//                goto label_200;
@@ -3126,7 +3125,6 @@ Real gamma_function(Real x) {
                 nr3dten(i,j,k) = nr3dten(i,j,k) + nsubr;
             }
             ltrue = 1;
-            skipPrecip = false;
             }
             //            label_200:
 
