@@ -553,10 +553,10 @@ Real gamma_function(Real x) {
           n0g_fab.setVal(0.0);
           pgam_fab.setVal(0.0);
 
+#ifdef ERF_USE_MORR_FORT
           // Prepare data pointers for Fortran call
           // These would be passed directly to the Fortran interface
           double dummy_reflectivity = 0.0;
-#ifdef ERF_USE_MORR_FORT
           double* dummy_reflectivity_ptr = &dummy_reflectivity;
 #endif
           // Example call (pseudo-code - actual interface would depend on your Fortran interop setup)
