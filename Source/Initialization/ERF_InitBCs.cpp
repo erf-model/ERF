@@ -30,14 +30,9 @@ void ERF::init_bcs ()
         m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  1.0;
         m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori]  = -1.0; // It is important to set this negative
                                                                  // because the sign is tested on below
-        m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
-        m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori]     = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori]     = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQ3_bc_comp][ori]     = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQ4_bc_comp][ori]     = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQ5_bc_comp][ori]     = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQ6_bc_comp][ori]     = 0.0;
+        for (int n = BCVars::RhoKE_bc_comp; n < BCVars::xvel_bc; n++) {
+            m_bc_extdir_vals[n][ori]                     = 0.0;
+        }
 
         m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.0; // default
         m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.0;

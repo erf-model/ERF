@@ -93,6 +93,16 @@ function(build_erf_lib erf_lib_name)
     target_link_libraries(${erf_lib_name} PUBLIC yakl)
   endif()
 
+  if(ERF_ENABLE_MORR_FORT)
+  target_sources(${erf_lib_name}
+     PRIVATE
+       ${SRC_DIR}/Microphysics/Morrison/ERF_module_mp_morr_two_moment.F90
+       ${SRC_DIR}/Microphysics/Morrison/ERF_module_mp_morr_two_moment_isohelper.F90
+       ${SRC_DIR}/Microphysics/Morrison/ERF_module_model_constants.F90
+       )
+  target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
+  endif()
+
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
@@ -171,10 +181,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
-       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Cloud.cpp
-       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_IceFall.cpp
-       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Precip.cpp
-       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_PrecipFall.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_AdvanceMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
