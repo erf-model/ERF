@@ -226,6 +226,18 @@ struct TurbulentPerturbation {
 
         auto m_ixtype = mf_cons.boxArray().ixType(); // safety step
 
+        // Seed the random generator at 1024UL for regression testing
+        int fix_random_seed = 0;
+        amrex::ParmParse pp("erf");
+        bool found = pp.query("fix_random_seed", fix_random_seed);
+        if (fix_random_seed) {
+            // We need this one for the ParalleForRNG used in calc_tpi
+            amrex::InitRandom(1024UL);
+
+            // We need this one for the RandomReal below
+            srand(1024UL);
+        }
+
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
 
             // Check if the local elapsed time is greater than the update interval
@@ -334,13 +346,6 @@ struct TurbulentPerturbation {
                            const int& lev,
                            const amrex::IndexType& m_ixtype)
     {
-        // Seed the random generator at 1024UL for regression testing
-        int fix_random_seed = 0;
-        amrex::ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
-        if (fix_random_seed) {
-            amrex::InitRandom(1024UL);
-        }
-
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box vbx = mfi.validbox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
