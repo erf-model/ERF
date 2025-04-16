@@ -226,8 +226,8 @@ ERF::init_from_wrfinput (int lev)
                   } else if (var_name == "W") {
                     cur_fab  = &lev_new[Vars::zvel][mfi];
                   } else if (var_name == "THM") {
-                    const Real theta_ref = 300.0;
-                    var_fab.template plus<RunOn::Device>(theta_ref);
+                    const Real wrf_theta_ref = 300.0;
+                    var_fab.template plus<RunOn::Device>(wrf_theta_ref);
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoTheta_comp;
@@ -415,6 +415,23 @@ ERF::init_from_wrfinput (int lev)
                       dst_arr(i,j,0) = src_arr(li,lj,0);
                   });
               }
+          }
+
+          // Initialize SST
+          if ( var_name == "SST" ) {
+              sst_lev[lev][0] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+              for ( MFIter mfi(*(sst_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                  Box gtbx = mfi.growntilebox();
+                  const Array4<      Real>& dst_arr = sst_lev[lev][0]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                      int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                      dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
+                  });
+              }
+              (sst_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
           }
 
           // Initialize Landmask

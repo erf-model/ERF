@@ -493,14 +493,28 @@ void
 ABLMost::time_interp_sst (const int& lev,
                           const Real& time)
 {
-    // Time interpolation
-    Real dT = m_bdy_time_interval;
-    Real time_since_start = time - m_start_bdy_time;
-    int n_time = static_cast<int>( time_since_start /  dT);
-    Real alpha = (time_since_start - n_time * dT) / dT;
+    int n_times_in_sst = m_sst_lev[lev].size();
+
+    int n_time_lo, n_time_hi;
+    Real alpha;
+
+    if (n_times_in_sst > 1) {
+        // Time interpolation
+        Real dT = m_bdy_time_interval;
+        Real time_since_start = time - m_start_bdy_time;
+        int n_time = static_cast<int>( time_since_start /  dT);
+        n_time_lo = n_time;
+        n_time_hi = n_time+1;
+        alpha = (time_since_start - n_time * dT) / dT;
+        AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
+    } else {
+        n_time_lo = 0;
+        n_time_hi = 0;
+        alpha     = 1.0;
+    }
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
+
     Real oma   = 1.0 - alpha;
-    AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
 
     // Populate t_surf
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
@@ -508,8 +522,8 @@ ABLMost::time_interp_sst (const int& lev,
         Box gtbx = mfi.growntilebox();
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
-        const auto sst_hi_arr = m_sst_lev[lev][n_time+1]->const_array(mfi);
-        const auto sst_lo_arr = m_sst_lev[lev][n_time  ]->const_array(mfi);
+        const auto sst_lo_arr = m_sst_lev[lev][n_time_lo]->const_array(mfi);
+        const auto sst_hi_arr = m_sst_lev[lev][n_time_hi]->const_array(mfi);
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
 
@@ -522,6 +536,7 @@ ABLMost::time_interp_sst (const int& lev,
             }
         });
     }
+    t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 
 void
