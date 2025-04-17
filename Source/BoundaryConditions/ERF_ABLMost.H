@@ -207,6 +207,7 @@ public:
         // Get surface temperature
         amrex::ParmParse pp("erf");
         auto erf_st = pp.query("most.surf_temp", surf_temp);
+        if (erf_st) { default_land_surf_temp = surf_temp; }
 
         // Do we have a time-varying surface roughness that needs to be saved?
         if (lev == 0)
@@ -327,6 +328,7 @@ public:
         pblh[lev]->setVal(1.E34);
 
         t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+        t_surf[lev]->setVal(default_land_surf_temp);
 
         // TODO: Do we want lsm_data to have theta at 0 index always?
         //       Do we want an external enum struct for indexing?
@@ -335,10 +337,6 @@ public:
             // Note that land temp will be set to surf_temp in this case
             //      while sea temp will be set from m_sst_lev
             theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-        } else if (erf_st) {
-            t_surf[lev]->setVal(surf_temp);
-        } else {
-            amrex::Abort("A land surface temperature must be provided to MOST when using SST!");
         }
     }
 
