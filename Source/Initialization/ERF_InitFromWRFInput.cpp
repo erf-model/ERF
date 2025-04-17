@@ -214,8 +214,6 @@ ERF::init_from_wrfinput (int lev)
               // Don't tile this since we are operating on full FABs in this routine
               for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
               {
-                  Box vbx = mfi.validbox();
-
                   // Define fabs for holding the initial data
                   int icomp = 0;
                   bool mult_rho = false;
@@ -229,8 +227,9 @@ ERF::init_from_wrfinput (int lev)
                     cur_fab  = &lev_new[Vars::zvel][mfi];
                   } else if (var_name == "THM") {
                     const Real wrf_theta_ref = 300.0;
-                    var_fab.template plus<RunOn::Device>(wrf_theta_ref,vbx);
                     cur_fab  = &lev_new[Vars::cons][mfi];
+                    Box vbx = cur_fab->box() & var_fab.box();
+                    var_fab.template plus<RunOn::Device>(wrf_theta_ref,vbx);
                     mult_rho = true;
                     icomp    = RhoTheta_comp;
                   } else if (var_name == "QVAPOR") {

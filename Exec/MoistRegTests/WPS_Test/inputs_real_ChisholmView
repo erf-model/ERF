@@ -17,7 +17,7 @@ xhi.type = "Outflow"
 ylo.type = "Outflow"
 yhi.type = "Outflow"
 
-zlo.type = "NoSlipWall"
+zlo.type = MOST
 zhi.type = "SlipWall"
 
 zlo.type = "Most"
