@@ -335,7 +335,7 @@ public:
         } else if (erf_st) {
             t_surf[lev]->setVal(surf_temp);
         } else {
-            t_surf[lev]->setVal(0.0);
+            amrex::Abort("A land surface temperature must be provided to MOST when using SST!");
         }
     }
 
