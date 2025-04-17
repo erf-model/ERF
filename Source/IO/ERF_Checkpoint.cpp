@@ -632,7 +632,7 @@ ERF::ReadCheckpointFile ()
 
 #ifdef ERF_USE_NETCDF
     // Read bdy_data files
-    if ( (solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid) &&
+    if ( ((solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid)) &&
          solverChoice.use_real_bcs )
     {
         int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank

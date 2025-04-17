@@ -211,9 +211,7 @@ public:
         // Get CC vars
         amrex::MultiFab& mf = *(mfv[0]);
 
-        // Get surface temperature
         amrex::ParmParse pp("erf");
-        auto erf_st = pp.query("most.surf_temp", surf_temp);
 
         // Do we have a time-varying surface roughness that needs to be saved?
         if (lev == 0)
@@ -342,10 +340,8 @@ public:
             // Note that land temp will be set to surf_temp in this case
             //      while sea temp will be set from m_sst_lev
             theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-        } else if (erf_st) {
-            t_surf[lev]->setVal(surf_temp);
         } else {
-            t_surf[lev]->setVal(0.0);
+            t_surf[lev]->setVal(default_land_surf_temp);
         }
     }
 
