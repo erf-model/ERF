@@ -517,6 +517,7 @@ ABLMost::time_interp_sst (const int& lev,
     Real oma   = 1.0 - alpha;
 
     // Populate t_surf
+    Real lst = default_land_surf_temp;
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
@@ -534,7 +535,7 @@ ABLMost::time_interp_sst (const int& lev,
                 t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
                                   + alpha * sst_hi_arr(i,j,k);
             } else {
-                t_surf_arr(i,j,k) = default_land_surf_temp;
+                t_surf_arr(i,j,k) = lst;
             }
         });
     }
