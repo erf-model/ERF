@@ -93,7 +93,7 @@ public:
 
         // Get surface temperature
         auto erf_st = pp.query("most.surf_temp", surf_temp);
-        if (erf_st) default_land_surf_temp = surf_temp;
+        if (erf_st) { default_land_surf_temp = surf_temp; }
 
         // Custom type user must specify the fluxes
         if (flux_type == FluxCalcType::CUSTOM) {
@@ -332,6 +332,7 @@ public:
         pblh[lev]->setVal(1.E34);
 
         t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+        t_surf[lev]->setVal(default_land_surf_temp);
 
         // TODO: Do we want lsm_data to have theta at 0 index always?
         //       Do we want an external enum struct for indexing?
@@ -340,8 +341,6 @@ public:
             // Note that land temp will be set to surf_temp in this case
             //      while sea temp will be set from m_sst_lev
             theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-        } else {
-            t_surf[lev]->setVal(default_land_surf_temp);
         }
     }
 
