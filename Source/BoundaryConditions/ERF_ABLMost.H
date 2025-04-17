@@ -90,6 +90,7 @@ public:
 
         // Get surface temperature
         auto erf_st = pp.query("most.surf_temp", surf_temp);
+        if (erf_st) default_land_surf_temp = surf_temp;
 
         // Custom type user must specify the fluxes
         if (flux_type == FluxCalcType::CUSTOM) {
@@ -331,6 +332,8 @@ public:
         //       Do we want an external enum struct for indexing?
         if (m_sst_lev[lev][0] || m_lsm_data_lev[lev][0]) {
             // Valid SST or LSM data; t_surf set before computing fluxes (avoids extended lambda capture)
+            // Note that land temp will be set to surf_temp in this case
+            //      while sea temp will be set from m_sst_lev
             theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
         } else if (erf_st) {
             t_surf[lev]->setVal(surf_temp);
@@ -537,6 +540,7 @@ private:
 
     bool m_include_wstar = false;
     amrex::Real z0_const{0.1};
+    amrex::Real default_land_surf_temp = 300.;
     amrex::Real surf_temp;
     amrex::Real surf_heating_rate{0};
     amrex::Real surf_temp_flux{0};

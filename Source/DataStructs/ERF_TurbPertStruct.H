@@ -15,11 +15,25 @@
     the angle of the inflow into consideration.
 */
 
+AMREX_ENUM(PerturbationType,
+    Source, Direct, None
+);
+
 struct TurbulentPerturbation {
 
   public:
 
     ~TurbulentPerturbation () {}
+
+    void init_tpi_type (const PerturbationType& pert_type)
+    {
+        if (pert_type == PerturbationType::Source) {
+            pt_type = 0;
+        } else if (pert_type == PerturbationType::Direct) {
+            pt_type = 1;
+        }
+        AMREX_ALWAYS_ASSERT(pt_type >= 0);
+    }
 
     // Initializing Perturbation Region
     // Currently only support perturbation in the x and y direction
@@ -212,6 +226,18 @@ struct TurbulentPerturbation {
 
         auto m_ixtype = mf_cons.boxArray().ixType(); // safety step
 
+        // Seed the random generator at 1024UL for regression testing
+        int fix_random_seed = 0;
+        amrex::ParmParse pp("erf");
+        pp.query("fix_random_seed", fix_random_seed);
+        if (fix_random_seed) {
+            // We need this one for the ParalleForRNG used in calc_tpi
+            amrex::InitRandom(1024UL);
+
+            // We need this one for the RandomReal below
+            srand(1024UL);
+        }
+
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
 
             // Check if the local elapsed time is greater than the update interval
@@ -320,13 +346,6 @@ struct TurbulentPerturbation {
                            const int& lev,
                            const amrex::IndexType& m_ixtype)
     {
-        // Seed the random generator at 1024UL for regression testing
-        int fix_random_seed = 0;
-        amrex::ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
-        if (fix_random_seed) {
-            amrex::InitRandom(1024UL);
-        }
-
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box vbx = mfi.validbox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
@@ -543,7 +562,7 @@ struct TurbulentPerturbation {
         */
     }
 
-    int pt_type; // TODO: May need to pass in solverChoice to replace this
+    int pt_type = -1;
 
     // Public data members
     amrex::Vector<amrex::BoxArray>                 pb_ba;  // PB box array

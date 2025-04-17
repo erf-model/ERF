@@ -26,9 +26,7 @@ Morrison::Init (const MultiFab& cons_in,
                 std::unique_ptr<MultiFab>& z_phys_nd,
                 std::unique_ptr<MultiFab>& detJ_cc)
 {
-    amrex::Abort("Morrison not actually implemented yet; this is SAM");
-
-    dt     = dt_advance;
+    [[maybe_unused]] amrex::Real dt     = dt_advance;
     m_geom = geom;
     m_gtoe = grids;
 
@@ -36,7 +34,8 @@ Morrison::Init (const MultiFab& cons_in,
     m_detJ_cc   = detJ_cc.get();
 
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
+    MicVarMap = {MicVar_Morr::nc, MicVar_Morr::nr, MicVar_Morr::ni, MicVar_Morr::ns, MicVar_Morr::ng,
+                 MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
 
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar_Morr::NumVars; ++ivar) {
@@ -77,6 +76,16 @@ Morrison::Init (const MultiFab& cons_in,
         gamaz.resize({zlo}, {zhi});
         zmid.resize({zlo}, {zhi});
     }
+
+#ifdef ERF_USE_MORR_FORT
+    int morr_rimed_ice = 0; // This is used to set something called "ihail"
+    amrex::ParmParse pp("erf");
+    MoistureType moisture_type;
+    pp.query_enum_case_insensitive("moisture_model",moisture_type);
+    int morr_noice = (moisture_type == MoistureType::Morrison_NoIce);
+    Print()<<"Setting No Ice flag in fortran to "<<morr_noice<<std::endl;
+    morr_two_moment_init_c(morr_rimed_ice, morr_noice);
+#endif
 }
 
 
@@ -132,7 +141,9 @@ Morrison::Copy_State_to_Micro (const MultiFab& cons_in)
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),
                                                   qv_array(i,j,k));
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * 0.01;
+
+            // NOTE: the Morrison Fortran version uses Pa not hPa so we don't divideby 100!
+            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)); //  * 0.01;
         });
     }
 }

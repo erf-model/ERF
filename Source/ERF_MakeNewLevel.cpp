@@ -385,9 +385,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
 
-    //
+    // ********************************************************************************************
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
-    //
+    // ********************************************************************************************
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));

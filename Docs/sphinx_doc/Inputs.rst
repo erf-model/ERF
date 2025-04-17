@@ -1588,6 +1588,8 @@ List of Parameters
 | **erf.moisture_model**      | Name of moisture model   |  "None", "SAM",       | "None"     |
 |                             |                          |  "Kessler", "SatAdj"  |            |
 |                             |                          |  "Kessler_NoRain",    |            |
+|                             |                          |  "Morrison",          |            |
+|                             |                          |  "Morrison_NoIce",    |            |
 |                             |                          |  "SAM_NoPrecip_NoIce",|            |
 |                             |                          |  "SAM_NoIce"          |            |
 +-----------------------------+--------------------------+-----------------------+------------+

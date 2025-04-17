@@ -342,7 +342,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         solverChoice.pert_type == PerturbationType::Direct)
     {
         amrex::Box bnd_bx = ba.minimalBox();
-        turbPert.init_tpi(lev, bnd_bx.smallEnd(), bnd_bx.bigEnd(), geom[lev].CellSizeArray(), ba, dm, ngrow_state, pp_prefix, refRatio(), max_level);
+        turbPert.init_tpi_type(solverChoice.pert_type);
+        turbPert.init_tpi(lev, bnd_bx.smallEnd(), bnd_bx.bigEnd(), geom[lev].CellSizeArray(),
+                          ba, dm, ngrow_state, pp_prefix, refRatio(), max_level);
     }
 
     //
