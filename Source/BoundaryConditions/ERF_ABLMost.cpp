@@ -533,6 +533,8 @@ ABLMost::time_interp_sst (const int& lev,
             if (!is_land) {
                 t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
                                   + alpha * sst_hi_arr(i,j,k);
+            } else {
+                t_surf_arr(i,j,k) = default_land_surf_temp;
             }
         });
     }
