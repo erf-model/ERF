@@ -19,6 +19,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
+#include <ERF_Morrison_Fortran_Interface.H>
 
 namespace MicVar_Morr {
    enum {
@@ -38,6 +39,13 @@ namespace MicVar_Morr {
       qpr,   // precip rain
       qps,   // precip ice
       qpg,   // graupel
+      // The "numbers" and the "accums" are written/read at checkpoint/restart
+      // number concentrations
+      nc,    // cloud droplet number
+      nr,    // rain number
+      ni,    // cloud ice number
+      ns,    // snow number
+      ng,    // graupel number
       // derived vars
       rain_accum,
       snow_accum,
@@ -57,18 +65,6 @@ public:
 
     // destructor
     virtual ~Morrison () = default;
-
-    // cloud physics
-    void Cloud (const SolverChoice& sc);
-
-    // ice physics
-    void IceFall (const SolverChoice& sc);
-
-    // precip
-    void Precip (const SolverChoice& sc);
-
-    // precip fall
-    void PrecipFall (const SolverChoice& sc);
 
     // Set up for first time
     void
@@ -115,15 +111,7 @@ public:
     // wrapper to do all the updating
     void
     Advance (const amrex::Real& dt_advance,
-             const SolverChoice& sc) override
-    {
-        dt = dt_advance;
-
-        this->Cloud(sc);
-        this->IceFall(sc);
-        this->Precip(sc);
-        this->PrecipFall(sc);
-    }
+             const SolverChoice& sc) override;
 
     amrex::MultiFab*
     Qmoist_Ptr (const int& varIdx) override
@@ -259,15 +247,23 @@ public:
         a_idx.clear();
         a_names.clear();
 
-        // NOTE: These are the indices to access into qmoist (not mic_fab_vars)
-        a_idx.push_back(0); a_names.push_back("RainAccum");
-        a_idx.push_back(1); a_names.push_back("SnowAccum");
-        a_idx.push_back(2); a_names.push_back("GraupAccum");
+        // The ordering here needs to match that in
+        // MicVarMap = {MicVar_Morr::nc, MicVar_Morr::nr, MicVar_Morr::ni, MicVar_Morr::ns, MicVar_Morr::ng,
+        //              MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
+        //
+        a_idx.push_back(0); a_names.push_back("Nc");
+        a_idx.push_back(1); a_names.push_back("Nr");
+        a_idx.push_back(2); a_names.push_back("Ni");
+        a_idx.push_back(3); a_names.push_back("Ns");
+        a_idx.push_back(4); a_names.push_back("Ng");
+        a_idx.push_back(5); a_names.push_back("RainAccum");
+        a_idx.push_back(6); a_names.push_back("SnowAccum");
+        a_idx.push_back(7); a_names.push_back("GraupAccum");
     }
 
 private:
-    // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
-    int m_qmoist_size = 3;
+    // Number of qmoist variables (Ncloud, Nrain, Nice, Nsnow, Ngraup, rain_accum, snow_accum, graup_accum)
+    int m_qmoist_size = 8;
 
     // Number of qstate variables
     int m_qstate_size = 6;
@@ -283,9 +279,6 @@ private:
 
     // valid boxes on which to evolve the solution
     amrex::BoxArray m_gtoe;
-
-    // timestep
-    amrex::Real dt;
 
     // number of vertical levels
     int nlev, zlo, zhi;

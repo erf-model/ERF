@@ -1,7 +1,11 @@
 ############################ BASE ######################################
 
 cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
-project(ERF CXX C)
+if(ERF_ENABLE_MORR_FORT)
+  project(ERF CXX C Fortran)
+else()
+  project(ERF CXX C)
+endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 include(CMakePackageConfigHelpers)
 
@@ -21,7 +25,6 @@ option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
 option(ERF_ENABLE_MOISTURE "Enable Full Moisture" ON)
-option(ERF_ENABLE_WARM_NO_PRECIP "Enable Warm Moisture" OFF)
 option(ERF_ENABLE_RRTMGP "Enable RTE-RRTMGP Radiation" OFF)
 
 #Options for performance

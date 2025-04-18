@@ -688,13 +688,13 @@ convert_wrfbdy_data (const Box& domain,
                 });
 
                 // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
-                Real theta_ref = 300.;
+                const Real wrf_theta_ref = 300.;
                 ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_c_arr(i,j,k)) {
                         Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
                         Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                        Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + theta_ref;
+                        Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
                         Real qv_fac      = (1. + bdy_qv_arr(i,j,k) / 0.622 / xmu_mult);
                         new_bdy_Th      /= qv_fac;
                         bdy_t_tmp(i,j,k) = new_bdy_Th;

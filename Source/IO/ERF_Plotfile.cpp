@@ -62,7 +62,8 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                 {
                     tmp_plot_names.push_back(cons_names[i]);
                 }
-            } else if (solverChoice.moisture_type == MoistureType::SAM_NoIce) { // allow rhoQ1, rhoQ2, rhoQ4
+            } else if ( (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
+                        (solverChoice.moisture_type == MoistureType::SAM_NoIce     ) ) { // allow rhoQ1, rhoQ2, rhoQ4
                 if (cons_names[i] != "rhoQ3" && cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
                 {
                     tmp_plot_names.push_back(cons_names[i]);
@@ -107,8 +108,9 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                     {
                         tmp_plot_names.push_back(derived_names[i]);
                     }
-                } else if ( (solverChoice.moisture_type == MoistureType::Kessler) ||
-                            (solverChoice.moisture_type == MoistureType::SAM_NoIce) ) { // allow qv, qc, qrain
+                } else if ( (solverChoice.moisture_type == MoistureType::Kessler       ) ||
+                            (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
+                            (solverChoice.moisture_type == MoistureType::SAM_NoIce     ) ) { // allow qv, qc, qrain
                     if (derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
                         derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
                     {
@@ -1197,30 +1199,34 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 mf_comp ++;
             }
 
-            if (solverChoice.moisture_type == MoistureType::Kessler)
+            if ( (solverChoice.moisture_type == MoistureType::Kessler) ||
+                 (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
+                 (solverChoice.moisture_type == MoistureType::SAM_NoIce) )
             {
+                int offset = (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ? 5 : 0;
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][0]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }
             else if ( (solverChoice.moisture_type == MoistureType::SAM) ||
                       (solverChoice.moisture_type == MoistureType::Morrison) )
             {
+                int offset = (solverChoice.moisture_type == MoistureType::Morrison) ? 5 : 0;
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][0]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "snow_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][1]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset+1]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "graup_accum"))
                 {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][2]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][offset+2]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }

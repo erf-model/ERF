@@ -1,8 +1,11 @@
 CEXE_sources += ERF_InitMorrison.cpp
 CEXE_sources += ERF_UpdateMorrison.cpp
-CEXE_sources += ERF_Morrison_Cloud.cpp
-CEXE_sources += ERF_Morrison_IceFall.cpp
-CEXE_sources += ERF_Morrison_Precip.cpp
-CEXE_sources += ERF_Morrison_PrecipFall.cpp
+CEXE_sources += ERF_AdvanceMorrison.cpp
 CEXE_headers += ERF_Morrison.H
 
+ifeq ($(USE_MORR_FORT),TRUE)
+     F90EXE_sources += ERF_module_mp_morr_two_moment.F90
+     CEXE_headers += ERF_Morrison_Fortran_Interface.H
+     F90EXE_sources += ERF_module_mp_morr_two_moment_isohelper.F90
+     F90EXE_sources += ERF_module_model_constants.F90
+endif
