@@ -298,6 +298,7 @@ ERF::WriteCheckpointFile () const
             }
         }
 
+#ifdef ERF_USE_NETCDF
         // Write lat/lon if it exists
         if (lat_m[lev] && lon_m[lev] && solverChoice.has_lat_lon) {
             amrex::Print() << "Writing Lat/Lon variables" << std::endl;
@@ -321,6 +322,7 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(sphi, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SinPhi"));
             VisMF::Write(cphi, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "CosPhi"));
         }
+#endif
 
     } // for lev
 
@@ -643,52 +645,7 @@ ERF::ReadCheckpointFile ()
 
 
         // NOTE: We read MOST data in ReadCheckpointFileMOST (see below)!
-        /*
-        if (m_most)  {
-            amrex::Print() << "Reading MOST variables" << std::endl;
-            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-            MultiFab   m_var(ba2d,dmap[lev],1,ng);
-            MultiFab* dst = nullptr;
 
-            // U*
-            dst = m_most->get_u_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Ustar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-
-            // W*
-            dst = m_most->get_w_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wstar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-
-            // T*
-            dst = m_most->get_t_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Tstar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-
-            // Q*
-            dst = m_most->get_q_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qstar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-
-            // Olen
-            dst = m_most->get_olen(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-
-            // PBLH
-            dst = m_most->get_pblh(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PBLH"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-
-            // Z0
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
-            for (amrex::MFIter mfi(m_var); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.growntilebox();
-                FArrayBox* most_z0 = (m_most->get_z0(lev));
-                most_z0->copy<RunOn::Device>(m_var[mfi], bx);
-            }
-        }
-        */
 
         if (solverChoice.has_SST) {
             amrex::Print() << "Reading SST data" << std::endl;
@@ -723,6 +680,7 @@ ERF::ReadCheckpointFile ()
             }
         }
 
+#ifdef ERF_USE_NETCDF
         // Read lat/lon if it exists
         if (solverChoice.has_lat_lon) {
             amrex::Print() << "Reading Lat/Lon variables" << std::endl;
@@ -750,6 +708,7 @@ ERF::ReadCheckpointFile ()
             MultiFab::Copy(*sinPhi_m[lev],sphi,0,0,1,ngv);
             MultiFab::Copy(*cosPhi_m[lev],cphi,0,0,1,ngv);
         }
+#endif
 
     } // for lev
 
