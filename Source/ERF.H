@@ -157,7 +157,7 @@ public:
                           const bool is_track_io,
                           amrex::TagBoxArray* tags = nullptr);
 
-    // Hurricane track line output as VTKPulyline
+    // Hurricane track line output as VTKPolyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
     std::string MakeVTKFilename(int nstep);
     void WriteVTKPolyline(const std::string& filename,
