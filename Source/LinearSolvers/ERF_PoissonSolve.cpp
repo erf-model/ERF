@@ -281,5 +281,4 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // Update pressure variable with phi -- note that phi is dt * change in pressure
     // ****************************************************************************
     MultiFab::Saxpy(pmf, 1.0/l_dt, phi[0],0,0,1,1);
-    pmf.FillBoundary(geom[lev].periodicity());
 }
