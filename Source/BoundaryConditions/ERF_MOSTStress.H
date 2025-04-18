@@ -173,7 +173,6 @@ struct adiabatic_charnock
         amrex::Real ustar = 0.0;
         amrex::Real z0    = 0.0;
         u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
-
         do {
             ustar = u_star_arr(i,j,k);
             if (mdata.Cnk_a > 0) {
@@ -442,6 +441,11 @@ struct surface_flux
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -527,6 +531,11 @@ struct surface_flux_charnock
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -620,6 +629,11 @@ struct surface_flux_mod_charnock
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -703,6 +717,11 @@ struct surface_flux_donelan
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -791,6 +810,11 @@ struct surface_flux_wave_coupled
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -878,6 +902,12 @@ struct surface_temp
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            Oleno = Olen;
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -971,6 +1001,12 @@ struct surface_temp_charnock
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            Oleno = Olen;
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -1072,6 +1108,12 @@ struct surface_temp_mod_charnock
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            Oleno = Olen;
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -1163,6 +1205,12 @@ struct surface_temp_donelan
         amrex::Real umm = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            Oleno = Olen;
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -1259,6 +1307,12 @@ struct surface_temp_wave_coupled
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            Oleno = Olen;
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
