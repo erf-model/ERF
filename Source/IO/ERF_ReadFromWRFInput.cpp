@@ -6,7 +6,7 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 void
-read_from_wrfinput (int lev,
+read_from_wrfinput (int /*lev*/,
                     const Box& domain,
                     const std::string& fname,
                     FArrayBox& NC_fab,
