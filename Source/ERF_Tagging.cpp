@@ -113,7 +113,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     break;
                 }
             }
-			HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
+            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
 #ifdef ERF_USE_PARTICLES
         } else {
             //
@@ -464,14 +464,14 @@ ERF::HurricaneTracker(int levc,
         eye_x = h_coords[0]/h_found[0];
         eye_y = h_coords[1]/h_found[0];
 
-		// Data structure to hold the hurricane track for I/O
+        // Data structure to hold the hurricane track for I/O
         if (amrex::ParallelDescriptor::IOProcessor() and is_track_io) {
             hurricane_track_xy.push_back({eye_x, eye_y});
         }
 
-		if(is_track_io) {
-        	return;
-    	}
+        if(is_track_io) {
+            return;
+        }
 
         Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
 

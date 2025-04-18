@@ -148,8 +148,8 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
-	// Refinement criteria for hurricanes
-	void HurricaneTracker(int lev,
+    // Refinement criteria for hurricanes
+    void HurricaneTracker(int lev,
                           const amrex::MultiFab& U_new,
                           const amrex::MultiFab& V_new,
                           const amrex::MultiFab& W_new,
@@ -157,7 +157,7 @@ public:
                           const bool is_track_io,
                           amrex::TagBoxArray* tags = nullptr);
 
-	// Hurricane track line output as VTKPulyline
+    // Hurricane track line output as VTKPulyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
     std::string MakeVTKFilename(int nstep);
     void WriteVTKPolyline(const std::string& filename,

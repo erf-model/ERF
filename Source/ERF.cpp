@@ -638,7 +638,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       }
     }
 
-	bool is_hurricane_tracker_io=false;
+    bool is_hurricane_tracker_io=false;
     ParmParse pp("erf");
     pp.query("is_hurricane_tracker_io", is_hurricane_tracker_io);
 
