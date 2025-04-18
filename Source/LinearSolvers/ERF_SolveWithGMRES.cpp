@@ -35,4 +35,9 @@ void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& ph
 #else
     amrex::ignore_unused(lev, rhs, phi, fluxes);
 #endif
+
+    // ****************************************************************************
+    // Impose bc's on pprime
+    // ****************************************************************************
+    ImposeBCsOnPhi(lev, phi[0]);
 }
