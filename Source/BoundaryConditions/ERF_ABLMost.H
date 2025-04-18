@@ -442,28 +442,28 @@ public:
                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim)
     { m_ma.update_field_ptrs(lev,vars_old,Theta_prim,Qv_prim,Qr_prim); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_u_star (const int& lev) { return u_star[lev].get(); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_w_star (const int& lev) { return w_star[lev].get(); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_t_star (const int& lev) { return t_star[lev].get(); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_q_star (const int& lev) { return q_star[lev].get(); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_olen (const int& lev) { return olen[lev].get(); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_pblh (const int& lev) { return pblh[lev].get(); }
 
     const amrex::MultiFab*
     get_mac_avg (const int& lev, int comp) { return m_ma.get_average(lev,comp); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_t_surf (const int& lev) { return t_surf[lev].get(); }
 
     amrex::Real
@@ -474,7 +474,7 @@ public:
 
     bool have_variable_sea_roughness() { return m_var_z0; }
 
-    const amrex::iMultiFab*
+    amrex::iMultiFab*
     get_lmask(const int& lev) { return m_lmask_lev[lev][0]; }
 
     int
