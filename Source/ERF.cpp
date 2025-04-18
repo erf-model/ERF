@@ -1057,7 +1057,7 @@ ERF::InitData_post ()
                                                         );
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of level sor just the grids at each existing level, we will call an update routine
-        // to redefine the internal arrays in m_most.
+        // to redefine the internal arrays in m_SurfaceLayer.
         int nlevs = geom.size();
         for (int lev = 0; lev < nlevs; lev++)
         {

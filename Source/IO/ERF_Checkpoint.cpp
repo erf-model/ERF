@@ -226,39 +226,39 @@ ERF::WriteCheckpointFile () const
             MultiFab* src = nullptr;
 
             // U*
-            src = m_most->get_u_star(lev);
+            src = m_SurfaceLayer->get_u_star(lev);
             MultiFab::Copy(m_var,*src,0,0,1,ng);
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Ustar"));
 
             // W*
-            src = m_most->get_w_star(lev);
+            src = m_SurfaceLayer->get_w_star(lev);
             MultiFab::Copy(m_var,*src,0,0,1,ng);
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Wstar"));
 
             // T*
-            src = m_most->get_t_star(lev);
+            src = m_SurfaceLayer->get_t_star(lev);
             MultiFab::Copy(m_var,*src,0,0,1,ng);
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tstar"));
 
             // Q*
-            src = m_most->get_q_star(lev);
+            src = m_SurfaceLayer->get_q_star(lev);
             MultiFab::Copy(m_var,*src,0,0,1,ng);
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qstar"));
 
             // Olen
-            src = m_most->get_olen(lev);
+            src = m_SurfaceLayer->get_olen(lev);
             MultiFab::Copy(m_var,*src,0,0,1,ng);
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Olen"));
 
             // PBLH
-            src = m_most->get_pblh(lev);
+            src = m_SurfaceLayer->get_pblh(lev);
             MultiFab::Copy(m_var,*src,0,0,1,ng);
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PBLH"));
 
             // Z0
             for (MFIter mfi(m_var); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                Array4<const Real> const& fab_arr = m_most->get_z0(lev)->const_array();
+                Array4<const Real> const& fab_arr = m_SurfaceLayer->get_z0(lev)->const_array();
                 Array4<      Real> const&  mv_arr = m_var.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     mv_arr(i,j,k) = fab_arr(i,j,k);
@@ -844,32 +844,32 @@ ERF::ReadCheckpointFileSurfaceLayer ()
         MultiFab* dst = nullptr;
 
         // U*
-        dst = m_most->get_u_star(lev);
+        dst = m_SurfaceLayer->get_u_star(lev);
         VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Ustar"));
         MultiFab::Copy(*dst,m_var,0,0,1,ng);
 
         // W*
-        dst = m_most->get_w_star(lev);
+        dst = m_SurfaceLayer->get_w_star(lev);
         VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wstar"));
         MultiFab::Copy(*dst,m_var,0,0,1,ng);
 
         // T*
-        dst = m_most->get_t_star(lev);
+        dst = m_SurfaceLayer->get_t_star(lev);
         VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Tstar"));
         MultiFab::Copy(*dst,m_var,0,0,1,ng);
 
         // Q*
-        dst = m_most->get_q_star(lev);
+        dst = m_SurfaceLayer->get_q_star(lev);
         VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qstar"));
         MultiFab::Copy(*dst,m_var,0,0,1,ng);
 
         // Olen
-        dst = m_most->get_olen(lev);
+        dst = m_SurfaceLayer->get_olen(lev);
         VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen"));
         MultiFab::Copy(*dst,m_var,0,0,1,ng);
 
         // PBLH
-        dst = m_most->get_pblh(lev);
+        dst = m_SurfaceLayer->get_pblh(lev);
         VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PBLH"));
         MultiFab::Copy(*dst,m_var,0,0,1,ng);
 
@@ -877,7 +877,7 @@ ERF::ReadCheckpointFileSurfaceLayer ()
         VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
         for (amrex::MFIter mfi(m_var); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.growntilebox();
-            FArrayBox* most_z0 = (m_most->get_z0(lev));
+            FArrayBox* most_z0 = (m_SurfaceLayer->get_z0(lev));
             most_z0->copy<RunOn::Device>(m_var[mfi], bx);
         }
     }
