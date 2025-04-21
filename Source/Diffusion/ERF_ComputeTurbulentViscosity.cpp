@@ -46,68 +46,90 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
 
+    bool isotropic   = turbChoice.mix_isotropic;
+
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
     if (turbChoice.les_type == LESType::Smagorinsky)
     {
-      Real Cs = turbChoice.Cs;
+        Real Cs = turbChoice.Cs;
+        bool smag2d = turbChoice.smag2d;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-      for (MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-      {
-          // NOTE: This gets us the lateral ghost cells for lev>0; which
-          //       have been filled from FP Two Levels.
-          Box bxcc  = mfi.growntilebox(1) & domain;
+        for (MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            // NOTE: This gets us the lateral ghost cells for lev>0; which
+            //       have been filled from FP Two Levels.
+            Box bxcc  = mfi.growntilebox(1) & domain;
 
-          const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-          const Array4<Real>& hfx_x   = Hfx1.array(mfi);
-          const Array4<Real>& hfx_y   = Hfx2.array(mfi);
-          const Array4<Real>& hfx_z   = Hfx3.array(mfi);
-          const Array4<Real const > &cell_data = cons_in.array(mfi);
+            const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
+            const Array4<Real>& hfx_x   = Hfx1.array(mfi);
+            const Array4<Real>& hfx_y   = Hfx2.array(mfi);
+            const Array4<Real>& hfx_z   = Hfx3.array(mfi);
+            const Array4<Real const > &cell_data = cons_in.array(mfi);
 
-          Array4<Real const> tau11 = Tau11.array(mfi);
-          Array4<Real const> tau22 = Tau22.array(mfi);
-          Array4<Real const> tau33 = Tau33.array(mfi);
-          Array4<Real const> tau12 = Tau12.array(mfi);
-          Array4<Real const> tau13 = Tau13.array(mfi);
-          Array4<Real const> tau23 = Tau23.array(mfi);
+            Array4<Real const> tau11 = Tau11.array(mfi);
+            Array4<Real const> tau22 = Tau22.array(mfi);
+            Array4<Real const> tau33 = Tau33.array(mfi);
+            Array4<Real const> tau12 = Tau12.array(mfi);
+            Array4<Real const> tau13 = Tau13.array(mfi);
+            Array4<Real const> tau23 = Tau23.array(mfi);
 
-          Array4<Real const> mf_u = mapfac_u.array(mfi);
-          Array4<Real const> mf_v = mapfac_v.array(mfi);
+            Array4<Real const> mf_u = mapfac_u.array(mfi);
+            Array4<Real const> mf_v = mapfac_v.array(mfi);
 
-          Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
+            Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
-          ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-          {
-              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
-              Real dxInv = cellSizeInv[0];
-              Real dyInv = cellSizeInv[1];
-              Real dzInv = cellSizeInv[2];
-              if (use_terrain) {
-                  // the terrain grid is only deformed in z for now
-                  dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
-              }
-              Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
-              Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
-              Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
+            ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real SmnSmn;
+                if (smag2d) {
+                    SmnSmn = ComputeSmnSmn2D(i,j,k,tau11,tau22,tau12);
+                } else {
+                    SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
+                }
+                Real dxInv = cellSizeInv[0];
+                Real dyInv = cellSizeInv[1];
+                Real dzInv = cellSizeInv[2];
+                if (use_terrain) {
+                    // the terrain grid is only deformed in z for now
+                    dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+                }
 
-              mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-              mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
+                if (isotropic) {
+                    Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                    Real Delta      = std::cbrt(cellVolMsf);
+                    Real CsDeltaSqr = Cs*Cs*Delta*Delta;
 
-              // Calculate SFS quantities
-              Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                    mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                    mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
+                } else {
+                    Real DeltaH = std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                    Real Kmh = Cs*Cs*DeltaH*DeltaH * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                    Kmh = amrex::min(Kmh, 10*DeltaH);
+                    mu_turb(i, j, k, EddyDiff::Mom_h) = Kmh;
+                    if (smag2d) {
+                        mu_turb(i, j, k, EddyDiff::Mom_v) = 0.0;
+                    } else {
+                        Real DeltaV = 1.0 / dzInv;
+                        mu_turb(i, j, k, EddyDiff::Mom_v) = Cs*Cs*DeltaV*DeltaV * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+                    }
+                }
+
+                // Calculate SFS quantities
+                Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                      - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
-
-              // - heat flux
-              //   (Note: If using SurfaceLayer, the value at k=0 will
-              //    be overwritten)
-              hfx_x(i,j,k) = 0.0;
-              hfx_y(i,j,k) = 0.0;
-              hfx_z(i,j,k) = -inv_Pr_t*mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
-          });
-      }
+              
+                // - heat flux
+                //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
+                //    be overwritten when BCs are applied)
+                hfx_x(i,j,k) = 0.0;
+                hfx_y(i,j,k) = 0.0;
+                hfx_z(i,j,k) = -inv_Pr_t*mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
+            });
+        }
     }
     // DEARDORFF: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
@@ -149,8 +171,13 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     // the terrain grid is only deformed in z for now
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
                 }
-                Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
-                Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
+                Real Delta;
+                if (isotropic) {
+                    Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                    Delta = std::cbrt(cellVolMsf);
+                } else {
+                    Delta = 1.0 / dzInv;
+                }
 
                 // Calculate stratification-dependent mixing length (Deardorff 1980)
                 Real eps       = std::numeric_limits<Real>::epsilon();
@@ -158,24 +185,32 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                                        - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 Real E              = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp),Real(0.0));
                 Real stratification = l_abs_g * dtheta_dz * l_inv_theta0;
+
+                // Following WRF, the stratification effects are applied to the vertical length scales
+                // in the case of anistropic mixing
                 Real length;
                 if (stratification <= eps) {
-                    length = DeltaMsf;
+                    length = Delta;  // cbrt(dx*dy*dz) -or- dz
                 } else {
                     length = 0.76 * std::sqrt(E / amrex::max(stratification,eps));
                     // mixing length should be _reduced_ for stable stratification
-                    length = amrex::min(length, DeltaMsf);
+                    length = amrex::min(length, Delta);
                     // following WRF, make sure the mixing length isn't too small
-                    length = amrex::max(length, 0.001 * DeltaMsf);
+                    length = amrex::max(length, 0.001 * Delta);
                 }
+
+                Real DeltaH = (isotropic) ? length : std::sqrt(1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+
+                Real Pr_inv_v = (1. + 2.*length/Delta);
+                Real Pr_inv_h  = (isotropic) ? Pr_inv_v : inv_Pr_t;
 
                 // Calculate eddy diffusivities
                 // K = rho * C_k * l * KE^(1/2)
-                mu_turb(i,j,k,EddyDiff::Mom_h) = cell_data(i,j,k,Rho_comp) * l_C_k * length * std::sqrt(E);
-                mu_turb(i,j,k,EddyDiff::Mom_v) = mu_turb(i,j,k,EddyDiff::Mom_h);
+                mu_turb(i,j,k,EddyDiff::Mom_h) = cell_data(i,j,k,Rho_comp) * l_C_k * DeltaH * std::sqrt(E);
+                mu_turb(i,j,k,EddyDiff::Mom_v) = cell_data(i,j,k,Rho_comp) * l_C_k * length * std::sqrt(E);
                 // KH = (1 + 2*l/delta) * mu_turb
-                mu_turb(i,j,k,EddyDiff::Theta_h) = (1.+2.*length/DeltaMsf) * mu_turb(i,j,k,EddyDiff::Mom_h);
-                mu_turb(i,j,k,EddyDiff::Theta_v) = mu_turb(i,j,k,EddyDiff::Theta_h);
+                mu_turb(i,j,k,EddyDiff::Theta_h) = Pr_inv_h * mu_turb(i,j,k,EddyDiff::Mom_h);
+                mu_turb(i,j,k,EddyDiff::Theta_v) = Pr_inv_v * mu_turb(i,j,k,EddyDiff::Mom_v);
                 // Store lengthscale for TKE source terms
                 mu_turb(i,j,k,EddyDiff::Turb_lengthscale) = length;
 
@@ -185,7 +220,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 if ((l_C_e_wall > 0) && (k==0)) {
                     Ce = l_C_e_wall;
                 } else {
-                    Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
+                    Ce = 1.9*l_C_k + Ce_lcoeff*length / Delta;
                 }
                 diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
 
@@ -524,7 +559,9 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
-    // In LES mode, the turbulent viscosity is isotropic, so the LES model sets both horizontal and vertical viscosities
+    // In LES mode, the turbulent viscosity is isotropic (unless mix_isotropic is set to false), so
+    // the LES model sets both horizontal and vertical viscosities
+    //
     // In PBL mode, the primary purpose of the PBL model is to control vertical transport, so the PBL model sets the vertical viscosity.
     // Optionally, the PBL model can be run in conjunction with an LES model that sets the horizontal viscosity
     // (this isn’t truly LES, but the model form is the same as Smagorinsky).

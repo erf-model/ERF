@@ -63,4 +63,18 @@ ComputeSmnSmn (int& i, int& j, int& k,
 
     return SmnSmn;
 }
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeSmnSmn2D (int& i, int& j, int& k,
+                 const amrex::Array4<amrex::Real const>& tau11,
+                 const amrex::Array4<amrex::Real const>& tau22,
+                 const amrex::Array4<amrex::Real const>& tau12)
+{
+    amrex::Real sdiff = tau11(i,j,k) - tau22(i,j,k);
+    amrex::Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
+                                + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
+    return 0.5 * sdiff*sdiff + 2.0*s12bar*s12bar;
+}
 #endif

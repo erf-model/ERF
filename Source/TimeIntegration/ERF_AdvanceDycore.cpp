@@ -85,9 +85,7 @@ void ERF::advance_dycore(int level,
     }
 
     bool l_use_terrain_fitted_coords = (solverChoice.mesh_type != MeshType::ConstantDz);
-    bool l_use_kturb   = ( (tc.les_type  != LESType::None)   ||
-                           (tc.rans_type != RANSType::None)  ||
-                           (tc.pbl_type  != PBLType::None) );
+    bool l_use_kturb   = tc.use_kturb;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
                            l_use_kturb );
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
