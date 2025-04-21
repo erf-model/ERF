@@ -293,11 +293,6 @@ protected:
 class NCFile : public NCGroup
 {
 public:
-    static NCFile
-    create (const std::string& name, const int cmode = NC_CLOBBER | NC_NETCDF4);
-
-    static NCFile open (const std::string& name, const int cmode = NC_NOWRITE);
-
     static NCFile create_par (const std::string& name,
                               const int cmode = NC_CLOBBER | NC_NETCDF4 | NC_MPIIO,
                               MPI_Comm comm = MPI_COMM_WORLD,

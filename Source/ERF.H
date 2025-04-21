@@ -640,22 +640,10 @@ private:
                           const amrex::Vector<std::string> &plot_var_names,
                           const amrex::Vector<int>& level_steps, amrex::Real time) const;
 
-    //! Write checkpointFile using NetCdf
-    void WriteNCCheckpointFile () const;
-
-    //! Read checkpointFile for restart
-    void ReadNCCheckpointFile ();
-
     //! Write MultiFab in NetCDF format
     static void WriteNCMultiFab (const amrex::FabArray<amrex::FArrayBox> &fab,
                                  const std::string& name,
                                  bool set_ghost = false) ;
-
-    //! Read MultiFab in NetCDF format
-    void ReadNCMultiFab (amrex::FabArray<amrex::FArrayBox> &mf,
-                         const std::string &name,
-                         int coordinatorProc = amrex::ParallelDescriptor::IOProcessorNumber(),
-                         int allow_empty_mf = 0);
 
     //! Create 1D vertical column output for coupling
     void createNCColumnFile (int lev,
@@ -984,8 +972,6 @@ private:
 
     // Checkpoint type, prefix and frequency
     std::string check_file {"chk"};
-    std::string check_type {"native"};
-    std::string restart_type {"native"};
     int m_check_int = -1;
     amrex::Real m_check_per = -1.0;
 
