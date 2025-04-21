@@ -20,7 +20,7 @@ ERF::createNCColumnFile (int lev,
 {
   // Create file to which column data will be written every timestep
   if (amrex::ParallelDescriptor::IOProcessor()) {
-    auto ncf = ncutils::NCFile::create_par(colfile_name, NC_CLOBBER | NC_NETCDF4);
+    auto ncf = ncutils::NCFile::create(colfile_name, NC_CLOBBER | NC_NETCDF4);
     const std::string nt_name = "ntime";
     const std::string nh_name = "nheight";
     // Use one grow cell (on either side) to allow interpolation to boundaries
@@ -184,7 +184,7 @@ ERF::writeToNCColumnFile (const int lev,
 
   // IO processor only: write the relevant data to file
   if (amrex::ParallelDescriptor::IOProcessor()) {
-    auto ncf = ncutils::NCFile::open_par(colfile_name, NC_WRITE | NC_NETCDF4);
+    auto ncf = ncutils::NCFile::open(colfile_name, NC_WRITE | NC_NETCDF4);
     size_t putloc = ncf.dim("ntime").len();
 
     // Time
