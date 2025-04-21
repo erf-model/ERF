@@ -637,6 +637,32 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
     }
+
+    bool is_hurricane_tracker_io=false;
+    ParmParse pp("erf");
+    pp.query("is_hurricane_tracker_io", is_hurricane_tracker_io);
+
+    if(is_hurricane_tracker_io) {
+        if(nstep == 0 or (nstep+1)%m_plot_int_1 == 0){
+            std::string filename = MakeVTKFilename(nstep);
+            Real velmag_threshold = 1e10;
+            pp.query("hurr_track_io_velmag_greater_than", velmag_threshold);
+            if(velmag_threshold==1e10) {
+                Abort("As hurricane tracking IO is active using erf.is_hurricane_tracker_io = true"
+                      " there needs to be an input erf.hurr_track_io_velmag_greater_than which specifies the"
+                      " magnitude of velocity above which cells will be tagged for refinement.");
+            }
+            int levc=finest_level;
+            MultiFab& U_new = vars_new[levc][Vars::xvel];
+            MultiFab& V_new = vars_new[levc][Vars::yvel];
+            MultiFab& W_new = vars_new[levc][Vars::zvel];
+
+            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, true);
+            if (ParallelDescriptor::IOProcessor()) {
+                WriteVTKPolyline(filename,hurricane_track_xy);
+            }
+        }
+    }
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart
