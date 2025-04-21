@@ -113,7 +113,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     break;
                 }
             }
-            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, tags);
+            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
 #ifdef ERF_USE_PARTICLES
         } else {
             //
@@ -393,7 +393,8 @@ ERF::HurricaneTracker(int levc,
                       const MultiFab& V_new,
                       const MultiFab& W_new,
                       const Real velmag_threshold,
-                      TagBoxArray& tags)
+                      const bool is_track_io,
+                      TagBoxArray* tags)
 {
     const auto dx = geom[levc].CellSizeArray();
     const auto prob_lo = geom[levc].ProbLoArray();
@@ -463,10 +464,19 @@ ERF::HurricaneTracker(int levc,
         eye_x = h_coords[0]/h_found[0];
         eye_y = h_coords[1]/h_found[0];
 
-         Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
+        // Data structure to hold the hurricane track for I/O
+        if (amrex::ParallelDescriptor::IOProcessor() and is_track_io) {
+            hurricane_track_xy.push_back({eye_x, eye_y});
+        }
 
-        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
-            TagBox& tag = tags[mfi];
+        if(is_track_io) {
+            return;
+        }
+
+        Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
+
+        for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
+            TagBox& tag = (*tags)[mfi];
             auto tag_arr = tag.array();  // Get device-accessible array
 
             const Box& tile_box = mfi.tilebox(); // The box for this tile
