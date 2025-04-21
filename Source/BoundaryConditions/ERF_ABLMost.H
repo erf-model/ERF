@@ -207,6 +207,7 @@ public:
         // Get surface temperature
         amrex::ParmParse pp("erf");
         auto erf_st = pp.query("most.surf_temp", surf_temp);
+        if (erf_st) { default_land_surf_temp = surf_temp; }
 
         // Do we have a time-varying surface roughness that needs to be saved?
         if (lev == 0)
@@ -327,6 +328,7 @@ public:
         pblh[lev]->setVal(1.E34);
 
         t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+        t_surf[lev]->setVal(default_land_surf_temp);
 
         // TODO: Do we want lsm_data to have theta at 0 index always?
         //       Do we want an external enum struct for indexing?
@@ -335,17 +337,13 @@ public:
             // Note that land temp will be set to surf_temp in this case
             //      while sea temp will be set from m_sst_lev
             theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-        } else if (erf_st) {
-            t_surf[lev]->setVal(surf_temp);
-        } else {
-            t_surf[lev]->setVal(0.0);
         }
     }
 
     void
     update_fluxes (const int& lev,
                    const amrex::Real& time,
-                   int max_iters = 25);
+                   int max_iters = 200);
 
     template <typename FluxIter>
     void
@@ -444,28 +442,28 @@ public:
                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim)
     { m_ma.update_field_ptrs(lev,vars_old,Theta_prim,Qv_prim,Qr_prim); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_u_star (const int& lev) { return u_star[lev].get(); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_w_star (const int& lev) { return w_star[lev].get(); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_t_star (const int& lev) { return t_star[lev].get(); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_q_star (const int& lev) { return q_star[lev].get(); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_olen (const int& lev) { return olen[lev].get(); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_pblh (const int& lev) { return pblh[lev].get(); }
 
     const amrex::MultiFab*
     get_mac_avg (const int& lev, int comp) { return m_ma.get_average(lev,comp); }
 
-    const amrex::MultiFab*
+    amrex::MultiFab*
     get_t_surf (const int& lev) { return t_surf[lev].get(); }
 
     amrex::Real
@@ -476,7 +474,7 @@ public:
 
     bool have_variable_sea_roughness() { return m_var_z0; }
 
-    const amrex::iMultiFab*
+    amrex::iMultiFab*
     get_lmask(const int& lev) { return m_lmask_lev[lev][0]; }
 
     int

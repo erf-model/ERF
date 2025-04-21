@@ -94,17 +94,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     Real l_inv_theta0    = 1.0 / turbChoice.theta_ref;
     Real l_abs_g         = std::abs(grav_gpu[2]);
 
-    bool l_use_keqn  = ( (turbChoice.les_type  == LESType::Deardorff) ||
-                         (turbChoice.rans_type == RANSType::kEqn) );
-    bool l_use_mynn  = ( (turbChoice.pbl_type == PBLType::MYNN25) || (turbChoice.pbl_type  == PBLType::MYNNEDMF) ) ;
+    bool l_use_keqn = turbChoice.use_keqn;
+    bool l_use_mynn = turbChoice.use_pbl_tke;
 
     bool l_consA  = (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
-    bool l_turb   = ( (turbChoice.les_type  == LESType::Smagorinsky) ||
-                      (turbChoice.les_type  == LESType::Deardorff  ) ||
-                      (turbChoice.rans_type == RANSType::kEqn  )     ||
-                      (turbChoice.pbl_type  == PBLType::MYNN25     ) ||
-                      (turbChoice.pbl_type  == PBLType::MYNNEDMF   ) ||
-                      (turbChoice.pbl_type  == PBLType::YSU        ) );
+    bool l_turb   = turbChoice.use_kturb;
 
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);

@@ -637,6 +637,32 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
     }
+
+    bool is_hurricane_tracker_io=false;
+    ParmParse pp("erf");
+    pp.query("is_hurricane_tracker_io", is_hurricane_tracker_io);
+
+    if(is_hurricane_tracker_io) {
+        if(nstep == 0 or (nstep+1)%m_plot_int_1 == 0){
+            std::string filename = MakeVTKFilename(nstep);
+            Real velmag_threshold = 1e10;
+            pp.query("hurr_track_io_velmag_greater_than", velmag_threshold);
+            if(velmag_threshold==1e10) {
+                Abort("As hurricane tracking IO is active using erf.is_hurricane_tracker_io = true"
+                      " there needs to be an input erf.hurr_track_io_velmag_greater_than which specifies the"
+                      " magnitude of velocity above which cells will be tagged for refinement.");
+            }
+            int levc=finest_level;
+            MultiFab& U_new = vars_new[levc][Vars::xvel];
+            MultiFab& V_new = vars_new[levc][Vars::yvel];
+            MultiFab& W_new = vars_new[levc][Vars::zvel];
+
+            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, true);
+            if (ParallelDescriptor::IOProcessor()) {
+                WriteVTKPolyline(filename,hurricane_track_xy);
+            }
+        }
+    }
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart
@@ -676,23 +702,35 @@ ERF::InitData_pre ()
         init_bcs();
     }
 
-    // Verify BCs are compatible with solver choice
+    // Verify solver choices
     for (int lev(0); lev <= max_level; ++lev) {
-        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+        // BC compatibility
+        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25)   ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
-            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
+             phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST )
+        {
             Abort("MYNN2.5/MYNNEDMF/YSU PBL Model requires MOST at lower boundary");
         }
-
         if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
              (solverChoice.turbChoice[lev].Ce_wall > 0) &&
              (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) &&
              (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::slip_wall) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) ) {
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) )
+        {
             Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
         }
 
+        // mesoscale diffusion
+        if ((geom[lev].CellSize(0) > 2000.) || (geom[lev].CellSize(1) > 2000.))
+        {
+            if ( (solverChoice.turbChoice[lev].les_type == LESType::Smagorinsky) &&
+                 (!solverChoice.turbChoice[lev].smag2d)) {
+                Warning("Should use 2-D Smagorinsky for mesoscale resolution");
+            } else if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
+                Warning("Should not use Deardorff LES for mesoscale resolution");
+            }
+        }
     }
 }
 
@@ -1388,13 +1426,6 @@ ERF::init_only (int lev, Real time)
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
 
-#ifndef ERF_USE_NETCDF
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
-                                       (solverChoice.init_type != InitType::Metgrid ) &&
-                                       (solverChoice.init_type != InitType::NCFile  )  ),
-                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
-#endif
-
     // Loop over grids at this level to initialize our grid data
     lev_new[Vars::cons].setVal(0.0); lev_old[Vars::cons].setVal(0.0);
     lev_new[Vars::xvel].setVal(0.0); lev_old[Vars::xvel].setVal(0.0);
@@ -1759,6 +1790,13 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+#ifndef ERF_USE_NETCDF
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
+                                       (solverChoice.init_type != InitType::Metgrid ) &&
+                                       (solverChoice.init_type != InitType::NCFile  )  ),
+                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
+#endif
 
     // Query the canopy model file name
     std::string forestfile;

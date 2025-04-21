@@ -380,13 +380,10 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     // Diffusive terms
     // ********************************************************************************************
     bool l_use_terrain = (SolverChoice::terrain_type != TerrainType::None);
-    bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type   != LESType::None)  ||
-                           (solverChoice.turbChoice[lev].rans_type  != RANSType::None) ||
-                           (solverChoice.turbChoice[lev].pbl_type   != PBLType::None) );
+    bool l_use_kturb   = solverChoice.turbChoice[lev].use_kturb;
     bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
                            l_use_kturb );
-    bool l_need_SmnSmn = ( (solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
-                           (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) );
+    bool l_need_SmnSmn = solverChoice.turbChoice[lev].use_keqn;
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));

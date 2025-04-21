@@ -46,7 +46,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(eddyViscosity,false); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.growntilebox(1);
         const Array4<Real const>& cell_data = cons_in.array(mfi);

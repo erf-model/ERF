@@ -3,7 +3,7 @@
 
 #include <ERF_MYNNStruct.H>
 
-AMREX_ENUM(LESType, None, Smagorinsky, Deardorff);
+AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
@@ -38,6 +38,12 @@ struct TurbChoice {
         std::string les_type_string = "None";
         query_one_or_per_level(pp, "les_type", les_type, lev, max_level);
 
+        // Handle 2-D Smag
+        if (les_type == LESType::Smagorinsky2D) {
+            les_type = LESType::Smagorinsky;
+            smag2d = true;
+        }
+
         // Which RANS closure?
         std::string rans_type_string = "None";
         query_one_or_per_level(pp, "rans_type", rans_type, lev, max_level);
@@ -56,6 +62,9 @@ struct TurbChoice {
             if (les_type != LESType::None) {
                 amrex::Print() << "Selected a PBL model and an LES model: " <<
                     "Using PBL for vertical transport, LES for horizontal" << std::endl;
+            }
+            if (les_type == LESType::Smagorinsky) {
+                if (!smag2d) amrex::Error("If using Smagorinsky with a PBL model, the 2-D formulation should be used");
             } else if (les_type == LESType::Deardorff) {
                 amrex::Error("It is not recommended to use Deardorff LES and a PBL model");
             }
@@ -88,13 +97,14 @@ struct TurbChoice {
 
         // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
         if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
-            use_KE = true;
+            use_pbl_tke = true;
             query_one_or_per_level(pp, "advect_KE"    , advect_KE, lev, max_level);
             query_one_or_per_level(pp, "diffuse_KE_3D", diffuse_KE_3D, lev, max_level);
         }
 
         // LES constants...
         query_one_or_per_level(pp, "Cs"  ,Cs, lev, max_level);
+
         query_one_or_per_level(pp, "Pr_t",Pr_t, lev, max_level);
         query_one_or_per_level(pp, "Sc_t",Sc_t, lev, max_level);
 
@@ -120,10 +130,27 @@ struct TurbChoice {
         query_one_or_per_level(pp, "sigma_k" , sigma_k, lev, max_level);
         query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
+        query_one_or_per_level(pp, "mix_isotropic", mix_isotropic, lev, max_level);
+
+        // Set common flags
+        use_kturb = ( (les_type  != LESType::None) ||
+                      (rans_type != RANSType::None) ||
+                      (pbl_type  != PBLType::None) );
+        use_keqn  = ( (les_type  == LESType::Deardorff) ||
+                      (rans_type == RANSType::kEqn) );
+        use_tke   = ( (les_type  == LESType::Deardorff) ||
+                      (rans_type == RANSType::kEqn) ||
+                      (pbl_type  == PBLType::MYNN25) ||
+                      (pbl_type  == PBLType::MYNNEDMF) );
+
         // Validate inputs
         if (les_type == LESType::Smagorinsky) {
             if (Cs == 0) {
                 amrex::Error("Need to specify Cs for Smagorsinky LES");
+            }
+            if (smag2d && mix_isotropic) {
+                amrex::Print() << "Turning off mix_isotropic for 2-D Smagorinsky" << std::endl;
+                mix_isotropic = false;
             }
         }
     }
@@ -135,7 +162,11 @@ struct TurbChoice {
         if (les_type == LESType::None && rans_type == RANSType::None && pbl_type == PBLType::None) {
             amrex::Print() << "    Using DNS model at level " << lev << std::endl;
         } else if  (les_type == LESType::Smagorinsky) {
-            amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
+            if (smag2d) {
+                amrex::Print() << "    Using 2D Smagorinsky LES model at level " << lev << std::endl;
+            } else {
+                amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
+            }
         } else if  (les_type == LESType::Deardorff) {
             amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
         } else if  (rans_type == RANSType::kEqn) {
@@ -162,6 +193,7 @@ struct TurbChoice {
                 amrex::Real Cs_equiv = std::sqrt(Ck * std::sqrt(Ck/Ce));
                 amrex::Print() << "equivalent Cs               : " << Cs_equiv << std::endl;
             }
+            amrex::Print() << "isotropic mixing            : " << mix_isotropic << std::endl;
         }
 
         if (rans_type != RANSType::None) {
@@ -211,8 +243,9 @@ struct TurbChoice {
     amrex::Real Sc_t = 1.0;
     amrex::Real Sc_t_inv = 1.0;
 
-    // Smagorinsky Cs coefficient
+    // Smagorinsky
     amrex::Real Cs = 0.0;
+    bool smag2d = false;
 
     // Deardorff
     amrex::Real Ce = 0.93;
@@ -233,6 +266,9 @@ struct TurbChoice {
     //   a stable region
     amrex::Real theta_ref = 300.0;
 
+    // Anistropic length scales
+    bool mix_isotropic = true;
+
     // RANS type
     RANSType rans_type;
 
@@ -242,6 +278,12 @@ struct TurbChoice {
     MYNNLevel25 pbl_mynn;
     MYNNLevel2 pbl_mynn_level2; // for filtering
 
+    // Common Flags
+    bool use_kturb = false;     // Any turbulence modeling?
+    bool use_keqn = false;      // Any microscale turbulence modeling (LES, RANS) with TKE closure? Then need to populate SmnSmn_lev for production term.
+    bool use_pbl_tke = false;   // Any mesoscale  turbulence modeling (PBL) with TKE closure?
+    bool use_tke = false;       // Any TKE closure (meso or microscale)?
+
     // Model coefficients - YSU
     // TODO: Add parmparse for all of these above
     amrex::Real pbl_ysu_coriolis_freq = 1.0e-4; // 1e-4 is hardcoded in WRF, we let the user specify or tske the value from ERF coriolis forcing
@@ -250,9 +292,8 @@ struct TurbChoice {
     amrex::Real pbl_ysu_land_Ribcr = 0.25; // Critical Bulk Richardson number of Land for stable conditions
     amrex::Real pbl_ysu_unst_Ribcr = 0.0;  // Critical Bulk Richardson number for unstable conditions
 
-    // QKE stuff - default is to use it, if MYNN2.5 PBL is used default is turb transport in Z-direction only
-    bool use_KE = true;
-    bool diffuse_KE_3D = true;
-    bool advect_KE = true;
+    // TKE/QKE stuff
+    bool advect_KE = true; // if MYNN2.5 PBL is used default is turb transport in Z-direction only
+    bool diffuse_KE_3D = true; // if numerical diffusion is turned on
 };
 #endif
