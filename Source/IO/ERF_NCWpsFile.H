@@ -140,7 +140,7 @@ void ReadTimeSliceFromNetCDFFile(const std::string& fname,
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
-        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        auto ncf = ncutils::NCFile::open_par(fname, NC_CLOBBER | NC_NETCDF4);
 
         int ntimes = ncf.dim("Time").len();
         AMREX_ALWAYS_ASSERT((tidx >= 0) && (tidx < ntimes));
@@ -183,7 +183,7 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
-        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        auto ncf = ncutils::NCFile::open_par(fname, NC_CLOBBER | NC_NETCDF4);
 
         /*
         // get the dimension information

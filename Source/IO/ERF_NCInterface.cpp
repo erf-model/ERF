@@ -697,20 +697,6 @@ void NCGroup::enter_def_mode () const
 
 void NCGroup::exit_def_mode () const { check_nc_error(nc_enddef(ncid)); }
 
-NCFile NCFile::create (const std::string& name, const int cmode)
-{
-    int ncid;
-    check_nc_error(nc_create(name.data(), cmode, &ncid));
-    return NCFile(ncid);
-}
-
-NCFile NCFile::open (const std::string& name, const int cmode)
-{
-    int ncid;
-    check_nc_error(nc_open(name.data(), cmode, &ncid));
-    return NCFile(ncid);
-}
-//Uncomment for parallel NetCDF
 NCFile NCFile::create_par (const std::string& name, const int cmode, MPI_Comm comm, MPI_Info info)
 {
     int ncid;
@@ -718,7 +704,6 @@ NCFile NCFile::create_par (const std::string& name, const int cmode, MPI_Comm co
     return NCFile(ncid);
 }
 
-//Uncomment for parallel NetCDF
 NCFile NCFile::open_par (const std::string& name, const int cmode, MPI_Comm comm, MPI_Info info)
 {
     int ncid;
