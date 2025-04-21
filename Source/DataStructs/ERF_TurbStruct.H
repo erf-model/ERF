@@ -98,8 +98,8 @@ struct TurbChoice {
         // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
         if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
             use_pbl_tke = true;
-            query_one_or_per_level(pp, "advect_KE"    , advect_KE, lev, max_level);
-            query_one_or_per_level(pp, "diffuse_KE_3D", diffuse_KE_3D, lev, max_level);
+            query_one_or_per_level(pp, "advect_tke"    , advect_tke, lev, max_level);
+            query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
         }
 
         // LES constants...
@@ -293,7 +293,7 @@ struct TurbChoice {
     amrex::Real pbl_ysu_unst_Ribcr = 0.0;  // Critical Bulk Richardson number for unstable conditions
 
     // TKE/QKE stuff
-    bool advect_KE = true; // if MYNN2.5 PBL is used default is turb transport in Z-direction only
-    bool diffuse_KE_3D = true; // if numerical diffusion is turned on
+    bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in Z-direction only
+    bool diffuse_tke_3D = true; // if numerical diffusion is turned on
 };
 #endif
