@@ -88,7 +88,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 if (smag2d) {
                     SmnSmn = ComputeSmnSmn2D(i,j,k,tau11,tau22,tau12);
                 } else {
-                    SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
+                    SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
                 }
                 Real dxInv = cellSizeInv[0];
                 Real dyInv = cellSizeInv[1];
@@ -120,8 +120,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
                 // Calculate SFS quantities
                 Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                     - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
-              
+                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+
                 // - heat flux
                 //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
                 //    be overwritten when BCs are applied)
