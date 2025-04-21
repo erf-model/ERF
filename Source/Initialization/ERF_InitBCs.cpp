@@ -254,10 +254,10 @@ void ERF::init_bcs ()
                m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori] = theta_grad_in;
             }
         }
-        else if (bc_type == "most")
+        else if (bc_type == "surface_layer")
         {
-              phys_bc_type[ori] = ERF_BC::MOST;
-            domain_bc_type[ori] = "MOST";
+              phys_bc_type[ori] = ERF_BC::surface_layer;
+            domain_bc_type[ori] = "surface_layer";
         }
         else
         {
@@ -416,11 +416,11 @@ void ERF::init_bcs ()
                     }
                 }
             }
-            else if ( bct == ERF_BC::MOST )
+            else if ( bct == ERF_BC::surface_layer )
             {
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
-                domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::reflect_odd);
-                domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::reflect_odd);
+                domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::hoextrap);
+                domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::hoextrap);
                 domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::ext_dir);
             }
         }
@@ -468,11 +468,11 @@ void ERF::init_bcs ()
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
-                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrapcc);
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrap);
                     }
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
-                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::hoextrapcc);
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::hoextrap);
                     }
                 }
             }
@@ -635,11 +635,11 @@ void ERF::init_bcs ()
                     }
                 }
             }
-            else if ( bct == ERF_BC::MOST )
+            else if ( bct == ERF_BC::surface_layer )
             {
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
                 for (int i = 0; i < NBCVAR_max; i++) {
-                    domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                    domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrap);
                 }
             }
         }

@@ -15,8 +15,8 @@ amr.n_cell           =    64       64     100
 geometry.is_periodic = 1 1 0
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-zlo.type = "Most"
-erf.most.flux_type = "custom"
+zlo.type = "surface_layer"
+erf.surface_layer.flux_type = "custom"
 erf.most.ustar  = 0.28   # ustar
 erf.most.tstar  = 8.0e-3 # theta flux
 erf.most.qstar  = 5.2e-5 # qv    flux

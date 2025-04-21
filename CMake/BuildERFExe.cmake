@@ -118,7 +118,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_TF.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForState.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForOpenBC.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_ABLMost.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_SurfaceLayer.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_MOSTAverage.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsCons.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsXvel.cpp

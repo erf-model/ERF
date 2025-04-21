@@ -1,4 +1,4 @@
-#include <ERF_ABLMost.H>
+#include "ERF_SurfaceLayer.H"
 
 using namespace amrex;
 
@@ -9,9 +9,9 @@ using namespace amrex;
  * @param[in] max_iters maximum iterations to use
  */
 void
-ABLMost::update_fluxes (const int& lev,
-                        const Real& time,
-                        int max_iters)
+SurfaceLayer::update_fluxes (const int& lev,
+                             const Real& time,
+                             int max_iters)
 {
     // Update SST data if we have a valid pointer
     if (m_sst_lev[lev][0]) time_interp_sst(lev, time);
@@ -142,10 +142,10 @@ ABLMost::update_fluxes (const int& lev,
  */
 template <typename FluxIter>
 void
-ABLMost::compute_fluxes (const int& lev,
-                         const int& max_iters,
-                         const FluxIter& most_flux,
-                         bool is_land)
+SurfaceLayer::compute_fluxes (const int& lev,
+                              const int& max_iters,
+                              const FluxIter& most_flux,
+                              bool is_land)
 {
     // Pointers to the computed averages
     const auto *const tm_ptr  = m_ma.get_average(lev,2); // potential temperature
@@ -208,71 +208,74 @@ ABLMost::compute_fluxes (const int& lev,
  * @param[in] eddyDiffs Diffusion coefficients from turbulence model
  */
 void
-ABLMost::impose_most_bcs (const int& lev,
-                          const Vector<MultiFab*>& mfs,
-                          MultiFab* xxmom_flux,
-                          MultiFab* yymom_flux,
-                          MultiFab* zzmom_flux,
-                          MultiFab* xymom_flux, MultiFab* yxmom_flux,
-                          MultiFab* xzmom_flux, MultiFab* zxmom_flux,
-                          MultiFab* yzmom_flux, MultiFab* zymom_flux,
-                          MultiFab* xheat_flux,
-                          MultiFab* yheat_flux,
-                          MultiFab* zheat_flux,
-                          MultiFab* xqv_flux,
-                          MultiFab* yqv_flux,
-                          MultiFab* zqv_flux,
-                          MultiFab* z_phys)
+SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
+                                       Vector<const MultiFab*> mfs,
+                                       MultiFab* xxmom_flux,
+                                       MultiFab* yymom_flux,
+                                       MultiFab* zzmom_flux,
+                                       MultiFab* xymom_flux, MultiFab* yxmom_flux,
+                                       MultiFab* xzmom_flux, MultiFab* zxmom_flux,
+                                       MultiFab* yzmom_flux, MultiFab* zymom_flux,
+                                       MultiFab* xheat_flux,
+                                       MultiFab* yheat_flux,
+                                       MultiFab* zheat_flux,
+                                       MultiFab* xqv_flux,
+                                       MultiFab* yqv_flux,
+                                       MultiFab* zqv_flux,
+                                       MultiFab* z_phys)
 {
-    const int klo = 0;
     if (flux_type == FluxCalcType::MOENG) {
-        moeng_flux flux_comp(klo);
-        compute_most_bcs(lev, mfs,
-                         xxmom_flux,
-                         yymom_flux,
-                         zzmom_flux,
-                         xymom_flux, yxmom_flux,
-                         xzmom_flux, zxmom_flux,
-                         yzmom_flux, zymom_flux,
-                         xheat_flux, yheat_flux, zheat_flux,
-                         xqv_flux, yqv_flux, zqv_flux,
-                         z_phys, flux_comp);
+        moeng_flux flux_comp;
+        compute_SurfaceLayer_bcs(lev,
+                                 mfs,
+                                 xxmom_flux,
+                                 yymom_flux,
+                                 zzmom_flux,
+                                 xymom_flux, yxmom_flux,
+                                 xzmom_flux, zxmom_flux,
+                                 yzmom_flux, zymom_flux,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::DONELAN) {
-        donelan_flux flux_comp(klo);
-        compute_most_bcs(lev, mfs,
-                         xxmom_flux,
-                         yymom_flux,
-                         zzmom_flux,
-                         xymom_flux, yxmom_flux,
-                         xzmom_flux, zxmom_flux,
-                         yzmom_flux, zymom_flux,
-                         xheat_flux, yheat_flux, zheat_flux,
-                         xqv_flux, yqv_flux, zqv_flux,
-                         z_phys, flux_comp);
+        donelan_flux flux_comp;
+        compute_SurfaceLayer_bcs(lev,
+                                 mfs,
+                                 xxmom_flux,
+                                 yymom_flux,
+                                 zzmom_flux,
+                                 xymom_flux, yxmom_flux,
+                                 xzmom_flux, zxmom_flux,
+                                 yzmom_flux, zymom_flux,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::ROTATE) {
-        rotate_flux flux_comp(klo);
-        compute_most_bcs(lev, mfs,
-                         xxmom_flux,
-                         yymom_flux,
-                         zzmom_flux,
-                         xymom_flux, yxmom_flux,
-                         xzmom_flux, zxmom_flux,
-                         yzmom_flux, zymom_flux,
-                         xheat_flux, yheat_flux, zheat_flux,
-                         xqv_flux, yqv_flux, zqv_flux,
-                         z_phys, flux_comp);
+        rotate_flux flux_comp;
+        compute_SurfaceLayer_bcs(lev,
+                                 mfs,
+                                 xxmom_flux,
+                                 yymom_flux,
+                                 zzmom_flux,
+                                 xymom_flux, yxmom_flux,
+                                 xzmom_flux, zxmom_flux,
+                                 yzmom_flux, zymom_flux,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 z_phys, flux_comp);
     } else {
-        custom_flux flux_comp(klo);
-        compute_most_bcs(lev, mfs,
-                         xxmom_flux,
-                         yymom_flux,
-                         zzmom_flux,
-                         xymom_flux, yxmom_flux,
-                         xzmom_flux, zxmom_flux,
-                         yzmom_flux, zymom_flux,
-                         xheat_flux, yheat_flux, zheat_flux,
-                         xqv_flux, yqv_flux, zqv_flux,
-                         z_phys, flux_comp);
+        custom_flux flux_comp;
+        compute_SurfaceLayer_bcs(lev,
+                                 mfs,
+                                 xxmom_flux,
+                                 yymom_flux,
+                                 zzmom_flux,
+                                 xymom_flux, yxmom_flux,
+                                 xzmom_flux, zxmom_flux,
+                                 yzmom_flux, zymom_flux,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 z_phys, flux_comp);
     }
 }
 
@@ -287,57 +290,45 @@ ABLMost::impose_most_bcs (const int& lev,
  */
 template <typename FluxCalc>
 void
-ABLMost::compute_most_bcs (const int& lev,
-                           const Vector<MultiFab*>& mfs,
-                           MultiFab* xxmom_flux,
-                           MultiFab* yymom_flux,
-                           MultiFab* zzmom_flux,
-                           MultiFab* xymom_flux, MultiFab* yxmom_flux,
-                           MultiFab* xzmom_flux, MultiFab* zxmom_flux,
-                           MultiFab* yzmom_flux, MultiFab* zymom_flux,
-                           MultiFab* xheat_flux,
-                           MultiFab* yheat_flux,
-                           MultiFab* zheat_flux,
-                           MultiFab* xqv_flux,
-                           MultiFab* yqv_flux,
-                           MultiFab* zqv_flux,
-                           MultiFab* z_phys,
-                           const FluxCalc& flux_comp)
+SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
+                                        Vector<const MultiFab*> mfs,
+                                        MultiFab* xxmom_flux,
+                                        MultiFab* yymom_flux,
+                                        MultiFab* zzmom_flux,
+                                        MultiFab* xymom_flux, MultiFab* yxmom_flux,
+                                        MultiFab* xzmom_flux, MultiFab* zxmom_flux,
+                                        MultiFab* yzmom_flux, MultiFab* zymom_flux,
+                                        MultiFab* xheat_flux,
+                                        MultiFab* yheat_flux,
+                                        MultiFab* zheat_flux,
+                                        MultiFab* xqv_flux,
+                                        MultiFab* yqv_flux,
+                                        MultiFab* zqv_flux,
+                                        MultiFab* z_phys,
+                                        const FluxCalc& flux_comp)
 {
-    const int klo   = 0;
-    const int icomp = 0;
+    bool rotate = m_rotate;
+    const int klo = m_geom[lev].Domain().smallEnd(2);
     const auto& dxInv = m_geom[lev].InvCellSizeArray();
-    const auto& dz_no_terrain = m_geom[lev].CellSize(2);
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
-        // TODO: No LSM lateral ghost cells, should this change?
-        // Valid CC box
-        Box vbx = mfi.validbox(); vbx.makeSlab(2,klo-1);
-
-        Box vbxx = surroundingNodes(vbx,0);
-        Box vbxy = surroundingNodes(vbx,1);
-
-        // Expose for GPU
-        bool exp_most = m_exp_most;
-        bool rot_most = m_rotate;
-
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
         const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
         const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
 
-        // Explicit MOST vars
-        auto t13_arr = (m_exp_most)               ? xzmom_flux->array(mfi) : Array4<Real>{};
-        auto t31_arr = (m_exp_most && zxmom_flux) ? zxmom_flux->array(mfi) : Array4<Real>{};
+        // Diffusive stress vars
+        auto t13_arr = xzmom_flux->array(mfi);
+        auto t31_arr = (zxmom_flux) ? zxmom_flux->array(mfi) : Array4<Real>{};
 
-        auto t23_arr = (m_exp_most)               ? yzmom_flux->array(mfi) : Array4<Real>{};
-        auto t32_arr = (m_exp_most && zymom_flux) ? zymom_flux->array(mfi) : Array4<Real>{};
+        auto t23_arr = yzmom_flux->array(mfi);
+        auto t32_arr = (zymom_flux) ? zymom_flux->array(mfi) : Array4<Real>{};
 
-        auto hfx3_arr = (m_exp_most)             ? zheat_flux->array(mfi) : Array4<Real>{};
-        auto qfx3_arr = (m_exp_most && zqv_flux) ? zqv_flux->array(mfi)   : Array4<Real>{};
+        auto hfx3_arr = zheat_flux->array(mfi);
+        auto qfx3_arr = (zqv_flux)  ? zqv_flux->array(mfi)   : Array4<Real>{};
 
-        // Rotated MOST vars
+        // Rotated stress vars
         auto t11_arr = (m_rotate) ? xxmom_flux->array(mfi) : Array4<Real>{};
         auto t22_arr = (m_rotate) ? yymom_flux->array(mfi) : Array4<Real>{};
         auto t33_arr = (m_rotate) ? zzmom_flux->array(mfi) : Array4<Real>{};
@@ -349,9 +340,8 @@ ABLMost::compute_most_bcs (const int& lev,
         auto qfx1_arr = (m_rotate && xqv_flux) ? xqv_flux->array(mfi) : Array4<Real>{};
         auto qfx2_arr = (m_rotate && yqv_flux) ? yqv_flux->array(mfi) : Array4<Real>{};
 
-        // Viscosity and terrain
-        const auto  eta_arr  = (!m_exp_most) ? m_eddyDiffs_lev[lev]->array(mfi) : Array4<const Real>{};
-        const auto zphys_arr = (z_phys)      ? z_phys->const_array(mfi)         : Array4<const Real>{};
+        // Terrain
+        const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
 
         // Get average arrays
         const auto *const u_mean     = m_ma.get_average(lev,0);
@@ -378,120 +368,93 @@ ABLMost::compute_most_bcs (const int& lev,
         auto lsm_flux_arr = (m_lsm_flux_lev[lev][0]) ? m_lsm_flux_lev[lev][0]->array(mfi) :
                                                        Array4<Real> {};
 
-        for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
+        // Rho*Theta flux
+        //============================================================================
+        Box bx = mfi.tilebox();
+        if (bx.smallEnd(2) != klo) { continue; }
+        bx.makeSlab(2,klo);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            const Box& bx = (*mfs[var_idx])[mfi].box();
-            auto dest_arr = (*mfs[var_idx])[mfi].array();
+            Real Tflux = flux_comp.compute_t_flux(i, j, k,
+                                                  cons_arr, velx_arr, vely_arr,
+                                                  umm_arr, tm_arr, u_star_arr,
+                                                  t_star_arr, t_surf_arr);
 
-            if (var_idx == Vars::cons) {
-                Box b2d = bx;
-                b2d.setBig(2,klo-1);
-                int n = RhoTheta_comp;
-                ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
-                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
-                    Real Tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz, dz1, exp_most, eta_arr,
-                                                          cons_arr, velx_arr, vely_arr,
-                                                          umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
-                                                          dest_arr);
-
-                    if (rot_most) {
-                        rotate_scalar_flux(i, j, klo, Tflux, dxInv, zphys_arr,
-                                           hfx1_arr, hfx2_arr, hfx3_arr);
-                    } else {
-                        int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-                        if (is_land && lsm_flux_arr && vbx.contains(i,j,k)) {
-                            lsm_flux_arr(i,j,klo) = Tflux;
-                        }
-                        else if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
-                            hfx3_arr(i,j,klo) = Tflux;
-                        }
-                    }
-                });
-
-                // TODO: Generalize MOST q flux
-                if ((flux_type == FluxCalcType::CUSTOM) && use_moisture) {
-                    n = RhoQ1_comp;
-                    ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                    {
-                        Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
-                        Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
-                        Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz, dz1, exp_most, eta_arr,
-                                                              cons_arr, velx_arr, vely_arr,
-                                                              umm_arr, qm_arr, u_star_arr, q_star_arr, t_surf_arr,
-                                                              dest_arr);
-
-                        if (rot_most) {
-                                rotate_scalar_flux(i, j, klo, Qflux, dxInv, zphys_arr,
-                                                   qfx1_arr, qfx2_arr, qfx3_arr);
-                        } else {
-                            if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
-                                qfx3_arr(i,j,klo) = Qflux;
-                            }
-                        }
-                    });
+            if (rotate) {
+                rotate_scalar_flux(i, j, k, Tflux, dxInv, zphys_arr,
+                                   hfx1_arr, hfx2_arr, hfx3_arr);
+            } else {
+                hfx3_arr(i,j,klo) = Tflux;
+                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+                if (is_land && lsm_flux_arr) {
+                    lsm_flux_arr(i,j,k) = Tflux;
                 }
-
-            } else if (var_idx == Vars::xvel) {
-
-                Box xb2d = surroundingNodes(bx,0);
-                xb2d.setBig(2,klo-1);
-
-                ParallelFor(xb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
-                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
-                    Real stressx = flux_comp.compute_u_flux(i, j, k, icomp, dz, dz1, exp_most, eta_arr,
-                                                            cons_arr, velx_arr, vely_arr,
-                                                            umm_arr, um_arr, u_star_arr,
-                                                            dest_arr);
-
-                    if (rot_most) {
-                        rotate_stress_tensor(i, j, klo, stressx, dxInv, zphys_arr,
-                                             velx_arr, vely_arr, velz_arr,
-                                             t11_arr, t22_arr, t33_arr,
-                                             t12_arr, t21_arr,
-                                             t13_arr, t31_arr,
-                                             t23_arr, t32_arr);
-                    } else {
-                        if ((k == klo-1) && vbxx.contains(i,j,k) && exp_most) {
-                            t13_arr(i,j,klo) = stressx;
-                            if (t31_arr) t31_arr(i,j,klo) = stressx;
-                        }
-                    }
-                });
-
-            } else if (var_idx == Vars::yvel) {
-
-                Box yb2d = surroundingNodes(bx,1);
-                yb2d.setBig(2,klo-1);
-
-                ParallelFor(yb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
-                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
-                    Real stressy = flux_comp.compute_v_flux(i, j, k, icomp, dz, dz1, exp_most, eta_arr,
-                                                            cons_arr, velx_arr, vely_arr,
-                                                            umm_arr, vm_arr, u_star_arr,
-                                                            dest_arr);
-
-                    // NOTE: One stress rotation for ALL the stress components
-                    if (!rot_most) {
-                        if ((k == klo-1) && vbxy.contains(i,j,k) && exp_most) {
-                            t23_arr(i,j,klo) = stressy;
-                            if (t32_arr) t32_arr(i,j,klo) = stressy;
-                        }
-                    }
-                });
             }
-        } // var_idx
+        });
+
+        // Rho*Qv flux
+        //============================================================================
+        // TODO: Generalize MOST q flux
+        if ((flux_type == FluxCalcType::CUSTOM) && use_moisture) {
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real Qflux = flux_comp.compute_q_flux(i, j, k,
+                                                      cons_arr, velx_arr, vely_arr,
+                                                      umm_arr, qm_arr, u_star_arr,
+                                                      q_star_arr, t_surf_arr);
+
+                if (rotate) {
+                    rotate_scalar_flux(i, j, k, Qflux, dxInv, zphys_arr,
+                                       qfx1_arr, qfx2_arr, qfx3_arr);
+                } else {
+                    qfx3_arr(i,j,k) = Qflux;
+                }
+            });
+        } // custom
+
+        // Rho*u flux
+        //============================================================================
+        Box bxx = surroundingNodes(bx,0);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            Real stressx = flux_comp.compute_u_flux(i, j, k,
+                                                    cons_arr, velx_arr, vely_arr,
+                                                    umm_arr, um_arr, u_star_arr);
+
+            if (rotate) {
+                rotate_stress_tensor(i, j, k, stressx, dxInv, zphys_arr,
+                                     velx_arr, vely_arr, velz_arr,
+                                     t11_arr, t22_arr, t33_arr,
+                                     t12_arr, t21_arr,
+                                     t13_arr, t31_arr,
+                                     t23_arr, t32_arr);
+            } else {
+                t13_arr(i,j,k) = stressx;
+                if (t31_arr) { t31_arr(i,j,k) = stressx; }
+            }
+        });
+
+        // Rho*v flux
+        //============================================================================
+        Box bxy = surroundingNodes(bx,1);
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            Real stressy = flux_comp.compute_v_flux(i, j, k,
+                                                    cons_arr, velx_arr, vely_arr,
+                                                    umm_arr, vm_arr, u_star_arr);
+
+            // NOTE: One stress rotation for ALL the stress components
+            if (!rotate) {
+                t23_arr(i,j,k) = stressy;
+                if (t32_arr) { t32_arr(i,j,k) = stressy; }
+            }
+        });
     } // mfiter
 }
 
 void
-ABLMost::time_interp_sst (const int& lev,
-                          const Real& time)
+SurfaceLayer::time_interp_sst (const int& lev,
+                               const Real& time)
 {
     int n_times_in_sst = m_sst_lev[lev].size();
 
@@ -543,7 +506,7 @@ ABLMost::time_interp_sst (const int& lev,
 }
 
 void
-ABLMost::get_lsm_tsurf (const int& lev)
+SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -576,12 +539,12 @@ ABLMost::get_lsm_tsurf (const int& lev)
 }
 
 void
-ABLMost::update_pblh (const int& lev,
-                      Vector<Vector<MultiFab>>& vars,
-                      MultiFab* z_phys_cc,
-                      int RhoQv_comp,
-                      int RhoQc_comp,
-                      int RhoQr_comp)
+SurfaceLayer::update_pblh (const int& lev,
+                           Vector<Vector<MultiFab>>& vars,
+                           MultiFab* z_phys_cc,
+                           int RhoQv_comp,
+                           int RhoQc_comp,
+                           int RhoQr_comp)
 {
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
@@ -593,13 +556,13 @@ ABLMost::update_pblh (const int& lev,
 
 template <typename PBLHeightEstimator>
 void
-ABLMost::compute_pblh (const int& lev,
-                       Vector<Vector<MultiFab>>& vars,
-                       MultiFab* z_phys_cc,
-                       const PBLHeightEstimator& est,
-                       int RhoQv_comp,
-                       int RhoQc_comp,
-                       int RhoQr_comp)
+SurfaceLayer::compute_pblh (const int& lev,
+                            Vector<Vector<MultiFab>>& vars,
+                            MultiFab* z_phys_cc,
+                            const PBLHeightEstimator& est,
+                            int RhoQv_comp,
+                            int RhoQc_comp,
+                            int RhoQr_comp)
 {
     est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),
                      vars[lev][Vars::cons],m_lmask_lev[lev][0],
@@ -607,8 +570,8 @@ ABLMost::compute_pblh (const int& lev,
 }
 
 void
-ABLMost::read_custom_roughness (const int& lev,
-                                const std::string& fname)
+SurfaceLayer::read_custom_roughness (const int& lev,
+                                     const std::string& fname)
 {
     // Read the file if we are on the coarsest level
     if (lev==0) {

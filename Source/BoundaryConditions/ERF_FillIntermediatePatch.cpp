@@ -29,8 +29,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
                             const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                             const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
                             int ng_cons, int ng_vel, bool cons_only,
-                            int icomp_cons, int ncomp_cons,
-                            bool allow_most_bcs)
+                            int icomp_cons, int ncomp_cons)
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
     Interpolater* mapper;
@@ -325,24 +324,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
                           ngvect_vels,time,BCVars::zvel_bc, do_fb);
     }
     // ***************************************************************************
-
-    // MOST boundary conditions
-    if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs) {
-        m_most->impose_most_bcs(lev,mfs_vel,
-                                Tau11_lev[lev].get(),
-                                Tau22_lev[lev].get(),
-                                Tau33_lev[lev].get(),
-                                Tau12_lev[lev].get(), Tau21_lev[lev].get(),
-                                Tau13_lev[lev].get(), Tau31_lev[lev].get(),
-                                Tau23_lev[lev].get(), Tau32_lev[lev].get(),
-                                SFS_hfx1_lev[lev].get(),
-                                SFS_hfx2_lev[lev].get(),
-                                SFS_hfx3_lev[lev].get(),
-                                SFS_q1fx1_lev[lev].get(),
-                                SFS_q1fx2_lev[lev].get(),
-                                SFS_q1fx3_lev[lev].get(),
-                                z_phys_nd[lev].get());
-    }
 
     // We always come in to this call with momenta so we need to leave with momenta!
     // We need to make sure we convert back on all ghost cells/faces because this is

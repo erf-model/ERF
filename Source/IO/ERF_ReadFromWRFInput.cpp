@@ -6,7 +6,7 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 void
-read_from_wrfinput (int lev,
+read_from_wrfinput (int /*lev*/,
                     const Box& domain,
                     const std::string& fname,
                     FArrayBox& NC_fab,
@@ -20,7 +20,7 @@ read_from_wrfinput (int lev,
         Real NC_dx, NC_dy;
         Real NC_epochTime;
         std::string NC_dateTime;
-        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        auto ncf = ncutils::NCFile::open_par(fname, NC_CLOBBER | NC_NETCDF4);
         { // Global Attributes (int)
             std::vector<int> attr;
             ncf.get_attr("WEST-EAST_GRID_DIMENSION", attr);   NC_nx = attr[0];

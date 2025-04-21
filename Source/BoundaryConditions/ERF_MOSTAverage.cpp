@@ -1,6 +1,8 @@
-#include <ERF_MOSTAverage.H>
+
 #include <utility>
-#include <ERF_TileNoZ.H>
+
+#include "ERF_MOSTAverage.H"
+#include "ERF_TileNoZ.H"
 
 using namespace amrex;
 
@@ -565,6 +567,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
 
     // Capture for device
     Real d_zref = m_zref;
+    const auto plo = m_geom[lev].ProbLoArray();
 
     RealVect base;
     const auto dx = m_geom[lev].CellSizeArray();
@@ -581,14 +584,14 @@ MOSTAverage::set_z_positions_T (const int& lev)
         ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Final position at end of vector
-            x_pos_arr(i,j,k) = ((Real) i + 0.5) * dx[0];
-            y_pos_arr(i,j,k) = ((Real) j + 0.5) * dx[1];
+            x_pos_arr(i,j,k) = plo[0] + ((Real) i + 0.5) * dx[0];
+            y_pos_arr(i,j,k) = plo[1] + ((Real) j + 0.5) * dx[1];
             Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
                                       + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,k) = z_bot_face + d_zref;
 
             // Destination position must be contained on the current process!
-            Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
+            Real pos[] = {x_pos_arr(i,j,k)-plo[0],y_pos_arr(i,j,k)-plo[1],0.5*dx[2]};
             amrex::ignore_unused(pos);
             AMREX_ASSERT_WITH_MESSAGE( grb.contains(&pos[0]),
                                        "Query point outside of proc domain!");
@@ -609,6 +612,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
 
     // Capture for device
     Real d_zref = m_zref;
+    const auto plo = m_geom[lev].ProbLoArray();
 
     RealVect base;
     const auto dx = m_geom[lev].CellSizeArray();
@@ -628,16 +632,16 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             // Elements of normal vector
             Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
             Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
-            Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1.0);
+            Real imag = 1.0 / std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1.0);
 
             // Unit-normal vector scaled by z_ref
-            Real delta_x = -met_h_xi/mag  * d_zref;
-            Real delta_y = -met_h_eta/mag * d_zref;
-            Real delta_z = 1.0/mag * d_zref;
+            Real delta_x = -met_h_xi  * imag * d_zref;
+            Real delta_y = -met_h_eta * imag * d_zref;
+            Real delta_z =              imag * d_zref;
 
             // Position of the current node (indx:0,0,1)
-            Real x0 = ((Real) i + 0.5) * dx[0];
-            Real y0 = ((Real) j + 0.5) * dx[1];
+            Real x0 = plo[0] + ((Real) i + 0.5) * dx[0];
+            Real y0 = plo[1] + ((Real) j + 0.5) * dx[1];
 
             // Final position at end of vector
             x_pos_arr(i,j,k) = x0 + delta_x;
@@ -646,8 +650,18 @@ MOSTAverage::set_norm_positions_T (const int& lev)
                                       + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,k) = z_bot_face + delta_z;
 
+            // NOTE: Normal vector end point can be below the surface for concave regions.
+            //       Here we protect against that by augmenting the normal if needed.
+            int i_new = (int) ((x_pos_arr(i,j,k) - plo[0]) / dx[0] - 0.5);
+            int j_new = (int) ((y_pos_arr(i,j,k) - plo[1]) / dx[1] - 0.5);
+            Real z_new_bot_face = 0.25 * ( z_phys_arr(i_new,j_new  ,k) + z_phys_arr(i_new+1,j_new  ,k)
+                                         + z_phys_arr(i_new,j_new+1,k) + z_phys_arr(i_new+1,j_new+1,k) );
+            if (z_pos_arr(i,j,k) < z_new_bot_face) {
+                z_pos_arr(i,j,k) = z_new_bot_face + delta_z;
+            }
+
             // Destination position must be contained on the current process!
-            Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
+            Real pos[] = {x_pos_arr(i,j,k)-plo[0],y_pos_arr(i,j,k)-plo[1],0.5*dx[2]};
             amrex::ignore_unused(pos);
             AMREX_ASSERT_WITH_MESSAGE( grb.contains(&pos[0]),
                                        "Query point outside of proc domain!");

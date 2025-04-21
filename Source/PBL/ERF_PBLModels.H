@@ -1,7 +1,7 @@
 #ifndef ERF_PBLMODELS_H_
 #define ERF_PBLMODELS_H_
 
-#include <ERF_Thetav.H>
+#include "ERF_Thetav.H"
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
@@ -13,7 +13,7 @@
  * @param[out] eddyViscosity Holds turbulent viscosity
  * @param[in] geom Problem geometry
  * @param[in] turbChoice Container with turbulence parameters
- * @param[in] most Pointer to Monin-Obukhov class if instantiated
+ * @param[in] SurfLayer Pointer to Monin-Obukhov class if instantiated
  * @param[in] use_moisture If we have microphysics enabled
  * @param[in] level Current level
  * @param[in] bc_ptr Pointer to array with boundary condition info
@@ -27,7 +27,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
                           amrex::MultiFab& eddyViscosity,
                           const amrex::Geometry& geom,
                           const TurbChoice& turbChoice,
-                          std::unique_ptr<ABLMost>& most,
+                          std::unique_ptr<SurfaceLayer>& SurfLayer,
                           bool use_terrain_fitted_coords,
                           bool use_moisture,
                           int level,
@@ -48,7 +48,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
  * @param[out] eddyViscosity Holds turbulent viscosity
  * @param[in] geom Problem geometry
  * @param[in] turbChoice Container with turbulence parameters
- * @param[in] most Pointer to Monin-Obukhov class if instantiated
+ * @param[in] SurfLayer Pointer to Monin-Obukhov class if instantiated
  * @param[in] use_moisture If we have microphysics enabled
  * @param[in] level Current level
  * @param[in] bc_ptr Pointer to array with boundary condition info
@@ -62,7 +62,7 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
                             amrex::MultiFab& eddyViscosity,
                             const amrex::Geometry& geom,
                             const TurbChoice& turbChoice,
-                            std::unique_ptr<ABLMost>& most,
+                            std::unique_ptr<SurfaceLayer>& SurfLayer,
                             bool use_terrain_fitted_coords,
                             bool use_moisture,
                             int level,
@@ -83,7 +83,7 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
  * @param[out] eddyViscosity Holds turbulent viscosity
  * @param[in] geom Problem geometry
  * @param[in] turbChoice Container with turbulence parameters
- * @param[in] most Pointer to Monin-Obukhov class if instantiated
+ * @param[in] SurfLayer Pointer to Monin-Obukhov class if instantiated
  * @param[in] use_moisture If we have microphysics enabled
  * @param[in] level Current level
  * @param[in] bc_ptr Pointer to array with boundary condition info
@@ -97,7 +97,7 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
                        amrex::MultiFab& eddyViscosity,
                        const amrex::Geometry& geom,
                        const TurbChoice& turbChoice,
-                       std::unique_ptr<ABLMost>& most,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
                        bool use_terrain_fitted_coords,
                        bool use_moisture,
                        int level,
@@ -134,8 +134,7 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                amrex::Real& dvdz,
                                const int RhoQv_comp,
                                const int RhoQc_comp,
-                               const int RhoQr_comp,
-                               const bool use_most=true)
+                               const int RhoQr_comp)
 {
     if ( k==izmax && c_ext_dir_on_zhi ) {
         dthetadz = (1.0/3.0)*(       -Thetav(i,j,k-1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp)
@@ -145,9 +144,6 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
         dthetadz = (1.0/3.0)*(        Thetav(i,j,k+1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp)
                               + 3.0 * Thetav(i,j,k  ,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp)
                               - 4.0 * Thetav(i,j,k-1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp) )*dz_inv;
-    } else if ( k==izmin && use_most ) {
-        dthetadz = (  Thetav(i,j,k+1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp)
-                    - Thetav(i,j,k  ,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp) )*dz_inv;
     } else {
         dthetadz = 0.5*(  Thetav(i,j,k+1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp)
                         - Thetav(i,j,k-1,cell_data,RhoQv_comp,RhoQc_comp,RhoQr_comp) )*dz_inv;
@@ -159,8 +155,6 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
     } else if ( k==izmin && u_ext_dir_on_zlo ) {
         dudz = (1.0/6.0)*( (uvel(i  ,j,k+1) + 3.0 * uvel(i  ,j,k  ) - 4.0 * uvel(i  ,j,k-1))
                          + (uvel(i+1,j,k+1) + 3.0 * uvel(i+1,j,k  ) - 4.0 * uvel(i+1,j,k-1)) )*dz_inv;
-    } else if ( k==izmin && use_most ) {
-        dudz = 0.50*( uvel(i,j,k+1) - uvel(i,j,k  ) + uvel(i+1,j,k+1) - uvel(i+1,j,k  ) )*dz_inv;
     } else {
         dudz = 0.25*( uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1) )*dz_inv;
     }
@@ -171,8 +165,6 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
     } else if ( k==izmin && v_ext_dir_on_zlo ) {
         dvdz = (1.0/6.0)*( (vvel(i,j  ,k+1) + 3.0 * vvel(i,j  ,k  ) - 4.0 * vvel(i,j  ,k-1))
                          + (vvel(i,j+1,k+1) + 3.0 * vvel(i,j+1,k  ) - 4.0 * vvel(i,j+1,k-1)) )*dz_inv;
-    } else if ( k==izmin && use_most ) {
-        dvdz = 0.50*( vvel(i,j,k+1) - vvel(i,j,k  ) + vvel(i,j+1,k+1) - vvel(i,j+1,k  ) )*dz_inv;
     } else {
         dvdz = 0.25*( vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv;
     }
@@ -213,7 +205,6 @@ ComputeQKESourceTerms (int i, int j, int k,
                        bool u_ext_dir_on_zhi,
                        bool v_ext_dir_on_zlo,
                        bool v_ext_dir_on_zhi,
-                       const bool use_most=false,
                        const amrex::Real met_h_zeta=1.0)
 {
     // Compute some relevant derivatives
@@ -224,19 +215,13 @@ ComputeQKESourceTerms (int i, int j, int k,
     int izmin = domain.smallEnd(2);
     int izmax = domain.bigEnd(2);
 
-    // NOTE: With MOST, the ghost cells are filled AFTER k_turb is computed
-    //       so that the non-explicit pathway works. Therefore, at this
-    //       point we DO have valid ghost cells from MOST. We are passing
-    //       the MOST flag to use one-sided diffs here to be consistent with
-    //       the explicit pathway.
-
     ComputeVerticalDerivativesPBL(i, j, k,
                                   uvel, vvel, cell_data, izmin, izmax, dz_inv/met_h_zeta,
                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                   dthetadz, dudz, dvdz,
-                                  RhoQv_comp, RhoQc_comp, RhoQr_comp, use_most);
+                                  RhoQv_comp, RhoQc_comp, RhoQr_comp);
 
     // Note: Transport terms due to turbulence and pressure are included when
     // DiffusionSrcForState_* is called from ERF_slow_rhs_post.

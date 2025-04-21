@@ -76,7 +76,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    LinearSolvers.rst
    MeshRefinement.rst
    BoundaryConditions.rst
-   MOST.rst
+   SurfaceLayer.rst
    DerivedQuantities.rst
    Checkpoint.rst
    Plotfiles.rst
