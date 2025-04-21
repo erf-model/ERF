@@ -153,9 +153,10 @@ EBAdvectionSrcForScalars (const Box& bx,
         }
     }
 
-    // Compute divergence 
+    // Compute divergence
 
     if (already_on_centroids) {
+
         ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
@@ -163,7 +164,7 @@ EBAdvectionSrcForScalars (const Box& bx,
             {
                 Real invdetJ = 1.0 / detJ(i,j,k);
                 Real mfsq    = mf_m(i,j,0) * mf_m(i,j,0);
-    
+
                 advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
                   ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
                   ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
@@ -172,7 +173,9 @@ EBAdvectionSrcForScalars (const Box& bx,
                 advectionSrc(i,j,k,cons_index) = 0.;
             }
         });
+
     } else {
+
         AMREX_HOST_DEVICE_FOR_4D(bx,ncomp,i,j,k,n,
         {
             const int cons_index = icomp + n;
@@ -202,7 +205,7 @@ EBAdvectionSrcForScalars (const Box& bx,
                             +      fracz *(Real(1.0)-fracy)*flx_arr[0](i,j ,kk,cons_index)
                             +      fracy *     fracz *flx_arr[0](i,jj,kk,cons_index);
                     }
-            
+
                     Real fxp = flx_arr[0](i+1,j,k,cons_index);
                     if (ax_arr(i+1,j,k) != Real(0.0) && ax_arr(i+1,j,k) != Real(1.0)) {
                         int jj = j + static_cast<int>(std::copysign(Real(1.0),fcx_arr(i+1,j,k,0)));
@@ -269,7 +272,7 @@ EBAdvectionSrcForScalars (const Box& bx,
                         ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
 
                 }
-                
+
 
                 // eb_compute_divergence(i,j,k,n,advectionSrc,AMREX_D_DECL(flx_arr[0],flx_arr[1],flx_arr[2]),
                 //                     ccm_arr, cfg_arr, detJ, AMREX_D_DECL(ax_arr,ay_arr,az_arr),
@@ -280,6 +283,7 @@ EBAdvectionSrcForScalars (const Box& bx,
                 advectionSrc(i,j,k,cons_index) = 0.;
             }
         });
+
     }
 
     // Special advection operator for open BC (bndry tangent operations)
