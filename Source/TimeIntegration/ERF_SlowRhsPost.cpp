@@ -233,14 +233,6 @@ void erf_slow_rhs_post (int level, int finest_level,
           cc_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
       }
 
-      // Cell-centered masks for EB (used for flux interpolation)
-      iMultiFab cc_mask;
-      bool already_on_centroids = false;
-      if (solverChoice.terrain_type == TerrainType::EB) {
-          cc_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
-          cc_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
-      }
-
       for (MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         Box tbx  = mfi.tilebox();
