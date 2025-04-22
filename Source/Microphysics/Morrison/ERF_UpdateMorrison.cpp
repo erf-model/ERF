@@ -1,8 +1,10 @@
 #include "ERF_Morrison.H"
-#include "ERF_IndexDefines.H"
-#include "ERF_TileNoZ.H"
+#include "ERF_Constants.H"
+#include <AMReX_ParallelDescriptor.H>
+#include <AMReX_MultiFabUtil.H>
 
 using namespace amrex;
+#include <stdbool.h>
 
 /**
  * Updates conserved and microphysics variables in the provided MultiFabs from
@@ -49,5 +51,3 @@ Morrison::Copy_Micro_to_State (MultiFab& cons)
     // Fill interior ghost cells and periodic boundaries
     cons.FillBoundary(m_geom.periodicity());
 }
-
-
