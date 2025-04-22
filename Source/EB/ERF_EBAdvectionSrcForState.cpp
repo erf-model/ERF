@@ -183,17 +183,20 @@ EBAdvectionSrcForScalars (const Box& bx,
             {
                 Real invdetJ = 1.0 / detJ(i,j,k);
                 Real mfsq    = mf_m(i,j,0) * mf_m(i,j,0);
-                if (cfg_arr(i,j,k).isRegular()) {
-
+                if (cfg_arr(i,j,k).isCovered())
+                {
+                    advectionSrc(i,j,k,cons_index) = Real(0.0);
+                } 
+                else if (cfg_arr(i,j,k).isRegular())
+                {
                     advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
                         ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
                         ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
                         ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
-
-                } else {
-
+                }
+                else
+                {
                     // Bilinear interpolation
-
                     Real fxm = flx_arr[0](i,j,k,cons_index);
                     if (ax_arr(i,j,k) != Real(0.0) && ax_arr(i,j,k) != Real(1.0)) {
                         int jj = j + static_cast<int>(std::copysign(Real(1.0), fcx_arr(i,j,k,0)));
@@ -270,9 +273,7 @@ EBAdvectionSrcForScalars (const Box& bx,
                         ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
                         ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
                         ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
-
                 }
-
 
                 // eb_compute_divergence(i,j,k,n,advectionSrc,AMREX_D_DECL(flx_arr[0],flx_arr[1],flx_arr[2]),
                 //                     ccm_arr, cfg_arr, detJ, AMREX_D_DECL(ax_arr,ay_arr,az_arr),
