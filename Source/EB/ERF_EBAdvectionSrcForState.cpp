@@ -186,7 +186,7 @@ EBAdvectionSrcForScalars (const Box& bx,
                 if (cfg_arr(i,j,k).isCovered())
                 {
                     advectionSrc(i,j,k,cons_index) = Real(0.0);
-                } 
+                }
                 else if (cfg_arr(i,j,k).isRegular())
                 {
                     advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
