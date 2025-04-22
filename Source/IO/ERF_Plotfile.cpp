@@ -608,7 +608,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         // Pgrad at lower I face
-                        Real gpx_lo = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
+                        Real gpx_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
 
                         Real met_h_xi_hi   = Compute_h_xi_AtCellCenter  (i  , j, k, dxInv, z_nd);
                         Real met_h_xi_lo   = Compute_h_xi_AtCellCenter  (i-1, j, k, dxInv, z_nd);
@@ -617,21 +617,21 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                         Real gp_zeta_lo, gp_zeta_hi;
                         if (k==klo) {
-                            gp_zeta_hi = dxInv[2] * (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k  ));
-                            gp_zeta_lo = dxInv[2] * (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k  ));
+                            gp_zeta_hi = dxInv[2] * (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  ));
+                            gp_zeta_lo = dxInv[2] * (p_arr(i-1,j,k+1) - p_arr(i-1,j,k  ));
                         } else if (k==khi) {
-                            gp_zeta_hi = dxInv[2] * (pp_arr(i  ,j,k  ) - pp_arr(i  ,j,k-1));
-                            gp_zeta_lo = dxInv[2] * (pp_arr(i-1,j,k  ) - pp_arr(i-1,j,k-1));
+                            gp_zeta_hi = dxInv[2] * (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1));
+                            gp_zeta_lo = dxInv[2] * (p_arr(i-1,j,k  ) - p_arr(i-1,j,k-1));
                         } else {
-                            gp_zeta_hi = 0.5 * dxInv[2] * (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k-1));
-                            gp_zeta_lo = 0.5 * dxInv[2] * (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k-1));
+                            gp_zeta_hi = 0.5 * dxInv[2] * (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1));
+                            gp_zeta_lo = 0.5 * dxInv[2] * (p_arr(i-1,j,k+1) - p_arr(i-1,j,k-1));
                         }
                         Real gpx_metric = 0.5 * ( gp_zeta_hi * met_h_xi_hi / met_h_zeta_hi
                                                 + gp_zeta_lo * met_h_xi_lo / met_h_zeta_lo );
                         gpx_lo -= gpx_metric;
 
                         // Pgrad at higher I face
-                        Real gpx_hi = dxInv[0] * (pp_arr(i+1,j,k) - pp_arr(i,j,k));
+                        Real gpx_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
 
                         met_h_xi_hi   = Compute_h_xi_AtCellCenter  (i+1, j, k, dxInv, z_nd);
                         met_h_xi_lo   = Compute_h_xi_AtCellCenter  (i  , j, k, dxInv, z_nd);
@@ -639,14 +639,14 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                         met_h_zeta_lo = Compute_h_zeta_AtCellCenter(i  , j, k, dxInv, z_nd);
 
                         if (k==klo) {
-                            gp_zeta_hi = dxInv[2] * (pp_arr(i+1,j,k+1) - pp_arr(i+1,j,k  ));
-                            gp_zeta_lo = dxInv[2] * (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k  ));
+                            gp_zeta_hi = dxInv[2] * (p_arr(i+1,j,k+1) - p_arr(i+1,j,k  ));
+                            gp_zeta_lo = dxInv[2] * (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  ));
                         } else if (k==khi) {
-                            gp_zeta_hi = dxInv[2] * (pp_arr(i+1,j,k  ) - pp_arr(i+1,j,k-1));
-                            gp_zeta_lo = dxInv[2] * (pp_arr(i  ,j,k  ) - pp_arr(i  ,j,k-1));
+                            gp_zeta_hi = dxInv[2] * (p_arr(i+1,j,k  ) - p_arr(i+1,j,k-1));
+                            gp_zeta_lo = dxInv[2] * (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1));
                         } else {
-                            gp_zeta_hi = 0.5 * dxInv[2] * (pp_arr(i+1,j,k+1) - pp_arr(i+1,j,k-1));
-                            gp_zeta_lo = 0.5 * dxInv[2] * (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k-1));
+                            gp_zeta_hi = 0.5 * dxInv[2] * (p_arr(i+1,j,k+1) - p_arr(i+1,j,k-1));
+                            gp_zeta_lo = 0.5 * dxInv[2] * (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1));
                         }
                         gpx_metric = 0.5 * ( gp_zeta_hi * met_h_xi_hi / met_h_zeta_hi
                                            + gp_zeta_lo * met_h_xi_lo / met_h_zeta_lo );
@@ -707,7 +707,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         // Pgrad at lower J face
-                        Real gpy_lo = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
+                        Real gpy_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
 
                         Real met_h_eta_hi  = Compute_h_eta_AtCellCenter (i, j  , k, dxInv, z_nd);
                         Real met_h_eta_lo  = Compute_h_eta_AtCellCenter (i, j-1, k, dxInv, z_nd);
@@ -716,21 +716,21 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                         Real gp_zeta_lo, gp_zeta_hi;
                         if (k==klo) {
-                            gp_zeta_hi = dxInv[2] * (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k  ));
-                            gp_zeta_lo = dxInv[2] * (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k  ));
+                            gp_zeta_hi = dxInv[2] * (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  ));
+                            gp_zeta_lo = dxInv[2] * (p_arr(i,j-1,k+1) - p_arr(i,j-1,k  ));
                         } else if (k==khi) {
-                            gp_zeta_hi = dxInv[2] * (pp_arr(i,j  ,k  ) - pp_arr(i,j  ,k-1));
-                            gp_zeta_lo = dxInv[2] * (pp_arr(i,j-1,k  ) - pp_arr(i,j-1,k-1));
+                            gp_zeta_hi = dxInv[2] * (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1));
+                            gp_zeta_lo = dxInv[2] * (p_arr(i,j-1,k  ) - p_arr(i,j-1,k-1));
                         } else {
-                            gp_zeta_hi = 0.5 * dxInv[2] * (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k-1));
-                            gp_zeta_lo = 0.5 * dxInv[2] * (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k-1));
+                            gp_zeta_hi = 0.5 * dxInv[2] * (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1));
+                            gp_zeta_lo = 0.5 * dxInv[2] * (p_arr(i,j-1,k+1) - p_arr(i,j-1,k-1));
                         }
                         Real gpy_metric = 0.5 * ( gp_zeta_hi * met_h_eta_hi / met_h_zeta_hi
                                                 + gp_zeta_lo * met_h_eta_lo / met_h_zeta_lo );
                         gpy_lo -= gpy_metric;
 
                         // Pgrad at higher J face
-                        Real gpy_hi = dxInv[1] * (pp_arr(i,j+1,k) - pp_arr(i,j,k));
+                        Real gpy_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
 
                         met_h_eta_hi  = Compute_h_eta_AtCellCenter (i, j+1, k, dxInv, z_nd);
                         met_h_eta_lo  = Compute_h_eta_AtCellCenter (i, j  , k, dxInv, z_nd);
@@ -738,14 +738,14 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                         met_h_zeta_lo = Compute_h_zeta_AtCellCenter(i, j  , k, dxInv, z_nd);
 
                         if (k==klo) {
-                            gp_zeta_hi = dxInv[2] * (pp_arr(i,j+1,k+1) - pp_arr(i,j+1,k  ));
-                            gp_zeta_lo = dxInv[2] * (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k  ));
+                            gp_zeta_hi = dxInv[2] * (p_arr(i,j+1,k+1) - p_arr(i,j+1,k  ));
+                            gp_zeta_lo = dxInv[2] * (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  ));
                         } else if (k==khi) {
-                            gp_zeta_hi = dxInv[2] * (pp_arr(i,j+1,k  ) - pp_arr(i,j+1,k-1));
-                            gp_zeta_lo = dxInv[2] * (pp_arr(i,j  ,k  ) - pp_arr(i,j  ,k-1));
+                            gp_zeta_hi = dxInv[2] * (p_arr(i,j+1,k  ) - p_arr(i,j+1,k-1));
+                            gp_zeta_lo = dxInv[2] * (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1));
                         } else {
-                            gp_zeta_hi = 0.5 * dxInv[2] * (pp_arr(i,j+1,k+1) - pp_arr(i,j+1,k-1));
-                            gp_zeta_lo = 0.5 * dxInv[2] * (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k-1));
+                            gp_zeta_hi = 0.5 * dxInv[2] * (p_arr(i,j+1,k+1) - p_arr(i,j+1,k-1));
+                            gp_zeta_lo = 0.5 * dxInv[2] * (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1));
                         }
                         gpy_metric = 0.5 * ( gp_zeta_hi * met_h_eta_hi / met_h_zeta_hi
                                            + gp_zeta_lo * met_h_eta_lo / met_h_zeta_lo );
