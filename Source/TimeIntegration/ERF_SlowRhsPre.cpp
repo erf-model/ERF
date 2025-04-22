@@ -678,8 +678,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     gp_zeta_hi = 0.5 * dxInv[2] * (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k-1));
                     gp_zeta_lo = 0.5 * dxInv[2] * (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k-1));
                 }
-                Real gpx_metric = 0.5 * ( gp_zeta_hi * met_h_xi_hi / met_h_zet_hi
-                                        + gp_zeta_lo * met_h_xi_lo / met_h_zet_lo );
+                Real gpx_metric = 0.5 * ( gp_zeta_hi * met_h_xi_hi / met_h_zeta_hi
+                                        + gp_zeta_lo * met_h_xi_lo / met_h_zeta_lo );
                 gpx -= gpx_metric;
             }
 
@@ -728,8 +728,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     gp_zeta_hi = 0.5 * dxInv[2] * (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k-1));
                     gp_zeta_lo = 0.5 * dxInv[2] * (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k-1));
                 }
-                Real gpy_metric = 0.5 * ( gp_zeta_hi * met_h_eta_hi / met_h_zet_hi
-                                        + gp_zeta_lo * met_h_eta_lo / met_h_zet_lo );
+                Real gpy_metric = 0.5 * ( gp_zeta_hi * met_h_eta_hi / met_h_zeta_hi
+                                        + gp_zeta_lo * met_h_eta_lo / met_h_zeta_lo );
                 gpy -= gpy_metric;
             } // l_use_terrain_fitted_coords
 
