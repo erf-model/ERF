@@ -270,9 +270,7 @@ EBAdvectionSrcForScalars (const Box& bx,
                     }
 
                     advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
-                        ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
-                        ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
-                        ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
+                        ( fxp - fxm ) * dxInv + ( fyp - fym ) * dyInv + ( fzp - fzm ) * dzInv );
                 }
 
                 // eb_compute_divergence(i,j,k,n,advectionSrc,AMREX_D_DECL(flx_arr[0],flx_arr[1],flx_arr[2]),
