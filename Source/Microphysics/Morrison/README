@@ -1,0 +1,45 @@
+This implementation of Morrison
+
+In order to compare with double precision fortran, if you're using the Submodule AMReX with gcc, set the real default flag.
+
+echo "FFLAGS   += -fdefault-real-8" >> ../../../Submodules/AMReX/Tools/GNUMake/Make.local
+echo "F90FLAGS   += -fdefault-real-8" >> ../../../Submodules/AMReX/Tools/GNUMake/Make.local
+
+Run based on inputs_moisture_SAM:
+
+cd ../../../Exec/MoistRegTests/SquallLine_2D
+
+#echo "Appending to Make.local instead of remaking"
+#echo "FFLAGS   += -fdefault-real-8" >> ../../../Submodules/AMReX/Tools/GNUMake/Make.local
+#echo "F90FLAGS   += -fdefault-real-8" >> ../../../Submodules/AMReX/Tools/GNUMake/Make.local
+
+make -j4 USE_MORR_FORT=TRUE USE_MORR_WARM_ONLY=TRUE DEBUG=FALSE
+mpirun -n 4 ./ERF3d.gnu.TEST.MPI.ex inputs_moisture_SAM erf.plot_file_1         = plt_Morrfort erf.check_file      = chk_Morrfort erf.use_morr_cpp_answer = false erf.moisture_model="Morrison"
+mpirun -n 4 ./ERF3d.gnu.TEST.MPI.ex inputs_moisture_SAM erf.plot_file_1         = plt_Morrcpp erf.check_file      = chk_Morrcpp erf.use_morr_cpp_answer = true erf.moisture_model="Morrison"
+
+Warm difference at 6000 steps:
+
+variable name            absolute error            relative error
+                                        (||A - B||)         (||A - B||/||A||)
+ ----------------------------------------------------------------------------
+ level = 0
+ density                            2.847966307e-11           2.510876458e-11
+ rhotheta                           1.737248567e-09           5.142820672e-12
+ rhoQ1                              3.232054381e-12             1.9504647e-10
+ rhoQ2                              1.743400915e-12           1.306669779e-09
+ rhoQ3                                            0                         0
+ x_velocity                         1.326055532e-08           9.146816923e-10
+ y_velocity                                       0                         0
+ z_velocity                         3.032489815e-08           1.550869083e-09
+ temp                               1.148737283e-08           3.826940729e-11
+ theta                              1.531168436e-08           3.075499197e-11
+ pressure                           3.316163202e-07           3.376405346e-12
+ pert_dens                          2.847966307e-11           9.560860661e-10
+ qv                                 4.037496032e-12           2.750863702e-10
+ qc                                 2.871492432e-12           1.232308616e-09
+ qrain                              1.522564193e-11            1.33607855e-09
+ qsnow                                            0                         0
+ qgraup                                           0                         0
+ rain_accum                           3.7372061e-09           3.687866422e-11
+ snow_accum                                       0                         0
+ graup_accum                                      0                         0

@@ -365,7 +365,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
 
-    int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_num_diff);
+    int ngrow_vels = ComputeGhostCells(solverChoice);
 
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
@@ -385,9 +385,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
 
-    //
+    // ********************************************************************************************
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
-    //
+    // ********************************************************************************************
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));

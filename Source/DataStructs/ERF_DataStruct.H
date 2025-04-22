@@ -46,7 +46,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, SuperDroplets, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, SuperDroplets, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -59,10 +59,6 @@ AMREX_ENUM(WindFarmLocType,
 
 AMREX_ENUM(LandSurfaceType,
     SLM, MM5, None, NOAH
-);
-
-AMREX_ENUM(PerturbationType,
-    Source, Direct, None
 );
 
 enum struct Coord {
@@ -124,35 +120,26 @@ struct SolverChoice {
             amrex::Abort("The input moisture_type is deprecated.  Set moisture_model instead.");
         }
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
-        if (moisture_type == MoistureType::SAM) {
+        if ( (moisture_type == MoistureType::Morrison      ) ||
+             (moisture_type == MoistureType::SAM           ) ||
+             (moisture_type == MoistureType::Morrison_NoIce) ||
+             (moisture_type == MoistureType::SAM_NoIce     ) ) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
             RhoQr_comp = RhoQ4_comp;
-        } else if (moisture_type == MoistureType::SAM_NoIce) {
+        } else if ( (moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
+                    (moisture_type == MoistureType::Kessler_NoRain) ||
+                    (moisture_type == MoistureType::SatAdj) ) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
-            RhoQr_comp = RhoQ4_comp;
-        } else if (moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
-            RhoQv_comp = RhoQ1_comp;
-            RhoQc_comp = RhoQ2_comp;
-        } else if (moisture_type == MoistureType::Morrison) {
-            RhoQv_comp = RhoQ1_comp;
-            RhoQc_comp = RhoQ2_comp;
-            RhoQr_comp = RhoQ4_comp;
         } else if (moisture_type == MoistureType::Kessler) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
             RhoQr_comp = RhoQ3_comp;
-        } else if (moisture_type == MoistureType::Kessler_NoRain) {
-            RhoQv_comp = RhoQ1_comp;
-            RhoQc_comp = RhoQ2_comp;
         } else if (moisture_type == MoistureType::SuperDroplets) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
             RhoQr_comp = RhoQ3_comp;
-        } else if (moisture_type == MoistureType::SatAdj) {
-            RhoQv_comp = RhoQ1_comp;
-            RhoQc_comp = RhoQ2_comp;
         }
 
         // TODO: should we set default for dry??
@@ -163,6 +150,7 @@ struct SolverChoice {
                 moisture_type == MoistureType::SAM_NoIce          ||
                 moisture_type == MoistureType::SAM_NoPrecip_NoIce ||
                 moisture_type == MoistureType::Morrison ||
+                moisture_type == MoistureType::Morrison_NoIce ||
                 moisture_type == MoistureType::SatAdj)
             {
                 buoyancy_type = 1; // uses Rhoprime
@@ -536,6 +524,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: SAM No Precip No Ice" << std::endl;
         } else if (moisture_type == MoistureType::Morrison) {
             amrex::Print() << "Moisture Model: Morrison" << std::endl;
+        } else if (moisture_type == MoistureType::Morrison_NoIce) {
+            amrex::Print() << "Moisture Model: Morrison_NoIce" << std::endl;
         } else if (moisture_type == MoistureType::Kessler) {
             amrex::Print() << "Moisture Model: Kessler" << std::endl;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {

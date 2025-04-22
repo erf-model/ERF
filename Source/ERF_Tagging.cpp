@@ -98,7 +98,22 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     (ref_tags[j].Field() == "terrain_blanking") )
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
-
+        } else if (ref_tags[j].Field() == "velmag") {
+            mf->setVal(0.0);
+            ParmParse pp(pp_prefix);
+            Vector<std::string> refinement_indicators;
+            pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
+            Real velmag_threshold = 1e10;
+            for (int i=0; i<refinement_indicators.size(); ++i)
+            {
+                if(refinement_indicators[i]=="hurricane_tracker"){
+                    std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
+                    ParmParse ppr(ref_prefix);
+                    ppr.get("value_greater",velmag_threshold);
+                    break;
+                }
+            }
+            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, tags);
 #ifdef ERF_USE_PARTICLES
         } else {
             //
@@ -370,4 +385,103 @@ ERF::refinement_criteria_setup ()
             }
         } // loop over criteria
     } // if max_level > 0
+}
+
+void
+ERF::HurricaneTracker(int levc,
+                      const MultiFab& U_new,
+                      const MultiFab& V_new,
+                      const MultiFab& W_new,
+                      const Real velmag_threshold,
+                      TagBoxArray& tags)
+{
+    const auto dx = geom[levc].CellSizeArray();
+    const auto prob_lo = geom[levc].ProbLoArray();
+
+    const int ncomp = AMREX_SPACEDIM; // Number of components (3 for 3D)
+
+    Gpu::DeviceVector<Real> d_coords(3, 0.0); // Initialize to -1
+    Real* d_coords_ptr = d_coords.data(); // Get pointer to device vector
+    Gpu::DeviceVector<int> d_found(1,0);
+    int* d_found_ptr = d_found.data();
+
+    MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
+    average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
+
+    // Loop through MultiFab using MFIter
+    for (MFIter mfi(mf_cc_vel); mfi.isValid(); ++mfi) {
+        const Box& box = mfi.validbox(); // Get the valid box for the current MFIter
+        const Array4<const Real>& vel_arr = mf_cc_vel.const_array(mfi); // Get the array for this MFIter
+
+        // ParallelFor loop to check velocity magnitudes on the GPU
+        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+            // Access velocity components using ncomp
+            Real magnitude = 0.0; // Initialize magnitude
+
+            for (int comp = 0; comp < ncomp; ++comp) {
+                Real vel = vel_arr(i, j, k, comp); // Access the component for each (i, j, k)
+                magnitude += vel * vel; // Sum the square of the components
+            }
+
+            magnitude = std::sqrt(magnitude)*3.6; // Calculate magnitude
+            Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            Real y = prob_lo[1] + (j + 0.5) * dx[1];
+            Real z = prob_lo[2] + (k + 0.5) * dx[2];
+
+            // Check if magnitude exceeds threshold
+            if (z < 2.0e3 && magnitude > velmag_threshold) {
+                // Use atomic operations to set found flag and store coordinates
+                Gpu::Atomic::Add(&d_found_ptr[0], 1); // Mark as found
+
+                // Store coordinates
+                Gpu::Atomic::Add(&d_coords_ptr[0],x); // Store x index
+                Gpu::Atomic::Add(&d_coords_ptr[1],y); // Store x index
+                Gpu::Atomic::Add(&d_coords_ptr[2],z); // Store x index
+            }
+        });
+    }
+
+    // Synchronize to ensure all threads complete their execution
+    amrex::Gpu::streamSynchronize(); // Wait for all GPU threads to finish
+
+    Vector<int> h_found(1,0);
+    Gpu::copy(Gpu::deviceToHost, d_found.begin(), d_found.end(), h_found.begin());
+    ParallelAllReduce::Sum(h_found.data(),
+                           h_found.size(),
+                           ParallelContext::CommunicatorAll());
+
+    Real eye_x, eye_y;
+    // Broadcast coordinates if found
+    if (h_found[0] > 0) {
+        Vector<Real> h_coords(3,-1e10);
+        Gpu::copy(Gpu::deviceToHost, d_coords.begin(), d_coords.end(), h_coords.begin());
+
+        ParallelAllReduce::Sum(h_coords.data(),
+                               h_coords.size(),
+                               ParallelContext::CommunicatorAll());
+
+        eye_x = h_coords[0]/h_found[0];
+        eye_y = h_coords[1]/h_found[0];
+
+         Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
+
+        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+            TagBox& tag = tags[mfi];
+            auto tag_arr = tag.array();  // Get device-accessible array
+
+            const Box& tile_box = mfi.tilebox(); // The box for this tile
+
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                // Compute cell center coordinates
+                Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                Real y = prob_lo[1] + (j + 0.5) * dx[1];
+
+                Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
+
+                if (dist < rad_tag) {
+                    tag_arr(i,j,k) = TagBox::SET;
+                }
+            });
+        }
+    }
 }
