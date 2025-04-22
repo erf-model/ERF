@@ -27,7 +27,7 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     Print() << "Loading header data from NetCDF file at level " << lev << std::endl;
 
     if (ParallelDescriptor::IOProcessor()) {
-        auto ncf = ncutils::NCFile::open_par(fname, NC_CLOBBER | NC_NETCDF4);
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
         { // Global Attributes (int)
             std::vector<int> attr;
             /* UNCOMMENT FOR FLOWMAS

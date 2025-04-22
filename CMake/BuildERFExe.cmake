@@ -41,8 +41,6 @@ function(build_erf_lib erf_lib_name)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/IO/ERF_NCInterface.cpp
                    ${SRC_DIR}/IO/ERF_NCPlotFile.cpp
-                   ${SRC_DIR}/IO/ERF_NCCheckpoint.cpp
-                   ${SRC_DIR}/IO/ERF_NCMultiFabFile.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromMetgrid.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromWRFBdy.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromWRFInput.cpp
@@ -242,9 +240,9 @@ function(build_erf_lib erf_lib_name)
 
   include(AMReXBuildInfo)
   generate_buildinfo(${erf_lib_name} ${CMAKE_SOURCE_DIR})
-if (${ERF_USE_INTERNAL_AMREX})
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${AMREX_SUBMOD_LOCATION}/Tools/C_scripts>)
-endif()
+  if (${ERF_USE_INTERNAL_AMREX})
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${AMREX_SUBMOD_LOCATION}/Tools/C_scripts>)
+  endif()
 
   if(ERF_ENABLE_NETCDF)
     if(NETCDF_FOUND)
@@ -257,6 +255,10 @@ endif()
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
   endif()
+
+  # Workaround for gcc-8 where std::filesystem is in libstdc++fs. Starting with
+  # gcc-9 std::filesystem is part of libstdc++.
+  target_link_libraries(${erf_lib_name} PUBLIC $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>)
 
   #ERF include directories
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source>)
