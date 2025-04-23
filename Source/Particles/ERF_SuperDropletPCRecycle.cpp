@@ -70,7 +70,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         SDSpeciesMassArr species_mass_ptrs;
         for (int i = 0; i < n_species; i++) {
-            species_mass_ptrs[i] = soa.GetRealData(idx_a(i,n_aerosols,n_species)).data();
+            species_mass_ptrs[i] = soa.GetRealData(idx_s(i,n_aerosols,n_species)).data();
         }
 
         SDAerosolMassArr aerosol_mass_ptrs;

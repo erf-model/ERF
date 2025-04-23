@@ -244,7 +244,8 @@ class SuperDropletPC : public ERFPC
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
-                                    const amrex::Vector<MFPtr>& );
+                                    const amrex::Vector<MFPtr>&,
+                                    const bool );
 
         /*! \brief Coalescence of super-droplets */
         virtual void Coalescence (  int,

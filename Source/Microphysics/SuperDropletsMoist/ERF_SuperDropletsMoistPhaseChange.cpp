@@ -14,6 +14,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
     for (int is = 0; is < m_species.size(); is++) {
         auto& species = m_species[is];
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(species);
+        bool is_water = (is == m_idx_w);
 
         MultiFab* qv_ptr = nullptr;
         MultiFab* qc_ptr = nullptr;
@@ -76,7 +77,8 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                                             (*m_mic_fab_vars[MicVar_SD::temperature]),
                                             mf_sat_pressure,
                                             (*sr_ptr),
-                                            a_z );
+                                            a_z,
+                                            is_water );
 
             // Compute new condensate mixing ratio
             computeQc(is);
@@ -99,7 +101,6 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                     auto qr_arr = m_mic_fab_vars[MicVar_SD::q_r]->array(mfi);
 
                     auto fac_cond = m_fac_cond;
-                    bool is_water = (is == m_idx_w);
 
                     ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {

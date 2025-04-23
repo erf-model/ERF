@@ -366,10 +366,10 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                 << min_term_v << ", " << max_term_v << ", " << avg_term_v << "\n";
 
         Print() << "    species masses [kg]:\n";
-        for (int ia = 0; ia < m_num_species; ia++) {
-            Print() << "        " << m_species_mat[ia]->name()
+        for (int is = 0; is < m_num_species; is++) {
+            Print() << "        " << m_species_mat[is]->name()
                     << ": "
-                    << min_mass_species[ia] << ", " << max_mass_species[ia] << ", " << avg_mass_species[ia] << "\n";
+                    << min_mass_species[is] << ", " << max_mass_species[is] << ", " << avg_mass_species[is] << "\n";
         }
         Print() << "    aerosol masses [kg]:\n";
         for (int ia = 0; ia < m_num_aerosols; ia++) {

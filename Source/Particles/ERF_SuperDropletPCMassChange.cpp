@@ -17,7 +17,8 @@ void SuperDropletPC::MassChange ( int                                         a_
                                   const MultiFab&                             a_temperature,
                                   const MultiFab&                             a_sat_pressure,
                                   const MultiFab&                             a_sat_ratio,
-                                  const Vector<std::unique_ptr<MultiFab>>&    a_z_phys_nd )
+                                  const Vector<std::unique_ptr<MultiFab>>&    a_z_phys_nd,
+                                  const bool                                  a_is_water )
 {
     BL_PROFILE("SuperDropletPC::MassChange()");
     AMREX_ASSERT( a_lev == m_lev );
@@ -70,46 +71,46 @@ void SuperDropletPC::MassChange ( int                                         a_
         auto* condt_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
 #endif
 
-        SDSpeciesMassArr species_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> species_mol_weight(num_species);
-        Gpu::DeviceVector<int> species_solubility(num_species);
+        SDSpeciesMassArr sp_mass_ptrs;
+        Gpu::DeviceVector<ParticleReal> sp_mol_weight(num_species);
+        Gpu::DeviceVector<int> sp_solubility(num_species);
         {
-            Vector<ParticleReal> species_mol_weight_h(num_species);
-            Vector<int> species_solubility_h(num_species);
+            Vector<ParticleReal> sp_mol_weight_h(num_species);
+            Vector<int> sp_solubility_h(num_species);
             for (int i = 0; i < num_species; i++) {
-                species_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_aerosols,num_species)).data();
-                species_mol_weight_h[i] = m_species_mat[i]->molWeight();
-                species_solubility_h[i] = static_cast<int>(m_species_mat[i]->isSoluble());
+                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_aerosols,num_species)).data();
+                sp_mol_weight_h[i] = m_species_mat[i]->molWeight();
+                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->isSoluble());
             }
             Gpu::copy(  Gpu::hostToDevice,
-                        species_mol_weight_h.begin(),
-                        species_mol_weight_h.end(),
-                        species_mol_weight.begin() );
+                        sp_mol_weight_h.begin(),
+                        sp_mol_weight_h.end(),
+                        sp_mol_weight.begin() );
             Gpu::copy(  Gpu::hostToDevice,
-                        species_solubility_h.begin(),
-                        species_solubility_h.end(),
-                        species_solubility.begin() );
+                        sp_solubility_h.begin(),
+                        sp_solubility_h.end(),
+                        sp_solubility.begin() );
         }
 
-        SDAerosolMassArr aerosol_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> aerosol_mol_weight(num_aerosols);
-        Gpu::DeviceVector<int> aerosol_solubility(num_aerosols);
+        SDAerosolMassArr ae_mass_ptrs;
+        Gpu::DeviceVector<ParticleReal> ae_mol_weight(num_aerosols);
+        Gpu::DeviceVector<int> ae_solubility(num_aerosols);
         {
-            Vector<ParticleReal> aerosol_mol_weight_h(num_aerosols);
-            Vector<int> aerosol_solubility_h(num_aerosols);
+            Vector<ParticleReal> ae_mol_weight_h(num_aerosols);
+            Vector<int> ae_solubility_h(num_aerosols);
             for (int i = 0; i < num_aerosols; i++) {
-                aerosol_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_aerosols,num_species)).data();
-                aerosol_mol_weight_h[i] = m_aerosol_mat[i]->molWeight();
-                aerosol_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
+                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_aerosols,num_species)).data();
+                ae_mol_weight_h[i] = m_aerosol_mat[i]->molWeight();
+                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
             }
             Gpu::copy(  Gpu::hostToDevice,
-                        aerosol_mol_weight_h.begin(),
-                        aerosol_mol_weight_h.end(),
-                        aerosol_mol_weight.begin() );
+                        ae_mol_weight_h.begin(),
+                        ae_mol_weight_h.end(),
+                        ae_mol_weight.begin() );
             Gpu::copy(  Gpu::hostToDevice,
-                        aerosol_solubility_h.begin(),
-                        aerosol_solubility_h.end(),
-                        aerosol_solubility.begin() );
+                        ae_solubility_h.begin(),
+                        ae_solubility_h.end(),
+                        ae_solubility.begin() );
         }
 
         const auto& sat_pressure_arr = a_sat_pressure[grid].array();
@@ -147,10 +148,10 @@ void SuperDropletPC::MassChange ( int                                         a_
         auto cfl = m_mass_change_cfl;
         auto ti_choice = m_mass_change_ti;
 
-        auto species_mw_arr = species_mol_weight.data();
-        auto species_sol_arr = species_solubility.data();
-        auto aero_mw_arr = aerosol_mol_weight.data();
-        auto aero_sol_arr = aerosol_solubility.data();
+        auto sp_mw_arr = sp_mol_weight.data();
+        auto sp_sol_arr = sp_solubility.data();
+        auto aero_mw_arr = ae_mol_weight.data();
+        auto aero_sol_arr = ae_solubility.data();
 
         ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -170,19 +171,23 @@ void SuperDropletPC::MassChange ( int                                         a_
             }
 
             ParticleReal solute_moles = 0.0;
-            for (int j = 0; j < num_species; j++) {
-                if (species_sol_arr[j] && (j != idx_vap)) {
-                    solute_moles += (species_mass_ptrs[j][i]/species_mw_arr[j]);
+            if (a_is_water) {
+                for (int j = 0; j < num_species; j++) {
+                    if (sp_sol_arr[j] && (j != idx_vap)) {
+                        solute_moles += (sp_mass_ptrs[j][i]/sp_mw_arr[j]);
+                    }
                 }
-            }
-            for (int j = 0; j < num_aerosols; j++) {
-                if (aero_sol_arr[j]) {
-                    solute_moles += (aerosol_mass_ptrs[j][i]/aero_mw_arr[j]);
+                for (int j = 0; j < num_aerosols; j++) {
+                    if (aero_sol_arr[j]) {
+                        solute_moles += (ae_mass_ptrs[j][i]/aero_mw_arr[j]);
+                    }
                 }
             }
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-            condt_ptr[i] = drdt( radius_ptr[i], sat_ratio, temperature, e_sat, solute_moles);
+            if (a_is_water) {
+                condt_ptr[i] = drdt( radius_ptr[i], sat_ratio, temperature, e_sat, solute_moles);
+            }
 #endif
 
             TI< dRsqdt<ParticleReal>,
@@ -191,8 +196,9 @@ void SuperDropletPC::MassChange ( int                                         a_
                                     sat_ratio, temperature, e_sat, solute_moles,
                                     cfl, 1e-40, 1e-3, 1e-6, false, false };
 
-
-            auto r_sq = radius_ptr[i]*radius_ptr[i];
+            auto mass = sp_mass_ptrs[idx_vap][i];
+            auto radius = std::cbrt(mass / ((4.0/3.0)*PI*mat_density));
+            auto r_sq = radius*radius;
             bool success = false;
             if (ti_choice == SDMassChangeTIMethod::RK4) {
                 ti.rk4(r_sq, success);
@@ -219,10 +225,13 @@ void SuperDropletPC::MassChange ( int                                         a_
                 }
                 Gpu::Atomic::Add(unconverged_particles_ptr, Long(1));
             } else {
-                // update particle radius
-                radius_ptr[i] = std::sqrt(r_sq);
-                // update mass of particle
-                mass_ptr[i] = (4.0/3.0)*PI*r_sq*radius_ptr[i]*mat_density;
+                // update particle attributes
+                auto radius = std::sqrt(r_sq);
+                sp_mass_ptrs[idx_vap][i] = (4.0/3.0)*PI*radius*r_sq*mat_density;
+                if (a_is_water) {
+                    radius_ptr[i] = radius;
+                    mass_ptr[i] = sp_mass_ptrs[idx_vap][i];
+                }
             }
 
         });
