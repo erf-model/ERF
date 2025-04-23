@@ -612,22 +612,32 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                         Real met_h_xi_hi   = Compute_h_xi_AtCellCenter  (i  , j, k, dxInv, z_nd);
                         Real met_h_xi_lo   = Compute_h_xi_AtCellCenter  (i-1, j, k, dxInv, z_nd);
-                        Real met_h_zeta_hi = Compute_h_zeta_AtCellCenter(i  , j, k, dxInv, z_nd);
-                        Real met_h_zeta_lo = Compute_h_zeta_AtCellCenter(i-1, j, k, dxInv, z_nd);
 
-                        Real gp_zeta_lo, gp_zeta_hi;
+                        Real dz_phys_hi, dz_phys_lo;
+                        Real gp_z_lo, gp_z_hi;
                         if (k==klo) {
-                            gp_zeta_hi = dxInv[2] * (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  ));
-                            gp_zeta_lo = dxInv[2] * (p_arr(i-1,j,k+1) - p_arr(i-1,j,k  ));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i  ,j,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i  ,j,k  ,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i-1,j,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i-1,j,k  ,z_nd);
+                            gp_z_hi = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  )) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k  )) / dz_phys_lo;
                         } else if (k==khi) {
-                            gp_zeta_hi = dxInv[2] * (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1));
-                            gp_zeta_lo = dxInv[2] * (p_arr(i-1,j,k  ) - p_arr(i-1,j,k-1));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i  ,j,k  ,z_nd)
+                                       - Compute_Z_AtCellCenter (i  ,j,k-1,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i-1,j,k  ,z_nd)
+                                       - Compute_Z_AtCellCenter (i-1,j,k-1,z_nd);
+                            gp_z_hi = (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1)) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i-1,j,k  ) - p_arr(i-1,j,k-1)) / dz_phys_lo;
                         } else {
-                            gp_zeta_hi = 0.5 * dxInv[2] * (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1));
-                            gp_zeta_lo = 0.5 * dxInv[2] * (p_arr(i-1,j,k+1) - p_arr(i-1,j,k-1));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i  ,j,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i  ,j,k-1,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i-1,j,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i-1,j,k-1,z_nd);
+                            gp_z_hi = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k-1)) / dz_phys_hi;
                         }
-                        Real gpx_metric = 0.5 * ( gp_zeta_hi * met_h_xi_hi / met_h_zeta_hi
-                                                + gp_zeta_lo * met_h_xi_lo / met_h_zeta_lo );
+                        Real gpx_metric = 0.5 * ( gp_z_hi * met_h_xi_hi + gp_z_lo * met_h_xi_lo );
                         gpx_lo -= gpx_metric;
 
                         // Pgrad at higher I face
@@ -635,21 +645,30 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                         met_h_xi_hi   = Compute_h_xi_AtCellCenter  (i+1, j, k, dxInv, z_nd);
                         met_h_xi_lo   = Compute_h_xi_AtCellCenter  (i  , j, k, dxInv, z_nd);
-                        met_h_zeta_hi = Compute_h_zeta_AtCellCenter(i+1, j, k, dxInv, z_nd);
-                        met_h_zeta_lo = Compute_h_zeta_AtCellCenter(i  , j, k, dxInv, z_nd);
 
                         if (k==klo) {
-                            gp_zeta_hi = dxInv[2] * (p_arr(i+1,j,k+1) - p_arr(i+1,j,k  ));
-                            gp_zeta_lo = dxInv[2] * (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  ));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i+1,j,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i+1,j,k  ,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i  ,j,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i  ,j,k  ,z_nd);
+                            gp_z_hi = (p_arr(i+1,j,k+1) - p_arr(i+1,j,k  )) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  )) / dz_phys_lo;
                         } else if (k==khi) {
-                            gp_zeta_hi = dxInv[2] * (p_arr(i+1,j,k  ) - p_arr(i+1,j,k-1));
-                            gp_zeta_lo = dxInv[2] * (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i+1,j,k  ,z_nd)
+                                       - Compute_Z_AtCellCenter (i+1,j,k-1,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i  ,j,k  ,z_nd)
+                                       - Compute_Z_AtCellCenter (i  ,j,k-1,z_nd);
+                            gp_z_hi = (p_arr(i+1,j,k  ) - p_arr(i+1,j,k-1)) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1)) / dz_phys_lo;
                         } else {
-                            gp_zeta_hi = 0.5 * dxInv[2] * (p_arr(i+1,j,k+1) - p_arr(i+1,j,k-1));
-                            gp_zeta_lo = 0.5 * dxInv[2] * (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i+1,j,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i+1,j,k-1,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i  ,j,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i  ,j,k-1,z_nd);
+                            gp_z_hi = (p_arr(i+1,j,k+1) - p_arr(i+1,j,k-1)) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_hi;
                         }
-                        gpx_metric = 0.5 * ( gp_zeta_hi * met_h_xi_hi / met_h_zeta_hi
-                                           + gp_zeta_lo * met_h_xi_lo / met_h_zeta_lo );
+                        gpx_metric = 0.5 * ( gp_z_hi * met_h_xi_hi + gp_z_lo * met_h_xi_lo );
                         gpx_hi -= gpx_metric;
 
                         // Average P grad to CC
@@ -711,22 +730,32 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                         Real met_h_eta_hi  = Compute_h_eta_AtCellCenter (i, j  , k, dxInv, z_nd);
                         Real met_h_eta_lo  = Compute_h_eta_AtCellCenter (i, j-1, k, dxInv, z_nd);
-                        Real met_h_zeta_hi = Compute_h_zeta_AtCellCenter(i, j  , k, dxInv, z_nd);
-                        Real met_h_zeta_lo = Compute_h_zeta_AtCellCenter(i, j-1, k, dxInv, z_nd);
 
-                        Real gp_zeta_lo, gp_zeta_hi;
+                        Real dz_phys_hi, dz_phys_lo;
+                        Real gp_z_lo, gp_z_hi;
                         if (k==klo) {
-                            gp_zeta_hi = dxInv[2] * (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  ));
-                            gp_zeta_lo = dxInv[2] * (p_arr(i,j-1,k+1) - p_arr(i,j-1,k  ));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i,j  ,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j  ,k  ,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i,j-1,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j-1,k  ,z_nd);
+                            gp_z_hi = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  )) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i,j-1,k+1) - p_arr(i,j-1,k  )) / dz_phys_lo;
                         } else if (k==khi) {
-                            gp_zeta_hi = dxInv[2] * (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1));
-                            gp_zeta_lo = dxInv[2] * (p_arr(i,j-1,k  ) - p_arr(i,j-1,k-1));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i,j  ,k  ,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j  ,k-1,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i,j-1,k  ,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j-1,k-1,z_nd);
+                            gp_z_hi = (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1)) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i,j-1,k  ) - p_arr(i,j-1,k-1)) / dz_phys_lo;
                         } else {
-                            gp_zeta_hi = 0.5 * dxInv[2] * (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1));
-                            gp_zeta_lo = 0.5 * dxInv[2] * (p_arr(i,j-1,k+1) - p_arr(i,j-1,k-1));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i,j  ,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j  ,k-1,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i,j-1,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j-1,k-1,z_nd);
+                            gp_z_hi = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1)) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i,j-1,k+1) - p_arr(i,j-1,k-1)) / dz_phys_lo;
                         }
-                        Real gpy_metric = 0.5 * ( gp_zeta_hi * met_h_eta_hi / met_h_zeta_hi
-                                                + gp_zeta_lo * met_h_eta_lo / met_h_zeta_lo );
+                        Real gpy_metric = 0.5 * ( gp_z_hi * met_h_eta_hi + gp_z_lo * met_h_eta_lo );
                         gpy_lo -= gpy_metric;
 
                         // Pgrad at higher J face
@@ -734,21 +763,30 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                         met_h_eta_hi  = Compute_h_eta_AtCellCenter (i, j+1, k, dxInv, z_nd);
                         met_h_eta_lo  = Compute_h_eta_AtCellCenter (i, j  , k, dxInv, z_nd);
-                        met_h_zeta_hi = Compute_h_zeta_AtCellCenter(i, j+1, k, dxInv, z_nd);
-                        met_h_zeta_lo = Compute_h_zeta_AtCellCenter(i, j  , k, dxInv, z_nd);
 
                         if (k==klo) {
-                            gp_zeta_hi = dxInv[2] * (p_arr(i,j+1,k+1) - p_arr(i,j+1,k  ));
-                            gp_zeta_lo = dxInv[2] * (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  ));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i,j+1,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j+1,k  ,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i,j  ,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j  ,k  ,z_nd);
+                            gp_z_hi = (p_arr(i,j+1,k+1) - p_arr(i,j+1,k  )) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  )) / dz_phys_lo;
                         } else if (k==khi) {
-                            gp_zeta_hi = dxInv[2] * (p_arr(i,j+1,k  ) - p_arr(i,j+1,k-1));
-                            gp_zeta_lo = dxInv[2] * (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i,j+1,k  ,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j+1,k-1,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i,j  ,k  ,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j  ,k-1,z_nd);
+                            gp_z_hi = (p_arr(i,j+1,k  ) - p_arr(i,j+1,k-1)) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1)) / dz_phys_lo;
                         } else {
-                            gp_zeta_hi = 0.5 * dxInv[2] * (p_arr(i,j+1,k+1) - p_arr(i,j+1,k-1));
-                            gp_zeta_lo = 0.5 * dxInv[2] * (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1));
+                            dz_phys_hi = Compute_Z_AtCellCenter (i,j+1,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j+1,k-1,z_nd);
+                            dz_phys_lo = Compute_Z_AtCellCenter (i,j  ,k+1,z_nd)
+                                       - Compute_Z_AtCellCenter (i,j  ,k-1,z_nd);
+                            gp_z_hi = (p_arr(i,j+1,k+1) - p_arr(i,j+1,k-1)) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1)) / dz_phys_lo;
                         }
-                        gpy_metric = 0.5 * ( gp_zeta_hi * met_h_eta_hi / met_h_zeta_hi
-                                           + gp_zeta_lo * met_h_eta_lo / met_h_zeta_lo );
+                        gpy_metric = 0.5 * ( gp_z_hi * met_h_eta_hi + gp_z_lo * met_h_eta_lo );
                         gpy_hi -= gpy_metric;
 
                         derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);

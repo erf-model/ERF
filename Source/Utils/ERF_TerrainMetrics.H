@@ -356,6 +356,21 @@ Compute_h_eta_AtEdgeCenterI (const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
+Compute_Z_AtCellCenter (const int &i, const int &j, const int &k,
+                        const amrex::Array4<const amrex::Real>& z_nd)
+{
+    const amrex::Real z_cc = 0.125*(  z_nd(i  ,j  ,k  ) + z_nd(i  ,j  ,k+1) +
+                                    + z_nd(i+1,j  ,k  ) + z_nd(i  ,j  ,k+1)
+                                    + z_nd(i  ,j+1,k  ) + z_nd(i  ,j+1,k+1)
+                                    + z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k+1));
+
+    return z_cc;
+}
+
+// Relative height above terrain surface at cell center from z_nd (nodal absolute height)
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
 Compute_Zrel_AtCellCenter (const int &i, const int &j, const int &k,
                            const amrex::Array4<const amrex::Real>& z_nd)
 {
@@ -408,31 +423,6 @@ OmegaFromW (int i, int j, int k, amrex::Real w,
 
   amrex::Real omega =  w - u_met - v_met;
   return omega;
-}
-
-/**
- * Define w given scalar u,v and omega
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-WFromOmega (int i, int j, int k, amrex::Real omega,
-            amrex::Real u, amrex::Real v,
-            const amrex::Array4<const amrex::Real>& z_nd,
-            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
-{
-  // This is dh/dxi at z-face (i,j,k-1/2)
-  amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
-    ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
-     -z_nd(i  ,j+1,k  ) - z_nd(i  ,j  ,k  ) ); // lo i, lo k
-
-  // This is dh/deta at z-face (i,j,k-1/2)
-  amrex::Real met_zlo_eta  = 0.5 * dxInv[1] *
-    ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
-     -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
-
-  amrex::Real w = omega + met_zlo_xi * u + met_zlo_eta * v;
-  return w;
 }
 
 /**
