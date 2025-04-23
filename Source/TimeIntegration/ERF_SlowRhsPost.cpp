@@ -225,6 +225,14 @@ void erf_slow_rhs_post (int level, int finest_level,
       int start_comp;
       int   num_comp;
 
+      // Cell-centered masks for EB (used for flux interpolation)
+      iMultiFab cc_mask;
+      bool already_on_centroids = false;
+      if (solverChoice.terrain_type == TerrainType::EB) {
+          cc_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
+          cc_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+      }
+
       for (MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         Box tbx  = mfi.tilebox();
@@ -233,7 +241,11 @@ void erf_slow_rhs_post (int level, int finest_level,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(surroundingNodes(tbx,dir),nvars);
+            if (solverChoice.terrain_type != TerrainType::EB) {
+                flux[dir].resize(surroundingNodes(tbx,dir),nvars);
+            } else {
+                flux[dir].resize(surroundingNodes(tbx,dir).grow(1),nvars);
+            }
             flux[dir].setVal<RunOn::Device>(0.);
             if (l_use_mono_adv) {
                 flux_tmp[dir].resize(surroundingNodes(tbx,dir),nvars);
@@ -323,19 +335,26 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        // Metric terms
-        Array4<const Real> ax_arr;
-        Array4<const Real> ay_arr;
-        Array4<const Real> az_arr;
-        Array4<const Real> detJ_arr;
-        Array4<const EBCellFlag> cfg_arr;
+        Array4<const int> ccm_arr{};
+        Array4<const EBCellFlag> cfg_arr{};
+        Array4<const Real> ax_arr{};
+        Array4<const Real> ay_arr{};
+        Array4<const Real> az_arr{};
+        Array4<const Real> fcx_arr{};
+        Array4<const Real> fcy_arr{};
+        Array4<const Real> fcz_arr{};
+        Array4<const Real> detJ_arr{};
         if (solverChoice.terrain_type == TerrainType::EB) {
             EBCellFlagFab const& cfg = ebfact.getMultiEBCellFlagFab()[mfi];
             cfg_arr  = cfg.const_array();
             ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
             ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
             az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
+            fcx_arr  = ebfact.getFaceCent()[0]->const_array(mfi);
+            fcy_arr  = ebfact.getFaceCent()[1]->const_array(mfi);
+            fcz_arr  = ebfact.getFaceCent()[2]->const_array(mfi);
             detJ_arr = ebfact.getVolFrac().const_array(mfi);
+            if (!already_on_centroids) {ccm_arr = cc_mask.const_array(mfi);}
         } else {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
@@ -417,10 +436,13 @@ void erf_slow_rhs_post (int level, int finest_level,
                         EBAdvectionSrcForScalars(tbx, start_comp, num_comp,
                                             avg_xmom, avg_ymom, avg_zmom,
                                             cur_prim, cell_rhs,
-                                            cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr, dxInv, mf_m,
+                                            ccm_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                            fcx_arr, fcy_arr, fcz_arr,
+                                            detJ_arr, dxInv, mf_m,
                                             horiz_adv_type, vert_adv_type,
                                             horiz_upw_frac, vert_upw_frac,
-                                            flx_arr, domain, bc_ptr_h);
+                                            flx_arr, domain, bc_ptr_h,
+                                            already_on_centroids);
                     }
                 }
 

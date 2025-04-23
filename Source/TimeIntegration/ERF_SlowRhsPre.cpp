@@ -252,6 +252,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::array<FArrayBox,AMREX_SPACEDIM> flux_w;
     std::array<FArrayBox,AMREX_SPACEDIM> flux_tmp;
 
+    // Cell-centered masks for EB (used for flux interpolation)
+    iMultiFab cc_mask;
+    bool already_on_centroids = false;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        cc_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
+        cc_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+    }
+
     for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
@@ -342,7 +350,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // Define flux arrays for use in advection
         // *****************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(surroundingNodes(bx,dir),2);
+            if (solverChoice.terrain_type != TerrainType::EB) {
+                flux[dir].resize(surroundingNodes(bx,dir),2);
+            } else {
+                flux[dir].resize(surroundingNodes(bx,dir).grow(1),2);
+            }
             flux[dir].setVal<RunOn::Device>(0.);
             if (l_use_mono_adv) {
                 flux_tmp[dir].resize(surroundingNodes(bx,dir),2);
@@ -491,11 +503,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // *****************************************************************************
-        Array4<const Real> ax_arr;
-        Array4<const Real> ay_arr;
-        Array4<const Real> az_arr;
-        Array4<const Real> detJ_arr;
-        Array4<const EBCellFlag> cfg_arr;
+        Array4<const int> ccm_arr{};
+        Array4<const EBCellFlag> cfg_arr{};
+        Array4<const Real> ax_arr{};
+        Array4<const Real> ay_arr{};
+        Array4<const Real> az_arr{};
+        Array4<const Real> fcx_arr{};
+        Array4<const Real> fcy_arr{};
+        Array4<const Real> fcz_arr{};
+        Array4<const Real> detJ_arr{};
         if (solverChoice.terrain_type == TerrainType::EB)
         {
             EBCellFlagFab const& cfg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi];
@@ -503,7 +519,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
             ax_arr   = (ebfact.get_const_factory())->getAreaFrac()[0]->const_array(mfi);
             ay_arr   = (ebfact.get_const_factory())->getAreaFrac()[1]->const_array(mfi);
             az_arr   = (ebfact.get_const_factory())->getAreaFrac()[2]->const_array(mfi);
+            fcx_arr  = (ebfact.get_const_factory())->getFaceCent()[0]->const_array(mfi);
+            fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
+            fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
             detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
+            if (!already_on_centroids) {ccm_arr = cc_mask.const_array(mfi);}
         } else {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
@@ -532,10 +552,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
             EBAdvectionSrcForScalars(bx, icomp, ncomp,
                                 avg_xmom, avg_ymom, avg_zmom,
                                 cell_prim, cell_rhs,
-                                cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr, dxInv, mf_m,
+                                ccm_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                fcx_arr, fcy_arr, fcz_arr,
+                                detJ_arr, dxInv, mf_m,
                                 l_horiz_adv_type, l_vert_adv_type,
                                 l_horiz_upw_frac, l_vert_upw_frac,
-                                flx_arr, domain, bc_ptr_h);
+                                flx_arr, domain, bc_ptr_h,
+                                already_on_centroids);
         }
 
         if (l_use_diff) {
