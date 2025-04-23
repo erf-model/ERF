@@ -12,6 +12,10 @@ namespace MaterialNames
 {
     /*! Water */
     const std::string h2o = "H2O";
+    /*! also water */
+    const std::string water = "water";
+    /*! also water */
+    const std::string agua  = "agua";
     /*! Salt (NaCl) */
     const std::string nacl = "NaCl";
     /*! Ammonium Sulfate/Bisulfate */
@@ -108,6 +112,10 @@ class MaterialProperties {
 
         /*! \brief Set this material to H20 */
         void setProperties_H2O();
+        /*! \brief Set this material to water */
+        void setProperties_water();
+        /*! \brief Set this material to agua */
+        void setProperties_agua();
         /*! \brief Set this material to NaCl */
         void setProperties_NaCl();
         /*! \brief Set this material to ammonium sulfate */

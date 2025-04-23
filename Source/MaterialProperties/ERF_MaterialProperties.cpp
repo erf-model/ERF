@@ -53,6 +53,10 @@ MaterialProperties::MaterialProperties ( const std::string& a_name )
     m_name = a_name;
     if (a_name == MaterialNames::h2o) {
         setProperties_H2O();
+    } else if (a_name == MaterialNames::water) {
+        setProperties_water();
+    } else if (a_name == MaterialNames::agua) {
+        setProperties_agua();
     } else if (a_name == MaterialNames::nacl) {
         setProperties_NaCl();
     } else if (a_name == MaterialNames::amsu) {
@@ -65,6 +69,40 @@ MaterialProperties::MaterialProperties ( const std::string& a_name )
 }
 
 void MaterialProperties::setProperties_H2O()
+{
+    m_density = rhor; // ERF_Constants.H
+
+    m_coeff_curv = 3.3e-07; // m K
+    m_coeff_VP_solute = 4.3e-06; // m^3
+    m_ionization = 2;
+    m_mol_weight = 1.802e-02; // kg mol^-1
+    m_lat_vap = L_v; // ERF_Constants.H
+    m_Rv = R_v; // ERF_Constants.H
+    m_is_soluble = true;
+
+    m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
+    m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
+
+}
+
+void MaterialProperties::setProperties_water()
+{
+    m_density = rhor; // ERF_Constants.H
+
+    m_coeff_curv = 3.3e-07; // m K
+    m_coeff_VP_solute = 4.3e-06; // m^3
+    m_ionization = 2;
+    m_mol_weight = 1.802e-02; // kg mol^-1
+    m_lat_vap = L_v; // ERF_Constants.H
+    m_Rv = R_v; // ERF_Constants.H
+    m_is_soluble = true;
+
+    m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
+    m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
+
+}
+
+void MaterialProperties::setProperties_agua()
 {
     m_density = rhor; // ERF_Constants.H
 
