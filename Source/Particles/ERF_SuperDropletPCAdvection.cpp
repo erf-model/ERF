@@ -10,7 +10,7 @@ using namespace amrex;
 
 /*! Evolve particles for one time step */
 void SuperDropletPC::AdvectParticles ( int                   a_lev,
-                                       Real                  a_time,
+                                       Real                  /*a_time*/,
                                        Real                  a_dt,
                                        const MultiFab* const a_flow_vel,
                                        const MultiFab&       a_density,
@@ -35,7 +35,6 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const auto domain = geom.Domain();
 
     const auto is_periodic = geom.isPeriodic();
     auto is_periodic_z = is_periodic[2];
