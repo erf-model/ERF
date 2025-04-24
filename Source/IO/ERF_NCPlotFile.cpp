@@ -210,8 +210,6 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
        }
    }
 
-   // size_t nfai = 0;
-   // long unsigned numpts = 0;
    const int ncomp = plotMF[lev]->nComp();
 
    for (MFIter mfi(*plotMF[lev]); mfi.isValid(); ++mfi)
@@ -220,25 +218,28 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
 
        if (subdomain.contains(bx))
        {
-            //
-            // These are the dimensions of the data we write for only this box
-            //
-            long unsigned local_nx = bx.length()[0];
-            long unsigned local_ny = bx.length()[1];
-            long unsigned local_nz = bx.length()[2];
+           //
+           // These are the dimensions of the data we write for only this box
+           //
+           long unsigned local_nx = bx.length()[0];
+           long unsigned local_ny = bx.length()[1];
+           long unsigned local_nz = bx.length()[2];
 
-            long unsigned local_start_x  = static_cast<long unsigned>(bx.smallEnd()[0]);
-            long unsigned local_start_y  = static_cast<long unsigned>(bx.smallEnd()[1]);
-            long unsigned local_start_z  = static_cast<long unsigned>(bx.smallEnd()[2]);
+           long unsigned local_start_x  = static_cast<long unsigned>(bx.smallEnd()[0]);
+           long unsigned local_start_y  = static_cast<long unsigned>(bx.smallEnd()[1]);
+           long unsigned local_start_z  = static_cast<long unsigned>(bx.smallEnd()[2]);
 
            for (int k(0); k < ncomp; ++k) {
-              const auto *data = plotMF[lev]->get(mfi).dataPtr(k);
-              auto nc_plot_var = ncf.var(plot_var_names[k]);
-              nc_plot_var.par_access(NC_INDEPENDENT);
-              nc_plot_var.put(data, {local_start_z,local_start_y,local_start_x},
-                                    {local_nz, local_ny, local_nx});
+               FArrayBox tmp;
+               tmp.resize(bx, 1, amrex::The_Pinned_Arena());
+               tmp.template copy<RunOn::Device>((*plotMF[lev])[mfi.index()], 0, 0, 1);
+               Gpu::streamSynchronize();
+
+               auto nc_plot_var = ncf.var(plot_var_names[k]);
+               nc_plot_var.par_access(NC_INDEPENDENT);
+               nc_plot_var.put(tmp.dataPtr(), {local_start_z,local_start_y,local_start_x},
+                                              {local_nz, local_ny, local_nx});
            }
-           Gpu::streamSynchronize();
        }
    }
    ncf.close();
