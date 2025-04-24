@@ -281,7 +281,7 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
         auto P_min = 0.0;
         auto P_max = 1.0;
         auto tol = 1.0 / m_numdens_init;
-        int a_np_tail = 0.01 * a_np; // this is an approximation for now; saves 1% of SDs for the tail
+        int a_np_tail = static_cast<int>(std::ceil(0.01*a_np)); // this is an approximation for now; saves 1% of SDs for the tail
         amrex::Print() << "Finding aerosol radius sampling range\n";
         while ((P_max >= 1.0 - tol) || (P_min <= tol)) {
             if (P_max >= 1.0 - tol) {
@@ -311,7 +311,7 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
         amrex::Print() << "Initializing tail: " << a_np_tail << " particles\n";
         auto tail_mult = std::exp(-std::log(rmax/mu)*std::log(rmax/mu)/(2.0*sigma*sigma)) / (sigma*std::sqrt(2*PI)*rmax);
         for (int n = 0; n < a_np_tail; n++) {
-            int sd_id = urd(a_rng) * a_np;
+            int sd_id = static_cast<int>(std::round(urd(a_rng) * a_np));
             auto tmp = P_max + (1.0 - P_max) * urd(a_rng);
             auto tmp2 = SD_erfinv(2 * tmp - 1);
             auto dry_r = mu * std::exp(sigma * std::sqrt(2) * tmp2);
