@@ -580,6 +580,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 const Array4<Real      > &   p_arr  = pres.array(mfi);
                 const Array4<Real const> & hse_arr  = base_state[lev].const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                const Array4<Real const>& z_cc = z_phys_cc[lev]->const_array(mfi);
                 if (solverChoice.anelastic[lev] == 1) {
                     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         p_arr(i,j,k) = hse_arr(i,j,k,1);
@@ -604,7 +605,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                 if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                     const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
-
+                    const Array4<Real const>& z_cc = z_phys_cc[lev]->const_array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         // Pgrad at lower I face
@@ -614,30 +615,24 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                         Real met_h_xi_lo   = Compute_h_xi_AtCellCenter  (i-1, j, k, dxInv, z_nd);
 
                         Real dz_phys_hi, dz_phys_lo;
-                        Real gp_z_lo, gp_z_hi;
+                        Real gpz_lo, gpz_hi;
                         if (k==klo) {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i  ,j,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i  ,j,k  ,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i-1,j,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i-1,j,k  ,z_nd);
-                            gp_z_hi = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  )) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k  )) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i  ,j,k+1) -  z_cc(i  ,j,k  );
+                            dz_phys_lo = z_cc(i-1,j,k+1) -  z_cc(i-1,j,k  );
+                            gpz_hi   = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  )) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k  )) / dz_phys_lo;
                         } else if (k==khi) {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i  ,j,k  ,z_nd)
-                                       - Compute_Z_AtCellCenter (i  ,j,k-1,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i-1,j,k  ,z_nd)
-                                       - Compute_Z_AtCellCenter (i-1,j,k-1,z_nd);
-                            gp_z_hi = (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1)) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i-1,j,k  ) - p_arr(i-1,j,k-1)) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i  ,j,k  ) -  z_cc(i  ,j,k-1);
+                            dz_phys_lo = z_cc(i-1,j,k  ) -  z_cc(i-1,j,k-1);
+                            gpz_hi   = (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1)) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i-1,j,k  ) - p_arr(i-1,j,k-1)) / dz_phys_lo;
                         } else {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i  ,j,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i  ,j,k-1,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i-1,j,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i-1,j,k-1,z_nd);
-                            gp_z_hi = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k-1)) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i  ,j,k+1) -  z_cc(i  ,j,k-1);
+                            dz_phys_lo = z_cc(i-1,j,k+1) -  z_cc(i-1,j,k-1);
+                            gpz_hi   = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k-1)) / dz_phys_lo;
                         }
-                        Real gpx_metric = 0.5 * ( gp_z_hi * met_h_xi_hi + gp_z_lo * met_h_xi_lo );
+                        Real gpx_metric = 0.5 * ( gpz_hi * met_h_xi_hi + gpz_lo * met_h_xi_lo );
                         gpx_lo -= gpx_metric;
 
                         // Pgrad at higher I face
@@ -647,28 +642,22 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                         met_h_xi_lo   = Compute_h_xi_AtCellCenter  (i  , j, k, dxInv, z_nd);
 
                         if (k==klo) {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i+1,j,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i+1,j,k  ,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i  ,j,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i  ,j,k  ,z_nd);
-                            gp_z_hi = (p_arr(i+1,j,k+1) - p_arr(i+1,j,k  )) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  )) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i+1,j,k+1) -  z_cc(i+1,j,k  );
+                            dz_phys_lo = z_cc(i  ,j,k+1) -  z_cc(i  ,j,k  );
+                            gpz_hi   = (p_arr(i+1,j,k+1) - p_arr(i+1,j,k  )) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  )) / dz_phys_lo;
                         } else if (k==khi) {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i+1,j,k  ,z_nd)
-                                       - Compute_Z_AtCellCenter (i+1,j,k-1,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i  ,j,k  ,z_nd)
-                                       - Compute_Z_AtCellCenter (i  ,j,k-1,z_nd);
-                            gp_z_hi = (p_arr(i+1,j,k  ) - p_arr(i+1,j,k-1)) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1)) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i+1,j,k  ) -  z_cc(i+1,j,k-1);
+                            dz_phys_lo = z_cc(i  ,j,k  ) -  z_cc(i  ,j,k-1);
+                            gpz_hi   = (p_arr(i+1,j,k  ) - p_arr(i+1,j,k-1)) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1)) / dz_phys_lo;
                         } else {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i+1,j,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i+1,j,k-1,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i  ,j,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i  ,j,k-1,z_nd);
-                            gp_z_hi = (p_arr(i+1,j,k+1) - p_arr(i+1,j,k-1)) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i+1,j,k+1) -  z_cc(i+1,j,k-1);
+                            dz_phys_lo = z_cc(i  ,j,k+1) -  z_cc(i  ,j,k-1);
+                            gpz_hi   = (p_arr(i+1,j,k+1) - p_arr(i+1,j,k-1)) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_lo;
                         }
-                        gpx_metric = 0.5 * ( gp_z_hi * met_h_xi_hi + gp_z_lo * met_h_xi_lo );
+                        gpx_metric = 0.5 * ( gpz_hi * met_h_xi_hi + gpz_lo * met_h_xi_lo );
                         gpx_hi -= gpx_metric;
 
                         // Average P grad to CC
@@ -722,7 +711,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                 if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                     const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
-
+                    const Array4<Real const>& z_cc = z_phys_cc[lev]->const_array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         // Pgrad at lower J face
@@ -732,30 +721,24 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                         Real met_h_eta_lo  = Compute_h_eta_AtCellCenter (i, j-1, k, dxInv, z_nd);
 
                         Real dz_phys_hi, dz_phys_lo;
-                        Real gp_z_lo, gp_z_hi;
+                        Real gpz_lo, gpz_hi;
                         if (k==klo) {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i,j  ,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j  ,k  ,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i,j-1,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j-1,k  ,z_nd);
-                            gp_z_hi = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  )) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i,j-1,k+1) - p_arr(i,j-1,k  )) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i,j  ,k+1) -  z_cc(i,j  ,k  );
+                            dz_phys_lo = z_cc(i,j-1,k+1) -  z_cc(i,j-1,k  );
+                            gpz_hi   = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  )) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i,j-1,k+1) - p_arr(i,j-1,k  )) / dz_phys_lo;
                         } else if (k==khi) {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i,j  ,k  ,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j  ,k-1,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i,j-1,k  ,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j-1,k-1,z_nd);
-                            gp_z_hi = (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1)) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i,j-1,k  ) - p_arr(i,j-1,k-1)) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i,j  ,k  ) -  z_cc(i,j  ,k-1);
+                            dz_phys_lo = z_cc(i,j-1,k  ) -  z_cc(i,j-1,k-1);
+                            gpz_hi   = (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1)) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i,j-1,k  ) - p_arr(i,j-1,k-1)) / dz_phys_lo;
                         } else {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i,j  ,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j  ,k-1,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i,j-1,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j-1,k-1,z_nd);
-                            gp_z_hi = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1)) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i,j-1,k+1) - p_arr(i,j-1,k-1)) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i,j  ,k+1) -  z_cc(i,j  ,k-1);
+                            dz_phys_lo = z_cc(i,j-1,k+1) -  z_cc(i,j-1,k-1);
+                            gpz_hi   = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1)) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i,j-1,k+1) - p_arr(i,j-1,k-1)) / dz_phys_lo;
                         }
-                        Real gpy_metric = 0.5 * ( gp_z_hi * met_h_eta_hi + gp_z_lo * met_h_eta_lo );
+                        Real gpy_metric = 0.5 * ( gpz_hi * met_h_eta_hi + gpz_lo * met_h_eta_lo );
                         gpy_lo -= gpy_metric;
 
                         // Pgrad at higher J face
@@ -765,28 +748,22 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                         met_h_eta_lo  = Compute_h_eta_AtCellCenter (i, j  , k, dxInv, z_nd);
 
                         if (k==klo) {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i,j+1,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j+1,k  ,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i,j  ,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j  ,k  ,z_nd);
-                            gp_z_hi = (p_arr(i,j+1,k+1) - p_arr(i,j+1,k  )) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  )) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i,j+1,k+1) -  z_cc(i,j+1,k  );
+                            dz_phys_lo = z_cc(i,j  ,k+1) -  z_cc(i,j  ,k  );
+                            gpz_hi   = (p_arr(i,j+1,k+1) - p_arr(i,j+1,k  )) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  )) / dz_phys_lo;
                         } else if (k==khi) {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i,j+1,k  ,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j+1,k-1,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i,j  ,k  ,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j  ,k-1,z_nd);
-                            gp_z_hi = (p_arr(i,j+1,k  ) - p_arr(i,j+1,k-1)) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1)) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i,j+1,k  ) -  z_cc(i,j+1,k-1);
+                            dz_phys_lo = z_cc(i,j  ,k  ) -  z_cc(i,j  ,k-1);
+                            gpz_hi   = (p_arr(i,j+1,k  ) - p_arr(i,j+1,k-1)) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1)) / dz_phys_lo;
                         } else {
-                            dz_phys_hi = Compute_Z_AtCellCenter (i,j+1,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j+1,k-1,z_nd);
-                            dz_phys_lo = Compute_Z_AtCellCenter (i,j  ,k+1,z_nd)
-                                       - Compute_Z_AtCellCenter (i,j  ,k-1,z_nd);
-                            gp_z_hi = (p_arr(i,j+1,k+1) - p_arr(i,j+1,k-1)) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1)) / dz_phys_lo;
+                            dz_phys_hi = z_cc(i,j+1,k+1) -  z_cc(i,j+1,k-1);
+                            dz_phys_lo = z_cc(i,j  ,k+1) -  z_cc(i,j  ,k-1);
+                            gpz_hi   = (p_arr(i,j+1,k+1) - p_arr(i,j+1,k-1)) / dz_phys_hi;
+                            gpz_lo   = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1)) / dz_phys_lo;
                         }
-                        gpy_metric = 0.5 * ( gp_z_hi * met_h_eta_hi + gp_z_lo * met_h_eta_lo );
+                        gpy_metric = 0.5 * ( gpz_hi * met_h_eta_hi + gpz_lo * met_h_eta_lo );
                         gpy_hi -= gpy_metric;
 
                         derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
