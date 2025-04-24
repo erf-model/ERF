@@ -50,10 +50,10 @@ Problem::Problem()
   }
   m_num_species = m_species.size();
 
-  parms.qv_init_species = std::vector<amrex::Real>(m_num_species,0.0);
+  m_qv_init_species = std::vector<amrex::Real>(m_num_species,0.0);
   for (int i = 0; i < m_num_species; i++) {
       std::string key_str = "qv_init_" + m_species[i];
-      pp.query(key_str.c_str(), parms.qv_init_species[i]);
+      pp.query(key_str.c_str(), m_qv_init_species[i]);
   }
 
   init_base_parms(parms.rho_0, parms.T_0);
@@ -402,12 +402,12 @@ Problem::init_custom_pert(
     auto nstart = m_nstart_sp;
     int ncomp_species = state_pert.nComp() - nstart;
     AMREX_ALWAYS_ASSERT(n_sp*m_ncomp_per_species == ncomp_species);
-    Gpu::DeviceVector<Real> qv_init(n_sp);
+    Gpu::DeviceVector<Real> qv_init_d(n_sp);
     Gpu::copy( Gpu::hostToDevice,
-               parms.qv_init_species.begin(),
-               parms.qv_init_species.end(),
-               qv_init.begin() );
-    auto qv_arr = qv_init.data();
+               m_qv_init_species.begin(),
+               m_qv_init_species.end(),
+               qv_init_d.begin() );
+    auto qv_arr = qv_init_d.data();
 
     ParallelFor(bx, [=, parms_d=parms]
                 AMREX_GPU_DEVICE(int i, int j, int k) noexcept

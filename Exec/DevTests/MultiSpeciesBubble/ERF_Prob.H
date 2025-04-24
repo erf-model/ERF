@@ -37,9 +37,6 @@ struct ProbParm : ProbParmDefaults {
     amrex::Real theta_pert  = 2.0;
     amrex::Real qt_init     = 0.02;
     amrex::Real eq_pot_temp = 320.0;
-
-    // species qv_init
-    std::vector<amrex::Real> qv_init_species = std::vector<amrex::Real>(0);
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
@@ -135,6 +132,8 @@ private:
     int m_num_species = 0;
     const int m_ncomp_per_species = 2; // rho*qc, rho*qc
     const int m_nstart_sp = RhoQ3_comp+1;
+    // species qv_init
+    std::vector<amrex::Real> m_qv_init_species = std::vector<amrex::Real>(0);
 };
 
 /*

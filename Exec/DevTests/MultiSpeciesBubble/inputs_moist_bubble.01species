@@ -87,4 +87,4 @@ prob.theta_pert  = 2.0
 prob.qt_init     = 0.02
 prob.eq_pot_temp = 320.0
 
-prob.qv_init_water = 0.001
+prob.qv_init_water = 0.01
