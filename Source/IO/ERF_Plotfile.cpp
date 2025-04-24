@@ -635,7 +635,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                             dz_phys_lo = Compute_Z_AtCellCenter (i-1,j,k+1,z_nd)
                                        - Compute_Z_AtCellCenter (i-1,j,k-1,z_nd);
                             gp_z_hi = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k-1)) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k-1)) / dz_phys_lo;
                         }
                         Real gpx_metric = 0.5 * ( gp_z_hi * met_h_xi_hi + gp_z_lo * met_h_xi_lo );
                         gpx_lo -= gpx_metric;
@@ -666,7 +666,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                             dz_phys_lo = Compute_Z_AtCellCenter (i  ,j,k+1,z_nd)
                                        - Compute_Z_AtCellCenter (i  ,j,k-1,z_nd);
                             gp_z_hi = (p_arr(i+1,j,k+1) - p_arr(i+1,j,k-1)) / dz_phys_hi;
-                            gp_z_lo = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_hi;
+                            gp_z_lo = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_lo;
                         }
                         gpx_metric = 0.5 * ( gp_z_hi * met_h_xi_hi + gp_z_lo * met_h_xi_lo );
                         gpx_hi -= gpx_metric;

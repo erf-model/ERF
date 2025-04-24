@@ -710,7 +710,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     dz_phys_lo = Compute_Z_AtCellCenter (i-1,j,k+1,z_nd)
                                - Compute_Z_AtCellCenter (i-1,j,k-1,z_nd);
                     gp_z_hi = (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k-1)) / dz_phys_hi;
-                    gp_z_lo = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k-1)) / dz_phys_hi;
+                    gp_z_lo = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k-1)) / dz_phys_lo;
                 }
                 Real gpx_metric = 0.5 * ( gp_z_hi * met_h_xi_hi + gp_z_lo * met_h_xi_lo );
                 gpx -= gpx_metric;
