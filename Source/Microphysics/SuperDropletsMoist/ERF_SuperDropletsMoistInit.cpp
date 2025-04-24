@@ -62,7 +62,8 @@ void SuperDropletsMoist::readInputs ()
             m_species.push_back(sp_name);
         }
     }
-    m_qstate_nonmoist_size = (m_species.size()-1)*2; // qv, qc for each
+    m_num_species = m_species.size();
+    m_qstate_nonmoist_size = (m_num_species-1)*2; // qv, qc for each
 
     // get aerosol names
     m_aerosols.clear();
@@ -75,6 +76,7 @@ void SuperDropletsMoist::readInputs ()
             m_aerosols.push_back(aero_name);
         }
     }
+    m_num_aerosols = m_aerosols.size();
 
     // number of time steps between writing distribution  diagnostics to file
     m_diagnostics_iter = 1; //default
@@ -118,7 +120,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
 
     /* allocate microphysics multifabs */
     m_mic_fab_vars.resize( MicVar_SD::NumVars
-                          +(m_species.size()-1)*MicVar_SD_Species::NumVars);
+                          +(m_num_species-1)*MicVar_SD_Species::NumVars);
     for (auto i(0); i < m_mic_fab_vars.size(); i++) {
       m_mic_fab_vars[i] = std::make_shared<MultiFab> ( a_cons_vars.boxArray(),
                                                        a_cons_vars.DistributionMap(),
@@ -260,7 +262,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
     computeQcSpecies();
     computeQtSpecies();
 
-    for (int is = 1; is < m_species.size(); is++) {
+    for (int is = 1; is < m_num_species; is++) {
         for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
             const auto& box = mfi.tilebox();
             auto states_arr = a_cons_vars.array(mfi);

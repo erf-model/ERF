@@ -42,7 +42,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
         }
 
         // other species
-        for (int is = 1; is < m_species.size(); is++) {
+        for (int is = 1; is < m_num_species; is++) {
             auto q_v_arr = m_mic_fab_vars[s_qv_idx(is)]->array(mfi);
             auto q_t_arr = m_mic_fab_vars[s_qt_idx(is)]->array(mfi);
             auto q_c_arr = m_mic_fab_vars[s_qc_idx(is)]->const_array(mfi);
@@ -103,7 +103,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
     }
 
     // other species
-    for (int is = 1; is < m_species.size(); is++) {
+    for (int is = 1; is < m_num_species; is++) {
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(m_species[is]);
         vapour_mat.computeSaturationVapFrac((*m_mic_fab_vars[s_sr_idx(is)]),
                                             (*m_mic_fab_vars[MicVar_SD::temperature]),
@@ -165,7 +165,7 @@ void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conse
         }
 
         // other species
-        for (int is = 1; is < m_species.size(); is++) {
+        for (int is = 1; is < m_num_species; is++) {
             auto q_v_arr = m_mic_fab_vars[s_qv_idx(is)]->array(mfi);
             auto q_c_arr = m_mic_fab_vars[s_qc_idx(is)]->array(mfi);
             auto qv_comp = q_qv_idx(is);
@@ -370,7 +370,7 @@ void SuperDropletsMoist::speciesAccumulation ()
     int k_lo = domain.smallEnd(2);
     auto dt = m_dt;
 
-    for (int is = 1; is < m_species.size(); is++) {
+    for (int is = 1; is < m_num_species; is++) {
         MultiFab mf_zflux( m_mic_fab_vars[s_sr_idx(is)]->boxArray(),
                            m_mic_fab_vars[s_sr_idx(is)]->DistributionMap(),
                            1,

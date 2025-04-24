@@ -113,6 +113,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             m_qstate_nonmoist_size = -1; // intentional
             m_name = "super_droplets_moisture";
             m_idx_w = -1;
+            m_num_species = 0;
+            m_num_aerosols = 0;
             readInputs();
         }
 
@@ -209,7 +211,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief compute condensate for all non-water species */
         virtual void computeQcSpecies ()
         {
-            for (int is = 1; is < m_species.size(); is++) { computeQcSpecies(is); }
+            for (int is = 1; is < m_num_species; is++) { computeQcSpecies(is); }
         }
 
         /*! \brief compute condensate mixing ratio for a non-water species */
@@ -228,7 +230,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief compute qt (total) for all non-water species */
         virtual void computeQtSpecies ()
         {
-            for (int is = 1; is < m_species.size(); is++) { computeQtSpecies(is); }
+            for (int is = 1; is < m_num_species; is++) { computeQtSpecies(is); }
         }
 
         /*! \brief compute qt (total) for a non-water species */
@@ -259,7 +261,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         virtual void GetPlotVarNames (Vector<std::string>& a_names) const override
         {
-            for (int v = 1; v < m_species.size(); v++) {
+            for (int v = 1; v < m_num_species; v++) {
                 a_names.push_back("qv_"+m_species[v]);
                 a_names.push_back("qc_"+m_species[v]);
                 a_names.push_back("qt_"+m_species[v]);
@@ -272,7 +274,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                  MultiFab& a_mf )  const
         {
             AMREX_ASSERT(a_mf.nComp() >= 1);
-            for (int v = 1; v < m_species.size(); v++) {
+            for (int v = 1; v < m_num_species; v++) {
                 {
                     std::string varname = "qv_" + m_species[v];
                     if (a_name == varname) {
@@ -380,9 +382,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! names of vapour/condensate species */
         std::vector<std::string> m_species;
+        int m_num_species;
 
         /*! names of aerosols */
         std::vector<std::string> m_aerosols;
+        int m_num_aerosols;
 
         /*! number of substeps for phase change */
         int m_num_substeps_phase_change;

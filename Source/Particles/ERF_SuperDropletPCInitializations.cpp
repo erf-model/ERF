@@ -660,7 +660,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         Gpu::synchronize();
 
         const auto height_arr = (*a_height_ptr)[mfi].array();
-        ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k, const RandomEngine& rnd_eng) noexcept
+        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int num_sd_this_cell = num_superdroplets_arr(i,j,k);
             int start = offset_arr(i,j,k);

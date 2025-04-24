@@ -289,7 +289,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto np_bin = bin_stop - bin_start;
             if (np_bin <= 1) { return; }
 
-            for (unsigned int p = 0; p < np_bin/2; p++) {
+            for (int p = 0; p < np_bin/2; p++) {
                 auto pi = inds[bin_start+p];
                 auto pj = inds[bin_stop-1-p];
 

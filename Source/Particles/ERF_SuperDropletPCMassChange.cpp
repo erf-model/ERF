@@ -197,8 +197,9 @@ void SuperDropletPC::MassChange ( int                                         a_
                                     cfl, 1e-40, 1e-3, 1e-6, false, false };
 
             auto mass = sp_mass_ptrs[idx_vap][i];
-            auto radius = std::cbrt(mass / ((4.0/3.0)*PI*mat_density));
-            auto r_sq = radius*radius;
+            auto r_init = std::cbrt(mass / ((4.0/3.0)*PI*mat_density));
+
+            auto r_sq = r_init*r_init;
             bool success = false;
             if (ti_choice == SDMassChangeTIMethod::RK4) {
                 ti.rk4(r_sq, success);
@@ -226,10 +227,10 @@ void SuperDropletPC::MassChange ( int                                         a_
                 Gpu::Atomic::Add(unconverged_particles_ptr, Long(1));
             } else {
                 // update particle attributes
-                auto radius = std::sqrt(r_sq);
-                sp_mass_ptrs[idx_vap][i] = (4.0/3.0)*PI*radius*r_sq*mat_density;
+                auto r_new = std::sqrt(r_sq);
+                sp_mass_ptrs[idx_vap][i] = (4.0/3.0)*PI*r_new*r_sq*mat_density;
                 if (a_is_water) {
-                    radius_ptr[i] = radius;
+                    radius_ptr[i] = r_new;
                     mass_ptr[i] = sp_mass_ptrs[idx_vap][i];
                 }
             }
