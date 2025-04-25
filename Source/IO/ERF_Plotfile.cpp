@@ -1477,7 +1477,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
     }
 
-    // Fill terrain distortion MF
+    // Fill terrain distortion MF (nu_nd)
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         for (int lev(0); lev <= finest_level; ++lev) {
             MultiFab::Copy(mf_nd[lev],*z_phys_nd[lev],0,2,1,0);
@@ -1485,7 +1485,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
                 Array4<Real> mf_arr = mf_nd[lev].array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
                     mf_arr(i,j,k,2) -= k * dz;
                 });
             }
