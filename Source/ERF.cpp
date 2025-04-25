@@ -264,6 +264,7 @@ ERF::ERF_shared ()
 
     // Sea surface temps
     sst_lev.resize(nlevs_max);
+    tsk_lev.resize(nlevs_max);
     lmask_lev.resize(nlevs_max);
 
     // Metric terms
@@ -1090,7 +1091,8 @@ ERF::InitData_post ()
                                                        mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                        Qr_prim[lev], z_phys_nd[lev],
                                                        Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                       lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+                                                       lsm_data[lev], lsm_flux[lev], sst_lev[lev],
+                                                       tsk_lev[lev], lmask_lev[lev]);
         }
 
 

@@ -11,7 +11,7 @@ void
 read_from_metgrid (int lev, const Box& domain, const std::string& fname,
                    std::string& NC_dateTime, Real& NC_epochTime,
                    int& flag_psfc, int& flag_msf,
-                   int& flag_sst,  int& flag_lmask,
+                   int& flag_sst,  int& flag_tsk, int& flag_lmask,
                    int& NC_nx,     int& NC_ny,
                    Real& NC_dx,    Real& NC_dy,
                    FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
@@ -19,7 +19,8 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
                    FArrayBox& NC_pres_fab, FArrayBox& NC_ght_fab,
                    FArrayBox& NC_hgt_fab,  FArrayBox& NC_psfc_fab,
                    FArrayBox& NC_msfu_fab, FArrayBox& NC_msfv_fab,
-                   FArrayBox& NC_msfm_fab, FArrayBox& NC_sst_fab,
+                   FArrayBox& NC_msfm_fab,
+                   FArrayBox& NC_sst_fab,  FArrayBox& NC_tsk_fab,
                    FArrayBox& NC_LAT_fab,  FArrayBox& NC_LON_fab,
                    IArrayBox& NC_lmask_iab,
                    Geometry& geom)
@@ -34,6 +35,7 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
             flag_psfc  = 0; //ncf.get_attr("FLAG_PSFC", attr);     flag_psfc  = attr[0];
             flag_msf   = 0; //ncf.get_attr("FLAG_MF_XY", attr);    flag_msf   = attr[0];
             flag_sst   = 0; //ncf.get_attr("FLAG_SST", attr);      flag_sst   = attr[0];
+            flag_tsk   = 0; //ncf.get_attr("FLAG_SKINTEMP", attr); flag_tsk   = attr[0];
             flag_lmask = 0; //ncf.get_attr("FLAG_LANDMASK", attr); flag_lmask = attr[0];
             */
             if (ncf.has_attr("FLAG_PSFC")) {
@@ -50,6 +52,11 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
                 ncf.get_attr("FLAG_SST", attr);      flag_sst   = attr[0];
             } else {
                 flag_sst = 0;
+            }
+            if (ncf.has_attr("FLAG_SKINTEMP")) {
+                ncf.get_attr("FLAG_SKINTEMP", attr);      flag_tsk   = attr[0];
+            } else {
+                flag_tsk = 0;
             }
             if (ncf.has_attr("FLAG_LANDMASK")) {
                 ncf.get_attr("FLAG_LANDMASK", attr); flag_lmask = attr[0];
@@ -93,6 +100,7 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     ParallelDescriptor::Bcast(&flag_psfc,    1, ioproc);
     ParallelDescriptor::Bcast(&flag_msf,     1, ioproc);
     ParallelDescriptor::Bcast(&flag_sst,     1, ioproc);
+    ParallelDescriptor::Bcast(&flag_tsk,     1, ioproc);
     ParallelDescriptor::Bcast(&flag_lmask,   1, ioproc);
     ParallelDescriptor::Bcast(&NC_nx,        1, ioproc);
     ParallelDescriptor::Bcast(&NC_ny,        1, ioproc);
@@ -124,6 +132,7 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     if (flag_msf)   { NC_fabs.push_back(&NC_msfv_fab);      NC_fnames.push_back("MAPFAC_V");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
     if (flag_msf)   { NC_fabs.push_back(&NC_msfm_fab);      NC_fnames.push_back("MAPFAC_M");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
     if (flag_sst)   { NC_fabs.push_back(&NC_sst_fab);       NC_fnames.push_back("SST");       NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
+    if (flag_tsk)   { NC_fabs.push_back(&NC_tsk_fab);       NC_fnames.push_back("SKINTEMP");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
 
     if (flag_lmask) { NC_iabs.push_back(&NC_lmask_iab);     NC_inames.push_back("LANDMASK");   NC_idim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
 
