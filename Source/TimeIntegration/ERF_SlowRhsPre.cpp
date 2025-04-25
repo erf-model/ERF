@@ -457,7 +457,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
                         Real rho_at_face = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
-                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv) -
+                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
+                                                      rho_u,rho_v,mf_u,mf_v,z_nd,dxInv) -
                             rho_at_face * z_t(i,j,k);
                     });
                 } else {
@@ -469,7 +470,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                         gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                     }
                     ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
+                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
+                                                      rho_u,rho_v,mf_u,mf_v,z_nd,dxInv);
                     });
                 }
             }

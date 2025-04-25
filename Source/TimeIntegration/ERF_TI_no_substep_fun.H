@@ -64,6 +64,9 @@
                     const Array4<const Real>& z_nd_old =     z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& z_nd_new = z_phys_nd_new[level]->const_array(mfi);
 
+                    const Array4<const Real>& mf_u = mapfac_u[level]->const_array(mfi);
+                    const Array4<const Real>& mf_v = mapfac_v[level]->const_array(mfi);
+
                     const Array4<Real      >& z_t_arr  =  z_t_rk[level]->array(mfi);
 
                     // We have already scaled the slow source term to have the extra factor of dJ
@@ -96,8 +99,8 @@
                             // so we can just use the new value at (i,j,0).
                             Real rho_on_face =  ssum[IntVars::cons](i,j,k,Rho_comp);
                             ssum[IntVars::zmom](i,j,k) = WFromOmega(i,j,k,rho_on_face*z_t_arr(i,j,k),
-                                                                   ssum[IntVars::xmom], ssum[IntVars::ymom],
-                                                                   z_nd_new,dxInv);
+                                                                    ssum[IntVars::xmom], ssum[IntVars::ymom],
+                                                                    mf_u, mf_v, z_nd_new,dxInv);
                         } else {
                             Real dJ_old_kface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
                             Real dJ_new_kface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
@@ -129,7 +132,7 @@
                             if (vfrac_u(i,j,k) > 0.0) {
                                 // ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
                                 ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
-                                                        + slow_dt * fslow[IntVars::xmom](i,j,k);
+                                                           + slow_dt * fslow[IntVars::xmom](i,j,k);
                             } else {
                                 ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
                             }
@@ -138,7 +141,7 @@
                             if (vfrac_v(i,j,k) > 0.0) {
                                 // ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
                                 ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
-                                                        + slow_dt * fslow[IntVars::ymom](i,j,k);
+                                                           + slow_dt * fslow[IntVars::ymom](i,j,k);
                             } else {
                                 ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
                             }
@@ -147,7 +150,7 @@
                             if (vfrac_w(i,j,k) > 0.0) {
                                 // ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
                                 ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
-                                                        + slow_dt * fslow[IntVars::zmom](i,j,k);
+                                                           + slow_dt * fslow[IntVars::zmom](i,j,k);
                             } else {
                                 ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
                             }
@@ -157,15 +160,15 @@
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
-                                                      + slow_dt * fslow[IntVars::xmom](i,j,k);
+                                                       + slow_dt * fslow[IntVars::xmom](i,j,k);
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
-                                                      + slow_dt * fslow[IntVars::ymom](i,j,k);
+                                                       + slow_dt * fslow[IntVars::ymom](i,j,k);
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
-                                                      + slow_dt * fslow[IntVars::zmom](i,j,k);
+                                                       + slow_dt * fslow[IntVars::zmom](i,j,k);
                         });
                     } // no EB
                 } // not moving terrain
@@ -206,12 +209,12 @@
                 }
 
                 // Update F_slow by Redistribution.
-                redistribute_term ( ncomp_fast[IntVars::xmom], fine_geom, F_slow[IntVars::xmom], dUdt_mom[0],
-                                    S_old[IntVars::xmom], *(get_eb(level).get_u_const_factory()), bc_ptr_d, slow_dt);
-                redistribute_term ( ncomp_fast[IntVars::ymom], fine_geom, F_slow[IntVars::ymom], dUdt_mom[1],
-                                    S_old[IntVars::ymom], *(get_eb(level).get_v_const_factory()), bc_ptr_d, slow_dt);
-                redistribute_term ( ncomp_fast[IntVars::zmom], fine_geom, F_slow[IntVars::zmom], dUdt_mom[2],
-                                    S_old[IntVars::zmom], *(get_eb(level).get_w_const_factory()), bc_ptr_d, slow_dt);
+                redistribute_term( ncomp_fast[IntVars::xmom], fine_geom, F_slow[IntVars::xmom], dUdt_mom[0],
+                                   S_old[IntVars::xmom], *(get_eb(level).get_u_const_factory()), bc_ptr_d, slow_dt);
+                redistribute_term( ncomp_fast[IntVars::ymom], fine_geom, F_slow[IntVars::ymom], dUdt_mom[1],
+                                   S_old[IntVars::ymom], *(get_eb(level).get_v_const_factory()), bc_ptr_d, slow_dt);
+                redistribute_term( ncomp_fast[IntVars::zmom], fine_geom, F_slow[IntVars::zmom], dUdt_mom[2],
+                                   S_old[IntVars::zmom], *(get_eb(level).get_w_const_factory()), bc_ptr_d, slow_dt);
 
                 // Update state using the updated F_slow. (NOTE: redistribute_term returns RHS not state variables.)
 

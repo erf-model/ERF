@@ -577,10 +577,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             {
                 // First define pressure on grown box
                 const Box& gbx = mfi.growntilebox(1);
-                const Array4<Real      > &   p_arr  = pres.array(mfi);
-                const Array4<Real const> & hse_arr  = base_state[lev].const_array(mfi);
-                const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                const Array4<Real const>& z_cc = z_phys_cc[lev]->const_array(mfi);
+                const Array4<Real      > &   p_arr = pres.array(mfi);
+                const Array4<Real const> & hse_arr = base_state[lev].const_array(mfi);
+                const Array4<Real const>&    S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                 if (solverChoice.anelastic[lev] == 1) {
                     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         p_arr(i,j,k) = hse_arr(i,j,k,1);
