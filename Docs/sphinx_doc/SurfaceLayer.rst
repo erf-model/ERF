@@ -2,10 +2,27 @@
  .. role:: cpp(code)
     :language: c++
 
-.. _sec:MOST:
+.. _sec::surface_layer
 
-MOST Boundaries
--------------------
+Surface Layer Boundaries
+------------------------
+The surface layer provides an abstraction layer for users to directly specify
+diffusive fluxes at a boundary via a multitude of methods. More specifically, the surface layer condition
+applies an impenetrable condition for the boundary normal velocity but higher order extrapolation for
+all the other variables and then allows a user to specify a method for calculating the diffusive fluxes
+
+::
+
+   erf.surface_layer.flux_type    = STRING    #flux types (donelan, moeng, custom)
+
+The ``donelan`` flux type employs bulk drag coefficients to compute the diffusive stresses while the ``moeng`` type
+employs Moeng's formulation for Monin-Obukhov similarity theory (MOST) and ``custom`` allows the user to directly
+specify the fluxes through ``ustar; tstar; qstar``. Currently, the MOST pathway is the primary flux type employed
+in ERF simulations and will be the focus in subsequent sections.
+
+
+MOST Theory
+~~~~~~~~~~~~~~~~~~~
 Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), the lowest part of the atmospheric boundary layer.  The implementation of MOST in ERF follows that in `AMR-Wind <https://github.com/Exawind/amr-wind/>`_, which is based on the surface layer profiles presented in
 `P. van der Laan, et al., Wind Energy, 2017 <https://onlinelibrary.wiley.com/doi/10.1002/we.2017>`_ and
 `D. Etling, "Modeling the vertical ABL structure", 1999 <https://www.worldscientific.com/doi/abs/10.1142/9789814447164_0003>`_.
@@ -15,9 +32,9 @@ With these assumptions, the MOST theory can be written as:
 
 .. math::
 
-  \overline{u^{'}} \overline{w^{'}} = const = -u^{2}_{\star},
+  \overline{u^{'}} \overline{w^{'}} = {\rm const} = -u^{2}_{\star},
 
-  \overline{w^{'}} \overline{\theta^{'}} = const = -u_{\star}\theta_{\star},
+  \overline{w^{'}} \overline{\theta^{'}} = {\rm const} = -u_{\star}\theta_{\star},
 
   \Phi_{m}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \overline{u}(z)}{\partial z},
 
@@ -88,10 +105,12 @@ and the characteristic surface layer temperature
 .. math::
   \theta_{\star} = \kappa (\overline{\theta}-\theta_0)/[\mathrm{ln}(z / z_0)-\Psi_{h}(z/L)]
 
+
 MOST Implementation
 ~~~~~~~~~~~~~~~~~~~
 
-In ERF, when the MOST boundary condition is applied, velocity and temperature in the ghost cells are set to give stresses that are consistent with the MOST equations laid out above. The code is structured to allow either the surface temperature (:math:`\theta_0`) or surface temperature flux (:math:`\overline{w^{'}\theta^{'}}`) to be enforced. To apply the MOST boundary, the following algorithm is applied:
+As noted in :ref:`sec:surface_layer`, the boundary conditions for velocity, temperature, and water vapor do not change
+with the flux type. Therefore, the MOST implementation in ERF is a specific method for computing the diffusive fluxes, which are directly written into the stress tensor/vector. The MOST pathway is structured to allow either the surface temperature (:math:`\theta_0`) or surface temperature flux (:math:`\overline{w^{'}\theta^{'}}`) to be enforced. To compute the MOST flux, the following algorithm is applied:
 
 #. Horizontal (planar) averages :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are computed at a reference height :math:`z_{ref}` assumed to be within the surface layer.
 
@@ -116,38 +135,16 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
    where :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are the plane averaged values (at :math:`z_{ref}`) of the
    two horizontal velocity components and the potential temperature, respectively, and
-   :math:`|\mathbf{\bar{u}}|` is the plane averaged magnitude of horizontal velocity (plane averaged wind speed). We note a slight variation in the denominator
-   of the velocity terms from the form of the
-   equations presented in Moeng to match the form implemented in AMR-Wind.
-
-#. These local flux values are used to populate values in the ghost cells that will lead to appropriate fluxes, assuming the fluxes are computed from the turbulent transport coefficients (in the vertical direction, if applicable) :math:`K_{m,v}` and :math:`K_{\theta,v}` as follows:
-
-   .. math::
-
-      \tau_{xz} = K_{m,v} \frac{\partial u}{\partial z}
-
-      \tau_{yz} = K_{m,v} \frac{\partial v}{\partial z}
-
-      \tau_{\theta z} = K_{\theta,v} \frac{\partial \theta}{\partial z}.
-
-   This implies that, for example, the value set for the conserved :math:`\rho\theta` variable in the :math:`-n\mathrm{th}` ghost cell is
-
-   .. math::
-
-      (\rho \theta)_{i,j,-n} = \rho_{i,j,-n} \left[ \frac{(\rho\theta)_{i,j,0}}{\rho_{i,j,0}} - \left. \frac{\tau_{\theta z}}{\rho} \right|_{i,j,0} \frac{\rho_{i,j,0}}{K_{\theta,v,(i,j,0)}} n \Delta z \right].
-
-   The above implementation explicitly sets the ghost cells so that the local stresses in (6) are recovered. This formulation will depend upon the eddy diffusivity :math:`K_{\phi,v}` in the near-wall region. Since :math:`K_{\phi,v}` may be a function of near-wall gradients, circular dependencies may occur. An **explicit MOST** formulation has also been implemented where the stress tensors are directly populated with the values computed for :math:`\tau_{\phi z}` and the ghost cells are filled according the recommendation made in `Moeng, Journal of the Atmospheric Sciences, 1984 <https://journals.ametsoc.org/view/journals/atsc/41/13/1520-0469_1984_041_2052_alesmf_2_0_co_2.xml>`_; see below. To enable the **explicit MOST** formulation, users may add the line ``erf.use_explicit_most = true``.
-
-   .. math::
-
-      (\rho \theta)_{z} = \frac{(\rho \theta)_{i,j,1} - (\rho \theta)_{i,j,0}}{\Delta z}
-      (\rho \theta)_{i,j,-n} = (\rho \theta)_{i,j,0} - (\rho \theta)_{z} n \Delta z .
+   :math:`|\mathbf{\bar{u}}|` is the plane averaged magnitude of horizontal velocity (plane averaged wind speed).
+   We note a slight variation in the denominator of the velocity terms from the form of the
+   equations presented in Moeng. This difference is due to how the stress components are computed
+   --- i.e., the stress componen in Moeng's work, :math:`\tau_{xz,0}`, is given by :math:`\tau_{xz,0} = u_{\star}^{2} \bar{u}/|\mathbf{\bar{u}}|`,
+   where :math:`\bar{u}/|\mathbf{\bar{u}}|` is the unit vector component applied to the total stress :math:`u_{\star}^{2}`.
 
    Finally, it must be noted that using terrain-fitted coorindates will modify the surface normal and tangent vectors.
-   Consequently, the MOST implementation with terrain-fitted coorindates will require local vector rotations.
-   While the ERF dycore accounts for terrain metric terms when computing fluxes (e.g. for advection, diffusion, etc.),
-   the impact of terrain metrics on MOST is still a work in progress.
-   Therefore, running with terrain (``erf.terrain_type = StaticFittedMesh``) and with MOST (``zlo.type = "Most"``) is not recommended.
+   Consequently, the MOST implementation with terrain-fitted coorindates will formally require local vector rotations.
+   Stress rotations with MOST are a work in progress but may be activated with ``erf.use_rotate_surface_flux = true``.
+   Therefore, running with terrain (``erf.terrain_type = StaticFittedMesh``) and with MOST (``surface_flux.flux_type = "moeng"``) is not recommended.
 
 MOST Inputs
 ~~~~~~~~~~~~~~~~~~~

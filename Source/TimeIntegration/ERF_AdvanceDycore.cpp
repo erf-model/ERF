@@ -91,9 +91,8 @@ void ERF::advance_dycore(int level,
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
-    const bool use_most = (m_most != nullptr);
-    const bool exp_most = (solverChoice.use_explicit_most);
-    const FArrayBox* z_0 = (use_most) ? m_most->get_z0(level) : nullptr;
+    const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
+    const FArrayBox* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -108,7 +107,7 @@ void ERF::advance_dycore(int level,
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
 
     // **************************************************************************************
-    // Compute strain for use in slow RHS, Smagorinsky model, and MOST
+    // Compute strain for use in slow RHS and Smagorinsky model
     // **************************************************************************************
     {
     BL_PROFILE("erf_advance_strain");
@@ -165,9 +164,9 @@ void ERF::advance_dycore(int level,
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
-                                tau12, tau13,
-                                tau21, tau23,
-                                tau31, tau32,
+                                tau12, tau21,
+                                tau13, tau31,
+                                tau23, tau32,
                                 z_nd, detJ_cc[level]->const_array(mfi), bc_ptr_h, dxInv,
                                 mf_m, mf_u, mf_v);
             } else {
@@ -185,14 +184,14 @@ void ERF::advance_dycore(int level,
 #include "ERF_TI_utils.H"
 
     // Additional SFS quantities, calculated once per timestep
-    MultiFab* Hfx1 = SFS_hfx1_lev[level].get();
-    MultiFab* Hfx2 = SFS_hfx2_lev[level].get();
-    MultiFab* Hfx3 = SFS_hfx3_lev[level].get();
+    MultiFab* Hfx1  = SFS_hfx1_lev[level].get();
+    MultiFab* Hfx2  = SFS_hfx2_lev[level].get();
+    MultiFab* Hfx3  = SFS_hfx3_lev[level].get();
     MultiFab* Q1fx1 = SFS_q1fx1_lev[level].get();
     MultiFab* Q1fx2 = SFS_q1fx2_lev[level].get();
     MultiFab* Q1fx3 = SFS_q1fx3_lev[level].get();
     MultiFab* Q2fx3 = SFS_q2fx3_lev[level].get();
-    MultiFab* Diss = SFS_diss_lev[level].get();
+    MultiFab* Diss  = SFS_diss_lev[level].get();
 
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
@@ -217,8 +216,8 @@ void ERF::advance_dycore(int level,
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], solverChoice,
-                                  m_most, z_0, exp_most,
-                                  l_use_terrain_fitted_coords, l_use_moisture, level, bc_ptr_h);
+                                  m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
+                                  l_use_moisture, level, bc_ptr_h);
     }
 
     // ***********************************************************************************************

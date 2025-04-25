@@ -1,11 +1,11 @@
 
-#include <AMReX_ArrayLim.H>
-#include <AMReX_BCRec.H>
-#include <AMReX_GpuContainers.H>
+#include "AMReX_ArrayLim.H"
+#include "AMReX_BCRec.H"
+#include "AMReX_GpuContainers.H"
 
-#include <ERF_TI_slow_headers.H>
-#include <ERF_EOS.H>
-#include <ERF_Utils.H>
+#include "ERF_TI_slow_headers.H"
+#include "ERF_EOS.H"
+#include "ERF_Utils.H"
 
 using namespace amrex;
 
@@ -23,7 +23,7 @@ void erf_make_tau_terms (int level, int nrk,
                          MultiFab* eddyDiffs,
                          const Geometry geom,
                          const SolverChoice& solverChoice,
-                         std::unique_ptr<ABLMost>& most,
+                         std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
                          std::unique_ptr<MultiFab>& detJ,
                          std::unique_ptr<MultiFab>& mapfac_m,
                          std::unique_ptr<MultiFab>& mapfac_u,
@@ -43,13 +43,15 @@ void erf_make_tau_terms (int level, int nrk,
 
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) || tc.use_kturb );
     const bool l_use_constAlpha = ( dc.molec_diff_type == MolecDiffType::ConstantAlpha );
-    const bool l_use_turb       = tc.use_kturb;
+    const bool l_use_turb       = ( tc.les_type  == LESType::Smagorinsky ||
+                                    tc.les_type  == LESType::Deardorff   ||
+                                    tc.rans_type == RANSType::kEqn       ||
+                                    tc.pbl_type  == PBLType::MYNN25      ||
+                                    tc.pbl_type  == PBLType::MYNNEDMF    ||
+                                    tc.pbl_type  == PBLType::YSU );
 
-    const bool need_SmnSmn = tc.use_keqn;
-
-    const bool use_most = (most != nullptr);
-    const bool exp_most = (solverChoice.use_explicit_most);
-    const bool rot_most = (solverChoice.use_rotate_most);
+    const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
+                                   tc.rans_type == RANSType::kEqn);
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
@@ -60,20 +62,13 @@ void erf_make_tau_terms (int level, int nrk,
     // *****************************************************************************
     // Pre-computed quantities
     // *****************************************************************************
-    int nvars                     = S_data[IntVars::cons].nComp();
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
 
     std::unique_ptr<MultiFab> expr;
-    std::unique_ptr<MultiFab> dflux_x;
-    std::unique_ptr<MultiFab> dflux_y;
-    std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        expr    = std::make_unique<MultiFab>(ba  , dm, 1, IntVect(1,1,1));
-        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+        expr    = std::make_unique<MultiFab>(ba, dm, 1, IntVect(1,1,1));
 
         // if using constant alpha (mu = rho * alpha), then first divide by the
         // reference density -- mu_eff will be scaled by the instantaneous
@@ -224,9 +219,9 @@ void erf_make_tau_terms (int level, int nrk,
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
-                                s12, s13,
-                                s21, s23,
-                                s31, s32,
+                                s12, s21,
+                                s13, s31,
+                                s23, s32,
                                 z_nd, detJ_arr, bc_ptr_h, dxInv,
                                 mf_m, mf_u, mf_v);
                 } // profile
@@ -239,23 +234,8 @@ void erf_make_tau_terms (int level, int nrk,
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
                                                         s11,s22,s33,
-                                                        s12,s13,s23,
-                                                        domlo_z,use_most,exp_most);
+                                                        s12,s13,s23);
                     });
-                }
-
-                // We've updated the strains at all locations including the
-                // surface. This is required to get the correct strain-rate
-                // magnitude. Now, update the stress everywhere but the surface
-                // to retain the values set by MOST.
-                if (use_most && exp_most) {
-                    // Don't overwrite modeled total stress value at boundary
-                    tbxxz.setSmall(2,1);
-                    tbxyz.setSmall(2,1);
-                    if (rot_most) {
-                        bxcc.setSmall(2,1);
-                        tbxxy.setSmall(2,1);
-                    }
                 }
 
                 // *****************************************************************************
@@ -273,17 +253,17 @@ void erf_make_tau_terms (int level, int nrk,
                     ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
                                             cell_data,
                                             s11, s22, s33,
-                                            s12, s13,
-                                            s21, s23,
-                                            s31, s32,
+                                            s12, s21,
+                                            s13, s31,
+                                            s23, s32,
                                             er_arr, z_nd, detJ_arr, dxInv);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
                                            s11, s22, s33,
-                                           s12, s13,
-                                           s21, s23,
-                                           s31, s32,
+                                           s12, s21,
+                                           s13, s31,
+                                           s23, s32,
                                            er_arr, z_nd, detJ_arr, dxInv);
                 }
 
@@ -354,19 +334,8 @@ void erf_make_tau_terms (int level, int nrk,
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
                                                         s11,s22,s33,
-                                                        s12,s13,s23,
-                                                        domlo_z,use_most,exp_most);
+                                                        s12,s13,s23);
                     });
-                }
-
-                // We've updated the strains at all locations including the
-                // surface. This is required to get the correct strain-rate
-                // magnitude. Now, update the stress everywhere but the surface
-                // to retain the values set by MOST.
-                if (use_most && exp_most) {
-                    // Don't overwrite modeled total stress value at boundary
-                    tbxxz.setSmall(2,1);
-                    tbxyz.setSmall(2,1);
                 }
 
                 // *****************************************************************************

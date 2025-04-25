@@ -166,7 +166,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) =  dest_arr(iflip,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
-                } else if (l_bc_type == ERFBCType::hoextrapcc) {
+                } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = (dom_lo.x - i);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp) ;
                 }
@@ -184,7 +184,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) =  dest_arr(iflip,j,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
-                } else if (h_bc_type == ERFBCType::hoextrapcc) {
+                } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = (i - dom_hi.x);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp) ;
                 }
@@ -215,7 +215,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,jflip,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
-                } else if (l_bc_type == ERFBCType::hoextrapcc) {
+                } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = (dom_lo.y - j);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp) ;
                 }
@@ -234,7 +234,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,jflip,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
-                } else if (h_bc_type == ERFBCType::hoextrapcc) {
+                } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = (j - dom_hi.y);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
                 }

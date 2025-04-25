@@ -62,7 +62,7 @@ void make_sources (int level,
 
     TurbChoice tc = solverChoice.turbChoice[level];
     const bool l_use_KE  = tc.use_tke;
-    const bool l_diff_KE = tc.diffuse_KE_3D;
+    const bool l_diff_KE = tc.diffuse_tke_3D;
 
     const Box& domain = geom.Domain();
 

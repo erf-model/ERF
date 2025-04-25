@@ -41,7 +41,7 @@
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
 #include <ERF_InputSpongeData.H>
-#include <ERF_ABLMost.H>
+#include <ERF_SurfaceLayer.H>
 #include <ERF_Derive.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
@@ -504,8 +504,8 @@ public:
     // read checkpoint file from disk
     void ReadCheckpointFile ();
 
-    // read checkpoint file from disk -- called after instantiating m_most
-    void ReadCheckpointFileMOST ();
+    // read checkpoint file from disk -- called after instantiating m_SurfaceLayer
+    void ReadCheckpointFileSurfaceLayer ();
 
     void init_zphys            (int lev, amrex::Real time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
@@ -589,8 +589,7 @@ private:
     void FillIntermediatePatch (int lev, amrex::Real time,
                                 const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                                 const amrex::Vector<amrex::MultiFab*>& mfs_mom,
-                                int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons,
-                                bool allow_most_bcs = true);
+                                int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons);
 
     // Fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
@@ -640,22 +639,10 @@ private:
                           const amrex::Vector<std::string> &plot_var_names,
                           const amrex::Vector<int>& level_steps, amrex::Real time) const;
 
-    //! Write checkpointFile using NetCdf
-    void WriteNCCheckpointFile () const;
-
-    //! Read checkpointFile for restart
-    void ReadNCCheckpointFile ();
-
     //! Write MultiFab in NetCDF format
     static void WriteNCMultiFab (const amrex::FabArray<amrex::FArrayBox> &fab,
                                  const std::string& name,
                                  bool set_ghost = false) ;
-
-    //! Read MultiFab in NetCDF format
-    void ReadNCMultiFab (amrex::FabArray<amrex::FArrayBox> &mf,
-                         const std::string &name,
-                         int coordinatorProc = amrex::ParallelDescriptor::IOProcessorNumber(),
-                         int allow_empty_mf = 0);
 
     //! Create 1D vertical column output for coupling
     void createNCColumnFile (int lev,
@@ -823,8 +810,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
-    // Sea Surface Temps and Land Masks (lev, ntimes)
+    // Sea Surface Temps, Skin Temperature and Land Masks (lev, ntimes)
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  sst_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  tsk_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> lmask_lev;
 
     // Other SFS terms
@@ -984,8 +972,6 @@ private:
 
     // Checkpoint type, prefix and frequency
     std::string check_file {"chk"};
-    std::string check_type {"native"};
-    std::string restart_type {"native"};
     int m_check_int = -1;
     amrex::Real m_check_per = -1.0;
 
@@ -1187,7 +1173,7 @@ private:
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
-    std::unique_ptr<ABLMost>          m_most = nullptr;
+    std::unique_ptr<SurfaceLayer>     m_SurfaceLayer = nullptr;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
     //

@@ -1,6 +1,6 @@
-#include <ERF_Diffusion.H>
-#include <ERF_EddyViscosity.H>
-#include <ERF_PBLModels.H>
+#include "ERF_Diffusion.H"
+#include "ERF_EddyViscosity.H"
+#include "ERF_PBLModels.H"
 
 using namespace amrex;
 
@@ -39,7 +39,6 @@ using namespace amrex;
 void
 DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         int start_comp, int num_comp,
-                        const bool& exp_most,
                         const Array4<const Real>& u,
                         const Array4<const Real>& v,
                         const Array4<const Real>& cell_data,
@@ -63,14 +62,14 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const Array4<const Real>& tm_arr,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
-                        const bool use_most)
+                        const bool use_SurfLayer)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_N()",DiffusionSrcForState_N);
 
     DiffChoice diffChoice = solverChoice.diffChoice;
     TurbChoice turbChoice = solverChoice.turbChoice[level];
 
-    amrex::ignore_unused(use_most);
+    amrex::ignore_unused(use_SurfLayer);
 
     const Real dx_inv = cellSizeInv[0];
     const Real dy_inv = cellSizeInv[1];
@@ -290,9 +289,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool most_on_zlo    = ( use_most && exp_most &&
-                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) &&
-                                    k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k==dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -302,20 +299,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
                                                            - 3. * cell_prim(i, j, k-1, prim_index)
                                                       + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!most_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     hfx_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!most_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ2_comp) {
@@ -412,9 +409,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool most_on_zlo    = ( use_most && exp_most &&
-                                   (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) &&
-                                    k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -424,20 +419,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
                                                            - 3. * cell_prim(i, j, k-1, prim_index)
                                                       + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!most_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     hfx_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!most_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ2_comp) {
@@ -531,9 +526,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool most_on_zlo    = ( use_most && exp_most &&
-                                   (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap) &&
-                                    k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -543,20 +536,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
                                                            - 3. * cell_prim(i, j, k-1, prim_index)
                                                       + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!most_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     hfx_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!most_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ2_comp) {
@@ -648,9 +641,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool most_on_zlo    = ( use_most && exp_most &&
-                                   (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) &&
-                                    k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -660,20 +651,20 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,qty_index) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
                                                            - 3. * cell_prim(i, j, k-1, prim_index)
                                                       + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
-            } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
+            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k,qty_index) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!most_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     hfx_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!most_on_zlo) {
+                if (!SurfLayer_on_zlo) {
                     qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
                 }
             } else  if (qty_index == RhoQ2_comp) {
@@ -706,8 +697,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     //       RK stage only, therefore the shear production term also does not
     //       change between RK stages.
     //       The surface heat flux hfx_z(i,j,-1) is updated in MOSTStress at
-    //       each RK stage if using the ERF_EXPLICIT_MOST_STRESS path, but that
-    //       does not change the buoyancy production term here.
+    //       each RK stage, but that does not change the buoyancy production term here.
     if (l_use_keqn && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
         int qty_index = RhoKE_comp;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -761,8 +751,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                                   rhoqv_comp, rhoqc_comp, rhoqr_comp,
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
-                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                                                  use_most);
+                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi);
         });
     }
 }

@@ -6,16 +6,17 @@
  * Worker routines for filling data at new levels after initialization, restart or regridding
 */
 
-#include "ERF_ProbCommon.H"
-#include <ERF_EOS.H>
-#include <ERF.H>
-
-#include <AMReX_buildInfo.H>
-
-#include <ERF_Utils.H>
-#include <ERF_TerrainMetrics.H>
-#include <ERF_ParFunctions.H>
 #include <memory>
+
+#include "AMReX_buildInfo.H"
+
+#include "ERF_ProbCommon.H"
+#include "ERF_EOS.H"
+#include "ERF.H"
+#include "ERF_Utils.H"
+#include "ERF_TerrainMetrics.H"
+#include "ERF_ParFunctions.H"
+
 
 using namespace amrex;
 
@@ -208,13 +209,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // ********************************************************************************************
-    // Define Theta_prim storage if using MOST BC
+    // Define Theta_prim storage if using surface_layer BC
     // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
-        Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
+        Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
         if (solverChoice.moisture_type != MoistureType::None) {
-            Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
-            Qr_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
+            Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
+            Qr_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
         } else {
             Qv_prim[lev]    = nullptr;
             Qr_prim[lev]    = nullptr;
@@ -385,6 +386,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
                            l_use_kturb );
     bool l_need_SmnSmn = solverChoice.turbChoice[lev].use_keqn;
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
+    bool l_rotate      = (  solverChoice.use_rotate_surface_flux  );
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
@@ -423,7 +425,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             SFS_q2fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
             SFS_q1fx3_lev[lev]->setVal(0.0);
             SFS_q2fx3_lev[lev]->setVal(0.0);
-            if (solverChoice.use_rotate_most) {
+            if (l_rotate) {
                 SFS_q1fx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
                 SFS_q1fx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
                 SFS_q1fx1_lev[lev]->setVal(0.0);

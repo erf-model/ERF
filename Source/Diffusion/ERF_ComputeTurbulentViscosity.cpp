@@ -1,11 +1,11 @@
 /** \file ERF_ComputeTurbulentViscosity.cpp */
 
-#include <ERF_ABLMost.H>
-#include <ERF_EddyViscosity.H>
-#include <ERF_Diffusion.H>
-#include <ERF_PBLModels.H>
-#include <ERF_TileNoZ.H>
-#include <ERF_TerrainMetrics.H>
+#include "ERF_SurfaceLayer.H"
+#include "ERF_EddyViscosity.H"
+#include "ERF_Diffusion.H"
+#include "ERF_PBLModels.H"
+#include "ERF_TileNoZ.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
@@ -37,12 +37,10 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                                    const MultiFab& mapfac_u, const MultiFab& mapfac_v,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav,
-                                   std::unique_ptr<ABLMost>& most, const bool& exp_most)
+                                   std::unique_ptr<SurfaceLayer>& /*SurfLayer*/)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const Box& domain = geom.Domain();
-    const int& klo    = domain.smallEnd(2);
-    const bool use_most = (most != nullptr);
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
@@ -90,7 +88,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 if (smag2d) {
                     SmnSmn = ComputeSmnSmn2D(i,j,k,tau11,tau22,tau12);
                 } else {
-                    SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
+                    SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
                 }
                 Real dxInv = cellSizeInv[0];
                 Real dyInv = cellSizeInv[1];
@@ -121,23 +119,9 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 }
 
                 // Calculate SFS quantities
-                Real dtheta_dz;
-                if (use_most && k==klo) {
-                    if (exp_most) {
-                        dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                    - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
-                    } else {
-                        dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
-                                              / cell_data(i,j,k  ,Rho_comp)
-                                          + 4 * cell_data(i,j,k+1,RhoTheta_comp)
-                                              / cell_data(i,j,k+1,Rho_comp)
-                                          -     cell_data(i,j,k+2,RhoTheta_comp)
-                                              / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
-                    }
-                } else {
-                    dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                      - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
-                }
+                Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+
                 // - heat flux
                 //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
                 //    be overwritten when BCs are applied)
@@ -197,23 +181,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
                 // Calculate stratification-dependent mixing length (Deardorff 1980)
                 Real eps       = std::numeric_limits<Real>::epsilon();
-                Real dtheta_dz;
-                if (use_most && k==klo) {
-                    if (exp_most) {
-                        dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                    - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
-                    } else {
-                        dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
-                                              / cell_data(i,j,k  ,Rho_comp)
-                                          + 4 * cell_data(i,j,k+1,RhoTheta_comp)
-                                              / cell_data(i,j,k+1,Rho_comp)
-                                          -     cell_data(i,j,k+2,RhoTheta_comp)
-                                              / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
-                    }
-                } else {
-                    dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                      - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
-                }
+                Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 Real E              = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp),Real(0.0));
                 Real stratification = l_abs_g * dtheta_dz * l_inv_theta0;
 
@@ -256,8 +225,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
 
                 // - heat flux
-                //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
-                //    be overwritten when BCs are applied)
+                //   (Note: If using SurfaceLayer, the value at k=0 will
+                //    be overwritten)
                 hfx_x(i,j,k) = 0.0;
                 hfx_y(i,j,k) = 0.0;
                 hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
@@ -342,21 +311,31 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
  * @param[in]  mapfac_v map factor at y-face
  * @param[in]  turbChoice container with turbulence parameters
  */
-void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /*Tau22*/, const MultiFab& /*Tau33*/,
-                                    const MultiFab& /*Tau12*/, const MultiFab& /*Tau13*/, const MultiFab& /*Tau23*/,
-                                    const MultiFab& cons_in, const MultiFab& wdist,
+void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/,
+                                    const MultiFab& /*Tau22*/,
+                                    const MultiFab& /*Tau33*/,
+                                    const MultiFab& /*Tau12*/,
+                                    const MultiFab& /*Tau13*/,
+                                    const MultiFab& /*Tau23*/,
+                                    const MultiFab& cons_in,
+                                    const MultiFab& wdist,
                                     MultiFab& eddyViscosity,
-                                    MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
-                                    const Geometry& geom, bool use_terrain,
-                                    const MultiFab& /*mapfac_u*/, const MultiFab& /*mapfac_v*/,
+                                    MultiFab& Hfx1,
+                                    MultiFab& Hfx2,
+                                    MultiFab& Hfx3,
+                                    MultiFab& Diss,
+                                    const Geometry& geom,
+                                    bool use_terrain,
+                                    const MultiFab& /*mapfac_u*/,
+                                    const MultiFab& /*mapfac_v*/,
                                     const std::unique_ptr<MultiFab>& z_phys_nd,
-                                    const TurbChoice& turbChoice, const Real const_grav,
-                                    std::unique_ptr<ABLMost>& most, const FArrayBox* z_0, const bool& exp_most)
+                                    const TurbChoice& turbChoice,
+                                    const Real const_grav,
+                                    std::unique_ptr<SurfaceLayer>& SurfLayer,
+                                    const FArrayBox* z_0)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
-    const Box& domain = geom.Domain();
-    const int& klo    = domain.smallEnd(2);
-    const bool use_most = (most != nullptr);
+    const bool use_SurfLayer = (SurfLayer != nullptr);
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
@@ -384,7 +363,7 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /
             Box bxcc = mfi.tilebox();
 
             const Array4<Real const>& d_arr  = wdist.const_array(mfi);
-            const Array4<Real const>& z0_arr = (use_most) ? z_0->const_array() : Array4<Real const>{};
+            const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array() : Array4<Real const>{};
 
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& hfx_x   = Hfx1.array(mfi);
@@ -402,28 +381,13 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /
                 Real tke = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp), eps);
 
                 // Estimate stratification
-                Real dtheta_dz;
                 Real dzInv = cellSizeInv[2];
                 if (use_terrain) {
                     // the terrain grid is only deformed in z for now
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
                 }
-                if (use_most && k==klo) {
-                    if (exp_most) {
-                        dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                    - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
-                    } else {
-                        dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
-                                              / cell_data(i,j,k  ,Rho_comp)
-                                          + 4 * cell_data(i,j,k+1,RhoTheta_comp)
-                                              / cell_data(i,j,k+1,Rho_comp)
-                                          -     cell_data(i,j,k+2,RhoTheta_comp)
-                                              / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
-                    }
-                } else {
-                    dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                      - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
-                }
+                Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 Real N2 = abs_g * inv_theta0 * dtheta_dz; // Brunt–Väisälä frequency squared
 
                 // Geometric length scale (AL01, Eqn. 22)
@@ -478,8 +442,8 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/, const MultiFab& /
                 diss(i, j, k) = cell_data(i, j, k, Rho_comp) * Cmu0_pow3 * std::pow(tke,1.5) / length;
 
                 // - heat flux
-                //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
-                //    be overwritten when BCs are applied)
+                //   (Note: If using SurfaceLayer, the value at k=0 will
+                //    be overwritten)
                 hfx_x(i, j, k) = 0.0;
                 hfx_y(i, j, k) = 0.0;
                 // Note: buoyant production = g/theta0 * hfx == -nut_prime * N^2 (c.f. AL01 Eqn. 15)
@@ -585,9 +549,8 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                 const MultiFab& mapfac_u, const MultiFab& mapfac_v,
                                 const std::unique_ptr<MultiFab>& z_phys_nd,
                                 const SolverChoice& solverChoice,
-                                std::unique_ptr<ABLMost>& most,
+                                std::unique_ptr<SurfaceLayer>& SurfLayer,
                                 const amrex::FArrayBox* z_0,
-                                const bool& exp_most,
                                 const bool& use_terrain_fitted_coords,
                                 const bool& use_moisture,
                                 int level,
@@ -610,10 +573,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     TurbChoice turbChoice = solverChoice.turbChoice[level];
     const Real const_grav = solverChoice.gravity;
 
-    if (most) {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(turbChoice.use_kturb,
-          "A turbulence model must be utilized with MOST boundaries to compute the turbulent viscosity");
-    } else {
+    if (!SurfLayer) {
         AMREX_ALWAYS_ASSERT(!vert_only);
     }
 
@@ -628,7 +588,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                      geom, use_terrain_fitted_coords,
                                      mapfac_u, mapfac_v,
                                      z_phys_nd, turbChoice, const_grav,
-                                     most, exp_most);
+                                     SurfLayer);
     }
 
     if (turbChoice.rans_type != RANSType::None) {
@@ -641,26 +601,26 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                       geom, use_terrain_fitted_coords,
                                       mapfac_u, mapfac_v,
                                       z_phys_nd, turbChoice, const_grav,
-                                      most, z_0, exp_most);
+                                      SurfLayer, z_0);
     }
 
     if (turbChoice.pbl_type == PBLType::MYNN25) {
         ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
-                                 geom, turbChoice, most,
+                                 geom, turbChoice, SurfLayer,
                                  use_terrain_fitted_coords, use_moisture,
                                  level, bc_ptr, vert_only, z_phys_nd,
                                  solverChoice.RhoQv_comp, solverChoice.RhoQc_comp,
                                  solverChoice.RhoQr_comp);
     } else if (turbChoice.pbl_type == PBLType::MYNNEDMF) {
         ComputeDiffusivityMYNNEDMF(xvel, yvel, cons_in, eddyViscosity,
-                                   geom, turbChoice, most,
+                                   geom, turbChoice, SurfLayer,
                                    use_terrain_fitted_coords, use_moisture,
                                    level, bc_ptr, vert_only, z_phys_nd,
                                    solverChoice.RhoQv_comp, solverChoice.RhoQc_comp,
                                    solverChoice.RhoQr_comp);
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
-                              geom, turbChoice, most,
+                              geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd);
     }
