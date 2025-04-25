@@ -96,9 +96,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     update_diffusive_arrays(lev, ba, dm);
 
     // ********************************************************************************************
-    // Build the data structures for holding sea surface temps
+    // Build the data structures for holding sea surface temps and skin temps
     // ********************************************************************************************
     sst_lev[lev].resize(1);     sst_lev[lev][0] = nullptr;
+    tsk_lev[lev].resize(1);     tsk_lev[lev][0] = nullptr;
 
     // ********************************************************************************************
     // Thin immersed body
@@ -336,7 +337,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                                                    mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                    Qr_prim[lev], z_phys_nd[lev],
                                                    Hwave[lev].get(), Lwave[lev].get(), eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -521,7 +522,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                                    mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                    Qr_prim[lev], z_phys_nd[lev],
                                                    Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
     }
 
     // These calls are done in AmrCore::regrid if this is a regrid at lev > 0

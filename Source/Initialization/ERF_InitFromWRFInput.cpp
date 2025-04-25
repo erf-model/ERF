@@ -110,15 +110,16 @@ ERF::init_from_wrfinput (int lev)
     NC_names.push_back("MAPFAC_V");  // 12
     NC_names.push_back("MAPFAC_M");  // 13
     NC_names.push_back("SST");       // 14
-    NC_names.push_back("LANDMASK");  // 15
-    NC_names.push_back("C1H");       // 16
-    NC_names.push_back("C2H");       // 17
-    NC_names.push_back("XLAT_V");    // 18
-    NC_names.push_back("XLONG_U");   // 19
+    NC_names.push_back("TSK");       // 15
+    NC_names.push_back("LANDMASK");  // 16
+    NC_names.push_back("C1H");       // 17
+    NC_names.push_back("C2H");       // 19
+    NC_names.push_back("XLAT_V");    // 19
+    NC_names.push_back("XLONG_U");   // 20
     if (use_moist) {
-        NC_names.push_back("QVAPOR"); // 20
-        NC_names.push_back("QCLOUD"); // 21
-        NC_names.push_back("QRAIN");  // 22
+        NC_names.push_back("QVAPOR"); // 21
+        NC_names.push_back("QCLOUD"); // 22
+        NC_names.push_back("QRAIN");  // 23
     }
     int nvar = NC_names.size();
     Vector<Vector<FArrayBox>> NC_fab_var_file;
@@ -433,6 +434,23 @@ ERF::init_from_wrfinput (int lev)
                   });
               }
               (sst_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
+          }
+
+          // Initialize TSK
+          if ( var_name == "TSK" ) {
+              tsk_lev[lev][0] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+              for ( MFIter mfi(*(tsk_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                  Box gtbx = mfi.growntilebox();
+                  const Array4<      Real>& dst_arr = tsk_lev[lev][0]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                      int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                      dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
+                  });
+              }
+              (tsk_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
           }
 
           // Initialize Landmask

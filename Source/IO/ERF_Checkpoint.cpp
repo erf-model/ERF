@@ -267,7 +267,7 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
         }
 
-        if (sst_lev[lev][0] && solverChoice.has_SST) {
+        if (sst_lev[lev][0]) {
             amrex::Print() << "Writing SST data" << std::endl;
             int ntimes = 1;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
@@ -276,6 +276,18 @@ ERF::WriteCheckpointFile () const
                 MultiFab::Copy(sst_at_t,*sst_lev[lev][nt],0,0,1,ng);
                 VisMF::Write(sst_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
                                                              "SST_" + std::to_string(nt)));
+            }
+        }
+
+        if (tsk_lev[lev][0]) {
+            amrex::Print() << "Writing TSK data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab tsk_at_t(ba2d,dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                MultiFab::Copy(tsk_at_t,*tsk_lev[lev][nt],0,0,1,ng);
+                VisMF::Write(tsk_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                                                             "TSK_" + std::to_string(nt)));
             }
         }
 
@@ -648,7 +660,10 @@ ERF::ReadCheckpointFile ()
         // NOTE: We read MOST data in ReadCheckpointFileMOST (see below)!
 
 
-        if (solverChoice.has_SST) {
+        // See if we wrote out SST data
+        std::string FirstSSTFileName(restart_chkfile + "/Level_0/SST_0_H");
+        if (amrex::FileExists(FirstSSTFileName))
+        {
             amrex::Print() << "Reading SST data" << std::endl;
             int ntimes = 1;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
@@ -658,6 +673,22 @@ ERF::ReadCheckpointFile ()
                 VisMF::Read(sst_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
                                                              "SST_" + std::to_string(nt)));
                 MultiFab::Copy(*sst_lev[lev][nt],sst_at_t,0,0,1,ng);
+            }
+        }
+
+        // See if we wrote out TSK data
+        std::string FirstTSKFileName(restart_chkfile + "/Level_0/TSK_0_H");
+        if (amrex::FileExists(FirstTSKFileName))
+        {
+            amrex::Print() << "Reading TSK data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab tsk_at_t(ba2d,dmap[lev],1,ng);
+            tsk_lev[lev][0] = std::make_unique<MultiFab>(ba2d,dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                VisMF::Read(tsk_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                             "TSK_" + std::to_string(nt)));
+                MultiFab::Copy(*tsk_lev[lev][nt],tsk_at_t,0,0,1,ng);
             }
         }
 
