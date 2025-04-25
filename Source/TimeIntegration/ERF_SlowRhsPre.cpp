@@ -254,15 +254,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::array<FArrayBox,AMREX_SPACEDIM> flux_tmp;
 
     // Cell-centered masks for EB (used for flux interpolation)
-    Vector<iMultiFab> cc_mask;
-    cc_mask.resize(IntVars::NumTypes);
     bool already_on_centroids = false;
+    Vector<iMultiFab> physbnd_mask;
+    physbnd_mask.resize(IntVars::NumTypes);
     if (solverChoice.terrain_type == TerrainType::EB) {
-        cc_mask[IntVars::cons].define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
-        cc_mask[IntVars::cons].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+        physbnd_mask[IntVars::cons].define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
+        physbnd_mask[IntVars::cons].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            cc_mask[1+dir].define(S_data[1+dir].boxArray(), S_data[1+dir].DistributionMap(), 1, 1);
-            cc_mask[1+dir].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+            physbnd_mask[1+dir].define(S_data[1+dir].boxArray(), S_data[1+dir].DistributionMap(), 1, 1);
+            physbnd_mask[1+dir].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
         }
     }
 
@@ -375,9 +375,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_w_arr{};
         if (solverChoice.terrain_type == TerrainType::EB) {
             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                flux_u[dir].resize(tbx_grown[dir],1);
-                flux_v[dir].resize(tby_grown[dir],1);
-                flux_w[dir].resize(tbz_grown[dir],1);
+                flux_u[dir].resize(grow(tbx_grown[dir],1),1);
+                flux_v[dir].resize(grow(tby_grown[dir],1),1);
+                flux_w[dir].resize(grow(tbz_grown[dir],1),1);
                 flux_u[dir].setVal<RunOn::Device>(0.);
                 flux_v[dir].setVal<RunOn::Device>(0.);
                 flux_w[dir].setVal<RunOn::Device>(0.);
@@ -529,7 +529,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
             fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
             detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
-            if (!already_on_centroids) {ccm_arr = cc_mask[IntVars::cons].const_array(mfi);}
+            if (!already_on_centroids) {ccm_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
         } else {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
@@ -654,7 +654,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
                            solverChoice.mesh_type, solverChoice.terrain_type,
-                           ebfact, flx_u_arr, flx_v_arr, flx_w_arr, cc_mask,
+                           ebfact, flx_u_arr, flx_v_arr, flx_w_arr, 
+                           physbnd_mask, already_on_centroids,
                            lo_z_face, hi_z_face, domain, bc_ptr_h);
 
         if (l_use_diff) {

@@ -226,11 +226,11 @@ void erf_slow_rhs_post (int level, int finest_level,
       int   num_comp;
 
       // Cell-centered masks for EB (used for flux interpolation)
-      iMultiFab cc_mask;
+      iMultiFab physbnd_mask;
       bool already_on_centroids = false;
       if (solverChoice.terrain_type == TerrainType::EB) {
-          cc_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
-          cc_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+          physbnd_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
+          physbnd_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
       }
 
       for (MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -354,7 +354,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             fcy_arr  = ebfact.getFaceCent()[1]->const_array(mfi);
             fcz_arr  = ebfact.getFaceCent()[2]->const_array(mfi);
             detJ_arr = ebfact.getVolFrac().const_array(mfi);
-            if (!already_on_centroids) {ccm_arr = cc_mask.const_array(mfi);}
+            if (!already_on_centroids) {ccm_arr = physbnd_mask.const_array(mfi);}
         } else {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
