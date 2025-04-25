@@ -154,6 +154,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             // profiles following WRF ideal.exe
             if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);
         }
+
+        // We re-create terrain_blanking on restart rather than storing it in the checkpoint
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            int ngrow = ComputeGhostCells(solverChoice) + 2;
+            terrain_blanking[lev]->setVal(1.0);
+            MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ngrow);
+            terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
+        }
     }
 
      // Read in tables needed for windfarm simulations
