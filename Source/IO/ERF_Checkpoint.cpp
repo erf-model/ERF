@@ -661,7 +661,7 @@ ERF::ReadCheckpointFile ()
 
 
         // See if we wrote out SST data
-        std::string FirstSSTFileName(restart_chkfile + "/Level_0/SST_0");
+        std::string FirstSSTFileName(restart_chkfile + "/Level_0/SST_0_H");
         if (amrex::FileExists(FirstSSTFileName))
         {
             amrex::Print() << "Reading SST data" << std::endl;
@@ -677,7 +677,7 @@ ERF::ReadCheckpointFile ()
         }
 
         // See if we wrote out TSK data
-        std::string FirstTSKFileName(restart_chkfile + "/Level_0/TSK_0");
+        std::string FirstTSKFileName(restart_chkfile + "/Level_0/TSK_0_H");
         if (amrex::FileExists(FirstTSKFileName))
         {
             amrex::Print() << "Reading TSK data" << std::endl;
