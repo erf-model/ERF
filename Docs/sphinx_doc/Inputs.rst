@@ -1317,6 +1317,7 @@ List of Parameters
 |                                  | type                | "WRFInput",        |                       |
 |                                  |                     | "Input_Sounding"   |                       |
 |                                  |                     | "Metgrid"          |                       |
+|                                  |                     | "NCFile"           |                       |
 |                                  |                     | "Uniform"          |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.input_sounding_file**      | Path to WRF-style   |  String            | "input_sounding"      |
@@ -1450,7 +1451,8 @@ List of Parameters
 Notes
 -----------------
 
-If**erf.init_type = WRFInput**, the problem is initialized with mesoscale data contained in a NetCDF file,
+If **erf.init_type = WRFInput** or **erf.init_type = NCFile**,
+the problem is initialized with mesoscale data contained in a NetCDF file,
 provided via ``erf.nc_init_file`` (e.g., "wrfinput_d01").
 
 In addition, if **erf.use_real_bcs = true**, the lateral boundary conditions must be supplied in a NetCDF files
