@@ -6,11 +6,13 @@
 #include <ERF_Utils.H>
 #include <ERF_ProbCommon.H>
 #include <ERF_DataStruct.H>
-#include <ERF_NCWpsFile.H>
 
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
+
+#include <ERF_NCWpsFile.H>
+
 /**
  * Initializes ERF data using data supplied by an external NetCDF file.
  *
