@@ -154,6 +154,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_InitFromInputSounding.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromMetgrid.cpp
+       ${SRC_DIR}/Initialization/ERF_InitFromNCFile.cpp
        ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp
        ${SRC_DIR}/Initialization/ERF_InitRayleigh.cpp
        ${SRC_DIR}/Initialization/ERF_InitSponge.cpp

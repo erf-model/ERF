@@ -268,7 +268,6 @@ ERF::WriteCheckpointFile () const
         }
 
         if (sst_lev[lev][0]) {
-            amrex::Print() << "Writing SST data" << std::endl;
             int ntimes = 1;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
             MultiFab sst_at_t(ba2d,dmap[lev],1,ng);
@@ -280,7 +279,6 @@ ERF::WriteCheckpointFile () const
         }
 
         if (tsk_lev[lev][0]) {
-            amrex::Print() << "Writing TSK data" << std::endl;
             int ntimes = 1;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
             MultiFab tsk_at_t(ba2d,dmap[lev],1,ng);
@@ -292,7 +290,6 @@ ERF::WriteCheckpointFile () const
         }
 
         {
-            amrex::Print() << "Writing LMASK data" << std::endl;
             int ntimes = 1;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
             MultiFab lmask_at_t(ba2d,dmap[lev],1,ng);
