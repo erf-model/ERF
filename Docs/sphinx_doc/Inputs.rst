@@ -1456,28 +1456,6 @@ the extent of the relaxation zone may be controlled with ``erf.real_width`` (cor
 and ``erf.real_set_width`` (corresponding to WRF's **spec_zone**, typically set to 1), which corresponds to a relaxation zone with a
 width of **real_width - real_set_width**.
 
-If **erf.init_type = Metgrid**, the problem is initialized with data
-contained in the first NetCDF file provided via ``erf.nc_init_file_0``.
-Lateral boundary conditions are derived from the sequence of NetCDF
-files provided via ``erf.nc_init_file_0``. The sequence of
-``erf.nc_init_file_0`` should be output from the WRF Preprocessing
-System (WPS) listed chronologically starting with the earliest
-timestamp. A minimum of two files are required to derive lateral
-boundary conditions.
-
-If **erf.init_type = Input_Sounding**, a WRF-style input sounding is read from
-``erf.input_sounding_file``. This text file includes any set of levels that
-goes at least up to the model top height. The first line includes the surface
-pressure [hPa], potential temperature [K], and water vapor mixing ratio [g/kg].
-Each subsequent line has five input values: height [m above sea level], dry
-potential temperature [K], vapor mixing ratio [g/kg], x-direction wind
-component [m/s], and y-direction wind component [m/s]. Please pay attention to
-the units of pressure and mixing ratio. If **erf.init_sounding_ideal = true**,
-then moist and dry conditions throughout the air column are determined by
-integrating the hydrostatic equation from the surface.
-
-If **erf.init_type = Uniform** or **erf.init_type = Input_Sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
-
 Note that the **erf.project_initial_velocity** option is available for all **init_type** options.  If using the anelastic
 formulation this will be true regardless of the input; if using the compressible formulation the default is false but
 that can be over-written.
