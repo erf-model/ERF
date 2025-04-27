@@ -45,7 +45,7 @@ Initialization From NetCDF Files
 ----------------------------------
 
 There are three options for ingesting the full 3D initial data from a NetCDF file.
-In these cases, no additional initial conditions must be supplied by the user but the 
+In these cases, no additional initial conditions must be supplied by the user but the
 file **ERF_Prob.cpp** must still be present for the build.
 
 * **erf.init_type = WRFInput**
