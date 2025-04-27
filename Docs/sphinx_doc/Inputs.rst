@@ -123,7 +123,7 @@ List of Parameters
 +===================================+=================+=================+=============+
 | **amr.n_cell**                    | number of cells | Integer > 0     | must be set |
 |                                   | in each         |                 |             |
-        |                           | direction at    |                 |             |
+|                                   | direction at    |                 |             |
 |                                   | the coarsest    |                 |             |
 |                                   | level           |                 |             |
 +-----------------------------------+-----------------+-----------------+-------------+
@@ -1294,7 +1294,7 @@ The initialization in ERF has two steps: creation of the background state and cr
 
 The initialization strategy is determined at runtime by ``init_type``, which has six possible values.
 
-See :ref:`sec:InitializationPathways` for more detail about how to provide initial conditions for an ERF simulation.
+See :ref:`sec:Initialization` for more detail about how to provide initial conditions for an ERF simulation.
 
 In addition, there is a run-time option to project the initial velocity field to make it divergence-free.
 

@@ -1,12 +1,12 @@
  .. role:: cpp(code)
     :language: c++
 
-.. _InitializationPathways:
+.. _sec:Initialization:
 
 Initialization Pathways
 ========================
 
-Note that this section describes different ways for defining
+This section describes different ways for defining
 or reading in the initial data for an ERF simulation.
 When you run the ERF executable you must specify an inputs file which includes
 the specification of which initialization pathway ERF will take.
@@ -18,22 +18,19 @@ When not reading the initial data as described in the section below,
 the initialization in ERF has two steps: creation of the background state
 and creation of optionally non-zero initial perturbations from the background state.
 
-To define the background state, the user can specify
-**erf.init_type = Uniform** or **erf.init_type = InputSounding**;
-
-I f**erf.init_type = Uniform** the user must provide values in the
-inputs file,  **prob.rho_0" and  **prob.T_0", to
+If **erf.init_type = Uniform** the user must provide values in the
+inputs file,  **prob.rho_0** and  **prob.T_0**, to
 specify the background density and temperature which will
 be assumed to be constant in space throughout the domain.
 If gravity is set to be non-zero then the density will be vertically
 integrated to generate the background pressure
-as described in :ref:`sec:Initialization`.
+as described in :ref:`sec:BaseState`.
 
 If **erf.init_type = InputSounding** is specified and
 **erf.init_sounding_ideal = false** (the default)
 then the hydrostatically stratified background state
 is reconstructed from 1-D input sounding data
-as described in :ref:`sec:Initialization`.
+as described in :ref:`sec:BaseState`.
 
 If **erf.init_type = InputSounding** is specified and
 **erf.init_sounding_ideal = true** in the inputs file,
@@ -48,7 +45,8 @@ Initialization From NetCDF Files
 ----------------------------------
 
 There are three options for ingesting the full 3D initial data from a NetCDF file.
-In these cases, no additional initial conditions must be supplied by the user.
+In these cases, no additional initial conditions must be supplied by the user but the 
+file **ERF_Prob.cpp** must still be present for the build.
 
 * **erf.init_type = WRFInput**
 

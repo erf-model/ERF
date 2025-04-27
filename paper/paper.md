@@ -6,7 +6,6 @@ tags:
   - atmospheric modeling
   - mesoscale
   - microscale
-  - wind energy
 
 authors:
   - name: Ann Almgren
@@ -149,13 +148,11 @@ The active and large developer community contributing to AMReX helps ensure
 that ERF will continue to run efficiently as architectures and operating systems
 evolve.
 
-To support renewable energy research and development, ERF provides an essential
-resource characterization and forensic capability for terrestrial and offshore
-applications. For wind energy, ERF includes a standard suite of physical process
+ERF includes a standard suite of physical process
 parameterizations that supports simulation across weather (meso) and
 turbulence-resolving (micro) scales, allowing for efficient downscaling of
 flow field information that specifies realistic inflow, surface, and background
-conditions for wind farm simulation.  Realistic conditions can include extreme
+conditions.  Realistic conditions can include extreme
 wind-shear events (e.g., low-level jets), thunderstorms, or tropical cyclones
 (e.g., hurricanes). This modeling capability also captures the impacts of clouds
 and precipitation, and is similarly applicable to solar farms and hybrid energy

@@ -2,7 +2,7 @@
  .. role:: cpp(code)
     :language: c++
 
-.. _sec:Initialization:
+.. _sec:BaseState:
 
 Construction of hydrostatically stratified base state
 =========================================================
