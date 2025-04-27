@@ -4,7 +4,7 @@
 
 .. _sec:Initialization:
 
-Construction of hydrostatically stratfied base state
+Construction of hydrostatically stratified base state
 =========================================================
 
 Here we describe how ERF initializes base state values of density
