@@ -1292,17 +1292,9 @@ Initialization
 
 The initialization in ERF has two steps: creation of the background state and creation of initial perturbations from the background state.
 
-The background initial data can be read from WPS-generated or metgrid files, reconstructed from 1-d input sounding data,
-or specified by the user. Problem-specific perturbational quantities, specified separately by the user, are added to the background state.
-When a hydrostatic background state must be defined at initialization,
-we use a Newton-Raphson approach to solving the non-linear root finding problem that stems from requiring that the density,
-pressure and potential temperature satisfy both the hydrostatic balance and the equation of state.
-This is needed when ``init_type == Ideal`` but ``init_sounding_ideal`` is false.
-Users have the option to define a dry or moist background state.
-
 The initialization strategy is determined at runtime by ``init_type``, which has six possible values.
 
-For more details on the hydrostatic initialization, see :ref:`sec:Initialization`.
+See :ref:`sec:InitializationPathways` for more detail about how to provide initial conditions for an ERF simulation.
 
 In addition, there is a run-time option to project the initial velocity field to make it divergence-free.
 
