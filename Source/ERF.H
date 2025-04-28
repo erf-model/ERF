@@ -476,7 +476,8 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput (int lev);
-    void init_from_metgrid (int lev);
+    void init_from_metgrid  (int lev);
+    void init_from_ncfile   (int lev);
 #endif // ERF_USE_NETCDF
 
 #ifdef ERF_USE_WINDFARM

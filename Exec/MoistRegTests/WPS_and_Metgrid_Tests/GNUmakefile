@@ -31,5 +31,5 @@ Bpack := ./Make.package
 Blocs := .
 
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/MoistRegTests/WPS_Test
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/MoistRegTests/WPS_and_Metgrid_Tests
 include $(ERF_HOME)/Exec/Make.ERF

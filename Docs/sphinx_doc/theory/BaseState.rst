@@ -2,22 +2,16 @@
  .. role:: cpp(code)
     :language: c++
 
- .. role:: f(code)
-    :language: fortran
+.. _sec:BaseState:
 
-.. _sec:Initialization:
+Construction of hydrostatically stratified base state
+=========================================================
 
-Initialization
-==================
+Here we describe how ERF initializes base state values of density
+and potential temperature such that the density, pressure and potential
+temperature satisfy both the hydrostatic balance and the equation of state.
 
-The initialization in ERF has two steps: creation of the background state and creation of initial perturbations from the background state.
-
-The background initial data can be read from WPS-generated or metgrid files, reconstructed from 1-d input sounding data,
-specified by the user, or determined by the procedure below.  Here we describe how ERF initializes base state values of density
-and potential temperature such that the density, pressure and potential temperature satisfy both the hydrostatic balance and the equation of state.
 Users have the option to define a dry or moist background state.
-
-This option is used when ``init_type == Ideal`` but ``init_sounding_ideal`` is false.
 
 Computation of the dry density
 -------------------------------
