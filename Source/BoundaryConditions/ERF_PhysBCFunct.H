@@ -134,8 +134,8 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
     amrex::MultiFab* m_z_phys_nd;
-    bool                 m_use_real_bcs;
-    amrex::Real* m_u_bc_data;
+    bool             m_use_real_bcs;
+    amrex::Real*     m_u_bc_data;
 };
 
 class ERFPhysBCFunct_v
@@ -193,8 +193,8 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
     amrex::MultiFab* m_z_phys_nd;
-    bool                 m_use_real_bcs;
-    amrex::Real* m_v_bc_data;
+    bool             m_use_real_bcs;
+    amrex::Real*     m_v_bc_data;
 };
 
 class ERFPhysBCFunct_w
@@ -205,7 +205,10 @@ public:
                       const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
-                      const TerrainType& terrain_type, std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                      const TerrainType& terrain_type,
+                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
+                      std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                      std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                       const bool use_real_bcs,
                       amrex::Real* w_bc_data)
         : m_lev(lev),
@@ -214,6 +217,8 @@ public:
           m_bc_extdir_vals(bc_extdir_vals),
           m_bc_neumann_vals(bc_neumann_vals),
           m_terrain_type(terrain_type),
+          m_mapfac_u(mapfac_u.get()),
+          m_mapfac_v(mapfac_v.get()),
           m_z_phys_nd(z_phys_nd.get()),
           m_use_real_bcs(use_real_bcs),
           m_w_bc_data(w_bc_data)
@@ -239,6 +244,8 @@ public:
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
+                                  const amrex::Array4<amrex::Real const>& mf_u,
+                                  const amrex::Array4<amrex::Real const>& mf_v,
                                   const amrex::Array4<amrex::Real const>& z_nd,
                                   const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                   TerrainType terrain_type, int bccomp);
@@ -246,6 +253,8 @@ public:
                                    const amrex::Array4<amrex::Real const>& xvel_arr,
                                    const amrex::Array4<amrex::Real const>& yvel_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
+                                   const amrex::Array4<amrex::Real const>& mf_u,
+                                   const amrex::Array4<amrex::Real const>& mf_v,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                    int bccomp_u, int bccomp_v, int bccomp_w,
@@ -258,10 +267,12 @@ private:
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
-    TerrainType          m_terrain_type;
+    TerrainType      m_terrain_type;
+    amrex::MultiFab* m_mapfac_u;
+    amrex::MultiFab* m_mapfac_v;
     amrex::MultiFab* m_z_phys_nd;
-    bool                 m_use_real_bcs;
-    amrex::Real* m_w_bc_data;
+    bool             m_use_real_bcs;
+    amrex::Real*     m_w_bc_data;
 };
 
 class ERFPhysBCFunct_base

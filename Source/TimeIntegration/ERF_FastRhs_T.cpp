@@ -483,7 +483,9 @@ void erf_fast_rhs_T (int step, int nrk,
             });
         }
         ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
+            omega_arr(i,j,k) = OmegaFromW(i,j,k,old_drho_w(i,j,k),
+                                          old_drho_u,old_drho_v,
+                                          mf_u,mf_v,z_nd,dxInv);
         });
         } // end profile
         // *********************************************************************
@@ -548,7 +550,9 @@ void erf_fast_rhs_T (int step, int nrk,
                  detJ_on_kface * slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
-            RHS_a(i,j,k) += detJ_on_kface * OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
+            RHS_a(i,j,k) += detJ_on_kface * OmegaFromW(i,j,k,0.,
+                                                       new_drho_u,new_drho_v,
+                                                       mf_u,mf_v,z_nd,dxInv);
         });
         } // end profile
 
@@ -638,7 +642,9 @@ void erf_fast_rhs_T (int step, int nrk,
         }
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
+              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),
+                                    new_drho_u,new_drho_v,
+                                    mf_u,mf_v,z_nd,dxInv);
               cur_zmom(i,j,k) += wpp;
         });
 

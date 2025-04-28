@@ -24,12 +24,12 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-USE_FFT = TRUE
+USE_FFT = FALSE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
 
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DryRegTests/ScharMountain
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DevTests/ScharMountain
 include $(ERF_HOME)/Exec/Make.ERF
