@@ -43,6 +43,7 @@ In addition to this documentation, there is API documentation for ERF generated 
 
    GettingStarted.rst
    Inputs.rst
+   Initialization.rst
    BestPractices.rst
    HowToCite.rst
 
@@ -53,14 +54,13 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/DryEquations.rst
    theory/Anelastic.rst
    theory/WetEquations.rst
-   theory/Initialization.rst
+   theory/BaseState.rst
    theory/Buoyancy.rst
    theory/Microphysics.rst
    theory/DNSvsLES.rst
    theory/PBLschemes.rst
    theory/Forcings.rst
    Particles.rst
-   theory/WindFarmModels.rst
    theory/Forest.rst
    theory/UnitsAndConstants.rst
 
@@ -103,12 +103,6 @@ In addition to this documentation, there is API documentation for ERF generated 
    Verification.rst
    Performance.rst
    RegressionTests.rst
-
-.. toctree::
-   :caption: GOALS
-   :maxdepth: 1
-
-   Applications_Requirements.rst
 
 .. toctree::
    :caption: CONTAINERS

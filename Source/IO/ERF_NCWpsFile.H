@@ -209,18 +209,17 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
                 vname_to_read  = names[n+4]; // This allows us to read "T" instead -- we will over-write this later
             }
 
-            /*
-            amrex::AllPrint() << "About to read " << vname_to_read
-                              << " while filling the array for " << vname_to_write << std::endl;
-            */
-
             success[n] = ncf.has_var(vname_to_read);
-            // amrex::Print() << " HAS VAR " << vname_to_read << " " << success[n] << std::endl;
+            if (success[n] == 0) {
+                amrex::Print() << " Skipping " << vname_to_read << std::endl;
+            } else {
+                amrex::Print() << " Reading  " << vname_to_read << std::endl;
+            }
 
             if (success[n] == 1) {
 
                 std::vector<std::string> dimnames = ncf.var(vname_to_read).dimnames();
-                AMREX_ALWAYS_ASSERT(dimnames[0] == "Time");
+                AMREX_ALWAYS_ASSERT(dimnames[0] == "Time" || dimnames[0] == "time");
 
                 std::vector<size_t> shape = ncf.var(vname_to_read).shape();
                 arrays[n]                 = NDArray<DType>(vname_to_read,shape);

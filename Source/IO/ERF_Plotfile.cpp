@@ -92,14 +92,18 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            if ( ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
-                   (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
-                   (derived_names[i] != "z_phys" && derived_names[i] != "detJ") )
+            bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing) ||
+                               (derived_names[i] != "terrain_IB_mask") );
+            ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
+                               (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
+                               (derived_names[i] != "detJ") );
+            ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
+                               (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
+                               (derived_names[i] != "z_phys") );
 #ifndef ERF_USE_WINDFARM
-               && (derived_names[i] != "SMark0" && derived_names[i] != "SMark1") )
-#else
-            )
+            ok_to_add     &= (derived_names[i] != "SMark0" && derived_names[i] != "SMark1");
 #endif
+            if (ok_to_add)
             {
                 if (solverChoice.moisture_type == MoistureType::None) { // no moist quantities allowed
                     if (derived_names[i] != "qv" && derived_names[i] != "qc"    && derived_names[i] != "qrain"  &&
