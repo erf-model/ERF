@@ -1,5 +1,6 @@
 #include <ERF.H>
 #include <ERF_Utils.H>
+#include <ERF_ReadFromWRFBdy.H>
 
 using namespace amrex;
 
@@ -23,6 +24,54 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     MultiFab& U_new = vars_new[lev][Vars::xvel];
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
+
+#ifdef ERF_USE_NETCDF
+    //
+    // Since we now only read in a subset of the time slices in wrfbdy we need to check
+    //       whether it's time to read in more
+    //
+    if (solverChoice.use_real_bcs && (lev==0)) {
+        Real dT = bdy_time_interval;
+
+        Real time_since_start_old = time - start_bdy_time;
+        int n_time_old = static_cast<int>( time_since_start_old /  dT);
+
+        Real time_since_start_new = time + dt[lev] - start_bdy_time;
+        int n_time_new = static_cast<int>( time_since_start_new /  dT);
+
+        int ntimes = bdy_data_xlo.size();
+        for (int itime = 0; itime < ntimes; itime++)
+        {
+            //if (bdy_data_xlo[itime].size() > 0) {
+            //    amrex::Print() << "HAVE  DATA AT TIME " << itime << std::endl;
+            //} else {
+            //    amrex::Print() << " NO   DATA AT TIME " << itime << std::endl;
+            //}
+
+            bool clear_itime = (itime < n_time_old);
+
+            if (clear_itime && bdy_data_xlo[itime].size() > 0) {
+                bdy_data_xlo[itime].clear();
+                //amrex::Print() << "CLEAR  DATA AT TIME " << itime << std::endl;
+            }
+
+            bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
+            //if (need_itime) amrex::Print()  << "NEED  DATA AT TIME " << itime << std::endl;
+
+            if (bdy_data_xlo[itime].size() == 0 && need_itime) {
+               read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
+                                bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                real_width);
+
+               bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+               convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                   *mf_MUB[lev], *mf_C1H[lev], *mf_C2H[lev],
+                                   vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                   geom[lev], use_moist);
+           }
+        } // itime
+    } // use_real_bcs && lev == 0
+#endif
 
     //
     // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
@@ -118,12 +167,3 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
         amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
     }
 }
-
-/**
- * Function that advances the solution at one level for a single time step --
- * this does some preliminaries then calls erf_advance
- *
- * @param[in] lev level of refinement (coarsest level is 0)
- * @param[in] time start time for time advance
- * @param[in] dt_lev time step for this time advance
- */

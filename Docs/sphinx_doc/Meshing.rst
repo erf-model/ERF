@@ -28,7 +28,7 @@ decreases with the cube of height.  Additionally, ERF includes the capability to
 isotropic map projections (e.g., Lambert Conformal, Mercator); see :ref:`sec:MapFactors` for more details.
 
 Arakawa C-Grid
-==============
+---------------
 Variables are located on Arakawa C-grid as pictured in the images below.
 
 .. image:: figures/grid_discretization/Arakawa_1.png
