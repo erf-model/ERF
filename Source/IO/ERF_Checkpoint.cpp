@@ -326,7 +326,7 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(cphi, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "CosPhi"));
         }
 
-        if (solverChoice.use_real_bcs) {
+        if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             MultiFab tmp1d(ba1d[lev],dmap[lev],1,ngv);
             MultiFab tmp2d(ba2d[lev],dmap[lev],1,ngv);
 
@@ -742,8 +742,7 @@ ERF::ReadCheckpointFile ()
             MultiFab::Copy(*cosPhi_m[lev],cphi,0,0,1,ngv);
         }
 
-        if (solverChoice.use_real_bcs) {
-            amrex::Print() << "READING MF DATA " << std::endl;
+        if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             MultiFab tmp1d(ba1d[lev],dmap[lev],1,ngv);
             MultiFab tmp2d(ba2d[lev],dmap[lev],1,ngv);
 
