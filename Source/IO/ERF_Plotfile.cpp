@@ -310,6 +310,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
         for (int lev = 0; lev <= finest_level; ++lev) {
             mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
+            mf_cc_vel[lev].setVal(-1.e20);
             average_face_to_cellcenter(mf_cc_vel[lev],0,
                                        Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],
                                                                 &vars_new[lev][Vars::yvel],
@@ -330,15 +331,18 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
             Vector<Real> ctime    = {t_new[lev], t_new[lev]};
 
-            amrex::FillPatchTwoLevels(mf_cc_vel[lev], t_new[lev], cmf, ctime, fmf, ftime,
-                                      0, 0, AMREX_SPACEDIM, geom[lev-1], geom[lev],
-                                      null_bc_for_fill, 0, null_bc_for_fill, 0, refRatio(lev-1),
-                                      mapper, domain_bcs_type, 0);
-        } // lev
+            FillBdyCCVels(mf_cc_vel,lev-1);
 
-        // Impose bc's at domain boundaries at all levels
-        FillBdyCCVels(mf_cc_vel);
+            // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
+            FillPatchTwoLevels(mf_cc_vel[lev], mf_cc_vel[lev].nGrowVect(), IntVect(0,0,0),
+                               t_new[lev], cmf, ctime, fmf, ftime,
+                               0, 0, mf_cc_vel[lev].nComp(), geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BaseBCVars::rho0_bc_comp);
+        } // lev
     } // if (vort)
+
+    FillBdyCCVels(mf_cc_vel);
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
