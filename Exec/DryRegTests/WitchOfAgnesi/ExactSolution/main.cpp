@@ -116,7 +116,7 @@ int main() {
 
     std::vector<double> xvec(nx, 0.0);
     std::vector<double> kvec(nx, 0.0);
-    double dk = 2.0*kmax/(nx-1);
+    double dk = 2.0*kmax/nx;
     for(int i=0;i<nx; i++){
         xvec[i] = xmin + i*dx;
         kvec[i] = -kmax + i*dk;
