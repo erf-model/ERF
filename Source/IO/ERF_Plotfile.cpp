@@ -340,9 +340,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BaseBCVars::rho0_bc_comp);
         } // lev
+        FillBdyCCVels(mf_cc_vel);
     } // if (vort)
 
-    FillBdyCCVels(mf_cc_vel);
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
