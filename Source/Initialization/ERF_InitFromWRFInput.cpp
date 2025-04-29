@@ -9,6 +9,8 @@
 #include <ERF_ProbCommon.H>
 #include <ERF_DataStruct.H>
 
+#include <ERF_ReadFromWRFBdy.H>
+
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
@@ -22,28 +24,6 @@ read_from_wrfinput (int lev,
                     Geometry& geom,
                     int& use_theta_m,
                     int& success);
-
-Real
-read_from_wrfbdy (const std::string& nc_bdy_file,
-                  const Box& domain,
-                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                  int& width,
-                  Real& start_bdy_time);
-
-void
-convert_wrfbdy_data (const Box& domain,
-                     Vector<Vector<FArrayBox>>& bdy_data,
-                     const MultiFab& mf_MUB,
-                     const MultiFab& mf_C1H,
-                     const MultiFab& mf_C2H,
-                     const MultiFab& xvel,
-                     const MultiFab& yvel,
-                     const MultiFab& cons,
-                     const Geometry& geom,
-                     const bool& use_moist);
 
 void
 compute_terrain_top_and_bottom (Real& terrain_bottom_min,
@@ -83,7 +63,7 @@ init_base_state_from_wrfinput (const Box& domain,
  * @param lev Integer specifying the current level
  */
 void
-ERF::init_from_wrfinput (int lev)
+ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H, MultiFab& mf_C2H, MultiFab& mf_MUB)
 {
     const Box& domain = geom[lev].Domain();
 
@@ -134,7 +114,6 @@ ERF::init_from_wrfinput (int lev)
 
     MultiFab mf_PH , mf_PHB;         // For geopotential height
     MultiFab mf_ALB, mf_PB , mf_P  ; // For base state
-    MultiFab mf_MUB, mf_C1H, mf_C2H; // For bdy convert
 
     // Temporary MFs for derived quantities
     auto& ba    = lev_new[Vars::cons].boxArray();
@@ -143,28 +122,13 @@ ERF::init_from_wrfinput (int lev)
     IntVect ngz = (z_phys_nd[lev]) ? z_phys_nd[lev]->nGrowVect() : IntVect(0); ngz[0] +=1; ngz[1] += 1;
     IntVect ngv = ng; ngv[2] = 0;
 
-    // Build 2D BA
-    BoxList bl2d = ba.boxList();
-    for (auto& b : bl2d) {
-        b.setRange(2,0);
-    }
-    BoxArray ba2d(std::move(bl2d));
-
-    // Build 1D BA
-    BoxList bl1d = ba.boxList();
-    for (auto& b : bl1d) {
-        b.setRange(0,0);
-        b.setRange(1,0);
-    }
-    BoxArray ba1d(std::move(bl1d));
-
     bool compute_terrain_here = true;
 
     Print() << "Loading initial data from NetCDF file at level " << lev << "\n";
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
         Print() << "Reading from file " << nc_init_file[lev][idx] << "\n";
         for (int ivar = 0; ivar < nvar; ++ ivar) {
-            Print() << "Reading variable " << NC_names[ivar] << " ...";
+            Print() << "Checking for " << NC_names[ivar] << " ...";
 
             int success, use_theta_m;
             read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
@@ -340,7 +304,6 @@ ERF::init_from_wrfinput (int lev)
               }
               var_fab.clear();
           } else if ( var_name == "MUB" ) {
-              mf_MUB.define(ba2d, dm, 1, ng);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -351,7 +314,6 @@ ERF::init_from_wrfinput (int lev)
               }
               var_fab.clear();
           } else if ( var_name == "C1H" ) {
-              mf_C1H.define(ba1d, dm, 1, ng);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -362,7 +324,6 @@ ERF::init_from_wrfinput (int lev)
               }
               var_fab.clear();
           } else if ( var_name == "C2H" ) {
-              mf_C2H.define(ba1d, dm, 1, ng);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -381,9 +342,9 @@ ERF::init_from_wrfinput (int lev)
           // Initialize Latitude & Coriolis factors
           if ( var_name == "XLAT_V" ) {
               solverChoice.has_lat_lon = true;
-              lat_m[lev]    = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
-              sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
-              cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+              lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+              sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+              cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& sin_arr = (sinPhi_m[lev])->array(mfi);
@@ -405,7 +366,7 @@ ERF::init_from_wrfinput (int lev)
 
           // Initialize Longitude
           if ( var_name == "XLONG_U" ) {
-              lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+              lon_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& dst_arr = (lon_m[lev])->array(mfi);
@@ -421,7 +382,7 @@ ERF::init_from_wrfinput (int lev)
 
           // Initialize SST
           if ( var_name == "SST" ) {
-              sst_lev[lev][0] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+              sst_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               for ( MFIter mfi(*(sst_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& dst_arr = sst_lev[lev][0]->array(mfi);
@@ -433,12 +394,12 @@ ERF::init_from_wrfinput (int lev)
                       dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
                   });
               }
-              (sst_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
+              (sst_lev[lev][0])->FillBoundary(geom[lev].periodicity());
           }
 
           // Initialize TSK
           if ( var_name == "TSK" ) {
-              tsk_lev[lev][0] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+              tsk_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               for ( MFIter mfi(*(tsk_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& dst_arr = tsk_lev[lev][0]->array(mfi);
@@ -525,7 +486,6 @@ ERF::init_from_wrfinput (int lev)
 
           if (success) {
               var_fab.clear();
-              Print() << " DONE\n";
           }
         } // ivar
         Print() << "\n";
@@ -704,26 +664,26 @@ ERF::init_from_wrfinput (int lev)
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-    if (solverChoice.init_type == InitType::WRFInput) {
 
-        int n_qstate = micro->Get_Qstate_Size();
+    int n_qstate = micro->Get_Qstate_Size();
 
-        bool use_P_eos = (solverChoice.rebalance_wrfinput);
+    bool use_P_eos = (solverChoice.rebalance_wrfinput);
 
-        init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
-                                      lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
-                                      mf_PB, mf_P, use_P_eos);
+    init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
+                                  lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
+                                  mf_PB, mf_P, use_P_eos);
 
-        // FillBoundary to populate the internal ghost cells (no averaging in above call)
-         r_hse.FillBoundary(geom[lev].periodicity());
-         p_hse.FillBoundary(geom[lev].periodicity());
-        pi_hse.FillBoundary(geom[lev].periodicity());
-        th_hse.FillBoundary(geom[lev].periodicity());
-        qv_hse.FillBoundary(geom[lev].periodicity());
-    }
+    // FillBoundary to populate the internal ghost cells (no averaging in above call)
+     r_hse.FillBoundary(geom[lev].periodicity());
+     p_hse.FillBoundary(geom[lev].periodicity());
+    pi_hse.FillBoundary(geom[lev].periodicity());
+    th_hse.FillBoundary(geom[lev].periodicity());
+    qv_hse.FillBoundary(geom[lev].periodicity());
 
+    // *******************************************************************************************
     // Initialize the bdy data
-    if (solverChoice.init_type == InitType::WRFInput && solverChoice.use_real_bcs && (lev == 0))
+    // *******************************************************************************************
+    if (solverChoice.use_real_bcs && (lev == 0))
     {
         if (nc_bdy_file.empty()) {
             amrex::Error("NetCDF boundary file name must be provided via input");
@@ -734,33 +694,35 @@ ERF::init_from_wrfinput (int lev)
             AMREX_ALWAYS_ASSERT(real_width-real_set_width >= 3);
         }
 
-        bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),
-                                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             real_width, start_bdy_time);
+        bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
+                                                   bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                                   start_bdy_time);
 
-        Print() << "Read in boundary data with width "  << real_width << std::endl;
-        Print() << "Running with specification width: " << real_set_width
-                << " and relaxation width: " << real_width - real_set_width << std::endl;
+        // *******************************************************************************************
+        // We intentionally only read in the first three slices here ... we will read the rest in
+        // as needed during the time stepping procedure
+        // *******************************************************************************************
+        int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
+        for (int itime = 0; itime < ntimes; itime++)
+        {
+           read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
+                            bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                            real_width);
 
-        convert_wrfbdy_data(domain,bdy_data_xlo,
-                            mf_MUB, mf_C1H, mf_C2H,
-                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                            geom[lev], use_moist);
-        convert_wrfbdy_data(domain,bdy_data_xhi,
-                            mf_MUB, mf_C1H, mf_C2H,
-                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                            geom[lev], use_moist);
-        convert_wrfbdy_data(domain,bdy_data_ylo,
-                            mf_MUB, mf_C1H, mf_C2H,
-                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                            geom[lev], use_moist);
-        convert_wrfbdy_data(domain,bdy_data_yhi,
-                            mf_MUB, mf_C1H, mf_C2H,
-                            lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                            geom[lev], use_moist);
-    } // init_type == Real && lev == 0
+            if (itime == 0) {
+                Print() << "Read in boundary data with width "  << real_width << std::endl;
+                Print() << "Running with specification width: " << real_set_width
+                        << " and relaxation width: " << real_width - real_set_width << std::endl;
+            }
 
-    if (solverChoice.init_type == InitType::WRFInput && solverChoice.use_real_bcs)
+            convert_all_wrfbdy_data(itime, domain, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                    mf_MUB, mf_C1H, mf_C2H,
+                                    lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                                    geom[lev], use_moist);
+        } // itime
+    } // use_real_bcs && lev == 0
+
+    if (solverChoice.use_real_bcs)
     {
         //
         // Start at the earliest time (read_from_wrfbdy)
@@ -776,7 +738,52 @@ ERF::init_from_wrfinput (int lev)
             t_new[lev] = t_new[0];
             t_old[lev] = t_old[0];
         }
-    }
+    } // use_real_bcs
+
+    // *******************************************************************************************
+    // Initialize the low data if available
+    // *******************************************************************************************
+    if ((lev == 0) && !nc_low_file.empty())
+    {
+        low_time_interval = read_from_wrflow(nc_low_file,geom[0].Domain(),
+                                             low_data_zlo, start_low_time);
+
+        auto& ba = lev_new[Vars::cons].boxArray();
+        auto& dm = lev_new[Vars::cons].DistributionMap();
+        auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
+
+        int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
+        int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
+
+        int ntimes = low_data_zlo.size();
+
+        // HACK HACK HACK
+        // For right now we run out of memory if we load all of wrfbdy and all of wrflow
+        // Thus for now we are only loading the first two time slices
+        ntimes = 2;
+
+        sst_lev[lev].resize(ntimes);
+
+        for (int itime(0); itime < ntimes; ++itime) {
+            if (itime > 0) {
+                sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+            }
+            for ( MFIter mfi(*(sst_lev[lev][itime]), false); mfi.isValid(); ++mfi ) {
+                Box gtbx = mfi.growntilebox();
+                FArrayBox& src = low_data_zlo[itime];
+                FArrayBox& dst = (*(sst_lev[lev][itime]))[mfi];
+                const Array4<      Real>& dst_arr = dst.array();
+                const Array4<const Real>& src_arr = src.const_array();
+                ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                {
+                    int li = min(max(i, i_lo), i_hi);
+                    int lj = min(max(j, j_lo), j_hi);
+                    dst_arr(i,j,0) = src_arr(li,lj,0);
+                });
+            }
+            sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
+        }
+    } // lev == 0 && nc_low_file exists
 }
 
 

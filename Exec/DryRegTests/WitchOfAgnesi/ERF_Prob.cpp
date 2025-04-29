@@ -44,8 +44,8 @@ Problem::init_custom_pert (
     Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
-    Array4<Real const> const& /*mf_u*/,
-    Array4<Real const> const& /*mf_v*/,
+    Array4<Real const> const& mf_u,
+    Array4<Real const> const& mf_v,
     const SolverChoice& sc)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
@@ -83,7 +83,9 @@ Problem::init_custom_pert (
     if (sc.terrain_type == TerrainType::StaticFittedMesh) {
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel_pert, y_vel_pert, z_nd, dxInv);
+            z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0,
+                                             x_vel_pert, y_vel_pert,
+                                             mf_u, mf_v, z_nd, dxInv);
         });
     } else {
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
