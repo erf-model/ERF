@@ -56,7 +56,7 @@ void write_vtk_structured_grid(const std::string& filename,
 
     // Write variable
     ofs << "\nPOINT_DATA " << nx * nz<< "\n";
-    ofs << "SCALARS var float 1\n";
+    ofs << "SCALARS z_velocity float 1\n";
     ofs << "LOOKUP_TABLE default\n";
 
     for (int k = 0; k < nz; ++k) {
@@ -97,15 +97,16 @@ compute_eta(const std::vector<std::complex<double>>& hhat_of_k,
 
 int main() {
 
-    double h, xc, N_BV, U;
+    double h, xc, N_BV, U, L;
     h = 1.0;
-    N_BV = 0.01;
+    N_BV = 0.01; //1/s
     U = 10.0; //m/s
+    L = 1000.0;
 
     double xmin, xmax;
     xmin = 0.0;
     xmax = 144e3;
-    xc = (xmax-xmin)/2.0;
+    xc = (xmin+xmax)/2.0;
     int nx = 512;
     double dx = (xmax-xmin)/nx;
 
@@ -132,7 +133,6 @@ int main() {
     int nz = zvec.size();
 
     std::vector<double> h_of_x;
-    double L = 1000.0;
     for(int i=0;i<xvec.size();i++){
         double x_by_L = (xvec[i] - xc)/L;
         double tmp = 1.0/(1.0 + x_by_L*x_by_L);
@@ -152,7 +152,7 @@ int main() {
         std::cout << "Doing k " << k << std::endl;
         for(int i=0; i<nx; i++) {
             double xval = xvec[i];
-            eta[i][k] = compute_eta(hhat_of_k, kvec, xval, zval, dx, N_BV, U);
+            eta[i][k] = compute_eta(hhat_of_k, kvec, xval, zval, dk, N_BV, U);
         }
     }
 
@@ -166,12 +166,11 @@ int main() {
             } else {
                 detadx[i][k] = (eta[i+1][k]-eta[i-1][k])/(2.0*dx);
             }
-            detadx[i][k] = 10*detadx[i][k];
+            detadx[i][k] = U*detadx[i][k];
         }
     }
 
-    write_vtk_structured_grid("grid_output.vtk", xvec, zvec, h_of_x, detadx);
-    exit(0);
+    write_vtk_structured_grid("WoA_zvel.vtk", xvec, zvec, h_of_x, detadx);
 
     return 0;
 }
