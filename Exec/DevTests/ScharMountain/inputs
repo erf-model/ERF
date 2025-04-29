@@ -1,6 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 3000000
-max_step = 100000
+max_step = 20000
 
 amrex.fpe_trap_invalid = 0
 
@@ -20,6 +19,17 @@ xhi.type = "Outflow"
 
 zlo.type = "SlipWall"
 zhi.type = "Outflow"
+
+erf.use_xlo_sponge_damping = true
+erf.use_xhi_sponge_damping = true
+erf.use_zhi_sponge_damping = true
+erf.sponge_strength   =      1.0
+erf.xlo_sponge_end    = -20000.0
+erf.xhi_sponge_start  =  20000.0
+erf.zhi_sponge_start  =  15000.0
+erf.sponge_x_velocity =     10.0
+erf.sponge_y_velocity =      0.0
+erf.sponge_z_velocity =      0.0
 
 #erf.initial_dz = 10
 #erf.grid_stretching_ratio = 1.075065

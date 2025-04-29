@@ -61,7 +61,8 @@
         }
 
         // Construct the source terms for the cell-centered (conserved) variables
-        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
+        make_sources(level, nrk, slow_dt, old_stage_time,
+                     S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level].get(),
 #endif
@@ -465,7 +466,8 @@
             terrain_blank = terrain_blanking[level].get();
         }
 
-        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
+        make_sources(level, nrk, slow_dt, old_stage_time,
+                     S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level].get(),
 #endif
