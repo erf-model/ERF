@@ -63,7 +63,7 @@ init_base_state_from_wrfinput (const Box& domain,
  * @param lev Integer specifying the current level
  */
 void
-ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H, MultiFab& mf_C2H, MultiFab& mf_MUB)
+ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, MultiFab& mf_MUB_lev)
 {
     const Box& domain = geom[lev].Domain();
 
@@ -307,9 +307,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H, MultiFab& mf_C2H, MultiFab& 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_MUB, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_MUB_lev, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = mf_MUB[mfi];
+                FArrayBox &cur_fab = mf_MUB_lev[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -317,9 +317,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H, MultiFab& mf_C2H, MultiFab& 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_C1H, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_C1H_lev, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = mf_C1H[mfi];
+                FArrayBox &cur_fab = mf_C1H_lev[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -327,9 +327,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H, MultiFab& mf_C2H, MultiFab& 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(mf_C2H, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(mf_C2H_lev, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = mf_C2H[mfi];
+                FArrayBox &cur_fab = mf_C2H_lev[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -716,7 +716,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H, MultiFab& mf_C2H, MultiFab& 
             }
 
             convert_all_wrfbdy_data(itime, domain, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                    mf_MUB, mf_C1H, mf_C2H,
+                                    mf_MUB_lev, mf_C1H_lev, mf_C2H_lev,
                                     lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                     geom[lev], use_moist);
         } // itime
@@ -747,10 +747,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H, MultiFab& mf_C2H, MultiFab& 
     {
         low_time_interval = read_from_wrflow(nc_low_file,geom[0].Domain(),
                                              low_data_zlo, start_low_time);
-
-        auto& ba = lev_new[Vars::cons].boxArray();
-        auto& dm = lev_new[Vars::cons].DistributionMap();
-        auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
 
         int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
         int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
