@@ -508,7 +508,7 @@ ERF::init_zphys (int lev, Real time)
 
         int ngrow = ComputeGhostCells(solverChoice) + 2;
         Box bx(surroundingNodes(Geom(lev).Domain())); bx.grow(ngrow);
-        FArrayBox terrain_fab(makeSlab(bx,2,0),1);
+        FArrayBox terrain_fab(makeSlab(bx,2,0),ngrow);
 
         //
         // If we are using fitted mesh then we use the surface as defined above
