@@ -136,7 +136,6 @@ Problem::init_custom_terrain (
             Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
 
             Real cosx = cos(PI * x / lambda);
-            amrex::Print() <<" I X EXP " << i << " " << x << " " << Hm * std::exp(-x*x/asq)<< std::endl;
 
             z_arr(i,j,k0) = Hm * std::exp(-x*x/asq) * cosx * cosx;
 

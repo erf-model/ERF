@@ -692,8 +692,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
 
             if (l_use_terrain_fitted_coords) {
-                Real met_h_xi_hi   = Compute_h_xi_AtCellCenter  (i  , j, k, dxInv, z_nd);
-                Real met_h_xi_lo   = Compute_h_xi_AtCellCenter  (i-1, j, k, dxInv, z_nd);
+                Real met_h_xi = (z_cc(i,j,k) - z_cc(i-1,j,k)) * dxInv[0];
 
                 Real dz_phys_hi, dz_phys_lo;
                 Real gpz_lo, gpz_hi;
@@ -713,7 +712,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     gpz_hi  = (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k-1)) / dz_phys_hi;
                     gpz_lo  = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k-1)) / dz_phys_lo;
                 }
-                Real gpx_metric = 0.5 * ( gpz_hi * met_h_xi_hi + gpz_lo * met_h_xi_lo );
+                Real gpx_metric = met_h_xi * 0.5 * (gpz_hi + gpz_lo);
                 gpx -= gpx_metric;
             }
 
@@ -746,8 +745,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
 
             if (l_use_terrain_fitted_coords) {
-                Real met_h_eta_hi  = Compute_h_eta_AtCellCenter (i, j  , k, dxInv, z_nd);
-                Real met_h_eta_lo  = Compute_h_eta_AtCellCenter (i, j-1, k, dxInv, z_nd);
+                Real met_h_eta = (z_cc(i,j,k) - z_cc(i,j-1,k)) * dxInv[1];
 
                 Real dz_phys_hi, dz_phys_lo;
                 Real gpz_lo, gpz_hi;
@@ -767,7 +765,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     gpz_hi  = (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k-1)) / dz_phys_hi;
                     gpz_lo  = (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k-1)) / dz_phys_lo;
                 }
-                Real gpy_metric = 0.5 * ( gpz_hi * met_h_eta_hi + gpz_lo * met_h_eta_lo );
+                Real gpy_metric = met_h_eta * 0.5 * (gpz_hi + gpz_lo);
                 gpy -= gpy_metric;
             } // l_use_terrain_fitted_coords
 
