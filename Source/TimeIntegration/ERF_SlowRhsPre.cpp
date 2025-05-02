@@ -561,9 +561,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
             EBAdvectionSrcForRho(bx, cell_rhs,
                             rho_u, rho_v, omega_arr,
                             avg_xmom, avg_ymom, avg_zmom,
-                            ax_arr, ay_arr, az_arr, detJ_arr,
+                            mask_arr, cfg_arr,
+                            ax_arr, ay_arr, az_arr,
+                            fcx_arr, fcy_arr, fcz_arr, detJ_arr,
                             dxInv, mf_m, mf_u, mf_v,
-                            flx_arr, l_fixed_rho);
+                            flx_arr, l_fixed_rho,
+                            already_on_centroids);
         }
 
         int icomp = RhoTheta_comp; int ncomp = 1;

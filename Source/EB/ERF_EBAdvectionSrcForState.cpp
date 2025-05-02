@@ -37,23 +37,25 @@ EBAdvectionSrcForRho (const Box& bx,
                     const Array4<      Real>& avg_xmom,
                     const Array4<      Real>& avg_ymom,
                     const Array4<      Real>& avg_zmom,
+                    const Array4<const int>& mask_arr,
+                    const Array4<const EBCellFlag>& cfg_arr,
                     const Array4<const Real>& ax_arr,
                     const Array4<const Real>& ay_arr,
                     const Array4<const Real>& az_arr,
+                    const Array4<const Real>& fcx_arr,
+                    const Array4<const Real>& fcy_arr,
+                    const Array4<const Real>& fcz_arr,
                     const Array4<const Real>& detJ,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                     const Array4<const Real>& mf_m,
                     const Array4<const Real>& mf_u,
                     const Array4<const Real>& mf_v,
                     const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
-                    const bool fixed_rho)
+                    const bool fixed_rho,
+                    bool already_on_centroids)
 {
     BL_PROFILE_VAR("EBAdvectionSrcForRho", EBAdvectionSrcForRho);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-
-    // const Box xbx = surroundingNodes(bx,0);
-    // const Box ybx = surroundingNodes(bx,1);
-    // const Box zbx = surroundingNodes(bx,2);
 
     const Box xbx = surroundingNodes(bx,0).grow(IntVect(0, 1, 1));
     const Box ybx = surroundingNodes(bx,1).grow(IntVect(1, 0, 1));
@@ -83,19 +85,125 @@ EBAdvectionSrcForRho (const Box& bx,
         });
     } else
     {
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (detJ(i,j,k) > 0.) {
-                Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
-                advectionSrc(i,j,k,0) = - mfsq / detJ(i,j,k) * (
-                  ( ax_arr(i+1,j,k) * flx_arr[0](i+1,j,k,0) - ax_arr(i,j,k) * flx_arr[0](i,j,k,0) ) * dxInv +
-                  ( ay_arr(i,j+1,k) * flx_arr[1](i,j+1,k,0) - ay_arr(i,j,k) * flx_arr[1](i,j,k,0) ) * dyInv +
-                  ( az_arr(i,j,k+1) * flx_arr[2](i,j,k+1,0) - az_arr(i,j,k) * flx_arr[2](i,j,k,0) ) * dzInv );
-            } else {
-                advectionSrc(i,j,k,0) = 0.;
-            }
-        });
-    }
+        if (already_on_centroids) {
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (detJ(i,j,k) > 0.) {
+                    Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                    advectionSrc(i,j,k,0) = - mfsq / detJ(i,j,k) * (
+                                            ( ax_arr(i+1,j,k) * flx_arr[0](i+1,j,k,0) - ax_arr(i,j,k) * flx_arr[0](i,j,k,0) ) * dxInv +
+                                            ( ay_arr(i,j+1,k) * flx_arr[1](i,j+1,k,0) - ay_arr(i,j,k) * flx_arr[1](i,j,k,0) ) * dyInv +
+                                            ( az_arr(i,j,k+1) * flx_arr[2](i,j,k+1,0) - az_arr(i,j,k) * flx_arr[2](i,j,k,0) ) * dzInv );
+                } else {
+                    advectionSrc(i,j,k,0) = 0.;
+                }
+            });
+
+        } else {
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (detJ(i,j,k) > 0.) {
+                    Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                    if (cfg_arr(i,j,k).isCovered())
+                    {
+                        advectionSrc(i,j,k,0) = 0.;
+                    }
+                    else if (cfg_arr(i,j,k).isRegular())
+                    {
+                        advectionSrc(i,j,k,0) = - mfsq / detJ(i,j,k) * (
+                                                ( ax_arr(i+1,j,k) * flx_arr[0](i+1,j,k,0) - ax_arr(i,j,k) * flx_arr[0](i,j,k,0) ) * dxInv +
+                                                ( ay_arr(i,j+1,k) * flx_arr[1](i,j+1,k,0) - ay_arr(i,j,k) * flx_arr[1](i,j,k,0) ) * dyInv +
+                                                ( az_arr(i,j,k+1) * flx_arr[2](i,j,k+1,0) - az_arr(i,j,k) * flx_arr[2](i,j,k,0) ) * dzInv );
+                    }
+                    else
+                    {
+                    // Bilinear interpolation
+                    Real fxm = flx_arr[0](i,j,k,0);
+                    if (ax_arr(i,j,k) != Real(0.0) && ax_arr(i,j,k) != Real(1.0)) {
+                        int jj = j + static_cast<int>(std::copysign(Real(1.0), fcx_arr(i,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(Real(1.0), fcx_arr(i,j,k,1)));
+                        Real fracy = (mask_arr(i-1,jj,k) || mask_arr(i,jj,k)) ? std::abs(fcx_arr(i,j,k,0)) : Real(0.0);
+                        Real fracz = (mask_arr(i-1,j,kk) || mask_arr(i,j,kk)) ? std::abs(fcx_arr(i,j,k,1)) : Real(0.0);
+                        fxm = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxm
+                            +      fracy *(Real(1.0)-fracz)*flx_arr[0](i,jj,k ,0)
+                            +      fracz *(Real(1.0)-fracy)*flx_arr[0](i,j ,kk,0)
+                            +      fracy *     fracz *flx_arr[0](i,jj,kk,0);
+                    }
+
+                    Real fxp = flx_arr[0](i+1,j,k,0);
+                    if (ax_arr(i+1,j,k) != Real(0.0) && ax_arr(i+1,j,k) != Real(1.0)) {
+                        int jj = j + static_cast<int>(std::copysign(Real(1.0),fcx_arr(i+1,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(Real(1.0),fcx_arr(i+1,j,k,1)));
+                        Real fracy = (mask_arr(i,jj,k) || mask_arr(i+1,jj,k)) ? std::abs(fcx_arr(i+1,j,k,0)) : Real(0.0);
+                        Real fracz = (mask_arr(i,j,kk) || mask_arr(i+1,j,kk)) ? std::abs(fcx_arr(i+1,j,k,1)) : Real(0.0);
+                        fxp = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxp
+                            +      fracy *(Real(1.0)-fracz)*flx_arr[0](i+1,jj,k ,0)
+                            +      fracz *(Real(1.0)-fracy)*flx_arr[0](i+1,j ,kk,0)
+                            +      fracy *     fracz *flx_arr[0](i+1,jj,kk,0);
+                    }
+
+                    Real fym = flx_arr[1](i,j,k,0);
+                    if (ay_arr(i,j,k) != Real(0.0) && ay_arr(i,j,k) != Real(1.0)) {
+                        int ii = i + static_cast<int>(std::copysign(Real(1.0),fcy_arr(i,j,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(Real(1.0),fcy_arr(i,j,k,1)));
+                        Real fracx = (mask_arr(ii,j-1,k) || mask_arr(ii,j,k)) ? std::abs(fcy_arr(i,j,k,0)) : Real(0.0);
+                        Real fracz = (mask_arr(i,j-1,kk) || mask_arr(i,j,kk)) ? std::abs(fcy_arr(i,j,k,1)) : Real(0.0);
+                        fym = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fym
+                            +      fracx *(Real(1.0)-fracz)*flx_arr[1](ii,j,k ,0)
+                            +      fracz *(Real(1.0)-fracx)*flx_arr[1](i ,j,kk,0)
+                            +      fracx *     fracz *flx_arr[1](ii,j,kk,0);
+                    }
+
+                    Real fyp = flx_arr[1](i,j+1,k,0);
+                    if (ay_arr(i,j+1,k) != Real(0.0) && ay_arr(i,j+1,k) != Real(1.0)) {
+                        int ii = i + static_cast<int>(std::copysign(Real(1.0),fcy_arr(i,j+1,k,0)));
+                        int kk = k + static_cast<int>(std::copysign(Real(1.0),fcy_arr(i,j+1,k,1)));
+                        Real fracx = (mask_arr(ii,j,k) || mask_arr(ii,j+1,k)) ? std::abs(fcy_arr(i,j+1,k,0)) : Real(0.0);
+                        Real fracz = (mask_arr(i,j,kk) || mask_arr(i,j+1,kk)) ? std::abs(fcy_arr(i,j+1,k,1)) : Real(0.0);
+                        fyp = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fyp
+                            +      fracx *(Real(1.0)-fracz)*flx_arr[1](ii,j+1,k ,0)
+                            +      fracz *(Real(1.0)-fracx)*flx_arr[1](i ,j+1,kk,0)
+                            +      fracx *     fracz *flx_arr[1](ii,j+1,kk,0);
+                    }
+
+                    Real fzm = flx_arr[2](i,j,k,0);
+                    if (az_arr(i,j,k) != Real(0.0) && az_arr(i,j,k) != Real(1.0)) {
+                        int ii = i + static_cast<int>(std::copysign(Real(1.0),fcz_arr(i,j,k,0)));
+                        int jj = j + static_cast<int>(std::copysign(Real(1.0),fcz_arr(i,j,k,1)));
+                        Real fracx = (mask_arr(ii,j,k-1) || mask_arr(ii,j,k)) ? std::abs(fcz_arr(i,j,k,0)) : Real(0.0);
+                        Real fracy = (mask_arr(i,jj,k-1) || mask_arr(i,jj,k)) ? std::abs(fcz_arr(i,j,k,1)) : Real(0.0);
+                        fzm = (Real(1.0)-fracx)*(Real(1.0)-fracy)*fzm
+                            +      fracx *(Real(1.0)-fracy)*flx_arr[2](ii,j ,k,0)
+                            +      fracy *(Real(1.0)-fracx)*flx_arr[2](i ,jj,k,0)
+                            +      fracx *     fracy *flx_arr[2](ii,jj,k,0);
+                    }
+
+                    Real fzp = flx_arr[2](i,j,k+1,0);
+                    if (az_arr(i,j,k+1) != Real(0.0) && az_arr(i,j,k+1) != Real(1.0)) {
+                        int ii = i + static_cast<int>(std::copysign(Real(1.0),fcz_arr(i,j,k+1,0)));
+                        int jj = j + static_cast<int>(std::copysign(Real(1.0),fcz_arr(i,j,k+1,1)));
+                        Real fracx = (mask_arr(ii,j,k) || mask_arr(ii,j,k+1)) ? std::abs(fcz_arr(i,j,k+1,0)) : Real(0.0);
+                        Real fracy = (mask_arr(i,jj,k) || mask_arr(i,jj,k+1)) ? std::abs(fcz_arr(i,j,k+1,1)) : Real(0.0);
+                        fzp = (Real(1.0)-fracx)*(Real(1.0)-fracy)*fzp
+                            +      fracx *(Real(1.0)-fracy)*flx_arr[2](ii,j ,k+1,0)
+                            +      fracy *(Real(1.0)-fracx)*flx_arr[2](i ,jj,k+1,0)
+                            +      fracx *     fracy *flx_arr[2](ii,jj,k+1,0);
+                    }
+
+                    advectionSrc(i,j,k,0) = -  mfsq / detJ(i,j,k) * (
+                                ( ax_arr(i+1,j,k) * fxp - ax_arr(i,j,k) * fxm ) * dxInv +
+                                ( ay_arr(i,j+1,k) * fyp - ay_arr(i,j,k) * fym ) * dyInv +
+                                ( az_arr(i,j,k+1) * fzp - az_arr(i,j,k) * fzm ) * dzInv );
+                    }
+                } else {
+                    advectionSrc(i,j,k,0) = 0.;
+                }
+            });
+
+        } // already_on_centroids
+    } // fixed_rho
 }
 
 /**

@@ -19,16 +19,22 @@ void EBAdvectionSrcForRho (const amrex::Box& bx,
                             const amrex::Array4<      amrex::Real>& avg_xmom, // These are being defined
                             const amrex::Array4<      amrex::Real>& avg_ymom, //  from the rho fluxes
                             const amrex::Array4<      amrex::Real>& avg_zmom,
+                            const amrex::Array4<const int>& mask_arr,
+                            const amrex::Array4<const amrex::EBCellFlag>& cfg_arr,
                             const amrex::Array4<const amrex::Real>& ax_arr,
                             const amrex::Array4<const amrex::Real>& ay_arr,
                             const amrex::Array4<const amrex::Real>& az_arr,
+                            const amrex::Array4<const amrex::Real>& fcx_arr,
+                            const amrex::Array4<const amrex::Real>& fcy_arr,
+                            const amrex::Array4<const amrex::Real>& fcz_arr,
                             const amrex::Array4<const amrex::Real>& detJ,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
                             const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr,
-                            const bool fixed_rho);
+                            const bool fixed_rho,
+                            bool already_on_centroids);
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
 void EBAdvectionSrcForScalars (const amrex::Box& bx,
@@ -38,7 +44,7 @@ void EBAdvectionSrcForScalars (const amrex::Box& bx,
                             const amrex::Array4<const amrex::Real>& avg_zmom,
                             const amrex::Array4<const amrex::Real>& cell_prim,
                             const amrex::Array4<amrex::Real>& src,
-                            const amrex::Array4<const int>& ccm_arr,
+                            const amrex::Array4<const int>& mask_arr,
                             const amrex::Array4<const amrex::EBCellFlag>& cfg_arr,
                             const amrex::Array4<const amrex::Real>& ax_arr,
                             const amrex::Array4<const amrex::Real>& ay_arr,
