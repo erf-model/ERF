@@ -335,7 +335,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        Array4<const int> ccm_arr{};
+        Array4<const int> mask_arr{};
         Array4<const EBCellFlag> cfg_arr{};
         Array4<const Real> ax_arr{};
         Array4<const Real> ay_arr{};
@@ -354,7 +354,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             fcy_arr  = ebfact.getFaceCent()[1]->const_array(mfi);
             fcz_arr  = ebfact.getFaceCent()[2]->const_array(mfi);
             detJ_arr = ebfact.getVolFrac().const_array(mfi);
-            if (!already_on_centroids) {ccm_arr = physbnd_mask.const_array(mfi);}
+            if (!already_on_centroids) {mask_arr = physbnd_mask.const_array(mfi);}
         } else {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
@@ -436,7 +436,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         EBAdvectionSrcForScalars(tbx, start_comp, num_comp,
                                             avg_xmom, avg_ymom, avg_zmom,
                                             cur_prim, cell_rhs,
-                                            ccm_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                            mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
                                             fcx_arr, fcy_arr, fcz_arr,
                                             detJ_arr, dxInv, mf_m,
                                             horiz_adv_type, vert_adv_type,

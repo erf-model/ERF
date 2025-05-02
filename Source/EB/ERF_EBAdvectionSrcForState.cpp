@@ -8,6 +8,97 @@
 using namespace amrex;
 
 /**
+ * Function for computing the advective tendency for the update equations for rho and (rho theta)
+ * This routine has explicit expressions for all cases (terrain or not) when
+ * the horizontal and vertical spatial orders are <= 2, and calls more specialized
+ * functions when either (or both) spatial order(s) is greater than 2.
+ *
+ * @param[in] bx box over which the scalars are updated
+ * @param[out] advectionSrc tendency for the scalar update equation
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] Omega component of momentum normal to the z-coordinate surface
+ * @param[out] avg_xmom x-component of time-averaged momentum defined in this routine
+ * @param[out] avg_ymom y-component of time-averaged momentum defined in this routine
+ * @param[out] avg_zmom z-component of time-averaged momentum defined in this routine
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_m map factor at cell centers
+ * @param[in] mf_u map factor at x-faces
+ * @param[in] mf_v map factor at y-faces
+ */
+
+void
+EBAdvectionSrcForRho (const Box& bx,
+                    const Array4<Real>& advectionSrc,
+                    const Array4<const Real>& rho_u,
+                    const Array4<const Real>& rho_v,
+                    const Array4<const Real>& Omega,
+                    const Array4<      Real>& avg_xmom,
+                    const Array4<      Real>& avg_ymom,
+                    const Array4<      Real>& avg_zmom,
+                    const Array4<const Real>& ax_arr,
+                    const Array4<const Real>& ay_arr,
+                    const Array4<const Real>& az_arr,
+                    const Array4<const Real>& detJ,
+                    const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                    const Array4<const Real>& mf_m,
+                    const Array4<const Real>& mf_u,
+                    const Array4<const Real>& mf_v,
+                    const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
+                    const bool fixed_rho)
+{
+    BL_PROFILE_VAR("EBAdvectionSrcForRho", EBAdvectionSrcForRho);
+    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
+
+    // const Box xbx = surroundingNodes(bx,0);
+    // const Box ybx = surroundingNodes(bx,1);
+    // const Box zbx = surroundingNodes(bx,2);
+
+    const Box xbx = surroundingNodes(bx,0).grow(IntVect(0, 1, 1));
+    const Box ybx = surroundingNodes(bx,1).grow(IntVect(1, 0, 1));
+    const Box zbx = surroundingNodes(bx,2).grow(IntVect(1, 1, 0));
+
+    ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        (flx_arr[0])(i,j,k,0) = ax_arr(i,j,k) * rho_u(i,j,k) / mf_u(i,j,0);
+        avg_xmom(i,j,k) = (flx_arr[0])(i,j,k,0);
+    });
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        (flx_arr[1])(i,j,k,0) = ay_arr(i,j,k) * rho_v(i,j,k) / mf_v(i,j,0);
+        avg_ymom(i,j,k) = (flx_arr[1])(i,j,k,0);
+    });
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+        (flx_arr[2])(i,j,k,0) = az_arr(i,j,k) * Omega(i,j,k) / mfsq;
+        avg_zmom(i,j,k) = (flx_arr[2])(i,j,k,0);
+    });
+
+    if (fixed_rho) {
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            advectionSrc(i,j,k,0) = 0.0;
+        });
+    } else
+    {
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (detJ(i,j,k) > 0.) {
+                Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                advectionSrc(i,j,k,0) = - mfsq / detJ(i,j,k) * (
+                  ( (flx_arr[0])(i+1,j,k,0) - (flx_arr[0])(i  ,j,k,0) ) * dxInv +
+                  ( (flx_arr[1])(i,j+1,k,0) - (flx_arr[1])(i,j  ,k,0) ) * dyInv +
+                  ( (flx_arr[2])(i,j,k+1,0) - (flx_arr[2])(i,j,k  ,0) ) * dzInv );
+            } else {
+                advectionSrc(i,j,k,0) = 0.;
+            }
+        });
+    }
+}
+
+/**
  * Function for computing the advective tendency for scalars when terrain_type is EB.
  *
  * @param[in] bx box over which the scalars are updated if no external boundary conditions
@@ -18,7 +109,7 @@ using namespace amrex;
  * @param[in] avg_zmom z-component of time-averaged momentum defined in this routine
  * @param[in] cell_prim primitive form of scalar variables, here only potential temperature theta
  * @param[out] advectionSrc tendency for the scalar update equation
- * @param[in] ccm_arr Cell-centered masks (=1 otherwise, =0 if physbnd)
+ * @param[in] mask_arr Cell-centered masks (=1 otherwise, =0 if physbnd)
  * @param[in] cfg_arr Cell-centered flags
  * @param[in] ax_arr Area fraction of x-face
  * @param[in] ay_arr Area fraction of y-face
@@ -44,7 +135,7 @@ EBAdvectionSrcForScalars (const Box& bx,
                         const Array4<const Real>& avg_zmom,
                         const Array4<const Real>& cell_prim,
                         const Array4<Real>& advectionSrc,
-                        const Array4<const int>& ccm_arr,
+                        const Array4<const int>& mask_arr,
                         const Array4<const EBCellFlag>& cfg_arr,
                         const Array4<const Real>& ax_arr,
                         const Array4<const Real>& ay_arr,
@@ -65,7 +156,7 @@ EBAdvectionSrcForScalars (const Box& bx,
                         bool already_on_centroids)
 {
     BL_PROFILE_VAR("EBAdvectionSrcForScalars", EBAdvectionSrcForScalars);
-    auto dxInv =     cellSizeInv[0], dyInv =     cellSizeInv[1], dzInv =     cellSizeInv[2];
+    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
@@ -213,8 +304,8 @@ EBAdvectionSrcForScalars (const Box& bx,
                     if (ax_arr(i+1,j,k) != Real(0.0) && ax_arr(i+1,j,k) != Real(1.0)) {
                         int jj = j + static_cast<int>(std::copysign(Real(1.0),fcx_arr(i+1,j,k,0)));
                         int kk = k + static_cast<int>(std::copysign(Real(1.0),fcx_arr(i+1,j,k,1)));
-                        Real fracy = (ccm_arr(i,jj,k) || ccm_arr(i+1,jj,k)) ? std::abs(fcx_arr(i+1,j,k,0)) : Real(0.0);
-                        Real fracz = (ccm_arr(i,j,kk) || ccm_arr(i+1,j,kk)) ? std::abs(fcx_arr(i+1,j,k,1)) : Real(0.0);
+                        Real fracy = (mask_arr(i,jj,k) || mask_arr(i+1,jj,k)) ? std::abs(fcx_arr(i+1,j,k,0)) : Real(0.0);
+                        Real fracz = (mask_arr(i,j,kk) || mask_arr(i+1,j,kk)) ? std::abs(fcx_arr(i+1,j,k,1)) : Real(0.0);
                         fxp = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxp
                             +      fracy *(Real(1.0)-fracz)*flx_arr[0](i+1,jj,k ,cons_index)
                             +      fracz *(Real(1.0)-fracy)*flx_arr[0](i+1,j ,kk,cons_index)
@@ -225,8 +316,8 @@ EBAdvectionSrcForScalars (const Box& bx,
                     if (ay_arr(i,j,k) != Real(0.0) && ay_arr(i,j,k) != Real(1.0)) {
                         int ii = i + static_cast<int>(std::copysign(Real(1.0),fcy_arr(i,j,k,0)));
                         int kk = k + static_cast<int>(std::copysign(Real(1.0),fcy_arr(i,j,k,1)));
-                        Real fracx = (ccm_arr(ii,j-1,k) || ccm_arr(ii,j,k)) ? std::abs(fcy_arr(i,j,k,0)) : Real(0.0);
-                        Real fracz = (ccm_arr(i,j-1,kk) || ccm_arr(i,j,kk)) ? std::abs(fcy_arr(i,j,k,1)) : Real(0.0);
+                        Real fracx = (mask_arr(ii,j-1,k) || mask_arr(ii,j,k)) ? std::abs(fcy_arr(i,j,k,0)) : Real(0.0);
+                        Real fracz = (mask_arr(i,j-1,kk) || mask_arr(i,j,kk)) ? std::abs(fcy_arr(i,j,k,1)) : Real(0.0);
                         fym = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fym
                             +      fracx *(Real(1.0)-fracz)*flx_arr[1](ii,j,k ,cons_index)
                             +      fracz *(Real(1.0)-fracx)*flx_arr[1](i ,j,kk,cons_index)
@@ -237,8 +328,8 @@ EBAdvectionSrcForScalars (const Box& bx,
                     if (ay_arr(i,j+1,k) != Real(0.0) && ay_arr(i,j+1,k) != Real(1.0)) {
                         int ii = i + static_cast<int>(std::copysign(Real(1.0),fcy_arr(i,j+1,k,0)));
                         int kk = k + static_cast<int>(std::copysign(Real(1.0),fcy_arr(i,j+1,k,1)));
-                        Real fracx = (ccm_arr(ii,j,k) || ccm_arr(ii,j+1,k)) ? std::abs(fcy_arr(i,j+1,k,0)) : Real(0.0);
-                        Real fracz = (ccm_arr(i,j,kk) || ccm_arr(i,j+1,kk)) ? std::abs(fcy_arr(i,j+1,k,1)) : Real(0.0);
+                        Real fracx = (mask_arr(ii,j,k) || mask_arr(ii,j+1,k)) ? std::abs(fcy_arr(i,j+1,k,0)) : Real(0.0);
+                        Real fracz = (mask_arr(i,j,kk) || mask_arr(i,j+1,kk)) ? std::abs(fcy_arr(i,j+1,k,1)) : Real(0.0);
                         fyp = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fyp
                             +      fracx *(Real(1.0)-fracz)*flx_arr[1](ii,j+1,k ,cons_index)
                             +      fracz *(Real(1.0)-fracx)*flx_arr[1](i ,j+1,kk,cons_index)
@@ -261,8 +352,8 @@ EBAdvectionSrcForScalars (const Box& bx,
                     if (az_arr(i,j,k+1) != Real(0.0) && az_arr(i,j,k+1) != Real(1.0)) {
                         int ii = i + static_cast<int>(std::copysign(Real(1.0),fcz_arr(i,j,k+1,0)));
                         int jj = j + static_cast<int>(std::copysign(Real(1.0),fcz_arr(i,j,k+1,1)));
-                        Real fracx = (ccm_arr(ii,j,k) || ccm_arr(ii,j,k+1)) ? std::abs(fcz_arr(i,j,k+1,0)) : Real(0.0);
-                        Real fracy = (ccm_arr(i,jj,k) || ccm_arr(i,jj,k+1)) ? std::abs(fcz_arr(i,j,k+1,1)) : Real(0.0);
+                        Real fracx = (mask_arr(ii,j,k) || mask_arr(ii,j,k+1)) ? std::abs(fcz_arr(i,j,k+1,0)) : Real(0.0);
+                        Real fracy = (mask_arr(i,jj,k) || mask_arr(i,jj,k+1)) ? std::abs(fcz_arr(i,j,k+1,1)) : Real(0.0);
                         fzp = (Real(1.0)-fracx)*(Real(1.0)-fracy)*fzp
                             +      fracx *(Real(1.0)-fracy)*flx_arr[2](ii,j ,k+1,cons_index)
                             +      fracy *(Real(1.0)-fracx)*flx_arr[2](i ,jj,k+1,cons_index)
@@ -274,7 +365,7 @@ EBAdvectionSrcForScalars (const Box& bx,
                 }
 
                 // eb_compute_divergence(i,j,k,n,advectionSrc,AMREX_D_DECL(flx_arr[0],flx_arr[1],flx_arr[2]),
-                //                     ccm_arr, cfg_arr, detJ, AMREX_D_DECL(ax_arr,ay_arr,az_arr),
+                //                     mask_arr, cfg_arr, detJ, AMREX_D_DECL(ax_arr,ay_arr,az_arr),
                 //                     AMREX_D_DECL(fcx_arr,fcy_arr,fcz_arr), cellSizeInv, already_on_centroids);
 
 
