@@ -61,19 +61,19 @@ EBAdvectionSrcForRho (const Box& bx,
 
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        (flx_arr[0])(i,j,k,0) = ax_arr(i,j,k) * rho_u(i,j,k) / mf_u(i,j,0);
-        avg_xmom(i,j,k) = (flx_arr[0])(i,j,k,0);
+        flx_arr[0](i,j,k,0) = rho_u(i,j,k) / mf_u(i,j,0);
+        avg_xmom(i,j,k) = flx_arr[0](i,j,k,0);
     });
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        (flx_arr[1])(i,j,k,0) = ay_arr(i,j,k) * rho_v(i,j,k) / mf_v(i,j,0);
-        avg_ymom(i,j,k) = (flx_arr[1])(i,j,k,0);
+        flx_arr[1](i,j,k,0) = rho_v(i,j,k) / mf_v(i,j,0);
+        avg_ymom(i,j,k) = flx_arr[1](i,j,k,0);
     });
     ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
-        (flx_arr[2])(i,j,k,0) = az_arr(i,j,k) * Omega(i,j,k) / mfsq;
-        avg_zmom(i,j,k) = (flx_arr[2])(i,j,k,0);
+        flx_arr[2](i,j,k,0) = Omega(i,j,k) / mfsq;
+        avg_zmom(i,j,k) = flx_arr[2](i,j,k,0);
     });
 
     if (fixed_rho) {
@@ -88,9 +88,9 @@ EBAdvectionSrcForRho (const Box& bx,
             if (detJ(i,j,k) > 0.) {
                 Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
                 advectionSrc(i,j,k,0) = - mfsq / detJ(i,j,k) * (
-                  ( (flx_arr[0])(i+1,j,k,0) - (flx_arr[0])(i  ,j,k,0) ) * dxInv +
-                  ( (flx_arr[1])(i,j+1,k,0) - (flx_arr[1])(i,j  ,k,0) ) * dyInv +
-                  ( (flx_arr[2])(i,j,k+1,0) - (flx_arr[2])(i,j,k  ,0) ) * dzInv );
+                  ( ax_arr(i+1,j,k) * flx_arr[0](i+1,j,k,0) - ax_arr(i,j,k) * flx_arr[0](i,j,k,0) ) * dxInv +
+                  ( ay_arr(i,j+1,k) * flx_arr[1](i,j+1,k,0) - ay_arr(i,j,k) * flx_arr[1](i,j,k,0) ) * dyInv +
+                  ( az_arr(i,j,k+1) * flx_arr[2](i,j,k+1,0) - az_arr(i,j,k) * flx_arr[2](i,j,k,0) ) * dzInv );
             } else {
                 advectionSrc(i,j,k,0) = 0.;
             }
@@ -184,9 +184,8 @@ EBAdvectionSrcForScalars (const Box& bx,
     }
 
     // Inline with 2nd order for efficiency
-    // NOTE: we don't need to weight avg_xmom, avg_ymom, avg_zmom with terrain metrics
-    //       (or with EB area fractions)
-    //       because that was done when they were constructed in AdvectionSrcForRhoAndTheta
+    // NOTE: For EB, avg_xmom, avg_ymom, avg_zmom were are weighted by area fractions in AdvectionSrcForRho
+    //       The flux is weighted by area fraction after its interpolation.
     if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
     {
         ParallelFor(xbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -194,21 +193,21 @@ EBAdvectionSrcForScalars (const Box& bx,
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
             const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
-            (flx_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * prim_on_face;
+            flx_arr[0](i,j,k,cons_index) = avg_xmom(i,j,k) * prim_on_face;
         });
         ParallelFor(ybx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
             const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
-            (flx_arr[1])(i,j,k,cons_index) = avg_ymom(i,j,k) * prim_on_face;
+            flx_arr[1](i,j,k,cons_index) = avg_ymom(i,j,k) * prim_on_face;
         });
         ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
             const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
-            (flx_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * prim_on_face;
+            flx_arr[2](i,j,k,cons_index) = avg_zmom(i,j,k) * prim_on_face;
         });
 
     // Template higher order methods (horizontal first)
@@ -257,9 +256,9 @@ EBAdvectionSrcForScalars (const Box& bx,
                 Real mfsq    = mf_m(i,j,0) * mf_m(i,j,0);
 
                 advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
-                  ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
-                  ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
-                  ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
+                  ( ax_arr(i+1,j,k) * flx_arr[0](i+1,j,k,cons_index) - ax_arr(i,j,k) * flx_arr[0](i  ,j,k,cons_index) ) * dxInv +
+                  ( ay_arr(i,j+1,k) * flx_arr[1](i,j+1,k,cons_index) - ay_arr(i,j,k) * flx_arr[1](i,j  ,k,cons_index) ) * dyInv +
+                  ( az_arr(i,j,k+1) * flx_arr[2](i,j,k+1,cons_index) - az_arr(i,j,k) * flx_arr[2](i,j,k  ,cons_index) ) * dzInv );
             } else {
                 advectionSrc(i,j,k,cons_index) = 0.;
             }
@@ -281,9 +280,9 @@ EBAdvectionSrcForScalars (const Box& bx,
                 else if (cfg_arr(i,j,k).isRegular())
                 {
                     advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
-                        ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
-                        ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
-                        ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
+                        ( ax_arr(i+1,j,k) * flx_arr[0](i+1,j,k,cons_index) - ax_arr(i,j,k) * flx_arr[0](i  ,j,k,cons_index) ) * dxInv +
+                        ( ay_arr(i,j+1,k) * flx_arr[1](i,j+1,k,cons_index) - ay_arr(i,j,k) * flx_arr[1](i,j  ,k,cons_index) ) * dyInv +
+                        ( az_arr(i,j,k+1) * flx_arr[2](i,j,k+1,cons_index) - az_arr(i,j,k) * flx_arr[2](i,j,k  ,cons_index) ) * dzInv );
                 }
                 else
                 {
@@ -361,7 +360,9 @@ EBAdvectionSrcForScalars (const Box& bx,
                     }
 
                     advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
-                        ( fxp - fxm ) * dxInv + ( fyp - fym ) * dyInv + ( fzp - fzm ) * dzInv );
+                          ( ax_arr(i+1,j,k) * fxp - ax_arr(i,j,k) * fxm ) * dxInv 
+                        + ( ay_arr(i,j+1,k) * fyp - ay_arr(i,j,k) * fym ) * dyInv 
+                        + ( az_arr(i,j,k+1) * fzp - az_arr(i,j,k) * fzm ) * dzInv );
                 }
 
                 // eb_compute_divergence(i,j,k,n,advectionSrc,AMREX_D_DECL(flx_arr[0],flx_arr[1],flx_arr[2]),
