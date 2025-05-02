@@ -105,6 +105,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                        const Vector<BCRec>& domain_bcs_type_h,
                        std::unique_ptr<MultiFab>& z_phys_nd,
+                       std::unique_ptr<MultiFab>& z_phys_cc,
                        std::unique_ptr<MultiFab>& ax,
                        std::unique_ptr<MultiFab>& ay,
                        std::unique_ptr<MultiFab>& az,
@@ -133,6 +134,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
     int start_comp = 0;
     int   num_comp = 2;
     int   end_comp = start_comp + num_comp - 1;
+
+    int klo = geom.Domain().smallEnd(2);
+    int khi = geom.Domain().bigEnd(2);
 
     const AdvType l_horiz_adv_type = solverChoice.advChoice.dycore_horiz_adv_type;
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
@@ -341,7 +345,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Terrain metrics
-        const Array4<const Real>& z_nd     = z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_nd = z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_cc = z_phys_cc->const_array(mfi);
 
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
@@ -452,7 +457,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
                         Real rho_at_face = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
-                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv) -
+                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
+                                                      rho_u,rho_v,mf_u,mf_v,z_nd,dxInv) -
                             rho_at_face * z_t(i,j,k);
                     });
                 } else {
@@ -464,7 +470,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                         gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                     }
                     ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
+                        omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
+                                                      rho_u,rho_v,mf_u,mf_v,z_nd,dxInv);
                     });
                 }
             }
@@ -682,28 +689,32 @@ void erf_slow_rhs_pre (int level, int finest_level,
         { // x-momentum equation
 
             //Note : mx/my == 1, so no map factor needed here
-            Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
-            Real gpx = gp_xi;
+            Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
 
             if (l_use_terrain_fitted_coords) {
-                Real met_h_xi   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
-                Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
+                Real met_h_xi_hi   = Compute_h_xi_AtCellCenter  (i  , j, k, dxInv, z_nd);
+                Real met_h_xi_lo   = Compute_h_xi_AtCellCenter  (i-1, j, k, dxInv, z_nd);
 
-                Real gp_zeta_on_iface;
+                Real dz_phys_hi, dz_phys_lo;
+                Real gpz_lo, gpz_hi;
                 if (k==0) {
-                    gp_zeta_on_iface = 0.5 * dxInv[2] * (
-                                                        pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
-                                                      - pp_arr(i-1,j,k  ) - pp_arr(i,j,k  ) );
+                    dz_phys_hi = z_cc(i  ,j,k+1) -   z_cc(i  ,j,k  );
+                    dz_phys_lo = z_cc(i-1,j,k+1) -   z_cc(i-1,j,k  );
+                    gpz_hi  = (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k  )) / dz_phys_hi;
+                    gpz_lo  = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k  )) / dz_phys_lo;
                 } else if (k==domhi_z) {
-                    gp_zeta_on_iface = 0.5 * dxInv[2] * (
-                                                        pp_arr(i-1,j,k  ) + pp_arr(i,j,k  )
-                                                      - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+                    dz_phys_hi = z_cc(i  ,j,k  ) -   z_cc(i  ,j,k-1);
+                    dz_phys_lo = z_cc(i-1,j,k  ) -   z_cc(i-1,j,k-1);
+                    gpz_hi  = (pp_arr(i  ,j,k  ) - pp_arr(i  ,j,k-1)) / dz_phys_hi;
+                    gpz_lo  = (pp_arr(i-1,j,k  ) - pp_arr(i-1,j,k-1)) / dz_phys_lo;
                 } else {
-                    gp_zeta_on_iface = 0.25 * dxInv[2] * (
-                                                         pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
-                                                       - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+                    dz_phys_hi = z_cc(i  ,j,k+1) -   z_cc(i  ,j,k-1);
+                    dz_phys_lo = z_cc(i-1,j,k+1) -   z_cc(i-1,j,k-1);
+                    gpz_hi  = (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k-1)) / dz_phys_hi;
+                    gpz_lo  = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k-1)) / dz_phys_lo;
                 }
-                gpx -= (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
+                Real gpx_metric = 0.5 * ( gpz_hi * met_h_xi_hi + gpz_lo * met_h_xi_lo );
+                gpx -= gpx_metric;
             }
 
             gpx *= mf_u(i,j,0);
@@ -732,27 +743,32 @@ void erf_slow_rhs_pre (int level, int finest_level,
         { // y-momentum equation
 
             //Note : mx/my == 1, so no map factor needed here
-            Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
-            Real gpy = gp_eta;
+            Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
 
             if (l_use_terrain_fitted_coords) {
-                Real met_h_eta  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
-                Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
-                Real gp_zeta_on_jface;
-                if(k==0) {
-                    gp_zeta_on_jface = 0.5 * dxInv[2] * (
-                                                    pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
-                                                  - pp_arr(i,j,k  ) - pp_arr(i,j-1,k  ) );
-                } else if (k==domhi_z) {
-                    gp_zeta_on_jface = 0.5 * dxInv[2] * (
-                                                        pp_arr(i,j,k  ) + pp_arr(i,j-1,k  )
-                                                      - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                Real met_h_eta_hi  = Compute_h_eta_AtCellCenter (i, j  , k, dxInv, z_nd);
+                Real met_h_eta_lo  = Compute_h_eta_AtCellCenter (i, j-1, k, dxInv, z_nd);
+
+                Real dz_phys_hi, dz_phys_lo;
+                Real gpz_lo, gpz_hi;
+                if (k==klo) {
+                    dz_phys_hi = z_cc(i,j  ,k+1) -   z_cc(i,j  ,k  );
+                    dz_phys_lo = z_cc(i,j-1,k+1) -   z_cc(i,j-1,k  );
+                    gpz_hi  = (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k  )) / dz_phys_hi;
+                    gpz_lo  = (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k  )) / dz_phys_lo;
+                } else if (k==khi) {
+                    dz_phys_hi = z_cc(i,j  ,k  ) -   z_cc(i,j  ,k-1);
+                    dz_phys_lo = z_cc(i,j-1,k  ) -   z_cc(i,j-1,k-1);
+                    gpz_hi  = (pp_arr(i,j  ,k  ) - pp_arr(i,j  ,k-1)) / dz_phys_hi;
+                    gpz_lo  = (pp_arr(i,j-1,k  ) - pp_arr(i,j-1,k-1)) / dz_phys_lo;
                 } else {
-                    gp_zeta_on_jface = 0.25 * dxInv[2] * (
-                                                         pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
-                                                       - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                    dz_phys_hi = z_cc(i,j  ,k+1) -   z_cc(i,j  ,k-1);
+                    dz_phys_lo = z_cc(i,j-1,k+1) -   z_cc(i,j-1,k-1);
+                    gpz_hi  = (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k-1)) / dz_phys_hi;
+                    gpz_lo  = (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k-1)) / dz_phys_lo;
                 }
-                gpy -= (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
+                Real gpy_metric = 0.5 * ( gpz_hi * met_h_eta_hi + gpz_lo * met_h_eta_lo );
+                gpy -= gpy_metric;
             } // l_use_terrain_fitted_coords
 
             gpy *= mf_v(i,j,0);

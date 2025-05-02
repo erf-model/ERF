@@ -27,6 +27,7 @@ void make_sources (int level, int nrk,
                    amrex::Vector<amrex::MultiFab>& S_data,
                    const amrex::MultiFab& S_prim,
                          amrex::MultiFab& cc_source,
+                   const amrex::MultiFab& base_state,
                    std::unique_ptr<amrex::MultiFab>& z_phys_cc,
 #if defined(ERF_USE_RRTMGP)
                    const amrex::MultiFab* qheating_rates,
@@ -107,6 +108,7 @@ void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
                               const amrex::Box& bx,
                               const amrex::Array4<amrex::Real>& cell_rhs,
                               const amrex::Array4<const amrex::Real>& cell_data,
+                              const amrex::Array4<const amrex::Real>& r0,
                               const amrex::Array4<const amrex::Real>& z_phys_cc);
 
 void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
@@ -120,6 +122,7 @@ void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                                const amrex::Array4<const amrex::Real>& rho_u,
                                const amrex::Array4<const amrex::Real>& rho_v,
                                const amrex::Array4<const amrex::Real>& rho_w,
+                               const amrex::Array4<const amrex::Real>& r0,
                                const amrex::Array4<const amrex::Real>& z_phys_nd,
                                const amrex::Array4<const amrex::Real>& z_phys_cc);
 

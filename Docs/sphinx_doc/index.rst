@@ -51,9 +51,8 @@ In addition to this documentation, there is API documentation for ERF generated 
    :caption: THEORY
    :maxdepth: 1
 
-   theory/DryEquations.rst
+   theory/GoverningEquations.rst
    theory/Anelastic.rst
-   theory/WetEquations.rst
    theory/BaseState.rst
    theory/Buoyancy.rst
    theory/Microphysics.rst

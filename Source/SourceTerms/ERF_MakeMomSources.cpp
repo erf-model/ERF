@@ -79,6 +79,8 @@ void make_mom_sources (int level,
     ymom_src.setVal(0.0);
     zmom_src.setVal(0.0);
 
+    MultiFab r_hse (base_state, make_alias, BaseState::r0_comp , 1);
+
     // *****************************************************************************
     // Define source term for all three components of momenta from
     //    1. buoyancy           for (zmom)
@@ -232,6 +234,8 @@ void make_mom_sources (int level,
         const Array4<      Real>& xmom_src_arr = xmom_src.array(mfi);
         const Array4<      Real>& ymom_src_arr = ymom_src.array(mfi);
         const Array4<      Real>& zmom_src_arr = zmom_src.array(mfi);
+
+        const Array4<const Real>& r0 = r_hse.const_array(mfi);
 
         // Map factors
         //const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
@@ -525,7 +529,7 @@ void make_mom_sources (int level,
         {
             ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                      xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
-                                     z_nd_arr, z_cc_arr);
+                                     r0, z_nd_arr, z_cc_arr);
         }
 
         // *****************************************************************************

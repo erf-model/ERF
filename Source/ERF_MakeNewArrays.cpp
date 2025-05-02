@@ -249,10 +249,33 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         mapfac_v[lev]->setVal(1.);
     }
 
-#if defined(ERF_USE_WINDFARM)
+    // ********************************************************************************************
+    // Build 1D BA and 2D BA
+    // ********************************************************************************************
+    BoxList bl1d = ba.boxList();
+    for (auto& b : bl1d) {
+        b.setRange(0,0);
+        b.setRange(1,0);
+    }
+    ba1d[lev]  = BoxArray(std::move(bl1d));
+
+    // Build 2D BA
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    ba2d[lev]  = BoxArray(std::move(bl2d));
+
+    IntVect ng  = vars_new[lev][Vars::cons].nGrowVect();
+
+    mf_C1H[lev] = std::make_unique<MultiFab>(ba1d[lev],dm,1,ng);
+    mf_C2H[lev] = std::make_unique<MultiFab>(ba1d[lev],dm,1,ng);
+    mf_MUB[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ng);
+
     //*********************************************************
     // Variables for Fitch model for windfarm parametrization
     //*********************************************************
+#if defined(ERF_USE_WINDFARM)
     if (solverChoice.windfarm_type == WindFarmType::Fitch){
         vars_windfarm[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
     }
@@ -619,7 +642,7 @@ ERF::make_physbcs (int lev)
                                                             z_phys_nd[lev], solverChoice.use_real_bcs, yvel_bc_data[lev].data());
     physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            solverChoice.terrain_type, z_phys_nd[lev],
+                                                            solverChoice.terrain_type, mapfac_u[lev], mapfac_v[lev], z_phys_nd[lev],
                                                             solverChoice.use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                (solverChoice.terrain_type == TerrainType::MovingFittedMesh));

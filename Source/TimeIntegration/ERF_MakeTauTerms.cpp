@@ -95,8 +95,10 @@ void erf_make_tau_terms (int level, int nrk,
             const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
             // Eddy viscosity
-            const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
-            const Array4<Real const>& cell_data = l_use_constAlpha ? S_data[IntVars::cons].const_array(mfi) : Array4<const Real>{};
+            const Array4<Real const>& mu_turb   = l_use_turb       ? eddyDiffs->const_array(mfi) :
+                                                                     Array4<const Real>{};
+            const Array4<Real const>& cell_data = l_use_constAlpha ? S_data[IntVars::cons].const_array(mfi) :
+                                                                     Array4<const Real>{};
 
             // Terrain metrics
             const Array4<const Real>& z_nd     = z_phys_nd->const_array(mfi);
@@ -186,7 +188,8 @@ void erf_make_tau_terms (int level, int nrk,
                 Array4<Real> omega_arr = Omega.array();
                 ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,z_nd,dxInv);
+                    omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,
+                                                                  mf_u,mf_v,z_nd,dxInv);
                 });
 
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

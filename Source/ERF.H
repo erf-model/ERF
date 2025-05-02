@@ -475,7 +475,7 @@ public:
 #endif
 
 #ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev);
+    void init_from_wrfinput (int lev, amrex::MultiFab& mu_C1H, amrex::MultiFab& mu_C2H, amrex::MultiFab& mu_MUB);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 #endif // ERF_USE_NETCDF
@@ -656,6 +656,10 @@ private:
                            amrex::Vector<amrex::FArrayBox*> T_lateral);
 
     amrex::Real start_bdy_time;
+    amrex::Real start_low_time;
+
+    amrex::Real bdy_time_interval;
+    amrex::Real low_time_interval;
 
     // *** *** FArrayBox's for holding the SURFACE data
     // amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
@@ -672,7 +676,8 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_ylo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
-    amrex::Real bdy_time_interval;
+    amrex::Vector<amrex::FArrayBox> low_data_zlo;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
 #endif // ERF_USE_NETCDF
 
@@ -1082,6 +1087,9 @@ private:
     int real_width{0};
     int real_set_width{0};
 
+    // NetCDF initialization of zlo boundary values
+    static std::string nc_low_file;
+
     // Flag to trigger initialization from input_sounding like WRF's ideal.exe
     // used with init_type == InitType::Input_Sounding
     static bool init_sounding_ideal;
@@ -1100,6 +1108,12 @@ private:
     amrex::Real metgrid_proximity{500.0};
     int         metgrid_order{2};
     int         metgrid_force_sfc_k{6};
+
+    amrex::Vector<amrex::BoxArray> ba1d;
+    amrex::Vector<amrex::BoxArray> ba2d;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C1H;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C2H;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_MUB;
 
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;

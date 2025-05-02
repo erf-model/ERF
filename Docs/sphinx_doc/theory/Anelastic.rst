@@ -5,8 +5,7 @@
  .. role:: f(code)
     :language: fortran
 
-
-.. _DryEquations:
+.. _sec:AnelasticEquations:
 
 Anelastic Equations (Dry)
 =============================

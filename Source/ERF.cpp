@@ -6,16 +6,19 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
-
-#include <ERF_EOS.H>
-#include <ERF.H>
-#include <AMReX_buildInfo.H>
-#include <AMReX_Random.H>
-#include <ERF_EpochTime.H>
-#include <ERF_Utils.H>
-#include <ERF_TerrainMetrics.H>
-#include <ERF_EBIFTerrain.H>
 #include <memory>
+
+#include "ERF_EOS.H"
+#include "ERF.H"
+#include "AMReX_buildInfo.H"
+#include "AMReX_Random.H"
+#include "ERF_EpochTime.H"
+#include "ERF_Utils.H"
+#include "ERF_TerrainMetrics.H"
+#include "ERF_EBIFTerrain.H"
+#ifdef ERF_USE_NETCDF
+#include "ERF_ReadFromWRFBdy.H"
+#endif
 
 using namespace amrex;
 
@@ -57,6 +60,9 @@ Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via inpu
 
 // NetCDF wrfbdy (lateral boundary) file
 std::string ERF::nc_bdy_file; // Must provide via input
+
+// NetCDF wrflow (bottom boundary) file
+std::string ERF::nc_low_file; // Must provide via input
 
 // Flag to trigger initialization from input_sounding like WRF's ideal.exe
 bool ERF::init_sounding_ideal = false;
@@ -293,6 +299,15 @@ ERF::ERF_shared ()
 
     // Wall distance
     walldist.resize(nlevs_max);
+
+    // BoxArrays to make MultiFabs needed to convert WRFBdy data
+    ba1d.resize(nlevs_max);
+    ba2d.resize(nlevs_max);
+
+    // MultiFabs needed to convert WRFBdy data
+    mf_C1H.resize(nlevs_max);
+    mf_C2H.resize(nlevs_max);
+    mf_MUB.resize(nlevs_max);
 
     // Mapfactors
     mapfac_m.resize(nlevs_max);
@@ -772,7 +787,38 @@ ERF::InitData_post ()
                                                       z_phys_cc[lev].get(), z_phys_nd[lev].get());
             }
         }
-    }
+
+#ifdef ERF_USE_NETCDF
+        //
+        // Create the needed bdy_data_xlo etc ... since we don't read it in from checkpoint any more
+        //
+        if (solverChoice.use_real_bcs) {
+
+            bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
+                                                       bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                                       start_bdy_time);
+            Real dT = bdy_time_interval;
+
+            Real time_since_start_old = t_new[0] - start_bdy_time;
+            int n_time_old = static_cast<int>(time_since_start_old /  dT);
+
+            // I don't think this works if lev > 0 ...?
+            AMREX_ALWAYS_ASSERT(finest_level == 0);
+            int lev = 0;
+            bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+            for (int itime = n_time_old; itime < n_time_old+3; itime++)
+            {
+                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
+                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                 real_width);
+                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                        *mf_MUB[lev], *mf_C1H[lev], *mf_C2H[lev],
+                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                        geom[lev], use_moist);
+            } // itime
+        } // use_real_bcs && lev == 0
+#endif
+    } // end restart
 
 #ifdef ERF_USE_PARTICLES
     /* If using a Lagrangian microphysics model, its particle container has now been
@@ -1427,7 +1473,7 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
-        init_from_wrfinput(lev);
+        init_from_wrfinput(lev, *mf_C1H[lev], *mf_C2H[lev], *mf_MUB[lev]);
         if (lev==0) {
             if ((start_time > 0) && (start_time != t_new[lev])) {
                 Print() << "Ignoring specified start_time="
@@ -1616,8 +1662,15 @@ ERF::ReadParameters ()
         } // lev
 
         // NetCDF wrfbdy lateral boundary file
-        pp.query("nc_bdy_file", nc_bdy_file);
-        Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
+        if (pp.query("nc_bdy_file", nc_bdy_file)) {
+            Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
+        }
+
+        // NetCDF wrflow lateral boundary file
+        if (pp.query("nc_low_file", nc_low_file)) {
+            Print() << "Reading NC low file name " << nc_low_file << std::endl;
+        }
+
 #endif
 
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe

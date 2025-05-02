@@ -34,6 +34,7 @@ void make_sources (int level,
                    Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
+                   const  MultiFab & base_state,
                    std::unique_ptr<MultiFab>& z_phys_cc,
 #ifdef ERF_USE_RRTMGP
                    const MultiFab* qheating_rates,
@@ -67,6 +68,8 @@ void make_sources (int level,
     const Box& domain = geom.Domain();
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+
+    MultiFab r_hse (base_state, make_alias, BaseState::r0_comp , 1);
 
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
@@ -181,9 +184,11 @@ void make_sources (int level,
     {
         Box bx  = mfi.tilebox();
 
-        const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
-        const Array4<const Real> & cell_prim  = S_prim.array(mfi);
-        const Array4<Real>       & cell_src   = source.array(mfi);
+        const Array4<const Real>& cell_data  = S_data[IntVars::cons].array(mfi);
+        const Array4<const Real>& cell_prim  = S_prim.array(mfi);
+        const Array4<Real>      & cell_src   = source.array(mfi);
+
+        const Array4<const Real>& r0 = r_hse.const_array(mfi);
 
         const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
@@ -357,7 +362,7 @@ void make_sources (int level,
         // 7. Add sponging
         // *************************************************************************************
         if(!(solverChoice.spongeChoice.sponge_type == "input_sponge")){
-            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, z_cc_arr);
+            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, z_cc_arr);
         }
 
         // *************************************************************************************

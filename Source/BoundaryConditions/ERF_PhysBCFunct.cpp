@@ -285,6 +285,8 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             if (zbx.bigEnd(2)   > domain.bigEnd(2))   zbx.setBig(2,domain.bigEnd(2)+1);
 
             Array4<const Real> z_nd_arr;
+            const Array4<const Real>& mf_u = m_mapfac_u->const_array(mfi);
+            const Array4<const Real>& mf_v = m_mapfac_v->const_array(mfi);
 
             if (m_z_phys_nd)
             {
@@ -304,13 +306,13 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 {
                     if (!gdomainz.contains(zbx))
                     {
-                        impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,
-                                                dxInv,m_terrain_type,bccomp_w);
+                        impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,
+                                                mf_u,mf_v,z_nd_arr,dxInv,m_terrain_type,bccomp_w);
                     }
                 }
 
-                impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,
-                                         bccomp_u, bccomp_v, bccomp_w, m_terrain_type);
+                impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,mf_u,mf_v,
+                                         z_nd_arr,dxInv,bccomp_u, bccomp_v, bccomp_w, m_terrain_type);
             }
         } // MFIter
     } // OpenMP
