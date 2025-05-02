@@ -283,13 +283,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Vector<Box> tbx_grown(AMREX_SPACEDIM);
         Vector<Box> tby_grown(AMREX_SPACEDIM);
         Vector<Box> tbz_grown(AMREX_SPACEDIM);
-        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            tbx_grown[dir] = tbx;
-            tby_grown[dir] = tby;
-            tbz_grown[dir] = tbz;
-            tbx_grown[dir] = tbx_grown[dir].growHi(dir,1);
-            tby_grown[dir] = tby_grown[dir].growHi(dir,1);
-            tbz_grown[dir] = tbz_grown[dir].growHi(dir,1);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                tbx_grown[dir] = tbx;
+                tby_grown[dir] = tby;
+                tbz_grown[dir] = tbz;
+                IntVect iv(1, 1, 1);
+                iv[dir] = 0;
+                tbx_grown[dir] = (tbx_grown[dir].growHi(dir,1)).grow(iv);
+                tby_grown[dir] = (tby_grown[dir].growHi(dir,1)).grow(iv);
+                tbz_grown[dir] = (tbz_grown[dir].growHi(dir,1)).grow(iv);
+            }
         }
 
         // We don't compute a source term for z-momentum on the bottom or top domain boundary
@@ -382,9 +386,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_w_arr{};
         if (solverChoice.terrain_type == TerrainType::EB) {
             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                flux_u[dir].resize(grow(tbx_grown[dir],1),1);
-                flux_v[dir].resize(grow(tby_grown[dir],1),1);
-                flux_w[dir].resize(grow(tbz_grown[dir],1),1);
+                flux_u[dir].resize(tbx_grown[dir],1);
+                flux_v[dir].resize(tby_grown[dir],1);
+                flux_w[dir].resize(tbz_grown[dir],1);
                 flux_u[dir].setVal<RunOn::Device>(0.);
                 flux_v[dir].setVal<RunOn::Device>(0.);
                 flux_w[dir].setVal<RunOn::Device>(0.);
@@ -484,7 +488,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 }
             }
         } // end profile
-
 
         // *****************************************************************************
         // Diffusive terms (pre-computed above)
