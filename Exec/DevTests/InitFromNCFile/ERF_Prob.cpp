@@ -1,0 +1,15 @@
+#include "ERF_Prob.H"
+
+using namespace amrex;
+
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
+{
+    return std::make_unique<Problem>();
+}
+
+Problem::Problem()
+{
+}
