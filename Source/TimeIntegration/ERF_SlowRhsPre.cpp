@@ -264,7 +264,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     if (solverChoice.terrain_type == TerrainType::EB) {
         physbnd_mask[IntVars::cons].define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
         physbnd_mask[IntVars::cons].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
-        // physbnd_mask[IntVars::cons].FillBoundary(geom.periodicity());        
+        // physbnd_mask[IntVars::cons].FillBoundary(geom.periodicity());
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             physbnd_mask[1+dir].define(S_data[1+dir].boxArray(), S_data[1+dir].DistributionMap(), 1, 1);
             physbnd_mask[1+dir].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
@@ -673,7 +673,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
                            solverChoice.mesh_type, solverChoice.terrain_type,
-                           ebfact, flx_u_arr, flx_v_arr, flx_w_arr, 
+                           ebfact, flx_u_arr, flx_v_arr, flx_w_arr,
                            physbnd_mask, already_on_centroids,
                            lo_z_face, hi_z_face, domain, bc_ptr_h);
 

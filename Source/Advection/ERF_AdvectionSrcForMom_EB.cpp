@@ -629,7 +629,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 rho_w_rhs(i, j, k) = 0;
             }
         });
-        
+
     }
 
 }
