@@ -30,6 +30,16 @@ ERF::init_from_ncfile (int lev)
     }
 
     // ***********************************************************
+    // Initialize base state to be non-zero so we don't divide by zero anywhere
+    MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
+    MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
+    MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
+    MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+    MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
+
+    r_hse.setVal(1.0); p_hse.setVal(1.0); pi_hse.setVal(1.); th_hse.setVal(1.0); qv_hse.setVal(0.0);
+
+    // ***********************************************************
 
     const std::string fname = nc_init_file[lev][0];
 
