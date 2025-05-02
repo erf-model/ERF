@@ -14,7 +14,7 @@ SurfaceLayer::update_fluxes (const int& lev,
                              int max_iters)
 {
     // Update SST data if we have a valid pointer
-    if (m_sst_lev[lev][0]) time_interp_sst(lev, time);
+    if (m_sst_lev[lev][0]) fill_tsurf_with_sst_and_tsk(lev, time);
 
     // TODO: we want 0 index to always be theta?
     // Update land surface temp if we have a valid pointer
@@ -453,8 +453,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 }
 
 void
-SurfaceLayer::time_interp_sst (const int& lev,
-                               const Real& time)
+SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
+                                           const Real& time)
 {
     int n_times_in_sst = m_sst_lev[lev].size();
 
@@ -479,28 +479,48 @@ SurfaceLayer::time_interp_sst (const int& lev,
 
     Real oma   = 1.0 - alpha;
 
-    // Populate t_surf
+    // Define a default land surface temperature if we don't read in tsk
     Real lst = default_land_surf_temp;
+
+    bool use_tsk = (m_tsk_lev[lev][0]);
+
+    // Populate t_surf
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
+
         const auto sst_lo_arr = m_sst_lev[lev][n_time_lo]->const_array(mfi);
         const auto sst_hi_arr = m_sst_lev[lev][n_time_hi]->const_array(mfi);
+
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
-            if (!is_land) {
-                t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
-                                  + alpha * sst_hi_arr(i,j,k);
-            } else {
-                t_surf_arr(i,j,k) = lst;
-            }
-        });
+        if (use_tsk) {
+            const auto    tsk_arr = m_tsk_lev[lev][n_time_lo]->const_array(mfi);
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+                if (!is_land) {
+                    t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
+                                      + alpha * sst_hi_arr(i,j,k);
+                } else {
+                    t_surf_arr(i,j,k) = tsk_arr(i,j,k);
+                }
+            });
+        } else {
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+                if (!is_land) {
+                    t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
+                                      + alpha * sst_hi_arr(i,j,k);
+                } else {
+                    t_surf_arr(i,j,k) = lst;
+                }
+            });
+        }
     }
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 }

@@ -3,19 +3,25 @@
 
 #include <string>
 
-#include "AMReX_REAL.H"
+#include <AMReX_REAL.H>
 
 #include "ERF_ProbCommon.H"
 
 struct ProbParm : ProbParmDefaults {
+  amrex::Real rho_0 = 1.0;
+  amrex::Real T_0   = 300.0;
+  amrex::Real V_0   = 1.0;
 }; // namespace ProbParm
+
 class Problem : public ProblemBase
 {
 public:
-    Problem(const amrex::Real* problo, const amrex::Real* probhi);
+    Problem();
+
+#include "Prob/ERF_InitConstantDensityHSE.H"
 
 protected:
-    std::string name() override { return "Metgrid"; }
+    std::string name() override { return "WPS Test"; }
 
 private:
     ProbParm parms;

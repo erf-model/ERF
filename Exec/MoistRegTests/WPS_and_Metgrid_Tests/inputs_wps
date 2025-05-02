@@ -1,8 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 1
 
-amrex.fpe_trap_invalid = 1
-
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
@@ -59,7 +57,6 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.005
 
-erf.has_SST = true
 erf.has_lat_lon = true
     
 erf.use_coriolis = true

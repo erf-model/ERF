@@ -177,18 +177,27 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
     std::vector<Real> z_grid;
     long unsigned goffset = 0;
     long unsigned glen    = 0;
+
+    Real dx[AMREX_SPACEDIM];
+    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+        dx[i] = geom[lev].CellSize()[i];
+    }
+
+    // *******************************************************************************
+    // NOTE: the (x,y,z) output here are for a mesh withOUT terrain-fitted coordinates
+    // *******************************************************************************
+    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::StaticFittedMesh);
     for (int i = 0; i < grids[lev].size(); ++i) {
         auto box = grids[lev][i];
         if (subdomain.contains(box)) {
             RealBox gridloc = RealBox(grids[lev][i], geom[lev].CellSize(), geom[lev].ProbLo());
-
             x_grid.clear(); y_grid.clear(); z_grid.clear();
             for (auto k3 = 0; k3 < grids[lev][i].length(2); ++k3) {
                 for (auto k2 = 0; k2 < grids[lev][i].length(1); ++k2) {
                     for (auto k1 = 0; k1 < grids[lev][i].length(0); ++k1) {
-                        x_grid.push_back(gridloc.lo(0)+geom[lev].CellSize(0)*static_cast<Real>(k1));
-                        y_grid.push_back(gridloc.lo(1)+geom[lev].CellSize(1)*static_cast<Real>(k2));
-                        z_grid.push_back(gridloc.lo(2)+geom[lev].CellSize(2)*static_cast<Real>(k3));
+                        x_grid.push_back(gridloc.lo(0)+dx[0]*(static_cast<Real>(k1)+0.5));
+                        y_grid.push_back(gridloc.lo(1)+dx[1]*(static_cast<Real>(k2)+0.5));
+                        z_grid.push_back(gridloc.lo(2)+dx[2]*(static_cast<Real>(k3)+0.5));
                      }
                 }
             }
@@ -210,8 +219,6 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
        }
    }
 
-   // size_t nfai = 0;
-   // long unsigned numpts = 0;
    const int ncomp = plotMF[lev]->nComp();
 
    for (MFIter mfi(*plotMF[lev]); mfi.isValid(); ++mfi)
@@ -220,25 +227,28 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
 
        if (subdomain.contains(bx))
        {
-            //
-            // These are the dimensions of the data we write for only this box
-            //
-            long unsigned local_nx = bx.length()[0];
-            long unsigned local_ny = bx.length()[1];
-            long unsigned local_nz = bx.length()[2];
+           //
+           // These are the dimensions of the data we write for only this box
+           //
+           long unsigned local_nx = bx.length()[0];
+           long unsigned local_ny = bx.length()[1];
+           long unsigned local_nz = bx.length()[2];
 
-            long unsigned local_start_x  = static_cast<long unsigned>(bx.smallEnd()[0]);
-            long unsigned local_start_y  = static_cast<long unsigned>(bx.smallEnd()[1]);
-            long unsigned local_start_z  = static_cast<long unsigned>(bx.smallEnd()[2]);
+           long unsigned local_start_x  = static_cast<long unsigned>(bx.smallEnd()[0]);
+           long unsigned local_start_y  = static_cast<long unsigned>(bx.smallEnd()[1]);
+           long unsigned local_start_z  = static_cast<long unsigned>(bx.smallEnd()[2]);
 
            for (int k(0); k < ncomp; ++k) {
-              const auto *data = plotMF[lev]->get(mfi).dataPtr(k);
-              auto nc_plot_var = ncf.var(plot_var_names[k]);
-              nc_plot_var.par_access(NC_INDEPENDENT);
-              nc_plot_var.put(data, {local_start_z,local_start_y,local_start_x},
-                                    {local_nz, local_ny, local_nx});
+               FArrayBox tmp;
+               tmp.resize(bx, 1, amrex::The_Pinned_Arena());
+               tmp.template copy<RunOn::Device>((*plotMF[lev])[mfi.index()], k, 0, 1);
+               Gpu::streamSynchronize();
+
+               auto nc_plot_var = ncf.var(plot_var_names[k]);
+               nc_plot_var.par_access(NC_INDEPENDENT);
+               nc_plot_var.put(tmp.dataPtr(), {local_start_z,local_start_y,local_start_x},
+                                              {local_nz, local_ny, local_nx});
            }
-           Gpu::streamSynchronize();
        }
    }
    ncf.close();

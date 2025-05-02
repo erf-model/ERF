@@ -39,11 +39,15 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
+                   ${SRC_DIR}/Initialization/ERF_InitFromMetgrid.cpp
+                   ${SRC_DIR}/Initialization/ERF_InitFromNCFile.cpp
                    ${SRC_DIR}/IO/ERF_NCInterface.cpp
                    ${SRC_DIR}/IO/ERF_NCPlotFile.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromMetgrid.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromWRFBdy.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromWRFInput.cpp
+                   ${SRC_DIR}/IO/ERF_ReadFromWRFLow.cpp
                    ${SRC_DIR}/IO/ERF_NCColumnFile.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
@@ -152,8 +156,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromInputSounding.cpp
-       ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
-       ${SRC_DIR}/Initialization/ERF_InitFromMetgrid.cpp
        ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp
        ${SRC_DIR}/Initialization/ERF_InitRayleigh.cpp
        ${SRC_DIR}/Initialization/ERF_InitSponge.cpp

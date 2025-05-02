@@ -203,6 +203,7 @@ public:
                                 amrex::Vector<amrex::MultiFab*> lsm_data,
                                 amrex::Vector<amrex::MultiFab*> lsm_flux,
                                 amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
+                                amrex::Vector<std::unique_ptr<amrex::MultiFab>>& tsk_lev,
                                 amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
     {
         // Update MOST Average
@@ -237,6 +238,7 @@ public:
             m_lsm_flux_lev.resize(nlevs);
 
             m_sst_lev.resize(nlevs);
+            m_tsk_lev.resize(nlevs);
             m_lmask_lev.resize(nlevs);
 
             // Size the MOST params for all levels
@@ -251,11 +253,16 @@ public:
         }
 
 
-        // Get pointers to SST and LANDMASK data
+        // Get pointers to SST,TSK and LANDMASK data
         int nt_tot_sst = sst_lev.size();
         m_sst_lev[lev].resize(nt_tot_sst);
         for (int nt(0); nt<nt_tot_sst; ++nt) {
             m_sst_lev[lev][nt] = sst_lev[nt].get();
+        }
+        int nt_tot_tsk = tsk_lev.size();
+        m_tsk_lev[lev].resize(nt_tot_tsk);
+        for (int nt(0); nt<nt_tot_tsk; ++nt) {
+            m_tsk_lev[lev][nt] = tsk_lev[nt].get();
         }
         int nt_tot_lmask = lmask_lev.size();
         m_lmask_lev[lev].resize(nt_tot_lmask);
@@ -336,9 +343,9 @@ public:
 
         // TODO: Do we want lsm_data to have theta at 0 index always?
         //       Do we want an external enum struct for indexing?
-        if (m_sst_lev[lev][0] || m_lsm_data_lev[lev][0]) {
-            // Valid SST or LSM data; t_surf set before computing fluxes (avoids extended lambda capture)
-            // Note that land temp will be set to surf_temp in this case
+        if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_lsm_data_lev[lev][0]) {
+            // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids extended lambda capture)
+            // Note that land temp will be set from m_tsk_lev
             //      while sea temp will be set from m_sst_lev
             theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
         }
@@ -347,7 +354,7 @@ public:
     void
     update_fluxes (const int& lev,
                    const amrex::Real& time,
-                   int max_iters = 200);
+                   int max_iters = 500);
 
     template <typename FluxIter>
     void
@@ -393,8 +400,8 @@ public:
                               const FluxCalc& flux_comp);
 
     void
-    time_interp_sst (const int& lev,
-                     const amrex::Real& time);
+    fill_tsurf_with_sst_and_tsk (const int& lev,
+                                 const amrex::Real& time);
 
     void
     get_lsm_tsurf (const int& lev);
@@ -566,6 +573,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
 
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_sst_lev;
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_tsk_lev;
     amrex::Vector<amrex::Vector<amrex::iMultiFab*>> m_lmask_lev;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_data_lev;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_flux_lev;

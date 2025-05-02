@@ -43,10 +43,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         dm = dm_in;
     }
 
+    // ********************************************************************************************
     // Define grids[lev] to be ba
+    // ********************************************************************************************
     SetBoxArray(lev, ba);
 
+    // ********************************************************************************************
     // Define dmap[lev] to be dm
+    // ********************************************************************************************
     SetDistributionMap(lev, dm);
 
     if (verbose) {
@@ -96,9 +100,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     update_diffusive_arrays(lev, ba, dm);
 
     // ********************************************************************************************
-    // Build the data structures for holding sea surface temps
+    // Build the data structures for holding sea surface temps and skin temps
     // ********************************************************************************************
     sst_lev[lev].resize(1);     sst_lev[lev][0] = nullptr;
+    tsk_lev[lev].resize(1);     tsk_lev[lev][0] = nullptr;
 
     // ********************************************************************************************
     // Thin immersed body
@@ -152,6 +157,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             // this will calculate the hydrostatically balanced density and pressure
             // profiles following WRF ideal.exe
             if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);
+        }
+
+        // We re-create terrain_blanking on restart rather than storing it in the checkpoint
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            int ngrow = ComputeGhostCells(solverChoice) + 2;
+            terrain_blanking[lev]->setVal(1.0);
+            MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ngrow);
+            terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         }
     }
 
@@ -336,7 +349,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                                                    mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                    Qr_prim[lev], z_phys_nd[lev],
                                                    Hwave[lev].get(), Lwave[lev].get(), eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -521,7 +534,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                                    mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                    Qr_prim[lev], z_phys_nd[lev],
                                                    Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
     }
 
     // These calls are done in AmrCore::regrid if this is a regrid at lev > 0

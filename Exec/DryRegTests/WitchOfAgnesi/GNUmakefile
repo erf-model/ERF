@@ -24,7 +24,7 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-USE_FFT = TRUE
+USE_FFT = FALSE
 
 # GNU Make
 Bpack := ./Make.package

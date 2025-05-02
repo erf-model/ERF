@@ -61,7 +61,8 @@
         }
 
         // Construct the source terms for the cell-centered (conserved) variables
-        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
+        make_sources(level, nrk, slow_dt, old_stage_time,
+                     S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level].get(),
 #endif
@@ -174,7 +175,7 @@
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                              fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level],
+                             z_phys_nd_src[level], z_phys_cc[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level],
                              stretched_dz_d[level], p0_new, pp_inc[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              get_eb(level),
@@ -283,7 +284,7 @@
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3,Q2fx3, Diss,
                              fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
+                             z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level], detJ_cc[level],
                              stretched_dz_d[level], p0, pp_inc[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              get_eb(level),
@@ -465,7 +466,8 @@
             terrain_blank = terrain_blanking[level].get();
         }
 
-        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
+        make_sources(level, nrk, slow_dt, old_stage_time,
+                     S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level].get(),
 #endif
@@ -496,7 +498,7 @@
                          Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                          Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                         z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
+                         z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level], detJ_cc[level],
                          stretched_dz_d[level], p0, pp_inc[level],
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          get_eb(level),
