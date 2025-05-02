@@ -354,7 +354,8 @@ void erf_slow_rhs_post (int level, int finest_level,
             fcy_arr  = ebfact.getFaceCent()[1]->const_array(mfi);
             fcz_arr  = ebfact.getFaceCent()[2]->const_array(mfi);
             detJ_arr = ebfact.getVolFrac().const_array(mfi);
-            if (!already_on_centroids) {mask_arr = physbnd_mask.const_array(mfi);}
+            // if (!already_on_centroids) {mask_arr = physbnd_mask.const_array(mfi);}
+            mask_arr = physbnd_mask.const_array(mfi);
         } else {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);

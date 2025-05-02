@@ -292,8 +292,8 @@ EBAdvectionSrcForScalars (const Box& bx,
                     if (ax_arr(i,j,k) != Real(0.0) && ax_arr(i,j,k) != Real(1.0)) {
                         int jj = j + static_cast<int>(std::copysign(Real(1.0), fcx_arr(i,j,k,0)));
                         int kk = k + static_cast<int>(std::copysign(Real(1.0), fcx_arr(i,j,k,1)));
-                        Real fracy = (ccm_arr(i-1,jj,k) || ccm_arr(i,jj,k)) ? std::abs(fcx_arr(i,j,k,0)) : Real(0.0);
-                        Real fracz = (ccm_arr(i-1,j,kk) || ccm_arr(i,j,kk)) ? std::abs(fcx_arr(i,j,k,1)) : Real(0.0);
+                        Real fracy = (mask_arr(i-1,jj,k) || mask_arr(i,jj,k)) ? std::abs(fcx_arr(i,j,k,0)) : Real(0.0);
+                        Real fracz = (mask_arr(i-1,j,kk) || mask_arr(i,j,kk)) ? std::abs(fcx_arr(i,j,k,1)) : Real(0.0);
                         fxm = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxm
                             +      fracy *(Real(1.0)-fracz)*flx_arr[0](i,jj,k ,cons_index)
                             +      fracz *(Real(1.0)-fracy)*flx_arr[0](i,j ,kk,cons_index)
@@ -340,8 +340,8 @@ EBAdvectionSrcForScalars (const Box& bx,
                     if (az_arr(i,j,k) != Real(0.0) && az_arr(i,j,k) != Real(1.0)) {
                         int ii = i + static_cast<int>(std::copysign(Real(1.0),fcz_arr(i,j,k,0)));
                         int jj = j + static_cast<int>(std::copysign(Real(1.0),fcz_arr(i,j,k,1)));
-                        Real fracx = (ccm_arr(ii,j,k-1) || ccm_arr(ii,j,k)) ? std::abs(fcz_arr(i,j,k,0)) : Real(0.0);
-                        Real fracy = (ccm_arr(i,jj,k-1) || ccm_arr(i,jj,k)) ? std::abs(fcz_arr(i,j,k,1)) : Real(0.0);
+                        Real fracx = (mask_arr(ii,j,k-1) || mask_arr(ii,j,k)) ? std::abs(fcz_arr(i,j,k,0)) : Real(0.0);
+                        Real fracy = (mask_arr(i,jj,k-1) || mask_arr(i,jj,k)) ? std::abs(fcz_arr(i,j,k,1)) : Real(0.0);
                         fzm = (Real(1.0)-fracx)*(Real(1.0)-fracy)*fzm
                             +      fracx *(Real(1.0)-fracy)*flx_arr[2](ii,j ,k,cons_index)
                             +      fracy *(Real(1.0)-fracx)*flx_arr[2](i ,jj,k,cons_index)

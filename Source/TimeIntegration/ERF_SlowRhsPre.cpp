@@ -531,7 +531,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
             fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
             detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
-            if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
+            // if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
+            mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
         } else {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
