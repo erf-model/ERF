@@ -468,8 +468,8 @@ EBAdvectionSrcForScalars (const Box& bx,
                     }
 
                     advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
-                          ( ax_arr(i+1,j,k) * fxp - ax_arr(i,j,k) * fxm ) * dxInv 
-                        + ( ay_arr(i,j+1,k) * fyp - ay_arr(i,j,k) * fym ) * dyInv 
+                          ( ax_arr(i+1,j,k) * fxp - ax_arr(i,j,k) * fxm ) * dxInv
+                        + ( ay_arr(i,j+1,k) * fyp - ay_arr(i,j,k) * fym ) * dyInv
                         + ( az_arr(i,j,k+1) * fzp - az_arr(i,j,k) * fzm ) * dzInv );
                 }
 
