@@ -134,7 +134,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( u_afrac_x(i,j,k)>0.){
-                flx_u_arr[0](i,j,k) = 0.25 * u_afrac_x(i,j,k)
+                flx_u_arr[0](i,j,k) = 0.25 
                                     * (rho_u(i,j,k) * mf_u_inv(i,j,0) + rho_u(i-1,j,k) * mf_u_inv(i-1,j,0))
                                     * (u(i-1,j,k) + u(i,j,k));
             } else {
@@ -144,7 +144,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( u_afrac_y(i,j,k)>0.){
-                flx_u_arr[1](i,j,k) = 0.25 * u_afrac_y(i,j,k)
+                flx_u_arr[1](i,j,k) = 0.25 
                                     * (rho_v(i,j,k) * mf_v_inv(i,j,0) + rho_v(i-1,j,k) * mf_v_inv(i-1,j,0))
                                     * (u(i,j-1,k) + u(i,j,k));
             } else {
@@ -154,8 +154,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( u_afrac_z(i,j,k)>0.){
-                flx_u_arr[2](i,j,k) = 0.25 * u_afrac_z(i,j,k)
-                                    * (omega(i,j,k) + omega(i-1,j,k)) * (u(i,j,k-1) + u(i,j,k));
+                flx_u_arr[2](i,j,k) = 0.25 * (omega(i,j,k) + omega(i-1,j,k)) * (u(i,j,k-1) + u(i,j,k));
             } else {
                 flx_u_arr[2](i,j,k) = 0.;
             }
@@ -165,7 +164,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( v_afrac_x(i,j,k)>0.){
-                flx_v_arr[0](i,j,k) = 0.25 * v_afrac_x(i,j,k)
+                flx_v_arr[0](i,j,k) = 0.25 
                                     * (rho_u(i,j,k) * mf_u_inv(i,j,0) + rho_u(i,j-1,k) * mf_u_inv(i,j-1,0))
                                     * (v(i-1,j,k) + v(i,j,k));
             } else {
@@ -175,7 +174,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( v_afrac_y(i,j,k)>0.){
-                flx_v_arr[1](i,j,k) = 0.25 * v_afrac_y(i,j,k)
+                flx_v_arr[1](i,j,k) = 0.25 
                                     * (rho_v(i,j,k) * mf_v_inv(i,j,0) + rho_v(i,j-1,k) * mf_v_inv(i,j-1,0))
                                     * (v(i,j-1,k) + v(i,j,k));
             } else {
@@ -185,8 +184,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( v_afrac_z(i,j,k)>0.){
-                flx_v_arr[2](i,j,k) = 0.25 * v_afrac_z(i,j,k  )
-                                    * (omega(i,j,k) + omega(i,j-1,k)) * (v(i,j,k-1) + v(i,j,k));
+                flx_v_arr[2](i,j,k) = 0.25 * (omega(i,j,k) + omega(i,j-1,k)) * (v(i,j,k-1) + v(i,j,k));
             } else {
                 flx_v_arr[2](i,j,k) = 0.;
             }
@@ -196,7 +194,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( w_afrac_x(i,j,k)>0.){
-                flx_w_arr[0](i,j,k) = 0.25 * w_afrac_x(i,j,k)
+                flx_w_arr[0](i,j,k) = 0.25 
                                     * (rho_u(i,j,k) + rho_u(i,j, k-1)) * mf_u_inv(i,j,0)
                                     * (w(i-1,j,k) + w(i,j,k));
             } else {
@@ -206,7 +204,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( w_afrac_y(i,j,k)>0.){
-                flx_w_arr[1](i,j,k) = 0.25 * w_afrac_y(i,j,k)
+                flx_w_arr[1](i,j,k) = 0.25 
                                     * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_v_inv(i,j,0)
                                     * (w(i,j-1,k) + w(i,j,k));
             } else {
@@ -217,8 +215,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         {
             if ( w_afrac_z(i,j,k)>0.){
                 flx_w_arr[2](i,j,k) = (k==hi_z_face+1) ? omega(i,j,k) * w(i,j,k) : // Not sure for this line
-                                    0.25 * w_afrac_z(i,j,k)
-                                    * (omega(i,j,k) + omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
+                                    0.25 * (omega(i,j,k) + omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
             } else {
                 flx_w_arr[2](i,j,k) = 0.;
             }
@@ -292,9 +289,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
             if (u_vfrac(i,j,k)>0.) {
                 Real mfsq = mf_u(i,j,0) * mf_u(i,j,0);
 
-                rho_u_rhs(i, j, k) = - ( (flx_u_arr[0](i+1, j  , k  ) - flx_u_arr[0](i, j, k)) * dxInv * mfsq
-                                       + (flx_u_arr[1](i  , j+1, k  ) - flx_u_arr[1](i, j, k)) * dyInv * mfsq
-                                       + (flx_u_arr[2](i  , j  , k+1) - flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
+                rho_u_rhs(i, j, k) = - ( (u_afrac_x(i+1, j  , k  ) * flx_u_arr[0](i+1, j  , k  ) - u_afrac_x(i, j, k) * flx_u_arr[0](i, j, k)) * dxInv * mfsq
+                                       + (u_afrac_y(i  , j+1, k  ) * flx_u_arr[1](i  , j+1, k  ) - u_afrac_y(i, j, k) * flx_u_arr[1](i, j, k)) * dyInv * mfsq
+                                       + (u_afrac_z(i  , j  , k+1) * flx_u_arr[2](i  , j  , k+1) - u_afrac_z(i, j, k) * flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
             } else {
                 rho_u_rhs(i, j, k) = 0.;
             }
@@ -304,9 +301,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
             if (v_vfrac(i,j,k)>0.) {
                 Real mfsq = mf_v(i,j,0) * mf_v(i,j,0);
 
-                rho_v_rhs(i, j, k) = - ( (flx_v_arr[0](i+1, j  , k  ) - flx_v_arr[0](i, j, k)) * dxInv * mfsq
-                                       + (flx_v_arr[1](i  , j+1, k  ) - flx_v_arr[1](i, j, k)) * dyInv * mfsq
-                                       + (flx_v_arr[2](i  , j  , k+1) - flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
+                rho_v_rhs(i, j, k) = - ( (v_afrac_x(i+1, j  , k  ) * flx_v_arr[0](i+1, j  , k  ) - v_afrac_x(i, j, k) * flx_v_arr[0](i, j, k)) * dxInv * mfsq
+                                       + (v_afrac_y(i  , j+1, k  ) * flx_v_arr[1](i  , j+1, k  ) - v_afrac_y(i, j, k) * flx_v_arr[1](i, j, k)) * dyInv * mfsq
+                                       + (v_afrac_z(i  , j  , k+1) * flx_v_arr[2](i  , j  , k+1) - v_afrac_z(i, j, k) * flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
             } else {
                 rho_v_rhs(i, j, k) = 0.;
             }
@@ -316,9 +313,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
             if (w_vfrac(i,j,k)>0.) {
                 Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 
-                rho_w_rhs(i, j, k) = - ( (flx_w_arr[0](i+1, j  , k  ) - flx_w_arr[0](i, j, k)) * dxInv * mfsq
-                                       + (flx_w_arr[1](i  , j+1, k  ) - flx_w_arr[1](i, j, k)) * dyInv * mfsq
-                                       + (flx_w_arr[2](i  , j  , k+1) - flx_w_arr[2](i, j, k)) * dzInv ) / w_vfrac(i,j,k);
+                rho_w_rhs(i, j, k) = - ( (w_afrac_x(i+1, j  , k  ) * flx_w_arr[0](i+1, j  , k  ) - w_afrac_x(i, j, k) * flx_w_arr[0](i, j, k)) * dxInv * mfsq
+                                       + (w_afrac_y(i  , j+1, k  ) * flx_w_arr[1](i  , j+1, k  ) - w_afrac_y(i, j, k) * flx_w_arr[1](i, j, k)) * dyInv * mfsq
+                                       + (w_afrac_z(i  , j  , k+1) * flx_w_arr[2](i  , j  , k+1) - w_afrac_z(i, j, k) * flx_w_arr[2](i, j, k)) * dzInv ) / w_vfrac(i,j,k);
             } else {
                 rho_w_rhs(i, j, k) = 0;
             }
@@ -343,9 +340,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 }
                 else if (u_cflag(i,j,k).isRegular())
                 {
-                    rho_u_rhs(i, j, k) = - ( (flx_u_arr[0](i+1, j  , k  ) - flx_u_arr[0](i, j, k)) * dxInv * mfsq
-                                           + (flx_u_arr[1](i  , j+1, k  ) - flx_u_arr[1](i, j, k)) * dyInv * mfsq
-                                           + (flx_u_arr[2](i  , j  , k+1) - flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
+                    rho_u_rhs(i, j, k) = - ( (u_afrac_x(i+1, j  , k  ) * flx_u_arr[0](i+1, j  , k  ) - u_afrac_x(i, j, k) * flx_u_arr[0](i, j, k)) * dxInv * mfsq
+                                           + (u_afrac_y(i  , j+1, k  ) * flx_u_arr[1](i  , j+1, k  ) - u_afrac_y(i, j, k) * flx_u_arr[1](i, j, k)) * dyInv * mfsq
+                                           + (u_afrac_z(i  , j  , k+1) * flx_u_arr[2](i  , j  , k+1) - u_afrac_z(i, j, k) * flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
                 }
                 else
                 {
@@ -422,9 +419,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                             +      fracx *     fracy *flx_u_arr[2](ii,jj,k+1);
                     }
 
-                    rho_u_rhs(i, j, k) = - ( (fxp - fxm) * dxInv * mfsq
-                                           + (fyp - fym) * dyInv * mfsq
-                                           + (fzp - fzm) * dzInv ) / u_vfrac(i,j,k);
+                    rho_u_rhs(i, j, k) = - ( (u_afrac_x(i+1, j  , k  ) * fxp - u_afrac_x(i, j, k) * fxm) * dxInv * mfsq
+                                           + (u_afrac_y(i  , j+1, k  ) * fyp - u_afrac_y(i, j, k) * fym) * dyInv * mfsq
+                                           + (u_afrac_z(i  , j  , k+1) * fzp - u_afrac_z(i, j, k) * fzm) * dzInv ) / u_vfrac(i,j,k);
                 }
 
             } else {
@@ -442,9 +439,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 }
                 else if (v_cflag(i,j,k).isRegular())
                 {
-                    rho_v_rhs(i, j, k) = - ( (flx_v_arr[0](i+1, j  , k  ) - flx_v_arr[0](i, j, k)) * dxInv * mfsq
-                                           + (flx_v_arr[1](i  , j+1, k  ) - flx_v_arr[1](i, j, k)) * dyInv * mfsq
-                                           + (flx_v_arr[2](i  , j  , k+1) - flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
+                    rho_v_rhs(i, j, k) = - ( (v_afrac_x(i+1, j  , k  ) * flx_v_arr[0](i+1, j  , k  ) - v_afrac_x(i, j, k) * flx_v_arr[0](i, j, k)) * dxInv * mfsq
+                                           + (v_afrac_y(i  , j+1, k  ) * flx_v_arr[1](i  , j+1, k  ) - v_afrac_y(i, j, k) * flx_v_arr[1](i, j, k)) * dyInv * mfsq
+                                           + (v_afrac_z(i  , j  , k+1) * flx_v_arr[2](i  , j  , k+1) - v_afrac_z(i, j, k) * flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
                 }
                 else
                 {
@@ -521,9 +518,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                             +      fracx *     fracy *flx_v_arr[2](ii,jj,k+1);
                     }
 
-                    rho_v_rhs(i, j, k) = - ( (fxp - fxm) * dxInv * mfsq
-                                           + (fyp - fym) * dyInv * mfsq
-                                           + (fzp - fzm) * dzInv ) / v_vfrac(i,j,k);
+                    rho_v_rhs(i, j, k) = - ( (v_afrac_x(i+1, j  , k  ) * fxp - v_afrac_x(i, j, k) * fxm) * dxInv * mfsq
+                                           + (v_afrac_y(i  , j+1, k  ) * fyp - v_afrac_y(i, j, k) * fym) * dyInv * mfsq
+                                           + (v_afrac_z(i  , j  , k+1) * fzp - v_afrac_z(i, j, k) * fzm) * dzInv ) / v_vfrac(i,j,k);
                 }
 
             } else {
@@ -541,9 +538,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 }
                 else if (w_cflag(i,j,k).isRegular())
                 {
-                    rho_w_rhs(i, j, k) = - ( (flx_w_arr[0](i+1, j  , k  ) - flx_w_arr[0](i, j, k)) * dxInv * mfsq
-                                           + (flx_w_arr[1](i  , j+1, k  ) - flx_w_arr[1](i, j, k)) * dyInv * mfsq
-                                           + (flx_w_arr[2](i  , j  , k+1) - flx_w_arr[2](i, j, k)) * dzInv ) / w_vfrac(i,j,k);
+                    rho_w_rhs(i, j, k) = - ( (w_afrac_x(i+1, j  , k  ) * flx_w_arr[0](i+1, j  , k  ) - w_afrac_x(i, j, k) * flx_w_arr[0](i, j, k)) * dxInv * mfsq
+                                           + (w_afrac_y(i  , j+1, k  ) * flx_w_arr[1](i  , j+1, k  ) - w_afrac_y(i, j, k) * flx_w_arr[1](i, j, k)) * dyInv * mfsq
+                                           + (w_afrac_z(i  , j  , k+1) * flx_w_arr[2](i  , j  , k+1) - w_afrac_z(i, j, k) * flx_w_arr[2](i, j, k)) * dzInv ) / w_vfrac(i,j,k);    
                 }
                 else
                 {
@@ -620,9 +617,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                             +      fracx *     fracy *flx_w_arr[2](ii,jj,k+1);
                     }
 
-                    rho_w_rhs(i, j, k) = - ( (fxp - fxm) * dxInv * mfsq
-                                           + (fyp - fym) * dyInv * mfsq
-                                           + (fzp - fzm) * dzInv ) / w_vfrac(i,j,k);
+                    rho_w_rhs(i, j, k) = - ( (w_afrac_x(i+1, j  , k  ) * fxp - w_afrac_x(i, j, k) * fxm) * dxInv * mfsq
+                                           + (w_afrac_y(i  , j+1, k  ) * fyp - w_afrac_y(i, j, k) * fym) * dyInv * mfsq
+                                           + (w_afrac_z(i  , j  , k+1) * fzp - w_afrac_z(i, j, k) * fzm) * dzInv ) / w_vfrac(i,j,k);
                 }
 
             } else {
