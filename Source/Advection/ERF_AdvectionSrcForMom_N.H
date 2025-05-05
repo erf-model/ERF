@@ -309,7 +309,6 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         auto dzInv = 1.0/dz_ptr[k];
-        amrex::Print() << "DOING " << amrex::IntVect(i,j,k) << std::endl;
         rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_N(i, j, k, rho_u, rho_v, rho_w,
                                                     interp_u_h, interp_u_v,
                                                     mf_ux_inv, mf_uy_inv, mf_vx_inv,
