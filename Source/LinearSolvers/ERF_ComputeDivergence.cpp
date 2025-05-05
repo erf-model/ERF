@@ -43,7 +43,7 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMRE
                 Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     Real dz   = stretched_dz_d_ptr[k];
-                    Real mfsq = mf_mx(i,j,0) * mf_mx(i,j,0);
+                    Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
                     rhs_arr(i,j,k) = mfsq * ( (rho0u_arr(i+1,j  ,k  ) - rho0u_arr(i,j,k)) * dxInv[0]
                                              +(rho0v_arr(i  ,j+1,k  ) - rho0v_arr(i,j,k)) * dxInv[1]
                                              +(rho0w_arr(i  ,j  ,k+1) - rho0w_arr(i,j,k)) / dz );
@@ -61,7 +61,7 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMRE
                 //
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real mfsq = mf_mx(i,j,0) * mf_mx(i,j,0);
+                    Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
                     rhs_arr(i,j,k) = mfsq * ( (ax_arr(i+1,j,k)*rho0u_arr(i+1,j,k) - ax_arr(i,j,k)*rho0u_arr(i,j,k)) * dxInv[0]
                                              +(ay_arr(i,j+1,k)*rho0v_arr(i,j+1,k) - ay_arr(i,j,k)*rho0v_arr(i,j,k)) * dxInv[1]
                                              +(                rho0w_arr(i,j,k+1) -               rho0w_arr(i,j,k)) * dxInv[2] ) / dJ_arr(i,j,k);
