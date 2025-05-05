@@ -206,8 +206,7 @@ public:
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
                       const TerrainType& terrain_type,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac_lev,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                       const bool use_real_bcs,
                       amrex::Real* w_bc_data)
@@ -217,12 +216,13 @@ public:
           m_bc_extdir_vals(bc_extdir_vals),
           m_bc_neumann_vals(bc_neumann_vals),
           m_terrain_type(terrain_type),
-          m_mapfac_u(mapfac_u.get()),
-          m_mapfac_v(mapfac_v.get()),
           m_z_phys_nd(z_phys_nd.get()),
           m_use_real_bcs(use_real_bcs),
           m_w_bc_data(w_bc_data)
-    { }
+    {
+          m_mapfac_u = mapfac_lev[MapFacType::ux].get();
+          m_mapfac_v = mapfac_lev[MapFacType::vx].get();
+    }
 
     ~ERFPhysBCFunct_w () {}
 

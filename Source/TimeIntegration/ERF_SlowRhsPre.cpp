@@ -61,9 +61,7 @@ using namespace amrex;
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain_fitted_coords is false)
  * @param[in]  p0     Reference (hydrostatically stratified) pressure
  * @param[in] pp_inc  Perturbational pressure only used for anelastic flow
- * @param[in] mapfac_m map factor at cell centers
- * @param[in] mapfac_u map factor at x-faces
- * @param[in] mapfac_v map factor at y-faces
+ * @param[in] mapfac map factors
  * @param[in] ebfact EB factories for cell- and face-centered variables
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
@@ -113,9 +111,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Gpu::DeviceVector<Real>& stretched_dz_d,
                        const MultiFab* p0,
                        const MultiFab& pp_inc,
-                       std::unique_ptr<MultiFab>& mapfac_m,
-                       std::unique_ptr<MultiFab>& mapfac_u,
-                       std::unique_ptr<MultiFab>& mapfac_v,
+                       Vector<std::unique_ptr<MultiFab>>& mapfac,
                        const eb_& ebfact,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine)
@@ -195,7 +191,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            S_data,xvel,yvel,zvel,
                            Tau11,Tau22,Tau33,Tau12,Tau13,Tau21,Tau23,Tau31,Tau32,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
-                           detJ,mapfac_m,mapfac_u,mapfac_v);
+                           detJ,mapfac);
 
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
@@ -325,9 +321,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<const Real>& rho_w = S_data[IntVars::zmom].array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
-        const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
-        const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
+        const Array4<const Real>& mf_mx  = mapfac[MapFacType::mx]->const_array(mfi);
+        const Array4<const Real>& mf_ux  = mapfac[MapFacType::ux]->const_array(mfi);
+        const Array4<const Real>& mf_vx  = mapfac[MapFacType::vx]->const_array(mfi);
+        const Array4<const Real>& mf_my  = mapfac[MapFacType::my]->const_array(mfi);
+        const Array4<const Real>& mf_uy  = mapfac[MapFacType::uy]->const_array(mfi);
+        const Array4<const Real>& mf_vy  = mapfac[MapFacType::vy]->const_array(mfi);
 
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
@@ -458,7 +457,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                         // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
                         Real rho_at_face = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
-                                                      rho_u,rho_v,mf_u,mf_v,z_nd,dxInv) -
+                                                      rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv) -
                             rho_at_face * z_t(i,j,k);
                     });
                 } else {
@@ -471,7 +470,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     }
                     ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
-                                                      rho_u,rho_v,mf_u,mf_v,z_nd,dxInv);
+                                                      rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv);
                     });
                 }
             }
@@ -542,7 +541,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
                            ax_arr, ay_arr, az_arr, detJ_arr,
-                           dxInv, mf_m, mf_u, mf_v,
+                           dxInv, mf_mx, mf_my, mf_ux, mf_vy,
                            flx_arr, l_fixed_rho);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
@@ -551,7 +550,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 avg_xmom, avg_ymom, avg_zmom,
                                 cell_data, cell_prim, cell_rhs,
                                 l_use_mono_adv, max_s_ptr, min_s_ptr,
-                                detJ_arr, dxInv, mf_m,
+                                detJ_arr, dxInv, mf_mx, mf_my,
                                 l_horiz_adv_type, l_vert_adv_type,
                                 l_horiz_upw_frac, l_vert_upw_frac,
                                 flx_arr, flx_tmp_arr, domain, bc_ptr_h);
@@ -561,7 +560,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 cell_prim, cell_rhs,
                                 ccm_arr, cfg_arr, ax_arr, ay_arr, az_arr,
                                 fcx_arr, fcy_arr, fcz_arr,
-                                detJ_arr, dxInv, mf_m,
+                                detJ_arr, dxInv, mf_mx, mf_my,
                                 l_horiz_adv_type, l_vert_adv_type,
                                 l_horiz_upw_frac, l_vert_upw_frac,
                                 flx_arr, domain, bc_ptr_h,
@@ -595,7 +594,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
-                                       dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                       dxInv, SmnSmn_a,
+                                       mf_mx, mf_my, mf_ux, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
@@ -603,7 +603,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
-                                       dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                       dxInv, SmnSmn_a,
+                                       mf_mx, mf_my, mf_ux, mf_vy,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
@@ -651,7 +652,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            rho_u, rho_v, omega_arr,
                            z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                            stretched_dz_d,
-                           dxInv, mf_m, mf_u, mf_v,
+                           dxInv, mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
                            solverChoice.mesh_type, solverChoice.terrain_type,
@@ -672,14 +673,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                      tau13, tau31,
                                      tau23, tau32,
                                      detJ_arr, dxInv,
-                                     mf_m, mf_u, mf_v);
+                                     mf_mx, mf_my);
             } else {
                 DiffusionSrcForMom_N(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                      tau11, tau22, tau33,
                                      tau12, tau13, tau23,
                                      dxInv,
-                                     mf_m, mf_u, mf_v);
+                                     mf_mx, mf_my);
             }
         }
 
@@ -716,7 +717,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 gpx -= gpx_metric;
             }
 
-            gpx *= mf_u(i,j,0);
+            gpx *= mf_ux(i,j,0);
 
             Real q = 0.0;
             if (l_use_moisture) {
@@ -769,7 +770,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 gpy -= gpy_metric;
             } // l_use_terrain_fitted_coords
 
-            gpy *= mf_v(i,j,0);
+            gpy *= mf_vy(i,j,0);
 
             Real q = 0.0;
             if (l_use_moisture) {

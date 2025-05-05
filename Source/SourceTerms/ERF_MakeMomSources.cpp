@@ -27,9 +27,7 @@ using namespace amrex;
  * @param[in] zmom_src source terms for z-momentum
  * @param[in]  geom   Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
- * @param[in] mapfac_m map factor at cell centers
- * @param[in] mapfac_u map factor at x-faces
- * @param[in] mapfac_v map factor at y-faces
+ * @param[in] mapfac map factors
  * @param[in] dptr_u_geos  custom geostrophic wind profile
  * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] dptr_wbar_sub  subsidence source term
@@ -58,9 +56,7 @@ void make_mom_sources (int level,
                              MultiFab* sinPhi_mf,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
-                       std::unique_ptr<MultiFab>& /*mapfac_m*/,
-                       std::unique_ptr<MultiFab>& /*mapfac_u*/,
-                       std::unique_ptr<MultiFab>& /*mapfac_v*/,
+                       Vector<std::unique_ptr<MultiFab>>& /*mapfac*/,
                        const Real* dptr_u_geos,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
@@ -236,11 +232,6 @@ void make_mom_sources (int level,
         const Array4<      Real>& zmom_src_arr = zmom_src.array(mfi);
 
         const Array4<const Real>& r0 = r_hse.const_array(mfi);
-
-        // Map factors
-        //const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
-        //const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
-        //const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
         const Array4<const Real>& f_drag_arr = (forest_drag) ? forest_drag->const_array(mfi) :
                                                                Array4<const Real>{};
@@ -507,12 +498,14 @@ void make_mom_sources (int level,
         // *****************************************************************************
 #if 0
         if (l_use_ndiff) {
-            const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
-            const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
+            const Array4<const Real>& mf_ux   = mapfac[MapFac::ux]->const_array(mfi);
+            const Array4<const Real>& mf_uy   = mapfac[MapFac::uy]->const_array(mfi);
+            const Array4<const Real>& mf_vx   = mapfac[MapFac::vx]->const_array(mfi);
+            const Array4<const Real>& mf_vy   = mapfac[MapFac::vy]->const_array(mfi);
             NumericalDiffusion_Xmom(tbx, dt, solverChoice.num_diff_coeff,
-                                    u, cell_data, xmom_src_arr, mf_u);
+                                    u, cell_data, xmom_src_arr, mf_ux, mf_uy);
             NumericalDiffusion_Ymom(tby, dt, solverChoice.num_diff_coeff,
-                                    v, cell_data, ymom_src_arr, mf_v);
+                                    v, cell_data, ymom_src_arr, mf_vx, mf_vy);
         }
 #endif
 

@@ -17,6 +17,11 @@
 #include <ERF_TurbStruct.H>
 #include <ERF_TurbPertStruct.H>
 
+enum MapFacType {
+    mx, ux, vx, num,
+    my = 0, uy = 1, vy = 2
+};
+
 AMREX_ENUM(InitType,
     None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform
 );

@@ -440,10 +440,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*mapfac_u[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mapfac[lev][MapFac::ux], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
                   // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac_u[lev])[mfi];
+                  FArrayBox &msf_fab = (*mapfac[lev][MapFac::ux])[mfi];
                   msf_fab.template copy<RunOn::Device>(var_fab);
               }
           }
@@ -458,12 +458,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(*mapfac_v[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-            {
-              // Define fabs for holding the initial data
-              FArrayBox &msf_fab = (*mapfac_v[lev])[mfi];
-              msf_fab.template copy<RunOn::Device>(var_fab);
-            }
+              for ( MFIter mfi(*mapfac[lev][MapFac::vx], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              {
+                  // Define fabs for holding the initial data
+                  FArrayBox &msf_fab = (*mapfac[lev][MapFac::vx])[mfi];
+                  msf_fab.template copy<RunOn::Device>(var_fab);
+              }
           }
 
           // Initialize MapFac M
@@ -476,10 +476,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*mapfac_m[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mapfac[lev][MapFac::mx], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
                   // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac_m[lev])[mfi];
+                  FArrayBox &msf_fab = (*mapfac[lev][MapFac::mx])[mfi];
                   msf_fab.template copy<RunOn::Device>(var_fab);
               }
           }
@@ -496,7 +496,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     {
         Box bx = mfi.tilebox();
         const Array4<      Real>& dst_arr = lev_new[Vars::xvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac_u[lev]->const_array(mfi);
+        const Array4<const Real>& src_arr = mapfac[lev][MapFac::ux]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             dst_arr(i,j,k) /= src_arr(i,j,0);
@@ -506,7 +506,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     {
         Box bx = mfi.tilebox();
         const Array4<      Real>& dst_arr = lev_new[Vars::yvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac_v[lev]->const_array(mfi);
+        const Array4<const Real>& src_arr = mapfac[lev][MapFac::vx]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             dst_arr(i,j,k) /= src_arr(i,j,0);
@@ -516,7 +516,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     {
         Box bx = mfi.tilebox();
         const Array4<      Real>& dst_arr = lev_new[Vars::zvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac_m[lev]->const_array(mfi);
+        const Array4<const Real>& src_arr = mapfac[lev][MapFac::mx]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             dst_arr(i,j,k) /= src_arr(i,j,0);

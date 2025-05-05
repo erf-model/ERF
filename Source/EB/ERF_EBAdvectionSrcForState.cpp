@@ -28,7 +28,8 @@ using namespace amrex;
  * @param[in] fcz_arr Face centroid of z-face
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_m map factor at cell centers
+ * @param[in] mf_mx map factor at cell centers
+ * @param[in] mf_my map factor at cell centers
  * @param[in] horiz_adv_type advection scheme to be used in horiz. directions for dry scalars
  * @param[in] vert_adv_type advection scheme to be used in vert. directions for dry scalars
  * @param[in] horiz_upw_frac upwinding fraction to be used in horiz. directions for dry scalars (for Blended schemes only)
@@ -54,7 +55,8 @@ EBAdvectionSrcForScalars (const Box& bx,
                         const Array4<const Real>& fcz_arr,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                        const Array4<const Real>& mf_m,
+                        const Array4<const Real>& mf_mx,
+                        const Array4<const Real>& mf_my,
                         const AdvType horiz_adv_type,
                         const AdvType vert_adv_type,
                         const Real horiz_upw_frac,
@@ -163,7 +165,7 @@ EBAdvectionSrcForScalars (const Box& bx,
             if (detJ(i,j,k) > 0.)
             {
                 Real invdetJ = 1.0 / detJ(i,j,k);
-                Real mfsq    = mf_m(i,j,0) * mf_m(i,j,0);
+                Real mfsq    = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
                   ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
@@ -182,7 +184,7 @@ EBAdvectionSrcForScalars (const Box& bx,
             if (detJ(i,j,k) > 0.)
             {
                 Real invdetJ = 1.0 / detJ(i,j,k);
-                Real mfsq    = mf_m(i,j,0) * mf_m(i,j,0);
+                Real mfsq    = mf_mx(i,j,0) * mf_my(i,j,0);
                 if (cfg_arr(i,j,k).isCovered())
                 {
                     advectionSrc(i,j,k,cons_index) = Real(0.0);

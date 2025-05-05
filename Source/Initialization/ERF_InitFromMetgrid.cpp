@@ -429,11 +429,11 @@ ERF::init_from_metgrid (int lev)
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     // Use map scale factors directly from the met_em files
-    for ( MFIter mfi(*mapfac_u[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+    for ( MFIter mfi(*mapfac[lev][MapFac::ux], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         // Define fabs for holding the initial data
-        FArrayBox &msfu_fab = (*mapfac_u[lev])[mfi];
-        FArrayBox &msfv_fab = (*mapfac_v[lev])[mfi];
-        FArrayBox &msfm_fab = (*mapfac_m[lev])[mfi];
+        FArrayBox &msfu_fab = (*mapfac[lev][MapFac::ux])[mfi];
+        FArrayBox &msfv_fab = (*mapfac[lev][MapFac::vx])[mfi];
+        FArrayBox &msfm_fab = (*mapfac[lev][MapFac::mx])[mfi];
 
         init_msfs_from_metgrid(metgrid_debug_msf,
                                msfu_fab, msfv_fab, msfm_fab, flag_msf[0],
@@ -1298,7 +1298,7 @@ init_msfs_from_metgrid (const bool metgrid_debug_msf,
         // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
         //
 
-        // This copies or sets mapfac_m
+        // This copies or sets mapfac
         if ((flag_msf == 1) and (!metgrid_debug_msf)) {
             msfm_fab.template copy<RunOn::Device>(NC_MSFM_fab[itime]);
             msfu_fab.template copy<RunOn::Device>(NC_MSFU_fab[itime]);

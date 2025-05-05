@@ -859,10 +859,8 @@ private:
     // Wall distance function
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  walldist;
 
-    // Map scale factors
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
+    // Map scale factors -- vector across levels of vector across types
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> mapfac;
 
     amrex::Vector<amrex::Vector<amrex::Real>> stretched_dz_h;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> stretched_dz_d;

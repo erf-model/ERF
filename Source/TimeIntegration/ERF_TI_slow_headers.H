@@ -40,9 +40,7 @@ void erf_make_tau_terms (int level, int nrk,
                          const SolverChoice& solverChoice,
                          std::unique_ptr<SurfaceLayer>& SurfLayer,
                          std::unique_ptr<amrex::MultiFab>& dJ,
-                         std::unique_ptr<amrex::MultiFab>& mapfac_m,
-                         std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                         std::unique_ptr<amrex::MultiFab>& mapfac_v);
+                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
@@ -97,9 +95,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                       const amrex::MultiFab* p0,
                       const amrex::MultiFab& pp_inc,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_m,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                       const eb_& ebfact,
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine);
@@ -142,9 +138,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& az,
                        std::unique_ptr<amrex::MultiFab>& dJ_old,
                        std::unique_ptr<amrex::MultiFab>& dJ_new,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        amrex::EBFArrayBoxFactory const& ebfact,
 #if defined(ERF_USE_NETCDF)
                        const bool& moist_zero,
@@ -206,7 +200,5 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& dJ,
                        const amrex::MultiFab* p0,
                        const amrex::MultiFab& pp_inc,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_v);
+                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac);
 #endif

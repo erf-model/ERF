@@ -21,8 +21,7 @@ using namespace amrex;
  * @param[in] source source terms for conserved variables
  * @param[in]  geom   Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
- * @param[in] mapfac_u map factor at x-faces
- * @param[in] mapfac_v map factor at y-faces
+ * @param[in] mapfac map factors
  * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] dptr_rhoqt_src  custom moisture source term
  * @param[in] dptr_wbar_sub  subsidence source term
@@ -42,9 +41,7 @@ void make_sources (int level,
                           MultiFab* terrain_blank,
                    const Geometry geom,
                    const SolverChoice& solverChoice,
-                   std::unique_ptr<MultiFab>& /*mapfac_u*/,
-                   std::unique_ptr<MultiFab>& /*mapfac_v*/,
-                   std::unique_ptr<MultiFab>& mapfac_m,
+                   Vector<std::unique_ptr<MultiFab>>& mapfac,
                    const Real* dptr_rhotheta_src,
                    const Real* dptr_rhoqt_src,
                    const Real* dptr_wbar_sub,
@@ -338,24 +335,25 @@ void make_sources (int level,
             int sc;
             int nc;
 
-            const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
+            const Array4<const Real>& mf_mx   = mapfac[MapFacType::mx]->const_array(mfi);
+            const Array4<const Real>& mf_my   = mapfac[MapFacType::my]->const_array(mfi);
 
             // Rho is a special case
             NumericalDiffusion_Scal(bx, sc=0, nc=1, dt, solverChoice.num_diff_coeff,
-                                    cell_data, cell_data, cell_src, mf_m);
+                                    cell_data, cell_data, cell_src, mf_mx, mf_my);
 
             // Other scalars proceed as normal
             NumericalDiffusion_Scal(bx, sc=1, nc=1, dt, solverChoice.num_diff_coeff,
-                                    cell_prim, cell_data, cell_src, mf_m);
+                                    cell_prim, cell_data, cell_src, mf_mx, mf_my);
 
 
             if (l_use_KE && l_diff_KE) {
                 NumericalDiffusion_Scal(bx, sc=RhoKE_comp, nc=1, dt, solverChoice.num_diff_coeff,
-                                        cell_prim, cell_data, cell_src, mf_m);
+                                        cell_prim, cell_data, cell_src, mf_mx, mf_my);
             }
 
             NumericalDiffusion_Scal(bx, sc=RhoScalar_comp, nc=NSCALARS, dt, solverChoice.num_diff_coeff,
-                                    cell_prim, cell_data, cell_src, mf_m);
+                                    cell_prim, cell_data, cell_src, mf_mx, mf_my);
         }
 
         // *************************************************************************************
