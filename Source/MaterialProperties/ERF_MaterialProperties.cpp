@@ -115,7 +115,7 @@ void MaterialProperties::setProperties_AmSu()
 
 void MaterialProperties::setProperties_soil()
 {
-    m_density = 1400.0;
+    m_density = 1140.0; // NNSS Area 5 sample (Spriggs and Ray-Maitra, 2007)
 
     m_coeff_curv = DBL_MAX; // m K
     m_coeff_VP_solute = DBL_MAX; // m^3
