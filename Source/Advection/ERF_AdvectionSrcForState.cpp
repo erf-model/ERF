@@ -56,12 +56,12 @@ AdvectionSrcForRho (const Box& bx,
 
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        (flx_arr[0])(i,j,k,0) = ax_arr(i,j,k) * rho_u(i,j,k) / mf_ux(i,j,0);
+        (flx_arr[0])(i,j,k,0) = ax_arr(i,j,k) * rho_u(i,j,k) / mf_uy(i,j,0);
         avg_xmom(i,j,k) = (flx_arr[0])(i,j,k,0);
     });
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        (flx_arr[1])(i,j,k,0) = ay_arr(i,j,k) * rho_v(i,j,k) / mf_vy(i,j,0);
+        (flx_arr[1])(i,j,k,0) = ay_arr(i,j,k) * rho_v(i,j,k) / mf_vx(i,j,0);
         avg_ymom(i,j,k) = (flx_arr[1])(i,j,k,0);
     });
     ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
