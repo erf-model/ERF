@@ -61,7 +61,7 @@ ERF::init_custom (int lev)
         Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
 
-        // Here we aribtrarily choose the x-oriented map factor -- this should be generalized
+        // Here we arbitrarily choose the x-oriented map factor -- this should be generalized
         Array4<Real const> mf_m     = mapfac[lev][MapFacType::mx]->const_array(mfi);
         Array4<Real const> mf_u     = mapfac[lev][MapFacType::ux]->const_array(mfi);
         Array4<Real const> mf_v     = mapfac[lev][MapFacType::vx]->const_array(mfi);
