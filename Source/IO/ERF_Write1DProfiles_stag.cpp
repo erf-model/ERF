@@ -629,12 +629,12 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
         const Array4<const Real>& rho_arr = mf_rho.const_array(mfi);
 
         // NOTE: These are from the last RK stage...
-        const Array4<const Real>& tau11_arr = Tau11_lev[lev]->const_array(mfi);
-        const Array4<const Real>& tau12_arr = Tau12_lev[lev]->const_array(mfi);
-        const Array4<const Real>& tau13_arr = Tau13_lev[lev]->const_array(mfi);
-        const Array4<const Real>& tau22_arr = Tau22_lev[lev]->const_array(mfi);
-        const Array4<const Real>& tau23_arr = Tau23_lev[lev]->const_array(mfi);
-        const Array4<const Real>& tau33_arr = Tau33_lev[lev]->const_array(mfi);
+        const Array4<const Real>& tau11_arr = Tau[lev][TauType::tau11]->const_array(mfi);
+        const Array4<const Real>& tau12_arr = Tau[lev][TauType::tau12]->const_array(mfi);
+        const Array4<const Real>& tau13_arr = Tau[lev][TauType::tau13]->const_array(mfi);
+        const Array4<const Real>& tau22_arr = Tau[lev][TauType::tau22]->const_array(mfi);
+        const Array4<const Real>& tau23_arr = Tau[lev][TauType::tau23]->const_array(mfi);
+        const Array4<const Real>& tau33_arr = Tau[lev][TauType::tau33]->const_array(mfi);
 
         // These should be re-calculated during ERF_slow_rhs_post
         // -- just vertical SFS kinematic heat flux for now

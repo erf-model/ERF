@@ -12,12 +12,7 @@ using namespace amrex;
 /**
  * Function for computing the turbulent viscosity with LES.
  *
- * @param[in]  Tau11 11 strain
- * @param[in]  Tau22 22 strain
- * @param[in]  Tau33 33 strain
- * @param[in]  Tau12 12 strain
- * @param[in]  Tau13 13 strain
- * @param[in]  Tau23 23 strain
+ * @param[in]  Tau_lev strain at this level
  * @param[in]  cons_in cell center conserved quantities
  * @param[out] eddyViscosity turbulent viscosity
  * @param[in]  Hfx1 heat flux in x-dir
@@ -29,8 +24,7 @@ using namespace amrex;
  * @param[in]  mapfac_v map factor at y-face
  * @param[in]  turbChoice container with turbulence parameters
  */
-void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22, const MultiFab& Tau33,
-                                   const MultiFab& Tau12, const MultiFab& Tau13, const MultiFab& Tau23,
+void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                    const MultiFab& cons_in, MultiFab& eddyViscosity,
                                    MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
                                    const Geometry& geom, bool use_terrain,
@@ -70,12 +64,12 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
             const Array4<Real>& hfx_z   = Hfx3.array(mfi);
             const Array4<Real const > &cell_data = cons_in.array(mfi);
 
-            Array4<Real const> tau11 = Tau11.array(mfi);
-            Array4<Real const> tau22 = Tau22.array(mfi);
-            Array4<Real const> tau33 = Tau33.array(mfi);
-            Array4<Real const> tau12 = Tau12.array(mfi);
-            Array4<Real const> tau13 = Tau13.array(mfi);
-            Array4<Real const> tau23 = Tau23.array(mfi);
+            Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
+            Array4<Real const> tau22 = Tau_lev[TauType::tau22]->array(mfi);
+            Array4<Real const> tau33 = Tau_lev[TauType::tau33]->array(mfi);
+            Array4<Real const> tau12 = Tau_lev[TauType::tau12]->array(mfi);
+            Array4<Real const> tau13 = Tau_lev[TauType::tau13]->array(mfi);
+            Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
 
             Array4<Real const> mf_u = mapfac_u.array(mfi);
             Array4<Real const> mf_v = mapfac_v.array(mfi);
@@ -294,12 +288,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 /**
  * Function for computing the eddy viscosity with RANS.
  *
- * @param[in]  Tau11 11 strain
- * @param[in]  Tau22 22 strain
- * @param[in]  Tau33 33 strain
- * @param[in]  Tau12 12 strain
- * @param[in]  Tau13 13 strain
- * @param[in]  Tau23 23 strain
+ * @param[in]  Tau_lev strain at this level
  * @param[in]  cons_in cell center conserved quantities
  * @param[out] eddyViscosity turbulent viscosity
  * @param[in]  Hfx1 heat flux in x-dir
@@ -311,12 +300,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
  * @param[in]  mapfac_v map factor at y-face
  * @param[in]  turbChoice container with turbulence parameters
  */
-void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/,
-                                    const MultiFab& /*Tau22*/,
-                                    const MultiFab& /*Tau33*/,
-                                    const MultiFab& /*Tau12*/,
-                                    const MultiFab& /*Tau13*/,
-                                    const MultiFab& /*Tau23*/,
+void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev*/,
                                     const MultiFab& cons_in,
                                     const MultiFab& wdist,
                                     MultiFab& eddyViscosity,
@@ -519,12 +503,7 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/,
  *
  * @param[in]  xvel velocity in x-dir
  * @param[in]  yvel velocity in y-dir
- * @param[in]  Tau11 11 strain
- * @param[in]  Tau22 22 strain
- * @param[in]  Tau33 33 strain
- * @param[in]  Tau12 12 strain
- * @param[in]  Tau13 13 strain
- * @param[in]  Tau23 23 strain
+ * @param[in]  Tau_lev strain at this level
  * @param[in]  cons_in cell center conserved quantities
  * @param[out] eddyViscosity turbulent viscosity
  * @param[in]  Hfx1 heat flux in x-dir
@@ -538,9 +517,8 @@ void ComputeTurbulentViscosityRANS (const MultiFab& /*Tau11*/,
  * @param[in]  most pointer to Monin-Obukhov class if instantiated
  * @param[in]  vert_only flag for vertical components of eddyViscosity
  */
-void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
-                                const MultiFab& Tau11, const MultiFab& Tau22, const MultiFab& Tau33,
-                                const MultiFab& Tau12, const MultiFab& Tau13, const MultiFab& Tau23,
+void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
+                                Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                 const MultiFab& cons_in,
                                 const MultiFab& wdist,
                                 MultiFab& eddyViscosity,
@@ -581,8 +559,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
 
     if (turbChoice.les_type != LESType::None) {
         impose_phys_bcs = true;
-        ComputeTurbulentViscosityLES(Tau11, Tau22, Tau33,
-                                     Tau12, Tau13, Tau23,
+        ComputeTurbulentViscosityLES(Tau_lev,
                                      cons_in, eddyViscosity,
                                      Hfx1, Hfx2, Hfx3, Diss,
                                      geom, use_terrain_fitted_coords,
@@ -593,8 +570,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
 
     if (turbChoice.rans_type != RANSType::None) {
         impose_phys_bcs = true;
-        ComputeTurbulentViscosityRANS(Tau11, Tau22, Tau33,
-                                      Tau12, Tau13, Tau23,
+        ComputeTurbulentViscosityRANS(Tau_lev,
                                       cons_in, wdist,
                                       eddyViscosity,
                                       Hfx1, Hfx2, Hfx3, Diss,

@@ -809,10 +809,7 @@ private:
     amrex::Vector<ERFFillPatcher> FPr_w;
 
     // Diffusive stresses and Smag
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau11_lev, Tau22_lev, Tau33_lev;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau12_lev, Tau21_lev;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau13_lev, Tau31_lev;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau23_lev, Tau32_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 

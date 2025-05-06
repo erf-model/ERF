@@ -16,9 +16,7 @@ void erf_make_tau_terms (int level, int nrk,
                          const MultiFab& xvel,
                          const MultiFab& yvel,
                          const MultiFab& zvel,
-                         MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
-                         MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
-                         MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
+                         Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                          MultiFab* SmnSmn,
                          MultiFab* eddyDiffs,
                          const Geometry geom,
@@ -158,8 +156,9 @@ void erf_make_tau_terms (int level, int nrk,
             Array4<Real> s12 = S12.array();  Array4<Real> s13 = S13.array();  Array4<Real> s23 = S23.array();
 
             // Symmetric strain/stresses
-            Array4<Real> tau11 = Tau11->array(mfi); Array4<Real> tau22 = Tau22->array(mfi); Array4<Real> tau33 = Tau33->array(mfi);
-            Array4<Real> tau12 = Tau12->array(mfi); Array4<Real> tau13 = Tau13->array(mfi); Array4<Real> tau23 = Tau23->array(mfi);
+            Array4<Real> tau11 = Tau_lev[TauType::tau11]->array(mfi); Array4<Real> tau22 = Tau_lev[TauType::tau22]->array(mfi);
+            Array4<Real> tau33 = Tau_lev[TauType::tau33]->array(mfi); Array4<Real> tau12 = Tau_lev[TauType::tau12]->array(mfi);
+            Array4<Real> tau13 = Tau_lev[TauType::tau13]->array(mfi); Array4<Real> tau23 = Tau_lev[TauType::tau23]->array(mfi);
 
             // Strain magnitude
             Array4<Real> SmnSmn_a;
@@ -169,7 +168,9 @@ void erf_make_tau_terms (int level, int nrk,
                 FArrayBox S21,S31,S32;
                 S21.resize(tbxxy,1,The_Async_Arena()); S31.resize(tbxxz,1,The_Async_Arena()); S32.resize(tbxyz,1,The_Async_Arena());
                 Array4<Real> s21   = S21.array();       Array4<Real> s31   = S31.array();       Array4<Real> s32   = S32.array();
-                Array4<Real> tau21 = Tau21->array(mfi); Array4<Real> tau31 = Tau31->array(mfi); Array4<Real> tau32 = Tau32->array(mfi);
+                Array4<Real> tau21 = Tau_lev[TauType::tau21]->array(mfi);
+                Array4<Real> tau31 = Tau_lev[TauType::tau31]->array(mfi);
+                Array4<Real> tau32 = Tau_lev[TauType::tau32]->array(mfi);
 
 
                 // *****************************************************************************

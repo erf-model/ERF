@@ -104,7 +104,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_u_UPW3.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
                 }
             }
-            flx_u_arr[0](i,j,k) = u_afrac_x(i,j,k) * rho_u_avg * interpx;
+            flx_u_arr[0](i,j,k) = rho_u_avg * interpx;
         }
         else
         {
@@ -151,7 +151,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_u_UPW3.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
                 }
             }
-            flx_u_arr[1](i,j,k) = u_afrac_y(i,j,k) * rho_v_avg * interpy;
+            flx_u_arr[1](i,j,k) = rho_v_avg * interpy;
         }
         else
         {
@@ -198,7 +198,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_u_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 }
             }
-            flx_u_arr[2](i,j,k) = u_afrac_z(i,j,k) * rho_w_avg * interpz;
+            flx_u_arr[2](i,j,k) = rho_w_avg * interpz;
         }
         else
         {
@@ -251,7 +251,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_v_UPW3.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
                 }
             }
-            flx_v_arr[0](i,j,k) = v_afrac_x(i,j,k) * rho_u_avg * interpx;
+            flx_v_arr[0](i,j,k) = rho_u_avg * interpx;
         }
         else
         {
@@ -296,7 +296,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_v_UPW3.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
                 }
             }
-            flx_v_arr[1](i,j,k) = v_afrac_y(i,j,k) * rho_v_avg * interpy;
+            flx_v_arr[1](i,j,k) = rho_v_avg * interpy;
         }
         else
         {
@@ -343,7 +343,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_v_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 }
             }
-            flx_v_arr[2](i,j,k) = v_afrac_z(i,j,k) * rho_w_avg * interpz;
+            flx_v_arr[2](i,j,k) = rho_w_avg * interpz;
         }
         else
         {
@@ -396,7 +396,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_w_UPW3.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
                 }
             }
-            flx_w_arr[0](i,j,k) = w_afrac_x(i,j,k) * rho_u_avg * interpx;
+            flx_w_arr[0](i,j,k) = rho_u_avg * interpx;
         }
         else
         {
@@ -443,7 +443,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     interp_w_UPW3.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
                 }
             }
-            flx_w_arr[1](i,j,k) = w_afrac_y(i,j,k) * rho_v_avg * interpy;
+            flx_w_arr[1](i,j,k) = rho_v_avg * interpy;
         }
         else
         {
@@ -503,7 +503,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                         interp_w_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                     }
                 }
-                flx_w_arr[2](i,j,k) = w_afrac_z(i,j,k) * rho_w_avg * interpz;
+                flx_w_arr[2](i,j,k) = rho_w_avg * interpz;
             } // lo_z_face, hi_z_face
         }
         else
