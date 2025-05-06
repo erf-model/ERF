@@ -522,12 +522,12 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
     int dir = 2;
     MultiFab my_line       = get_line_data(mf,              dir, cell);
     MultiFab my_line_vels  = get_line_data(mf_vels,         dir, cell);
-    MultiFab my_line_tau11 = get_line_data(*Tau11_lev[lev], dir, cell);
-    MultiFab my_line_tau12 = get_line_data(*Tau12_lev[lev], dir, cell);
-    MultiFab my_line_tau13 = get_line_data(*Tau13_lev[lev], dir, cell);
-    MultiFab my_line_tau22 = get_line_data(*Tau22_lev[lev], dir, cell);
-    MultiFab my_line_tau23 = get_line_data(*Tau23_lev[lev], dir, cell);
-    MultiFab my_line_tau33 = get_line_data(*Tau33_lev[lev], dir, cell);
+    MultiFab my_line_tau11 = get_line_data(*Tau[lev][TauType::tau11], dir, cell);
+    MultiFab my_line_tau12 = get_line_data(*Tau[lev][TauType::tau12], dir, cell);
+    MultiFab my_line_tau13 = get_line_data(*Tau[lev][TauType::tau13], dir, cell);
+    MultiFab my_line_tau22 = get_line_data(*Tau[lev][TauType::tau22], dir, cell);
+    MultiFab my_line_tau23 = get_line_data(*Tau[lev][TauType::tau23], dir, cell);
+    MultiFab my_line_tau33 = get_line_data(*Tau[lev][TauType::tau33], dir, cell);
 
     for (MFIter mfi(my_line, false); mfi.isValid(); ++mfi)
     {

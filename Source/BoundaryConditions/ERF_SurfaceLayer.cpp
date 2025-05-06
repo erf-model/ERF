@@ -210,12 +210,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
 void
 SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                        Vector<const MultiFab*> mfs,
-                                       MultiFab* xxmom_flux,
-                                       MultiFab* yymom_flux,
-                                       MultiFab* zzmom_flux,
-                                       MultiFab* xymom_flux, MultiFab* yxmom_flux,
-                                       MultiFab* xzmom_flux, MultiFab* zxmom_flux,
-                                       MultiFab* yzmom_flux, MultiFab* zymom_flux,
+                                       Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                        MultiFab* xheat_flux,
                                        MultiFab* yheat_flux,
                                        MultiFab* zheat_flux,
@@ -226,53 +221,25 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
 {
     if (flux_type == FluxCalcType::MOENG) {
         moeng_flux flux_comp;
-        compute_SurfaceLayer_bcs(lev,
-                                 mfs,
-                                 xxmom_flux,
-                                 yymom_flux,
-                                 zzmom_flux,
-                                 xymom_flux, yxmom_flux,
-                                 xzmom_flux, zxmom_flux,
-                                 yzmom_flux, zymom_flux,
+        compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::DONELAN) {
         donelan_flux flux_comp;
-        compute_SurfaceLayer_bcs(lev,
-                                 mfs,
-                                 xxmom_flux,
-                                 yymom_flux,
-                                 zzmom_flux,
-                                 xymom_flux, yxmom_flux,
-                                 xzmom_flux, zxmom_flux,
-                                 yzmom_flux, zymom_flux,
+        compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::ROTATE) {
         rotate_flux flux_comp;
-        compute_SurfaceLayer_bcs(lev,
-                                 mfs,
-                                 xxmom_flux,
-                                 yymom_flux,
-                                 zzmom_flux,
-                                 xymom_flux, yxmom_flux,
-                                 xzmom_flux, zxmom_flux,
-                                 yzmom_flux, zymom_flux,
+        compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
     } else {
         custom_flux flux_comp;
-        compute_SurfaceLayer_bcs(lev,
-                                 mfs,
-                                 xxmom_flux,
-                                 yymom_flux,
-                                 zzmom_flux,
-                                 xymom_flux, yxmom_flux,
-                                 xzmom_flux, zxmom_flux,
-                                 yzmom_flux, zymom_flux,
+        compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
@@ -292,12 +259,7 @@ template <typename FluxCalc>
 void
 SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                         Vector<const MultiFab*> mfs,
-                                        MultiFab* xxmom_flux,
-                                        MultiFab* yymom_flux,
-                                        MultiFab* zzmom_flux,
-                                        MultiFab* xymom_flux, MultiFab* yxmom_flux,
-                                        MultiFab* xzmom_flux, MultiFab* zxmom_flux,
-                                        MultiFab* yzmom_flux, MultiFab* zymom_flux,
+                                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                         MultiFab* xheat_flux,
                                         MultiFab* yheat_flux,
                                         MultiFab* zheat_flux,
@@ -319,21 +281,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
 
         // Diffusive stress vars
-        auto t13_arr = xzmom_flux->array(mfi);
-        auto t31_arr = (zxmom_flux) ? zxmom_flux->array(mfi) : Array4<Real>{};
+        auto t13_arr =  Tau_lev[TauType::tau13]->array(mfi);
+        auto t31_arr = (Tau_lev[TauType::tau31]) ? Tau_lev[TauType::tau31]->array(mfi) : Array4<Real>{};
 
-        auto t23_arr = yzmom_flux->array(mfi);
-        auto t32_arr = (zymom_flux) ? zymom_flux->array(mfi) : Array4<Real>{};
+        auto t23_arr =  Tau_lev[TauType::tau23]->array(mfi);
+        auto t32_arr = (Tau_lev[TauType::tau32]) ? Tau_lev[TauType::tau32]->array(mfi) : Array4<Real>{};
 
         auto hfx3_arr = zheat_flux->array(mfi);
         auto qfx3_arr = (zqv_flux)  ? zqv_flux->array(mfi)   : Array4<Real>{};
 
         // Rotated stress vars
-        auto t11_arr = (m_rotate) ? xxmom_flux->array(mfi) : Array4<Real>{};
-        auto t22_arr = (m_rotate) ? yymom_flux->array(mfi) : Array4<Real>{};
-        auto t33_arr = (m_rotate) ? zzmom_flux->array(mfi) : Array4<Real>{};
-        auto t12_arr = (m_rotate) ? xymom_flux->array(mfi) : Array4<Real>{};
-        auto t21_arr = (m_rotate) ? yxmom_flux->array(mfi) : Array4<Real>{};
+        auto t11_arr = (m_rotate) ? Tau_lev[TauType::tau11]->array(mfi) : Array4<Real>{};
+        auto t22_arr = (m_rotate) ? Tau_lev[TauType::tau22]->array(mfi) : Array4<Real>{};
+        auto t33_arr = (m_rotate) ? Tau_lev[TauType::tau33]->array(mfi) : Array4<Real>{};
+        auto t12_arr = (m_rotate) ? Tau_lev[TauType::tau12]->array(mfi) : Array4<Real>{};
+        auto t21_arr = (m_rotate) ? Tau_lev[TauType::tau21]->array(mfi) : Array4<Real>{};
 
         auto hfx1_arr = (m_rotate) ? xheat_flux->array(mfi) : Array4<Real>{};
         auto hfx2_arr = (m_rotate) ? yheat_flux->array(mfi) : Array4<Real>{};

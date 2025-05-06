@@ -36,15 +36,7 @@ using namespace amrex;
  * @param[in] ymom_src source terms for y-momentum
  * @param[in] zmom_src source terms for z-momentum
  * @param[in] zmom_crse_rhs update term from coarser level for z-momentum; non-zero on c/f boundary only
- * @param[in] Tau11 tau_11 component of stress tensor
- * @param[in] Tau22 tau_22 component of stress tensor
- * @param[in] Tau33 tau_33 component of stress tensor
- * @param[in] Tau12 tau_12 component of stress tensor
- * @param[in] Tau12 tau_13 component of stress tensor
- * @param[in] Tau21 tau_21 component of stress tensor
- * @param[in] Tau23 tau_23 component of stress tensor
- * @param[in] Tau31 tau_31 component of stress tensor
- * @param[in] Tau32 tau_32 component of stress tensor
+ * @param[in] Tau_lev components of stress tensor
  * @param[in] SmnSmn strain rate magnitude
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in] Hfx3 heat flux in z-dir
@@ -86,9 +78,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& ymom_src,
                        const MultiFab& zmom_src,
                        const MultiFab* zmom_crse_rhs,
-                       MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
-                       MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
-                       MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
+                       Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx1,
@@ -192,8 +182,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     if (l_use_diff) {
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
-                           S_data,xvel,yvel,zvel,
-                           Tau11,Tau22,Tau33,Tau12,Tau13,Tau21,Tau23,Tau31,Tau32,
+                           S_data,xvel,yvel,zvel,Tau_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
                            detJ,mapfac_m,mapfac_u,mapfac_v);
 
@@ -203,11 +192,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         if (l_use_SurfLayer) {
             Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
-            SurfLayer->impose_SurfaceLayer_bcs(level, mfs,
-                                               Tau11, Tau22, Tau33,
-                                               Tau12, Tau21,
-                                               Tau13, Tau31,
-                                               Tau23, Tau32,
+            SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
                                                Hfx1, Hfx2, Hfx3,
                                                Q1fx1, Q1fx2, Q1fx3,
                                                z_phys_nd.get());
@@ -484,17 +469,20 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // No terrain diffusion
         Array4<Real> tau11,tau22,tau33;
         Array4<Real> tau12,tau13,tau23;
-        if (Tau11) {
-            tau11 = Tau11->array(mfi); tau22 = Tau22->array(mfi); tau33 = Tau33->array(mfi);
-            tau12 = Tau12->array(mfi); tau13 = Tau13->array(mfi); tau23 = Tau23->array(mfi);
+        if (Tau_lev[TauType::tau11]) {
+            tau11 = Tau_lev[TauType::tau11]->array(mfi); tau22 = Tau_lev[TauType::tau22]->array(mfi);
+            tau33 = Tau_lev[TauType::tau33]->array(mfi); tau12 = Tau_lev[TauType::tau12]->array(mfi);
+            tau13 = Tau_lev[TauType::tau13]->array(mfi); tau23 = Tau_lev[TauType::tau23]->array(mfi);
         } else {
             tau11 = Array4<Real>{}; tau22 = Array4<Real>{}; tau33 = Array4<Real>{};
             tau12 = Array4<Real>{}; tau13 = Array4<Real>{}; tau23 = Array4<Real>{};
         }
         // Terrain diffusion
         Array4<Real> tau21,tau31,tau32;
-        if (Tau21) {
-            tau21 = Tau21->array(mfi); tau31 = Tau31->array(mfi); tau32 = Tau32->array(mfi);
+        if (Tau_lev[TauType::tau21]) {
+            tau21 = Tau_lev[TauType::tau21]->array(mfi);
+            tau31 = Tau_lev[TauType::tau31]->array(mfi);
+            tau32 = Tau_lev[TauType::tau32]->array(mfi);
         } else {
             tau21 = Array4<Real>{}; tau31 = Array4<Real>{}; tau32 = Array4<Real>{};
         }

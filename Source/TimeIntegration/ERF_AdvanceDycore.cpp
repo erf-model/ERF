@@ -144,16 +144,16 @@ void ERF::advance_dycore(int level,
             const Array4<const Real> & v = yvel_old.array(mfi);
             const Array4<const Real> & w = zvel_old.array(mfi);
 
-            Array4<Real> tau11 = Tau11_lev[level].get()->array(mfi);
-            Array4<Real> tau22 = Tau22_lev[level].get()->array(mfi);
-            Array4<Real> tau33 = Tau33_lev[level].get()->array(mfi);
-            Array4<Real> tau12 = Tau12_lev[level].get()->array(mfi);
-            Array4<Real> tau13 = Tau13_lev[level].get()->array(mfi);
-            Array4<Real> tau23 = Tau23_lev[level].get()->array(mfi);
+            Array4<Real> tau11 = Tau[level][TauType::tau11].get()->array(mfi);
+            Array4<Real> tau22 = Tau[level][TauType::tau22].get()->array(mfi);
+            Array4<Real> tau33 = Tau[level][TauType::tau33].get()->array(mfi);
+            Array4<Real> tau12 = Tau[level][TauType::tau12].get()->array(mfi);
+            Array4<Real> tau13 = Tau[level][TauType::tau13].get()->array(mfi);
+            Array4<Real> tau23 = Tau[level][TauType::tau23].get()->array(mfi);
 
-            Array4<Real> tau21  = l_use_terrain_fitted_coords ? Tau21_lev[level].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau31  = l_use_terrain_fitted_coords ? Tau31_lev[level].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau32_lev[level].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau21  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = z_phys_nd[level]->const_array(mfi);
 
             const Array4<const Real> mf_m = mapfac_m[level]->array(mfi);
@@ -208,9 +208,7 @@ void ERF::advance_dycore(int level,
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
         const BCRec* bc_ptr_h = domain_bcs_type.data();
-        ComputeTurbulentViscosity(xvel_old, yvel_old,
-                                  *Tau11_lev[level].get(), *Tau22_lev[level].get(), *Tau33_lev[level].get(),
-                                  *Tau12_lev[level].get(), *Tau13_lev[level].get(), *Tau23_lev[level].get(),
+        ComputeTurbulentViscosity(xvel_old, yvel_old,Tau[level],
                                   state_old[IntVars::cons],
                                   *walldist[level].get(),
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
