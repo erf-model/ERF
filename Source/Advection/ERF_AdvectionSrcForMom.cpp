@@ -38,9 +38,14 @@ using namespace amrex;
  * @param[in] mf_m map factor at cell centers
  * @param[in] mf_u map factor at x-faces
  * @param[in] mf_v map factor at y-faces
- * @param[in] ebfact EB factories for cell- and face-centered variables
  * @param[in] horiz_adv_type sets the spatial order to be used for lateral derivatives
  * @param[in] vert_adv_type  sets the spatial order to be used for vertical derivatives
+ * @param[in] ebfact EB factories for cell- and face-centered variables
+ * @param[in] flx_u_arr Container of fluxes for x-momentum
+ * @param[in] flx_v_arr Container of fluxes for y-momentum
+ * @param[in] flx_w_arr Container of fluxes for z-momentum
+ * @param[in] physbnd_mask Vector of masks for flux interpolation (=1 otherwise, =0 if physbnd)
+ * @param[in] already_on_centroids flag whether flux interpolation is unnecessary
  */
 void
 AdvectionSrcForMom (const MFIter& mfi,
@@ -79,6 +84,8 @@ AdvectionSrcForMom (const MFIter& mfi,
                           GpuArray<Array4<Real>, AMREX_SPACEDIM>& flx_u_arr,
                           GpuArray<Array4<Real>, AMREX_SPACEDIM>& flx_v_arr,
                           GpuArray<Array4<Real>, AMREX_SPACEDIM>& flx_w_arr,
+                    const Vector<iMultiFab>& physbnd_mask,
+                    const bool already_on_centroids,
                     const int lo_z_face, const int hi_z_face,
                     const Box& domain,
                     const BCRec* bc_ptr_h)
@@ -143,6 +150,7 @@ AdvectionSrcForMom (const MFIter& mfi,
                               horiz_adv_type, vert_adv_type,
                               horiz_upw_frac, vert_upw_frac,
                               ebfact, flx_u_arr, flx_v_arr, flx_w_arr,
+                              physbnd_mask, already_on_centroids,
                               lo_z_face, hi_z_face, domain);
     }
     else

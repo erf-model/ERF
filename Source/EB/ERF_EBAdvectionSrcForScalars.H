@@ -36,9 +36,9 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
     CENTERED2 interp_prim_CEN2(cell_prim, 0);
     UPWIND3   interp_prim_UPW3(cell_prim, horiz_upw_frac);
 
-    const amrex::Box xbx = amrex::surroundingNodes(bx,0);
-    const amrex::Box ybx = amrex::surroundingNodes(bx,1);
-    const amrex::Box zbx = amrex::surroundingNodes(bx,2);
+    const amrex::Box xbx = amrex::surroundingNodes(bx,0).grow(amrex::IntVect(0, 1, 1));
+    const amrex::Box ybx = amrex::surroundingNodes(bx,1).grow(amrex::IntVect(1, 0, 1));
+    const amrex::Box zbx = amrex::surroundingNodes(bx,2).grow(amrex::IntVect(1, 1, 0));
 
     amrex::ParallelFor(xbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {

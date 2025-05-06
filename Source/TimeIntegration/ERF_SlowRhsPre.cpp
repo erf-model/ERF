@@ -1,5 +1,6 @@
 
 #include "AMReX_MultiFab.H"
+#include "AMReX_iMultiFab.H"
 #include "AMReX_ArrayLim.H"
 #include "AMReX_BCRec.H"
 #include "AMReX_GpuContainers.H"
@@ -242,11 +243,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::array<FArrayBox,AMREX_SPACEDIM> flux_tmp;
 
     // Cell-centered masks for EB (used for flux interpolation)
-    iMultiFab cc_mask;
     bool already_on_centroids = false;
+    Vector<iMultiFab> physbnd_mask;
+    physbnd_mask.resize(IntVars::NumTypes);
     if (solverChoice.terrain_type == TerrainType::EB) {
-        cc_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
-        cc_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+        physbnd_mask[IntVars::cons].define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
+        physbnd_mask[IntVars::cons].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+        // physbnd_mask[IntVars::cons].FillBoundary(geom.periodicity());
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            physbnd_mask[1+dir].define(S_data[1+dir].boxArray(), S_data[1+dir].DistributionMap(), 1, 1);
+            physbnd_mask[1+dir].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+            // physbnd_mask[1+dir].FillBoundary(geom.periodicity());
+        }
     }
 
     for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
@@ -260,13 +268,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Vector<Box> tbx_grown(AMREX_SPACEDIM);
         Vector<Box> tby_grown(AMREX_SPACEDIM);
         Vector<Box> tbz_grown(AMREX_SPACEDIM);
-        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            tbx_grown[dir] = tbx;
-            tby_grown[dir] = tby;
-            tbz_grown[dir] = tbz;
-            tbx_grown[dir] = tbx_grown[dir].growHi(dir,1);
-            tby_grown[dir] = tby_grown[dir].growHi(dir,1);
-            tbz_grown[dir] = tbz_grown[dir].growHi(dir,1);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                tbx_grown[dir] = tbx;
+                tby_grown[dir] = tby;
+                tbz_grown[dir] = tbz;
+                IntVect iv(1, 1, 1);
+                iv[dir] = 0;
+                tbx_grown[dir] = (tbx_grown[dir].growHi(dir,1)).grow(iv);
+                tby_grown[dir] = (tby_grown[dir].growHi(dir,1)).grow(iv);
+                tbz_grown[dir] = (tbz_grown[dir].growHi(dir,1)).grow(iv);
+            }
         }
 
         // We don't compute a source term for z-momentum on the bottom or top domain boundary
@@ -462,7 +474,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         } // end profile
 
-
         // *****************************************************************************
         // Diffusive terms (pre-computed above)
         // *****************************************************************************
@@ -498,7 +509,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // *****************************************************************************
-        Array4<const int> ccm_arr{};
+        Array4<const int> mask_arr{};
         Array4<const EBCellFlag> cfg_arr{};
         Array4<const Real> ax_arr{};
         Array4<const Real> ay_arr{};
@@ -518,7 +529,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
             fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
             detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
-            if (!already_on_centroids) {ccm_arr = cc_mask.const_array(mfi);}
+            // if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
+            mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
         } else {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
@@ -526,12 +538,24 @@ void erf_slow_rhs_pre (int level, int finest_level,
             detJ_arr = detJ->const_array(mfi);
         }
 
-        AdvectionSrcForRho(bx, cell_rhs,
-                           rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
-                           avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
-                           ax_arr, ay_arr, az_arr, detJ_arr,
-                           dxInv, mf_m, mf_u, mf_v,
-                           flx_arr, l_fixed_rho);
+        if (solverChoice.terrain_type != TerrainType::EB){
+            AdvectionSrcForRho(bx, cell_rhs,
+                            rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
+                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
+                            ax_arr, ay_arr, az_arr, detJ_arr,
+                            dxInv, mf_m, mf_u, mf_v,
+                            flx_arr, l_fixed_rho);
+        } else {
+            EBAdvectionSrcForRho(bx, cell_rhs,
+                            rho_u, rho_v, omega_arr,
+                            avg_xmom, avg_ymom, avg_zmom,
+                            mask_arr, cfg_arr,
+                            ax_arr, ay_arr, az_arr,
+                            fcx_arr, fcy_arr, fcz_arr, detJ_arr,
+                            dxInv, mf_m, mf_u, mf_v,
+                            flx_arr, l_fixed_rho,
+                            already_on_centroids);
+        }
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         if (solverChoice.terrain_type != TerrainType::EB){
@@ -547,7 +571,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             EBAdvectionSrcForScalars(bx, icomp, ncomp,
                                 avg_xmom, avg_ymom, avg_zmom,
                                 cell_prim, cell_rhs,
-                                ccm_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
                                 fcx_arr, fcy_arr, fcz_arr,
                                 detJ_arr, dxInv, mf_m,
                                 l_horiz_adv_type, l_vert_adv_type,
@@ -644,6 +668,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            l_horiz_upw_frac, l_vert_upw_frac,
                            solverChoice.mesh_type, solverChoice.terrain_type,
                            ebfact, flx_u_arr, flx_v_arr, flx_w_arr,
+                           physbnd_mask, already_on_centroids,
                            lo_z_face, hi_z_face, domain, bc_ptr_h);
 
         if (l_use_diff) {
