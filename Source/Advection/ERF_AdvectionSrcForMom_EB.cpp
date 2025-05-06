@@ -295,41 +295,31 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
     } // horiz_adv_type
 
     // Update momentum RHS using the fluxes
-    ParallelFor(bxx, bxy, bxz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        if (u_vfrac(i,j,k)>0.) {
-            Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
+    if (already_on_centroids) {
 
-            Real advectionSrc = ( (flx_u_arr[0](i+1, j  , k  ) - flx_u_arr[0](i, j, k)) * dxInv * mfsq
-                                + (flx_u_arr[1](i  , j+1, k  ) - flx_u_arr[1](i, j, k)) * dyInv * mfsq
-                                + (flx_u_arr[2](i  , j  , k+1) - flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
-            rho_u_rhs(i, j, k) = -advectionSrc;
-        } else {
-            rho_u_rhs(i, j, k) = 0.;
-        }
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        if (v_vfrac(i,j,k)>0.) {
-            Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
+        ParallelFor(bxx, bxy, bxz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (u_vfrac(i,j,k)>0.) {
+                Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
-            Real advectionSrc = ( (flx_v_arr[0](i+1, j  , k  ) - flx_v_arr[0](i, j, k)) * dxInv * mfsq
-                                + (flx_v_arr[1](i  , j+1, k  ) - flx_v_arr[1](i, j, k)) * dyInv * mfsq
-                                + (flx_v_arr[2](i  , j  , k+1) - flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
-            rho_v_rhs(i, j, k) = -advectionSrc;
-        } else {
-            rho_v_rhs(i, j, k) = 0.;
-        }
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        if (w_vfrac(i,j,k)>0.) {
-            Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+                Real advectionSrc = ( (flx_u_arr[0](i+1, j  , k  ) - flx_u_arr[0](i, j, k)) * dxInv * mfsq
+                                    + (flx_u_arr[1](i  , j+1, k  ) - flx_u_arr[1](i, j, k)) * dyInv * mfsq
+                                    + (flx_u_arr[2](i  , j  , k+1) - flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
+                rho_u_rhs(i, j, k) = -advectionSrc;
+            } else {
+                rho_u_rhs(i, j, k) = 0.;
+            }
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (v_vfrac(i,j,k)>0.) {
+                Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
-                rho_v_rhs(i, j, k) = - ( (v_afrac_x(i+1, j  , k  ) * flx_v_arr[0](i+1, j  , k  ) - v_afrac_x(i, j, k) * flx_v_arr[0](i, j, k)) * dxInv * mfsq
-                                       + (v_afrac_y(i  , j+1, k  ) * flx_v_arr[1](i  , j+1, k  ) - v_afrac_y(i, j, k) * flx_v_arr[1](i, j, k)) * dyInv * mfsq
-                                       + (v_afrac_z(i  , j  , k+1) * flx_v_arr[2](i  , j  , k+1) - v_afrac_z(i, j, k) * flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
+                Real advectionSrc = ( (flx_v_arr[0](i+1, j  , k  ) - flx_v_arr[0](i, j, k)) * dxInv * mfsq
+                                    + (flx_v_arr[1](i  , j+1, k  ) - flx_v_arr[1](i, j, k)) * dyInv * mfsq
+                                    + (flx_v_arr[2](i  , j  , k+1) - flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
+                rho_v_rhs(i, j, k) = -advectionSrc;
             } else {
                 rho_v_rhs(i, j, k) = 0.;
             }
@@ -337,7 +327,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (w_vfrac(i,j,k)>0.) {
-                Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 rho_w_rhs(i, j, k) = - ( (w_afrac_x(i+1, j  , k  ) * flx_w_arr[0](i+1, j  , k  ) - w_afrac_x(i, j, k) * flx_w_arr[0](i, j, k)) * dxInv * mfsq
                                        + (w_afrac_y(i  , j+1, k  ) * flx_w_arr[1](i  , j+1, k  ) - w_afrac_y(i, j, k) * flx_w_arr[1](i, j, k)) * dyInv * mfsq
@@ -358,7 +348,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (u_vfrac(i,j,k)>0.) {
-                Real mfsq = mf_u(i,j,0) * mf_u(i,j,0);
+                Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
                 if (u_cflag(i,j,k).isCovered())
                 {
@@ -457,7 +447,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (v_vfrac(i,j,k)>0.) {
-                Real mfsq = mf_v(i,j,0) * mf_v(i,j,0);
+                Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
                 if (v_cflag(i,j,k).isCovered())
                 {
@@ -556,7 +546,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (w_vfrac(i,j,k)>0.) {
-                Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 if (w_cflag(i,j,k).isCovered())
                 {
