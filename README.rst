@@ -7,6 +7,16 @@ for massively parallel block-structured applications.
 .. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.8102984.svg
    :target: https://doi.org/10.5281/zenodo.8102984
 
+
+Part of the WETO Stack
+~~~~~~~~~~~~~~~~~~~~~~
+
+ERF is primarily developed with the support of the U.S. Department of Energy and is part of the `WETO Software Stack <https://nrel.github.io/WETOStack>`_. For more information and other integrated modeling software, see:
+* `Portfolio Overview <https://nrel.github.io/WETOStack/portfolio_analysis/overview.html>`_
+* `Entry Guide <https://nrel.github.io/WETOStack/_static/entry_guide/index.html>`_
+* `High-Fidelity Modeling Workshop <https://nrel.github.io/WETOStack/workshops/user_workshops_2024.html#high-fidelity-modeling>`_
+
+	    
 Test Status
 ~~~~~~~~~~~
 
