@@ -541,7 +541,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
                            ax_arr, ay_arr, az_arr, detJ_arr,
-                           dxInv, mf_mx, mf_my, mf_ux, mf_vy,
+                           dxInv, mf_mx, mf_my, mf_uy, mf_vx,
                            flx_arr, l_fixed_rho);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
@@ -678,9 +678,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 DiffusionSrcForMom_N(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                      tau11, tau22, tau33,
-                                     tau12, tau13, tau23,
-                                     dxInv,
-                                     mf_mx, mf_my);
+                                     tau12, tau13, tau23, dxInv,
+                                     mf_mx, mf_ux, mf_vx,
+                                     mf_my, mf_uy, mf_vy);
             }
         }
 

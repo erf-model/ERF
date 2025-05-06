@@ -42,8 +42,8 @@ AdvectionSrcForRho (const Box& bx,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                     const Array4<const Real>& mf_mx,
                     const Array4<const Real>& mf_my,
-                    const Array4<const Real>& mf_ux,
-                    const Array4<const Real>& mf_vy,
+                    const Array4<const Real>& mf_uy,
+                    const Array4<const Real>& mf_vx,
                     const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
                     const bool fixed_rho)
 {

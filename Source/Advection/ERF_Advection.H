@@ -27,8 +27,8 @@ void AdvectionSrcForRho (const amrex::Box& bx,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                          const amrex::Array4<const amrex::Real>& mf_mx,
                          const amrex::Array4<const amrex::Real>& mf_my,
-                         const amrex::Array4<const amrex::Real>& mf_ux,
-                         const amrex::Array4<const amrex::Real>& mf_vy,
+                         const amrex::Array4<const amrex::Real>& mf_uy,
+                         const amrex::Array4<const amrex::Real>& mf_vx,
                          const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr,
                          const bool fixed_rho);
 

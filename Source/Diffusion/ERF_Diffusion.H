@@ -21,7 +21,11 @@ void DiffusionSrcForMom_N (const amrex::Box& bxx, const amrex::Box& bxy, const a
                            const amrex::Array4<const amrex::Real>& tau23    ,
                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
                            const amrex::Array4<const amrex::Real>& mf_mx     ,
-                           const amrex::Array4<const amrex::Real>& mf_my     );
+                           const amrex::Array4<const amrex::Real>& mf_ux     ,
+                           const amrex::Array4<const amrex::Real>& mf_vx     ,
+                           const amrex::Array4<const amrex::Real>& mf_my     ,
+                           const amrex::Array4<const amrex::Real>& mf_uy     ,
+                           const amrex::Array4<const amrex::Real>& mf_vy     );
 
 void DiffusionSrcForMom_T (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                            const amrex::Array4<      amrex::Real>& rho_u_rhs,
@@ -105,7 +109,11 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer);
 
-void ComputeStressConsVisc_N (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex::Box tbxyz, amrex::Real mu_eff,
+void ComputeStressConsVisc_N (amrex::Box bxcc,
+                              amrex::Box tbxxy,
+                              amrex::Box tbxxz,
+                              amrex::Box tbxyz,
+                              amrex::Real mu_eff,
                               const amrex::Array4<const amrex::Real>& cell_data,
                               amrex::Array4<amrex::Real>& tau11,
                               amrex::Array4<amrex::Real>& tau22,
@@ -115,7 +123,11 @@ void ComputeStressConsVisc_N (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxx
                               amrex::Array4<amrex::Real>& tau23,
                               const amrex::Array4<const amrex::Real>& er_arr);
 
-void ComputeStressConsVisc_T (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex::Box tbxyz, amrex::Real mu_eff,
+void ComputeStressConsVisc_T (amrex::Box bxcc,
+                              amrex::Box tbxxy,
+                              amrex::Box tbxxz,
+                              amrex::Box tbxyz,
+                              amrex::Real mu_eff,
                               const amrex::Array4<const amrex::Real>& cell_data,
                               amrex::Array4<amrex::Real>& tau11,
                               amrex::Array4<amrex::Real>& tau22,
@@ -130,7 +142,11 @@ void ComputeStressConsVisc_T (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxx
 
 
 
-void ComputeStressVarVisc_N (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex::Box tbxyz, amrex::Real mu_eff,
+void ComputeStressVarVisc_N (amrex::Box bxcc,
+                             amrex::Box tbxxy,
+                             amrex::Box tbxxz,
+                             amrex::Box tbxyz,
+                             amrex::Real mu_eff,
                              const amrex::Array4<const amrex::Real>& mu_turb,
                              const amrex::Array4<const amrex::Real>& cell_data,
                              amrex::Array4<amrex::Real>& tau11,
@@ -141,7 +157,11 @@ void ComputeStressVarVisc_N (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz
                              amrex::Array4<amrex::Real>& tau23,
                              const amrex::Array4<const amrex::Real>& er_arr);
 
-void ComputeStressVarVisc_T (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex::Box tbxyz, amrex::Real mu_eff,
+void ComputeStressVarVisc_T (amrex::Box bxcc,
+                             amrex::Box tbxxy,
+                             amrex::Box tbxxz,
+                             amrex::Box tbxyz,
+                             amrex::Real mu_eff,
                              const amrex::Array4<const amrex::Real>& mu_turb,
                              const amrex::Array4<const amrex::Real>& cell_data,
                              amrex::Array4<amrex::Real>& tau11,
