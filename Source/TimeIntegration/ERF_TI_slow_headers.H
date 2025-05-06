@@ -1,22 +1,22 @@
 #ifndef ERF_SLOW_INTEGRATION_H_
 #define ERF_SLOW_INTEGRATION_H_
 
-#include <AMReX_MultiFab.H>
-#include <AMReX_BCRec.H>
-#include <AMReX_YAFluxRegister.H>
-#include <AMReX_MultiCutFab.H>
-#include <AMReX_EBMultiFabUtil.H>
+#include "AMReX_MultiFab.H"
+#include "AMReX_BCRec.H"
+#include "AMReX_YAFluxRegister.H"
+#include "AMReX_MultiCutFab.H"
+#include "AMReX_EBMultiFabUtil.H"
 
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
-#include "ERF_ABLMost.H"
-#include <ERF_Advection.H>
-#include <ERF_Diffusion.H>
-#include <ERF_EddyViscosity.H>
-#include <ERF_PlaneAverage.H>
-#include <ERF_TerrainMetrics.H>
-#include <ERF_TileNoZ.H>
-#include <ERF_EB.H>
+#include "ERF_SurfaceLayer.H"
+#include "ERF_Advection.H"
+#include "ERF_Diffusion.H"
+#include "ERF_EddyViscosity.H"
+#include "ERF_PlaneAverage.H"
+#include "ERF_TerrainMetrics.H"
+#include "ERF_TileNoZ.H"
+#include "ERF_EB.H"
 
 void erf_make_tau_terms (int level, int nrk,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type,
@@ -25,20 +25,12 @@ void erf_make_tau_terms (int level, int nrk,
                          const amrex::MultiFab& xvel,
                          const amrex::MultiFab& yvel,
                          const amrex::MultiFab& zvel,
-                               amrex::MultiFab* Tau11,
-                               amrex::MultiFab* Tau22,
-                               amrex::MultiFab* Tau33,
-                               amrex::MultiFab* Tau12,
-                               amrex::MultiFab* Tau13,
-                               amrex::MultiFab* Tau21,
-                               amrex::MultiFab* Tau23,
-                               amrex::MultiFab* Tau31,
-                               amrex::MultiFab* Tau32,
+                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
                                amrex::MultiFab* SmnSmn,
                                amrex::MultiFab* eddyDiffs,
                          const amrex::Geometry geom,
                          const SolverChoice& solverChoice,
-                         std::unique_ptr<ABLMost>& most,
+                         std::unique_ptr<SurfaceLayer>& SurfLayer,
                          std::unique_ptr<amrex::MultiFab>& dJ,
                          std::unique_ptr<amrex::MultiFab>& mapfac_m,
                          std::unique_ptr<amrex::MultiFab>& mapfac_u,
@@ -64,15 +56,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       const amrex::MultiFab& ymom_src,
                       const amrex::MultiFab& zmom_src,
                       const amrex::MultiFab* zmom_crse_rhs,
-                            amrex::MultiFab* Tau11,
-                            amrex::MultiFab* Tau22,
-                            amrex::MultiFab* Tau33,
-                            amrex::MultiFab* Tau12,
-                            amrex::MultiFab* Tau13,
-                            amrex::MultiFab* Tau21,
-                            amrex::MultiFab* Tau23,
-                            amrex::MultiFab* Tau31,
-                            amrex::MultiFab* Tau32,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
                             amrex::MultiFab* SmnSmn,
                             amrex::MultiFab* eddyDiffs,
                             amrex::MultiFab* Hfx1,
@@ -85,10 +69,11 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                             amrex::MultiFab* Diss,
                       const amrex::Geometry geom,
                       const SolverChoice& solverChoice,
-                      std::unique_ptr<ABLMost>& most,
+                      std::unique_ptr<SurfaceLayer>& SurfLayer,
                       const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                       const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                       std::unique_ptr<amrex::MultiFab>& ax,
                       std::unique_ptr<amrex::MultiFab>& ay,
                       std::unique_ptr<amrex::MultiFab>& az,
@@ -132,7 +117,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                              amrex::MultiFab* Diss,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
-                       std::unique_ptr<ABLMost>& most,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
                        const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                        const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
@@ -180,22 +165,14 @@ void erf_slow_rhs_inc (int level, int nrk,
                        const amrex::MultiFab& xmom_src,
                        const amrex::MultiFab& ymom_src,
                        const amrex::MultiFab& zmom_src,
-                       amrex::MultiFab* Tau11,
-                       amrex::MultiFab* Tau22,
-                       amrex::MultiFab* Tau33,
-                       amrex::MultiFab* Tau12,
-                       amrex::MultiFab* Tau13,
-                       amrex::MultiFab* Tau21,
-                       amrex::MultiFab* Tau23,
-                       amrex::MultiFab* Tau31,
-                       amrex::MultiFab* Tau32,
+                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
                        amrex::MultiFab* SmnSmn,
                        amrex::MultiFab* eddyDiffs,
                        amrex::MultiFab* Hfx3,
                        amrex::MultiFab* Diss,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
-                       std::unique_ptr<ABLMost>& most,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
                        const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                        const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                        std::unique_ptr<amrex::MultiFab>& z_phys_nd,

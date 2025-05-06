@@ -66,12 +66,12 @@ ERF::sum_integrated_quantities (Real time)
     Gpu::HostVector<Real> h_avg_ustar; h_avg_ustar.resize(1);
     Gpu::HostVector<Real> h_avg_tstar; h_avg_tstar.resize(1);
     Gpu::HostVector<Real> h_avg_olen; h_avg_olen.resize(1);
-    if ((m_most != nullptr) && (NumDataLogs() > 0)) {
+    if ((m_SurfaceLayer != nullptr) && (NumDataLogs() > 0)) {
         Box domain = geom[0].Domain();
         int zdir = 2;
-        h_avg_ustar = sumToLine(*m_most->get_u_star(0),0,1,domain,zdir);
-        h_avg_tstar = sumToLine(*m_most->get_t_star(0),0,1,domain,zdir);
-        h_avg_olen  = sumToLine(*m_most->get_olen(0),0,1,domain,zdir);
+        h_avg_ustar = sumToLine(*m_SurfaceLayer->get_u_star(0),0,1,domain,zdir);
+        h_avg_tstar = sumToLine(*m_SurfaceLayer->get_t_star(0),0,1,domain,zdir);
+        h_avg_olen  = sumToLine(*m_SurfaceLayer->get_olen(0)  ,0,1,domain,zdir);
 
         // Divide by the total number of cells we are averaging over
         Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
@@ -522,12 +522,12 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
     int dir = 2;
     MultiFab my_line       = get_line_data(mf,              dir, cell);
     MultiFab my_line_vels  = get_line_data(mf_vels,         dir, cell);
-    MultiFab my_line_tau11 = get_line_data(*Tau11_lev[lev], dir, cell);
-    MultiFab my_line_tau12 = get_line_data(*Tau12_lev[lev], dir, cell);
-    MultiFab my_line_tau13 = get_line_data(*Tau13_lev[lev], dir, cell);
-    MultiFab my_line_tau22 = get_line_data(*Tau22_lev[lev], dir, cell);
-    MultiFab my_line_tau23 = get_line_data(*Tau23_lev[lev], dir, cell);
-    MultiFab my_line_tau33 = get_line_data(*Tau33_lev[lev], dir, cell);
+    MultiFab my_line_tau11 = get_line_data(*Tau[lev][TauType::tau11], dir, cell);
+    MultiFab my_line_tau12 = get_line_data(*Tau[lev][TauType::tau12], dir, cell);
+    MultiFab my_line_tau13 = get_line_data(*Tau[lev][TauType::tau13], dir, cell);
+    MultiFab my_line_tau22 = get_line_data(*Tau[lev][TauType::tau22], dir, cell);
+    MultiFab my_line_tau23 = get_line_data(*Tau[lev][TauType::tau23], dir, cell);
+    MultiFab my_line_tau33 = get_line_data(*Tau[lev][TauType::tau33], dir, cell);
 
     for (MFIter mfi(my_line, false); mfi.isValid(); ++mfi)
     {

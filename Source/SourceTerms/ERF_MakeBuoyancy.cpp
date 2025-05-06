@@ -32,7 +32,7 @@ using namespace amrex;
 void make_buoyancy (Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
                           MultiFab& buoyancy,
-                    const amrex::Geometry geom,
+                    const Geometry geom,
                     const SolverChoice& solverChoice,
                     const MultiFab& base_state,
                     const int n_qstate,

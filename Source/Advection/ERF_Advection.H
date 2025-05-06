@@ -1,15 +1,16 @@
 #ifndef ERF_ADVECTION_H_
 #define ERF_ADVECTION_H_
 
-#include <AMReX.H>
-#include <AMReX_MultiFab.H>
-#include <AMReX_BCRec.H>
-#include <AMReX_YAFluxRegister.H>
+#include "AMReX.H"
+#include "AMReX_MultiFab.H"
+#include "AMReX_iMultiFab.H"
+#include "AMReX_BCRec.H"
+#include "AMReX_YAFluxRegister.H"
 
-#include <ERF_DataStruct.H>
-#include <ERF_IndexDefines.H>
-#include <ERF_ABLMost.H>
-#include <ERF_EB.H>
+#include "ERF_DataStruct.H"
+#include "ERF_IndexDefines.H"
+#include "ERF_SurfaceLayer.H"
+#include "ERF_EB.H"
 
 /** Compute advection tendency for density and potential temperature */
 void AdvectionSrcForRho (const amrex::Box& bx,
@@ -85,6 +86,8 @@ void AdvectionSrcForMom (const amrex::MFIter& mfi,
                                amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_u_arr,
                                amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_v_arr,
                                amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_w_arr,
+                         const amrex::Vector<amrex::iMultiFab>& physbnd_mask,
+                         const bool already_on_centroids,
                          const int lo_z_face, const int hi_z_face,
                          const amrex::Box& domain,
                          const amrex::BCRec* bc_ptr_h);
@@ -170,6 +173,8 @@ void AdvectionSrcForMom_EB (const amrex::MFIter& mfi,
                                   amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_u_arr,
                                   amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_v_arr,
                                   amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_w_arr,
+                            const amrex::Vector<amrex::iMultiFab>& physbnd_mask,
+                            const bool already_on_centroids,
                             const int lo_z_face, const int hi_z_face,
                             const amrex::Box& domain);
 

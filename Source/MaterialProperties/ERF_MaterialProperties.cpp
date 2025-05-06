@@ -141,8 +141,8 @@ void MaterialProperties::setProperties_AmSu()
 
     m_coeff_curv = DBL_MAX; // m K
     m_coeff_VP_solute = DBL_MAX; // m^3
-    m_ionization = 2;
-    m_mol_weight = 1.11511e-01; //kg mol^-1
+    m_ionization = 3; // 2xNH4 + 1xSO4
+    m_mol_weight = 1.3214e-01; //kg mol^-1
     m_lat_vap = DBL_MAX;
     m_Rv = DBL_MAX;
     m_is_soluble = true;
@@ -153,7 +153,7 @@ void MaterialProperties::setProperties_AmSu()
 
 void MaterialProperties::setProperties_soil()
 {
-    m_density = 1400.0;
+    m_density = 1140.0; // NNSS Area 5 sample (Spriggs and Ray-Maitra, 2007)
 
     m_coeff_curv = DBL_MAX; // m K
     m_coeff_VP_solute = DBL_MAX; // m^3

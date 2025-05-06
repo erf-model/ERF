@@ -70,6 +70,9 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
                 } else if (bc_ptr[0].lo(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
+                } else if (bc_ptr[0].lo(0) == ERFBCType::hoextrap) {
+                    Real delta_i = (dom_lo.x - i);
+                    dest_arr(i,j,k) = (1.0 + delta_i)*dest_arr(dom_lo.x,j,k) - delta_i*dest_arr(dom_lo.x+1,j,k);
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -86,6 +89,9 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
                 } else if (bc_ptr[0].hi(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
+                } else if (bc_ptr[0].hi(0) == ERFBCType::hoextrap) {
+                    Real delta_i = (i - dom_hi.x);
+                    dest_arr(i,j,k) = (1.0 + delta_i)*dest_arr(dom_hi.x,j,k) - delta_i*dest_arr(dom_hi.x-1,j,k);
                 }
             }
         );
@@ -117,6 +123,9 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
                 } else if (bc_ptr[0].lo(1) == ERFBCType::neumann_int) {
                     dest_arr(i,j,k) = (4.0*dest_arr(i,dom_lo.y+1,k) - dest_arr(i,dom_lo.y+2,k))/3.0;
+                } else if (bc_ptr[0].lo(1) == ERFBCType::hoextrap) {
+                    Real delta_j = (dom_lo.y - j);
+                    dest_arr(i,j,k) = (1.0 + delta_j)*dest_arr(i,dom_lo.y,k) - delta_j*dest_arr(i,dom_lo.y+1,k);
                 }
             },
             // We only set the values on the domain faces themselves if EXT_DIR or neumann_int
@@ -149,6 +158,9 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
                 } else if (bc_ptr[0].hi(1) == ERFBCType::neumann_int) {
                    dest_arr(i,j,k) = (4.0*dest_arr(i,dom_hi.y,k) - dest_arr(i,dom_hi.y-1,k))/3.0;
+                } else if (bc_ptr[0].hi(1) == ERFBCType::hoextrap) {
+                    Real delta_j = (j - dom_hi.y - 1);
+                    dest_arr(i,j,k) = (1.0 + delta_j)*dest_arr(i,dom_hi.y+1,k) - delta_j*dest_arr(i,dom_hi.y,k);
                 }
             },
             // We only set the values on the domain faces themselves if EXT_DIR or neumann_int
@@ -237,6 +249,9 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) =  dest_arr(i,j,kflip);
                 } else if (bc_ptr[0].lo(2) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,j,kflip);
+                } else if (bc_ptr[0].lo(2) == ERFBCType::hoextrap) {
+                    Real delta_k = (dom_lo.z - k);
+                    dest_arr(i,j,k) = (1.0 + delta_k)*dest_arr(i,j,dom_lo.z) - delta_k*dest_arr(i,j,dom_lo.z+1);
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -251,6 +266,9 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) =  dest_arr(i,j,kflip);
                 } else if (bc_ptr[0].hi(2) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,j,kflip);
+                } else if (bc_ptr[0].hi(2) == ERFBCType::hoextrap){
+                    Real delta_k = (k - dom_hi.z);
+                    dest_arr(i,j,k) = (1.0 + delta_k)*dest_arr(i,j,dom_hi.z) - delta_k*dest_arr(i,j,dom_hi.z-1);
                 }
             }
         );

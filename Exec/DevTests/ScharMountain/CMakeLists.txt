@@ -1,4 +1,4 @@
-set(erf_exe_name erf_metgrid)
+set(erf_exe_name erf_schar_mountain)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

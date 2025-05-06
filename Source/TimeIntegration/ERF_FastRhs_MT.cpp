@@ -361,8 +361,9 @@ void erf_fast_rhs_MT (int step, int nrk,
         Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
         ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) =
-               (OmegaFromW(i,j,k,prev_zmom(i,j,k),prev_xmom,prev_ymom,z_nd_old,dxInv)
-               -OmegaFromW(i,j,k, stg_zmom(i,j,k), stg_xmom, stg_ymom,z_nd_old,dxInv)) - zp_t_arr(i,j,k);
+                ( OmegaFromW(i,j,k,prev_zmom(i,j,k),prev_xmom,prev_ymom,mf_u,mf_v,z_nd_old,dxInv)
+                 -OmegaFromW(i,j,k, stg_zmom(i,j,k), stg_xmom, stg_ymom,mf_u,mf_v,z_nd_old,dxInv) )
+                - zp_t_arr(i,j,k);
         });
         } // end profile
         // *********************************************************************
@@ -447,8 +448,8 @@ void erf_fast_rhs_MT (int step, int nrk,
                             + dtau *(slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp );
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
-            Real UppVpp = dJ_new_kface * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,z_nd_new,dxInv)
-                         -dJ_stg_kface * OmegaFromW(i,j,k,0.,stg_xmom,stg_ymom,z_nd_stg,dxInv);
+            Real UppVpp = dJ_new_kface * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,mf_u,mf_v,z_nd_new,dxInv)
+                         -dJ_stg_kface * OmegaFromW(i,j,k,0.,stg_xmom,stg_ymom,mf_u,mf_v,z_nd_stg,dxInv);
             RHS_a(i,j,k) += UppVpp;
         });
         } // end profile
@@ -539,15 +540,15 @@ void erf_fast_rhs_MT (int step, int nrk,
 
              if (k == lo.z) {
                  cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),
-                                              cur_xmom,cur_ymom,z_nd_new,dxInv);
+                                              cur_xmom,cur_ymom,mf_u,mf_v,z_nd_new,dxInv);
 
                  // We need to set this here because it is used to define zflux_lo below
                  soln_a(i,j,k) = 0.;
 
              } else {
 
-                 Real UppVpp = WFromOmega(i,j,k,0.0,cur_xmom,cur_ymom,z_nd_new,dxInv)
-                              -WFromOmega(i,j,k,0.0,stg_xmom,stg_ymom,z_nd_stg,dxInv);
+                 Real UppVpp = WFromOmega(i,j,k,0.0,cur_xmom,cur_ymom,mf_u,mf_v,z_nd_new,dxInv)
+                             - WFromOmega(i,j,k,0.0,stg_xmom,stg_ymom,mf_u,mf_v,z_nd_stg,dxInv);
                  Real wpp = soln_a(i,j,k) + UppVpp;
                  Real dJ_old_kface = 0.5 * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
                  Real dJ_new_kface = 0.5 * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
@@ -555,8 +556,8 @@ void erf_fast_rhs_MT (int step, int nrk,
                  cur_zmom(i,j,k) = dJ_old_kface * (stg_zmom(i,j,k) + wpp);
                  cur_zmom(i,j,k) /= dJ_new_kface;
 
-                 soln_a(i,j,k) = OmegaFromW(i,j,k,cur_zmom(i,j,k),cur_xmom,cur_ymom,z_nd_new,dxInv)
-                               - OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,z_nd_stg,dxInv);
+                 soln_a(i,j,k) = OmegaFromW(i,j,k,cur_zmom(i,j,k),cur_xmom,cur_ymom,mf_u,mf_v,z_nd_new,dxInv)
+                               - OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,mf_u,mf_v,z_nd_stg,dxInv);
                  soln_a(i,j,k) -= rho_on_face * zp_t_arr(i,j,k);
              }
         });

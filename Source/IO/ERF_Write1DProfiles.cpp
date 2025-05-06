@@ -2,6 +2,8 @@
 
 #include "ERF.H"
 #include "ERF_EOS.H"
+#include <filesystem>
+namespace fs = std::filesystem;
 
 using namespace amrex;
 
@@ -204,13 +206,8 @@ ERF::derive_diag_profiles(Real /*time*/,
     // We assume that this is always called at level 0
     int lev = 0;
 
-    bool l_use_kturb = ((solverChoice.turbChoice[lev].les_type  != LESType::None) ||
-                        (solverChoice.turbChoice[lev].rans_type != RANSType::None) ||
-                        (solverChoice.turbChoice[lev].pbl_type  != PBLType::None));
-    bool l_use_KE   = ( (solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
-                        (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) ||
-                        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNN25) ||
-                        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNNEDMF) );
+    bool l_use_kturb = solverChoice.turbChoice[lev].use_kturb;
+    bool l_use_KE    = solverChoice.turbChoice[lev].use_tke;
     // This will hold rho, theta, ksgs, Kmh, Kmv, uu, uv, uw, vv, vw, ww, uth, vth, wth,
     //                  0      1     2    3    4   5   6   7   8   9  10   11   12   13
     //                thth, uiuiu, uiuiv, uiuiw, p, pu, pv, pw, qv, qc, qr, wqv, wqc, wqr,
@@ -498,12 +495,12 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
         const Array4<const Real>& rho_arr = mf_rho.const_array(mfi);
 
         // NOTE: These are from the last RK stage...
-        const Array4<const Real>& tau11_arr = Tau11_lev[lev]->const_array(mfi);
-        const Array4<const Real>& tau12_arr = Tau12_lev[lev]->const_array(mfi);
-        const Array4<const Real>& tau13_arr = Tau13_lev[lev]->const_array(mfi);
-        const Array4<const Real>& tau22_arr = Tau22_lev[lev]->const_array(mfi);
-        const Array4<const Real>& tau23_arr = Tau23_lev[lev]->const_array(mfi);
-        const Array4<const Real>& tau33_arr = Tau33_lev[lev]->const_array(mfi);
+        const Array4<const Real>& tau11_arr = Tau[lev][TauType::tau11]->const_array(mfi);
+        const Array4<const Real>& tau12_arr = Tau[lev][TauType::tau12]->const_array(mfi);
+        const Array4<const Real>& tau13_arr = Tau[lev][TauType::tau13]->const_array(mfi);
+        const Array4<const Real>& tau22_arr = Tau[lev][TauType::tau22]->const_array(mfi);
+        const Array4<const Real>& tau23_arr = Tau[lev][TauType::tau23]->const_array(mfi);
+        const Array4<const Real>& tau33_arr = Tau[lev][TauType::tau33]->const_array(mfi);
 
         // These should be re-calculated during ERF_slow_rhs_post
         // -- just vertical SFS kinematic heat flux for now
@@ -572,3 +569,70 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
         h_avg_diss[k] /= area_z;
     }
 }
+
+std::string
+ERF::MakeVTKFilename(int nstep) {
+    // Ensure output directory exists
+    const std::string dir = "Output_HurricaneTracker";
+    if (!fs::exists(dir)) {
+        fs::create_directory(dir);
+    }
+
+    // Construct filename with zero-padded step
+    std::ostringstream oss;
+    if(nstep==0){
+        oss << dir << "/hurricane_track_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
+    } else {
+        oss << dir << "/hurricane_track_" << std::setw(7) << std::setfill('0') << nstep+1 << ".vtk";
+    }
+
+    return oss.str();
+}
+
+void
+ERF::WriteVTKPolyline(const std::string& filename,
+                      Vector<std::array<Real, 2>>& points_xy)
+{
+    std::ofstream vtkfile(filename);
+    if (!vtkfile.is_open()) {
+        std::cerr << "Error: Cannot open file " << filename << std::endl;
+        return;
+    }
+
+    int num_points = points_xy.size();
+    if (num_points == 0) {
+        vtkfile << "# vtk DataFile Version 3.0\n";
+        vtkfile << "Hurricane Track\n";
+        vtkfile << "ASCII\n";
+        vtkfile << "DATASET POLYDATA\n";
+        vtkfile << "POINTS " << num_points << " float\n";
+        vtkfile.close();
+        return;
+    }
+    if (num_points < 2) {
+        points_xy.push_back(points_xy[0]);
+    }
+    num_points = points_xy.size();
+
+    vtkfile << "# vtk DataFile Version 3.0\n";
+    vtkfile << "Hurricane Track\n";
+    vtkfile << "ASCII\n";
+    vtkfile << "DATASET POLYDATA\n";
+
+    // Write points (Z=0 assumed)
+    vtkfile << "POINTS " << num_points << " float\n";
+    for (const auto& pt : points_xy) {
+        vtkfile << pt[0] << " " << pt[1] << " 10000.0\n";
+    }
+
+    // Write polyline connectivity
+    vtkfile << "LINES 1 " << num_points + 1 << "\n";
+    vtkfile << num_points << " ";
+    for (int i = 0; i < num_points; ++i) {
+        vtkfile << i << " ";
+    }
+    vtkfile << "\n";
+
+    vtkfile.close();
+}
+

@@ -61,7 +61,8 @@
         }
 
         // Construct the source terms for the cell-centered (conserved) variables
-        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
+        make_sources(level, nrk, slow_dt, old_stage_time,
+                     S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level].get(),
 #endif
@@ -170,11 +171,9 @@
                              xvel_new, yvel_new, zvel_new,
                              z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src,
                              (level > 0) ? &zmom_crse_rhs[level] : nullptr,
-                             Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
-                             Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
-                             Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
-                             fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level],
+                             Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
+                             fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
+                             z_phys_nd_src[level], z_phys_cc[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level],
                              stretched_dz_d[level], p0_new, pp_inc[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              get_eb(level),
@@ -279,11 +278,9 @@
                              xvel_new, yvel_new, zvel_new,
                              z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src,
                              (level > 0) ? &zmom_crse_rhs[level] : nullptr,
-                             Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
-                             Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
-                             Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3,Q2fx3, Diss,
-                             fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
+                             Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3,Q2fx3, Diss,
+                             fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
+                             z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level], detJ_cc[level],
                              stretched_dz_d[level], p0, pp_inc[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              get_eb(level),
@@ -379,7 +376,7 @@
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
                               Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
-                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
+                              fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc_new[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
                               EBFactory(level),
@@ -394,7 +391,7 @@
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
                               Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
-                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
+                              fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
                               EBFactory(level),
@@ -465,7 +462,8 @@
             terrain_blank = terrain_blanking[level].get();
         }
 
-        make_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim, cc_src, z_phys_cc[level],
+        make_sources(level, nrk, slow_dt, old_stage_time,
+                     S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level].get(),
 #endif
@@ -492,11 +490,9 @@
                          xvel_new, yvel_new, zvel_new,
                          z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
-                         Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
-                         Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
-                         Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
-                         fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                         z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
+                         Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
+                         fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
+                         z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level], detJ_cc[level],
                          stretched_dz_d[level], p0, pp_inc[level],
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          get_eb(level),
