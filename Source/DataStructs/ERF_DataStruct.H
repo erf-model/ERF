@@ -22,6 +22,10 @@ enum MapFacType {
     my = 0, uy = 1, vy = 2
 };
 
+enum TauType {
+    tau11, tau22, tau33, tau12, tau13, tau23, tau21, tau31, tau32
+};
+
 AMREX_ENUM(InitType,
     None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform
 );
