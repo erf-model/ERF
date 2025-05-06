@@ -113,8 +113,6 @@ endfunction(add_test_0)
 # Regression tests
 #=============================================================================
 
-add_test_r(CouetteFlow_x                     "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00050")
-add_test_r(CouetteFlow_y                     "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00050")
 add_test_r(DensityCurrent                    "DryRegTests/DensityCurrent" "erf_density_current" "plt00010")
 add_test_r(DensityCurrent_anelastic          "DryRegTests/DensityCurrent" "erf_density_current" "plt00010")
 add_test_r(DensityCurrent_detJ2              "DryRegTests/DensityCurrent" "erf_density_current" "plt00010")
@@ -127,8 +125,6 @@ add_test_r(IsentropicVortexAdvecting         "DryRegTests/IsentropicVortex" "erf
 add_test_r(IVA_NumDiff                       "DryRegTests/IsentropicVortex" "erf_isentropic_vortex" "plt00010")
 add_test_r(MovingTerrain_nosub               "DevTests/MovingTerrain" "erf_moving_terrain"   "plt00020")
 add_test_r(MovingTerrain_sub                 "DevTests/MovingTerrain" "erf_moving_terrain"   "plt00010")
-add_test_r(PoiseuilleFlow_x                  "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00010")
-add_test_r(PoiseuilleFlow_y                  "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00010")
 add_test_r(RayleighDamping                   "DryRegTests/ScalarAdvDiff" "erf_scalar_advdiff" "plt00100")
 add_test_r(ScalarAdvectionUniformU           "DryRegTests/ScalarAdvDiff" "erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarAdvectionShearedU           "DryRegTests/ScalarAdvDiff" "erf_scalar_advdiff" "plt00080")
@@ -159,6 +155,10 @@ if(ERF_ENABLE_PARTICLES)
   add_test_r(ParticlesWoA                    "DryRegTests/ParticlesOverWoA" "erf_particles_over_woa" "plt00010")
 endif()
 
+add_test_0(CouetteFlow_x                     "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00050")
+add_test_0(CouetteFlow_y                     "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00050")
+add_test_0(PoiseuilleFlow_x                  "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00010")
+add_test_0(PoiseuilleFlow_y                  "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00010")
 add_test_0(InitSoundingIdeal_stationary      "ABL" "erf_abl" "plt00010")
 add_test_0(Deardorff_stationary              "ABL" "erf_abl" "plt00010")
 
