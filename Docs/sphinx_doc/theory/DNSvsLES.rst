@@ -14,7 +14,7 @@ DNS
 ---
 
 When running in Direct Numerical Simulation (DNS) mode, it is assumed that the mesh is fine enough to resolve the Kolmogorov scales of turbulence.
-Therefore, in DNS mode the :ref:`previously described equations <DryEquations>` are solved directly with no additional models being required.
+Therefore, in DNS mode the :ref:`previously described equations <GoverningEquations>` are solved directly with no additional models being required.
 The transport coefficients correspond to the molecular transport coefficients,
 with one of these assumptions:
 
@@ -76,7 +76,7 @@ respectively (Martin et al., Theoret. Comput. Fluid Dynamics (2000)).
 When substituted back into the filtered equations, the gradient transport LES models take exactly the same form as the
 molecular transport terms, but with the
 constant molecular transport coefficients replaced by turbulent equivalents (e.g. :math:`\mu` becomes the turbulent viscosity,
-:math:`\mu_{t}`). Therefore, when the code is run in LES mode, the :ref:`equation set<DryEquations>` remains the same,
+:math:`\mu_{t}`). Therefore, when the code is run in LES mode, the :ref:`equation set<GoverningEquations>` remains the same,
 but all variables are interpereted as the appropriate filtered version and the turbulent transport coefficients are used.
 Molecular transport is omitted by default in the present LES implementation because the molecular
 transport coefficients are insignificant compared to turbulent transport for most LES grids. However, for fine LES grids,

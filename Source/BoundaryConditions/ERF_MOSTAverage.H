@@ -1,14 +1,15 @@
 #ifndef ERF_MOSTAverage_H
 #define ERF_MOSTAverage_H
 
-#include <AMReX_Gpu.H>
-#include <AMReX_FArrayBox.H>
-#include <AMReX_MultiFab.H>
-#include <AMReX_iMultiFab.H>
-#include <AMReX_ParmParse.H>
-#include <ERF_IndexDefines.H>
-#include <ERF_TerrainMetrics.H>
-#include <ERF_DataStruct.H>
+#include "AMReX_Gpu.H"
+#include "AMReX_FArrayBox.H"
+#include "AMReX_MultiFab.H"
+#include "AMReX_iMultiFab.H"
+#include "AMReX_ParmParse.H"
+
+#include "ERF_IndexDefines.H"
+#include "ERF_TerrainMetrics.H"
+#include "ERF_DataStruct.H"
 
 class MOSTAverage {
 public:
@@ -127,11 +128,16 @@ public:
     {
         // Search to get z/k
         bool found = false;
-        amrex::Real zval= 0.0;
-        int kmax  = ubound(z_arr).z;
-        int i_new = (int) (xp * dxi[0] - 0.5);
-        int j_new = (int) (yp * dxi[1] - 0.5);
+        int kmax   = ubound(z_arr).z;
+        amrex::Real zval     = 0.0;
         amrex::Real z_target = zp;
+
+        // Map position to i,j (must be same mapping in cpp file)
+        amrex::Real ireal = (xp - plo[0]) * dxi[0];
+        amrex::Real jreal = (yp - plo[1]) * dxi[1];
+        int i_new = (int) (ireal - 0.5);
+        int j_new = (int) (jreal - 0.5);
+
         for (int lk(0); lk<kmax; ++lk) {
             amrex::Real z_lo = 0.25 * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
                                       + z_arr(i_new,j_new+1,lk  ) + z_arr(i_new+1,j_new+1,lk  ) );
@@ -139,17 +145,16 @@ public:
                                       + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
             if (z_target > z_lo && z_target < z_hi){
                 found = true;
-                zval = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + 0.5;
+                zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + 0.5;
                 break;
             }
         }
 
         amrex::ignore_unused(found);
-        AMREX_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
-        const amrex::RealVect lx((xp - plo[0])*dxi[0] + 0.5,
-                                 (yp - plo[1])*dxi[1] + 0.5,
-                                  zval);
+        // NOTE: This is the point ahead of the current i,j (e.g. i/j_new + 1)
+        const amrex::RealVect lx(ireal + 0.5, jreal + 0.5, zval);
 
         const amrex::IntVect ijk = lx.floor();
 
@@ -159,7 +164,7 @@ public:
         const amrex::RealVect sx_hi = lx  - ijk;
         const amrex::RealVect sx_lo = 1.0 - sx_hi;
 
-        for (int n = 0; n < interp_comp; n++)
+        for (int n = 0; n < interp_comp; n++) {
             interp_vals[n] = sx_lo[0]*sx_lo[1]*sx_lo[2]*interp_array(i-1, j-1, k-1,n) +
                              sx_lo[0]*sx_lo[1]*sx_hi[2]*interp_array(i-1, j-1, k  ,n) +
                              sx_lo[0]*sx_hi[1]*sx_lo[2]*interp_array(i-1, j  , k-1,n) +
@@ -168,6 +173,7 @@ public:
                              sx_hi[0]*sx_lo[1]*sx_hi[2]*interp_array(i  , j-1, k  ,n) +
                              sx_hi[0]*sx_hi[1]*sx_lo[2]*interp_array(i  , j  , k-1,n) +
                              sx_hi[0]*sx_hi[1]*sx_hi[2]*interp_array(i  , j  , k  ,n);
+        }
     }
 
 protected:

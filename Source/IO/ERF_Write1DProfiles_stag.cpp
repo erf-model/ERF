@@ -312,13 +312,8 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
     // We assume that this is always called at level 0
     int lev = 0;
 
-    bool l_use_kturb = ((solverChoice.turbChoice[lev].les_type  != LESType::None) ||
-                        (solverChoice.turbChoice[lev].rans_type != RANSType::None) ||
-                        (solverChoice.turbChoice[lev].pbl_type  != PBLType::None));
-    bool l_use_KE   = ( (solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
-                        (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) ||
-                        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNN25) ||
-                        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNNEDMF) );
+    bool l_use_kturb = solverChoice.turbChoice[lev].use_kturb;
+    bool l_use_KE    = solverChoice.turbChoice[lev].use_tke;
     // Note: "uiui" == u_i*u_i = u*u + v*v + w*w
     // This will hold rho, theta, ksgs, Kmh, Kmv, uu, uv, vv, uth, vth,
     //       indices:   0      1     2    3    4   5   6   7    8    9

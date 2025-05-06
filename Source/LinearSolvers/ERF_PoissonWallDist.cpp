@@ -1,8 +1,8 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
 
-#include <AMReX_MLMG.H>
-#include <AMReX_MLNodeLaplacian.H>
+#include "AMReX_MLMG.H"
+#include "AMReX_MLNodeLaplacian.H"
 
 using namespace amrex;
 
@@ -23,7 +23,7 @@ void ERF::poisson_wall_dist (int lev)
 
     bool havewall{false};
     Orientation zlo(Direction::z, Orientation::low);
-    if ( ( phys_bc_type[zlo] == ERF_BC::MOST                               ) ||
+    if ( ( phys_bc_type[zlo] == ERF_BC::surface_layer                      ) ||
          ( phys_bc_type[zlo] == ERF_BC::no_slip_wall                       ) )/*||
          ((phys_bc_type[zlo] == ERF_BC::slip_wall) && (dom_hi.z > dom_lo.z)) )*/
     {

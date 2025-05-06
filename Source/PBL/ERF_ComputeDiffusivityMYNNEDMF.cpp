@@ -5,7 +5,7 @@
 #include <functional>
 #include <limits>
 
-#include "ERF_ABLMost.H"
+#include "ERF_SurfaceLayer.H"
 #include "ERF_DirectionSelector.H"
 #include "ERF_Diffusion.H"
 #include "ERF_Constants.H"
@@ -4180,7 +4180,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                             MultiFab& eddyViscosity,
                             const Geometry& geom,
                             const TurbChoice& turbChoice,
-                            std::unique_ptr<ABLMost>& most,
+                            std::unique_ptr<SurfaceLayer>& SurfLayer,
                             bool use_terrain_fitted_coords,
                             bool use_moisture,
                             int level,
@@ -4204,7 +4204,6 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 #endif
       printf("ran tridiag2_cc with n=%d and got %g %g %g %g %g",n,a,b,c,d,x);
     }
-    const bool use_most    = (most != nullptr);
 
     auto mynn     = turbChoice.pbl_mynn;
     auto level2   = turbChoice.pbl_mynn_level2;
@@ -4289,11 +4288,11 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
         Real d_kappa   = KAPPA;
         Real d_gravity = CONST_GRAV;
 
-        const auto& t_mean_mf = most->get_mac_avg(level,4); // theta_v
-        const auto& q_mean_mf = most->get_mac_avg(level,3); // q_v
-        const auto& u_star_mf = most->get_u_star(level);
-        const auto& t_star_mf = most->get_t_star(level);
-        const auto& q_star_mf = most->get_q_star(level);
+        const auto& t_mean_mf = SurfLayer->get_mac_avg(level,4); // theta_v
+        const auto& q_mean_mf = SurfLayer->get_mac_avg(level,3); // q_v
+        const auto& u_star_mf = SurfLayer->get_u_star(level);
+        const auto& t_star_mf = SurfLayer->get_t_star(level);
+        const auto& q_star_mf = SurfLayer->get_q_star(level);
 
         const auto& tm_arr     = t_mean_mf->const_array(mfi);
         const auto& qm_arr     = q_mean_mf->const_array(mfi);
@@ -4305,11 +4304,6 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // NOTE: With MOST, the ghost cells are filled AFTER k_turb is computed
-            //       so that the non-explicit pathway works. Therefore, at this
-            //       point we do NOT have valid ghost cells from MOST. We need to
-            //       pass the MOST flag to use one-sided diffs here.
-
             // Compute some partial derivatives that we will need (second order)
             // U and V derivatives are interpolated to account for staggered grid
             const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : 1.0;
@@ -4320,7 +4314,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                                           u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                           v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                           dthetadz, dudz, dvdz,
-                                          RhoQv_comp, RhoQc_comp, RhoQr_comp, use_most);
+                                          RhoQv_comp, RhoQc_comp, RhoQr_comp);
 
             // Spatially varying MOST
             Real theta0 = tm_arr(i,j,0);

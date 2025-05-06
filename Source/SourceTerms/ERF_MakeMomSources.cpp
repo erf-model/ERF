@@ -79,6 +79,8 @@ void make_mom_sources (int level,
     ymom_src.setVal(0.0);
     zmom_src.setVal(0.0);
 
+    MultiFab r_hse (base_state, make_alias, BaseState::r0_comp , 1);
+
     // *****************************************************************************
     // Define source term for all three components of momenta from
     //    1. buoyancy           for (zmom)
@@ -109,6 +111,7 @@ void make_mom_sources (int level,
     auto cosphi               = solverChoice.cosphi;
     auto sinphi               = solverChoice.sinphi;
     auto var_coriolis         = solverChoice.variable_coriolis;
+    auto has_lat_lon          = solverChoice.has_lat_lon;
 
     // *****************************************************************************
     // Flag for Geostrophic forcing
@@ -232,6 +235,8 @@ void make_mom_sources (int level,
         const Array4<      Real>& ymom_src_arr = ymom_src.array(mfi);
         const Array4<      Real>& zmom_src_arr = zmom_src.array(mfi);
 
+        const Array4<const Real>& r0 = r_hse.const_array(mfi);
+
         // Map factors
         //const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
         //const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
@@ -254,7 +259,7 @@ void make_mom_sources (int level,
         // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis) {
-            if (var_coriolis) {
+            if (var_coriolis && has_lat_lon) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
@@ -524,7 +529,7 @@ void make_mom_sources (int level,
         {
             ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                      xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
-                                     z_nd_arr, z_cc_arr);
+                                     r0, z_nd_arr, z_cc_arr);
         }
 
         // *****************************************************************************

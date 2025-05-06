@@ -41,7 +41,7 @@
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
 #include <ERF_InputSpongeData.H>
-#include <ERF_ABLMost.H>
+#include <ERF_SurfaceLayer.H>
 #include <ERF_Derive.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
@@ -148,12 +148,20 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
-    void HurricaneTracker (int lev,
+    // Refinement criteria for hurricanes
+    void HurricaneTracker(int lev,
                           const amrex::MultiFab& U_new,
                           const amrex::MultiFab& V_new,
                           const amrex::MultiFab& W_new,
                           const amrex::Real velmag_threshold,
-                          amrex::TagBoxArray& tags);
+                          const bool is_track_io,
+                          amrex::TagBoxArray* tags = nullptr);
+
+    // Hurricane track line output as VTKPolyline
+    amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
+    std::string MakeVTKFilename(int nstep);
+    void WriteVTKPolyline(const std::string& filename,
+                          amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
     // Initialize multilevel data
     void InitData ();
@@ -467,8 +475,9 @@ public:
 #endif
 
 #ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev);
-    void init_from_metgrid (int lev);
+    void init_from_wrfinput (int lev, amrex::MultiFab& mu_C1H, amrex::MultiFab& mu_C2H, amrex::MultiFab& mu_MUB);
+    void init_from_metgrid  (int lev);
+    void init_from_ncfile   (int lev);
 #endif // ERF_USE_NETCDF
 
 #ifdef ERF_USE_WINDFARM
@@ -496,8 +505,8 @@ public:
     // read checkpoint file from disk
     void ReadCheckpointFile ();
 
-    // read checkpoint file from disk -- called after instantiating m_most
-    void ReadCheckpointFileMOST ();
+    // read checkpoint file from disk -- called after instantiating m_SurfaceLayer
+    void ReadCheckpointFileSurfaceLayer ();
 
     void init_zphys            (int lev, amrex::Real time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
@@ -581,8 +590,7 @@ private:
     void FillIntermediatePatch (int lev, amrex::Real time,
                                 const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                                 const amrex::Vector<amrex::MultiFab*>& mfs_mom,
-                                int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons,
-                                bool allow_most_bcs = true);
+                                int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons);
 
     // Fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
@@ -632,22 +640,10 @@ private:
                           const amrex::Vector<std::string> &plot_var_names,
                           const amrex::Vector<int>& level_steps, amrex::Real time) const;
 
-    //! Write checkpointFile using NetCdf
-    void WriteNCCheckpointFile () const;
-
-    //! Read checkpointFile for restart
-    void ReadNCCheckpointFile ();
-
     //! Write MultiFab in NetCDF format
     static void WriteNCMultiFab (const amrex::FabArray<amrex::FArrayBox> &fab,
                                  const std::string& name,
                                  bool set_ghost = false) ;
-
-    //! Read MultiFab in NetCDF format
-    void ReadNCMultiFab (amrex::FabArray<amrex::FArrayBox> &mf,
-                         const std::string &name,
-                         int coordinatorProc = amrex::ParallelDescriptor::IOProcessorNumber(),
-                         int allow_empty_mf = 0);
 
     //! Create 1D vertical column output for coupling
     void createNCColumnFile (int lev,
@@ -660,6 +656,10 @@ private:
                            amrex::Vector<amrex::FArrayBox*> T_lateral);
 
     amrex::Real start_bdy_time;
+    amrex::Real start_low_time;
+
+    amrex::Real bdy_time_interval;
+    amrex::Real low_time_interval;
 
     // *** *** FArrayBox's for holding the SURFACE data
     // amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
@@ -676,7 +676,8 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_ylo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
-    amrex::Real bdy_time_interval;
+    amrex::Vector<amrex::FArrayBox> low_data_zlo;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
 #endif // ERF_USE_NETCDF
 
@@ -815,8 +816,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
-    // Sea Surface Temps and Land Masks (lev, ntimes)
+    // Sea Surface Temps, Skin Temperature and Land Masks (lev, ntimes)
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  sst_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  tsk_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> lmask_lev;
 
     // Other SFS terms
@@ -976,8 +978,6 @@ private:
 
     // Checkpoint type, prefix and frequency
     std::string check_file {"chk"};
-    std::string check_type {"native"};
-    std::string restart_type {"native"};
     int m_check_int = -1;
     amrex::Real m_check_per = -1.0;
 
@@ -1091,6 +1091,9 @@ private:
     int real_width{0};
     int real_set_width{0};
 
+    // NetCDF initialization of zlo boundary values
+    static std::string nc_low_file;
+
     // Flag to trigger initialization from input_sounding like WRF's ideal.exe
     // used with init_type == InitType::Input_Sounding
     static bool init_sounding_ideal;
@@ -1109,6 +1112,12 @@ private:
     amrex::Real metgrid_proximity{500.0};
     int         metgrid_order{2};
     int         metgrid_force_sfc_k{6};
+
+    amrex::Vector<amrex::BoxArray> ba1d;
+    amrex::Vector<amrex::BoxArray> ba2d;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C1H;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C2H;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_MUB;
 
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
@@ -1180,7 +1189,7 @@ private:
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
-    std::unique_ptr<ABLMost>          m_most = nullptr;
+    std::unique_ptr<SurfaceLayer>     m_SurfaceLayer = nullptr;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
     //

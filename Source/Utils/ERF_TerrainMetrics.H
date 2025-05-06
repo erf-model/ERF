@@ -310,7 +310,7 @@ Compute_h_eta_AtEdgeCenterJ (const int &i, const int &j, const int &k,
 
 // -- EdgeCenterI --
 
-// Metric is at edge and center Y (magenta cross)
+// Metric is at edge and center X (purple hexagon)
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -324,7 +324,7 @@ Compute_h_zeta_AtEdgeCenterI (const int &i, const int &j, const int &k,
     return met_h_zeta;
 }
 
-// Metric is at edge and center Y (magenta cross)
+// Metric is at edge and center X (purple hexagon)
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -337,7 +337,7 @@ Compute_h_xi_AtEdgeCenterI (const int &i, const int &j, const int &k,
     return met_h_xi;
 }
 
-// Metric is at edge and center Y (magenta cross)
+// Metric is at edge and center X (purple hexagon)
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -350,6 +350,21 @@ Compute_h_eta_AtEdgeCenterI (const int &i, const int &j, const int &k,
       ( z_nd(i+1,j+1,k) + z_nd(i,j+1,k)
        -z_nd(i+1,j-1,k) - z_nd(i,j-1,k) );
     return met_h_eta;
+}
+
+// Relative height above terrain surface at cell center from z_nd (nodal absolute height)
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_Z_AtCellCenter (const int &i, const int &j, const int &k,
+                        const amrex::Array4<const amrex::Real>& z_nd)
+{
+    const amrex::Real z_cc = 0.125*(  z_nd(i  ,j  ,k  ) + z_nd(i  ,j  ,k+1) +
+                                    + z_nd(i+1,j  ,k  ) + z_nd(i  ,j  ,k+1)
+                                    + z_nd(i  ,j+1,k  ) + z_nd(i  ,j+1,k+1)
+                                    + z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k+1));
+
+    return z_cc;
 }
 
 // Relative height above terrain surface at cell center from z_nd (nodal absolute height)
@@ -378,56 +393,42 @@ Compute_Zrel_AtCellCenter (const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-OmegaFromW (int i, int j, int k, amrex::Real w,
-            const amrex::Array4<const amrex::Real> u_arr,
-            const amrex::Array4<const amrex::Real> v_arr,
-            const amrex::Array4<const amrex::Real> z_nd,
-            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
-{
-  // This is dh/dxi at z-face (i,j,k-1/2)
-  amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
-    ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
-     -z_nd(i  ,j+1,k  ) - z_nd(i  ,j  ,k  ) ); // lo i, lo k
-
-  // This is dh/deta at z-face (i,j,k-1/2)
-  amrex::Real met_zlo_eta  = 0.5 * dxInv[1] *
-    ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
-     -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
-
-  // Slip BC or moving terrain
-  // Use extrapolation instead of interpolation if at the bottom boundary
-  amrex::Real u = (k == 0) ? 1.5 * (0.5*(u_arr(i,j,k)+u_arr(i+1,j,k))) - 0.5*(0.5*(u_arr(i,j,k+1)+u_arr(i+1,j,k+1))) :
-    0.25 * ( u_arr(i,j,k-1) + u_arr(i+1,j,k-1) + u_arr(i,j,k) + u_arr(i+1,j,k) );
-  amrex::Real v = (k == 0) ? 1.5 * (0.5*(v_arr(i,j,k)+v_arr(i,j+1,k))) - 0.5*(0.5*(v_arr(i,j,k+1)+v_arr(i,j+1,k+1))) :
-    0.25 * ( v_arr(i,j,k-1) + v_arr(i,j+1,k-1) + v_arr(i,j,k) + v_arr(i,j+1,k) );
-
-  amrex::Real omega =  w - met_zlo_xi * u - met_zlo_eta * v;
-  return omega;
-}
-
-/**
- * Define w given scalar u,v and omega
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-WFromOmega (int i, int j, int k, amrex::Real omega,
-            amrex::Real u, amrex::Real v,
+OmegaFromW (int& i, int& j, int& k, amrex::Real w,
+            const amrex::Array4<const amrex::Real>& u_arr,
+            const amrex::Array4<const amrex::Real>& v_arr,
+            const amrex::Array4<const amrex::Real>& mf_u,
+            const amrex::Array4<const amrex::Real>& mf_v,
             const amrex::Array4<const amrex::Real>& z_nd,
             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
-  // This is dh/dxi at z-face (i,j,k-1/2)
-  amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
-    ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
-     -z_nd(i  ,j+1,k  ) - z_nd(i  ,j  ,k  ) ); // lo i, lo k
+  // This is dh/dxi at hi and lo edges
+  amrex::Real met_xi_hi = Compute_h_xi_AtEdgeCenterJ (i+1, j, k, dxInv, z_nd);
+  amrex::Real met_xi_lo = Compute_h_xi_AtEdgeCenterJ (i  , j, k, dxInv, z_nd);
 
-  // This is dh/deta at z-face (i,j,k-1/2)
-  amrex::Real met_zlo_eta  = 0.5 * dxInv[1] *
-    ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
-     -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
+  // This is dh/deta at hi and lo edges
+  amrex::Real met_eta_hi = Compute_h_eta_AtEdgeCenterI (i, j+1, k, dxInv, z_nd);
+  amrex::Real met_eta_lo = Compute_h_eta_AtEdgeCenterI (i, j  , k, dxInv, z_nd);
 
-  amrex::Real w = omega + met_zlo_xi * u + met_zlo_eta * v;
-  return w;
+  // Use extrapolation instead of interpolation if at the bottom boundary
+  amrex::Real u_hi = (k == 0) ? 1.5 *   u_arr(i+1,j  ,k  ) - 0.5 * u_arr(i+1,j  ,k+1)  :
+                                0.5 * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
+  amrex::Real u_lo = (k == 0) ? 1.5 *   u_arr(i  ,j  ,k  ) - 0.5 * u_arr(i  ,j  ,k+1)  :
+                                0.5 * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
+  amrex::Real mf_u_hi = mf_u(i+1,j,0);
+  amrex::Real mf_u_lo = mf_u(i  ,j,0);
+
+  amrex::Real v_hi = (k == 0) ? 1.5 *   v_arr(i  ,j+1,k  ) - 0.5 * v_arr(i  ,j+1,k+1)  :
+                                0.5 * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
+  amrex::Real v_lo = (k == 0) ? 1.5 *   v_arr(i  ,j  ,k  ) - 0.5 * v_arr(i  ,j  ,k+1)  :
+                                0.5 * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
+  amrex::Real mf_v_hi = mf_v(i,j+1,0);
+  amrex::Real mf_v_lo = mf_v(i,j  ,0);
+
+  amrex::Real u_met = 0.5 * ( u_hi*met_xi_hi*mf_u_hi  + u_lo*met_xi_lo*mf_u_lo  );
+  amrex::Real v_met = 0.5 * ( v_hi*met_eta_hi*mf_v_hi + v_lo*met_eta_lo*mf_v_lo );
+
+  amrex::Real omega =  w - u_met - v_met;
+  return omega;
 }
 
 /**
@@ -436,19 +437,41 @@ WFromOmega (int i, int j, int k, amrex::Real omega,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-WFromOmega (int i, int j, int k, amrex::Real omega,
+WFromOmega (int& i, int& j, int& k, amrex::Real omega,
             const amrex::Array4<const amrex::Real>& u_arr,
             const amrex::Array4<const amrex::Real>& v_arr,
+            const amrex::Array4<const amrex::Real>& mf_u,
+            const amrex::Array4<const amrex::Real>& mf_v,
             const amrex::Array4<const amrex::Real>& z_nd,
             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
-  // Use extrapolation instead of interpolation if at the bottom boundary
-  amrex::Real u = (k == 0) ? 1.5 * (0.5*(u_arr(i,j,k)+u_arr(i+1,j,k))) - 0.5*(0.5*(u_arr(i,j,k+1)+u_arr(i+1,j,k+1))) :
-    0.25 * ( u_arr(i,j,k-1) + u_arr(i+1,j,k-1) + u_arr(i,j,k) + u_arr(i+1,j,k) );
-  amrex::Real v = (k == 0) ? 1.5 * (0.5*(v_arr(i,j,k)+v_arr(i,j+1,k))) - 0.5*(0.5*(v_arr(i,j,k+1)+v_arr(i,j+1,k+1))) :
-    0.25 * ( v_arr(i,j,k-1) + v_arr(i,j+1,k-1) + v_arr(i,j,k) + v_arr(i,j+1,k) );
+  // This is dh/dxi at hi and lo edges
+  amrex::Real met_xi_hi = Compute_h_xi_AtEdgeCenterJ (i+1, j, k, dxInv, z_nd);
+  amrex::Real met_xi_lo = Compute_h_xi_AtEdgeCenterJ (i  , j, k, dxInv, z_nd);
 
-  amrex::Real w = WFromOmega(i,j,k,omega,u,v,z_nd,dxInv);
+  // This is dh/deta at hi and lo edges
+  amrex::Real met_eta_hi = Compute_h_eta_AtEdgeCenterI (i, j+1, k, dxInv, z_nd);
+  amrex::Real met_eta_lo = Compute_h_eta_AtEdgeCenterI (i, j  , k, dxInv, z_nd);
+
+  // Use extrapolation instead of interpolation if at the bottom boundary
+  amrex::Real u_hi = (k == 0) ? 1.5 *   u_arr(i+1,j  ,k  ) - 0.5 * u_arr(i+1,j  ,k+1)  :
+                                0.5 * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
+  amrex::Real u_lo = (k == 0) ? 1.5 *   u_arr(i  ,j  ,k  ) - 0.5 * u_arr(i  ,j  ,k+1)  :
+                                0.5 * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
+  amrex::Real mf_u_hi = mf_u(i+1,j,0);
+  amrex::Real mf_u_lo = mf_u(i  ,j,0);
+
+  amrex::Real v_hi = (k == 0) ? 1.5 *   v_arr(i  ,j+1,k  ) - 0.5 * v_arr(i  ,j+1,k+1)  :
+                                0.5 * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
+  amrex::Real v_lo = (k == 0) ? 1.5 *   v_arr(i  ,j  ,k  ) - 0.5 * v_arr(i  ,j  ,k+1)  :
+                                0.5 * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
+  amrex::Real mf_v_hi = mf_v(i,j+1,0);
+  amrex::Real mf_v_lo = mf_v(i,j  ,0);
+
+  amrex::Real u_met = 0.5 * ( u_hi*met_xi_hi*mf_u_hi  + u_lo*met_xi_lo*mf_u_lo  );
+  amrex::Real v_met = 0.5 * ( v_hi*met_eta_hi*mf_v_hi + v_lo*met_eta_lo*mf_v_lo );
+
+  amrex::Real w = omega + u_met + v_met;
   return w;
 }
 

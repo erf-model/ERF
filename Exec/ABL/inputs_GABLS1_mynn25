@@ -12,7 +12,7 @@ amr.n_cell           =   2    2   64
 geometry.is_periodic = 1 1 0
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-zlo.type                    = "Most"
+zlo.type = "surface_layer"
 erf.most.z0                 = 0.1  # from Cuxart et al. 2006
 erf.most.surf_temp          = 265.0 # initial value, should match input_sounding
 erf.most.surf_heating_rate  = -0.25 # [K/h] from Cuxart et al. 2006

@@ -52,13 +52,15 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
+                   ${SRC_DIR}/Initialization/ERF_InitFromMetgrid.cpp
+                   ${SRC_DIR}/Initialization/ERF_InitFromNCFile.cpp
                    ${SRC_DIR}/IO/ERF_NCInterface.cpp
                    ${SRC_DIR}/IO/ERF_NCPlotFile.cpp
-                   ${SRC_DIR}/IO/ERF_NCCheckpoint.cpp
-                   ${SRC_DIR}/IO/ERF_NCMultiFabFile.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromMetgrid.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromWRFBdy.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromWRFInput.cpp
+                   ${SRC_DIR}/IO/ERF_ReadFromWRFLow.cpp
                    ${SRC_DIR}/IO/ERF_NCColumnFile.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
@@ -131,7 +133,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_TF.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForState.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForOpenBC.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_ABLMost.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_SurfaceLayer.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_MOSTAverage.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsCons.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsXvel.cpp
@@ -167,8 +169,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromInputSounding.cpp
-       ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
-       ${SRC_DIR}/Initialization/ERF_InitFromMetgrid.cpp
        ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp
        ${SRC_DIR}/Initialization/ERF_InitRayleigh.cpp
        ${SRC_DIR}/Initialization/ERF_InitSponge.cpp
@@ -260,9 +260,9 @@ function(build_erf_lib erf_lib_name)
 
   include(AMReXBuildInfo)
   generate_buildinfo(${erf_lib_name} ${CMAKE_SOURCE_DIR})
-if (${ERF_USE_INTERNAL_AMREX})
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${AMREX_SUBMOD_LOCATION}/Tools/C_scripts>)
-endif()
+  if (${ERF_USE_INTERNAL_AMREX})
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${AMREX_SUBMOD_LOCATION}/Tools/C_scripts>)
+  endif()
 
   if(ERF_ENABLE_NETCDF)
     if(NETCDF_FOUND)
@@ -275,6 +275,10 @@ endif()
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
   endif()
+
+  # Workaround for gcc-8 where std::filesystem is in libstdc++fs. Starting with
+  # gcc-9 std::filesystem is part of libstdc++.
+  target_link_libraries(${erf_lib_name} PUBLIC $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>)
 
   #ERF include directories
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source>)
