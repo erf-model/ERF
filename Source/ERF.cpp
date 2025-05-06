@@ -257,7 +257,7 @@ ERF::ERF_shared ()
     advflux_reg.resize(nlevs_max);
 
     // Stresses
-    Tau.resize(nlevs_max); 
+    Tau.resize(nlevs_max);
     SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
     SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
