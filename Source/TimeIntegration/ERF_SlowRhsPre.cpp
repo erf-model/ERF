@@ -1,5 +1,6 @@
 
 #include "AMReX_MultiFab.H"
+#include "AMReX_iMultiFab.H"
 #include "AMReX_ArrayLim.H"
 #include "AMReX_BCRec.H"
 #include "AMReX_GpuContainers.H"
@@ -36,15 +37,7 @@ using namespace amrex;
  * @param[in] ymom_src source terms for y-momentum
  * @param[in] zmom_src source terms for z-momentum
  * @param[in] zmom_crse_rhs update term from coarser level for z-momentum; non-zero on c/f boundary only
- * @param[in] Tau11 tau_11 component of stress tensor
- * @param[in] Tau22 tau_22 component of stress tensor
- * @param[in] Tau33 tau_33 component of stress tensor
- * @param[in] Tau12 tau_12 component of stress tensor
- * @param[in] Tau12 tau_13 component of stress tensor
- * @param[in] Tau21 tau_21 component of stress tensor
- * @param[in] Tau23 tau_23 component of stress tensor
- * @param[in] Tau31 tau_31 component of stress tensor
- * @param[in] Tau32 tau_32 component of stress tensor
+ * @param[in] Tau_lev components of stress tensor
  * @param[in] SmnSmn strain rate magnitude
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in] Hfx3 heat flux in z-dir
@@ -84,9 +77,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& ymom_src,
                        const MultiFab& zmom_src,
                        const MultiFab* zmom_crse_rhs,
-                       MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
-                       MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
-                       MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
+                       Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx1,
@@ -188,8 +179,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     if (l_use_diff) {
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
-                           S_data,xvel,yvel,zvel,
-                           Tau11,Tau22,Tau33,Tau12,Tau13,Tau21,Tau23,Tau31,Tau32,
+                           S_data,xvel,yvel,zvel,Tau_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
                            detJ,mapfac);
 
@@ -199,11 +189,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         if (l_use_SurfLayer) {
             Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
-            SurfLayer->impose_SurfaceLayer_bcs(level, mfs,
-                                               Tau11, Tau22, Tau33,
-                                               Tau12, Tau21,
-                                               Tau13, Tau31,
-                                               Tau23, Tau32,
+            SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
                                                Hfx1, Hfx2, Hfx3,
                                                Q1fx1, Q1fx2, Q1fx3,
                                                z_phys_nd.get());
@@ -253,11 +239,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::array<FArrayBox,AMREX_SPACEDIM> flux_tmp;
 
     // Cell-centered masks for EB (used for flux interpolation)
-    iMultiFab cc_mask;
     bool already_on_centroids = false;
+    Vector<iMultiFab> physbnd_mask;
+    physbnd_mask.resize(IntVars::NumTypes);
     if (solverChoice.terrain_type == TerrainType::EB) {
-        cc_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
-        cc_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+        physbnd_mask[IntVars::cons].define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
+        physbnd_mask[IntVars::cons].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+        // physbnd_mask[IntVars::cons].FillBoundary(geom.periodicity());
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            physbnd_mask[1+dir].define(S_data[1+dir].boxArray(), S_data[1+dir].DistributionMap(), 1, 1);
+            physbnd_mask[1+dir].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+            // physbnd_mask[1+dir].FillBoundary(geom.periodicity());
+        }
     }
 
     for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
@@ -271,13 +264,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Vector<Box> tbx_grown(AMREX_SPACEDIM);
         Vector<Box> tby_grown(AMREX_SPACEDIM);
         Vector<Box> tbz_grown(AMREX_SPACEDIM);
-        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            tbx_grown[dir] = tbx;
-            tby_grown[dir] = tby;
-            tbz_grown[dir] = tbz;
-            tbx_grown[dir] = tbx_grown[dir].growHi(dir,1);
-            tby_grown[dir] = tby_grown[dir].growHi(dir,1);
-            tbz_grown[dir] = tbz_grown[dir].growHi(dir,1);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                tbx_grown[dir] = tbx;
+                tby_grown[dir] = tby;
+                tbz_grown[dir] = tbz;
+                IntVect iv(1, 1, 1);
+                iv[dir] = 0;
+                tbx_grown[dir] = (tbx_grown[dir].growHi(dir,1)).grow(iv);
+                tby_grown[dir] = (tby_grown[dir].growHi(dir,1)).grow(iv);
+                tbz_grown[dir] = (tbz_grown[dir].growHi(dir,1)).grow(iv);
+            }
         }
 
         // We don't compute a source term for z-momentum on the bottom or top domain boundary
@@ -476,24 +473,26 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         } // end profile
 
-
         // *****************************************************************************
         // Diffusive terms (pre-computed above)
         // *****************************************************************************
         // No terrain diffusion
         Array4<Real> tau11,tau22,tau33;
         Array4<Real> tau12,tau13,tau23;
-        if (Tau11) {
-            tau11 = Tau11->array(mfi); tau22 = Tau22->array(mfi); tau33 = Tau33->array(mfi);
-            tau12 = Tau12->array(mfi); tau13 = Tau13->array(mfi); tau23 = Tau23->array(mfi);
+        if (Tau_lev[TauType::tau11]) {
+            tau11 = Tau_lev[TauType::tau11]->array(mfi); tau22 = Tau_lev[TauType::tau22]->array(mfi);
+            tau33 = Tau_lev[TauType::tau33]->array(mfi); tau12 = Tau_lev[TauType::tau12]->array(mfi);
+            tau13 = Tau_lev[TauType::tau13]->array(mfi); tau23 = Tau_lev[TauType::tau23]->array(mfi);
         } else {
             tau11 = Array4<Real>{}; tau22 = Array4<Real>{}; tau33 = Array4<Real>{};
             tau12 = Array4<Real>{}; tau13 = Array4<Real>{}; tau23 = Array4<Real>{};
         }
         // Terrain diffusion
         Array4<Real> tau21,tau31,tau32;
-        if (Tau21) {
-            tau21 = Tau21->array(mfi); tau31 = Tau31->array(mfi); tau32 = Tau32->array(mfi);
+        if (Tau_lev[TauType::tau21]) {
+            tau21 = Tau_lev[TauType::tau21]->array(mfi);
+            tau31 = Tau_lev[TauType::tau31]->array(mfi);
+            tau32 = Tau_lev[TauType::tau32]->array(mfi);
         } else {
             tau21 = Array4<Real>{}; tau31 = Array4<Real>{}; tau32 = Array4<Real>{};
         }
@@ -509,7 +508,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // *****************************************************************************
-        Array4<const int> ccm_arr{};
+        Array4<const int> mask_arr{};
         Array4<const EBCellFlag> cfg_arr{};
         Array4<const Real> ax_arr{};
         Array4<const Real> ay_arr{};
@@ -529,7 +528,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
             fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
             detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
-            if (!already_on_centroids) {ccm_arr = cc_mask.const_array(mfi);}
+            // if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
+            mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
         } else {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
@@ -537,12 +537,24 @@ void erf_slow_rhs_pre (int level, int finest_level,
             detJ_arr = detJ->const_array(mfi);
         }
 
-        AdvectionSrcForRho(bx, cell_rhs,
-                           rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
-                           avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
-                           ax_arr, ay_arr, az_arr, detJ_arr,
-                           dxInv, mf_mx, mf_my, mf_uy, mf_vx,
-                           flx_arr, l_fixed_rho);
+        if (solverChoice.terrain_type != TerrainType::EB){
+            AdvectionSrcForRho(bx, cell_rhs,
+                               rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
+                               avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
+                               ax_arr, ay_arr, az_arr, detJ_arr,
+                               dxInv, mf_mx, mf_my, mf_uy, mf_vx,
+                               flx_arr, l_fixed_rho);
+        } else {
+            EBAdvectionSrcForRho(bx, cell_rhs,
+                                 rho_u, rho_v, omega_arr,
+                                 avg_xmom, avg_ymom, avg_zmom,
+                                 mask_arr, cfg_arr,
+                                 ax_arr, ay_arr, az_arr,
+                                 fcx_arr, fcy_arr, fcz_arr, detJ_arr,
+                                 dxInv, mf_m, mf_u, mf_v,
+                                 flx_arr, l_fixed_rho,
+                                 already_on_centroids);
+        }
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         if (solverChoice.terrain_type != TerrainType::EB){
@@ -558,7 +570,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             EBAdvectionSrcForScalars(bx, icomp, ncomp,
                                 avg_xmom, avg_ymom, avg_zmom,
                                 cell_prim, cell_rhs,
-                                ccm_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
                                 fcx_arr, fcy_arr, fcz_arr,
                                 detJ_arr, dxInv, mf_mx, mf_my,
                                 l_horiz_adv_type, l_vert_adv_type,
@@ -657,6 +669,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            l_horiz_upw_frac, l_vert_upw_frac,
                            solverChoice.mesh_type, solverChoice.terrain_type,
                            ebfact, flx_u_arr, flx_v_arr, flx_w_arr,
+                           physbnd_mask, already_on_centroids,
                            lo_z_face, hi_z_face, domain, bc_ptr_h);
 
         if (l_use_diff) {

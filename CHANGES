@@ -1,3 +1,18 @@
+#25.05
+    -- EB interpolation of momentum (#2283)
+
+    -- Metric discrete cancellation (#2280)
+
+    -- Init from NCFile (#2281)
+
+    -- Read WRF BDY in time slices (#2271)
+
+    -- EB interp scalars (#2257)
+
+    -- SurfaceLayer replaces MOST (#2216)
+
+    -- LES diffusion limiter (#2222)
+
 #25.04
     -- Fix anelastic RK2 for slow vars (#2226)
 
