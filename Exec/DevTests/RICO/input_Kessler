@@ -2,20 +2,22 @@
 #stop_time = 3600    #  1 hour
 #stop_time = 4800    #  1.5 hours
 #stop_time = 7200    #  2 hours
-stop_time = 21600   #  6 hours
+stop_time = 86400   #  24 hours
 
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  6400     6400    4000
-amr.n_cell           =    64       64     100
+geometry.prob_extent =  12800     12800    4000
+amr.n_cell           =    128       128     100
 
 geometry.is_periodic = 1 1 0
 
+
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 
+#RICO options
 zlo.type = "surface_layer"
 erf.surface_layer.flux_type = "rico" # new MOST type
 erf.most.ustar  = 0.001229 # Cm
@@ -26,7 +28,16 @@ erf.most.zref   = 20.0 # from BOMEX
 
 erf.use_explicit_most   = 1
 erf.most.rico.theta_z0 = 300.0
-erf.most.rico.qsat_z0 = 0.022391989705958536 #qv_sat at 300 K and 1e5 Pa
+erf.most.rico.qsat_z0 = 0.022
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+#zlo.type = "surface_layer"
+#erf.surface_layer.flux_type = "custom"
+#erf.most.ustar  = 0.28   # ustar
+#erf.most.tstar  = 8.0e-3 # theta flux
+#erf.most.qstar  = 5.2e-5 # qv    flux
+#erf.most.z0     = 0.1
+#erf.most.zref   = 20.0
 
 # NOTE: This should have a qv grad too (use hoextrapcc?!)
 zhi.type = "SlipWall"
@@ -54,7 +65,7 @@ erf.check_int       = 2000    # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 2000    # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain rain_accum
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
@@ -90,6 +101,8 @@ erf.Sc_t      = 0.33333333333333
 
 erf.init_type = "input_sounding"
 erf.init_sounding_ideal = true
+
+#erf.restart = chk160000
 
 erf.add_custom_rhotheta_forcing        = true
 erf.add_custom_moisture_forcing        = true
