@@ -22,6 +22,16 @@ void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
                     const int n_qstate,
                     const int anelastic);
 
+void make_gradp (int level,
+                 const SolverChoice& solverChoice,
+                 const amrex::Geometry& geom,
+                 amrex::MultiFab& S_data,
+                 amrex::MultiFab& p0,
+                 const amrex::MultiFab& pp_inc,
+                 std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                 std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                 amrex::Vector<amrex::MultiFab>& gradp);
+
 void make_sources (int level, int nrk,
                    amrex::Real dt, amrex::Real time,
                    amrex::Vector<amrex::MultiFab>& S_data,

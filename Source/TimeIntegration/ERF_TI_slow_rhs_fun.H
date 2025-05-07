@@ -156,6 +156,12 @@
             MultiFab* pi0_new = &pi_hse_new;
             MultiFab* th0_new = &th_hse_new;
 
+            // *****************************************************************************
+            // Define the pressure gradient
+            // *****************************************************************************
+            make_gradp(level, solverChoice, fine_geom, S_data[Vars::cons], *p0_new, pp_inc[level],
+                       z_phys_nd_src[level], z_phys_cc[level], gradp[level]);
+
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new, zvel_new,
@@ -173,8 +179,8 @@
                              (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                              Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                              fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd_src[level], z_phys_cc[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level],
-                             stretched_dz_d[level], p0_new, pp_inc[level],
+                             z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level],
+                             stretched_dz_d[level], gradp[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              get_eb(level),
                              fr_as_crse, fr_as_fine);
@@ -263,6 +269,12 @@
 
         } else { // If not moving_terrain
 
+            // *****************************************************************************
+            // Define the pressure gradient
+            // *****************************************************************************
+            make_gradp(level, solverChoice, fine_geom, S_data[Vars::cons], *p0, pp_inc[level],
+                       z_phys_nd[level], z_phys_cc[level], gradp[level]);
+
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new, zvel_new,
@@ -280,8 +292,8 @@
                              (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                              Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3,Q2fx3, Diss,
                              fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level], detJ_cc[level],
-                             stretched_dz_d[level], p0, pp_inc[level],
+                             z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
+                             stretched_dz_d[level], gradp[level],
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              get_eb(level),
                              fr_as_crse, fr_as_fine);
@@ -473,6 +485,12 @@
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert);
 
+        // *****************************************************************************
+        // Define the pressure gradient
+        // *****************************************************************************
+        make_gradp(level, solverChoice, fine_geom, S_data[Vars::cons], *p0, pp_inc[level],
+                   z_phys_nd[level], z_phys_cc[level], gradp[level]);
+
         int n_qstate = micro->Get_Qstate_Size();
         make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                          z_phys_nd[level], z_phys_cc[level],
@@ -492,8 +510,8 @@
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                          Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                         z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level], detJ_cc[level],
-                         stretched_dz_d[level], p0, pp_inc[level],
+                         z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
+                         stretched_dz_d[level], gradp[level],
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          get_eb(level),
                          fr_as_crse, fr_as_fine);

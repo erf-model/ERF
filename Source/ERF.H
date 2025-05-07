@@ -451,6 +451,8 @@ public:
 
     // Public data copy for MB
     std::vector<amrex::Box> domain_p;
+
+    // Primary solution data data containers
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 
@@ -731,11 +733,14 @@ private:
     amrex::Vector<amrex::Real> dt;
     amrex::Vector<long> dt_mri_ratio;
 
-    // array of multifabs to store the solution at each level of refinement
-    // after advancing a level we use "swap".
 #ifndef ERF_USE_MULTIBLOCK
+    // Array of multifabs to store the solution at each level of refinement;
+    // after advancing a level we use "swap".
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
+
+    // Pressure gradient at each level
+    amrex::Vector<amrex::Vector<amrex::MultiFab> > gradp;
 
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
