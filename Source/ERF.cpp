@@ -217,6 +217,7 @@ ERF::ERF_shared ()
 
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
+    gradp.resize(nlevs_max);
 
     // We resize this regardless in order to pass it without error
     pp_inc.resize(nlevs_max);
@@ -236,6 +237,7 @@ ERF::ERF_shared ()
     for (int lev = 0; lev < nlevs_max; ++lev) {
         vars_new[lev].resize(Vars::NumTypes);
         vars_old[lev].resize(Vars::NumTypes);
+        gradp[lev].resize(AMREX_SPACEDIM);
     }
 
     // Time integrator
