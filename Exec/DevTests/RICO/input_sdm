@@ -18,8 +18,8 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 
 #RICO options
-zlo.type = "Most"
-erf.most.flux_type = "rico" # new MOST type
+zlo.type = "surface_layer"
+erf.surface_layer.flux_type = "rico" # new MOST type
 erf.most.ustar  = 0.001229 # Cm
 erf.most.tstar  = 0.001094 # Ch 
 erf.most.qstar  = 0.001133 # Cq
@@ -31,8 +31,8 @@ erf.most.rico.theta_z0 = 300.0
 erf.most.rico.qsat_z0 = 0.022
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-#zlo.type = "Most"
-#erf.most.flux_type = "custom"
+#zlo.type = "surface_layer"
+#erf.surface_layer.flux_type = "custom"
 #erf.most.ustar  = 0.28   # ustar
 #erf.most.tstar  = 8.0e-3 # theta flux
 #erf.most.qstar  = 5.2e-5 # qv    flux
