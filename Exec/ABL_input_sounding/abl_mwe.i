@@ -22,7 +22,7 @@ zhi.type = "SlipWall"
 zhi.theta_grad   = 0.003    # for case N02
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-#zlo.type                = "Most"
+#zlo.type = "surface_layer"
 #erf.most.z0             = 0.01
 #erf.most.zref           = 5.21 # >=dz/2
 #erf.most.surf_temp_flux = 0.0 # [K-m/s] for case N02

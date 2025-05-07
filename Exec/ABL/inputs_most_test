@@ -15,7 +15,7 @@ zhi.type = "SlipWall"
 
 # MOST BOUNDARY
 #=================================================================
-zlo.type                   = "Most"
+zlo.type = "surface_layer"
 erf.most.average_policy    = 0       # POLICY FOR AVERAGING
 #erf.most.use_normal_vector = true    # USE NORMAL VECTOR W/ TERRAIN   
 #erf.most.time_average      = true    # USE TIME AVERAGING

@@ -84,9 +84,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
         }
     }
 
-    // configure ABLMost params if used MostWall boundary condition
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
-        if (m_most) {
+    // configure SurfaceLayer params if needed
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
+        if (m_SurfaceLayer) {
             IntVect ng = Theta_prim[lev]->nGrowVect();
             MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
             MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
@@ -105,19 +105,20 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             }
             // NOTE: std::swap above causes the field ptrs to be out of date.
             //       Reassign the field ptrs for MAC avg computation.
-            m_most->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
-            m_most->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
-                                solverChoice.RhoQv_comp,
-                                solverChoice.RhoQc_comp,
-                                solverChoice.RhoQr_comp);
-            m_most->update_fluxes(lev, time);
+            m_SurfaceLayer->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
+            m_SurfaceLayer->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
+                                        solverChoice.RhoQv_comp,
+                                        solverChoice.RhoQc_comp,
+                                        solverChoice.RhoQr_comp);
+            m_SurfaceLayer->update_fluxes(lev, time);
         }
     }
 
 #if defined(ERF_USE_WINDFARM)
     if (solverChoice.windfarm_type != WindFarmType::None) {
         advance_windfarm(Geom(lev), dt_lev, S_old,
-                         U_old, V_old, W_old, vars_windfarm[lev], Nturb[lev], SMark[lev], time);
+                         U_old, V_old, W_old, vars_windfarm[lev],
+                         Nturb[lev], SMark[lev], time);
     }
 
 #endif

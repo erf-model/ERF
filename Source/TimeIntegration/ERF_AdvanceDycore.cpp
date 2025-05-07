@@ -85,17 +85,14 @@ void ERF::advance_dycore(int level,
     }
 
     bool l_use_terrain_fitted_coords = (solverChoice.mesh_type != MeshType::ConstantDz);
-    bool l_use_kturb   = ( (tc.les_type  != LESType::None)   ||
-                           (tc.rans_type != RANSType::None)  ||
-                           (tc.pbl_type  != PBLType::None) );
+    bool l_use_kturb   = tc.use_kturb;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
                            l_use_kturb );
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
-    const bool use_most = (m_most != nullptr);
-    const bool exp_most = (solverChoice.use_explicit_most);
-    const FArrayBox* z_0 = (use_most) ? m_most->get_z0(level) : nullptr;
+    const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
+    const FArrayBox* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -110,7 +107,7 @@ void ERF::advance_dycore(int level,
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
 
     // **************************************************************************************
-    // Compute strain for use in slow RHS, Smagorinsky model, and MOST
+    // Compute strain for use in slow RHS and Smagorinsky model
     // **************************************************************************************
     {
     BL_PROFILE("erf_advance_strain");
@@ -147,16 +144,16 @@ void ERF::advance_dycore(int level,
             const Array4<const Real> & v = yvel_old.array(mfi);
             const Array4<const Real> & w = zvel_old.array(mfi);
 
-            Array4<Real> tau11 = Tau11_lev[level].get()->array(mfi);
-            Array4<Real> tau22 = Tau22_lev[level].get()->array(mfi);
-            Array4<Real> tau33 = Tau33_lev[level].get()->array(mfi);
-            Array4<Real> tau12 = Tau12_lev[level].get()->array(mfi);
-            Array4<Real> tau13 = Tau13_lev[level].get()->array(mfi);
-            Array4<Real> tau23 = Tau23_lev[level].get()->array(mfi);
+            Array4<Real> tau11 = Tau[level][TauType::tau11].get()->array(mfi);
+            Array4<Real> tau22 = Tau[level][TauType::tau22].get()->array(mfi);
+            Array4<Real> tau33 = Tau[level][TauType::tau33].get()->array(mfi);
+            Array4<Real> tau12 = Tau[level][TauType::tau12].get()->array(mfi);
+            Array4<Real> tau13 = Tau[level][TauType::tau13].get()->array(mfi);
+            Array4<Real> tau23 = Tau[level][TauType::tau23].get()->array(mfi);
 
-            Array4<Real> tau21  = l_use_terrain_fitted_coords ? Tau21_lev[level].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau31  = l_use_terrain_fitted_coords ? Tau31_lev[level].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau32_lev[level].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau21  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = z_phys_nd[level]->const_array(mfi);
 
             const Array4<const Real> mf_m = mapfac_m[level]->array(mfi);
@@ -167,9 +164,9 @@ void ERF::advance_dycore(int level,
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
-                                tau12, tau13,
-                                tau21, tau23,
-                                tau31, tau32,
+                                tau12, tau21,
+                                tau13, tau31,
+                                tau23, tau32,
                                 z_nd, detJ_cc[level]->const_array(mfi), bc_ptr_h, dxInv,
                                 mf_m, mf_u, mf_v);
             } else {
@@ -187,14 +184,14 @@ void ERF::advance_dycore(int level,
 #include "ERF_TI_utils.H"
 
     // Additional SFS quantities, calculated once per timestep
-    MultiFab* Hfx1 = SFS_hfx1_lev[level].get();
-    MultiFab* Hfx2 = SFS_hfx2_lev[level].get();
-    MultiFab* Hfx3 = SFS_hfx3_lev[level].get();
+    MultiFab* Hfx1  = SFS_hfx1_lev[level].get();
+    MultiFab* Hfx2  = SFS_hfx2_lev[level].get();
+    MultiFab* Hfx3  = SFS_hfx3_lev[level].get();
     MultiFab* Q1fx1 = SFS_q1fx1_lev[level].get();
     MultiFab* Q1fx2 = SFS_q1fx2_lev[level].get();
     MultiFab* Q1fx3 = SFS_q1fx3_lev[level].get();
     MultiFab* Q2fx3 = SFS_q2fx3_lev[level].get();
-    MultiFab* Diss = SFS_diss_lev[level].get();
+    MultiFab* Diss  = SFS_diss_lev[level].get();
 
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
@@ -211,16 +208,14 @@ void ERF::advance_dycore(int level,
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
         const BCRec* bc_ptr_h = domain_bcs_type.data();
-        ComputeTurbulentViscosity(xvel_old, yvel_old,
-                                  *Tau11_lev[level].get(), *Tau22_lev[level].get(), *Tau33_lev[level].get(),
-                                  *Tau12_lev[level].get(), *Tau13_lev[level].get(), *Tau23_lev[level].get(),
+        ComputeTurbulentViscosity(xvel_old, yvel_old,Tau[level],
                                   state_old[IntVars::cons],
                                   *walldist[level].get(),
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], solverChoice,
-                                  m_most, z_0, exp_most,
-                                  l_use_terrain_fitted_coords, l_use_moisture, level, bc_ptr_h);
+                                  m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
+                                  l_use_moisture, level, bc_ptr_h);
     }
 
     // ***********************************************************************************************

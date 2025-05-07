@@ -123,7 +123,7 @@ List of Parameters
 +===================================+=================+=================+=============+
 | **amr.n_cell**                    | number of cells | Integer > 0     | must be set |
 |                                   | in each         |                 |             |
-        |                           | direction at    |                 |             |
+|                                   | direction at    |                 |             |
 |                                   | the coarsest    |                 |             |
 |                                   | level           |                 |             |
 +-----------------------------------+-----------------+-----------------+-------------+
@@ -633,6 +633,14 @@ List of Parameters
 +===============================+==================+================+================+
 | **erf.data_log**              | Output           | Up to four     | NONE           |
 |                               | filename(s)      | strings        |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.der_data_log**          | Output           | Up to four     | NONE           |
+|                               | filename(s) for  | strings        |                |
+|                               | derived data     |                |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.energy_data_log**       | Output           | Up to four     | NONE           |
+|                               | filename(s) for  | strings        |                |
+|                               | total energy     |                |                |
 +-------------------------------+------------------+----------------+----------------+
 | **erf.profile_int**           | Interval (number)| Integer        | -1             |
 |                               | of steps between |                |                |
@@ -1284,17 +1292,9 @@ Initialization
 
 The initialization in ERF has two steps: creation of the background state and creation of initial perturbations from the background state.
 
-The background initial data can be read from WPS-generated or metgrid files, reconstructed from 1-d input sounding data,
-or specified by the user. Problem-specific perturbational quantities, specified separately by the user, are added to the background state.
-When a hydrostatic background state must be defined at initialization,
-we use a Newton-Raphson approach to solving the non-linear root finding problem that stems from requiring that the density,
-pressure and potential temperature satisfy both the hydrostatic balance and the equation of state.
-This is needed when ``init_type == Ideal`` but ``init_sounding_ideal`` is false.
-Users have the option to define a dry or moist background state.
-
 The initialization strategy is determined at runtime by ``init_type``, which has six possible values.
 
-For more details on the hydrostatic initialization, see :ref:`sec:Initialization`.
+See :ref:`sec:Initialization` for more detail about how to provide initial conditions for an ERF simulation.
 
 In addition, there is a run-time option to project the initial velocity field to make it divergence-free.
 
@@ -1309,6 +1309,7 @@ List of Parameters
 |                                  | type                | "WRFInput",        |                       |
 |                                  |                     | "Input_Sounding"   |                       |
 |                                  |                     | "Metgrid"          |                       |
+|                                  |                     | "NCFile"           |                       |
 |                                  |                     | "Uniform"          |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.input_sounding_file**      | Path to WRF-style   |  String            | "input_sounding"      |
@@ -1442,7 +1443,8 @@ List of Parameters
 Notes
 -----------------
 
-If**erf.init_type = WRFInput**, the problem is initialized with mesoscale data contained in a NetCDF file,
+If **erf.init_type = WRFInput** or **erf.init_type = NCFile**,
+the problem is initialized with mesoscale data contained in a NetCDF file,
 provided via ``erf.nc_init_file`` (e.g., "wrfinput_d01").
 
 In addition, if **erf.use_real_bcs = true**, the lateral boundary conditions must be supplied in a NetCDF files
@@ -1453,28 +1455,6 @@ If **erf.use_real_bcs = true**,
 the extent of the relaxation zone may be controlled with ``erf.real_width`` (corresponding to WRF's **spec_bdy_width**)
 and ``erf.real_set_width`` (corresponding to WRF's **spec_zone**, typically set to 1), which corresponds to a relaxation zone with a
 width of **real_width - real_set_width**.
-
-If **erf.init_type = Metgrid**, the problem is initialized with data
-contained in the first NetCDF file provided via ``erf.nc_init_file_0``.
-Lateral boundary conditions are derived from the sequence of NetCDF
-files provided via ``erf.nc_init_file_0``. The sequence of
-``erf.nc_init_file_0`` should be output from the WRF Preprocessing
-System (WPS) listed chronologically starting with the earliest
-timestamp. A minimum of two files are required to derive lateral
-boundary conditions.
-
-If **erf.init_type = Input_Sounding**, a WRF-style input sounding is read from
-``erf.input_sounding_file``. This text file includes any set of levels that
-goes at least up to the model top height. The first line includes the surface
-pressure [hPa], potential temperature [K], and water vapor mixing ratio [g/kg].
-Each subsequent line has five input values: height [m above sea level], dry
-potential temperature [K], vapor mixing ratio [g/kg], x-direction wind
-component [m/s], and y-direction wind component [m/s]. Please pay attention to
-the units of pressure and mixing ratio. If **erf.init_sounding_ideal = true**,
-then moist and dry conditions throughout the air column are determined by
-integrating the hydrostatic equation from the surface.
-
-If **erf.init_type = Uniform** or **erf.init_type = Input_Sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
 
 Note that the **erf.project_initial_velocity** option is available for all **init_type** options.  If using the anelastic
 formulation this will be true regardless of the input; if using the compressible formulation the default is false but
@@ -1580,6 +1560,8 @@ List of Parameters
 | **erf.moisture_model**      | Name of moisture model   |  "None", "SAM",       | "None"     |
 |                             |                          |  "Kessler", "SatAdj"  |            |
 |                             |                          |  "Kessler_NoRain",    |            |
+|                             |                          |  "Morrison",          |            |
+|                             |                          |  "Morrison_NoIce",    |            |
 |                             |                          |  "SAM_NoPrecip_NoIce",|            |
 |                             |                          |  "SAM_NoIce"          |            |
 +-----------------------------+--------------------------+-----------------------+------------+

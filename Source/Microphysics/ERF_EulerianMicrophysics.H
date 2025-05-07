@@ -36,7 +36,8 @@ public:
         } else if (a_model_type == MoistureType::Kessler ||
                    a_model_type == MoistureType::Kessler_NoRain) {
             SetModel<Kessler>();
-        } else if (a_model_type == MoistureType::Morrison) {
+        } else if (a_model_type == MoistureType::Morrison ||
+                   a_model_type == MoistureType::Morrison_NoIce) {
             SetModel<Morrison>();
         } else if (a_model_type == MoistureType::SatAdj) {
             SetModel<SatAdj>();

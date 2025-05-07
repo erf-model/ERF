@@ -616,7 +616,7 @@ public:
     }
 
     /**
-     * Function to set uniform background density and pressure fields
+     * Function to set uniform background density and potential temperature fields
     */
     void
     init_uniform (const amrex::Box& bx, amrex::Array4<amrex::Real> const& state)

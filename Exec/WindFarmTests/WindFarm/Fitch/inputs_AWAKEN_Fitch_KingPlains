@@ -27,7 +27,7 @@ erf.windfarm_spec_table = "windturbines_spec_KingPlains.tbl"
 geometry.is_periodic = 0 0 0
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-#zlo.type      = "MOST"
+#zlo.type = "surface_layer"
 #erf.most.z0   = 0.1
 #erf.most.zref = 8.0
 

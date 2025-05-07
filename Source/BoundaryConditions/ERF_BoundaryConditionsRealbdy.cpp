@@ -123,12 +123,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                                       bx_ylo, bx_yhi,
                                       ng_vect);
 
-                    /*
-                    Print() << "RealBdy: " << var_idx << ' ' << comp_idx << "\n";
-                    Print() << bx_xlo << ' ' << bx_xhi << "\n";
-                    Print() << bx_ylo << ' ' << bx_yhi << "\n";
-                    */
-
                     // x-faces (includes exterior y ghost cells)
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)

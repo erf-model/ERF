@@ -59,6 +59,14 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
         amrex::Abort("FFT isn't appropriate for spatially varying terrain");
     }
 
+    // ****************************************************************************
+    // Impose bc's on pprime
+    // ****************************************************************************
+    ImposeBCsOnPhi(lev, phi);
+
+    // ****************************************************************************
+    // Compute fluxes which we will subtract from the momenta
+    // ****************************************************************************
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif

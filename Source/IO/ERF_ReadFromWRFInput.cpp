@@ -6,7 +6,7 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 void
-read_from_wrfinput (int lev,
+read_from_wrfinput (int /*lev*/,
                     const Box& domain,
                     const std::string& fname,
                     FArrayBox& NC_fab,
@@ -73,7 +73,7 @@ read_from_wrfinput (int lev,
     }
     else if (NC_name == "MAPFAC_U" || NC_name == "MAPFAC_V" || NC_name == "MAPFAC_M" ||
              NC_name == "MUB"      || NC_name == "SST"      || NC_name == "LANDMASK"  ||
-             NC_name == "XLAT_V"   || NC_name == "XLONG_U")
+             NC_name == "XLAT_V"   || NC_name == "XLONG_U"  || NC_name == "TSK")
     {
         // Note: staggering is handled in `fill_fab_from_arrays`
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);

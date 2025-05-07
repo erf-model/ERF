@@ -1,7 +1,7 @@
  .. role:: cpp(code)
     :language: c++
 
-.. _GettingStarted:
+.. _BestPractices:
 
 Best Practices
 ==============

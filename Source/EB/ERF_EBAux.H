@@ -24,14 +24,15 @@ class eb_aux_
 
     void set_verbose ( ) { m_verbose = 1; }
 
+    [[nodiscard]] const amrex::FabArray<amrex::EBCellFlagFab>& getMultiEBCellFlagFab () const;
     [[nodiscard]] const amrex::MultiFab& getVolFrac () const;
-    [[nodiscard]] const amrex::MultiCutFab& getVolCent () const;
-    [[nodiscard]] const amrex::MultiCutFab& getBndryArea () const;
-    [[nodiscard]] const amrex::MultiCutFab& getBndryCent () const;
-    [[nodiscard]] const amrex::MultiCutFab& getBndryNorm () const;
+    [[nodiscard]] const amrex::MultiFab& getCentroid () const;
+    [[nodiscard]] const amrex::MultiFab& getBndryArea () const;
+    [[nodiscard]] const amrex::MultiFab& getBndryCent () const;
+    [[nodiscard]] const amrex::MultiFab& getBndryNorm () const;
 
-    [[nodiscard]] amrex::Array<const amrex::MultiCutFab*, AMREX_SPACEDIM> getAreaFrac () const;
-    [[nodiscard]] amrex::Array<const amrex::MultiCutFab*, AMREX_SPACEDIM> getFaceCent () const;
+    [[nodiscard]] amrex::Array<const amrex::MultiFab*, AMREX_SPACEDIM> getAreaFrac () const;
+    [[nodiscard]] amrex::Array<const amrex::MultiFab*, AMREX_SPACEDIM> getFaceCent () const;
 
   private:
 
@@ -40,16 +41,14 @@ class eb_aux_
     // int m_defined;
 
     amrex::FabArray<amrex::EBCellFlagFab>* m_cellflags = nullptr;
-
     amrex::MultiFab* m_volfrac = nullptr;
+    amrex::MultiFab* m_volcent = nullptr;
+    amrex::MultiFab* m_bndryarea = nullptr;
+    amrex::MultiFab* m_bndrycent = nullptr;
+    amrex::MultiFab* m_bndrynorm = nullptr;
 
-    amrex::MultiCutFab* m_volcent = nullptr;
-    amrex::MultiCutFab* m_bndryarea = nullptr;
-    amrex::MultiCutFab* m_bndrycent = nullptr;
-    amrex::MultiCutFab* m_bndrynorm = nullptr;
-
-    amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_areafrac {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
-    amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_facecent {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
+    amrex::Array<amrex::MultiFab*,AMREX_SPACEDIM> m_areafrac {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
+    amrex::Array<amrex::MultiFab*,AMREX_SPACEDIM> m_facecent {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
     // amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_edgecent {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
 
 };

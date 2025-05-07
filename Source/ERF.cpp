@@ -6,16 +6,19 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
-
-#include <ERF_EOS.H>
-#include <ERF.H>
-#include <AMReX_buildInfo.H>
-#include <AMReX_Random.H>
-#include <ERF_EpochTime.H>
-#include <ERF_Utils.H>
-#include <ERF_TerrainMetrics.H>
-#include <ERF_EBIFTerrain.H>
 #include <memory>
+
+#include "ERF_EOS.H"
+#include "ERF.H"
+#include "AMReX_buildInfo.H"
+#include "AMReX_Random.H"
+#include "ERF_EpochTime.H"
+#include "ERF_Utils.H"
+#include "ERF_TerrainMetrics.H"
+#include "ERF_EBIFTerrain.H"
+#ifdef ERF_USE_NETCDF
+#include "ERF_ReadFromWRFBdy.H"
+#endif
 
 using namespace amrex;
 
@@ -57,6 +60,9 @@ Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via inpu
 
 // NetCDF wrfbdy (lateral boundary) file
 std::string ERF::nc_bdy_file; // Must provide via input
+
+// NetCDF wrflow (bottom boundary) file
+std::string ERF::nc_low_file; // Must provide via input
 
 // Flag to trigger initialization from input_sounding like WRF's ideal.exe
 bool ERF::init_sounding_ideal = false;
@@ -211,6 +217,7 @@ ERF::ERF_shared ()
 
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
+    gradp.resize(nlevs_max);
 
     // We resize this regardless in order to pass it without error
     pp_inc.resize(nlevs_max);
@@ -230,6 +237,7 @@ ERF::ERF_shared ()
     for (int lev = 0; lev < nlevs_max; ++lev) {
         vars_new[lev].resize(Vars::NumTypes);
         vars_old[lev].resize(Vars::NumTypes);
+        gradp[lev].resize(AMREX_SPACEDIM);
     }
 
     // Time integrator
@@ -251,10 +259,7 @@ ERF::ERF_shared ()
     advflux_reg.resize(nlevs_max);
 
     // Stresses
-    Tau11_lev.resize(nlevs_max); Tau22_lev.resize(nlevs_max); Tau33_lev.resize(nlevs_max);
-    Tau12_lev.resize(nlevs_max); Tau21_lev.resize(nlevs_max);
-    Tau13_lev.resize(nlevs_max); Tau31_lev.resize(nlevs_max);
-    Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
+    Tau.resize(nlevs_max);
     SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
     SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
@@ -264,6 +269,7 @@ ERF::ERF_shared ()
 
     // Sea surface temps
     sst_lev.resize(nlevs_max);
+    tsk_lev.resize(nlevs_max);
     lmask_lev.resize(nlevs_max);
 
     // Metric terms
@@ -292,6 +298,15 @@ ERF::ERF_shared ()
 
     // Wall distance
     walldist.resize(nlevs_max);
+
+    // BoxArrays to make MultiFabs needed to convert WRFBdy data
+    ba1d.resize(nlevs_max);
+    ba2d.resize(nlevs_max);
+
+    // MultiFabs needed to convert WRFBdy data
+    mf_C1H.resize(nlevs_max);
+    mf_C2H.resize(nlevs_max);
+    mf_MUB.resize(nlevs_max);
 
     // Mapfactors
     mapfac_m.resize(nlevs_max);
@@ -446,14 +461,7 @@ ERF::Evolve ()
 
         if (writeNow(cur_time, dt[0], step+1, m_check_int, m_check_per)) {
             last_check_file_step = step+1;
-#ifdef ERF_USE_NETCDF
-            if (check_type == "netcdf") {
-               WriteNCCheckpointFile();
-            }
-#endif
-            if (check_type == "native") {
-               WriteCheckpointFile();
-            }
+            WriteCheckpointFile();
         }
 
 #ifdef AMREX_MEM_PROFILING
@@ -479,14 +487,7 @@ ERF::Evolve ()
     }
 
     if ( (m_check_int > 0 || m_check_per > 0.) && istep[0] > last_check_file_step) {
-#ifdef ERF_USE_NETCDF
-        if (check_type == "netcdf") {
-           WriteNCCheckpointFile();
-        }
-#endif
-        if (check_type == "native") {
-           WriteCheckpointFile();
-        }
+        WriteCheckpointFile();
     }
 
     BL_PROFILE_VAR_STOP(evolve);
@@ -568,6 +569,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
         sum_integrated_quantities(time);
         sum_derived_quantities(time);
+        sum_energy_quantities(time);
     }
 
     if (solverChoice.pert_type == PerturbationType::Source ||
@@ -636,6 +638,32 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
     }
+
+    bool is_hurricane_tracker_io=false;
+    ParmParse pp("erf");
+    pp.query("is_hurricane_tracker_io", is_hurricane_tracker_io);
+
+    if(is_hurricane_tracker_io) {
+        if(nstep == 0 or (nstep+1)%m_plot_int_1 == 0){
+            std::string filename = MakeVTKFilename(nstep);
+            Real velmag_threshold = 1e10;
+            pp.query("hurr_track_io_velmag_greater_than", velmag_threshold);
+            if(velmag_threshold==1e10) {
+                Abort("As hurricane tracking IO is active using erf.is_hurricane_tracker_io = true"
+                      " there needs to be an input erf.hurr_track_io_velmag_greater_than which specifies the"
+                      " magnitude of velocity above which cells will be tagged for refinement.");
+            }
+            int levc=finest_level;
+            MultiFab& U_new = vars_new[levc][Vars::xvel];
+            MultiFab& V_new = vars_new[levc][Vars::yvel];
+            MultiFab& W_new = vars_new[levc][Vars::zvel];
+
+            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, true);
+            if (ParallelDescriptor::IOProcessor()) {
+                WriteVTKPolyline(filename,hurricane_track_xy);
+            }
+        }
+    }
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart
@@ -675,23 +703,34 @@ ERF::InitData_pre ()
         init_bcs();
     }
 
-    // Verify BCs are compatible with solver choice
+    // Verify solver choices
     for (int lev(0); lev <= max_level; ++lev) {
-        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+        // BC compatibility
+        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25)   ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
-            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer ) {
             Abort("MYNN2.5/MYNNEDMF/YSU PBL Model requires MOST at lower boundary");
         }
-
         if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
              (solverChoice.turbChoice[lev].Ce_wall > 0) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) &&
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer) &&
              (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::slip_wall) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) ) {
+             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) )
+        {
             Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
         }
 
+        // mesoscale diffusion
+        if ((geom[lev].CellSize(0) > 2000.) || (geom[lev].CellSize(1) > 2000.))
+        {
+            if ( (solverChoice.turbChoice[lev].les_type == LESType::Smagorinsky) &&
+                 (!solverChoice.turbChoice[lev].smag2d)) {
+                Warning("Should use 2-D Smagorinsky for mesoscale resolution");
+            } else if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
+                Warning("Should not use Deardorff LES for mesoscale resolution");
+            }
+        }
     }
 }
 
@@ -747,7 +786,38 @@ ERF::InitData_post ()
                                                       z_phys_cc[lev].get(), z_phys_nd[lev].get());
             }
         }
-    }
+
+#ifdef ERF_USE_NETCDF
+        //
+        // Create the needed bdy_data_xlo etc ... since we don't read it in from checkpoint any more
+        //
+        if (solverChoice.use_real_bcs) {
+
+            bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
+                                                       bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                                       start_bdy_time);
+            Real dT = bdy_time_interval;
+
+            Real time_since_start_old = t_new[0] - start_bdy_time;
+            int n_time_old = static_cast<int>(time_since_start_old /  dT);
+
+            // I don't think this works if lev > 0 ...?
+            AMREX_ALWAYS_ASSERT(finest_level == 0);
+            int lev = 0;
+            bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+            for (int itime = n_time_old; itime < n_time_old+3; itime++)
+            {
+                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
+                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                 real_width);
+                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                        *mf_MUB[lev], *mf_C1H[lev], *mf_C2H[lev],
+                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                        geom[lev], use_moist);
+            } // itime
+        } // use_real_bcs && lev == 0
+#endif
+    } // end restart
 
 #ifdef ERF_USE_PARTICLES
     /* If using a Lagrangian microphysics model, its particle container has now been
@@ -1035,49 +1105,45 @@ ERF::InitData_post ()
    // send_to_ww3(my_lev);
 #endif
 
-    // Configure ABLMost params if used MostWall boundary condition
+    // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
-    //       FillPatch does not call MOST, FillIntermediatePatch does.
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
     {
-        bool use_exp_most = solverChoice.use_explicit_most;
-        bool use_rot_most = solverChoice.use_rotate_most;
-        if (use_exp_most) {
-            Print() << "Using MOST with explicitly included surface stresses" << std::endl;
-            if (use_rot_most) {
-                Print() << "Using MOST with surface stress rotations" << std::endl;
-            }
+        bool rotate = solverChoice.use_rotate_surface_flux;
+        if (rotate) {
+            Print() << "Using surface layer model with stress rotations" << std::endl;
         }
 
         //
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
-        m_most = std::make_unique<ABLMost>(geom, use_exp_most, use_rot_most, pp_prefix, Qv_prim,
-                                           z_phys_nd, solverChoice.terrain_type
+        m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
+                                                        z_phys_nd, solverChoice.terrain_type
 #ifdef ERF_USE_NETCDF
-                                           ,start_bdy_time, bdy_time_interval
+                                                        ,start_bdy_time, bdy_time_interval
 #endif
-                                           );
+                                                        );
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of level sor just the grids at each existing level, we will call an update routine
-        // to redefine the internal arrays in m_most.
+        // to redefine the internal arrays in m_SurfaceLayer.
         int nlevs = geom.size();
         for (int lev = 0; lev < nlevs; lev++)
         {
             Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                                          &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-            m_most->make_MOST_at_level(lev,nlevs,
-                                       mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                       Qr_prim[lev], z_phys_nd[lev],
-                                       Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                       lsm_data[lev], lsm_flux[lev], sst_lev[lev], lmask_lev[lev]);
+            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+                                                       mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                                       Qr_prim[lev], z_phys_nd[lev],
+                                                       Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                                                       lsm_data[lev], lsm_flux[lev], sst_lev[lev],
+                                                       tsk_lev[lev], lmask_lev[lev]);
         }
 
 
         if (restart_chkfile != "") {
             // Update surface fields if needed
-            ReadCheckpointFileMOST();
+            ReadCheckpointFileSurfaceLayer();
         }
 
         // We now configure ABLMost params here so that we can print the averages at t=0
@@ -1104,17 +1170,17 @@ ERF::InitData_post ()
                     Qr_prim[lev]->setVal(0.0);
                 }
             }
-            m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
+            m_SurfaceLayer->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
 
             if (restart_chkfile == "") {
                 // Only do this if starting from scratch; if restarting, then
                 // we don't want to call update_fluxes multiple times because
                 // it will change u* and theta* from their previous values
-                m_most->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
-                                    solverChoice.RhoQv_comp,
-                                    solverChoice.RhoQc_comp,
-                                    solverChoice.RhoQr_comp);
-                m_most->update_fluxes(lev, time);
+                m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
+                                            solverChoice.RhoQv_comp,
+                                            solverChoice.RhoQc_comp,
+                                            solverChoice.RhoQr_comp);
+                m_SurfaceLayer->update_fluxes(lev, time);
             }
         }
     }
@@ -1141,14 +1207,7 @@ ERF::InitData_post ()
 
     if ( restart_chkfile.empty() && (m_check_int > 0 || m_check_per > 0.) )
     {
-#ifdef ERF_USE_NETCDF
-        if (check_type == "netcdf") {
-           WriteNCCheckpointFile();
-        }
-#endif
-        if (check_type == "native") {
-           WriteCheckpointFile();
-        }
+        WriteCheckpointFile();
         last_check_file_step = 0;
     }
 
@@ -1178,8 +1237,9 @@ ERF::InitData_post ()
         datalog.resize(num_datalogs);
         datalogname.resize(num_datalogs);
         pp.queryarr("data_log",datalogname,0,num_datalogs);
-        for (int i = 0; i < num_datalogs; i++)
+        for (int i = 0; i < num_datalogs; i++) {
             setRecordDataInfo(i,datalogname[i]);
+        }
     }
 
     if (pp.contains("der_data_log"))
@@ -1188,8 +1248,20 @@ ERF::InitData_post ()
         der_datalog.resize(num_der_datalogs);
         der_datalogname.resize(num_der_datalogs);
         pp.queryarr("der_data_log",der_datalogname,0,num_der_datalogs);
-        for (int i = 0; i < num_der_datalogs; i++)
+        for (int i = 0; i < num_der_datalogs; i++) {
             setRecordDerDataInfo(i,der_datalogname[i]);
+        }
+    }
+
+    if (pp.contains("energy_data_log"))
+    {
+        int num_energy_datalogs = pp.countval("energy_data_log");
+        tot_e_datalog.resize(num_energy_datalogs);
+        tot_e_datalogname.resize(num_energy_datalogs);
+        pp.queryarr("energy_data_log",tot_e_datalogname,0,num_energy_datalogs);
+        for (int i = 0; i < num_energy_datalogs; i++) {
+            setRecordEnergyDataInfo(i,tot_e_datalogname[i]);
+        }
     }
 
 
@@ -1266,6 +1338,7 @@ ERF::InitData_post ()
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
         sum_derived_quantities(t_new[0]);
+        sum_energy_quantities(t_new[0]);
     }
 
     // Create object to do line and plane sampling if needed
@@ -1322,14 +1395,7 @@ ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
 void
 ERF::restart ()
 {
-#ifdef ERF_USE_NETCDF
-    if (restart_type == "netcdf") {
-       ReadNCCheckpointFile();
-    }
-#endif
-    if (restart_type == "native") {
-       ReadCheckpointFile();
-    }
+    ReadCheckpointFile();
 
     // We set this here so that we don't over-write the checkpoint file we just started from
     last_check_file_step = istep[0];
@@ -1373,13 +1439,6 @@ ERF::init_only (int lev, Real time)
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
 
-#ifndef ERF_USE_NETCDF
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
-                                       (solverChoice.init_type != InitType::Metgrid ) &&
-                                       (solverChoice.init_type != InitType::NCFile  )  ),
-                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
-#endif
-
     // Loop over grids at this level to initialize our grid data
     lev_new[Vars::cons].setVal(0.0); lev_old[Vars::cons].setVal(0.0);
     lev_new[Vars::xvel].setVal(0.0); lev_old[Vars::xvel].setVal(0.0);
@@ -1413,7 +1472,7 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
-        init_from_wrfinput(lev);
+        init_from_wrfinput(lev, *mf_C1H[lev], *mf_C2H[lev], *mf_MUB[lev]);
         if (lev==0) {
             if ((start_time > 0) && (start_time != t_new[lev])) {
                 Print() << "Ignoring specified start_time="
@@ -1431,22 +1490,11 @@ ERF::init_only (int lev, Real time)
     }
     else if (solverChoice.init_type == InitType::NCFile)
     {
-        // The base state is initialized by reading from a Netcdf file
-        init_from_wrfinput(lev);
-        if (lev==0) {
-            if ((start_time > 0) && (start_time != t_new[lev])) {
-                Print() << "Ignoring specified start_time="
-                        << std::setprecision(timeprecision) << start_time
-                        << std::endl;
-            }
-            start_time = t_new[lev];
-        }
-        use_datetime = true;
+        // The state is initialized by reading from a Netcdf file
+        init_from_ncfile(lev);
 
         // The physbc's need the terrain but are needed for initHSE
-        if (!solverChoice.use_real_bcs) {
-            make_physbcs(lev);
-        }
+        make_physbcs(lev);
     }
     else if (solverChoice.init_type == InitType::Metgrid)
     {
@@ -1483,7 +1531,9 @@ ERF::init_only (int lev, Real time)
     // - This may modify the base state
     // - The fields set by init_custom_pert are **perturbations** to the
     //   background flow set based on init_type
-    init_custom(lev);
+    if (solverChoice.init_type != InitType::NCFile) {
+        init_custom(lev);
+    }
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
     // The data associated with the lower grid ID is considered the correct value.
@@ -1527,13 +1577,9 @@ ERF::ReadParameters ()
     ParmParse pp(pp_prefix);
     ParmParse pp_amr("amr");
     {
-        // The type of the file we restart from
-        pp.query("restart_type", restart_type);
-
         pp.query("regrid_level_0_on_restart", regrid_level_0_on_restart);
         pp.query("regrid_int", regrid_int);
         pp.query("check_file", check_file);
-        pp.query("check_type", check_type);
 
         // The regression tests use "amr.restart" and "amr.m_check_int" so we allow
         //    for those or "erf.restart" / "erf.m_check_int" with the former taking
@@ -1615,8 +1661,15 @@ ERF::ReadParameters ()
         } // lev
 
         // NetCDF wrfbdy lateral boundary file
-        pp.query("nc_bdy_file", nc_bdy_file);
-        Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
+        if (pp.query("nc_bdy_file", nc_bdy_file)) {
+            Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
+        }
+
+        // NetCDF wrflow lateral boundary file
+        if (pp.query("nc_low_file", nc_low_file)) {
+            Print() << "Reading NC low file name " << nc_low_file << std::endl;
+        }
+
 #endif
 
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
@@ -1744,6 +1797,13 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+#ifndef ERF_USE_NETCDF
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
+                                       (solverChoice.init_type != InitType::Metgrid ) &&
+                                       (solverChoice.init_type != InitType::NCFile  )  ),
+                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
+#endif
 
     // Query the canopy model file name
     std::string forestfile;

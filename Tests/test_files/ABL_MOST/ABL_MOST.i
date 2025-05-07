@@ -12,7 +12,7 @@ amr.n_cell           =    64       64      64
 geometry.is_periodic = 1 1 0
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-zlo.type      = "Most"
+zlo.type = "surface_layer"
 erf.most.z0   = 0.1
 erf.most.zref = 8.0
 

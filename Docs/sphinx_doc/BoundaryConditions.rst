@@ -26,7 +26,7 @@ The information for each face is preceded by
 ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or ``zhi``.
 
 Currently available type of boundary conditions are
-``inflow``, ``outflow``, ``open``, ``inflow_outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``MOST``.
+``inflow``, ``outflow``, ``inflow_outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``surface_layer``.
 (Spelling of the type matters; capitalization does not.)
 
 For example, setting
@@ -72,17 +72,19 @@ We use the following options preceded by ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``z
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
 | symmetry      | reflect_odd  | reflect_even   | reflect_even   | reflect_even             | reflect_even  |
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
-| MOST          |              |                |                |                          |               |
+| surface_layer | ext_dir      | hoextrap       | hoextrap       | hoextrap                 | hoextrap      |
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
 
 Here ``ext_dir``, ``foextrap``, and ``reflect_even`` refer to AMReX keywords.   The ``ext_dir`` type
 refers to an "external Dirichlet" boundary, which means the values must be specified by the user.
 The ``foextrap`` type refers to "first order extrapolation" which sets all the ghost values to the
-same value in the last valid cell/face  (AMReX also has a ``hoextrap``, or "higher order extrapolation"
-option, which does a linear extrapolation from the two nearest valid values). By contrast, ``neumann``
+same value in the last valid cell/face. By contrast, ``hoextrap``, or "higher order extrapolation",
+does a linear extrapolation from the two nearest valid values. The ``neumann`` condition
 is an ERF-specific boundary type that allows a user to specify a variable gradient. Currently, the
 ``neumann`` BC is only supported for theta to allow for weak capping inversion
-(:math:`\partial \theta / \partial z`) at the top domain.
+(:math:`\partial \theta / \partial z`) at the top domain. The ``surface_layer`` condition is an ERF-specific
+boundary type that employs the above set of boundary conditions but also directly specifies the
+subgrid scale diffusive fluxes; see :ref:`sec:surface_layer` for more information.
 
 As an example,
 
@@ -162,8 +164,6 @@ Couette regression test example, in which we specify
 
 We also note that in the case of a ``slipwall`` boundary condition in a simulation with non-zero
 viscosity specified, the "foextrap" boundary condition enforces zero strain at the wall.
-
-The keyword ``MOST`` is an ERF-specific boundary type; see :ref:`sec:MOST` for more information.
 
 It is important to note that external Dirichlet boundary data should be specified
 as the value on the face of the cell bounding the domain, even for cell-centered
