@@ -551,7 +551,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                  mask_arr, cfg_arr,
                                  ax_arr, ay_arr, az_arr,
                                  fcx_arr, fcy_arr, fcz_arr, detJ_arr,
-                                 dxInv, mf_m, mf_u, mf_v,
+                                 dxInv, mf_mx, mf_my, mf_uy, mf_vx,
                                  flx_arr, l_fixed_rho,
                                  already_on_centroids);
         }
@@ -559,24 +559,24 @@ void erf_slow_rhs_pre (int level, int finest_level,
         int icomp = RhoTheta_comp; int ncomp = 1;
         if (solverChoice.terrain_type != TerrainType::EB){
             AdvectionSrcForScalars(dt, bx, icomp, ncomp,
-                                avg_xmom, avg_ymom, avg_zmom,
-                                cell_data, cell_prim, cell_rhs,
-                                l_use_mono_adv, max_s_ptr, min_s_ptr,
-                                detJ_arr, dxInv, mf_mx, mf_my,
-                                l_horiz_adv_type, l_vert_adv_type,
-                                l_horiz_upw_frac, l_vert_upw_frac,
-                                flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                                   avg_xmom, avg_ymom, avg_zmom,
+                                   cell_data, cell_prim, cell_rhs,
+                                   l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                   detJ_arr, dxInv, mf_mx, mf_my,
+                                   l_horiz_adv_type, l_vert_adv_type,
+                                   l_horiz_upw_frac, l_vert_upw_frac,
+                                   flx_arr, flx_tmp_arr, domain, bc_ptr_h);
         } else {
             EBAdvectionSrcForScalars(bx, icomp, ncomp,
-                                avg_xmom, avg_ymom, avg_zmom,
-                                cell_prim, cell_rhs,
-                                mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
-                                fcx_arr, fcy_arr, fcz_arr,
-                                detJ_arr, dxInv, mf_mx, mf_my,
-                                l_horiz_adv_type, l_vert_adv_type,
-                                l_horiz_upw_frac, l_vert_upw_frac,
-                                flx_arr, domain, bc_ptr_h,
-                                already_on_centroids);
+                                     avg_xmom, avg_ymom, avg_zmom,
+                                     cell_prim, cell_rhs,
+                                     mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                     fcx_arr, fcy_arr, fcz_arr,
+                                     detJ_arr, dxInv, mf_mx, mf_my,
+                                     l_horiz_adv_type, l_vert_adv_type,
+                                     l_horiz_upw_frac, l_vert_upw_frac,
+                                     flx_arr, domain, bc_ptr_h,
+                                     already_on_centroids);
         }
 
         if (l_use_diff) {
