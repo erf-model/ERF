@@ -578,7 +578,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         if ( (containerHasElement(plot_var_names, "dpdx")) ||
              (containerHasElement(plot_var_names, "dpdy")) ) {
             make_gradp(lev, solverChoice, geom[lev], vars_new[lev][Vars::cons], p_hse, pp_inc[lev],
-                       z_phys_nd_src[lev], z_phys_cc[lev], gradp[lev]);
+                       z_phys_nd[lev], z_phys_cc[lev], gradp[lev]);
         }
 
         if (containerHasElement(plot_var_names, "dpdx"))
@@ -592,6 +592,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k));
                 });
             }
+            mf_comp ++;
+
         }
         if (containerHasElement(plot_var_names, "dpdy"))
         {
@@ -604,6 +606,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k));
                 });
             }
+            mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "pres_hse_x"))
