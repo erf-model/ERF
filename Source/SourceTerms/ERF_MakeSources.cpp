@@ -76,7 +76,6 @@ void make_sources (int level,
 
     // flags to apply certain source terms in substep call only
     bool use_Rayleigh_fast = solverChoice.rayleigh_damp_substep;
-    bool use_canopy_fast = solverChoice.forest_substep;
     bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
 
     // *****************************************************************************
