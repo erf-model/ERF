@@ -414,23 +414,35 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         calculate_derived("vorticity_z", mf_cc_vel[lev]           , derived::erf_dervortz);
         calculate_derived("magvel"     , mf_cc_vel[lev]           , derived::erf_dermagvel);
 
+        MultiFab  r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
+        MultiFab  p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
+        MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+
         MultiFab pressure;
 
         if (solverChoice.anelastic[lev] == 0) {
-            if (containerHasElement(plot_var_names, "pressure") ||
+            if (containerHasElement(plot_var_names, "pressure")  ||
                 containerHasElement(plot_var_names, "pert_pres") ||
-                containerHasElement(plot_var_names, "dpdx") ||
-                containerHasElement(plot_var_names, "dpdy"))
+                containerHasElement(plot_var_names, "dpdx")      ||
+                containerHasElement(plot_var_names, "dpdy")      ||
+                containerHasElement(plot_var_names, "dpdz"))
             {
-                int ng = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy")) ? 1 : 0;
+                int ng = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
+                          containerHasElement(plot_var_names, "dpdz")) ? 1 : 0;
 
+                // Allocate space for pressure
                 pressure.define(ba,dm,1,ng);
+
+                if (ng > 0) {
+                    // Default to p_hse as a way of filling ghost cells at domain boundaries
+                    MultiFab::Copy(pressure,p_hse,0,0,1,1);
+                }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
     #endif
                 for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
-                    const Box& gbx = mfi.growntilebox();
+                    const Box& gbx = mfi.growntilebox(IntVect(1,1,0));
 
                     const Array4<Real      >& p_arr = pressure.array(mfi);
                     const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
@@ -458,9 +470,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp += 1;
         }
 
-        MultiFab  r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
-        MultiFab  p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
-        MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
         if (containerHasElement(plot_var_names, "pres_hse"))
         {
             MultiFab::Copy(mf[lev],p_hse,0,mf_comp,1,0);
@@ -579,14 +588,16 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         // Allocate space if we are computing any pressure gradients
         // **********************************************************************************************
 
-        Vector<MultiFab> gradp_temp;  gradp_temp.resize(2);
+        Vector<MultiFab> gradp_temp;  gradp_temp.resize(AMREX_SPACEDIM);
         if (containerHasElement(plot_var_names, "dpdx")       ||
             containerHasElement(plot_var_names, "dpdy")       ||
+            containerHasElement(plot_var_names, "dpdz")       ||
             containerHasElement(plot_var_names, "pres_hse_x") ||
             containerHasElement(plot_var_names, "pres_hse_y"))
         {
-            gradp_temp[0].define(convert(ba, IntVect(1,0,0)), dm, 1, 1);
-            gradp_temp[1].define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
+            gradp_temp[GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp_temp[GpVars::gpx].setVal(0.);
+            gradp_temp[GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp_temp[GpVars::gpy].setVal(0.);
+            gradp_temp[GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1); gradp_temp[GpVars::gpz].setVal(0.);
         }
 
         // **********************************************************************************************
@@ -594,7 +605,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         // **********************************************************************************************
 
         if ( (containerHasElement(plot_var_names, "dpdx")) ||
-             (containerHasElement(plot_var_names, "dpdy")) ) {
+             (containerHasElement(plot_var_names, "dpdy")) ||
+             (containerHasElement(plot_var_names, "dpdz")) ) {
             compute_gradp(pressure, geom[lev], z_phys_nd[lev], z_phys_cc[lev], gradp_temp, solverChoice);
         }
 
@@ -604,27 +616,39 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >&  derdat  = mf[lev].array(mfi);
-                const Array4<Real const>&  gpx_arr = gradp_temp[0].array(mfi);
+                const Array4<Real const>&  gpx_arr = gradp_temp[GpVars::gpx].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k));
                 });
             }
             mf_comp ++;
-
-        }
+        } // dpdx
         if (containerHasElement(plot_var_names, "dpdy"))
         {
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >&  derdat  = mf[lev].array(mfi);
-                const Array4<Real const>&  gpy_arr = gradp_temp[1].array(mfi);
+                const Array4<Real const>&  gpy_arr = gradp_temp[GpVars::gpy].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k));
                 });
             }
             mf_comp ++;
-        }
+        } // dpdy
+        if (containerHasElement(plot_var_names, "dpdz"))
+        {
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real      >&  derdat  = mf[lev].array(mfi);
+                const Array4<Real const>&  gpz_arr = gradp_temp[GpVars::gpz].array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpz_arr(i,j,k+1) + gpz_arr(i,j,k));
+                });
+            }
+            mf_comp ++;
+        } // dpdz
 
         // **********************************************************************************************
         // These are based on computing gradient of basestate pressure
