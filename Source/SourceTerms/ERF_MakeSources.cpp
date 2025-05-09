@@ -425,7 +425,7 @@ void make_sources (int level,
         // 10. Add Immersed source terms
         // *************************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
-           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) 
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
         {
             Real dz                     = geom.CellSize(2);
             const Real drag_coefficient = 10.0/dz;

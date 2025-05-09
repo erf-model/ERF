@@ -339,7 +339,7 @@ void erf_fast_rhs_T (int step, int nrk,
                 avg_ymom(i,j,k) += facinv*new_drho_v(i,j,k);
 
                 cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v(i,j,k);
-            });            
+            });
         } // end profile
     }
 
@@ -695,7 +695,7 @@ void erf_fast_rhs_T (int step, int nrk,
             cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta);
 
             (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
-              
+
             // add in source terms for cell-centered conserved variables
             cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
             cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
