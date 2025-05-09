@@ -577,8 +577,10 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
         if ( (containerHasElement(plot_var_names, "dpdx")) ||
              (containerHasElement(plot_var_names, "dpdy")) ) {
+            BCRec const* bcrec_ptr = domain_bcs_type_d.data();
+
             make_gradp(lev, solverChoice, geom[lev], vars_new[lev][Vars::cons], p_hse, pp_inc[lev],
-                       z_phys_nd_src[lev], z_phys_cc[lev], get_eb(lev), gradp[lev]);
+                       z_phys_nd_src[lev], z_phys_cc[lev], bcrec_ptr, get_eb(lev), gradp[lev]);
         }
 
         if (containerHasElement(plot_var_names, "dpdx"))

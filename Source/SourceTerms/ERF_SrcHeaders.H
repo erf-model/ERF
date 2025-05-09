@@ -31,6 +31,7 @@ void make_gradp (int level,
                  const amrex::MultiFab& pp_inc,
                  std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                  std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                 amrex::BCRec const* bcrec_ptr,
                  const eb_& ebfact,
                  amrex::Vector<amrex::MultiFab>& gradp);
 

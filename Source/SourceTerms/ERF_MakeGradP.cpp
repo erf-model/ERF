@@ -1,7 +1,9 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_EB_Slopes_K.H>
+#include "AMReX_BCRec.H"
 
+#include "ERF.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_DataStruct.H"
 #include "ERF_Utils.H"
@@ -30,6 +32,7 @@ void make_gradp (int level,
                  const MultiFab& pp_inc,
                  std::unique_ptr<MultiFab>& z_phys_nd,
                  std::unique_ptr<MultiFab>& z_phys_cc,
+                 BCRec const* d_bcrec_ptr,
                  const eb_& ebfact,
                  Vector<MultiFab>& gradp)
 {
@@ -180,12 +183,55 @@ void make_gradp (int level,
 
             // BCRec const* d_bcrec_ptr = domain_bcs_type_d.data();
 
+            // for (int n = 0; n < AMREX_SPACEDIM+NBCVAR_max; n++) {
+            //     Print()<<"SK: MakeGradP/ n = "<< n << ", d_bcrec_ptr[n].lo(0) = "<< d_bcrec_ptr[n].lo(0) << std::endl;
+            //     Print()<<"SK: MakeGradP/ n = "<< n << ", d_bcrec_ptr[n].hi(0) = "<< d_bcrec_ptr[n].hi(0) << std::endl;
+            //     Print()<<"SK: MakeGradP/ n = "<< n << ", d_bcrec_ptr[n].lo(1) = "<< d_bcrec_ptr[n].lo(1) << std::endl;
+            //     Print()<<"SK: MakeGradP/ n = "<< n << ", d_bcrec_ptr[n].hi(1) = "<< d_bcrec_ptr[n].hi(1) << std::endl;
+            //     Print()<<"SK: MakeGradP/ n = "<< n << ", d_bcrec_ptr[n].lo(2) = "<< d_bcrec_ptr[n].lo(2) << std::endl;
+            //     Print()<<"SK: MakeGradP/ n = "<< n << ", d_bcrec_ptr[n].hi(2) = "<< d_bcrec_ptr[n].hi(2) << std::endl;
+            // }
+            
+
+            // bool extdir_ilo = (d_bcrec_ptr[n].lo(0)==BCType::ext_dir || d_bcrec_ptr[n].lo(0)==BCType::hoextrap);
+            // bool extdir_ihi = (d_bcrec_ptr[n].hi(0)==BCType::ext_dir || d_bcrec_ptr[n].hi(0)==BCType::hoextrap);
+            // bool extdir_jlo = (d_bcrec_ptr[n].lo(1)==BCType::ext_dir || d_bcrec_ptr[n].lo(1)==BCType::hoextrap);
+            // bool extdir_jhi = (d_bcrec_ptr[n].hi(1)==BCType::ext_dir || d_bcrec_ptr[n].hi(1)==BCType::hoextrap);
+            // bool extdir_klo = (d_bcrec_ptr[n].lo(2)==BCType::ext_dir || d_bcrec_ptr[n].lo(2)==BCType::hoextrap);
+            // bool extdir_khi = (d_bcrec_ptr[n].hi(2)==BCType::ext_dir || d_bcrec_ptr[n].hi(2)==BCType::hoextrap);
+
             // const int domain_ilo = domain.smallEnd(0);
             // const int domain_ihi = domain.bigEnd(0);
             // const int domain_jlo = domain.smallEnd(1);
             // const int domain_jhi = domain.bigEnd(1);
 
             // int n = 0;
+
+            // // EB u-factory
+            // Array4<const EBCellFlag> u_cflag = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            // Array4<const Real      > u_vfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
+            // Array4<const Real      > u_vcent = (ebfact.get_u_const_factory())->getCentroid().const_array(mfi);
+            // Array4<const Real      > u_fcx   = (ebfact.get_u_const_factory())->getFaceCent()[0]->const_array(mfi);
+            // Array4<const Real      > u_fcy   = (ebfact.get_u_const_factory())->getFaceCent()[1]->const_array(mfi);
+            // Array4<const Real      > u_fcz   = (ebfact.get_u_const_factory())->getFaceCent()[2]->const_array(mfi);
+
+            // // EB v-factory
+            // Array4<const EBCellFlag> v_cflag = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            // Array4<const Real      > v_vfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
+            // Array4<const Real      > v_vcent = (ebfact.get_v_const_factory())->getCentroid().const_array(mfi);
+            // Array4<const Real      > v_fcx   = (ebfact.get_v_const_factory())->getFaceCent()[0]->const_array(mfi);
+            // Array4<const Real      > v_fcy   = (ebfact.get_v_const_factory())->getFaceCent()[1]->const_array(mfi);
+            // Array4<const Real      > v_fcz   = (ebfact.get_v_const_factory())->getFaceCent()[2]->const_array(mfi);
+
+            // // EB w-factory
+            // Array4<const EBCellFlag> w_cflag = (ebfact.get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            // Array4<const Real      > w_vfrac = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
+            // Array4<const Real      > w_vcent = (ebfact.get_w_const_factory())->getCentroid().const_array(mfi);
+            // Array4<const Real      > w_fcx   = (ebfact.get_w_const_factory())->getFaceCent()[0]->const_array(mfi);
+            // Array4<const Real      > w_fcy   = (ebfact.get_w_const_factory())->getFaceCent()[1]->const_array(mfi);
+            // Array4<const Real      > w_fcz   = (ebfact.get_w_const_factory())->getFaceCent()[2]->const_array(mfi);
+
+            // GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
 
             // ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             // {
@@ -194,24 +240,11 @@ void make_gradp (int level,
 
             //     if (vfrac(i,j,k) > 0.0)
             //     {
-            //         bool extdir_ilo = ( d_bcrec_ptr[n].lo(0) == BCType::ext_dir ||
-            //                             d_bcrec_ptr[n].lo(0) == BCType::hoextrap);
-            //         bool extdir_ihi = ( d_bcrec_ptr[n].hi(0) == BCType::ext_dir ||
-            //                             d_bcrec_ptr[n].hi(0) == BCType::hoextrap);
-            //         bool extdir_jlo = ( d_bcrec_ptr[n].lo(1) == BCType::ext_dir ||
-            //                             d_bcrec_ptr[n].lo(1) == BCType::hoextrap);
-            //         bool extdir_jhi = ( d_bcrec_ptr[n].hi(1) == BCType::ext_dir ||
-            //                             d_bcrec_ptr[n].hi(1) == BCType::hoextrap);
-            //         bool extdir_klo = ( d_bcrec_ptr[n].lo(2) == BCType::ext_dir ||
-            //                             d_bcrec_ptr[n].lo(2) == BCType::hoextrap);
-            //         bool extdir_khi = ( d_bcrec_ptr[n].hi(2) == BCType::ext_dir ||
-            //                             d_bcrec_ptr[n].hi(2) == BCType::hoextrap);
-
-            //         GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
+                    
 
             //         slopes_eb = amrex_calc_slopes_extdir_eb(
-            //             i,j,k,n,pp_arr,cent_hat,vfrac,
-            //             AMREX_D_DECL(fcx,fcy,fcz),flag,
+            //             i,j,k,n,pp_arr,u_vcent,u_vfrac,
+            //             AMREX_D_DECL(u_fcx,u_fcy,u_fcz),u_cflag,
             //             AMREX_D_DECL(extdir_ilo, extdir_jlo, extdir_klo),
             //             AMREX_D_DECL(extdir_ihi, extdir_jhi, extdir_khi),
             //             AMREX_D_DECL(domain_ilo, domain_jlo, domain_klo),
