@@ -591,7 +591,6 @@ void make_mom_sources (int level,
         // *****************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((slow_step && !use_ImmersedForcing_fast) || (fast_step && use_ImmersedForcing_fast))) {
-            printf("I am in immersed forcing \n");
             const Real drag_coefficient=500.0/dz; //10.0/dz;
             const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
