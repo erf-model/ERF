@@ -315,7 +315,6 @@ void make_mom_sources (int level,
         Real zdamp    = solverChoice.rayleigh_zdamp;
         Real dampcoef = solverChoice.rayleigh_dampcoef;
 
-        // printf("slow_step: %i, fast_step: %i, use_Rayleigh_fast: %i", slow_step, fast_step, use_Rayleigh_fast);
         if ((slow_step && !use_Rayleigh_fast) || (fast_step && use_Rayleigh_fast)) {
             if (rayleigh_damp_U) {
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
