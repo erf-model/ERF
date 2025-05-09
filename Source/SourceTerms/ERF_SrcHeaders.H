@@ -7,6 +7,7 @@
 #include "ERF_DataStruct.H"
 #include "ERF_InputSoundingData.H"
 #include "ERF_TurbPertStruct.H"
+#include "ERF_EB.H"
 
 /**
  * Function for computing the buoyancy term to be used in the evolution
@@ -30,6 +31,7 @@ void make_gradp (int level,
                  const amrex::MultiFab& pp_inc,
                  std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                  std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                 const eb_& ebfact,
                  amrex::Vector<amrex::MultiFab>& gradp);
 
 void make_sources (int level, int nrk,

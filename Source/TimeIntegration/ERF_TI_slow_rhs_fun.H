@@ -160,7 +160,7 @@
             // Define the pressure gradient
             // *****************************************************************************
             make_gradp(level, solverChoice, fine_geom, S_data[Vars::cons], *p0_new, pp_inc[level],
-                       z_phys_nd_src[level], z_phys_cc[level], gradp[level]);
+                       z_phys_nd_src[level], z_phys_cc[level], get_eb(level), gradp[level]);
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
@@ -273,7 +273,7 @@
             // Define the pressure gradient
             // *****************************************************************************
             make_gradp(level, solverChoice, fine_geom, S_data[Vars::cons], *p0, pp_inc[level],
-                       z_phys_nd[level], z_phys_cc[level], gradp[level]);
+                       z_phys_nd[level], z_phys_cc[level], get_eb(level), gradp[level]);
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
@@ -489,7 +489,7 @@
         // Define the pressure gradient
         // *****************************************************************************
         make_gradp(level, solverChoice, fine_geom, S_data[Vars::cons], *p0, pp_inc[level],
-                   z_phys_nd[level], z_phys_cc[level], gradp[level]);
+                   z_phys_nd[level], z_phys_cc[level], get_eb(level), gradp[level]);
 
         int n_qstate = micro->Get_Qstate_Size();
         make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,

@@ -1,9 +1,11 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
+#include <AMReX_EB_Slopes_K.H>
 
 #include "ERF_SrcHeaders.H"
 #include "ERF_DataStruct.H"
 #include "ERF_Utils.H"
+#include "ERF_EB.H"
 
 using namespace amrex;
 
@@ -28,6 +30,7 @@ void make_gradp (int level,
                  const MultiFab& pp_inc,
                  std::unique_ptr<MultiFab>& z_phys_nd,
                  std::unique_ptr<MultiFab>& z_phys_cc,
+                 const eb_& ebfact,
                  Vector<MultiFab>& gradp)
 {
     const bool l_use_terrain_fitted_coords = (solverChoice.mesh_type != MeshType::ConstantDz);
@@ -35,8 +38,8 @@ void make_gradp (int level,
     const bool l_anelastic = solverChoice.anelastic[level];
 
     const Box domain = geom.Domain();
-    const int klo = domain.smallEnd(2);
-    const int khi = domain.bigEnd(2);
+    const int domain_klo = domain.smallEnd(2);
+    const int domain_khi = domain.bigEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
@@ -47,10 +50,10 @@ void make_gradp (int level,
         Box tbz = mfi.nodaltilebox(2);
 
         // We don't compute gpz on the bottom or top domain boundary
-        if (tbz.smallEnd(2) == klo) {
+        if (tbz.smallEnd(2) == domain_klo) {
             tbz.growLo(2,-1);
         }
-        if (tbz.bigEnd(2) == khi+1) {
+        if (tbz.bigEnd(2) == domain_khi+1) {
             tbz.growHi(2,-1);
         }
 
@@ -85,7 +88,7 @@ void make_gradp (int level,
                 if (cell_data(i,j,k,RhoTheta_comp) <= 0.) {
                     printf("BAD THETA AT %d %d %d %e %e \n",
                     i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
-                    amrex::Abort("Bad theta in ERF_slow_rhs_pre");
+                    Abort("Bad theta in ERF_slow_rhs_pre");
                 }
 #endif
                 Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
@@ -95,76 +98,129 @@ void make_gradp (int level,
 
         const Array4<const Real>& pp_arr = (l_anelastic) ? pp_inc.const_array(mfi) : pprime.const_array();
 
-        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            //Note : mx/my == 1, so no map factor needed here
-            Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
+        // Only if EB and Compressible, pressure gradients are fitted at the centroids of cut cells.
 
-            if (l_use_terrain_fitted_coords) {
-                Real met_h_xi = (z_cc(i,j,k) - z_cc(i-1,j,k)) * dxInv[0];
+        if (solverChoice.terrain_type != TerrainType::EB || l_anelastic) {
 
-                Real dz_phys_hi, dz_phys_lo;
-                Real gpz_lo, gpz_hi;
-                if (k==klo) {
-                    dz_phys_hi = z_cc(i  ,j,k+1) -   z_cc(i  ,j,k  );
-                    dz_phys_lo = z_cc(i-1,j,k+1) -   z_cc(i-1,j,k  );
-                    gpz_hi  = (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k  )) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k  )) / dz_phys_lo;
-                } else if (k==khi) {
-                    dz_phys_hi = z_cc(i  ,j,k  ) -   z_cc(i  ,j,k-1);
-                    dz_phys_lo = z_cc(i-1,j,k  ) -   z_cc(i-1,j,k-1);
-                    gpz_hi  = (pp_arr(i  ,j,k  ) - pp_arr(i  ,j,k-1)) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i-1,j,k  ) - pp_arr(i-1,j,k-1)) / dz_phys_lo;
-                } else {
-                    dz_phys_hi = z_cc(i  ,j,k+1) -   z_cc(i  ,j,k-1);
-                    dz_phys_lo = z_cc(i-1,j,k+1) -   z_cc(i-1,j,k-1);
-                    gpz_hi  = (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k-1)) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k-1)) / dz_phys_lo;
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                //Note : mx/my == 1, so no map factor needed here
+                Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
+
+                if (l_use_terrain_fitted_coords) {
+                    Real met_h_xi = (z_cc(i,j,k) - z_cc(i-1,j,k)) * dxInv[0];
+
+                    Real dz_phys_hi, dz_phys_lo;
+                    Real gpz_lo, gpz_hi;
+                    if (k==domain_klo) {
+                        dz_phys_hi = z_cc(i  ,j,k+1) -   z_cc(i  ,j,k  );
+                        dz_phys_lo = z_cc(i-1,j,k+1) -   z_cc(i-1,j,k  );
+                        gpz_hi  = (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k  )) / dz_phys_hi;
+                        gpz_lo  = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k  )) / dz_phys_lo;
+                    } else if (k==domain_khi) {
+                        dz_phys_hi = z_cc(i  ,j,k  ) -   z_cc(i  ,j,k-1);
+                        dz_phys_lo = z_cc(i-1,j,k  ) -   z_cc(i-1,j,k-1);
+                        gpz_hi  = (pp_arr(i  ,j,k  ) - pp_arr(i  ,j,k-1)) / dz_phys_hi;
+                        gpz_lo  = (pp_arr(i-1,j,k  ) - pp_arr(i-1,j,k-1)) / dz_phys_lo;
+                    } else {
+                        dz_phys_hi = z_cc(i  ,j,k+1) -   z_cc(i  ,j,k-1);
+                        dz_phys_lo = z_cc(i-1,j,k+1) -   z_cc(i-1,j,k-1);
+                        gpz_hi  = (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k-1)) / dz_phys_hi;
+                        gpz_lo  = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k-1)) / dz_phys_lo;
+                    }
+                    Real gpx_metric = met_h_xi * 0.5 * (gpz_hi + gpz_lo);
+                    gpx -= gpx_metric;
                 }
-                Real gpx_metric = met_h_xi * 0.5 * (gpz_hi + gpz_lo);
-                gpx -= gpx_metric;
-            }
-            gpx_arr(i,j,k) = gpx;
-        });
+                gpx_arr(i,j,k) = gpx;
+            });
 
-        ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            //Note : mx/my == 1, so no map factor needed here
-            Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                //Note : mx/my == 1, so no map factor needed here
+                Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
 
-            if (l_use_terrain_fitted_coords) {
-                Real met_h_eta = (z_cc(i,j,k) - z_cc(i,j-1,k)) * dxInv[1];
+                if (l_use_terrain_fitted_coords) {
+                    Real met_h_eta = (z_cc(i,j,k) - z_cc(i,j-1,k)) * dxInv[1];
 
-                Real dz_phys_hi, dz_phys_lo;
-                Real gpz_lo, gpz_hi;
-                if (k==klo) {
-                    dz_phys_hi = z_cc(i,j  ,k+1) -   z_cc(i,j  ,k  );
-                    dz_phys_lo = z_cc(i,j-1,k+1) -   z_cc(i,j-1,k  );
-                    gpz_hi  = (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k  )) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k  )) / dz_phys_lo;
-                } else if (k==khi) {
-                    dz_phys_hi = z_cc(i,j  ,k  ) -   z_cc(i,j  ,k-1);
-                    dz_phys_lo = z_cc(i,j-1,k  ) -   z_cc(i,j-1,k-1);
-                    gpz_hi  = (pp_arr(i,j  ,k  ) - pp_arr(i,j  ,k-1)) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i,j-1,k  ) - pp_arr(i,j-1,k-1)) / dz_phys_lo;
-                } else {
-                    dz_phys_hi = z_cc(i,j  ,k+1) -   z_cc(i,j  ,k-1);
-                    dz_phys_lo = z_cc(i,j-1,k+1) -   z_cc(i,j-1,k-1);
-                    gpz_hi  = (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k-1)) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k-1)) / dz_phys_lo;
-                }
-                Real gpy_metric = met_h_eta * 0.5 * (gpz_hi + gpz_lo);
-                gpy -= gpy_metric;
-            } // l_use_terrain_fitted_coords
+                    Real dz_phys_hi, dz_phys_lo;
+                    Real gpz_lo, gpz_hi;
+                    if (k==domain_klo) {
+                        dz_phys_hi = z_cc(i,j  ,k+1) -   z_cc(i,j  ,k  );
+                        dz_phys_lo = z_cc(i,j-1,k+1) -   z_cc(i,j-1,k  );
+                        gpz_hi  = (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k  )) / dz_phys_hi;
+                        gpz_lo  = (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k  )) / dz_phys_lo;
+                    } else if (k==domain_khi) {
+                        dz_phys_hi = z_cc(i,j  ,k  ) -   z_cc(i,j  ,k-1);
+                        dz_phys_lo = z_cc(i,j-1,k  ) -   z_cc(i,j-1,k-1);
+                        gpz_hi  = (pp_arr(i,j  ,k  ) - pp_arr(i,j  ,k-1)) / dz_phys_hi;
+                        gpz_lo  = (pp_arr(i,j-1,k  ) - pp_arr(i,j-1,k-1)) / dz_phys_lo;
+                    } else {
+                        dz_phys_hi = z_cc(i,j  ,k+1) -   z_cc(i,j  ,k-1);
+                        dz_phys_lo = z_cc(i,j-1,k+1) -   z_cc(i,j-1,k-1);
+                        gpz_hi  = (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k-1)) / dz_phys_hi;
+                        gpz_lo  = (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k-1)) / dz_phys_lo;
+                    }
+                    Real gpy_metric = met_h_eta * 0.5 * (gpz_hi + gpz_lo);
+                    gpy -= gpy_metric;
+                } // l_use_terrain_fitted_coords
 
-            gpy_arr(i,j,k) = gpy;
-        });
+                gpy_arr(i,j,k) = gpy;
+            });
 
-        ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            Real met_h_zeta = (l_use_terrain_fitted_coords) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd) : 1;
-            gpz_arr(i,j,k) = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
-        });
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                Real met_h_zeta = (l_use_terrain_fitted_coords) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd) : 1;
+                gpz_arr(i,j,k) = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
+            });
+
+        } else {
+
+            // Least-Squares fitting of pressure gradient for Compressible-EB case
+            // Compute slope using 3x3x3 stencil
+
+            // BCRec const* d_bcrec_ptr = domain_bcs_type_d.data();
+
+            // const int domain_ilo = domain.smallEnd(0);
+            // const int domain_ihi = domain.bigEnd(0);
+            // const int domain_jlo = domain.smallEnd(1);
+            // const int domain_jhi = domain.bigEnd(1);
+
+            // int n = 0;
+
+            // ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            // {
+
+            //     // Interpolate pressure from CC to FC grid.
+
+            //     if (vfrac(i,j,k) > 0.0)
+            //     {
+            //         bool extdir_ilo = ( d_bcrec_ptr[n].lo(0) == BCType::ext_dir ||
+            //                             d_bcrec_ptr[n].lo(0) == BCType::hoextrap);
+            //         bool extdir_ihi = ( d_bcrec_ptr[n].hi(0) == BCType::ext_dir ||
+            //                             d_bcrec_ptr[n].hi(0) == BCType::hoextrap);
+            //         bool extdir_jlo = ( d_bcrec_ptr[n].lo(1) == BCType::ext_dir ||
+            //                             d_bcrec_ptr[n].lo(1) == BCType::hoextrap);
+            //         bool extdir_jhi = ( d_bcrec_ptr[n].hi(1) == BCType::ext_dir ||
+            //                             d_bcrec_ptr[n].hi(1) == BCType::hoextrap);
+            //         bool extdir_klo = ( d_bcrec_ptr[n].lo(2) == BCType::ext_dir ||
+            //                             d_bcrec_ptr[n].lo(2) == BCType::hoextrap);
+            //         bool extdir_khi = ( d_bcrec_ptr[n].hi(2) == BCType::ext_dir ||
+            //                             d_bcrec_ptr[n].hi(2) == BCType::hoextrap);
+
+            //         GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
+
+            //         slopes_eb = amrex_calc_slopes_extdir_eb(
+            //             i,j,k,n,pp_arr,cent_hat,vfrac,
+            //             AMREX_D_DECL(fcx,fcy,fcz),flag,
+            //             AMREX_D_DECL(extdir_ilo, extdir_jlo, extdir_klo),
+            //             AMREX_D_DECL(extdir_ihi, extdir_jhi, extdir_khi),
+            //             AMREX_D_DECL(domain_ilo, domain_jlo, domain_klo),
+            //             AMREX_D_DECL(domain_ihi, domain_jhi, domain_khi),
+            //             2);
+
+            //     }
+            // });
+        }
 
     }
 }
