@@ -463,7 +463,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     #endif
                 for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
-                    const Box& gbx = mfi.growntilebox(IntVect(1,1,0));
+                    const Box& gbx = mfi.growntilebox(IntVect(ng,ng,0));
 
                     const Array4<Real      >& p_arr = pressure.array(mfi);
                     const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
@@ -1014,10 +1014,10 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
-                        Real       qv = S_arr(i,j,k,RhoQ1_comp) / S_arr(i,j,k,Rho_comp);
-                        Real       T  = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                        Real pressure = p_arr(i,j,k) * Real(0.01);
-                        erf_qsatw(T, pressure, derdat(i,j,k,mf_comp));
+                        Real qv = S_arr(i,j,k,RhoQ1_comp) / S_arr(i,j,k,Rho_comp);
+                        Real T  = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
+                        Real p  = p_arr(i,j,k) * Real(0.01);
+                        erf_qsatw(T, p, derdat(i,j,k,mf_comp));
                     });
                 }
                 mf_comp ++;
