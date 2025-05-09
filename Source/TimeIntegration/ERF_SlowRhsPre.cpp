@@ -52,8 +52,6 @@ using namespace amrex;
  * @param[in] ay area fractions on y-faces
  * @param[in] az area fractions on z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain_fitted_coords is false)
- * @param[in]  p0     Reference (hydrostatically stratified) pressure
- * @param[in] pp_inc  Perturbational pressure only used for anelastic flow
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
@@ -96,14 +94,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                        const Vector<BCRec>& domain_bcs_type_h,
                        std::unique_ptr<MultiFab>& z_phys_nd,
-                       std::unique_ptr<MultiFab>& z_phys_cc,
                        std::unique_ptr<MultiFab>& ax,
                        std::unique_ptr<MultiFab>& ay,
                        std::unique_ptr<MultiFab>& az,
                        std::unique_ptr<MultiFab>& detJ,
                        Gpu::DeviceVector<Real>& stretched_dz_d,
-                       const MultiFab* p0,
-                       const MultiFab& pp_inc,
+                       Vector<MultiFab>& gradp,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
@@ -126,8 +122,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
     int   num_comp = 2;
     int   end_comp = start_comp + num_comp - 1;
 
-    int klo = geom.Domain().smallEnd(2);
-    int khi = geom.Domain().bigEnd(2);
+    const Box& domain = geom.Domain();
+    int klo = domain.smallEnd(2);
+    int khi = domain.bigEnd(2);
 
     const AdvType l_horiz_adv_type = solverChoice.advChoice.dycore_horiz_adv_type;
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
@@ -153,10 +150,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool l_anelastic = solverChoice.anelastic[level];
     const bool l_fixed_rho = solverChoice.fixed_density;
-
-    const Box& domain = geom.Domain();
-    const int domlo_z = domain.smallEnd(2);
-    const int domhi_z = domain.bigEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
@@ -299,6 +292,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
         const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
 
+        const Array4<Real const>& gpx_arr   = gradp[GpVars::gpx].const_array(mfi);
+        const Array4<Real const>& gpy_arr   = gradp[GpVars::gpy].const_array(mfi);
+        const Array4<Real const>& gpz_arr   = gradp[GpVars::gpz].const_array(mfi);
+
         const Array4<Real>& rho_u_old = S_old[IntVars::xmom].array(mfi);
         const Array4<Real>& rho_v_old = S_old[IntVars::ymom].array(mfi);
 
@@ -343,10 +340,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         // Terrain metrics
         const Array4<const Real>& z_nd = z_phys_nd->const_array(mfi);
-        const Array4<const Real>& z_cc = z_phys_cc->const_array(mfi);
-
-        // Base state
-        const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
         // *****************************************************************************
         // Define flux arrays for use in advection
@@ -387,34 +380,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<Real> tmpy = (l_use_mono_adv) ? flux_tmp[1].array() : Array4<Real>{};
         Array4<Real> tmpz = (l_use_mono_adv) ? flux_tmp[2].array() : Array4<Real>{};
         const GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_tmp_arr{{AMREX_D_DECL(tmpx,tmpy,tmpz)}};
-
-        // *****************************************************************************
-        // Perturbational pressure field
-        // *****************************************************************************
-        FArrayBox pprime;
-        if (!l_anelastic) {
-            Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,1));
-            if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
-            pprime.resize(gbx,1,The_Async_Arena());
-            const Array4<Real>& pptemp_arr = pprime.array();
-            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-#ifdef AMREX_USE_GPU
-                if (cell_data(i,j,k,RhoTheta_comp) <= 0.) AMREX_DEVICE_PRINTF("BAD THETA AT %d %d %d %e %e \n",
-                    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
-#else
-                if (cell_data(i,j,k,RhoTheta_comp) <= 0.) {
-                    printf("BAD THETA AT %d %d %d %e %e \n",
-                    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
-                    amrex::Abort("Bad theta in ERF_slow_rhs_pre");
-                }
-#endif
-                Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
-                pptemp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
-            });
-        }
-
-        const Array4<const Real>& pp_arr = (l_anelastic) ? pp_inc.const_array(mfi) : pprime.const_array();
 
         // *****************************************************************************
         // Contravariant flux field
@@ -701,35 +666,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
 
-            //Note : mx/my == 1, so no map factor needed here
-            Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
-
-            if (l_use_terrain_fitted_coords) {
-                Real met_h_xi = (z_cc(i,j,k) - z_cc(i-1,j,k)) * dxInv[0];
-
-                Real dz_phys_hi, dz_phys_lo;
-                Real gpz_lo, gpz_hi;
-                if (k==0) {
-                    dz_phys_hi = z_cc(i  ,j,k+1) -   z_cc(i  ,j,k  );
-                    dz_phys_lo = z_cc(i-1,j,k+1) -   z_cc(i-1,j,k  );
-                    gpz_hi  = (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k  )) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k  )) / dz_phys_lo;
-                } else if (k==domhi_z) {
-                    dz_phys_hi = z_cc(i  ,j,k  ) -   z_cc(i  ,j,k-1);
-                    dz_phys_lo = z_cc(i-1,j,k  ) -   z_cc(i-1,j,k-1);
-                    gpz_hi  = (pp_arr(i  ,j,k  ) - pp_arr(i  ,j,k-1)) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i-1,j,k  ) - pp_arr(i-1,j,k-1)) / dz_phys_lo;
-                } else {
-                    dz_phys_hi = z_cc(i  ,j,k+1) -   z_cc(i  ,j,k-1);
-                    dz_phys_lo = z_cc(i-1,j,k+1) -   z_cc(i-1,j,k-1);
-                    gpz_hi  = (pp_arr(i  ,j,k+1) - pp_arr(i  ,j,k-1)) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i-1,j,k+1) - pp_arr(i-1,j,k-1)) / dz_phys_lo;
-                }
-                Real gpx_metric = met_h_xi * 0.5 * (gpz_hi + gpz_lo);
-                gpx -= gpx_metric;
-            }
-
-            gpx *= mf_u(i,j,0);
+            Real gpx = gpx_arr(i,j,k) * mf_u(i,j,0);
 
             Real q = 0.0;
             if (l_use_moisture) {
@@ -754,35 +691,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // y-momentum equation
 
-            //Note : mx/my == 1, so no map factor needed here
-            Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
-
-            if (l_use_terrain_fitted_coords) {
-                Real met_h_eta = (z_cc(i,j,k) - z_cc(i,j-1,k)) * dxInv[1];
-
-                Real dz_phys_hi, dz_phys_lo;
-                Real gpz_lo, gpz_hi;
-                if (k==klo) {
-                    dz_phys_hi = z_cc(i,j  ,k+1) -   z_cc(i,j  ,k  );
-                    dz_phys_lo = z_cc(i,j-1,k+1) -   z_cc(i,j-1,k  );
-                    gpz_hi  = (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k  )) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k  )) / dz_phys_lo;
-                } else if (k==khi) {
-                    dz_phys_hi = z_cc(i,j  ,k  ) -   z_cc(i,j  ,k-1);
-                    dz_phys_lo = z_cc(i,j-1,k  ) -   z_cc(i,j-1,k-1);
-                    gpz_hi  = (pp_arr(i,j  ,k  ) - pp_arr(i,j  ,k-1)) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i,j-1,k  ) - pp_arr(i,j-1,k-1)) / dz_phys_lo;
-                } else {
-                    dz_phys_hi = z_cc(i,j  ,k+1) -   z_cc(i,j  ,k-1);
-                    dz_phys_lo = z_cc(i,j-1,k+1) -   z_cc(i,j-1,k-1);
-                    gpz_hi  = (pp_arr(i,j  ,k+1) - pp_arr(i,j  ,k-1)) / dz_phys_hi;
-                    gpz_lo  = (pp_arr(i,j-1,k+1) - pp_arr(i,j-1,k-1)) / dz_phys_lo;
-                }
-                Real gpy_metric = met_h_eta * 0.5 * (gpz_hi + gpz_lo);
-                gpy -= gpy_metric;
-            } // l_use_terrain_fitted_coords
-
-            gpy *= mf_v(i,j,0);
+            Real gpy = gpy_arr(i,j,k) * mf_v(i,j,0);
 
             Real q = 0.0;
             if (l_use_moisture) {
@@ -868,8 +777,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // z-momentum equation
 
-            Real met_h_zeta = (l_use_terrain_fitted_coords) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd) : 1;
-            Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
+            Real gpz = gpz_arr(i,j,k);
 
             Real q = 0.0;
             if (l_use_moisture) {
@@ -893,14 +801,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Box b2d = bx; b2d.setRange(2,0);
 
-            if (lo.z > domlo_z) {
+            if (lo.z > klo) {
                 ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int ) // bottom of box but not of domain
                 {
                     rho_w_rhs(i,j,lo.z) = rho_w_rhs_crse(i,j,lo.z);
                 });
             }
 
-            if (hi.z < domhi_z+1) {
+            if (hi.z < khi+1) {
                 ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int ) // top of box but not of domain
                 {
                     rho_w_rhs(i,j,hi.z+1) = rho_w_rhs_crse(i,j,hi.z+1);

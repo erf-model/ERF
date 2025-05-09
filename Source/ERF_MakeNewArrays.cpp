@@ -142,6 +142,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
+    gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1);
+    gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
+    gradp[lev][GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
+
     // Note that we need the ghost cells in the z-direction if we are doing any
     // kind of domain decomposition in the vertical (at level 0 or above)
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);

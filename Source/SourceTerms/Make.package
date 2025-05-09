@@ -1,5 +1,6 @@
 CEXE_sources += ERF_AddThinBodySources.cpp
 CEXE_sources += ERF_MakeBuoyancy.cpp
+CEXE_sources += ERF_MakeGradP.cpp
 CEXE_sources += ERF_MakeMomSources.cpp
 CEXE_sources += ERF_MakeSources.cpp
 CEXE_sources += ERF_ApplySpongeZoneBCs.cpp
