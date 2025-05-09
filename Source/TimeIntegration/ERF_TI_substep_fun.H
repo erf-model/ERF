@@ -58,7 +58,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         mapfac_u[level], mapfac_v[level], mapfac_m[level],
                         dptr_rhotheta_src, dptr_rhoqt_src,
                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                        input_sounding_data, turbPert, false, true);
+                        input_sounding_data, turbPert, false);
         } else {
             // If this is not the first substep we pass in S_data as the previous step's solution
             make_sources(level, nrk, dtau, old_substep_time,
@@ -70,7 +70,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         mapfac_u[level], mapfac_v[level], mapfac_m[level],
                         dptr_rhotheta_src, dptr_rhoqt_src,
                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                        input_sounding_data, turbPert, false, true);
+                        input_sounding_data, turbPert, false);
         }
 
         // *************************************************************************
@@ -166,7 +166,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                                input_sounding_data, n_qstate, true, false);
+                                input_sounding_data, n_qstate, false);
 
                 erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
                                 S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
@@ -191,7 +191,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                                input_sounding_data, n_qstate, true, false);
+                                input_sounding_data, n_qstate, false);
 
                 erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
                                 S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
@@ -225,7 +225,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                                input_sounding_data, n_qstate, false, true);
+                                input_sounding_data, n_qstate, false);
 
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
@@ -247,7 +247,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                                input_sounding_data, n_qstate, false, true);
+                                input_sounding_data, n_qstate, false);
 
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
@@ -277,7 +277,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                                input_sounding_data, n_qstate, false, true);
+                                input_sounding_data, n_qstate, false);
 
                 erf_fast_rhs_N(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
@@ -299,7 +299,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                                input_sounding_data, n_qstate, false, true);
+                                input_sounding_data, n_qstate, false);
 
                 erf_fast_rhs_N(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,

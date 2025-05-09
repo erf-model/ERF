@@ -70,7 +70,7 @@
                      mapfac_u[level], mapfac_v[level], mapfac_m[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     input_sounding_data, turbPert, true, false);
+                     input_sounding_data, turbPert, true);
 
         // Moving terrain
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
@@ -165,7 +165,7 @@
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                             input_sounding_data, n_qstate, true, false);
+                             input_sounding_data, n_qstate, true);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -272,7 +272,7 @@
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                             input_sounding_data, n_qstate, true, false);
+                             input_sounding_data, n_qstate, true);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -471,7 +471,7 @@
                      mapfac_u[level], mapfac_v[level], mapfac_m[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     input_sounding_data, turbPert, true, false);
+                     input_sounding_data, turbPert, true);
 
         int n_qstate = micro->Get_Qstate_Size();
         make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
@@ -483,7 +483,7 @@
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                         input_sounding_data, n_qstate, true, false);
+                         input_sounding_data, n_qstate, true);
 
         erf_slow_rhs_pre(level, finest_level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,

@@ -68,8 +68,7 @@ void make_mom_sources (int level,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        InputSoundingData& input_sounding_data,
                        int n_qstate,
-                       bool slow_step,
-                       bool fast_step)
+                       bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
 
@@ -216,7 +215,7 @@ void make_mom_sources (int level,
     // *****************************************************************************
     // 1. Create the BUOYANCY forcing term in the z-direction
     // *****************************************************************************
-    if (slow_step) {
+    if (is_slow_step) {
         make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, base_state,
                     n_qstate, solverChoice.anelastic[level]);
     }
@@ -267,7 +266,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
-        if (use_coriolis && slow_step) {
+        if (use_coriolis && is_slow_step) {
             if (var_coriolis && has_lat_lon) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -315,7 +314,7 @@ void make_mom_sources (int level,
         Real zdamp    = solverChoice.rayleigh_zdamp;
         Real dampcoef = solverChoice.rayleigh_dampcoef;
 
-        if ((slow_step && !use_Rayleigh_fast) || (fast_step && use_Rayleigh_fast)) {
+        if ((is_slow_step && !use_Rayleigh_fast) || (!is_slow_step && use_Rayleigh_fast)) {
             if (rayleigh_damp_U) {
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
@@ -362,7 +361,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 4. Add constant GEOSTROPHIC forcing
         // *****************************************************************************
-        if (slow_step) {
+        if (is_slow_step) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
@@ -383,7 +382,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 4. Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
-        if (geo_wind_profile && slow_step) {
+        if (geo_wind_profile && is_slow_step) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
@@ -399,7 +398,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 5. Add custom SUBSIDENCE terms
         // *****************************************************************************
-        if (solverChoice.custom_w_subsidence && slow_step) {
+        if (solverChoice.custom_w_subsidence && is_slow_step) {
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -471,7 +470,7 @@ void make_mom_sources (int level,
         // *************************************************************************************
         // 6. Add nudging towards value specified in input sounding
         // *************************************************************************************
-        if (solverChoice.nudging_from_input_sounding && slow_step)
+        if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
             int itime_n    = 0;
             int itime_np1  = 0;
@@ -519,7 +518,7 @@ void make_mom_sources (int level,
         // 7. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
 #if 0
-        if (l_use_ndiff && slow_step) {
+        if (l_use_ndiff && is_slow_step) {
             const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
             const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
             NumericalDiffusion_Xmom(tbx, dt, solverChoice.num_diff_coeff,
@@ -532,7 +531,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 8. Add SPONGING
         // *****************************************************************************
-        if (slow_step) {
+        if (is_slow_step) {
             if (solverChoice.spongeChoice.sponge_type == "input_sponge")
             {
                 ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
@@ -551,7 +550,7 @@ void make_mom_sources (int level,
         // 9. Add CANOPY source terms
         // *****************************************************************************
         if (solverChoice.do_forest_drag &&
-           ((slow_step && !use_canopy_fast) || (fast_step && use_canopy_fast))) {
+           ((is_slow_step && !use_canopy_fast) || (!is_slow_step && use_canopy_fast))) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = u(i, j, k);
@@ -590,8 +589,8 @@ void make_mom_sources (int level,
         // 10. Add Immersed source terms
         // *****************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
-           ((slow_step && !use_ImmersedForcing_fast) || (fast_step && use_ImmersedForcing_fast))) {
-            const Real drag_coefficient=500.0/dz; //10.0/dz;
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
+            const Real drag_coefficient=10.0/dz;
             const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {

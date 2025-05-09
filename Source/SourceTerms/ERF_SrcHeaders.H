@@ -44,8 +44,7 @@ void make_sources (int level, int nrk,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                    InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
-                   bool slow_step,
-                   bool fast_step);
+                   bool is_slow_step);
 
 void make_mom_sources (int level, int nrk,
                        amrex::Real dt, amrex::Real time,
@@ -76,8 +75,7 @@ void make_mom_sources (int level, int nrk,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
                        InputSoundingData& input_sounding_data,
                        const int n_qstate,
-                       bool slow_step,
-                       bool fast_step);
+                       bool is_slow_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             amrex::MultiFab& ymom_source,
