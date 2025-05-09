@@ -308,9 +308,6 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     flux_x.resize(amrex::surroundingNodes(bxz,0));
     flux_z.resize(amrex::surroundingNodes(bxz,1));
     flux_y.resize(amrex::grow(amrex::convert(bxz,amrex::IntVect(0)),2,1));
-    amrex::Print() << "BX: " << bxz << ' '
-                   << amrex::grow(amrex::convert(bxz,amrex::IntVect(0)),2,1) << ' '
-                   << lo_z_face << ' ' << hi_z_face << "\n";
     {
     amrex::Array4<amrex::Real> x_f_arr = flux_x.array();
     amrex::Array4<amrex::Real> y_f_arr = flux_y.array();
