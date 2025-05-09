@@ -18,6 +18,10 @@ using namespace amrex;
  * @param[in   ]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
  * @param[  out]  S_data    current solution
  * @param[in   ]  S_scratch scratch space
+ * @param[in   ] cc_src source terms for conserved variables
+ * @param[in   ] xmom_src source terms for x-momentum
+ * @param[in   ] ymom_src source terms for y-momentum
+ * @param[in   ] zmom_src source terms for z-momentum
  * @param[in   ]  geom container for geometric information
  * @param[in   ]  gravity magnitude of gravity
  * @param[in   ]  dtau fast time step
@@ -43,6 +47,10 @@ void erf_fast_rhs_N (int step, int nrk,
                      const  MultiFab &fast_coeffs,                   // Coeffs for tridiagonal solve
                      Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
                      Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
+                     const MultiFab& cc_src,
+                     const MultiFab& xmom_src,
+                     const MultiFab& ymom_src,
+                     const MultiFab& zmom_src,
                      const Geometry geom,
                      const Real gravity,
                      const Real dtau, const Real beta_s,
@@ -163,6 +171,9 @@ void erf_fast_rhs_N (int step, int nrk,
         Box tbx = mfi.nodaltilebox(0);
         Box tby = mfi.nodaltilebox(1);
 
+        const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
+        const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
+
         const Array4<const Real> & stage_xmom = S_stage_data[IntVars::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
@@ -195,13 +206,13 @@ void erf_fast_rhs_N (int step, int nrk,
             ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real new_drho_u = dtau * slow_rhs_rho_u(i,j,k);
+                Real new_drho_u = dtau * slow_rhs_rho_u(i,j,k) + dtau * xmom_src_arr(i,j,k);;
                 avg_xmom(i,j,k) += facinv*new_drho_u;
                 temp_cur_xmom_arr(i,j,k) = stage_xmom(i,j,k) + new_drho_u;
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real new_drho_v = dtau * slow_rhs_rho_v(i,j,k);
+                Real new_drho_v = dtau * slow_rhs_rho_v(i,j,k) + dtau * ymom_src_arr(i,j,k);
                 avg_ymom(i,j,k) += facinv*new_drho_v;
                 temp_cur_ymom_arr(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
             });
@@ -223,7 +234,8 @@ void erf_fast_rhs_N (int step, int nrk,
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
 
                 Real new_drho_u = prev_xmom(i,j,k) - stage_xmom(i,j,k)
-                                + dtau * fast_rhs_rho_u + dtau * slow_rhs_rho_u(i,j,k);
+                                + dtau * fast_rhs_rho_u + dtau * slow_rhs_rho_u(i,j,k)
+                                + dtau * xmom_src_arr(i,j,k);
 
                 avg_xmom(i,j,k) += facinv*new_drho_u;
 
@@ -245,7 +257,8 @@ void erf_fast_rhs_N (int step, int nrk,
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
 
                 Real new_drho_v = prev_ymom(i,j,k) - stage_ymom(i,j,k)
-                                + dtau * fast_rhs_rho_v + dtau * slow_rhs_rho_v(i,j,k);
+                                + dtau * fast_rhs_rho_v + dtau * slow_rhs_rho_v(i,j,k)
+                                + dtau * ymom_src_arr(i,j,k);
 
                 avg_ymom(i,j,k) += facinv*new_drho_v;
 
@@ -267,6 +280,8 @@ void erf_fast_rhs_N (int step, int nrk,
         Box vbx = mfi.validbox();
         const auto& vbx_hi = ubound(vbx);
 
+        const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
+
         const Array4<const Real>& stage_xmom = S_stage_data[IntVars::xmom].const_array(mfi);
         const Array4<const Real>& stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real>& stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
@@ -285,7 +300,6 @@ void erf_fast_rhs_N (int step, int nrk,
 
         const Array4<Real>& temp_cur_xmom_arr  = temp_cur_xmom.array(mfi);
         const Array4<Real>& temp_cur_ymom_arr  = temp_cur_ymom.array(mfi);
-
 
         // These store the advection momenta which we will use to update the slow variables
         const Array4<      Real>& avg_zmom = S_scratch[IntVars::zmom].array(mfi);
@@ -408,7 +422,7 @@ void erf_fast_rhs_N (int step, int nrk,
                                        -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q );
 
             // line 1
-            RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau * beta_2 * R1_tmp);
+            RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau * beta_2 * R1_tmp + zmom_src_arr(i,j,k));
 
         }); // bx_shrunk_in_k
 
@@ -422,11 +436,13 @@ void erf_fast_rhs_N (int step, int nrk,
         {
             // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
             RHS_a (i,j,lo.z) = prev_zmom(i,j,lo.z) - stage_zmom(i,j,lo.z)
-                             + dtau * slow_rhs_rho_w(i,j,lo.z);
+                             + dtau * slow_rhs_rho_w(i,j,lo.z)
+                             + dtau * zmom_src_arr(i,j,lo.z);
 
             // w at top boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
             RHS_a (i,j,hi.z+1) = prev_zmom(i,j,hi.z+1) - stage_zmom(i,j,hi.z+1)
-                               + dtau * slow_rhs_rho_w(i,j,hi.z+1);
+                               + dtau * slow_rhs_rho_w(i,j,hi.z+1)
+                               + dtau * zmom_src_arr(i,j,hi.z+1);
         }); // b2d
 
 #ifdef AMREX_USE_GPU
@@ -569,6 +585,7 @@ void erf_fast_rhs_N (int step, int nrk,
         const Array4<const Real>& prev_cons = S_prev[IntVars::cons].const_array(mfi);
         auto const& temp_rhs_arr     = temp_rhs.const_array(mfi);
         auto const& slow_rhs_cons    = S_slow_rhs[IntVars::cons].const_array(mfi);
+        const Array4<Real const>& cc_src_arr   = cc_src.const_array(mfi);
 
         if (step == 0) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -577,6 +594,14 @@ void erf_fast_rhs_N (int step, int nrk,
                                                 dtau * (slow_rhs_cons(i,j,k,Rho_comp) - temp_rhs_arr(i,j,k,Rho_comp));
                 cur_cons(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp) +
                                                 dtau * (slow_rhs_cons(i,j,k,RhoTheta_comp) - temp_rhs_arr(i,j,k,RhoTheta_comp));
+
+                // add in source terms for cell-centered conserved variables
+                cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
+                cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
+                if (l_use_moisture) {
+                    cur_cons(i,j,k,RhoQ1_comp)    += dtau * cc_src_arr(i,j,k,RhoQ1_comp);
+                    cur_cons(i,j,k,RhoQ2_comp)    += dtau * cc_src_arr(i,j,k,RhoQ2_comp);
+                }
             });
         } else {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -586,6 +611,14 @@ void erf_fast_rhs_N (int step, int nrk,
                 //
                 cur_cons(i,j,k,Rho_comp)      += dtau * (slow_rhs_cons(i,j,k,Rho_comp) - temp_rhs_arr(i,j,k,Rho_comp));
                 cur_cons(i,j,k,RhoTheta_comp) += dtau * (slow_rhs_cons(i,j,k,RhoTheta_comp) - temp_rhs_arr(i,j,k,RhoTheta_comp));
+
+                // add in source terms for cell-centered conserved variables
+                cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
+                cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
+                if (l_use_moisture) {
+                    cur_cons(i,j,k,RhoQ1_comp)    += dtau * cc_src_arr(i,j,k,RhoQ1_comp);
+                    cur_cons(i,j,k,RhoQ2_comp)    += dtau * cc_src_arr(i,j,k,RhoQ2_comp);
+                }
             });
         } // step = 0
 

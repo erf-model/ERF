@@ -18,6 +18,10 @@ using namespace amrex;
  * @param[in   ] fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
  * @param[  out] S_data current solution
  * @param[in   ] S_scratch scratch space
+ * @param[in   ] cc_src source terms for conserved variables
+ * @param[in   ] xmom_src source terms for x-momentum
+ * @param[in   ] ymom_src source terms for y-momentum
+ * @param[in   ] zmom_src source terms for z-momentum
  * @param[in   ] geom container for geometric information
  * @param[in   ] gravity Magnitude of gravity
  * @param[in   ] use_lagged_delta_rt define lagged_delta_rt for our next step
@@ -52,6 +56,10 @@ void erf_fast_rhs_MT (int step, int nrk,
                       const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
                       Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
                       Vector<MultiFab>& S_scratch,                   // S_sum_old at most recent fast timestep for (rho theta)
+                      const MultiFab& cc_src,
+                      const MultiFab& xmom_src,
+                      const MultiFab& ymom_src,
+                      const MultiFab& zmom_src,
                       const Geometry geom,
                       const Real gravity,
                       const bool use_lagged_delta_rt,
@@ -129,6 +137,11 @@ void erf_fast_rhs_MT (int step, int nrk,
 
         Box vbx = mfi.validbox();
         const auto& vbx_hi = ubound(vbx);
+
+        const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
+        const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
+        const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
+        const Array4<Real const>& cc_src_arr     = cc_src.const_array(mfi);
 
         const Array4<const Real> & stg_cons = S_stg_data[IntVars::cons].const_array(mfi);
         const Array4<const Real> & stg_xmom = S_stg_data[IntVars::xmom].const_array(mfi);
@@ -263,7 +276,8 @@ void erf_fast_rhs_MT (int step, int nrk,
 
                 // We have already scaled the source terms to have the extra factor of dJ
                 cur_xmom(i,j,k) = h_zeta_old * prev_xmom(i,j,k) + dtau * fast_rhs_rho_u
-                                                                + dtau * slow_rhs_rho_u(i,j,k);
+                                                                + dtau * slow_rhs_rho_u(i,j,k)
+                                                                + dtau * xmom_src_arr(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -290,7 +304,8 @@ void erf_fast_rhs_MT (int step, int nrk,
 
                 // We have already scaled the source terms to have the extra factor of dJ
                 cur_ymom(i, j, k) = h_zeta_old * prev_ymom(i,j,k) + dtau * fast_rhs_rho_v
-                                                                  + dtau * slow_rhs_rho_v(i,j,k);
+                                                                  + dtau * slow_rhs_rho_v(i,j,k)
+                                                                  + dtau * ymom_src_arr(i,j,k);
         });
         } // end profile
 
@@ -445,7 +460,7 @@ void erf_fast_rhs_MT (int step, int nrk,
 
             // line 1
             RHS_a(i,j,k) = dJ_old_kface * prev_zmom(i,j,k) - dJ_stg_kface * stg_zmom(i,j,k)
-                            + dtau *(slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp );
+                            + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp + zmom_src_arr(i,j,k));
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
             Real UppVpp = dJ_new_kface * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,mf_u,mf_v,z_nd_new,dxInv)
@@ -570,38 +585,45 @@ void erf_fast_rhs_MT (int step, int nrk,
         BL_PROFILE("fast_rho_final_update");
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-              Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k);
-              Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1);
+            Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k);
+            Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1);
 
-              // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
-              // so we don't update avg_zmom at k=vbx_hi.z+1
-              avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
-              (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
+            // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
+            // so we don't update avg_zmom at k=vbx_hi.z+1
+            avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
+            (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
 
-              // Note that the factor of (1/J) in the fast source term is canceled
-              // when we multiply old and new by detJ_old and detJ_new , respectively
-              // We have already scaled the slow source term to have the extra factor of dJ
-              Real fast_rhs_rho = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi);
-              Real temp_rho = detJ_old(i,j,k) * cur_cons(i,j,k,0) +
-                              dtau * ( slow_rhs_cons(i,j,k,0) + fast_rhs_rho );
-              cur_cons(i,j,k,0) = temp_rho / detJ_new(i,j,k);
+            // Note that the factor of (1/J) in the fast source term is canceled
+            // when we multiply old and new by detJ_old and detJ_new , respectively
+            // We have already scaled the slow source term to have the extra factor of dJ
+            Real fast_rhs_rho = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi);
+            Real temp_rho = detJ_old(i,j,k) * cur_cons(i,j,k,0) +
+                            dtau * ( slow_rhs_cons(i,j,k,0) + fast_rhs_rho );
+            cur_cons(i,j,k,0) = temp_rho / detJ_new(i,j,k);
 
-              // Note that the factor of (1/J) in the fast source term is canceled
-              // when we multiply old and new by detJ_old and detJ_new , respectively
-              // We have already scaled the slow source term to have the extra factor of dJ
-              Real fast_rhs_rhotheta = -( temp_rhs_arr(i,j,k,1) + 0.5 *
-                                        ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
-                                        - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi );
-              Real temp_rth = detJ_old(i,j,k) * cur_cons(i,j,k,1) +
-                              dtau * ( slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta );
-              cur_cons(i,j,k,1) = temp_rth / detJ_new(i,j,k);
-              (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
+            // Note that the factor of (1/J) in the fast source term is canceled
+            // when we multiply old and new by detJ_old and detJ_new , respectively
+            // We have already scaled the slow source term to have the extra factor of dJ
+            Real fast_rhs_rhotheta = -( temp_rhs_arr(i,j,k,1) + 0.5 *
+                                    ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
+                                    - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi );
+            Real temp_rth = detJ_old(i,j,k) * cur_cons(i,j,k,1) +
+                            dtau * ( slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta );
+            cur_cons(i,j,k,1) = temp_rth / detJ_new(i,j,k);
+            (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
 
-              if (k == vbx_hi.z) {
-                  avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
-                  (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
-                  (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
-              }
+            if (k == vbx_hi.z) {
+                avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
+                (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
+                (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
+            }
+            // add in source terms for cell-centered conserved variables
+            cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
+            cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
+            if (l_use_moisture) {
+                cur_cons(i,j,k,RhoQ1_comp)    += dtau * cc_src_arr(i,j,k,RhoQ1_comp);
+                cur_cons(i,j,k,RhoQ2_comp)    += dtau * cc_src_arr(i,j,k,RhoQ2_comp);
+            }
         });
         } // end profile
 

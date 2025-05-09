@@ -13,7 +13,7 @@
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  */
-void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
+void make_buoyancy (const amrex::Vector<  amrex::MultiFab>& S_data,
                     const           amrex::MultiFab & S_prim,
                     amrex::MultiFab& buoyancy,
                     const amrex::Geometry geom,
@@ -24,7 +24,7 @@ void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
 
 void make_sources (int level, int nrk,
                    amrex::Real dt, amrex::Real time,
-                   amrex::Vector<amrex::MultiFab>& S_data,
+                   const amrex::Vector<amrex::MultiFab>& S_data,
                    const amrex::MultiFab& S_prim,
                          amrex::MultiFab& cc_source,
                    const amrex::MultiFab& base_state,
@@ -43,11 +43,13 @@ void make_sources (int level, int nrk,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                    InputSoundingData& input_sounding_data,
-                   TurbulentPerturbation& turbPert);
+                   TurbulentPerturbation& turbPert,
+                   bool slow_step,
+                   bool fast_step);
 
 void make_mom_sources (int level, int nrk,
                        amrex::Real dt, amrex::Real time,
-                       amrex::Vector<amrex::MultiFab>& S_data,
+                       const amrex::Vector<amrex::MultiFab>& S_data,
                        const amrex::MultiFab& S_prim,
                        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                        std::unique_ptr<amrex::MultiFab>& z_phys_cc,
@@ -73,7 +75,9 @@ void make_mom_sources (int level, int nrk,
                        const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
                        InputSoundingData& input_sounding_data,
-                       const int n_qstate);
+                       const int n_qstate,
+                       bool slow_step,
+                       bool fast_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             amrex::MultiFab& ymom_source,

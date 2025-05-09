@@ -29,7 +29,7 @@ using namespace amrex;
  * @param[in]  n_qstate      Number of moist variables used by the current model
  */
 
-void make_buoyancy (Vector<MultiFab>& S_data,
+void make_buoyancy (const Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
                           MultiFab& buoyancy,
                     const Geometry geom,
