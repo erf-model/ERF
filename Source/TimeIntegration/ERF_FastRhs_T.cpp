@@ -667,8 +667,6 @@ void erf_fast_rhs_T (int step, int nrk,
         // **************************************************************************
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
-        // printf("Am I in FastRhs_T? \n");
-
         {
         BL_PROFILE("fast_rho_final_update");
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
