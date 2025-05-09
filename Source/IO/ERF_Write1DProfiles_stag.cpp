@@ -442,7 +442,7 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
 
     if (use_moisture)
     {
-        int n_qstate = micro->Get_Qstate_Size();
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
 
         for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
@@ -472,7 +472,7 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
                 fab_arr(i, j, k,16) = qv;  // qv
                 fab_arr(i, j, k,17) = qc;  // qc
                 fab_arr(i, j, k,18) = qr;  // qr
-                if (n_qstate > 3) { // SAM model
+                if (n_qstate_moist > 3) { // SAM model
                     fab_arr(i, j, k,19) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
                     fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
                     fab_arr(i, j, k,21) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg

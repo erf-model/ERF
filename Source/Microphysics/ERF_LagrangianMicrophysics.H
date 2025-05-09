@@ -107,10 +107,16 @@ public:
         return (a_lev > 0 ? 0 : m_moist_model->Qmoist_Size());
     }
 
-    /*! \brief get the number of moisture-model-related conserved state variables */
-    int Get_Qstate_Size () override
+    /*! \brief get the number of  microphysics conserved moist (water-related) state variables */
+    int Get_Qstate_Moist_Size () override
     {
-        return m_moist_model->Qstate_Size();
+        return m_moist_model->Qstate_Moist_Size();
+    }
+
+    /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
+    int Get_Qstate_NonMoist_Size () override
+    {
+        return m_moist_model->Qstate_NonMoist_Size();
     }
 
     /*! \brief initialize particles in particle container */
@@ -150,6 +156,20 @@ public:
             a_idx.clear();
             a_names.clear();
         }
+    }
+
+    /*! \brief Returns a list of additional plot variable names */
+    virtual void GetPlotVarNames (amrex::Vector<std::string>& a_vec) const override
+    {
+        m_moist_model->GetPlotVarNames(a_vec);
+    }
+
+    /*! \brief Fills in a MultiFab for plotting */
+    virtual void GetPlotVar (const std::string& a_name,
+                             amrex::MultiFab& a_mf,
+                             const int /* a_lev */) const override
+    {
+        m_moist_model->GetPlotVar(a_name, a_mf);
     }
 
 protected:

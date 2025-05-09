@@ -995,7 +995,7 @@ private:
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
                                                     "eq_pot_temp", "num_turb", "SMark0", "SMark1",
-                                                    "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
+                                                    "dpdx", "dpdy", "dpdz", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",

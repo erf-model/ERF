@@ -31,7 +31,7 @@
 
         Real slow_dt = new_stage_time - old_step_time;
 
-        int n_qstate = micro->Get_Qstate_Size();
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling
@@ -159,8 +159,8 @@
             // *****************************************************************************
             // Define the pressure gradient
             // *****************************************************************************
-            make_gradp(level, solverChoice, fine_geom, S_data[Vars::cons], *p0_new, pp_inc[level],
-                       z_phys_nd_src[level], z_phys_cc[level], gradp[level]);
+            make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons], *p0_new, pp_inc[level],
+                            z_phys_nd_src[level], z_phys_cc[level], gradp[level]);
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
@@ -171,7 +171,7 @@
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                             input_sounding_data, n_qstate);
+                             input_sounding_data, n_qstate_moist);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -272,8 +272,8 @@
             // *****************************************************************************
             // Define the pressure gradient
             // *****************************************************************************
-            make_gradp(level, solverChoice, fine_geom, S_data[Vars::cons], *p0, pp_inc[level],
-                       z_phys_nd[level], z_phys_cc[level], gradp[level]);
+            make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons], *p0, pp_inc[level],
+                            z_phys_nd[level], z_phys_cc[level], gradp[level]);
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
@@ -284,7 +284,7 @@
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                             input_sounding_data, n_qstate);
+                             input_sounding_data, n_qstate_moist);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -354,7 +354,7 @@
                                     << " with dt = " << slow_dt
                                     << " using RHS created at " << old_stage_time << std::endl;
 
-        int n_qstate = micro->Get_Qstate_Size();
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
 
 #if defined(ERF_USE_NETCDF)
         bool moist_set_rhs = false;
@@ -384,7 +384,7 @@
 
         // Moving terrain
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh ) {
-            erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate,
+            erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate_moist,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
                               Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
@@ -399,7 +399,7 @@
 #endif
                               fr_as_crse, fr_as_fine);
         } else {
-            erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate,
+            erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate_moist,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
                               Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
@@ -488,10 +488,10 @@
         // *****************************************************************************
         // Define the pressure gradient
         // *****************************************************************************
-        make_gradp(level, solverChoice, fine_geom, S_data[Vars::cons], *p0, pp_inc[level],
-                   z_phys_nd[level], z_phys_cc[level], gradp[level]);
+        make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons], *p0, pp_inc[level],
+                        z_phys_nd[level], z_phys_cc[level], gradp[level]);
 
-        int n_qstate = micro->Get_Qstate_Size();
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
         make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                          z_phys_nd[level], z_phys_cc[level],
                          xvel_new, yvel_new, zvel_new,
@@ -501,7 +501,7 @@
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                         input_sounding_data, n_qstate);
+                         input_sounding_data, n_qstate_moist);
 
         erf_slow_rhs_pre(level, finest_level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,

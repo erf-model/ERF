@@ -614,7 +614,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       if (is_it_time_for_action(istep[0], time, dt_lev0, bndry_output_planes_interval, bndry_output_planes_per) &&
           time >= bndry_output_planes_start_time)
       {
-         bool is_moist = (micro->Get_Qstate_Size() > 0);
+         bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
          m_w2d->write_planes(istep[0], time, vars_new, is_moist);
       }
     }
@@ -949,7 +949,7 @@ ERF::InitData_post ()
 
         Real time = 0.;
         if (time >= bndry_output_planes_start_time) {
-            bool is_moist = (micro->Get_Qstate_Size() > 0);
+            bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
             m_w2d->write_planes(0, time, vars_new, is_moist);
         }
     }
