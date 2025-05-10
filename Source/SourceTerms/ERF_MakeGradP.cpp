@@ -32,7 +32,7 @@ void make_gradp_pert (int level,
     //
     // Note that we only recompute gradp if compressible;
     //      if anelastic then we have computed gradp in the projection
-    //      and we can re-use it, no need to recompute it
+    //      and we can reuse it, no need to recompute it
     //
     if (solverChoice.anelastic[level] == 0)
     {
