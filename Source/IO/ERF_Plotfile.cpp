@@ -625,10 +625,12 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         // These are based on computing gradient of full pressure
         // **********************************************************************************************
 
-        if ( (containerHasElement(plot_var_names, "dpdx")) ||
-             (containerHasElement(plot_var_names, "dpdy")) ||
-             (containerHasElement(plot_var_names, "dpdz")) ) {
-            compute_gradp(pressure, geom[lev], z_phys_nd[lev], z_phys_cc[lev], gradp_temp, solverChoice);
+        if (solverChoice.anelastic[lev] == 0) {
+            if ( (containerHasElement(plot_var_names, "dpdx")) ||
+                 (containerHasElement(plot_var_names, "dpdy")) ||
+                 (containerHasElement(plot_var_names, "dpdz")) ) {
+                compute_gradp(pressure, geom[lev], z_phys_nd[lev], z_phys_cc[lev], gradp_temp, solverChoice);
+            }
         }
 
         if (containerHasElement(plot_var_names, "dpdx"))
@@ -637,7 +639,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >&  derdat  = mf[lev].array(mfi);
-                const Array4<Real const>&  gpx_arr = gradp_temp[GpVars::gpx].array(mfi);
+                const Array4<Real const>&  gpx_arr = (solverChoice.anelastic[lev] == 1) ?
+                      gradp[lev][GpVars::gpx].array(mfi) : gradp_temp[GpVars::gpx].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k));
                 });
@@ -650,7 +653,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >&  derdat  = mf[lev].array(mfi);
-                const Array4<Real const>&  gpy_arr = gradp_temp[GpVars::gpy].array(mfi);
+                const Array4<Real const>&  gpy_arr = (solverChoice.anelastic[lev] == 1) ?
+                      gradp[lev][GpVars::gpy].array(mfi) : gradp_temp[GpVars::gpy].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k));
                 });
@@ -663,7 +667,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >&  derdat  = mf[lev].array(mfi);
-                const Array4<Real const>&  gpz_arr = gradp_temp[GpVars::gpz].array(mfi);
+                const Array4<Real const>&  gpz_arr = (solverChoice.anelastic[lev] == 1) ?
+                      gradp[lev][GpVars::gpz].array(mfi) : gradp_temp[GpVars::gpz].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpz_arr(i,j,k+1) + gpz_arr(i,j,k));
                 });

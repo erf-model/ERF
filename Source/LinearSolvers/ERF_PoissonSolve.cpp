@@ -7,7 +7,7 @@ using namespace amrex;
  * Project the single-level velocity field to enforce incompressibility
  * Note that the level may or may not be level 0.
  */
-void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, MultiFab& pmf)
+void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 {
     BL_PROFILE("ERF::project_velocities()");
 
@@ -219,6 +219,17 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
     MultiFab::Add(mom_mf[IntVars::zmom],fluxes[0][2],0,0,1,0);
 
+    // ****************************************************************************
+    // Define gradp from fluxes -- note that fluxes is dt * change in Gp
+    // ****************************************************************************
+    MultiFab::Saxpy(gradp[lev][GpVars::gpx],-1.0/l_dt,fluxes[0][0],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpy],-1.0/l_dt,fluxes[0][1],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpz],-1.0/l_dt,fluxes[0][2],0,0,1,0);
+
+    gradp[lev][GpVars::gpx].FillBoundary(geom_tmp[0].periodicity());
+    gradp[lev][GpVars::gpy].FillBoundary(geom_tmp[0].periodicity());
+    gradp[lev][GpVars::gpz].FillBoundary(geom_tmp[0].periodicity());
+
     //
     // This call is only to verify the divergence after the solve
     // It is important we do this before computing the rho0w_arr from Omega back to rho0w
@@ -289,5 +300,5 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // ****************************************************************************
     // Update pressure variable with phi -- note that phi is dt * change in pressure
     // ****************************************************************************
-    MultiFab::Saxpy(pmf, 1.0/l_dt, phi[0],0,0,1,1);
+    MultiFab::Saxpy(pp_inc[lev], 1.0/l_dt, phi[0],0,0,1,1);
 }
