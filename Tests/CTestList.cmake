@@ -151,8 +151,8 @@ add_test_r(MoistBubble                       "MoistRegTests/Bubble" "erf_bubble"
 add_test_r(SquallLine_2D                     "MoistRegTests/SquallLine_2D" "erf_squallline" "plt00010")
 add_test_r(SuperCell_3D                      "MoistRegTests/SuperCell_3D" "erf_supercell"   "plt00010")
 if(ERF_ENABLE_PARTICLES)
-  add_test_r(ParticlesAdvect                 "DryRegTests/ParticleAdvection" "erf_particles_advect" "plt00010")
-  add_test_r(ParticlesWoA                    "DryRegTests/ParticlesOverWoA" "erf_particles_over_woa" "plt00010")
+  add_test_r(ParticleAdvect                  "DryRegTests/ParticleAdvection" "erf_particles_advect" "plt00010")
+  add_test_r(ParticleWoA                     "DryRegTests/ParticlesOverWoA" "erf_particles_over_woa" "plt00010")
 endif()
 
 add_test_0(CouetteFlow_x                     "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00050")

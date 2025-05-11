@@ -14,7 +14,6 @@ using namespace amrex;
  * @param[in]  geom      geometry container at this level
  * @param[in]  S_data    current solution
  * @param[in]  p0        base ststa pressure
- * @param[in]  pp_inc    pressure perturbation if anelastic
  * @param[in]  z_phys_nd z on nodes
  * @param[in]  z_phys_cc z on cell centers
  * @param[out] gradp     pressure gradient
@@ -25,20 +24,18 @@ void make_gradp_pert (int level,
                       const Geometry& geom,
                       MultiFab& S_data,
                       MultiFab& p0,
-                      const MultiFab& pp_inc,
                       std::unique_ptr<MultiFab>& z_phys_nd,
                       std::unique_ptr<MultiFab>& z_phys_cc,
                       Vector<MultiFab>& gradp)
 {
-    const bool l_anelastic = solverChoice.anelastic[level];
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
-
-    if (l_anelastic) {
-
-        compute_gradp(pp_inc,geom,z_phys_nd,z_phys_cc,gradp,solverChoice);
-
-    } else {
-
+    //
+    // Note that we only recompute gradp if compressible;
+    //      if anelastic then we have computed gradp in the projection
+    //      and we can reuse it, no need to recompute it
+    //
+    if (solverChoice.anelastic[level] == 0)
+    {
         MultiFab p(S_data.boxArray(), S_data.DistributionMap(), 1, 1);
 
         // *****************************************************************************
@@ -46,18 +43,16 @@ void make_gradp_pert (int level,
         // *****************************************************************************
         for ( MFIter mfi(S_data); mfi.isValid(); ++mfi)
         {
-            if (!l_anelastic) {
-                Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,1));
-                if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
-                const Array4<const Real>& cell_data = S_data.array(mfi);
-                const Array4<const Real>& p0_arr = p0.const_array(mfi);
-                const Array4<      Real>& pptemp_arr = p.array(mfi);
-                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
-                    pptemp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
-                });
-            }
+            Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,1));
+            if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
+            const Array4<const Real>& cell_data = S_data.array(mfi);
+            const Array4<const Real>& p0_arr = p0.const_array(mfi);
+            const Array4<      Real>& pptemp_arr = p.array(mfi);
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
+                pptemp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
+            });
         }
 
         compute_gradp(p,geom,z_phys_nd,z_phys_cc,gradp,solverChoice);

@@ -27,7 +27,6 @@ void make_gradp_pert (int level,
                       const amrex::Geometry& geom,
                       amrex::MultiFab& S_data,
                       amrex::MultiFab& p0,
-                      const amrex::MultiFab& pp_inc,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                       std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                       amrex::Vector<amrex::MultiFab>& gradp);
