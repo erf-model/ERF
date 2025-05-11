@@ -343,8 +343,12 @@ ERF::FillIntermediatePatch (int lev, Real time,
                            domain_bcs_type);
     }
 
-    mfs_mom[IntVars::cons]->FillBoundary(geom[lev].periodicity());
-    mfs_mom[IntVars::xmom]->FillBoundary(geom[lev].periodicity());
-    mfs_mom[IntVars::ymom]->FillBoundary(geom[lev].periodicity());
-    mfs_mom[IntVars::zmom]->FillBoundary(geom[lev].periodicity());
+    if (cons_only) {
+        mfs_mom[IntVars::cons]->FillBoundary(icomp_cons,ncomp_cons,geom[lev].periodicity());
+    } else {
+        mfs_mom[IntVars::cons]->FillBoundary(icomp_cons,ncomp_cons,geom[lev].periodicity());
+        mfs_mom[IntVars::xmom]->FillBoundary(geom[lev].periodicity());
+        mfs_mom[IntVars::ymom]->FillBoundary(geom[lev].periodicity());
+        mfs_mom[IntVars::zmom]->FillBoundary(geom[lev].periodicity());
+    }
 }

@@ -24,7 +24,7 @@ Weak scaling comparison on GPUs was performed on Perlmutter (NVIDIA A100), Front
 .. figure:: figures/StrongScaling_CPU.png
    :alt: Strong scaling on CPUs
    :name: strong_CPU
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
    **Strong scaling on CPUs. The number of mesh cells per rank is shown in blue.**
@@ -32,7 +32,7 @@ Weak scaling comparison on GPUs was performed on Perlmutter (NVIDIA A100), Front
 .. figure:: figures/ParEff.png
    :alt: Parallelization efficiency for strong scaling
    :name: strong_pareff
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
    **Parallelization efficiency for strong scaling.**
@@ -40,7 +40,7 @@ Weak scaling comparison on GPUs was performed on Perlmutter (NVIDIA A100), Front
 .. figure:: figures/WeakScaling_CPU.png
    :alt: Weak scaling on CPUs
    :name: weak_CPU
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
    **Weak scaling on CPUs. The total number of mesh cells is shown in blue.**
@@ -48,7 +48,7 @@ Weak scaling comparison on GPUs was performed on Perlmutter (NVIDIA A100), Front
 .. figure:: figures/CPUvsGPU.png
    :alt: Comparison of timings on CPU and GPU showing the speed-up factor
    :name: CPUvsGPU
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
    **Comparison of timings on CPU and GPU showing the speed-up factor. We compare a CPU node with 128 ranks to a GPU node with 4 ranks, so there are 32x more points per GPU than per CPU core. Points on the same vertical line represent the same number of nodes.**
@@ -56,7 +56,7 @@ Weak scaling comparison on GPUs was performed on Perlmutter (NVIDIA A100), Front
 .. figure:: figures/WeakScaling_GPU.png
    :alt: Weak scaling on GPUs
    :name: weak_GPU
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
    **Weak scaling on GPUs with and without GPU-aware MPI on Perlmutter (NVIDIA A100)**
@@ -64,7 +64,7 @@ Weak scaling comparison on GPUs was performed on Perlmutter (NVIDIA A100), Front
 .. figure:: figures/WeakScaling_GPU_All.png
    :alt: Weak scaling on GPUs
    :name: weak_GPU_All
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
    **Weak scaling on GPUs: Perlmutter (NVIDIA A100), Frontier (AMD MI250X (1 GCD)) and Aurora (Intel Data Center GPU Max Series (PVC))**

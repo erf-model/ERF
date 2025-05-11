@@ -46,7 +46,7 @@ void
 init_base_state_from_wrfinput (const Box& domain,
                                Real l_rdOcp,
                                MoistureType moisture_type,
-                               const int& n_qstate,
+                               const int& n_qstate_moist,
                                MultiFab& cons_fab,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
@@ -171,7 +171,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                  var_name == "QCLOUD" ||
                  var_name == "QRAIN" ) {
 
-              int n_qstate = micro->Get_Qstate_Size();
+              int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+              AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -209,8 +210,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ3_comp;
-                    if (n_qstate > 3) { icomp = RhoQ4_comp; }
-                    if (n_qstate < 3) { success = 0; }
+                    if (n_qstate_moist > 3) { icomp = RhoQ4_comp; }
+                    if (n_qstate_moist < 3) { success = 0; }
                   }
 
                   if (success) {
@@ -665,11 +666,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
 
-    int n_qstate = micro->Get_Qstate_Size();
+    int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+    AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
 
     bool use_P_eos = (solverChoice.rebalance_wrfinput);
 
-    init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
+    init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate_moist,
                                   lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
                                   mf_PB, mf_P, use_P_eos);
 
@@ -801,7 +803,7 @@ void
 init_base_state_from_wrfinput (const Box& domain,
                                const Real l_rdOcp,
                                MoistureType moisture_type,
-                               const int& n_qstate,
+                               const int& n_qstate_moist,
                                MultiFab& cons,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
@@ -862,7 +864,7 @@ init_base_state_from_wrfinput (const Box& domain,
 
             // Compute rhse
             Real Rhse_Sum = cons_arr(ii,jj,kk,Rho_comp);
-            for (int q_offset(0); q_offset<n_qstate; ++q_offset) {
+            for (int q_offset(0); q_offset<n_qstate_moist; ++q_offset) {
                 Rhse_Sum += cons_arr(ii,jj,kk,RhoQ1_comp+q_offset);
             }
 
