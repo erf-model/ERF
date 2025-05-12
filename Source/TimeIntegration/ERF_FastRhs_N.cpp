@@ -598,10 +598,6 @@ void erf_fast_rhs_N (int step, int nrk,
                 // add in source terms for cell-centered conserved variables
                 cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
                 cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
-                if (l_use_moisture) {
-                    cur_cons(i,j,k,RhoQ1_comp)    += dtau * cc_src_arr(i,j,k,RhoQ1_comp);
-                    cur_cons(i,j,k,RhoQ2_comp)    += dtau * cc_src_arr(i,j,k,RhoQ2_comp);
-                }
             });
         } else {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -615,10 +611,6 @@ void erf_fast_rhs_N (int step, int nrk,
                 // add in source terms for cell-centered conserved variables
                 cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
                 cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
-                if (l_use_moisture) {
-                    cur_cons(i,j,k,RhoQ1_comp)    += dtau * cc_src_arr(i,j,k,RhoQ1_comp);
-                    cur_cons(i,j,k,RhoQ2_comp)    += dtau * cc_src_arr(i,j,k,RhoQ2_comp);
-                }
             });
         } // step = 0
 
