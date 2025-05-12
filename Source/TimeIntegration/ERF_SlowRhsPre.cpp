@@ -167,7 +167,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
 
-    MultiFab Omega(convert(ba,IntVect(0,0,1)), dm, 1, 1);
+    int nGhost = (solverChoice.terrain_type == TerrainType::EB) ? 2 : 1;
+    MultiFab Omega(convert(ba,IntVect(0,0,1)), dm, 1, nGhost);
 
     std::unique_ptr<MultiFab> expr;
     std::unique_ptr<MultiFab> dflux_x;
@@ -386,7 +387,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         {
         BL_PROFILE("slow_rhs_making_omega");
-            Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,1));
+            IntVect nGrowVect = (solverChoice.terrain_type == TerrainType::EB)
+                                ? IntVect(AMREX_D_DECL(2, 2, 2)) : IntVect(AMREX_D_DECL(1, 1, 1));
+            Box gbxo = surroundingNodes(bx,2); gbxo.grow(nGrowVect);
             //
             // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
             // ONLY if not doing anelastic + terrain -- in that case Omega will be defined coming
