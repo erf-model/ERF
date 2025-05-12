@@ -25,8 +25,8 @@ AdvectionFluxXForXMom_N (int i, int j, int k,
                          const amrex::Array4<const amrex::Real>& mf_u_inv)
 {
     amrex::Real interp(0.), rho_u_avg(0.);
-    rho_u_avg = 0.5 * (rho_u(i-1, j, k) * mf_u_inv(i-1,j,0) + rho_u(i, j, k) * mf_u_inv(i,j,0));
-    interp_u_h.InterpolateInX(i,j,k,0,interp,rho_u_avg);
+    rho_u_avg = 0.5 * (rho_u(i, j, k) * mf_u_inv(i,j,0) + rho_u(i+1, j, k) * mf_u_inv(i+1,j,0));
+    interp_u_h.InterpolateInX(i+1,j,k,0,interp,rho_u_avg);
     xm_x_f_arr(i,j,k) = rho_u_avg * interp;
 }
 template<typename InterpType_H>
@@ -99,8 +99,8 @@ AdvectionFluxYForYMom_N (int i, int j, int k,
                          const amrex::Array4<const amrex::Real>& mf_v_inv)
 {
     amrex::Real interp(0.), rho_v_avg(0.);
-    rho_v_avg = 0.5 * (rho_v(i, j, k) * mf_v_inv(i  ,j  ,0) + rho_v(i, j-1, k) * mf_v_inv(i  ,j-1,0));
-    interp_v_h.InterpolateInY(i,j,k,0,interp,rho_v_avg);
+    rho_v_avg = 0.5 * (rho_v(i, j, k) * mf_v_inv(i  ,j  ,0) + rho_v(i, j+1, k) * mf_v_inv(i  ,j+1,0));
+    interp_v_h.InterpolateInY(i,j+1,k,0,interp,rho_v_avg);
     ym_y_f_arr(i,j,k) = rho_v_avg * interp;
 }
 template<typename InterpType_V>
@@ -171,31 +171,26 @@ void
 AdvectionFluxZForZMom_N (int i, int j, int k,
                          const amrex::Array4<const amrex::Real>& rho_w,
                          const amrex::Array4<      amrex::Real>& zm_z_f_arr,
-                         const amrex::Array4<const amrex::Real>& w,
+                         const amrex::Array4<const amrex::Real>& /*w*/,
                          InterpType_V   interp_w_v,
                          WallInterpType interp_w_wall,
                          const AdvType vert_adv_type,
                          const int lo_z_face, const int hi_z_face)
 {
     amrex::Real interp(0.), rho_w_avg(0.);
-    if ( (k==lo_z_face) || (k==hi_z_face) ) {
-        zm_z_f_arr(i,j,k) = rho_w(i,j,k) * w(i,j,k);
-    } else {
-        rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
-        if ( (k==lo_z_face+1) || (k==hi_z_face-1) ) {
-            interp_w_wall.InterpolateInZ(i,j,k,0,interp,rho_w_avg,AdvType::Centered_2nd);
-        } else if ( (k==lo_z_face+2 || k==hi_z_face-1) ||
-                    (k==hi_z_face-2 || k==lo_z_face+1) ) {
-            if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
-                interp_w_wall.InterpolateInZ(i,j,k,0,interp,rho_w_avg,AdvType::Centered_4th);
-            } else {
-                interp_w_wall.InterpolateInZ(i,j,k,0,interp,rho_w_avg,vert_adv_type);
-            }
+    rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
+    if ( (k==lo_z_face) || (k==hi_z_face-1) ) {
+        interp_w_wall.InterpolateInZ(i,j,k+1,0,interp,rho_w_avg,AdvType::Centered_2nd);
+    } else if ( (k==lo_z_face+1 || k==hi_z_face-2) ) {
+        if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
+            interp_w_wall.InterpolateInZ(i,j,k+1,0,interp,rho_w_avg,AdvType::Centered_4th);
         } else {
-            interp_w_v.InterpolateInZ(i,j,k,0,interp,rho_w_avg);
+            interp_w_wall.InterpolateInZ(i,j,k+1,0,interp,rho_w_avg,vert_adv_type);
         }
-        zm_z_f_arr(i,j,k) = rho_w_avg * interp;
+    } else {
+        interp_w_v.InterpolateInZ(i,j,k+1,0,interp,rho_w_avg);
     }
+    zm_z_f_arr(i,j,k) = rho_w_avg * interp;
 }
 
 
@@ -242,33 +237,34 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     amrex::FArrayBox flux_y(amrex::surroundingNodes(bxx,1),1,amrex::The_Async_Arena());
     amrex::FArrayBox flux_z(amrex::surroundingNodes(bxx,2),1,amrex::The_Async_Arena());
     {
-    amrex::Array4<amrex::Real> x_f_arr = flux_x.array();
-    amrex::Array4<amrex::Real> y_f_arr = flux_y.array();
-    amrex::Array4<amrex::Real> z_f_arr = flux_z.array();
-    amrex::ParallelFor(amrex::grow(amrex::convert(bxx,amrex::IntVect(0)),0,1),
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        AdvectionFluxXForXMom_N(i, j, k, rho_u, x_f_arr, interp_u_h, mf_u_inv);
-    });
-    amrex::ParallelFor(amrex::surroundingNodes(bxx,1),
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        AdvectionFluxYForXMom_N(i, j, k, rho_v, y_f_arr, interp_u_h, mf_v_inv);
-    });
-    amrex::ParallelFor(amrex::surroundingNodes(bxx,2),
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        AdvectionFluxZForXMom_N(i, j, k, rho_w, z_f_arr, interp_u_v);
-    });
-    amrex::ParallelFor(bxx,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        auto dzInv = 1.0/dz_ptr[k];
-        amrex::Real mfsq = 1 / (mf_u_inv(i,j,0) * mf_u_inv(i,j,0));
-        rho_u_rhs(i, j, k) = -( (x_f_arr(i  ,j  ,k  ) - x_f_arr(i-1,j  ,k  )) * dxInv * mfsq
-                              + (y_f_arr(i  ,j+1,k  ) - y_f_arr(i  ,j  ,k  )) * dyInv * mfsq
-                              + (z_f_arr(i  ,j  ,k+1) - z_f_arr(i  ,j  ,k  )) * dzInv );
-    });
+        amrex::Array4<amrex::Real> x_f_arr = flux_x.array();
+        amrex::Array4<amrex::Real> y_f_arr = flux_y.array();
+        amrex::Array4<amrex::Real> z_f_arr = flux_z.array();
+
+        amrex::ParallelFor(amrex::grow(amrex::convert(bxx,amrex::IntVect(0)),0,1),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            AdvectionFluxXForXMom_N(i, j, k, rho_u, x_f_arr, interp_u_h, mf_uy_inv);
+        });
+        amrex::ParallelFor(amrex::surroundingNodes(bxx,1),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            AdvectionFluxYForXMom_N(i, j, k, rho_v, y_f_arr, interp_u_h, mf_vx_inv);
+        });
+        amrex::ParallelFor(amrex::surroundingNodes(bxx,2),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            AdvectionFluxZForXMom_N(i, j, k, rho_w, z_f_arr, interp_u_v);
+        });
+        amrex::ParallelFor(bxx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            auto dzInv = 1.0/dz_ptr[k];
+            amrex::Real mfsq = 1 / (mf_ux_inv(i,j,0) * mf_uy_inv(i,j,0));
+            rho_u_rhs(i, j, k) = -( (x_f_arr(i  ,j  ,k  ) - x_f_arr(i-1,j  ,k  )) * dxInv * mfsq
+                                  + (y_f_arr(i  ,j+1,k  ) - y_f_arr(i  ,j  ,k  )) * dyInv * mfsq
+                                  + (z_f_arr(i  ,j  ,k+1) - z_f_arr(i  ,j  ,k  )) * dzInv );
+        });
     }
 
 
@@ -276,70 +272,71 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     flux_x.resize(amrex::surroundingNodes(bxy,0));
     flux_y.resize(amrex::grow(amrex::convert(bxy,amrex::IntVect(0)),1,1));
     flux_z.resize(amrex::surroundingNodes(bxy,2));
+
     {
-    amrex::Array4<amrex::Real> x_f_arr = flux_x.array();
-    amrex::Array4<amrex::Real> y_f_arr = flux_y.array();
-    amrex::Array4<amrex::Real> z_f_arr = flux_z.array();
-    amrex::ParallelFor(amrex::surroundingNodes(bxy,0),
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        AdvectionFluxXForYMom_N(i, j, k, rho_u, x_f_arr, interp_v_h, mf_u_inv);
-    });
-    amrex::ParallelFor(amrex::grow(amrex::convert(bxy,amrex::IntVect(0)),1,1),
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        AdvectionFluxYForYMom_N(i, j, k, rho_v, y_f_arr, interp_v_h, mf_v_inv);
-    });
-    amrex::ParallelFor(amrex::surroundingNodes(bxy,2),
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        AdvectionFluxZForYMom_N(i, j, k, rho_w, z_f_arr, interp_v_v);
-    });
-    amrex::ParallelFor(bxy,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        auto dzInv = 1.0/dz_ptr[k];
-        amrex::Real mfsq = 1 / (mf_v_inv(i,j,0) * mf_v_inv(i,j,0));
-        rho_v_rhs(i, j, k) = -( (x_f_arr(i+1,j  ,k  ) - x_f_arr(i  ,j  ,k  )) * dxInv * mfsq
-                              + (y_f_arr(i  ,j  ,k  ) - y_f_arr(i  ,j-1,k  )) * dyInv * mfsq
-                              + (z_f_arr(i  ,j  ,k+1) - z_f_arr(i  ,j  ,k  )) * dzInv );
-    });
+        amrex::Array4<amrex::Real> x_f_arr = flux_x.array();
+        amrex::Array4<amrex::Real> y_f_arr = flux_y.array();
+        amrex::Array4<amrex::Real> z_f_arr = flux_z.array();
+        amrex::ParallelFor(amrex::surroundingNodes(bxy,0),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            AdvectionFluxXForYMom_N(i, j, k, rho_u, x_f_arr, interp_v_h, mf_uy_inv);
+        });
+        amrex::ParallelFor(amrex::grow(amrex::convert(bxy,amrex::IntVect(0)),1,1),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            AdvectionFluxYForYMom_N(i, j, k, rho_v, y_f_arr, interp_v_h, mf_vx_inv);
+        });
+        amrex::ParallelFor(amrex::surroundingNodes(bxy,2),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            AdvectionFluxZForYMom_N(i, j, k, rho_w, z_f_arr, interp_v_v);
+        });
+        amrex::ParallelFor(bxy,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            auto dzInv = 1.0/dz_ptr[k];
+            amrex::Real mfsq = 1 / (mf_vx_inv(i,j,0) * mf_vy_inv(i,j,0));
+            rho_v_rhs(i, j, k) = -( (x_f_arr(i+1,j  ,k  ) - x_f_arr(i  ,j  ,k  )) * dxInv * mfsq
+                                  + (y_f_arr(i  ,j  ,k  ) - y_f_arr(i  ,j-1,k  )) * dyInv * mfsq
+                                  + (z_f_arr(i  ,j  ,k+1) - z_f_arr(i  ,j  ,k  )) * dzInv );
+        });
     }
 
 
     // Z momentum fluxes and advection source
     flux_x.resize(amrex::surroundingNodes(bxz,0));
-    flux_z.resize(amrex::surroundingNodes(bxz,1));
-    flux_y.resize(amrex::grow(amrex::convert(bxz,amrex::IntVect(0)),2,1));
+    flux_y.resize(amrex::surroundingNodes(bxz,1));
+    flux_z.resize(amrex::grow(amrex::convert(bxz,amrex::IntVect(0)),2,1));
     {
-    amrex::Array4<amrex::Real> x_f_arr = flux_x.array();
-    amrex::Array4<amrex::Real> y_f_arr = flux_y.array();
-    amrex::Array4<amrex::Real> z_f_arr = flux_z.array();
-    amrex::ParallelFor(amrex::surroundingNodes(bxz,0),
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        AdvectionFluxXForZMom_N(i, j, k, rho_u, x_f_arr, interp_w_h, mf_u_inv);
-    });
-    amrex::ParallelFor(amrex::surroundingNodes(bxz,1),
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        AdvectionFluxYForZMom_N(i, j, k, rho_v, y_f_arr, interp_w_h, mf_v_inv);
-    });
-    amrex::ParallelFor(amrex::grow(amrex::convert(bxz,amrex::IntVect(0)),2,1),
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        AdvectionFluxZForZMom_N(i, j, k, rho_w, z_f_arr, w, interp_w_v, interp_w_wall,
-                                vert_adv_type, lo_z_face, hi_z_face);
-    });
-    amrex::ParallelFor(bxz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        auto dzInv = 2.0/(dz_ptr[k] + dz_ptr[k-1]);
-        amrex::Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
-        rho_w_rhs(i, j, k) = -( (x_f_arr(i+1,j  ,k  ) - x_f_arr(i  ,j  ,k  )) * dxInv * mfsq
-                              + (y_f_arr(i  ,j+1,k  ) - y_f_arr(i  ,j  ,k  )) * dyInv * mfsq
-                              + (z_f_arr(i  ,j  ,k  ) - z_f_arr(i  ,j  ,k-1)) * dzInv );
-    });
+        amrex::Array4<amrex::Real> x_f_arr = flux_x.array();
+        amrex::Array4<amrex::Real> y_f_arr = flux_y.array();
+        amrex::Array4<amrex::Real> z_f_arr = flux_z.array();
+        amrex::ParallelFor(amrex::surroundingNodes(bxz,0),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            AdvectionFluxXForZMom_N(i, j, k, rho_u, x_f_arr, interp_w_h, mf_uy_inv);
+        });
+        amrex::ParallelFor(amrex::surroundingNodes(bxz,1),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            AdvectionFluxYForZMom_N(i, j, k, rho_v, y_f_arr, interp_w_h, mf_vx_inv);
+        });
+        amrex::ParallelFor(amrex::grow(amrex::convert(bxz,amrex::IntVect(0)),2,1),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            AdvectionFluxZForZMom_N(i, j, k, rho_w, z_f_arr, w, interp_w_v, interp_w_wall,
+                                    vert_adv_type, lo_z_face, hi_z_face);
+        });
+        amrex::ParallelFor(bxz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            auto dzInv = 2.0/(dz_ptr[k] + dz_ptr[k-1]);
+            amrex::Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+            rho_w_rhs(i, j, k) = -( (x_f_arr(i+1,j  ,k  ) - x_f_arr(i  ,j  ,k  )) * dxInv * mfsq
+                                  + (y_f_arr(i  ,j+1,k  ) - y_f_arr(i  ,j  ,k  )) * dyInv * mfsq
+                                  + (z_f_arr(i  ,j  ,k  ) - z_f_arr(i  ,j  ,k-1)) * dzInv );
+        });
     }
 }
 
