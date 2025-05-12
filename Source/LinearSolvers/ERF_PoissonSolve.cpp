@@ -35,6 +35,31 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 
     auto dxInv = geom[lev].InvCellSizeArray();
 
+    // Inflow on an x-face -- note only the normal velocity is used in the projection
+    if (domain_bc_type[0] == "Inflow" || domain_bc_type[3] == "Inflow") {
+            (*physbcs_u[lev])(vars_new[lev][Vars::xvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
+                            IntVect{1,0,0},t_new[lev],BCVars::xvel_bc,false);
+        }
+        
+    // Inflow on a  y-face -- note only the normal velocity is used in the projection
+    if (domain_bc_type[1] == "Inflow" || domain_bc_type[4] == "Inflow") {
+        (*physbcs_v[lev])(vars_new[lev][Vars::yvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
+                          IntVect{0,1,0},t_new[lev],BCVars::yvel_bc,false);
+    }
+    
+    if (domain_bc_type[0] == "Inflow" || domain_bc_type[3] == "Inflow" ||
+        domain_bc_type[1] == "Inflow" || domain_bc_type[4] == "Inflow") {
+            VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
+                               vars_new[lev][Vars::yvel], IntVect{0},
+                               vars_new[lev][Vars::zvel], IntVect{0},
+                               vars_new[lev][Vars::cons],
+                               mom_mf[IntVars::xmom],
+                               mom_mf[IntVars::ymom],
+                               mom_mf[IntVars::zmom],
+                               Geom(lev).Domain(),
+                               domain_bcs_type);
+    }
+
     // If !fixed_density, we must convert (rho u) which came in
     // to (rho0 u) which is what we will project
     if (!solverChoice.fixed_density) {
