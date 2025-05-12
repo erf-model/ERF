@@ -308,10 +308,8 @@ ERF::ERF_shared ()
     mf_C2H.resize(nlevs_max);
     mf_MUB.resize(nlevs_max);
 
-    // Mapfactors
-    mapfac_m.resize(nlevs_max);
-    mapfac_u.resize(nlevs_max);
-    mapfac_v.resize(nlevs_max);
+    // Map factors
+    mapfac.resize(nlevs_max);
 
     // Thin immersed body
     xflux_imask.resize(nlevs_max);
@@ -513,18 +511,19 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             // Here we pre-divide (rho S) by m^2 before refluxing
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
-                const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
-                const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
+                const Array4<      Real> cons_arr = vars_new[lev][Vars::cons].array(mfi);
+                const Array4<const Real>  mfx_arr = mapfac[lev][MapFacType::mx]->const_array(mfi);
+                const Array4<const Real>  mfy_arr = mapfac[lev][MapFacType::my]->const_array(mfi);
                 if (SolverChoice::mesh_type == MeshType::ConstantDz) {
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                        cons_arr(i,j,k,n) /= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
                     });
                 } else {
                     const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,n) *= detJ_arr(i,j,k) / (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                        cons_arr(i,j,k,n) *= detJ_arr(i,j,k) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
                     });
                 }
             } // mfi
@@ -537,17 +536,18 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
-                const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
+                const Array4<const Real>  mfx_arr = mapfac[lev][MapFacType::mx]->const_array(mfi);
+                const Array4<const Real>  mfy_arr = mapfac[lev][MapFacType::my]->const_array(mfi);
                 if (SolverChoice::mesh_type == MeshType::ConstantDz) {
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                        cons_arr(i,j,k,n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
                     });
                 } else {
                     const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0)) / detJ_arr(i,j,k);
+                        cons_arr(i,j,k,n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0)) / detJ_arr(i,j,k);
                     });
                 }
             } // mfi

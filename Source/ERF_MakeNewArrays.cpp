@@ -239,18 +239,28 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
     BoxArray ba2d_mf(std::move(bl2d_mf));
 
-    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
-    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
-    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+    mapfac[lev].resize(MapFacType::num);
+    mapfac[lev][MapFacType::mx] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+    if (MapFacType::my != MapFacType::mx) {
+        mapfac[lev][MapFacType::my] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+    }
+    mapfac[lev][MapFacType::ux] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+    if (MapFacType::uy != MapFacType::ux) {
+        mapfac[lev][MapFacType::uy] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+    }
+    mapfac[lev][MapFacType::vx] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+    if (MapFacType::vy != MapFacType::vx) {
+        mapfac[lev][MapFacType::vy] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+    }
     if (solverChoice.test_mapfactor) {
-        mapfac_m[lev]->setVal(0.5);
-        mapfac_u[lev]->setVal(0.5);
-        mapfac_v[lev]->setVal(0.5);
+        for (int i = 0; i < mapfac[lev].size(); i++) {
+            mapfac[lev][i]->setVal(0.5);
+        }
     }
     else {
-        mapfac_m[lev]->setVal(1.);
-        mapfac_u[lev]->setVal(1.);
-        mapfac_v[lev]->setVal(1.);
+        for (int i = 0; i < mapfac[lev].size(); i++) {
+            mapfac[lev][i]->setVal(1.0);
+        }
     }
 
     // ********************************************************************************************
@@ -647,7 +657,7 @@ ERF::make_physbcs (int lev)
                                                             z_phys_nd[lev], solverChoice.use_real_bcs, yvel_bc_data[lev].data());
     physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            solverChoice.terrain_type, mapfac_u[lev], mapfac_v[lev], z_phys_nd[lev],
+                                                            solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             solverChoice.use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                (solverChoice.terrain_type == TerrainType::MovingFittedMesh));

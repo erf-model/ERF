@@ -160,8 +160,13 @@ public:
 
         int i = ijk[0]; int j = ijk[1]; int k = ijk[2];
 
+        // Convert ijk (IntVect) to a RealVect explicitly
+        amrex::RealVect ijk_r(static_cast<amrex::Real>(ijk[0]),
+                              static_cast<amrex::Real>(ijk[1]),
+                              static_cast<amrex::Real>(ijk[2]));
+
         // Weights
-        const amrex::RealVect sx_hi = lx  - ijk;
+        const amrex::RealVect sx_hi = lx  - ijk_r;
         const amrex::RealVect sx_lo = 1.0 - sx_hi;
 
         for (int n = 0; n < interp_comp; n++) {

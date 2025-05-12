@@ -20,15 +20,14 @@ using namespace amrex;
  * @param[in]  Hfx3 heat flux in z-dir
  * @param[in]  Diss dissipation of turbulent kinetic energy
  * @param[in]  geom problem geometry
- * @param[in]  mapfac_u map factor at x-face
- * @param[in]  mapfac_v map factor at y-face
+ * @param[in]  mapfac map factors
  * @param[in]  turbChoice container with turbulence parameters
  */
 void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                    const MultiFab& cons_in, MultiFab& eddyViscosity,
                                    MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
                                    const Geometry& geom, bool use_terrain,
-                                   const MultiFab& mapfac_u, const MultiFab& mapfac_v,
+                                   Vector<std::unique_ptr<MultiFab>>& mapfac,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav,
                                    std::unique_ptr<SurfaceLayer>& /*SurfLayer*/)
@@ -71,8 +70,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             Array4<Real const> tau13 = Tau_lev[TauType::tau13]->array(mfi);
             Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
 
-            Array4<Real const> mf_u = mapfac_u.array(mfi);
-            Array4<Real const> mf_v = mapfac_v.array(mfi);
+            Array4<Real const> mf_u = mapfac[MapFacType::ux]->const_array(mfi);
+            Array4<Real const> mf_v = mapfac[MapFacType::vx]->const_array(mfi);
 
             Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
@@ -151,8 +150,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
 
             const Array4<Real const > &cell_data = cons_in.array(mfi);
 
-            Array4<Real const> mf_u = mapfac_u.array(mfi);
-            Array4<Real const> mf_v = mapfac_v.array(mfi);
+            Array4<Real const> mf_u = mapfac[MapFacType::ux]->const_array(mfi);
+            Array4<Real const> mf_v = mapfac[MapFacType::vx]->const_array(mfi);
 
             Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
@@ -296,8 +295,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
  * @param[in]  Hfx3 heat flux in z-dir
  * @param[in]  Diss dissipation of turbulent kinetic energy
  * @param[in]  geom problem geometry
- * @param[in]  mapfac_u map factor at x-face
- * @param[in]  mapfac_v map factor at y-face
+ * @param[in]  mapfac map factor
  * @param[in]  turbChoice container with turbulence parameters
  */
 void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev*/,
@@ -310,8 +308,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                                     MultiFab& Diss,
                                     const Geometry& geom,
                                     bool use_terrain,
-                                    const MultiFab& /*mapfac_u*/,
-                                    const MultiFab& /*mapfac_v*/,
+                                    Vector<std::unique_ptr<MultiFab>>& /*mapfac*/,
                                     const std::unique_ptr<MultiFab>& z_phys_nd,
                                     const TurbChoice& turbChoice,
                                     const Real const_grav,
@@ -511,8 +508,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
  * @param[in]  Hfx3 heat flux in z-dir
  * @param[in]  Diss dissipation of turbulent kinetic energy
  * @param[in]  geom problem geometry
- * @param[in]  mapfac_u map factor at x-face
- * @param[in]  mapfac_v map factor at y-face
+ * @param[in]  mapfac map factors
  * @param[in]  turbChoice container with turbulence parameters
  * @param[in]  most pointer to Monin-Obukhov class if instantiated
  * @param[in]  vert_only flag for vertical components of eddyViscosity
@@ -524,11 +520,11 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                                 MultiFab& eddyViscosity,
                                 MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
                                 const Geometry& geom,
-                                const MultiFab& mapfac_u, const MultiFab& mapfac_v,
+                                Vector<std::unique_ptr<MultiFab>>& mapfac,
                                 const std::unique_ptr<MultiFab>& z_phys_nd,
                                 const SolverChoice& solverChoice,
                                 std::unique_ptr<SurfaceLayer>& SurfLayer,
-                                const amrex::FArrayBox* z_0,
+                                const FArrayBox* z_0,
                                 const bool& use_terrain_fitted_coords,
                                 const bool& use_moisture,
                                 int level,
@@ -563,8 +559,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                                      cons_in, eddyViscosity,
                                      Hfx1, Hfx2, Hfx3, Diss,
                                      geom, use_terrain_fitted_coords,
-                                     mapfac_u, mapfac_v,
-                                     z_phys_nd, turbChoice, const_grav,
+                                     mapfac, z_phys_nd, turbChoice, const_grav,
                                      SurfLayer);
     }
 
@@ -575,8 +570,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                                       eddyViscosity,
                                       Hfx1, Hfx2, Hfx3, Diss,
                                       geom, use_terrain_fitted_coords,
-                                      mapfac_u, mapfac_v,
-                                      z_phys_nd, turbChoice, const_grav,
+                                      mapfac, z_phys_nd, turbChoice, const_grav,
                                       SurfLayer, z_0);
     }
 

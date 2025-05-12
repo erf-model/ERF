@@ -29,7 +29,8 @@ void NumericalDiffusion_Scal (const amrex::Box& bx,
                               const amrex::Array4<const amrex::Real>& prim_data,
                               const amrex::Array4<const amrex::Real>& cell_data,
                               const amrex::Array4<      amrex::Real>& rhs,
-                              const amrex::Array4<const amrex::Real>& mf);
+                              const amrex::Array4<const amrex::Real>& mfx,
+                              const amrex::Array4<const amrex::Real>& mfy);
 
 void NumericalDiffusion_Xmom (const amrex::Box& bx,
                               const amrex::Real dt,
@@ -37,7 +38,8 @@ void NumericalDiffusion_Xmom (const amrex::Box& bx,
                               const amrex::Array4<const amrex::Real>& prim_data,
                               const amrex::Array4<const amrex::Real>& cell_data,
                               const amrex::Array4<      amrex::Real>& rhs,
-                              const amrex::Array4<const amrex::Real>& mf);
+                              const amrex::Array4<const amrex::Real>& mfx,
+                              const amrex::Array4<const amrex::Real>& mfy);
 
 void NumericalDiffusion_Ymom (const amrex::Box& bx,
                               const amrex::Real dt,
@@ -45,5 +47,6 @@ void NumericalDiffusion_Ymom (const amrex::Box& bx,
                               const amrex::Array4<const amrex::Real>& prim_data,
                               const amrex::Array4<const amrex::Real>& cell_data,
                               const amrex::Array4<      amrex::Real>& rhs,
-                              const amrex::Array4<const amrex::Real>& mf);
+                              const amrex::Array4<const amrex::Real>& mfx,
+                              const amrex::Array4<const amrex::Real>& mfy);
 #endif

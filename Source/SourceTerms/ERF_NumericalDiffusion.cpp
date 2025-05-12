@@ -23,7 +23,8 @@ NumericalDiffusion_Scal (const Box& bx,
                          const Array4<const Real>& prim_data,
                          const Array4<const Real>& cell_data,
                          const Array4<      Real>& rhs,
-                         const Array4<const Real>& mf_arr)
+                         const Array4<const Real>& mfx_arr,
+                         const Array4<const Real>& mfy_arr)
 {
     BL_PROFILE_VAR("NumericalDiffusion_Scal()",NumericalDiffusion_Scal);
 
@@ -63,8 +64,8 @@ NumericalDiffusion_Scal (const Box& bx,
         if ( (yflux_hi * (prim_data(i,j+1,k,nm1) - prim_data(i,j,k,nm1)) ) < 0.) yflux_hi = 0.;
 
 
-        rhs(i,j,k,n) += coeff6 * mf_arr(i,j,0) * ( (xflux_hi - xflux_lo)
-                                                 + (yflux_hi - yflux_lo) );
+        rhs(i,j,k,n) += coeff6 * ( mfx_arr(i,j,0) * (xflux_hi - xflux_lo)
+                                  +mfy_arr(i,j,0) * (yflux_hi - yflux_lo) );
     });
 }
 
@@ -87,7 +88,8 @@ NumericalDiffusion_Xmom (const Box& bx,
                          const Array4<const Real>& prim_data,
                          const Array4<const Real>& cell_data,
                          const Array4<      Real>& rhs,
-                         const Array4<const Real>& mf_arr)
+                         const Array4<const Real>& mfx_arr,
+                         const Array4<const Real>& mfy_arr)
 {
     BL_PROFILE_VAR("NumericalDiffusion_Xmom()",NumericalDiffusion_Xmom);
 
@@ -127,8 +129,8 @@ NumericalDiffusion_Xmom (const Box& bx,
         if ( (yflux_hi * (prim_data(i,j+1,k) - prim_data(i,j,k)) ) < 0.) yflux_hi = 0.;
 
 
-        rhs(i,j,k) += coeff6 * mf_arr(i,j,0) * ( (xflux_hi - xflux_lo)
-                                               + (yflux_hi - yflux_lo) );
+        rhs(i,j,k,0) += coeff6 * ( mfx_arr(i,j,0) * (xflux_hi - xflux_lo)
+                                  +mfy_arr(i,j,0) * (yflux_hi - yflux_lo) );
     });
 }
 
@@ -152,7 +154,8 @@ NumericalDiffusion_Ymom (const Box& bx,
                          const Array4<const Real>& prim_data,
                          const Array4<const Real>& cell_data,
                          const Array4<      Real>& rhs,
-                         const Array4<const Real>& mf_arr)
+                         const Array4<const Real>& mfx_arr,
+                         const Array4<const Real>& mfy_arr)
 {
     BL_PROFILE_VAR("NumericalDiffusion_Ymom()",NumericalDiffusion_Ymom);
 
@@ -192,7 +195,7 @@ NumericalDiffusion_Ymom (const Box& bx,
         if ( (yflux_hi * (prim_data(i,j ,k) - prim_data(i,j,k)) ) < 0.) yflux_hi = 0.;
 
 
-        rhs(i,j,k) += coeff6 * mf_arr(i,j,0) * ( (xflux_hi - xflux_lo)
-                                               + (yflux_hi - yflux_lo) );
+        rhs(i,j,k,0) += coeff6 * ( mfx_arr(i,j,0) * (xflux_hi - xflux_lo)
+                                  +mfy_arr(i,j,0) * (yflux_hi - yflux_lo) );
     });
 }

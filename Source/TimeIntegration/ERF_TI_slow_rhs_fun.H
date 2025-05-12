@@ -67,7 +67,7 @@
                      qheating_rates[level].get(),
 #endif
                      terrain_blank, fine_geom, solverChoice,
-                     mapfac_u[level], mapfac_v[level], mapfac_m[level],
+                     mapfac[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert);
@@ -168,8 +168,7 @@
                              xmom_src, ymom_src, zmom_src,
                              base_state_new[level], forest_drag, terrain_blank,
                              cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                             mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                             mapfac[level], dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                              input_sounding_data, n_qstate_moist);
 
@@ -181,9 +180,7 @@
                              fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level],
                              stretched_dz_d[level], gradp[level],
-                             mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                             get_eb(level),
-                             fr_as_crse, fr_as_fine);
+                             mapfac[level], get_eb(level), fr_as_crse, fr_as_fine);
 
             add_thin_body_sources(xmom_src, ymom_src, zmom_src,
                                   xflux_imask[level], yflux_imask[level], zflux_imask[level],
@@ -281,8 +278,7 @@
                              xmom_src, ymom_src, zmom_src,
                              base_state[level], forest_drag, terrain_blank,
                              cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                             mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                             mapfac[level], dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                              input_sounding_data, n_qstate_moist);
 
@@ -294,9 +290,7 @@
                              fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
                              stretched_dz_d[level], gradp[level],
-                             mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                             get_eb(level),
-                             fr_as_crse, fr_as_fine);
+                             mapfac[level], get_eb(level), fr_as_crse, fr_as_fine);
 
             add_thin_body_sources(xmom_src, ymom_src, zmom_src,
                                   xflux_imask[level], yflux_imask[level], zflux_imask[level],
@@ -390,8 +384,7 @@
                               Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                               fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc_new[level],
-                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                              EBFactory(level),
+                              mapfac[level], EBFactory(level),
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
                               real_width, real_set_width,
@@ -405,8 +398,7 @@
                               Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                               fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc[level],
-                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                              EBFactory(level),
+                              mapfac[level], EBFactory(level),
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
                               real_width, real_set_width,
@@ -480,8 +472,7 @@
                      qheating_rates[level].get(),
 #endif
                      terrain_blank, fine_geom, solverChoice,
-                     mapfac_u[level], mapfac_v[level], mapfac_m[level],
-                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     mapfac[level], dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert);
 
@@ -498,8 +489,7 @@
                          xmom_src, ymom_src, zmom_src,
                          base_state[level], forest_drag, terrain_blank,
                          cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                         mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                         dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                         mapfac[level], dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                          input_sounding_data, n_qstate_moist);
 
@@ -511,8 +501,7 @@
                          Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                          z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
-                         stretched_dz_d[level], gradp[level],
-                         mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                         stretched_dz_d[level], gradp[level], mapfac[level],
                          get_eb(level),
                          fr_as_crse, fr_as_fine);
 

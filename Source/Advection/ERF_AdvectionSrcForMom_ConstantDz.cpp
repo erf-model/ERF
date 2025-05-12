@@ -42,9 +42,12 @@ AdvectionSrcForMom_ConstantDz (const Box& bxx, const Box& bxy, const Box& bxz,
                                const Array4<const Real>& omega,
                                const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                                const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                               const Array4<const Real>& mf_m,
-                               const Array4<const Real>& mf_u,
-                               const Array4<const Real>& mf_v,
+                               const Array4<const Real>& mf_mx,
+                               const Array4<const Real>& mf_ux,
+                               const Array4<const Real>& mf_vx,
+                               const Array4<const Real>& mf_my,
+                               const Array4<const Real>& mf_uy,
+                               const Array4<const Real>& mf_vy,
                                const AdvType horiz_adv_type,
                                const AdvType vert_adv_type,
                                const Real horiz_upw_frac,
@@ -66,19 +69,27 @@ AdvectionSrcForMom_ConstantDz (const Box& bxx, const Box& bxy, const Box& bxz,
     // compute mapfactor inverses
     Box box2d_u(bxx);   box2d_u.setRange(2,0);   box2d_u.grow({3,3,0});
     Box box2d_v(bxy);   box2d_v.setRange(2,0);   box2d_v.grow({3,3,0});
-    FArrayBox mf_u_invFAB(box2d_u,1,The_Async_Arena());
-    FArrayBox mf_v_invFAB(box2d_v,1,The_Async_Arena());
-    const Array4<Real>& mf_u_inv = mf_u_invFAB.array();
-    const Array4<Real>& mf_v_inv = mf_v_invFAB.array();
+
+    FArrayBox mf_ux_invFAB(box2d_u,1,The_Async_Arena());
+    FArrayBox mf_uy_invFAB(box2d_u,1,The_Async_Arena());
+    const Array4<Real>& mf_ux_inv = mf_ux_invFAB.array();
+    const Array4<Real>& mf_uy_inv = mf_uy_invFAB.array();
+
+    FArrayBox mf_vx_invFAB(box2d_v,1,The_Async_Arena());
+    FArrayBox mf_vy_invFAB(box2d_v,1,The_Async_Arena());
+    const Array4<Real>& mf_vx_inv = mf_vx_invFAB.array();
+    const Array4<Real>& mf_vy_inv = mf_vy_invFAB.array();
 
     ParallelFor(box2d_u, box2d_v,
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_u_inv(i,j,0) = 1. / mf_u(i,j,0);
+        mf_ux_inv(i,j,0) = 1. / mf_ux(i,j,0);
+        mf_uy_inv(i,j,0) = 1. / mf_uy(i,j,0);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_v_inv(i,j,0) = 1. / mf_v(i,j,0);
+        mf_vx_inv(i,j,0) = 1. / mf_vx(i,j,0);
+        mf_vy_inv(i,j,0) = 1. / mf_vy(i,j,0);
     });
 
     // Inline with 2nd order for efficiency
@@ -87,16 +98,16 @@ AdvectionSrcForMom_ConstantDz (const Box& bxx, const Box& bxy, const Box& bxz,
             ParallelFor(bxx, bxy, bxz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real xflux_hi = 0.25 * (rho_u(i, j  , k) * mf_u_inv(i,j,0) + rho_u(i+1, j  , k) * mf_u_inv(i+1,j,0)) * (u(i+1,j,k) + u(i,j,k));
-                Real xflux_lo = 0.25 * (rho_u(i, j  , k) * mf_u_inv(i,j,0) + rho_u(i-1, j  , k) * mf_u_inv(i-1,j,0)) * (u(i-1,j,k) + u(i,j,k));
+                Real xflux_hi = 0.25 * (rho_u(i, j  , k) * mf_uy_inv(i,j,0) + rho_u(i+1, j  , k) * mf_uy_inv(i+1,j,0)) * (u(i+1,j,k) + u(i,j,k));
+                Real xflux_lo = 0.25 * (rho_u(i, j  , k) * mf_uy_inv(i,j,0) + rho_u(i-1, j  , k) * mf_uy_inv(i-1,j,0)) * (u(i-1,j,k) + u(i,j,k));
 
-                Real yflux_hi = 0.25 * (rho_v(i, j+1, k) * mf_v_inv(i,j+1,0) + rho_v(i-1, j+1, k) * mf_v_inv(i-1,j+1,0)) * (u(i,j+1,k) + u(i,j,k));
-                Real yflux_lo = 0.25 * (rho_v(i, j  , k) * mf_v_inv(i,j  ,0) + rho_v(i-1, j  , k) * mf_v_inv(i-1,j  ,0)) * (u(i,j-1,k) + u(i,j,k));
+                Real yflux_hi = 0.25 * (rho_v(i, j+1, k) * mf_vx_inv(i,j+1,0) + rho_v(i-1, j+1, k) * mf_vx_inv(i-1,j+1,0)) * (u(i,j+1,k) + u(i,j,k));
+                Real yflux_lo = 0.25 * (rho_v(i, j  , k) * mf_vx_inv(i,j  ,0) + rho_v(i-1, j  , k) * mf_vx_inv(i-1,j  ,0)) * (u(i,j-1,k) + u(i,j,k));
 
                 Real zflux_hi = 0.25 * (omega(i, j, k+1) + omega(i-1, j, k+1)) * (u(i,j,k+1) + u(i,j,k));
                 Real zflux_lo = 0.25 * (omega(i, j, k  ) + omega(i-1, j, k  )) * (u(i,j,k-1) + u(i,j,k));
 
-                Real mfsq = mf_u(i,j,0) * mf_u(i,j,0);
+                Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
@@ -105,16 +116,16 @@ AdvectionSrcForMom_ConstantDz (const Box& bxx, const Box& bxy, const Box& bxz,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-                Real xflux_hi = 0.25 * (rho_u(i+1, j, k) * mf_u_inv(i+1,j,0) + rho_u(i+1, j-1, k) * mf_u_inv(i+1,j-1,0)) * (v(i+1,j,k) + v(i,j,k));
-                Real xflux_lo = 0.25 * (rho_u(i  , j, k) * mf_u_inv(i  ,j,0) + rho_u(i  , j-1, k) * mf_u_inv(i  ,j-1,0)) * (v(i-1,j,k) + v(i,j,k));
+                Real xflux_hi = 0.25 * (rho_u(i+1, j, k) * mf_uy_inv(i+1,j,0) + rho_u(i+1, j-1, k) * mf_uy_inv(i+1,j-1,0)) * (v(i+1,j,k) + v(i,j,k));
+                Real xflux_lo = 0.25 * (rho_u(i  , j, k) * mf_uy_inv(i  ,j,0) + rho_u(i  , j-1, k) * mf_uy_inv(i  ,j-1,0)) * (v(i-1,j,k) + v(i,j,k));
 
-                Real yflux_hi = 0.25 * (rho_v(i  ,j+1,k) * mf_v_inv(i,j+1,0) + rho_v(i  ,j  ,k) * mf_v_inv(i,j  ,0)) * (v(i,j+1,k) + v(i,j,k));
-                Real yflux_lo = 0.25 * (rho_v(i  ,j  ,k) * mf_v_inv(i,j  ,0) + rho_v(i  ,j-1,k) * mf_v_inv(i,j-1,0) ) * (v(i,j-1,k) + v(i,j,k));
+                Real yflux_hi = 0.25 * (rho_v(i  ,j+1,k) * mf_vx_inv(i,j+1,0) + rho_v(i  ,j  ,k) * mf_vx_inv(i,j  ,0)) * (v(i,j+1,k) + v(i,j,k));
+                Real yflux_lo = 0.25 * (rho_v(i  ,j  ,k) * mf_vx_inv(i,j  ,0) + rho_v(i  ,j-1,k) * mf_vx_inv(i,j-1,0)) * (v(i,j-1,k) + v(i,j,k));
 
                 Real zflux_hi = 0.25 * (omega(i, j, k+1) + omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k));
                 Real zflux_lo = 0.25 * (omega(i, j, k  ) + omega(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k));
 
-                Real mfsq = mf_v(i,j,0) * mf_v(i,j,0);
+                Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
@@ -123,18 +134,18 @@ AdvectionSrcForMom_ConstantDz (const Box& bxx, const Box& bxy, const Box& bxz,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-                Real xflux_hi = 0.25*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * mf_u_inv(i+1,j  ,0) * (w(i+1,j,k) + w(i,j,k));
-                Real xflux_lo = 0.25*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * mf_u_inv(i  ,j  ,0) * (w(i-1,j,k) + w(i,j,k));
+                Real xflux_hi = 0.25*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * mf_uy_inv(i+1,j  ,0) * (w(i+1,j,k) + w(i,j,k));
+                Real xflux_lo = 0.25*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * mf_uy_inv(i  ,j  ,0) * (w(i-1,j,k) + w(i,j,k));
 
-                Real yflux_hi = 0.25*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * mf_v_inv(i  ,j+1,0) * (w(i,j+1,k) + w(i,j,k));
-                Real yflux_lo = 0.25*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * mf_v_inv(i  ,j  ,0) * (w(i,j-1,k) + w(i,j,k));
+                Real yflux_hi = 0.25*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * mf_vx_inv(i  ,j+1,0) * (w(i,j+1,k) + w(i,j,k));
+                Real yflux_lo = 0.25*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * mf_vx_inv(i  ,j  ,0) * (w(i,j-1,k) + w(i,j,k));
 
                 Real zflux_lo = 0.25 * (omega(i,j,k) + omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
                 Real zflux_hi = (k == hi_z_face) ? omega(i,j,k) * w(i,j,k) :
                     0.25 * (omega(i,j,k) + omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1));
 
-                Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
@@ -148,40 +159,45 @@ AdvectionSrcForMom_ConstantDz (const Box& bxx, const Box& bxy, const Box& bxz,
                 AdvectionSrcForMomVert_N<CENTERED2>(bxx, bxy, bxz,
                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                     rho_u, rho_v, omega, u, v, w,
-                                                    cellSizeInv, stretched_dz_d, mf_m,
-                                                    mf_u_inv, mf_v_inv,
+                                                    cellSizeInv, stretched_dz_d,
+                                                    mf_mx, mf_ux_inv, mf_vx_inv,
+                                                    mf_my, mf_uy_inv, mf_vy_inv,
                                                     horiz_upw_frac, vert_upw_frac,
                                                     vert_adv_type, lo_z_face, hi_z_face);
         } else if (horiz_adv_type == AdvType::Upwind_3rd) {
                 AdvectionSrcForMomVert_N<UPWIND3>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, omega, u, v, w,
-                                                  cellSizeInv, stretched_dz_d, mf_m,
-                                                  mf_u_inv, mf_v_inv,
+                                                  cellSizeInv, stretched_dz_d,
+                                                  mf_mx, mf_ux_inv, mf_vx_inv,
+                                                  mf_my, mf_uy_inv, mf_vy_inv,
                                                   horiz_upw_frac, vert_upw_frac,
                                                   vert_adv_type, lo_z_face, hi_z_face);
         } else if (horiz_adv_type == AdvType::Centered_4th) {
                 AdvectionSrcForMomVert_N<CENTERED4>(bxx, bxy, bxz,
                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                     rho_u, rho_v, omega, u, v, w,
-                                                    cellSizeInv, stretched_dz_d, mf_m,
-                                                    mf_u_inv, mf_v_inv,
+                                                    cellSizeInv, stretched_dz_d,
+                                                    mf_mx, mf_ux_inv, mf_vx_inv,
+                                                    mf_my, mf_uy_inv, mf_vy_inv,
                                                     horiz_upw_frac, vert_upw_frac,
                                                     vert_adv_type, lo_z_face, hi_z_face);
         } else if (horiz_adv_type == AdvType::Upwind_5th) {
                 AdvectionSrcForMomVert_N<UPWIND5>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, omega, u, v, w,
-                                                  cellSizeInv, stretched_dz_d, mf_m,
-                                                  mf_u_inv, mf_v_inv,
+                                                  cellSizeInv, stretched_dz_d,
+                                                  mf_mx, mf_ux_inv, mf_vx_inv,
+                                                  mf_my, mf_uy_inv, mf_vy_inv,
                                                   horiz_upw_frac, vert_upw_frac,
                                                   vert_adv_type, lo_z_face, hi_z_face);
         } else if (horiz_adv_type == AdvType::Centered_6th) {
                 AdvectionSrcForMomVert_N<CENTERED6>(bxx, bxy, bxz,
                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                     rho_u, rho_v, omega, u, v, w,
-                                                    cellSizeInv, stretched_dz_d, mf_m,
-                                                    mf_u_inv, mf_v_inv,
+                                                    cellSizeInv, stretched_dz_d,
+                                                    mf_mx, mf_ux_inv, mf_vx_inv,
+                                                    mf_my, mf_uy_inv, mf_vy_inv,
                                                     horiz_upw_frac, vert_upw_frac,
                                                     vert_adv_type, lo_z_face, hi_z_face);
         } else {

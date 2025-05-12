@@ -156,9 +156,12 @@ void ERF::advance_dycore(int level,
             Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = z_phys_nd[level]->const_array(mfi);
 
-            const Array4<const Real> mf_m = mapfac_m[level]->array(mfi);
-            const Array4<const Real> mf_u = mapfac_u[level]->array(mfi);
-            const Array4<const Real> mf_v = mapfac_v[level]->array(mfi);
+            const Array4<const Real> mf_mx = mapfac[level][MapFacType::mx]->const_array(mfi);
+            const Array4<const Real> mf_ux = mapfac[level][MapFacType::ux]->const_array(mfi);
+            const Array4<const Real> mf_vx = mapfac[level][MapFacType::vx]->const_array(mfi);
+            const Array4<const Real> mf_my = mapfac[level][MapFacType::my]->const_array(mfi);
+            const Array4<const Real> mf_uy = mapfac[level][MapFacType::uy]->const_array(mfi);
+            const Array4<const Real> mf_vy = mapfac[level][MapFacType::vy]->const_array(mfi);
 
             if (l_use_terrain_fitted_coords) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
@@ -168,14 +171,14 @@ void ERF::advance_dycore(int level,
                                 tau13, tau31,
                                 tau23, tau32,
                                 z_nd, detJ_cc[level]->const_array(mfi), bc_ptr_h, dxInv,
-                                mf_m, mf_u, mf_v);
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy);
             } else {
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau13, tau23,
                                 bc_ptr_h, dxInv,
-                                mf_m, mf_u, mf_v);
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy);
             }
         } // mfi
     } // l_use_diff
@@ -212,7 +215,7 @@ void ERF::advance_dycore(int level,
                                   state_old[IntVars::cons],
                                   *walldist[level].get(),
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
-                                  fine_geom, *mapfac_u[level], *mapfac_v[level],
+                                  fine_geom, mapfac[level],
                                   z_phys_nd[level], solverChoice,
                                   m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
                                   l_use_moisture, level, bc_ptr_h);

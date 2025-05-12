@@ -197,20 +197,35 @@ ERF::WriteCheckpointFile () const
             }
         }
 
-        IntVect ng = mapfac_m[lev]->nGrowVect();
+        IntVect ng = mapfac[lev][MapFacType::mx]->nGrowVect();
         MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
-        MultiFab::Copy(mf_m,*mapfac_m[lev],0,0,1,ng);
-        VisMF::Write(mf_m, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_m"));
+        MultiFab::Copy(mf_m,*mapfac[lev][MapFacType::mx],0,0,1,ng);
+        VisMF::Write(mf_m, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_mx"));
 
-        ng = mapfac_u[lev]->nGrowVect();
+        if (MapFacType::mx != MapFacType::my) {
+            MultiFab::Copy(mf_m,*mapfac[lev][MapFacType::my],0,0,1,ng);
+            VisMF::Write(mf_m, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_my"));
+        }
+
+        ng = mapfac[lev][MapFacType::ux]->nGrowVect();
         MultiFab mf_u(convert(ba2d[lev],IntVect(1,0,0)),dmap[lev],1,ng);
-        MultiFab::Copy(mf_u,*mapfac_u[lev],0,0,1,ng);
-        VisMF::Write(mf_u, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_u"));
+        MultiFab::Copy(mf_u,*mapfac[lev][MapFacType::ux],0,0,1,ng);
+        VisMF::Write(mf_u, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_ux"));
 
-        ng = mapfac_v[lev]->nGrowVect();
+        if (MapFacType::mx != MapFacType::my) {
+            MultiFab::Copy(mf_u,*mapfac[lev][MapFacType::uy],0,0,1,ng);
+            VisMF::Write(mf_u, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_uy"));
+        }
+
+        ng = mapfac[lev][MapFacType::vx]->nGrowVect();
         MultiFab mf_v(convert(ba2d[lev],IntVect(0,1,0)),dmap[lev],1,ng);
-        MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ng);
-        VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
+        MultiFab::Copy(mf_v,*mapfac[lev][MapFacType::vx],0,0,1,ng);
+        VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_vx"));
+
+        if (MapFacType::mx != MapFacType::my) {
+            MultiFab::Copy(mf_v,*mapfac[lev][MapFacType::vy],0,0,1,ng);
+            VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_vy"));
+        }
 
         if (m_SurfaceLayer)  {
             amrex::Print() << "Writing SurfaceLayer variables" << std::endl;
@@ -643,20 +658,35 @@ ERF::ReadCheckpointFile ()
         }
 
 
-        IntVect ng = mapfac_m[lev]->nGrowVect();
+        IntVect ng = mapfac[lev][MapFacType::mx]->nGrowVect();
         MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
-        VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_m"));
-        MultiFab::Copy(*mapfac_m[lev],mf_m,0,0,1,ng);
+        VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_mx"));
+        MultiFab::Copy(*mapfac[lev][MapFacType::mx],mf_m,0,0,1,ng);
 
-        ng = mapfac_u[lev]->nGrowVect();
+        if (MapFacType::mx != MapFacType::my) {
+            VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_my"));
+            MultiFab::Copy(*mapfac[lev][MapFacType::my],mf_m,0,0,1,ng);
+        }
+
+        ng = mapfac[lev][MapFacType::ux]->nGrowVect();
         MultiFab mf_u(convert(ba2d[lev],IntVect(1,0,0)),dmap[lev],1,ng);
-        VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_u"));
-        MultiFab::Copy(*mapfac_u[lev],mf_u,0,0,1,ng);
+        VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_ux"));
+        MultiFab::Copy(*mapfac[lev][MapFacType::ux],mf_u,0,0,1,ng);
 
-        ng = mapfac_v[lev]->nGrowVect();
+        if (MapFacType::ux != MapFacType::uy) {
+            VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_uy"));
+            MultiFab::Copy(*mapfac[lev][MapFacType::uy],mf_u,0,0,1,ng);
+        }
+
+        ng = mapfac[lev][MapFacType::vx]->nGrowVect();
         MultiFab mf_v(convert(ba2d[lev],IntVect(0,1,0)),dmap[lev],1,ng);
-        VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_v"));
-        MultiFab::Copy(*mapfac_v[lev],mf_v,0,0,1,ng);
+        VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_vx"));
+        MultiFab::Copy(*mapfac[lev][MapFacType::vx],mf_v,0,0,1,ng);
+
+        if (MapFacType::vx != MapFacType::vy) {
+            VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_vy"));
+            MultiFab::Copy(*mapfac[lev][MapFacType::vy],mf_v,0,0,1,ng);
+        }
 
 
         // NOTE: We read MOST data in ReadCheckpointFileMOST (see below)!

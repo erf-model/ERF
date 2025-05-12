@@ -40,9 +40,10 @@ AdvectionSrcForRho (const Box& bx,
                     const Array4<const Real>& az_arr,
                     const Array4<const Real>& detJ,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                    const Array4<const Real>& mf_m,
-                    const Array4<const Real>& mf_u,
-                    const Array4<const Real>& mf_v,
+                    const Array4<const Real>& mf_mx,
+                    const Array4<const Real>& mf_my,
+                    const Array4<const Real>& mf_uy,
+                    const Array4<const Real>& mf_vx,
                     const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
                     const bool fixed_rho)
 {
@@ -55,17 +56,17 @@ AdvectionSrcForRho (const Box& bx,
 
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        (flx_arr[0])(i,j,k,0) = ax_arr(i,j,k) * rho_u(i,j,k) / mf_u(i,j,0);
+        (flx_arr[0])(i,j,k,0) = ax_arr(i,j,k) * rho_u(i,j,k) / mf_uy(i,j,0);
         avg_xmom(i,j,k) = (flx_arr[0])(i,j,k,0);
     });
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        (flx_arr[1])(i,j,k,0) = ay_arr(i,j,k) * rho_v(i,j,k) / mf_v(i,j,0);
+        (flx_arr[1])(i,j,k,0) = ay_arr(i,j,k) * rho_v(i,j,k) / mf_vx(i,j,0);
         avg_ymom(i,j,k) = (flx_arr[1])(i,j,k,0);
     });
     ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+        Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
         (flx_arr[2])(i,j,k,0) = az_arr(i,j,k) * Omega(i,j,k) / mfsq;
         avg_zmom(i,j,k) = (flx_arr[2])(i,j,k,0);
     });
@@ -80,7 +81,7 @@ AdvectionSrcForRho (const Box& bx,
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (detJ(i,j,k) > 0.) {
-                Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
                 advectionSrc(i,j,k,0) = - mfsq / detJ(i,j,k) * (
                   ( (flx_arr[0])(i+1,j,k,0) - (flx_arr[0])(i  ,j,k,0) ) * dxInv +
                   ( (flx_arr[1])(i,j+1,k,0) - (flx_arr[1])(i,j  ,k,0) ) * dyInv +
@@ -131,7 +132,8 @@ AdvectionSrcForScalars (const Real& dt,
                         Real* min_s_ptr,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                        const Array4<const Real>& mf_m,
+                        const Array4<const Real>& mf_mx,
+                        const Array4<const Real>& mf_my,
                         const AdvType horiz_adv_type,
                         const AdvType vert_adv_type,
                         const Real horiz_upw_frac,
@@ -296,7 +298,7 @@ AdvectionSrcForScalars (const Real& dt,
             Real min_val = min_s_ptr[cons_index];
 
             Real invdetJ = (detJ(i,j,k) > 0.) ?  1. / detJ(i,j,k) : 1.;
-            Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+            Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
             Real RHS = - invdetJ * mfsq * (
                 ( (flx_arr[0])(i+1,j  ,k  ,cons_index) - (flx_arr[0])(i,j,k,cons_index) ) * dxInv +
@@ -362,7 +364,7 @@ AdvectionSrcForScalars (const Real& dt,
         if (detJ(i,j,k) > 0.)
         {
             Real invdetJ = 1.0 / detJ(i,j,k);
-            Real mfsq    = mf_m(i,j,0) * mf_m(i,j,0);
+            Real mfsq    = mf_mx(i,j,0) * mf_my(i,j,0);
 
             advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
               ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
