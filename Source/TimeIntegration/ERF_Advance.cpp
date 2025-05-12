@@ -17,6 +17,9 @@ using namespace amrex;
  */
 
 void
+check_for_negative_theta(amrex::MultiFab& S_old);
+
+void
 ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 {
     BL_PROFILE("ERF::Advance()");
@@ -41,13 +44,15 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     V_new.setVal(1.e34,V_new.nGrowVect());
     W_new.setVal(1.e34,W_new.nGrowVect());
 
+    // Do error checking for negative (rho theta) here
+    if (solverChoice.anelastic[lev] != 1) {
+        check_for_negative_theta(S_old);
+    }
+
     //
     // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
     // If lev == 0 we have already FillPatched this in ERF::TimeStep
     //
-//  if (lev == 0) {
-//      FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old});
-//  } else {
     if (lev > 0) {
         FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
                              {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
@@ -286,4 +291,30 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     if (solverChoice.time_avg_vel) {
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
+}
+
+void
+check_for_negative_theta(amrex::MultiFab& S_old)
+{
+    // *****************************************************************************
+    // Test for negative (rho theta)
+    // *****************************************************************************
+    for (MFIter mfi(S_old); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        const Array4<Real> &cell_data  = S_old.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+#ifdef AMREX_USE_GPU
+            if (cell_data(i,j,k,RhoTheta_comp) <= 0.) AMREX_DEVICE_PRINTF("BAD THETA AT %d %d %d %e %e \n",
+                i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
+#else
+            if (cell_data(i,j,k,RhoTheta_comp) <= 0.) {
+                printf("BAD THETA AT %d %d %d %e %e \n",
+                i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
+                amrex::Abort("Bad theta in ERF_slow_rhs_pre");
+            }
+#endif
+            });
+    } // mfi
 }

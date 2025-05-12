@@ -27,8 +27,10 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                             const amrex::Array4<const amrex::Real>& w_afrac_x,
                             const amrex::Array4<const amrex::Real>& w_afrac_y,
                             const amrex::Array4<const amrex::Real>& w_afrac_z,
-                            const amrex::Array4<const amrex::Real>& mf_u_inv,
-                            const amrex::Array4<const amrex::Real>& mf_v_inv,
+                            const amrex::Array4<const amrex::Real>& mf_ux_inv,
+                            const amrex::Array4<const amrex::Real>& mf_vx_inv,
+                            const amrex::Array4<const amrex::Real>& mf_uy_inv,
+                            const amrex::Array4<const amrex::Real>& mf_vy_inv,
                             const amrex::Real upw_frac_h,
                             const amrex::Real upw_frac_v,
                             const AdvType /*vert_adv_type*/,
@@ -69,7 +71,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( u_afrac_x(i,j,k) > 0. )
         {
-            amrex::Real rho_u_avg = 0.5 * (rho_u(i-1,j,k) * mf_u_inv(i-1,j,0) + rho_u(i,j,k) * mf_u_inv(i,j,0));
+            amrex::Real rho_u_avg = 0.5 * (rho_u(i-1,j,k) * mf_ux_inv(i-1,j,0) + rho_u(i,j,k) * mf_ux_inv(i,j,0));
 
             int icell = 0;
 
@@ -116,7 +118,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( u_afrac_y(i,j,k) > 0. )
         {
-            amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) * mf_v_inv(i,j,0) + rho_v(i-1,j,k) * mf_v_inv(i-1,j,0));
+            amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) * mf_vx_inv(i,j,0) + rho_v(i-1,j,k) * mf_vx_inv(i-1,j,0));
 
             int jcell = 0;
 
@@ -216,7 +218,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( v_afrac_x(i,j,k) > 0. )
         {
-            amrex::Real rho_u_avg = 0.5 * (rho_u(i,j,k) * mf_u_inv(i,j,0) + rho_u(i,j-1,k) * mf_u_inv(i,j-1,0));
+            amrex::Real rho_u_avg = 0.5 * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i,j-1,k) * mf_uy_inv(i,j-1,0));
 
             int icell = 0;
 
@@ -263,7 +265,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( v_afrac_y(i,j,k) > 0. )
         {
-            amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) * mf_v_inv(i,j,0) + rho_v(i,j-1,k) * mf_v_inv(i,j-1,0));
+            amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) * mf_vy_inv(i,j,0) + rho_v(i,j-1,k) * mf_vy_inv(i,j-1,0));
 
             int jcell = 0;
 
@@ -361,7 +363,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( w_afrac_x(i,j,k) > 0. )
         {
-            amrex::Real rho_u_avg = 0.5 * (rho_u(i,j,k) + rho_u(i,j,k-1)) * mf_u_inv(i,j,0);
+            amrex::Real rho_u_avg = 0.5 * (rho_u(i,j,k) + rho_u(i,j,k-1)) * mf_ux_inv(i,j,0);
 
             int icell = 0;
 
@@ -408,7 +410,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     {
         if ( w_afrac_y(i,j,k) > 0. )
         {
-            amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_v_inv(i,j,0);
+            amrex::Real rho_v_avg = 0.5 * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_vy_inv(i,j,0);
 
             int jcell = 0;
 
@@ -540,8 +542,10 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                         const amrex::Array4<const amrex::Real>& w_afrac_x,
                         const amrex::Array4<const amrex::Real>& w_afrac_y,
                         const amrex::Array4<const amrex::Real>& w_afrac_z,
-                        const amrex::Array4<const amrex::Real>& mf_u_inv,
-                        const amrex::Array4<const amrex::Real>& mf_v_inv,
+                        const amrex::Array4<const amrex::Real>& mf_ux_inv,
+                        const amrex::Array4<const amrex::Real>& mf_vx_inv,
+                        const amrex::Array4<const amrex::Real>& mf_uy_inv,
+                        const amrex::Array4<const amrex::Real>& mf_vy_inv,
                         const amrex::Real upw_frac_h,
                         const amrex::Real upw_frac_v,
                         const AdvType vert_adv_type,
@@ -557,7 +561,8 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
-                                mf_u_inv, mf_v_inv,
+                                mf_ux_inv, mf_vx_inv,
+                                mf_uy_inv, mf_vy_inv,
                                 upw_frac_h, upw_frac_v, vert_adv_type,
                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                 lo_z_face, hi_z_face);
@@ -568,7 +573,8 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
-                                mf_u_inv, mf_v_inv,
+                                mf_ux_inv, mf_vx_inv,
+                                mf_uy_inv, mf_vy_inv,
                                 upw_frac_h, upw_frac_v, vert_adv_type,
                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                 lo_z_face, hi_z_face);
@@ -579,7 +585,8 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
-                                mf_u_inv, mf_v_inv,
+                                mf_ux_inv, mf_vx_inv,
+                                mf_uy_inv, mf_vy_inv,
                                 upw_frac_h, upw_frac_v, vert_adv_type,
                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                 lo_z_face, hi_z_face);
@@ -590,7 +597,8 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
-                                mf_u_inv, mf_v_inv,
+                                mf_ux_inv, mf_vx_inv,
+                                mf_uy_inv, mf_vy_inv,
                                 upw_frac_h, upw_frac_v, vert_adv_type,
                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                 lo_z_face, hi_z_face);
@@ -601,7 +609,8 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
-                                mf_u_inv, mf_v_inv,
+                                mf_ux_inv, mf_vx_inv,
+                                mf_uy_inv, mf_vy_inv,
                                 upw_frac_h, upw_frac_v, vert_adv_type,
                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                 lo_z_face, hi_z_face);

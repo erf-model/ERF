@@ -17,6 +17,11 @@
 #include <ERF_TurbStruct.H>
 #include <ERF_TurbPertStruct.H>
 
+enum MapFacType {
+    mx, ux, vx, num,
+    my = 0, uy = 1, vy = 2
+};
+
 enum TauType {
     tau11, tau22, tau33, tau12, tau13, tau23, tau21, tau31, tau32
 };

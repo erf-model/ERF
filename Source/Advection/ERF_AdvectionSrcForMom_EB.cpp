@@ -56,9 +56,12 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                         const Array4<const Real>& rho_v,
                         const Array4<const Real>& omega,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                        const Array4<const Real>& mf_m,
-                        const Array4<const Real>& mf_u,
-                        const Array4<const Real>& mf_v,
+                        const Array4<const Real>& mf_mx,
+                        const Array4<const Real>& mf_ux,
+                        const Array4<const Real>& mf_vx,
+                        const Array4<const Real>& mf_my,
+                        const Array4<const Real>& mf_uy,
+                        const Array4<const Real>& mf_vy,
                         const AdvType horiz_adv_type,
                         const AdvType vert_adv_type,
                         const Real horiz_upw_frac,
@@ -81,19 +84,26 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
     // compute mapfactor inverses
     Box box2d_u(bxx);   box2d_u.setRange(2,0);   box2d_u.grow({3,3,0});
     Box box2d_v(bxy);   box2d_v.setRange(2,0);   box2d_v.grow({3,3,0});
-    FArrayBox mf_u_invFAB(box2d_u,1,The_Async_Arena());
-    FArrayBox mf_v_invFAB(box2d_v,1,The_Async_Arena());
-    const Array4<Real>& mf_u_inv = mf_u_invFAB.array();
-    const Array4<Real>& mf_v_inv = mf_v_invFAB.array();
+
+    FArrayBox mf_ux_invFAB(box2d_u,1,The_Async_Arena());
+    FArrayBox mf_uy_invFAB(box2d_u,1,The_Async_Arena());
+    FArrayBox mf_vx_invFAB(box2d_v,1,The_Async_Arena());
+    FArrayBox mf_vy_invFAB(box2d_v,1,The_Async_Arena());
+    const Array4<Real>& mf_ux_inv = mf_ux_invFAB.array();
+    const Array4<Real>& mf_uy_inv = mf_uy_invFAB.array();
+    const Array4<Real>& mf_vx_inv = mf_vx_invFAB.array();
+    const Array4<Real>& mf_vy_inv = mf_vy_invFAB.array();
 
     ParallelFor(box2d_u, box2d_v,
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_u_inv(i,j,0) = 1. / mf_u(i,j,0);
+        mf_ux_inv(i,j,0) = 1. / mf_ux(i,j,0);
+        mf_uy_inv(i,j,0) = 1. / mf_uy(i,j,0);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_v_inv(i,j,0) = 1. / mf_v(i,j,0);
+        mf_vx_inv(i,j,0) = 1. / mf_vx(i,j,0);
+        mf_vy_inv(i,j,0) = 1. / mf_vy(i,j,0);
     });
 
     // EB u-factory
@@ -134,8 +144,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( u_afrac_x(i,j,k)>0.){
-                flx_u_arr[0](i,j,k) = 0.25
-                                    * (rho_u(i,j,k) * mf_u_inv(i,j,0) + rho_u(i-1,j,k) * mf_u_inv(i-1,j,0))
+                flx_u_arr[0](i,j,k) = 0.25 * u_afrac_x(i,j,k)
+                                    * (rho_u(i,j,k) * mf_ux_inv(i,j,0) + rho_u(i-1,j,k) * mf_ux_inv(i-1,j,0))
                                     * (u(i-1,j,k) + u(i,j,k));
             } else {
                 flx_u_arr[0](i,j,k) = 0.;
@@ -144,8 +154,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( u_afrac_y(i,j,k)>0.){
-                flx_u_arr[1](i,j,k) = 0.25
-                                    * (rho_v(i,j,k) * mf_v_inv(i,j,0) + rho_v(i-1,j,k) * mf_v_inv(i-1,j,0))
+                flx_u_arr[1](i,j,k) = 0.25 * u_afrac_y(i,j,k)
+                                    * (rho_v(i,j,k) * mf_vy_inv(i,j,0) + rho_v(i-1,j,k) * mf_vy_inv(i-1,j,0))
                                     * (u(i,j-1,k) + u(i,j,k));
             } else {
                 flx_u_arr[1](i,j,k) = 0.;
@@ -164,8 +174,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( v_afrac_x(i,j,k)>0.){
-                flx_v_arr[0](i,j,k) = 0.25
-                                    * (rho_u(i,j,k) * mf_u_inv(i,j,0) + rho_u(i,j-1,k) * mf_u_inv(i,j-1,0))
+                flx_v_arr[0](i,j,k) = 0.25 * v_afrac_x(i,j,k)
+                                    * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i,j-1,k) * mf_uy_inv(i,j-1,0))
                                     * (v(i-1,j,k) + v(i,j,k));
             } else {
                 flx_v_arr[0](i,j,k) = 0.;
@@ -174,8 +184,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( v_afrac_y(i,j,k)>0.){
-                flx_v_arr[1](i,j,k) = 0.25
-                                    * (rho_v(i,j,k) * mf_v_inv(i,j,0) + rho_v(i,j-1,k) * mf_v_inv(i,j-1,0))
+                flx_v_arr[1](i,j,k) = 0.25 * v_afrac_y(i,j,k)
+                                    * (rho_v(i,j,k) * mf_vy_inv(i,j,0) + rho_v(i,j-1,k) * mf_vy_inv(i,j-1,0))
                                     * (v(i,j-1,k) + v(i,j,k));
             } else {
                 flx_v_arr[1](i,j,k) = 0.;
@@ -194,8 +204,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( w_afrac_x(i,j,k)>0.){
-                flx_w_arr[0](i,j,k) = 0.25
-                                    * (rho_u(i,j,k) + rho_u(i,j, k-1)) * mf_u_inv(i,j,0)
+                flx_w_arr[0](i,j,k) = 0.25 * w_afrac_x(i,j,k)
+                                    * (rho_u(i,j,k) + rho_u(i,j, k-1)) * mf_ux_inv(i,j,0)
                                     * (w(i-1,j,k) + w(i,j,k));
             } else {
                 flx_w_arr[0](i,j,k) = 0.;
@@ -204,8 +214,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if ( w_afrac_y(i,j,k)>0.){
-                flx_w_arr[1](i,j,k) = 0.25
-                                    * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_v_inv(i,j,0)
+                flx_w_arr[1](i,j,k) = 0.25 * w_afrac_y(i,j,k)
+                                    * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_vy_inv(i,j,0)
                                     * (w(i,j-1,k) + w(i,j,k));
             } else {
                 flx_w_arr[1](i,j,k) = 0.;
@@ -230,7 +240,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
-                                                mf_u_inv, mf_v_inv,
+                                                mf_ux_inv, mf_vx_inv,
+                                                mf_uy_inv, mf_vy_inv,
                                                 horiz_upw_frac, vert_upw_frac, vert_adv_type,
                                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                                 lo_z_face, hi_z_face);
@@ -240,7 +251,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
-                                                mf_u_inv, mf_v_inv,
+                                                mf_ux_inv, mf_vx_inv,
+                                                mf_uy_inv, mf_vy_inv,
                                                 horiz_upw_frac, vert_upw_frac, vert_adv_type,
                                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                                 lo_z_face, hi_z_face);
@@ -250,7 +262,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
-                                                mf_u_inv, mf_v_inv,
+                                                mf_ux_inv, mf_vx_inv,
+                                                mf_uy_inv, mf_vy_inv,
                                                 horiz_upw_frac, vert_upw_frac, vert_adv_type,
                                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                                 lo_z_face, hi_z_face);
@@ -260,7 +273,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
-                                                mf_u_inv, mf_v_inv,
+                                                mf_ux_inv, mf_vx_inv,
+                                                mf_uy_inv, mf_vy_inv,
                                                 horiz_upw_frac, vert_upw_frac, vert_adv_type,
                                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                                 lo_z_face, hi_z_face);
@@ -270,7 +284,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
-                                                mf_u_inv, mf_v_inv,
+                                                mf_ux_inv, mf_vx_inv,
+                                                mf_uy_inv, mf_vy_inv,
                                                 horiz_upw_frac, vert_upw_frac, vert_adv_type,
                                                 flx_u_arr, flx_v_arr, flx_w_arr,
                                                 lo_z_face, hi_z_face);
@@ -280,18 +295,18 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
     } // horiz_adv_type
 
     // Update momentum RHS using the fluxes
-
     if (already_on_centroids) {
 
         ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (u_vfrac(i,j,k)>0.) {
-                Real mfsq = mf_u(i,j,0) * mf_u(i,j,0);
+                Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
-                rho_u_rhs(i, j, k) = - ( (u_afrac_x(i+1, j  , k  ) * flx_u_arr[0](i+1, j  , k  ) - u_afrac_x(i, j, k) * flx_u_arr[0](i, j, k)) * dxInv * mfsq
-                                       + (u_afrac_y(i  , j+1, k  ) * flx_u_arr[1](i  , j+1, k  ) - u_afrac_y(i, j, k) * flx_u_arr[1](i, j, k)) * dyInv * mfsq
-                                       + (u_afrac_z(i  , j  , k+1) * flx_u_arr[2](i  , j  , k+1) - u_afrac_z(i, j, k) * flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
+                Real advectionSrc = ( (flx_u_arr[0](i+1, j  , k  ) - flx_u_arr[0](i, j, k)) * dxInv * mfsq
+                                    + (flx_u_arr[1](i  , j+1, k  ) - flx_u_arr[1](i, j, k)) * dyInv * mfsq
+                                    + (flx_u_arr[2](i  , j  , k+1) - flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
+                rho_u_rhs(i, j, k) = -advectionSrc;
             } else {
                 rho_u_rhs(i, j, k) = 0.;
             }
@@ -299,11 +314,12 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (v_vfrac(i,j,k)>0.) {
-                Real mfsq = mf_v(i,j,0) * mf_v(i,j,0);
+                Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
-                rho_v_rhs(i, j, k) = - ( (v_afrac_x(i+1, j  , k  ) * flx_v_arr[0](i+1, j  , k  ) - v_afrac_x(i, j, k) * flx_v_arr[0](i, j, k)) * dxInv * mfsq
-                                       + (v_afrac_y(i  , j+1, k  ) * flx_v_arr[1](i  , j+1, k  ) - v_afrac_y(i, j, k) * flx_v_arr[1](i, j, k)) * dyInv * mfsq
-                                       + (v_afrac_z(i  , j  , k+1) * flx_v_arr[2](i  , j  , k+1) - v_afrac_z(i, j, k) * flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
+                Real advectionSrc = ( (flx_v_arr[0](i+1, j  , k  ) - flx_v_arr[0](i, j, k)) * dxInv * mfsq
+                                    + (flx_v_arr[1](i  , j+1, k  ) - flx_v_arr[1](i, j, k)) * dyInv * mfsq
+                                    + (flx_v_arr[2](i  , j  , k+1) - flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
+                rho_v_rhs(i, j, k) = -advectionSrc;
             } else {
                 rho_v_rhs(i, j, k) = 0.;
             }
@@ -311,7 +327,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (w_vfrac(i,j,k)>0.) {
-                Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 rho_w_rhs(i, j, k) = - ( (w_afrac_x(i+1, j  , k  ) * flx_w_arr[0](i+1, j  , k  ) - w_afrac_x(i, j, k) * flx_w_arr[0](i, j, k)) * dxInv * mfsq
                                        + (w_afrac_y(i  , j+1, k  ) * flx_w_arr[1](i  , j+1, k  ) - w_afrac_y(i, j, k) * flx_w_arr[1](i, j, k)) * dyInv * mfsq
@@ -332,7 +348,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (u_vfrac(i,j,k)>0.) {
-                Real mfsq = mf_u(i,j,0) * mf_u(i,j,0);
+                Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
                 if (u_cflag(i,j,k).isCovered())
                 {
@@ -431,7 +447,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (v_vfrac(i,j,k)>0.) {
-                Real mfsq = mf_v(i,j,0) * mf_v(i,j,0);
+                Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
                 if (v_cflag(i,j,k).isCovered())
                 {
@@ -530,7 +546,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (w_vfrac(i,j,k)>0.) {
-                Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 if (w_cflag(i,j,k).isCovered())
                 {

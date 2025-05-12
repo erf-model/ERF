@@ -55,7 +55,11 @@ public:
 
     virtual
     int
-    Qstate_Size () { return NullMoist::m_qstate_size; }
+    Qstate_Moist_Size () { return NullMoist::m_qstate_moist_size; }
+
+    virtual
+    int
+    Qstate_NonMoist_Size () { return NullMoist::m_qstate_nonmoist_size; }
 
     virtual
     void
@@ -65,9 +69,25 @@ public:
         a_names.clear();
     }
 
+    virtual
+    void
+    GetPlotVarNames (amrex::Vector<std::string>& a_vec) const
+    {
+        a_vec.resize(0);
+    }
+
+    virtual
+    void
+    GetPlotVar (const std::string& /* a_name */,
+                amrex::MultiFab& /* a_mf */ ) const
+    {
+        amrex::Abort("NullMoist::GetPlotVar() should never be called.");
+    }
+
 private:
     int m_qmoist_size = 0;
-    int m_qstate_size = 0;
+    int m_qstate_moist_size = 0;
+    int m_qstate_nonmoist_size = 0;
 };
 
 #endif

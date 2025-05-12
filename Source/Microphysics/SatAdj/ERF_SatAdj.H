@@ -112,7 +112,7 @@ public:
     Qmoist_Size () override { return SatAdj::m_qmoist_size; }
 
     int
-    Qstate_Size () override { return SatAdj::m_qstate_size; }
+    Qstate_Moist_Size () override { return SatAdj::n_qstate_moist_size; }
 
     void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
@@ -193,7 +193,7 @@ private:
     int m_qmoist_size = 0;
 
     // Number of qstate variables
-    int m_qstate_size = 2;
+    int n_qstate_moist_size = 2;
 
     // geometry
     amrex::Geometry m_geom;

@@ -23,9 +23,7 @@ void erf_make_tau_terms (int level, int nrk,
                          const SolverChoice& solverChoice,
                          std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
                          std::unique_ptr<MultiFab>& detJ,
-                         std::unique_ptr<MultiFab>& mapfac_m,
-                         std::unique_ptr<MultiFab>& mapfac_u,
-                         std::unique_ptr<MultiFab>& mapfac_v)
+                         Vector<std::unique_ptr<MultiFab>>& mapfac)
 {
     BL_PROFILE_REGION("erf_make_tau_terms()");
 
@@ -88,9 +86,12 @@ void erf_make_tau_terms (int level, int nrk,
             const Array4<const Real> & w = zvel.array(mfi);
 
             // Map factors
-            const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
-            const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
-            const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
+            const Array4<const Real>& mf_mx  = mapfac[MapFacType::mx]->const_array(mfi);
+            const Array4<const Real>& mf_ux  = mapfac[MapFacType::ux]->const_array(mfi);
+            const Array4<const Real>& mf_vx  = mapfac[MapFacType::vx]->const_array(mfi);
+            const Array4<const Real>& mf_my  = mapfac[MapFacType::my]->const_array(mfi);
+            const Array4<const Real>& mf_uy  = mapfac[MapFacType::uy]->const_array(mfi);
+            const Array4<const Real>& mf_vy  = mapfac[MapFacType::vy]->const_array(mfi);
 
             // Eddy viscosity
             const Array4<Real const>& mu_turb   = l_use_turb       ? eddyDiffs->const_array(mfi) :
@@ -190,7 +191,7 @@ void erf_make_tau_terms (int level, int nrk,
                 ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,
-                                                                  mf_u,mf_v,z_nd,dxInv);
+                                                                  mf_ux,mf_vy,z_nd,dxInv);
                 });
 
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -205,10 +206,10 @@ void erf_make_tau_terms (int level, int nrk,
                     Real Omega_hi = omega_arr(i,j,k+1);
                     Real Omega_lo = omega_arr(i,j,k  );
 
-                    Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
+                    Real mfsq = mf_mx(i,j,0)*mf_my(i,j,0);
 
-                    Real expansionRate = (u(i+1,j  ,k)/mf_u(i+1,j,0)*met_u_h_zeta_hi - u(i,j,k)/mf_u(i,j,0)*met_u_h_zeta_lo)*dxInv[0]*mfsq +
-                                         (v(i  ,j+1,k)/mf_v(i,j+1,0)*met_v_h_zeta_hi - v(i,j,k)/mf_v(i,j,0)*met_v_h_zeta_lo)*dxInv[1]*mfsq +
+                    Real expansionRate = (u(i+1,j  ,k)/mf_uy(i+1,j,0)*met_u_h_zeta_hi - u(i,j,k)/mf_uy(i,j,0)*met_u_h_zeta_lo)*dxInv[0]*mfsq +
+                                         (v(i  ,j+1,k)/mf_vx(i,j+1,0)*met_v_h_zeta_hi - v(i,j,k)/mf_vx(i,j,0)*met_v_h_zeta_lo)*dxInv[1]*mfsq +
                                          (Omega_hi - Omega_lo)*dxInv[2];
 
                     er_arr(i,j,k) = expansionRate / detJ_arr(i,j,k);
@@ -227,7 +228,8 @@ void erf_make_tau_terms (int level, int nrk,
                                 s13, s31,
                                 s23, s32,
                                 z_nd, detJ_arr, bc_ptr_h, dxInv,
-                                mf_m, mf_u, mf_v);
+                                mf_mx, mf_ux, mf_vx,
+                                mf_my, mf_uy, mf_vy);
                 } // profile
 
                 // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
@@ -309,9 +311,9 @@ void erf_make_tau_terms (int level, int nrk,
                 {
                 BL_PROFILE("slow_rhs_making_er_N");
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
-                    er_arr(i,j,k) = (u(i+1, j  , k  )/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]*mfsq +
-                                    (v(i  , j+1, k  )/mf_v(i,j+1,0) - v(i, j, k)/mf_v(i,j,0))*dxInv[1]*mfsq +
+                    Real mfsq = mf_mx(i,j,0)*mf_my(i,j,0);
+                    er_arr(i,j,k) = (u(i+1, j  , k  )/mf_uy(i+1,j,0) - u(i, j, k)/mf_uy(i,j,0))*dxInv[0]*mfsq +
+                                    (v(i  , j+1, k  )/mf_vx(i,j+1,0) - v(i, j, k)/mf_vx(i,j,0))*dxInv[1]*mfsq +
                                     (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
                 });
                 } // end profile
@@ -327,7 +329,8 @@ void erf_make_tau_terms (int level, int nrk,
                                 s11, s22, s33,
                                 s12, s13, s23,
                                 bc_ptr_h, dxInv,
-                                mf_m, mf_u, mf_v);
+                                mf_mx, mf_ux, mf_vx,
+                                mf_my, mf_uy, mf_vy);
                 } // end profile
 
                 // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)

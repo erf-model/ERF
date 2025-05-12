@@ -55,7 +55,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         qheating_rates[level].get(),
 #endif
                         terrain_blank, fine_geom, solverChoice,
-                        mapfac_u[level], mapfac_v[level], mapfac_m[level],
+                        mapfac[level],
                         dptr_rhotheta_src, dptr_rhoqt_src,
                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                         input_sounding_data, turbPert, false);
@@ -67,7 +67,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         qheating_rates[level].get(),
 #endif
                         terrain_blank, fine_geom, solverChoice,
-                        mapfac_u[level], mapfac_v[level], mapfac_m[level],
+                        mapfac[level],
                         dptr_rhotheta_src, dptr_rhoqt_src,
                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                         input_sounding_data, turbPert, false);
@@ -163,7 +163,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state_new[level], forest_drag, terrain_blank,
                                 cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                                mapfac[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                                 input_sounding_data, n_qstate, false);
@@ -177,8 +177,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
-                                dtau, beta_s, inv_fac,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                                dtau, beta_s, inv_fac, mapfac[level],
                                 fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
@@ -188,7 +187,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state_new[level], forest_drag, terrain_blank,
                                 cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                                mapfac[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                                 input_sounding_data, n_qstate, false);
@@ -202,8 +201,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
-                                dtau, beta_s, inv_fac,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                                dtau, beta_s, inv_fac, mapfac[level],
                                 fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
         } else if (solverChoice.mesh_type != MeshType::ConstantDz) {
@@ -222,7 +220,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state[level], forest_drag, terrain_blank,
                                 cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                                mapfac[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                                 input_sounding_data, n_qstate, false);
@@ -233,7 +231,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                cc_src, xmom_src, ymom_src, zmom_src,
                                fine_geom, solverChoice.gravity,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                               mapfac[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             } else {
                 // If this is not the first substep we pass in S_data as both the previous step's solution
@@ -244,7 +242,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state[level], forest_drag, terrain_blank,
                                 cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                                mapfac[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                                 input_sounding_data, n_qstate, false);
@@ -254,8 +252,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch,
                                cc_src, xmom_src, ymom_src, zmom_src,
                                fine_geom, solverChoice.gravity,
-                               z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                               z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac, mapfac[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
         } else {
@@ -274,7 +271,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state[level], forest_drag, terrain_blank,
                                 cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                                mapfac[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                                 input_sounding_data, n_qstate, false);
@@ -284,8 +281,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch,
                                cc_src, xmom_src, ymom_src, zmom_src,
                                fine_geom, solverChoice.gravity,
-                               dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                               dtau, beta_s, inv_fac, mapfac[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             } else {
                 // If this is not the first substep we pass in S_data as both the previous step's solution
@@ -296,7 +292,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state[level], forest_drag, terrain_blank,
                                 cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                                mapfac[level],
                                 dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                                 d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                                 input_sounding_data, n_qstate, false);
@@ -307,7 +303,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                cc_src, xmom_src, ymom_src, zmom_src,
                                fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                               mapfac[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
         }

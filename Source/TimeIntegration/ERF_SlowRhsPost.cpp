@@ -37,9 +37,7 @@ using namespace amrex;
  * @param[in] az area fractions on z-faces
  * @param[in] detJ     Jacobian of the metric transformation at start of time step (= 1 if use_terrain is false)
  * @param[in] detJ_new Jacobian of the metric transformation at new RK stage time (= 1 if use_terrain is false)
- * @param[in] mapfac_m map factor at cell centers
- * @param[in] mapfac_u map factor at x-faces
- * @param[in] mapfac_v map factor at y-faces
+ * @param[in] mapfac map factors
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  */
@@ -79,9 +77,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<MultiFab>& az,
                         std::unique_ptr<MultiFab>& detJ,
                         std::unique_ptr<MultiFab>& detJ_new,
-                        std::unique_ptr<MultiFab>& mapfac_m,
-                        std::unique_ptr<MultiFab>& mapfac_u,
-                        std::unique_ptr<MultiFab>& mapfac_v,
+                        Vector<std::unique_ptr<MultiFab>>& mapfac,
                         amrex::EBFArrayBoxFactory const& ebfact,
 #if defined(ERF_USE_NETCDF)
                         const bool& moist_set_rhs_bool,
@@ -289,9 +285,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& detJ_new_arr = l_moving_terrain ? detJ_new->const_array(mfi)    : Array4<const Real>{};
 
         // Map factors
-        const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
-        const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
-        const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
+        const Array4<const Real>& mf_mx = mapfac[MapFacType::mx]->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
+        const Array4<const Real>& mf_my = mapfac[MapFacType::mx]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
 
         // SmnSmn for KE src with Deardorff or k-eqn RANS
         const Array4<const Real>& SmnSmn_a = l_need_SmnSmn ? SmnSmn->const_array(mfi) : Array4<const Real>{};
@@ -429,7 +426,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                             cur_cons, cur_prim, cell_rhs,
                                             l_use_mono_adv, max_s_ptr, min_s_ptr,
-                                            detJ_arr, dxInv, mf_m,
+                                            detJ_arr, dxInv, mf_mx, mf_my,
                                             horiz_adv_type, vert_adv_type,
                                             horiz_upw_frac, vert_upw_frac,
                                             flx_arr, flx_tmp_arr, domain, bc_ptr_h);
@@ -439,7 +436,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                             cur_prim, cell_rhs,
                                             mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
                                             fcx_arr, fcy_arr, fcz_arr,
-                                            detJ_arr, dxInv, mf_m,
+                                            detJ_arr, dxInv, mf_mx, mf_my,
                                             horiz_adv_type, vert_adv_type,
                                             horiz_upw_frac, vert_upw_frac,
                                             flx_arr, domain, bc_ptr_h,
@@ -454,7 +451,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
-                                               dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                               dxInv, SmnSmn_a, mf_mx, mf_my, mf_ux, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
@@ -462,7 +459,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
-                                               dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                               dxInv, SmnSmn_a, mf_mx, mf_my, mf_ux, mf_vy,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
