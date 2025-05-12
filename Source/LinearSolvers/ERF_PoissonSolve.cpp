@@ -40,13 +40,13 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             (*physbcs_u[lev])(vars_new[lev][Vars::xvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
                             IntVect{1,0,0},t_new[lev],BCVars::xvel_bc,false);
         }
-        
+
     // Inflow on a  y-face -- note only the normal velocity is used in the projection
     if (domain_bc_type[1] == "Inflow" || domain_bc_type[4] == "Inflow") {
         (*physbcs_v[lev])(vars_new[lev][Vars::yvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
                           IntVect{0,1,0},t_new[lev],BCVars::yvel_bc,false);
     }
-    
+
     if (domain_bc_type[0] == "Inflow" || domain_bc_type[3] == "Inflow" ||
         domain_bc_type[1] == "Inflow" || domain_bc_type[4] == "Inflow") {
             VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
