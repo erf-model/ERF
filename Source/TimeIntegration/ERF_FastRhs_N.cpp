@@ -23,9 +23,7 @@ using namespace amrex;
  * @param[in   ]  dtau fast time step
  * @param[in   ]  beta_s  Coefficient which determines how implicit vs explicit the solve is
  * @param[in   ]  facinv inverse factor for time-averaging the momenta
- * @param[in   ]  mapfac_m map factor at cell centers
- * @param[in   ]  mapfac_u map factor at x-faces
- * @param[in   ]  mapfac_v map factor at y-faces
+ * @param[in   ]  mapfac   vector of map factors
  * @param[inout]  fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout]  fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in   ]  l_use_moisture
@@ -47,9 +45,7 @@ void erf_fast_rhs_N (int step, int nrk,
                      const Real gravity,
                      const Real dtau, const Real beta_s,
                      const Real facinv,
-                     std::unique_ptr<MultiFab>& mapfac_m,
-                     std::unique_ptr<MultiFab>& mapfac_u,
-                     std::unique_ptr<MultiFab>& mapfac_v,
+                     Vector<std::unique_ptr<MultiFab>>& mapfac,
                      YAFluxRegister* fr_as_crse,
                      YAFluxRegister* fr_as_fine,
                      bool l_use_moisture,
@@ -185,8 +181,8 @@ void erf_fast_rhs_N (int step, int nrk,
         const Array4<Real>& theta_extrap = extrap.array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
-        const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
@@ -211,7 +207,7 @@ void erf_fast_rhs_N (int step, int nrk,
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real gpx = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k))*dxi;
-                gpx *= mf_u(i,j,0);
+                gpx *= mf_ux(i,j,0);
 
                 if (l_use_moisture) {
                     Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i-1,j,k,PrimQ1_comp)
@@ -233,7 +229,7 @@ void erf_fast_rhs_N (int step, int nrk,
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real gpy = (theta_extrap(i,j,k) - theta_extrap(i,j-1,k))*dyi;
-                gpy *= mf_v(i,j,0);
+                gpy *= mf_vy(i,j,0);
 
                 if (l_use_moisture) {
                     Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j-1,k,PrimQ1_comp)
@@ -291,9 +287,10 @@ void erf_fast_rhs_N (int step, int nrk,
         const Array4<      Real>& avg_zmom = S_scratch[IntVars::zmom].array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
-        const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
-        const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
+        const Array4<const Real>& mf_mx = mapfac[MapFacType::mx]->const_array(mfi);
+        const Array4<const Real>& mf_my = mapfac[MapFacType::my]->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
 
         FArrayBox RHS_fab;
         RHS_fab.resize(tbz,1, The_Async_Arena());
@@ -324,12 +321,12 @@ void erf_fast_rhs_N (int step, int nrk,
 
         // *********************************************************************
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real xflux_lo = (temp_cur_xmom_arr(i  ,j,k) - stage_xmom(i  ,j,k)) / mf_u(i  ,j,0);
-            Real xflux_hi = (temp_cur_xmom_arr(i+1,j,k) - stage_xmom(i+1,j,k)) / mf_u(i+1,j,0);
-            Real yflux_lo = (temp_cur_ymom_arr(i,j  ,k) - stage_ymom(i,j  ,k)) / mf_v(i,j  ,0);
-            Real yflux_hi = (temp_cur_ymom_arr(i,j+1,k) - stage_ymom(i,j+1,k)) / mf_v(i,j+1,0);
+            Real xflux_lo = (temp_cur_xmom_arr(i  ,j,k) - stage_xmom(i  ,j,k)) / mf_ux(i  ,j,0);
+            Real xflux_hi = (temp_cur_xmom_arr(i+1,j,k) - stage_xmom(i+1,j,k)) / mf_ux(i+1,j,0);
+            Real yflux_lo = (temp_cur_ymom_arr(i,j  ,k) - stage_ymom(i,j  ,k)) / mf_vy(i,j  ,0);
+            Real yflux_hi = (temp_cur_ymom_arr(i,j+1,k) - stage_ymom(i,j+1,k)) / mf_vy(i,j+1,0);
 
-            Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+            Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
             temp_rhs_arr(i,j,k,Rho_comp     ) =  ( xflux_hi - xflux_lo ) * dxi * mfsq
                                                + ( yflux_hi - yflux_lo ) * dyi * mfsq;
@@ -518,13 +515,13 @@ void erf_fast_rhs_N (int step, int nrk,
             Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * prev_drho_w(i,j,k  );
             Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * prev_drho_w(i,j,k+1);
 
-            avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
-            (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
+            avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
+            (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
             (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
 
             if (k == vbx_hi.z) {
-                avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
-                (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
+                avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
+                (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                 (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
             }
 

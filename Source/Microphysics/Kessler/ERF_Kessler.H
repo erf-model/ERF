@@ -112,7 +112,7 @@ public:
     Qmoist_Size () override { return Kessler::m_qmoist_size; }
 
     int
-    Qstate_Size () override { return Kessler::m_qstate_size; }
+    Qstate_Moist_Size () override { return Kessler::n_qstate_moist_size; }
 
     void
     Qmoist_Restart_Vars (const SolverChoice& /*a_sc*/,
@@ -131,7 +131,7 @@ private:
     int m_qmoist_size = 1;
 
     // Number of qstate variables
-    int m_qstate_size = 3;
+    int n_qstate_moist_size = 3;
 
     // CFL MAX for vertical advection
     static constexpr amrex::Real CFL_MAX = 0.5;

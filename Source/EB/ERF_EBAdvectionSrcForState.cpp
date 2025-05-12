@@ -30,29 +30,30 @@ using namespace amrex;
 
 void
 EBAdvectionSrcForRho (const Box& bx,
-                    const Array4<Real>& advectionSrc,
-                    const Array4<const Real>& rho_u,
-                    const Array4<const Real>& rho_v,
-                    const Array4<const Real>& Omega,
-                    const Array4<      Real>& avg_xmom,
-                    const Array4<      Real>& avg_ymom,
-                    const Array4<      Real>& avg_zmom,
-                    const Array4<const int>& mask_arr,
-                    const Array4<const EBCellFlag>& cfg_arr,
-                    const Array4<const Real>& ax_arr,
-                    const Array4<const Real>& ay_arr,
-                    const Array4<const Real>& az_arr,
-                    const Array4<const Real>& fcx_arr,
-                    const Array4<const Real>& fcy_arr,
-                    const Array4<const Real>& fcz_arr,
-                    const Array4<const Real>& detJ,
-                    const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                    const Array4<const Real>& mf_m,
-                    const Array4<const Real>& mf_u,
-                    const Array4<const Real>& mf_v,
-                    const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
-                    const bool fixed_rho,
-                    bool already_on_centroids)
+                      const Array4<Real>& advectionSrc,
+                      const Array4<const Real>& rho_u,
+                      const Array4<const Real>& rho_v,
+                      const Array4<const Real>& Omega,
+                      const Array4<      Real>& avg_xmom,
+                      const Array4<      Real>& avg_ymom,
+                      const Array4<      Real>& avg_zmom,
+                      const Array4<const int>& mask_arr,
+                      const Array4<const EBCellFlag>& cfg_arr,
+                      const Array4<const Real>& ax_arr,
+                      const Array4<const Real>& ay_arr,
+                      const Array4<const Real>& az_arr,
+                      const Array4<const Real>& fcx_arr,
+                      const Array4<const Real>& fcy_arr,
+                      const Array4<const Real>& fcz_arr,
+                      const Array4<const Real>& detJ,
+                      const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                      const Array4<const Real>& mf_mx,
+                      const Array4<const Real>& mf_my,
+                      const Array4<const Real>& mf_uy,
+                      const Array4<const Real>& mf_vx,
+                      const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
+                      const bool fixed_rho,
+                      bool already_on_centroids)
 {
     BL_PROFILE_VAR("EBAdvectionSrcForRho", EBAdvectionSrcForRho);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -63,17 +64,17 @@ EBAdvectionSrcForRho (const Box& bx,
 
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        flx_arr[0](i,j,k,0) = rho_u(i,j,k) / mf_u(i,j,0);
+        flx_arr[0](i,j,k,0) = rho_u(i,j,k) / mf_uy(i,j,0);
         avg_xmom(i,j,k) = flx_arr[0](i,j,k,0);
     });
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        flx_arr[1](i,j,k,0) = rho_v(i,j,k) / mf_v(i,j,0);
+        flx_arr[1](i,j,k,0) = rho_v(i,j,k) / mf_vx(i,j,0);
         avg_ymom(i,j,k) = flx_arr[1](i,j,k,0);
     });
     ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+        Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
         flx_arr[2](i,j,k,0) = Omega(i,j,k) / mfsq;
         avg_zmom(i,j,k) = flx_arr[2](i,j,k,0);
     });
@@ -90,7 +91,7 @@ EBAdvectionSrcForRho (const Box& bx,
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (detJ(i,j,k) > 0.) {
-                    Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                    Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
                     advectionSrc(i,j,k,0) = - mfsq / detJ(i,j,k) * (
                                             ( ax_arr(i+1,j,k) * flx_arr[0](i+1,j,k,0) - ax_arr(i,j,k) * flx_arr[0](i,j,k,0) ) * dxInv +
                                             ( ay_arr(i,j+1,k) * flx_arr[1](i,j+1,k,0) - ay_arr(i,j,k) * flx_arr[1](i,j,k,0) ) * dyInv +
@@ -105,7 +106,7 @@ EBAdvectionSrcForRho (const Box& bx,
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (detJ(i,j,k) > 0.) {
-                    Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+                    Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
                     if (cfg_arr(i,j,k).isCovered())
                     {
                         advectionSrc(i,j,k,0) = 0.;
@@ -227,7 +228,8 @@ EBAdvectionSrcForRho (const Box& bx,
  * @param[in] fcz_arr Face centroid of z-face
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_m map factor at cell centers
+ * @param[in] mf_mx map factor at cell centers
+ * @param[in] mf_my map factor at cell centers
  * @param[in] horiz_adv_type advection scheme to be used in horiz. directions for dry scalars
  * @param[in] vert_adv_type advection scheme to be used in vert. directions for dry scalars
  * @param[in] horiz_upw_frac upwinding fraction to be used in horiz. directions for dry scalars (for Blended schemes only)
@@ -253,7 +255,8 @@ EBAdvectionSrcForScalars (const Box& bx,
                         const Array4<const Real>& fcz_arr,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                        const Array4<const Real>& mf_m,
+                        const Array4<const Real>& mf_mx,
+                        const Array4<const Real>& mf_my,
                         const AdvType horiz_adv_type,
                         const AdvType vert_adv_type,
                         const Real horiz_upw_frac,
@@ -361,7 +364,7 @@ EBAdvectionSrcForScalars (const Box& bx,
             if (detJ(i,j,k) > 0.)
             {
                 Real invdetJ = 1.0 / detJ(i,j,k);
-                Real mfsq    = mf_m(i,j,0) * mf_m(i,j,0);
+                Real mfsq    = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
                   ( ax_arr(i+1,j,k) * flx_arr[0](i+1,j,k,cons_index) - ax_arr(i,j,k) * flx_arr[0](i  ,j,k,cons_index) ) * dxInv +
@@ -380,7 +383,7 @@ EBAdvectionSrcForScalars (const Box& bx,
             if (detJ(i,j,k) > 0.)
             {
                 Real invdetJ = 1.0 / detJ(i,j,k);
-                Real mfsq    = mf_m(i,j,0) * mf_m(i,j,0);
+                Real mfsq    = mf_mx(i,j,0) * mf_my(i,j,0);
                 if (cfg_arr(i,j,k).isCovered())
                 {
                     advectionSrc(i,j,k,cons_index) = Real(0.0);

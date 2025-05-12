@@ -4,11 +4,9 @@
 #include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
 
-#include <ERF_NumericalDiffusion.H>
-#include <ERF_PlaneAverage.H>
-#include <ERF_TI_slow_headers.H>
-#include <ERF_SrcHeaders.H>
-#include <ERF_Utils.H>
+#include "ERF_TI_slow_headers.H"
+#include "ERF_SrcHeaders.H"
+#include "ERF_Utils.H"
 
 using namespace amrex;
 

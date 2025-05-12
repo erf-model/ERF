@@ -32,9 +32,7 @@ void erf_make_tau_terms (int level, int nrk,
                          const SolverChoice& solverChoice,
                          std::unique_ptr<SurfaceLayer>& SurfLayer,
                          std::unique_ptr<amrex::MultiFab>& dJ,
-                         std::unique_ptr<amrex::MultiFab>& mapfac_m,
-                         std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                         std::unique_ptr<amrex::MultiFab>& mapfac_v);
+                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
@@ -79,9 +77,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       std::unique_ptr<amrex::MultiFab>& dJ,
                       amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                       amrex::Vector<amrex::MultiFab>& gradp,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_m,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                       const eb_& ebfact,
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine);
@@ -124,9 +120,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& az,
                        std::unique_ptr<amrex::MultiFab>& dJ_old,
                        std::unique_ptr<amrex::MultiFab>& dJ_new,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        amrex::EBFArrayBoxFactory const& ebfact,
 #if defined(ERF_USE_NETCDF)
                        const bool& moist_zero,
@@ -143,44 +137,4 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::YAFluxRegister* fr_as_crse,
                        amrex::YAFluxRegister* fr_as_fine);
 
-
-/**
- * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
- *
- */
-void erf_slow_rhs_inc (int level, int nrk,
-                       amrex::Real dt,
-                       amrex::Vector<amrex::MultiFab>& S_rhs,
-                       amrex::Vector<amrex::MultiFab>& S_old,
-                       amrex::Vector<amrex::MultiFab>& S_data,
-                       const amrex::MultiFab& S_prim,
-                       amrex::Vector<amrex::MultiFab >& S_scratch,
-                       const amrex::MultiFab& xvel,
-                       const amrex::MultiFab& yvel,
-                       const amrex::MultiFab& zvel,
-                       amrex::MultiFab& Omega,
-                       const amrex::MultiFab& cc_src,
-                       const amrex::MultiFab& xmom_src,
-                       const amrex::MultiFab& ymom_src,
-                       const amrex::MultiFab& zmom_src,
-                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
-                       amrex::MultiFab* SmnSmn,
-                       amrex::MultiFab* eddyDiffs,
-                       amrex::MultiFab* Hfx3,
-                       amrex::MultiFab* Diss,
-                       const amrex::Geometry geom,
-                       const SolverChoice& solverChoice,
-                       std::unique_ptr<SurfaceLayer>& SurfLayer,
-                       const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
-                       const amrex::Vector<amrex::BCRec>& domain_bcs_type,
-                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                       std::unique_ptr<amrex::MultiFab>& ax,
-                       std::unique_ptr<amrex::MultiFab>& ay,
-                       std::unique_ptr<amrex::MultiFab>& az,
-                       std::unique_ptr<amrex::MultiFab>& dJ,
-                       const amrex::MultiFab* p0,
-                       const amrex::MultiFab& pp_inc,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_v);
 #endif

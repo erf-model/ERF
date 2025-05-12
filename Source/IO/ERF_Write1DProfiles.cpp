@@ -340,7 +340,7 @@ ERF::derive_diag_profiles(Real /*time*/,
 
     if (use_moisture)
     {
-        int n_qstate = micro->Get_Qstate_Size();
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
 
         for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
@@ -373,7 +373,7 @@ ERF::derive_diag_profiles(Real /*time*/,
                 fab_arr(i, j, k,25) = w_cc_arr(i,j,k) * qv;  // w*qv
                 fab_arr(i, j, k,26) = w_cc_arr(i,j,k) * qc;  // w*qc
                 fab_arr(i, j, k,27) = w_cc_arr(i,j,k) * qr;  // w*qr
-                if (n_qstate > 3) {
+                if (n_qstate_moist > 3) {
                     fab_arr(i, j, k,28) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
                     fab_arr(i, j, k,29) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
                     fab_arr(i, j, k,30) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg

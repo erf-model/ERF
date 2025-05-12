@@ -31,5 +31,5 @@ Bpack := ./Make.package
 Blocs := .
 
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DryRegTests/ParticlesAdvection
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DryRegTests/ParticleAdvection
 include $(ERF_HOME)/Exec/Make.ERF

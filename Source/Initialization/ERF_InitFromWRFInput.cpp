@@ -46,7 +46,7 @@ void
 init_base_state_from_wrfinput (const Box& domain,
                                Real l_rdOcp,
                                MoistureType moisture_type,
-                               const int& n_qstate,
+                               const int& n_qstate_moist,
                                MultiFab& cons_fab,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
@@ -171,7 +171,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                  var_name == "QCLOUD" ||
                  var_name == "QRAIN" ) {
 
-              int n_qstate = micro->Get_Qstate_Size();
+              int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+              AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -209,8 +210,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                     cur_fab  = &lev_new[Vars::cons][mfi];
                     mult_rho = true;
                     icomp    = RhoQ3_comp;
-                    if (n_qstate > 3) { icomp = RhoQ4_comp; }
-                    if (n_qstate < 3) { success = 0; }
+                    if (n_qstate_moist > 3) { icomp = RhoQ4_comp; }
+                    if (n_qstate_moist < 3) { success = 0; }
                   }
 
                   if (success) {
@@ -440,10 +441,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*mapfac_u[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mapfac[lev][MapFacType::ux], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
                   // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac_u[lev])[mfi];
+                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::ux])[mfi];
                   msf_fab.template copy<RunOn::Device>(var_fab);
               }
           }
@@ -458,12 +459,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(*mapfac_v[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-            {
-              // Define fabs for holding the initial data
-              FArrayBox &msf_fab = (*mapfac_v[lev])[mfi];
-              msf_fab.template copy<RunOn::Device>(var_fab);
-            }
+              for ( MFIter mfi(*mapfac[lev][MapFacType::vx], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              {
+                  // Define fabs for holding the initial data
+                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::vx])[mfi];
+                  msf_fab.template copy<RunOn::Device>(var_fab);
+              }
           }
 
           // Initialize MapFac M
@@ -476,10 +477,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*mapfac_m[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mapfac[lev][MapFacType::mx], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
                   // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac_m[lev])[mfi];
+                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::mx])[mfi];
                   msf_fab.template copy<RunOn::Device>(var_fab);
               }
           }
@@ -496,7 +497,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     {
         Box bx = mfi.tilebox();
         const Array4<      Real>& dst_arr = lev_new[Vars::xvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac_u[lev]->const_array(mfi);
+        const Array4<const Real>& src_arr = mapfac[lev][MapFacType::ux]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             dst_arr(i,j,k) /= src_arr(i,j,0);
@@ -506,7 +507,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     {
         Box bx = mfi.tilebox();
         const Array4<      Real>& dst_arr = lev_new[Vars::yvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac_v[lev]->const_array(mfi);
+        const Array4<const Real>& src_arr = mapfac[lev][MapFacType::vx]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             dst_arr(i,j,k) /= src_arr(i,j,0);
@@ -516,7 +517,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     {
         Box bx = mfi.tilebox();
         const Array4<      Real>& dst_arr = lev_new[Vars::zvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac_m[lev]->const_array(mfi);
+        const Array4<const Real>& src_arr = mapfac[lev][MapFacType::mx]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             dst_arr(i,j,k) /= src_arr(i,j,0);
@@ -665,11 +666,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
 
-    int n_qstate = micro->Get_Qstate_Size();
+    int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+    AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
 
     bool use_P_eos = (solverChoice.rebalance_wrfinput);
 
-    init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
+    init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate_moist,
                                   lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
                                   mf_PB, mf_P, use_P_eos);
 
@@ -801,7 +803,7 @@ void
 init_base_state_from_wrfinput (const Box& domain,
                                const Real l_rdOcp,
                                MoistureType moisture_type,
-                               const int& n_qstate,
+                               const int& n_qstate_moist,
                                MultiFab& cons,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
@@ -862,7 +864,7 @@ init_base_state_from_wrfinput (const Box& domain,
 
             // Compute rhse
             Real Rhse_Sum = cons_arr(ii,jj,kk,Rho_comp);
-            for (int q_offset(0); q_offset<n_qstate; ++q_offset) {
+            for (int q_offset(0); q_offset<n_qstate_moist; ++q_offset) {
                 Rhse_Sum += cons_arr(ii,jj,kk,RhoQ1_comp+q_offset);
             }
 
