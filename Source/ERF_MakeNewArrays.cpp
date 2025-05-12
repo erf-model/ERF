@@ -377,7 +377,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Turbulent perturbation region initialization
     //*********************************************************
     if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct)
+        solverChoice.pert_type == PerturbationType::Direct ||
+        solverChoice.pert_type == PerturbationType::CPM)
     {
         amrex::Box bnd_bx = ba.minimalBox();
         turbPert.init_tpi_type(solverChoice.pert_type);
