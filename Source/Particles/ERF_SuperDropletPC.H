@@ -73,7 +73,10 @@ class SuperDropletPC : public ERFPC
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_gdb, a_name)
         {
-            define(a_vap_mat, a_aerosol_mat);
+            define( a_vap_mat,
+                    a_aerosol_mat,
+                    a_gdb->ParticleBoxArray(m_lev),
+                    a_gdb->ParticleDistributionMap(m_lev) );
         }
 
         /*! \brief Constructor */
@@ -85,7 +88,7 @@ class SuperDropletPC : public ERFPC
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_geom, a_dmap, a_ba, a_name)
         {
-            define(a_vap_mat, a_aerosol_mat);
+            define(a_vap_mat, a_aerosol_mat, a_ba, a_dmap);
         }
 
         /*! \brief Destructor */
@@ -208,11 +211,17 @@ class SuperDropletPC : public ERFPC
         [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
         /*! \brief Compute and print diagnostics */
-        virtual void Diagnostics (const int&, const bool);
+        virtual void Diagnostics (const int&, const amrex::Real&, const bool);
         /*! \brief Compute mass density distribution */
         virtual void ComputeDistributions (  const int&,
                                              const amrex::ParticleReal&,
                                              const amrex::ParticleReal& );
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        /*! \brief Compute binned size distributions */
+        virtual void ComputeBinnedDistributions (  const int&);
+        /*! \brief Compute cell-wise binned size distributions */
+        virtual void ComputeBinnedDistributionsCell (  const int&, const amrex::Real&);
+#endif
 
         /*! \brief Compute the particle number density on a mesh */
         virtual void numberDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
@@ -278,6 +287,16 @@ class SuperDropletPC : public ERFPC
 
         int m_distribution_grid_size; /*!< Size of 1D grid to compute distributions on */
 
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        amrex::Real m_bindist_rmin; /*!< min radius for binned distribution */
+        amrex::Real m_bindist_rmax; /*!< max radius for binned distribution */
+
+        /*! Cell-wise mass distribution */
+        amrex::MultiFab m_mass_ln_R_mf;
+        /*! Cell-wise number distribution */
+        amrex::MultiFab m_num_ln_R_mf;
+#endif
+
         /*! maximum coalescence time scale */
         amrex::Real m_t_coalescence;
 
@@ -304,7 +323,10 @@ class SuperDropletPC : public ERFPC
     private:
 
         /*! \brief define super-droplets */
-        void define ( const std::string&, const std::vector<std::string>& );
+        void define ( const std::string&,
+                      const std::vector<std::string>&,
+                      const amrex::BoxArray&,
+                      const amrex::DistributionMapping& );
 
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();
