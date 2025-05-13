@@ -360,14 +360,14 @@ Cell Perturbation Method
 The cell perturbation method (CPM) is an implementation of the CPM that is available in WRF (
 `Muñoz-Esparza et al. (2014) <https://doi.org/10.1007/s10546-014-9956-9>`_,
 `Muñoz-Esparza et al. (2015) <https://doi.org/10.1063/1.4913572>`_,
-`Muñoz-Esparza and Kosović (2018) <https://journals.ametsoc.org/view/journals/mwre/146/6/mwr-d-18-0077.1.xml>`_).
+`Muñoz-Esparza and Kosović (2018) <https://journals.ametsoc.org/view/journals/mwre/146/6/mwr-d-18-0077.1.xml>`_ ).
 The numerical implementation is similar to the box perturbation method described above with a few notable differences.
 Most notable is that there are no white noise perturbations within each box/cell, instead, the stochastic amplitude is applied to all nodes within a box/cell.
 The perturbation amplitude is formulated as follows:
 
 .. math::
 
-   \Phi_{PB} = \frac{U_g^2}{c_p Ec}.
+   \Phi_{PB} = \frac{U_g^2}{c_p Ec},
 
 where :math:`U_g` is the geostrophic wind speed and :math:`Ec` is the Eckert number.
 The geostrophic wind speed can be considered the large-scale forcing.
@@ -379,7 +379,7 @@ The perturbation update interval depends on the advective time scale for flow th
 
 .. math::
 
-   t_p = \frac{L_PB \text{num_layers}}{\cos{(\langle \theta(z) \rangle_{PB})}  \langle U(z) \rangle_{PB}}}.
+   t_p = \frac{L_{PB} \cdot \text{num_layers}}{\cos{\left(\langle \theta(z) \rangle_{PB} \right)} \langle U(z) \rangle_{PB}},
 
 where :math:`\langle \theta(z) \rangle_{PB}` is the local wind direction and :math:`\langle U(z) \rangle_{PB}` is the local wind speed of the box/cell.
 
