@@ -236,6 +236,8 @@ void erf_slow_rhs_post (int level, int finest_level,
         // *************************************************************************
         // Define flux arrays for use in advection
         // *************************************************************************
+        {
+        BL_PROFILE("rhs_post_FLUX");
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             if (solverChoice.terrain_type != TerrainType::EB) {
                 flux[dir].resize(surroundingNodes(tbx,dir),nvars);
@@ -247,6 +249,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 flux_tmp[dir].resize(surroundingNodes(tbx,dir),nvars);
                 flux_tmp[dir].setVal<RunOn::Device>(0.);
             }
+        }
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
@@ -303,15 +306,20 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Note that here we do copy only the "slow" variables, not (rho) or (rho theta)
         // **************************************************************************
+        {
+        BL_PROFILE("rhs_post_N2C");
         ParallelFor(tbx, ncomp_slow[IntVars::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVars::cons] + nn;
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
+        }
 
         // We have projected the velocities stored in S_data but we will use
         //    the velocities stored in S_scratch to update the scalars, so
         //    we need to copy from S_data (projected) into S_scratch
+        {
+        BL_PROFILE("rhs_post_ANELASTIC");
         if (l_anelastic) {
             Box tbx_inc = mfi.nodaltilebox(0);
             Box tby_inc = mfi.nodaltilebox(1);
@@ -327,6 +335,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 avg_zmom(i,j,k) = cur_zmom(i,j,k);
             });
+        }
         }
 
         // **************************************************************************
@@ -423,6 +432,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                     ((ivar == RhoKE_comp) && l_advect_KE))
                 {
                     if (solverChoice.terrain_type != TerrainType::EB){
+                        {
+                        BL_PROFILE("rhs_post_ADV");
                         AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                             cur_cons, cur_prim, cell_rhs,
                                             l_use_mono_adv, max_s_ptr, min_s_ptr,
@@ -430,6 +441,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                             horiz_adv_type, vert_adv_type,
                                             horiz_upw_frac, vert_upw_frac,
                                             flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                        }
                     } else {
                         EBAdvectionSrcForScalars(tbx, start_comp, num_comp,
                                             avg_xmom, avg_ymom, avg_zmom,
@@ -445,6 +457,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                 }
 
                 if (l_use_diff) {
+                    {
+                    BL_PROFILE("rhs_post_DIFF");
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
                     if (l_use_terrain) {
                         DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, l_rotate, u, v,
@@ -463,6 +477,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
+                    }
                     }
                 } // use_diff
             } // valid slow var
@@ -567,7 +582,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         Box ztbx = mfi.nodaltilebox(2);
 
         {
-        BL_PROFILE("rhs_post_10()");
+        BL_PROFILE("rhs_post_10");
         ParallelFor(xtbx, ytbx, ztbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             new_xmom(i,j,k) = cur_xmom(i,j,k);
@@ -581,7 +596,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         } // end profile
 
         {
-        BL_PROFILE("rhs_post_10");
+        BL_PROFILE("rhs_post_11");
         // We only add to the flux registers in the final RK step
         if (l_reflux && nrk == 2) {
             int strt_comp_reflux = RhoTheta_comp + 1;
