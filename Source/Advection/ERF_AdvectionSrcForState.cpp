@@ -171,27 +171,30 @@ AdvectionSrcForScalars (const Real& dt,
         if ( bx.bigEnd(1) == domain.bigEnd(1))     {  bx_yhi = makeSlab( bx,1,domain.bigEnd(1)  );}
     }
 
+    for (int n(0); n<ncomp; ++n) {
+        const int cons_index = icomp + n;
+
     // Inline with 2nd order for efficiency
     // NOTE: we don't need to weight avg_xmom, avg_ymom, avg_zmom with terrain metrics
     //       (or with EB area fractions)
     //       because that was done when they were constructed in AdvectionSrcForRhoAndTheta
     if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
     {
-        ParallelFor(xbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
             const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
             (flx_arr[0])(i,j,k) = avg_xmom(i,j,k) * prim_on_face;
         });
-        ParallelFor(ybx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
             const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
             (flx_arr[1])(i,j,k) = avg_ymom(i,j,k) * prim_on_face;
         });
-        ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
@@ -280,18 +283,16 @@ AdvectionSrcForScalars (const Real& dt,
        ======================================================================= */
     if (use_mono_adv) {
         // Copy flux data to flx_arr to avoid race condition on GPU
-        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            const int cons_index = icomp + n;
             (flx_tmp_arr[0])(i,j,k) = (flx_arr[0])(i,j,k);
             (flx_tmp_arr[1])(i,j,k) = (flx_arr[1])(i,j,k);
             (flx_tmp_arr[2])(i,j,k) = (flx_arr[2])(i,j,k);
         });
 
         // Mono limiting
-        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
 
             Real max_val = max_s_ptr[cons_index];
@@ -349,9 +350,8 @@ AdvectionSrcForScalars (const Real& dt,
         });
 
         // Copy back to flx_arr to avoid race condition on GPU
-        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            const int cons_index = icomp + n;
             (flx_arr[0])(i,j,k) = (flx_tmp_arr[0])(i,j,k);
             (flx_arr[1])(i,j,k) = (flx_tmp_arr[1])(i,j,k);
             (flx_arr[2])(i,j,k) = (flx_tmp_arr[2])(i,j,k);
@@ -398,4 +398,6 @@ AdvectionSrcForScalars (const Real& dt,
                                            avg_xmom, avg_ymom, avg_zmom,
                                            detJ, cellSizeInv);
     }
+
+    } // n
 }
