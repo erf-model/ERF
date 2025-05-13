@@ -239,7 +239,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
     BoxArray ba2d_mf(std::move(bl2d_mf));
 
-    mapfac[lev].resizeMapFacType::num);(
+    mapfac[lev].resize(MapFacType::num);
     AMREX_ALWAYS_ASSERT(MapFacType::num == 3 || MapFacType::num == 6);
     mapfac[lev][MapFacType::mx] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
     mapfac[lev][MapFacType::ux] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
