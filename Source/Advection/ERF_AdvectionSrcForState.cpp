@@ -182,21 +182,21 @@ AdvectionSrcForScalars (const Real& dt,
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
             const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
-            (flx_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * prim_on_face;
+            (flx_arr[0])(i,j,k) = avg_xmom(i,j,k) * prim_on_face;
         });
         ParallelFor(ybx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
             const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
-            (flx_arr[1])(i,j,k,cons_index) = avg_ymom(i,j,k) * prim_on_face;
+            (flx_arr[1])(i,j,k) = avg_ymom(i,j,k) * prim_on_face;
         });
         ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
             const int prim_index = cons_index - 1;
             const Real prim_on_face = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
-            (flx_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * prim_on_face;
+            (flx_arr[2])(i,j,k) = avg_zmom(i,j,k) * prim_on_face;
         });
 
     // Template higher order methods (horizontal first)
@@ -283,9 +283,9 @@ AdvectionSrcForScalars (const Real& dt,
         ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
-            (flx_tmp_arr[0])(i,j,k,cons_index) = (flx_arr[0])(i,j,k,cons_index);
-            (flx_tmp_arr[1])(i,j,k,cons_index) = (flx_arr[1])(i,j,k,cons_index);
-            (flx_tmp_arr[2])(i,j,k,cons_index) = (flx_arr[2])(i,j,k,cons_index);
+            (flx_tmp_arr[0])(i,j,k) = (flx_arr[0])(i,j,k);
+            (flx_tmp_arr[1])(i,j,k) = (flx_arr[1])(i,j,k);
+            (flx_tmp_arr[2])(i,j,k) = (flx_arr[2])(i,j,k);
         });
 
         // Mono limiting
@@ -301,9 +301,9 @@ AdvectionSrcForScalars (const Real& dt,
             Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
             Real RHS = - invdetJ * mfsq * (
-                ( (flx_arr[0])(i+1,j  ,k  ,cons_index) - (flx_arr[0])(i,j,k,cons_index) ) * dxInv +
-                ( (flx_arr[1])(i  ,j+1,k  ,cons_index) - (flx_arr[1])(i,j,k,cons_index) ) * dyInv +
-                ( (flx_arr[2])(i  ,j  ,k+1,cons_index) - (flx_arr[2])(i,j,k,cons_index) ) * dzInv );
+                ( (flx_arr[0])(i+1,j  ,k  ) - (flx_arr[0])(i,j,k) ) * dxInv +
+                ( (flx_arr[1])(i  ,j+1,k  ) - (flx_arr[1])(i,j,k) ) * dyInv +
+                ( (flx_arr[2])(i  ,j  ,k+1) - (flx_arr[2])(i,j,k) ) * dzInv );
 
             // NOTE: This forward prediction uses the `cur_cons` as opposed to `old_cons` since
             //       source terms may cause increase/decrease in a variable each RK stage. We
@@ -314,36 +314,36 @@ AdvectionSrcForScalars (const Real& dt,
             if (tmp_upd<min_val || tmp_upd>max_val) {
                 // HI
                 if (avg_xmom(i+1,j,k)>0.0) {
-                    (flx_tmp_arr[0])(i+1,j,k,cons_index) = avg_xmom(i+1,j,k) * cell_prim(i  ,j,k,prim_index);
+                    (flx_tmp_arr[0])(i+1,j,k) = avg_xmom(i+1,j,k) * cell_prim(i  ,j,k,prim_index);
                 } else {
-                    (flx_tmp_arr[0])(i+1,j,k,cons_index) = avg_xmom(i+1,j,k) * cell_prim(i+1,j,k,prim_index);
+                    (flx_tmp_arr[0])(i+1,j,k) = avg_xmom(i+1,j,k) * cell_prim(i+1,j,k,prim_index);
                 }
                 if (avg_ymom(i,j+1,k)>0.0) {
-                    (flx_tmp_arr[1])(i,j+1,k,cons_index) = avg_ymom(i,j+1,k) * cell_prim(i,j  ,k,prim_index);
+                    (flx_tmp_arr[1])(i,j+1,k) = avg_ymom(i,j+1,k) * cell_prim(i,j  ,k,prim_index);
                 } else {
-                    (flx_tmp_arr[1])(i,j+1,k,cons_index) = avg_ymom(i,j+1,k) * cell_prim(i,j+1,k,prim_index);
+                    (flx_tmp_arr[1])(i,j+1,k) = avg_ymom(i,j+1,k) * cell_prim(i,j+1,k,prim_index);
                 }
                 if (avg_zmom(i,j,k+1)>0.0) {
-                    (flx_tmp_arr[2])(i,j,k+1,cons_index) = avg_zmom(i,j,k+1) * cell_prim(i,j,k  ,prim_index);
+                    (flx_tmp_arr[2])(i,j,k+1) = avg_zmom(i,j,k+1) * cell_prim(i,j,k  ,prim_index);
                 } else {
-                    (flx_tmp_arr[2])(i,j,k+1,cons_index) = avg_zmom(i,j,k+1) * cell_prim(i,j,k+1,prim_index);
+                    (flx_tmp_arr[2])(i,j,k+1) = avg_zmom(i,j,k+1) * cell_prim(i,j,k+1,prim_index);
                 }
 
                 // LO
                 if (avg_xmom(i,j,k)>0.0) {
-                    (flx_tmp_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * cell_prim(i-1,j,k,prim_index);
+                    (flx_tmp_arr[0])(i,j,k) = avg_xmom(i,j,k) * cell_prim(i-1,j,k,prim_index);
                 } else {
-                    (flx_tmp_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * cell_prim(i  ,j,k,prim_index);
+                    (flx_tmp_arr[0])(i,j,k) = avg_xmom(i,j,k) * cell_prim(i  ,j,k,prim_index);
                 }
                 if (avg_ymom(i,j,k)>0.0) {
-                    (flx_tmp_arr[1])(i,j,k,cons_index) = avg_ymom(i,j,k) * cell_prim(i,j-1,k,prim_index);
+                    (flx_tmp_arr[1])(i,j,k) = avg_ymom(i,j,k) * cell_prim(i,j-1,k,prim_index);
                 } else {
-                    (flx_tmp_arr[1])(i,j,k,cons_index) = avg_ymom(i,j,k) * cell_prim(i,j  ,k,prim_index);
+                    (flx_tmp_arr[1])(i,j,k) = avg_ymom(i,j,k) * cell_prim(i,j  ,k,prim_index);
                 }
                 if (avg_zmom(i,j,k)>0.0) {
-                    (flx_tmp_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * cell_prim(i,j,k-1,prim_index);
+                    (flx_tmp_arr[2])(i,j,k) = avg_zmom(i,j,k) * cell_prim(i,j,k-1,prim_index);
                 } else {
-                    (flx_tmp_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * cell_prim(i,j,k  ,prim_index);
+                    (flx_tmp_arr[2])(i,j,k) = avg_zmom(i,j,k) * cell_prim(i,j,k  ,prim_index);
                 }
             }
         });
@@ -352,9 +352,9 @@ AdvectionSrcForScalars (const Real& dt,
         ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int cons_index = icomp + n;
-            (flx_arr[0])(i,j,k,cons_index) = (flx_tmp_arr[0])(i,j,k,cons_index);
-            (flx_arr[1])(i,j,k,cons_index) = (flx_tmp_arr[1])(i,j,k,cons_index);
-            (flx_arr[2])(i,j,k,cons_index) = (flx_tmp_arr[2])(i,j,k,cons_index);
+            (flx_arr[0])(i,j,k) = (flx_tmp_arr[0])(i,j,k);
+            (flx_arr[1])(i,j,k) = (flx_tmp_arr[1])(i,j,k);
+            (flx_arr[2])(i,j,k) = (flx_tmp_arr[2])(i,j,k);
         });
     }
 
@@ -367,11 +367,11 @@ AdvectionSrcForScalars (const Real& dt,
             Real mfsq    = mf_mx(i,j,0) * mf_my(i,j,0);
 
             advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
-              ( (flx_arr[0])(i+1,j,k,cons_index) - (flx_arr[0])(i  ,j,k,cons_index) ) * dxInv +
-              ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
-              ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
+              ( (flx_arr[0])(i+1,j,k) - (flx_arr[0])(i,j,k) ) * dxInv +
+              ( (flx_arr[1])(i,j+1,k) - (flx_arr[1])(i,j,k) ) * dyInv +
+              ( (flx_arr[2])(i,j,k+1) - (flx_arr[2])(i,j,k) ) * dzInv );
         } else {
-            advectionSrc(i,j,k,cons_index) = 0.;
+            advectionSrc(i,j,k) = 0.;
         }
     });
 

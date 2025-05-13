@@ -153,9 +153,9 @@ void erf_slow_rhs_post (int level, int finest_level,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, 0);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, 0);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 0);
     } else {
         dflux_x = nullptr;
         dflux_y = nullptr;
@@ -240,11 +240,11 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (solverChoice.terrain_type != TerrainType::EB) {
                 flux[dir].resize(surroundingNodes(tbx,dir),nvars);
             } else {
-                flux[dir].resize(surroundingNodes(tbx,dir).grow(1),nvars);
+                flux[dir].resize(surroundingNodes(tbx,dir).grow(1),1);
             }
             flux[dir].setVal<RunOn::Device>(0.);
             if (l_use_mono_adv) {
-                flux_tmp[dir].resize(surroundingNodes(tbx,dir),nvars);
+                flux_tmp[dir].resize(surroundingNodes(tbx,dir),1);
                 flux_tmp[dir].setVal<RunOn::Device>(0.);
             }
         }

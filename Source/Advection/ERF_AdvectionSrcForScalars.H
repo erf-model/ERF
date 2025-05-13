@@ -32,7 +32,7 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
         amrex::Real interpx(0.);
 
         interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i  ,j  ,k  ));
-        (flx_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * interpx;
+        (flx_arr[0])(i,j,k) = avg_xmom(i,j,k) * interpx;
     });
     amrex::ParallelFor(ybx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -42,7 +42,7 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
         amrex::Real interpy(0.);
         interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i  ,j  ,k  ));
 
-        (flx_arr[1])(i,j,k,cons_index) = avg_ymom(i,j,k) * interpy;
+        (flx_arr[1])(i,j,k) = avg_ymom(i,j,k) * interpy;
     });
     amrex::ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -53,7 +53,7 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
         interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i  ,j  ,k  ));
 
-        (flx_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * interpz;
+        (flx_arr[2])(i,j,k) = avg_zmom(i,j,k) * interpz;
     });
 }
 
