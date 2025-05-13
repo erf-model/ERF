@@ -240,10 +240,14 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
    |  Image taken from `DeLeon et al. (2018)`            |
    +-----------------------------------------------------+
 
-Two different types of perturbation methods are currently available, ``source`` and ``direct``. Both methods uses the formulation introduced by `DeLeon et al. (2018)`_. The ``source`` option applies the perturbation amplitude range, :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the :math:`\rho \theta` field. With should note that while both methods effectively generates turbulence downstream, the ladder approach is more unstable and requires more fine tuning.
+Three different types of perturbation methods are currently available, ``source``, ``direct``, and ``CPM``.
+The first two methods uses the formulation introduced by `DeLeon et al. (2018)`_ and are referred to as the box perturbation method.
+The ``source`` option applies the perturbation amplitude range, :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term.
+Conversely, the ``direct`` option applies the calculated temperature difference directly onto the :math:`\rho \theta` field.
+With should note that while both methods effectively generates turbulence downstream, the ladder approach is more unstable and requires more fine tuning.
+The following describes the theory of the box perturbation method:
 
-..
-  _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
+.. _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
 
 The perturbation update interval of the individual perturbation box is determined by,
 
@@ -306,7 +310,7 @@ and the perturbation amplitude is then computed through,
 
 .. math::
 
-   \Phi_{PB} = \frac{Ri_{PB} {\langle U(z) \rangle}^3_{PB}}{g \beta D_{PB} H_{PB}}.
+   \Phi_{PB} = \frac{Ri_{PB} {\langle U(z) \rangle}^2_{PB}}{g \beta D_{PB} H_{PB}}.
 
 ``source`` type forcing can adopt the box perturbation method by having the following inputs list.
 
@@ -348,3 +352,50 @@ To activate the ``direct`` type forcing, set the following inputs list.
           erf.perturbation_T_infinity = 300.0
 
 We want to note that the ``direct`` perturbation method is sensitive to the temperature amplitude computed through the equation above, and is subject to crash the simulation when this amplitude is too large.
+
+
+Cell Perturbation Method
+---------------------------
+
+The cell perturbation method (CPM) is an implementation of the CPM that is available in WRF (
+`Muñoz-Esparza et al. (2014) <https://doi.org/10.1007/s10546-014-9956-9>`_,
+`Muñoz-Esparza et al. (2015) <https://doi.org/10.1063/1.4913572>`_,
+`Muñoz-Esparza and Kosović (2018) <https://journals.ametsoc.org/view/journals/mwre/146/6/mwr-d-18-0077.1.xml>`_ ).
+The numerical implementation is similar to the box perturbation method described above with a few notable differences.
+Most notable is that there are no white noise perturbations within each box/cell, instead, the stochastic amplitude is applied to all nodes within a box/cell.
+The perturbation amplitude is formulated as follows:
+
+.. math::
+
+   \Phi_{PB} = \frac{U_g^2}{c_p Ec},
+
+where :math:`U_g` is the geostrophic wind speed and :math:`Ec` is the Eckert number.
+The geostrophic wind speed can be considered the large-scale forcing.
+Currently, this value is perscribed by the user (``erf.perturbation_Ug``) and should represent the wind speed above the boundary layer and in the free atmosphere.
+In the future, the geostrophic wind will be automatically calculated within the code.
+Previous research has shown that optimum Eckert number to be 0.2 to quickly develop turbulence (`Muñoz-Esparza and Kosović (2018) <https://journals.ametsoc.org/view/journals/mwre/146/6/mwr-d-18-0077.1.xml>`_).
+
+The perturbation update interval depends on the advective time scale for flow through the perturbation boxes/cells:
+
+.. math::
+
+   t_p = \frac{L_{PB} \cdot \text{num_layers}}{\cos{\left(\langle \theta(z) \rangle_{PB} \right)} \langle U(z) \rangle_{PB}},
+
+where :math:`\langle \theta(z) \rangle_{PB}` is the local wind direction and :math:`\langle U(z) \rangle_{PB}` is the local wind speed of the box/cell.
+
+Below is an example of the input tags necessary for a simulation with CPM:
+
+::
+
+          erf.inlet_perturbation_type = "CPM"
+
+          erf.perturbation_direction = 1 0 0 0 0 0
+          erf.perturbation_box_dims = 8 8 3
+          erf.perturbation_layers = 3
+          erf.perturbation_offset = 5
+
+          erf.perturbation_Ug = 10.0
+
+Best practices are to set :math:`{Nx}_{pb}=8`, :math:`{Ny}_{pb}=8`, and :math:`{Nz}_{pb}=3` regardless of the physical size of the boxes/cells and to set ``erf.perturbation_layers = 3``.
+
+An example using CPM with a stable atmospheric boundary layer inflow setup is available in  ``Exec/RegTests/TurbulentInflow/``.
