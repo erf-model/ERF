@@ -660,7 +660,13 @@ ERF::ReadCheckpointFile ()
 
         IntVect ng = mapfac[lev][MapFacType::mx]->nGrowVect();
         MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
-        VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_mx"));
+
+        std::string MapFacMFileName(restart_chkfile + "/Level_0/MapFactor_mx_H");
+        if (amrex::FileExists(MapFacMFileName)) {
+            VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_mx"));
+        } else {
+            VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_m"));
+        }
         MultiFab::Copy(*mapfac[lev][MapFacType::mx],mf_m,0,0,1,ng);
 
         if (MapFacType::mx != MapFacType::my) {
@@ -670,7 +676,13 @@ ERF::ReadCheckpointFile ()
 
         ng = mapfac[lev][MapFacType::ux]->nGrowVect();
         MultiFab mf_u(convert(ba2d[lev],IntVect(1,0,0)),dmap[lev],1,ng);
-        VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_ux"));
+
+        std::string MapFacUFileName(restart_chkfile + "/Level_0/MapFactor_ux_H");
+        if (amrex::FileExists(MapFacUFileName)) {
+            VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_ux"));
+        } else {
+            VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_u"));
+        }
         MultiFab::Copy(*mapfac[lev][MapFacType::ux],mf_u,0,0,1,ng);
 
         if (MapFacType::ux != MapFacType::uy) {
@@ -680,7 +692,13 @@ ERF::ReadCheckpointFile ()
 
         ng = mapfac[lev][MapFacType::vx]->nGrowVect();
         MultiFab mf_v(convert(ba2d[lev],IntVect(0,1,0)),dmap[lev],1,ng);
-        VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_vx"));
+
+        std::string MapFacVFileName(restart_chkfile + "/Level_0/MapFactor_vx_H");
+        if (amrex::FileExists(MapFacVFileName)) {
+            VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_vx"));
+        } else {
+            VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_v"));
+        }
         MultiFab::Copy(*mapfac[lev][MapFacType::vx],mf_v,0,0,1,ng);
 
         if (MapFacType::vx != MapFacType::vy) {
@@ -723,6 +741,8 @@ ERF::ReadCheckpointFile ()
             }
         }
 
+        std::string LMaskFileName(restart_chkfile + "/Level_0/LMASK_0_H");
+        if (amrex::FileExists(LMaskFileName))
         {
             amrex::Print() << "Reading LMASK data" << std::endl;
             int ntimes = 1;
@@ -741,6 +761,24 @@ ERF::ReadCheckpointFile ()
                     });
                 }
             }
+        } else {
+            // Allow idealized cases over water, used to set lmask
+            ParmParse pp("erf");
+            int is_land;
+            if (pp.query("is_land", is_land, lev)) {
+                if (is_land == 1) {
+                    amrex::Print() << "Level " << lev << " is land" << std::endl;
+                } else if (is_land == 0) {
+                    amrex::Print() << "Level " << lev << " is water" << std::endl;
+                } else {
+                    Error("is_land should be 0 or 1");
+                }
+                lmask_lev[lev][0]->setVal(is_land);
+            } else {
+                // Default to land everywhere if not specified
+                lmask_lev[lev][0]->setVal(1);
+            }
+            lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
         }
 
 #ifdef ERF_USE_NETCDF

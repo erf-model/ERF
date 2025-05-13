@@ -1,10 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 100
 
-amrex.fpe_trap_invalid = 1
-amrex.fpe_trap_zero = 1
-amrex.fpe_trap_overflow = 1
-
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  28000 16000 8000
 amr.n_cell           =   140     80  100
