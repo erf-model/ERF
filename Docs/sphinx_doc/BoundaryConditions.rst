@@ -240,8 +240,8 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
    |  Image taken from `DeLeon et al. (2018)`            |
    +-----------------------------------------------------+
 
-Three different types of perturbation methods are currently available, ``source``, ``direct``, and ``CPM``. 
-The first two methods uses the formulation introduced by `DeLeon et al. (2018)`_ and are referred to as the box perturbation method. 
+Three different types of perturbation methods are currently available, ``source``, ``direct``, and ``CPM``.
+The first two methods uses the formulation introduced by `DeLeon et al. (2018)`_ and are referred to as the box perturbation method.
 The ``source`` option applies the perturbation amplitude range, :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term.
 Conversely, the ``direct`` option applies the calculated temperature difference directly onto the :math:`\rho \theta` field.
 With should note that while both methods effectively generates turbulence downstream, the ladder approach is more unstable and requires more fine tuning.

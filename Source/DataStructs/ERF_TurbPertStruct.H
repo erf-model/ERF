@@ -247,12 +247,12 @@ struct TurbulentPerturbation {
         }
 
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-            
+
             bool update_box = true; // initialize flag
             // Check if the local elapsed time is greater than the update interval and don't go into boxes the rank doesn't own
             if (pt_type == 2) {
                 // for CPM, perturbation boxes/cells refresh after boxes have advected box width/length * num_layers (advective time scale)
-                update_box = ((pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx]*tpi_layers) && pb_local_etime[lev][boxIdx] != -1.0); 
+                update_box = ((pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx]*tpi_layers) && pb_local_etime[lev][boxIdx] != -1.0);
             } else {
                 update_box = ( pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx] && pb_local_etime[lev][boxIdx] != -1.0 );
             }
@@ -265,7 +265,7 @@ struct TurbulentPerturbation {
                 // Done for parallelism to avoid Inf being stored in array
                 if (pb_mag[lev][boxIdx] !=0.) {
                     amrex::Real interval = 0.0;
-                    if (pt_type == 2) { 
+                    if (pt_type == 2) {
                         //  Wind direction correction for angled wind
                         amrex::Real wind_direction = pb_dir[lev][boxIdx];
                         if (wind_direction > PI / 4) { wind_direction = PI / 2 - wind_direction; }
