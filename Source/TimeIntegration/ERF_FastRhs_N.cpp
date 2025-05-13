@@ -353,7 +353,7 @@ void erf_fast_rhs_N (int step, int nrk,
             (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i-1,j,k,0));
 
             (flx_arr[1])(i,j,k,0) = yflux_lo;
-            (flx_arr[1])(i,j,k,1) = (flx_arr[0])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
+            (flx_arr[1])(i,j,k,1) = (flx_arr[1])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
 
             if (i == vbx_hi.x) {
                 (flx_arr[0])(i+1,j,k,0) = xflux_hi;
