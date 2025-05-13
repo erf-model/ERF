@@ -239,7 +239,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         });
     }
 
-    m_super_droplets->Diagnostics(-1, true);
+    m_super_droplets->Diagnostics(-1, 0.0, true);
 
     if (m_kinematic_mode) { m_update_qv = false; }
 

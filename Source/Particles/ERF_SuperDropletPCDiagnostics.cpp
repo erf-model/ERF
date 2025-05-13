@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <limits>
 #include <fstream>
+#include <AMReX_PlotFileUtil.H>
 #include "ERF_Constants.H"
 #include "ERF_SuperDropletPC.H"
 
@@ -54,6 +55,7 @@ Vector<std::string> SuperDropletPC::meshPlotVarNames () const
 
 /*! Compute diagnostics (max, min, avg radius, mass, etc) */
 void SuperDropletPC::Diagnostics( const int& a_iter,
+                                  const Real& a_time,
                                   const bool a_flag )
 {
     BL_PROFILE("SuperDropletPC::Diagnostics()");
@@ -349,6 +351,10 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
             if (r_eff_min_aero < r_eff_min) { r_eff_min = r_eff_min_aero; }
         }
         ComputeDistributions( a_iter, r_eff_min, r_eff_max );
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        ComputeBinnedDistributions( a_iter);
+        ComputeBinnedDistributionsCell( a_iter, a_time);
+#endif
     }
 }
 
@@ -451,5 +457,188 @@ void SuperDropletPC::ComputeDistributions( const int& a_iter,
     }
 }
 
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+/*! Compute and write the distributions (as a function of the log of
+    the droplet radius. The file written is a text file with multiple columns:
+    R, g_mass(ln R), g_n(ln R) */
+void SuperDropletPC::ComputeBinnedDistributions( const int& a_iter)
+{
+    int Nbin = m_distribution_grid_size;
+    auto r_min = m_bindist_rmin;
+    auto r_max = m_bindist_rmax;
+
+    const Geometry& geom = m_gdb->Geom(m_lev);
+    const auto dxi = geom.InvCellSizeArray();
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2]; // divide by cell volume
+
+    Vector<Real> ln_R, g_num_ln_R, g_mass_ln_R;
+    ln_R.resize(Nbin+1); // one extra: denotes left and right bounds of each DSD bin
+    g_num_ln_R.resize(Nbin);
+    g_mass_ln_R.resize(Nbin);
+
+    // Set ln R grid
+    auto dln_R = (std::log(r_max)-std::log(r_min))/(Nbin);
+    for (int n = 0; n < Nbin+1; n++) {
+        ln_R[n] = std::log(r_min) + n*dln_R;
+    }
+
+    auto density = m_vapour_mat->density(); // why is this a vapour_mat? should be a condensed phase
+
+    // compute g(ln R)
+    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
+    for (int n = 0; n < Nbin; n++) {
+        auto r_l = std::exp(ln_R[n]);
+        auto r_r = std::exp(ln_R[n+1]);
+
+        g_mass_ln_R[n] = ReduceSum(  *this,
+                                    [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                    {
+                                        auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                        auto mi = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
+                                        auto ri = std::cbrt( mi / ((4.0/3.0)*PI*density) );
+                                        auto inbin = (r_l <= ri && ri < r_r) ? 1.0 : 0.0;
+                                        return ni*mi*inbin / inv_cell_volume / dln_R;
+                                    } );
+        g_num_ln_R[n] = ReduceSum(  *this,
+                                    [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                    {
+                                        auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                        auto mi = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
+                                        auto ri = std::cbrt( mi / ((4.0/3.0)*PI*density) );
+                                        auto inbin = (r_l <= ri && ri < r_r) ? 1.0 : 0.0;
+                                        return ni*inbin / inv_cell_volume / dln_R;
+                                    } );
+    }
+
+    // Sum g(ln R) over MPI subdomains
+    ParallelDescriptor::ReduceRealSum(g_mass_ln_R.dataPtr(), Nbin);
+    ParallelDescriptor::ReduceRealSum(g_num_ln_R.dataPtr(), Nbin);
+
+    // Write to file
+    char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+    std::string output_filename =   m_name
+                                    + "_binned_dsd_"
+                                    + std::string(iter_str) + ".txt";
+                                    Print() << "Writing " << output_filename << "\n";
+    if (ParallelDescriptor::IOProcessor()) {
+    std::ofstream outfile;
+    outfile.open(output_filename.c_str(), std::ios::out|std::ios::trunc);
+    if (!outfile.good()) { amrex::FileOpenFailed(output_filename); }
+
+    for (int n = 0; n < Nbin; n++) {
+        outfile << std::exp(ln_R[n])
+                << " " << g_mass_ln_R[n]
+                << " " << g_num_ln_R[n];
+        outfile << "\n";
+    }
+    outfile << std::exp(ln_R[Nbin]) << "\n";
+
+    outfile.flush();
+    outfile.close();
+    if (!outfile.good()) { amrex::Abort("problem writing output file"); }
+    }
+}
+
+/*! Compute and write the cell-wise distributions (as a function of the log of
+    the droplet radius. The file written is a text file with multiple columns:
+    R, g_mass(ln R), g_n(ln R) */
+void SuperDropletPC::ComputeBinnedDistributionsCell( const int& a_iter,
+                                                     const Real& a_time )
+{
+    BL_PROFILE("SuperDropletPC::ComputeBinnedDistributionsCell()");
+    AMREX_ASSERT(OK());
+    AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
+
+    int Nbin = m_distribution_grid_size;
+    auto r_min = m_bindist_rmin;
+    auto r_max = m_bindist_rmax;
+
+    const auto& geom = Geom(m_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+    const auto domain = geom.Domain();
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2]; // divide by cell volume
+
+    // Set ln R grid
+    Vector<Real> ln_R;
+    ln_R.resize(Nbin+1); // one extra: denotes left and right bounds of each DSD bin
+    auto dln_R = (std::log(r_max)-std::log(r_min))/(Nbin);
+    for (int n = 0; n < Nbin+1; n++) {
+        ln_R[n] = std::log(r_min) + n*dln_R;
+    }
+
+    auto density = m_vapour_mat->density();
+    Vector<std::string> varnames(Nbin,"");
+    m_mass_ln_R_mf.setVal(0.0);
+    m_num_ln_R_mf.setVal(0.0);
+
+    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
+    for (int n = 0; n < Nbin; n++) {
+        auto r_l = std::exp(ln_R[n]);
+        auto r_r = std::exp(ln_R[n+1]);
+
+        char r_str[12]; sprintf(r_str, "%1.4e", r_l);
+        varnames[n] = std::string(r_str);
+
+        ParticleToMesh( *this, m_mass_ln_R_mf, m_lev,
+            [=] AMREX_GPU_DEVICE (  const PTDType& ptd, int i, Array4<Real> const& mf_arr)
+            {
+                auto p = ptd.m_aos[i];
+                auto iv = getParticleCell(p, plo, dxi, domain);
+
+                auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                auto mi = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
+                auto ri = std::cbrt( mi / ((4.0/3.0)*PI*density) );
+                auto inbin = (r_l <= ri && ri < r_r) ? 1.0 : 0.0;
+
+                Gpu::Atomic::AddNoRet(&mf_arr(iv, n), (ni*mi*inbin / inv_cell_volume / dln_R));
+            }, false);
+
+        ParticleToMesh( *this, m_num_ln_R_mf, m_lev,
+            [=] AMREX_GPU_DEVICE (  const PTDType& ptd, int i, Array4<Real> const& mf_arr)
+            {
+                auto p = ptd.m_aos[i];
+                auto iv = getParticleCell(p, plo, dxi, domain);
+
+                auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                auto mi = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
+                auto ri = std::cbrt( mi / ((4.0/3.0)*PI*density) );
+                auto inbin = (r_l <= ri && ri < r_r) ? 1.0 : 0.0;
+
+                Gpu::Atomic::AddNoRet(&mf_arr(iv, n), (ni*inbin / inv_cell_volume / dln_R) );
+            }, false);
+
+    }
+
+
+    // Write to file
+    {
+        char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+        std::string op_fname =   m_name
+                               + "_binned_dsd_mass_"
+                               + std::string(iter_str);
+        Print() << "Writing " << op_fname << "\n";
+        WriteSingleLevelPlotfile ( op_fname,
+                                   m_mass_ln_R_mf,
+                                   varnames,
+                                   geom,
+                                   a_time,
+                                   a_iter );
+    }
+    {
+        char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+        std::string op_fname =   m_name
+                               + "_binned_dsd_number_"
+                               + std::string(iter_str);
+        Print() << "Writing " << op_fname << "\n";
+        WriteSingleLevelPlotfile ( op_fname,
+                                   m_num_ln_R_mf,
+                                   varnames,
+                                   geom,
+                                   a_time,
+                                   a_iter );
+    }
+}
 #endif
 
+#endif

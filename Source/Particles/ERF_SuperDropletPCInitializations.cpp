@@ -35,6 +35,10 @@ void SuperDropletPC::readInputs ()
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
     m_distribution_grid_size = 100;
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+    m_bindist_rmin = 1e-6;
+    m_bindist_rmax = 5e-3;
+#endif
     m_sigma0 = 0.62;
     m_place_randomly_in_cells = true;
 
@@ -75,6 +79,10 @@ void SuperDropletPC::readInputs ()
     pp.query("mass_change_unconverged_log", m_mass_change_logging);
     pp.query("mass_change_unconverged_log_filename", m_mass_change_log_fname);
     pp.query("distribution_grid_size", m_distribution_grid_size);
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+    pp.query("distribution_rmin", m_bindist_rmin);
+    pp.query("distribution_rmax", m_bindist_rmax);
+#endif
     pp.query("include_brownian_coalescence", m_include_brownian_coalescence);
     pp.query("sigma0", m_sigma0);
     pp.query("place_randomly_in_cells", m_place_randomly_in_cells);
@@ -145,7 +153,9 @@ void SuperDropletPC::readInputs ()
 
 /*! define super-droplets */
 void SuperDropletPC::define (  const std::string&              a_vap_mat,
-                               const std::vector<std::string>& a_aerosol_mat)
+                               const std::vector<std::string>& a_aerosol_mat,
+                               const BoxArray&                 a_ba,
+                               const DistributionMapping&      a_dmap )
 {
     m_num_sd_per_cell = 0;
     m_num_unconverged_particles = 0;
@@ -182,6 +192,11 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
         }
         m_rndeng.seed(seed);
     }
+
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+    m_mass_ln_R_mf.define(a_ba, a_dmap, m_distribution_grid_size, 0);
+    m_num_ln_R_mf.define(a_ba, a_dmap, m_distribution_grid_size, 0);
+#endif
 }
 
 /*! Initialize the particles */

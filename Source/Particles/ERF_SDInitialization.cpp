@@ -280,7 +280,8 @@ void SDInitialization::getAerosolDistribution ( amrex::Vector<amrex::Real>& a_ae
         auto dlnr = (std::log(rmax) - std::log(rmin)) / a_np;
         auto P_min = 0.0;
         auto P_max = 1.0;
-        auto tol = 1.0 / m_numdens_init;
+        auto dV = 1e3;  // also an approximation for now -- ideally will use real cell volume
+        auto tol = 1.0 / (m_numdens_init * dV);
         int a_np_tail = static_cast<int>(std::ceil(0.01*a_np)); // this is an approximation for now; saves 1% of SDs for the tail
         amrex::Print() << "Finding aerosol radius sampling range\n";
         while ((P_max >= 1.0 - tol) || (P_min <= tol)) {
