@@ -355,9 +355,8 @@ AdvectionSrcForScalars (const Real& dt,
         });
     }
 
-    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        const int cons_index = icomp + n;
         if (detJ(i,j,k) > 0.)
         {
             Real invdetJ = 1.0 / detJ(i,j,k);
