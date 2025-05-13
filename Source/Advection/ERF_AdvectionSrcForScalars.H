@@ -7,7 +7,7 @@
 template<typename InterpType_H, typename InterpType_V>
 void
 AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
-                               const int& ncomp, const int& icomp,
+                               const int& cons_index,
                                const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx_arr,
                                const amrex::Array4<const amrex::Real>& cell_prim,
                                const amrex::Array4<const amrex::Real>& avg_xmom,
@@ -63,7 +63,7 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 template<typename InterpType_H>
 void
 AdvectionSrcForScalarsVert (const amrex::Box& bx,
-                            const int& ncomp, const int& icomp,
+                            const int& cons_index,
                             const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx_arr,
                             const amrex::Array4<const amrex::Real>& cell_prim,
                             const amrex::Array4<const amrex::Real>& avg_xmom,
@@ -75,31 +75,31 @@ AdvectionSrcForScalarsVert (const amrex::Box& bx,
 {
     switch(vert_adv_type) {
     case AdvType::Centered_2nd:
-        AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED2>(bx, ncomp, icomp,
+        AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED2>(bx, cons_index,
                                                               flx_arr, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom,
                                                               horiz_upw_frac, vert_upw_frac);
         break;
     case AdvType::Upwind_3rd:
-        AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND3>(bx, ncomp, icomp,
+        AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND3>(bx, cons_index,
                                                             flx_arr, cell_prim,
                                                             avg_xmom, avg_ymom, avg_zmom,
                                                             horiz_upw_frac, vert_upw_frac);
         break;
     case AdvType::Centered_4th:
-        AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED4>(bx, ncomp, icomp,
+        AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED4>(bx, cons_index,
                                                               flx_arr, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom,
                                                               horiz_upw_frac, vert_upw_frac);
         break;
     case AdvType::Upwind_5th:
-        AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND5>(bx, ncomp, icomp,
+        AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND5>(bx, cons_index,
                                                             flx_arr, cell_prim,
                                                             avg_xmom, avg_ymom, avg_zmom,
                                                             horiz_upw_frac, vert_upw_frac);
         break;
     case AdvType::Centered_6th:
-        AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED6>(bx, ncomp, icomp,
+        AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED6>(bx, cons_index,
                                                               flx_arr, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom,
                                                               horiz_upw_frac, vert_upw_frac);
