@@ -349,14 +349,13 @@ struct TurbulentPerturbation {
                        const int& boxIdx,
                        const amrex::Real& interval)
     {
-        amrex::Real Um = pb_mag[lev][boxIdx];
         pb_amp[lev][boxIdx] = 0.; // Safety step
         if (pt_type == 2) { // CPM
-            Um = input_Ug;
             amrex::Real cp = 1004; // specific heat of air [J/(kg K)]
             amrex::Real Ec = 0.2; // Eckert number
-            pb_amp[lev][boxIdx] = (Um * Um) / (Ec * cp);
+            pb_amp[lev][boxIdx] = (input_Ug * input_Ug) / (Ec * cp);
         } else { // box perturbation
+            amrex::Real Um = pb_mag[lev][boxIdx];
             amrex::Real beta = 1./tpi_Tinf; // Thermal expansion coefficient
 
             // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
