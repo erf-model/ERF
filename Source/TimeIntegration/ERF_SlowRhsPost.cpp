@@ -393,7 +393,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             {
                 start_comp = ivar;
 
-                if (ivar >= RhoQ1_comp) {
+                if (ivar == RhoQ1_comp) {
                     horiz_adv_type = ac.moistscal_horiz_adv_type;
                      vert_adv_type = ac.moistscal_vert_adv_type;
                     horiz_upw_frac = ac.moistscal_horiz_upw_frac;
@@ -416,7 +416,12 @@ void erf_slow_rhs_post (int level, int finest_level,
                          horiz_adv_type = EfficientAdvType(nrk,ac.dryscal_horiz_adv_type);
                           vert_adv_type = EfficientAdvType(nrk,ac.dryscal_vert_adv_type);
                     }
-                    num_comp = 1;
+
+                    if (ivar == RhoScalar_comp) {
+                        num_comp = NSCALARS;
+                    } else {
+                        num_comp = 1;
+                    }
                 }
 
                 if (( ivar != RhoKE_comp                 ) ||
@@ -614,8 +619,10 @@ void erf_slow_rhs_post (int level, int finest_level,
               if (is_valid_slow_var[ivar])
               {
                   start_comp = ivar;
-                  if (ivar >= RhoQ1_comp) {
+                  if (ivar == RhoQ1_comp) {
                       num_comp = nvars - RhoQ1_comp;
+                  } else if (ivar == RhoScalar_comp) {
+                      num_comp = NSCALARS;
                   } else {
                       num_comp = 1;
                   }

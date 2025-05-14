@@ -675,12 +675,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             met_h_xi  = Compute_h_xi_AtKface (i,j,k_lo,cellSizeInv,z_nd);
             met_h_eta = Compute_h_eta_AtKface(i,j,k_lo,cellSizeInv,z_nd);
 
-            Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_lo  , qty_index) + xflux(i+1, j  , k_lo  , qty_index) );
-            Real xfluxhi  = 0.5 * ( xflux(i  , j  , k_lo+1, qty_index) + xflux(i+1, j  , k_lo+1, qty_index) );
+            Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_lo  ) + xflux(i+1, j  , k_lo  ) );
+            Real xfluxhi  = 0.5 * ( xflux(i  , j  , k_lo+1) + xflux(i+1, j  , k_lo+1) );
             Real xfluxbar = 1.5*xfluxlo - 0.5*xfluxhi;
 
-            Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_lo  , qty_index) + yflux(i  , j+1, k_lo  , qty_index) );
-            Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_lo+1, qty_index) + yflux(i  , j+1, k_lo+1, qty_index) );
+            Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_lo  ) + yflux(i  , j+1, k_lo  ) );
+            Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_lo+1) + yflux(i  , j+1, k_lo+1) );
             Real yfluxbar = 1.5*yfluxlo - 0.5*yfluxhi;
 
             zflux(i,j,k_lo) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
@@ -690,12 +690,12 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             met_h_xi  = Compute_h_xi_AtKface (i,j,k_hi,cellSizeInv,z_nd);
             met_h_eta = Compute_h_eta_AtKface(i,j,k_hi,cellSizeInv,z_nd);
 
-            Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_hi-2, qty_index) + xflux(i+1, j  , k_hi-2, qty_index) );
-            Real xfluxhi  = 0.5 * ( xflux(i  , j  , k_hi-1, qty_index) + xflux(i+1, j  , k_hi-1, qty_index) );
+            Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_hi-2) + xflux(i+1, j  , k_hi-2) );
+            Real xfluxhi  = 0.5 * ( xflux(i  , j  , k_hi-1) + xflux(i+1, j  , k_hi-1) );
             Real xfluxbar = 1.5*xfluxhi - 0.5*xfluxlo;
 
-            Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_hi-2, qty_index) + yflux(i  , j+1, k_hi-2, qty_index) );
-            Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_hi-1, qty_index) + yflux(i  , j+1, k_hi-1, qty_index) );
+            Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_hi-2) + yflux(i  , j+1, k_hi-2) );
+            Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_hi-1) + yflux(i  , j+1, k_hi-1) );
             Real yfluxbar = 1.5*yfluxhi - 0.5*yfluxlo;
 
             zflux(i,j,k_hi) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
