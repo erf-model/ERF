@@ -259,8 +259,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
-                                                           + 3. * cell_prim(i, j  , k, prim_index)
-                                                      - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
+                                                 + 3. * cell_prim(i, j  , k, prim_index)
+                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
             } else if (ext_dir_on_yhi) {
                 yflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
                                                  - 3. * cell_prim(i, j-1, k, prim_index)

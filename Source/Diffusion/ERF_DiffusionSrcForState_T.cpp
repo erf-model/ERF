@@ -350,11 +350,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real GradCx =        dx_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i-1, j, k  , prim_index) );
 
             if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                xflux(i,j,k,qty_index) = hfx_x(i,j,0);
+                xflux(i,j,k) = hfx_x(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                xflux(i,j,k,qty_index) = qfx1_x(i,j,0);
+                xflux(i,j,k) = qfx1_x(i,j,0);
             } else {
-                xflux(i,j,k,qty_index) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
+                xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
             }
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
