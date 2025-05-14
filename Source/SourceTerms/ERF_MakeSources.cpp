@@ -80,10 +80,18 @@ void make_sources (int level,
     // *****************************************************************************
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
-    if (dptr_wbar_sub || solverChoice.nudging_from_input_sounding || solverChoice.terrain_type == TerrainType::ImmersedForcing)
+    bool compute_averages = false;
+    compute_averages = compute_averages ||
+        ( (solverChoice.terrain_type == TerrainType::ImmersedForcing) &&
+          ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)));
+    compute_averages = compute_averages ||
+        ( is_slow_step &&
+          (dptr_wbar_sub || solverChoice.nudging_from_input_sounding || solverChoice.terrain_type == TerrainType::ImmersedForcing) );
+    if (compute_averages)
     {
         // Rho
-        PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+        IntVect ng_for_avg(IntVect{1});
+        PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, ng_for_avg);
         r_ave.compute_averages(ZDir(), r_ave.field());
 
         int ncell = r_ave.ncell_line();
@@ -96,11 +104,10 @@ void make_sources (int level,
 
         Real* dptr_r = r_plane_d.data();
 
-        IntVect ng_c = S_data[IntVars::cons].nGrowVect();
-        Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
+        Box tdomain  = domain; tdomain.grow(2,ng_for_avg[2]);
         r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
 
-        int offset = ng_c[2];
+        int offset = ng_for_avg[2];
         dptr_r_plane = r_plane_tab.table();
         ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
@@ -108,7 +115,7 @@ void make_sources (int level,
         });
 
         // Rho * Theta
-        PlaneAverage t_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+        PlaneAverage t_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, ng_for_avg);
         t_ave.compute_averages(ZDir(), t_ave.field());
 
         Gpu::HostVector<    Real> t_plane_h(ncell);
@@ -134,13 +141,13 @@ void make_sources (int level,
             Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
 
             // Water vapor
-            PlaneAverage qv_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+            PlaneAverage qv_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, ng_for_avg);
             qv_ave.compute_averages(ZDir(), qv_ave.field());
             qv_ave.line_average(RhoQ1_comp, qv_plane_h);
             Gpu::copyAsync(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
 
             // Cloud water
-            PlaneAverage qc_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+            PlaneAverage qc_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, ng_for_avg);
             qc_ave.compute_averages(ZDir(), qc_ave.field());
             qc_ave.line_average(RhoQ2_comp, qc_plane_h);
             Gpu::copyAsync(Gpu::hostToDevice, qc_plane_h.begin(), qc_plane_h.end(), qc_plane_d.begin());
