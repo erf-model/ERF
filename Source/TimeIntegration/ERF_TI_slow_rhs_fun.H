@@ -159,8 +159,10 @@
             // *****************************************************************************
             // Define the pressure gradient
             // *****************************************************************************
+            BCRec const* bcrec_ptr = domain_bcs_type_d.data();
+
             make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons], *p0_new,
-                            z_phys_nd_src[level], z_phys_cc[level], get_eb(level), gradp[level]);
+                            z_phys_nd_src[level], z_phys_cc[level], bcrec_ptr, get_eb(level), gradp[level]);
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
@@ -269,8 +271,10 @@
             // *****************************************************************************
             // Define the pressure gradient
             // *****************************************************************************
+            BCRec const* bcrec_ptr = domain_bcs_type_d.data();
+
             make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons], *p0,
-                            z_phys_nd[level], z_phys_cc[level], get_eb(level), gradp[level]);
+                            z_phys_nd[level], z_phys_cc[level], bcrec_ptr, get_eb(level), gradp[level]);
 
             make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
                              z_phys_nd[level], z_phys_cc[level],
@@ -479,8 +483,10 @@
         // *****************************************************************************
         // Define the pressure gradient
         // *****************************************************************************
+        BCRec const* bcrec_ptr = domain_bcs_type_d.data();
+
         make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons], *p0,
-                        z_phys_nd[level], z_phys_cc[level], get_eb(level), gradp[level]);
+                        z_phys_nd[level], z_phys_cc[level], bcrec_ptr, get_eb(level), gradp[level]);
 
         int n_qstate_moist = micro->Get_Qstate_Moist_Size();
         make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
