@@ -115,10 +115,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const MultiFab*  t_mean_mf = nullptr;
     if (SurfLayer) { t_mean_mf = SurfLayer->get_mac_avg(level,2); }
 
-    int start_comp = 0;
-    int   num_comp = 2;
-    int   end_comp = start_comp + num_comp - 1;
-
     const Box& domain = geom.Domain();
     int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);
@@ -567,8 +563,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
             // NOTE: No diffusion for continuity, so n starts at 1.
-            int n_start = amrex::max(start_comp,RhoTheta_comp);
-            int n_comp  = end_comp - n_start + 1;
+            int n_start = RhoTheta_comp;
+            int n_comp  = 1;
 
             if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
