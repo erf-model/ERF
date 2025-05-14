@@ -20,6 +20,7 @@ using namespace amrex;
  * @param[in]  p0        base ststa pressure
  * @param[in]  z_phys_nd z on nodes
  * @param[in]  z_phys_cc z on cell centers
+ * @param[in]  ebfact    EB factory container at this level
  * @param[out] gradp     pressure gradient
  */
 
@@ -30,6 +31,7 @@ void make_gradp_pert (int level,
                       MultiFab& p0,
                       std::unique_ptr<MultiFab>& z_phys_nd,
                       std::unique_ptr<MultiFab>& z_phys_cc,
+                      const eb_& ebfact,
                       Vector<MultiFab>& gradp)
 {
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
@@ -59,7 +61,7 @@ void make_gradp_pert (int level,
             });
         }
 
-        compute_gradp(p,geom,z_phys_nd,z_phys_cc,gradp,solverChoice);
+        compute_gradp(p,geom,z_phys_nd,z_phys_cc,ebfact,gradp,solverChoice);
     }
 }
 
@@ -68,6 +70,7 @@ compute_gradp (const MultiFab& p,
                const Geometry& geom,
                std::unique_ptr<MultiFab>& z_phys_nd,
                std::unique_ptr<MultiFab>& z_phys_cc,
+               const eb_& ebfact,
                Vector<MultiFab>& gradp,
                const SolverChoice& solverChoice)
 {
