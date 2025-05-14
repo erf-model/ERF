@@ -71,14 +71,16 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
     // Update the inflow perturbation update time and amplitude
     if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct)
+        solverChoice.pert_type == PerturbationType::Direct ||
+        solverChoice.pert_type == PerturbationType::CPM)
     {
         turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
     }
 
-    // If PerturbationType::Direct is selected, directly add the computed perturbation
+    // If PerturbationType::Direct or CPM is selected, directly add the computed perturbation
     // on the conserved field
-    if (solverChoice.pert_type == PerturbationType::Direct)
+    if (solverChoice.pert_type == PerturbationType::Direct ||
+        solverChoice.pert_type == PerturbationType::CPM)
     {
         auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
         for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
@@ -148,10 +150,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     BoxArray ba_z(ba); ba_z.surroundingNodes(2);
     MultiFab zmom_source(ba_z,dm,nvars,1); zmom_source.setVal(0.0);
 
-    // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
-    MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
-    MultiFab::Copy(cons_mf,S_old,0,0,S_old.nComp(),S_old.nGrowVect());
-
     amrex::Vector<MultiFab> state_old;
     amrex::Vector<MultiFab> state_new;
 
@@ -160,7 +158,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     // Initial solution
     // Note that "old" and "new" here are relative to each RK stage.
-    state_old.push_back(MultiFab(cons_mf    , amrex::make_alias, 0, nvars)); // cons
+    state_old.push_back(MultiFab(S_old      , amrex::make_alias, 0, nvars)); // cons
     state_old.push_back(MultiFab(rU_old[lev], amrex::make_alias, 0,     1)); // xmom
     state_old.push_back(MultiFab(rV_old[lev], amrex::make_alias, 0,     1)); // ymom
     state_old.push_back(MultiFab(rW_old[lev], amrex::make_alias, 0,     1)); // zmom

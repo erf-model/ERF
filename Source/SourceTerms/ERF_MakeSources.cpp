@@ -30,7 +30,7 @@ using namespace amrex;
 
 void make_sources (int level,
                    int /*nrk*/, Real dt, Real time,
-                   Vector<MultiFab>& S_data,
+                   const Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
                    const  MultiFab & base_state,
@@ -47,7 +47,8 @@ void make_sources (int level,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
                    InputSoundingData& input_sounding_data,
-                   TurbulentPerturbation& turbPert)
+                   TurbulentPerturbation& turbPert,
+                   bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
@@ -69,6 +70,10 @@ void make_sources (int level,
     MultiFab r_hse (base_state, make_alias, BaseState::r0_comp , 1);
 
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
+
+    // flags to apply certain source terms in substep call only
+    bool use_Rayleigh_fast = solverChoice.rayleigh_damp_substep;
+    bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
 
     // *****************************************************************************
     // Planar averages for subsidence terms
@@ -196,7 +201,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 2. Add radiation source terms to (rho theta)
         // *************************************************************************************
-        {
+        if (is_slow_step) {
             auto const& qheating_arr = qheating_rates->const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -214,26 +219,28 @@ void make_sources (int level,
         Real zdamp    = solverChoice.rayleigh_zdamp;
         Real dampcoef = solverChoice.rayleigh_dampcoef;
 
-        if (solverChoice.rayleigh_damp_T) {
-            int n  = RhoTheta_comp;
-            int nr = Rho_comp;
-            int np = PrimTheta_comp;
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real zcc = z_cc_arr(i,j,k);
-                Real zfrac = 1 - (ztop - zcc) / zdamp;
-                if (zfrac > 0) {
-                    Real theta = cell_prim(i,j,k,np);
-                    Real sinefac = std::sin(PIoTwo*zfrac);
-                    cell_src(i, j, k, n) -= dampcoef*sinefac*sinefac * (theta - thetabar[k]) * cell_data(i,j,k,nr);
-                }
-            });
+        if ((is_slow_step && !use_Rayleigh_fast) || (!is_slow_step && use_Rayleigh_fast)) {
+            if (solverChoice.rayleigh_damp_T) {
+                int n  = RhoTheta_comp;
+                int nr = Rho_comp;
+                int np = PrimTheta_comp;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real zcc = z_cc_arr(i,j,k);
+                    Real zfrac = 1 - (ztop - zcc) / zdamp;
+                    if (zfrac > 0) {
+                        Real theta = cell_prim(i,j,k,np);
+                        Real sinefac = std::sin(PIoTwo*zfrac);
+                        cell_src(i, j, k, n) -= dampcoef*sinefac*sinefac * (theta - thetabar[k]) * cell_data(i,j,k,nr);
+                    }
+                });
+            }
         }
 
         // *************************************************************************************
         // 4. Add custom forcing for (rho theta)
         // *************************************************************************************
-        if (solverChoice.custom_rhotheta_forcing) {
+        if (solverChoice.custom_rhotheta_forcing && is_slow_step) {
             const int n = RhoTheta_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
@@ -252,7 +259,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 4. Add custom forcing for RhoQ1
         // *************************************************************************************
-        if (solverChoice.custom_moisture_forcing) {
+        if (solverChoice.custom_moisture_forcing && is_slow_step) {
             const int n = RhoQ1_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
@@ -271,7 +278,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 5. Add custom subsidence for (rho theta)
         // *************************************************************************************
-        if (solverChoice.custom_w_subsidence) {
+        if (solverChoice.custom_w_subsidence && is_slow_step) {
             const int n = RhoTheta_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
@@ -298,7 +305,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 5. Add custom subsidence for RhoQ1 and RhoQ2
         // *************************************************************************************
-        if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None)) {
+        if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None) && is_slow_step) {
             const int nv = RhoQ1_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
@@ -331,7 +338,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 6. Add numerical diffuion for rho and (rho theta)
         // *************************************************************************************
-        if (l_use_ndiff) {
+        if (l_use_ndiff && is_slow_step) {
             int sc;
             int nc;
 
@@ -359,14 +366,14 @@ void make_sources (int level,
         // *************************************************************************************
         // 7. Add sponging
         // *************************************************************************************
-        if(!(solverChoice.spongeChoice.sponge_type == "input_sponge")){
+        if(!(solverChoice.spongeChoice.sponge_type == "input_sponge") && is_slow_step){
             ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, z_cc_arr);
         }
 
         // *************************************************************************************
         // 8. Add perturbation
         // *************************************************************************************
-        if (solverChoice.pert_type == PerturbationType::Source) {
+        if (solverChoice.pert_type == PerturbationType::Source && is_slow_step) {
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
             const amrex::Array4<const amrex::Real>& pert_cell = turbPert.pb_cell[level].const_array(mfi);
             turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src, pert_cell); // Applied as source term
@@ -375,7 +382,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 9. Add nudging towards value specified in input sounding
         // *************************************************************************************
-        if (solverChoice.nudging_from_input_sounding)
+        if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
             int itime_n    = 0;
             int itime_np1  = 0;
@@ -415,7 +422,8 @@ void make_sources (int level,
         // *************************************************************************************
         // 10. Add Immersed source terms
         // *************************************************************************************
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing)
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
         {
             Real dz                     = geom.CellSize(2);
             const Real drag_coefficient = 10.0/dz;

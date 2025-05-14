@@ -400,7 +400,13 @@ ERF::ERF_shared ()
         TerrainIF ebterrain(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
         auto gshop = EB2::makeShop(ebterrain);
         bool build_coarse_level_by_coarsening(false);
-        amrex::EB2::Build(gshop, geom[max_level], max_level, max_level, build_coarse_level_by_coarsening);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            // Note this just needs to be an integer > number of V-cycles one might use
+            int max_coarsening_level = ( solverChoice.terrain_type == TerrainType::EB &&
+                                        (solverChoice.project_initial_velocity)       ||
+                                        (solverChoice.anelastic[0] == 1) ) ? 100 : 0;
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+        }
     }
 }
 
@@ -573,7 +579,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct) {
+        solverChoice.pert_type == PerturbationType::Direct ||
+        solverChoice.pert_type == PerturbationType::CPM) {
         if (is_it_time_for_action(nstep, time, dt_lev0, pert_interval, -1.)) {
             turbPert.debug(time);
         }
@@ -935,7 +942,8 @@ ERF::InitData_post ()
     }
 
     if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct) {
+        solverChoice.pert_type == PerturbationType::Direct ||
+        solverChoice.pert_type == PerturbationType::CPM) {
         if (is_it_time_for_action(istep[0], t_new[0], dt[0], pert_interval, -1.)) {
             turbPert.debug(t_new[0]);
         }
@@ -1550,7 +1558,8 @@ ERF::init_only (int lev, Real time)
 
     // Initialize turbulent perturbation
     if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct) {
+        solverChoice.pert_type == PerturbationType::Direct ||
+        solverChoice.pert_type == PerturbationType::CPM) {
         turbPert_update(lev, 0.);
         turbPert_amplitude(lev);
     }

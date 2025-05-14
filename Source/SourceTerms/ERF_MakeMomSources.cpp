@@ -39,7 +39,7 @@ void make_mom_sources (int level,
                        int /*nrk*/,
                        Real /*dt*/,
                        Real time,
-                       Vector<MultiFab>& S_data,
+                       const Vector<MultiFab>& S_data,
                        const  MultiFab & S_prim,
                        std::unique_ptr<MultiFab>& z_phys_nd,
                        std::unique_ptr<MultiFab>& z_phys_cc,
@@ -63,7 +63,8 @@ void make_mom_sources (int level,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        InputSoundingData& input_sounding_data,
-                       int n_qstate)
+                       int n_qstate,
+                       bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
 
@@ -76,6 +77,11 @@ void make_mom_sources (int level,
     zmom_src.setVal(0.0);
 
     MultiFab r_hse (base_state, make_alias, BaseState::r0_comp , 1);
+
+    // flags to apply certain source terms in substep call only
+    bool use_Rayleigh_fast = solverChoice.rayleigh_damp_substep;
+    bool use_canopy_fast = solverChoice.forest_substep;
+    bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
 
     // *****************************************************************************
     // Define source term for all three components of momenta from
@@ -205,8 +211,10 @@ void make_mom_sources (int level,
     // *****************************************************************************
     // 1. Create the BUOYANCY forcing term in the z-direction
     // *****************************************************************************
-    make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, base_state,
-                  n_qstate, solverChoice.anelastic[level]);
+    if (is_slow_step) {
+        make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, base_state,
+                    n_qstate, solverChoice.anelastic[level]);
+    }
 
     // *****************************************************************************
     // Add all the other forcings
@@ -249,7 +257,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
-        if (use_coriolis) {
+        if (use_coriolis && is_slow_step) {
             if (var_coriolis && has_lat_lon) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -297,71 +305,75 @@ void make_mom_sources (int level,
         Real zdamp    = solverChoice.rayleigh_zdamp;
         Real dampcoef = solverChoice.rayleigh_dampcoef;
 
-        if (rayleigh_damp_U) {
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
-                Real zfrac = 1 - (ztop - zcc) / zdamp;
-                if (zfrac > 0) {
-                    Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                    Real uu = rho_u(i,j,k) / rho_on_u_face;
-                    Real sinefac = std::sin(PIoTwo*zfrac);
-                    xmom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (uu - ubar[k]) * rho_on_u_face;
-                }
-            });
-        }
+        if ((is_slow_step && !use_Rayleigh_fast) || (!is_slow_step && use_Rayleigh_fast)) {
+            if (rayleigh_damp_U) {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                    Real zfrac = 1 - (ztop - zcc) / zdamp;
+                    if (zfrac > 0) {
+                        Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                        Real uu = rho_u(i,j,k) / rho_on_u_face;
+                        Real sinefac = std::sin(PIoTwo*zfrac);
+                        xmom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (uu - ubar[k]) * rho_on_u_face;
+                    }
+                });
+            }
 
-        if (rayleigh_damp_V) {
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
-                Real zfrac = 1 - (ztop - zcc) / zdamp;
-                if (zfrac > 0) {
-                    Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                    Real vv = rho_v(i,j,k) / rho_on_v_face;
-                    Real sinefac = std::sin(PIoTwo*zfrac);
-                    ymom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (vv - vbar[k]) * rho_on_v_face;
-                }
-            });
-        }
+            if (rayleigh_damp_V) {
+                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                    Real zfrac = 1 - (ztop - zcc) / zdamp;
+                    if (zfrac > 0) {
+                        Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                        Real vv = rho_v(i,j,k) / rho_on_v_face;
+                        Real sinefac = std::sin(PIoTwo*zfrac);
+                        ymom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (vv - vbar[k]) * rho_on_v_face;
+                    }
+                });
+            }
 
-        if (rayleigh_damp_W) {
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real zstag = (z_nd_arr) ? z_nd_arr(i,j,k) : zlo + k*dz;
-                Real zfrac = 1 - (ztop - zstag) / zdamp;
-                if (zfrac > 0) {
-                    Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                    Real ww = rho_w(i,j,k) / rho_on_w_face;
-                    Real sinefac = std::sin(PIoTwo*zfrac);
-                    zmom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (ww - wbar[k]) * rho_on_w_face;
-                }
-            });
-        }
+            if (rayleigh_damp_W) {
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real zstag = (z_nd_arr) ? z_nd_arr(i,j,k) : zlo + k*dz;
+                    Real zfrac = 1 - (ztop - zstag) / zdamp;
+                    if (zfrac > 0) {
+                        Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                        Real ww = rho_w(i,j,k) / rho_on_w_face;
+                        Real sinefac = std::sin(PIoTwo*zfrac);
+                        zmom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (ww - wbar[k]) * rho_on_w_face;
+                    }
+                });
+            }
+        } // fast or slow step
 
         // *****************************************************************************
         // 4. Add constant GEOSTROPHIC forcing
         // *****************************************************************************
-        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-            xmom_src_arr(i, j, k) += rho_on_u_face * abl_geo_forcing[0];
-        });
-        ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-            ymom_src_arr(i, j, k) += rho_on_v_face * abl_geo_forcing[1];
-        });
-        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-            zmom_src_arr(i, j, k) += rho_on_w_face * abl_geo_forcing[2];
-        });
+        if (is_slow_step) {
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                xmom_src_arr(i, j, k) += rho_on_u_face * abl_geo_forcing[0];
+            });
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                ymom_src_arr(i, j, k) += rho_on_v_face * abl_geo_forcing[1];
+            });
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                zmom_src_arr(i, j, k) += rho_on_w_face * abl_geo_forcing[2];
+            });
+        }
 
         // *****************************************************************************
         // 4. Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
-        if (geo_wind_profile) {
+        if (geo_wind_profile && is_slow_step) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
@@ -377,7 +389,7 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 5. Add custom SUBSIDENCE terms
         // *****************************************************************************
-        if (solverChoice.custom_w_subsidence) {
+        if (solverChoice.custom_w_subsidence && is_slow_step) {
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -449,7 +461,7 @@ void make_mom_sources (int level,
         // *************************************************************************************
         // 6. Add nudging towards value specified in input sounding
         // *************************************************************************************
-        if (solverChoice.nudging_from_input_sounding)
+        if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
             int itime_n    = 0;
             int itime_np1  = 0;
@@ -512,23 +524,26 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 8. Add SPONGING
         // *****************************************************************************
-        if(solverChoice.spongeChoice.sponge_type == "input_sponge")
-        {
-             ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
-                                                   z_cc_arr, xmom_src_arr, ymom_src_arr,
-                                                   rho_u, rho_v, d_sponge_ptrs_at_lev);
-        }
-        else
-        {
-            ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
-                                     xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
-                                     r0, z_nd_arr, z_cc_arr);
+        if (is_slow_step) {
+            if (solverChoice.spongeChoice.sponge_type == "input_sponge")
+            {
+                ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
+                                                    z_cc_arr, xmom_src_arr, ymom_src_arr,
+                                                    rho_u, rho_v, d_sponge_ptrs_at_lev);
+            }
+            else
+            {
+                ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
+                                        xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
+                                        r0, z_nd_arr, z_cc_arr);
+            }
         }
 
         // *****************************************************************************
         // 9. Add CANOPY source terms
         // *****************************************************************************
-        if (solverChoice.do_forest_drag) {
+        if (solverChoice.do_forest_drag &&
+           ((is_slow_step && !use_canopy_fast) || (!is_slow_step && use_canopy_fast))) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = u(i, j, k);
@@ -566,7 +581,8 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 10. Add Immersed source terms
         // *****************************************************************************
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
             const Real drag_coefficient=10.0/dz;
             const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

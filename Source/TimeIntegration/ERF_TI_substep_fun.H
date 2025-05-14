@@ -1,3 +1,5 @@
+#include "ERF_SrcHeaders.H"
+
 /**
  *  Wrapper for calling the routine that creates the fast RHS
  */
@@ -29,6 +31,46 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             beta_s = 0.1;
         } else { // Fully explicit
             beta_s = -1.0;
+        }
+
+        Real* dptr_u_geos = solverChoice.have_geo_wind_profile ? d_u_geos[level].data(): nullptr;
+        Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
+
+        int n_qstate = micro->Get_Qstate_Size();
+
+        // Canopy data for mom sources
+        MultiFab* forest_drag = nullptr;
+        if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
+        // Immersed Forcing
+        MultiFab* terrain_blank = nullptr;
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            terrain_blank = terrain_blanking[level].get();
+        }
+
+        if (fast_step == 0) {
+            // If this is the first substep we pass in S_old as the previous step's solution
+            make_sources(level, nrk, dtau, old_substep_time,
+                        S_old, S_prim, cc_src, base_state[level], z_phys_cc[level],
+#if defined(ERF_USE_RRTMGP)
+                        qheating_rates[level].get(),
+#endif
+                        terrain_blank, fine_geom, solverChoice,
+                        mapfac[level],
+                        dptr_rhotheta_src, dptr_rhoqt_src,
+                        dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                        input_sounding_data, turbPert, false);
+        } else {
+            // If this is not the first substep we pass in S_data as the previous step's solution
+            make_sources(level, nrk, dtau, old_substep_time,
+                        S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
+#if defined(ERF_USE_RRTMGP)
+                        qheating_rates[level].get(),
+#endif
+                        terrain_blank, fine_geom, solverChoice,
+                        mapfac[level],
+                        dptr_rhotheta_src, dptr_rhoqt_src,
+                        dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                        input_sounding_data, turbPert, false);
         }
 
         // *************************************************************************
@@ -115,9 +157,22 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
+                make_mom_sources(level, nrk, dtau, old_substep_time, S_old, S_prim,
+                                z_phys_nd[level], z_phys_cc[level],
+                                xvel_new, yvel_new, zvel_new,
+                                xmom_src, ymom_src, zmom_src,
+                                base_state_new[level], forest_drag, terrain_blank,
+                                cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
+                                mapfac[level],
+                                dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                                d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                                input_sounding_data, n_qstate, false);
+
                 erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
                                 S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                                S_data, S_scratch, fine_geom,
+                                S_data, S_scratch,
+                                cc_src, xmom_src, ymom_src, zmom_src,
+                                fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
                                 z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
@@ -126,9 +181,22 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                 fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
+                make_mom_sources(level, nrk, dtau, old_substep_time, S_data, S_prim,
+                                z_phys_nd[level], z_phys_cc[level],
+                                xvel_new, yvel_new, zvel_new,
+                                xmom_src, ymom_src, zmom_src,
+                                base_state_new[level], forest_drag, terrain_blank,
+                                cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
+                                mapfac[level],
+                                dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                                d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                                input_sounding_data, n_qstate, false);
+
                 erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
                                 S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                                S_data, S_scratch, fine_geom,
+                                S_data, S_scratch,
+                                cc_src, xmom_src, ymom_src, zmom_src,
+                                fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
                                 z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
@@ -146,17 +214,44 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
                 // If this is the first substep we pass in S_old as the previous step's solution
                 //    and S_data is the new-time solution to be defined here
+                make_mom_sources(level, nrk, dtau, old_substep_time, S_old, S_prim,
+                                z_phys_nd[level], z_phys_cc[level],
+                                xvel_new, yvel_new, zvel_new,
+                                xmom_src, ymom_src, zmom_src,
+                                base_state[level], forest_drag, terrain_blank,
+                                cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
+                                mapfac[level],
+                                dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                                d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                                input_sounding_data, n_qstate, false);
+
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity,
-                               z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac, mapfac[level],
+                               S_data, S_scratch,
+                               cc_src, xmom_src, ymom_src, zmom_src,
+                               fine_geom, solverChoice.gravity,
+                               z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
+                               mapfac[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             } else {
                 // If this is not the first substep we pass in S_data as both the previous step's solution
                 //    and as the new-time solution to be defined here
+                make_mom_sources(level, nrk, dtau, old_substep_time, S_data, S_prim,
+                                z_phys_nd[level], z_phys_cc[level],
+                                xvel_new, yvel_new, zvel_new,
+                                xmom_src, ymom_src, zmom_src,
+                                base_state[level], forest_drag, terrain_blank,
+                                cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
+                                mapfac[level],
+                                dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                                d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                                input_sounding_data, n_qstate, false);
+
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity,
+                               S_data, S_scratch,
+                               cc_src, xmom_src, ymom_src, zmom_src,
+                               fine_geom, solverChoice.gravity,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac, mapfac[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
@@ -170,18 +265,45 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
                 // If this is the first substep we pass in S_old as the previous step's solution
                 //    and S_data is the new-time solution to be defined here
+                make_mom_sources(level, nrk, dtau, old_substep_time, S_old, S_prim,
+                                z_phys_nd[level], z_phys_cc[level],
+                                xvel_new, yvel_new, zvel_new,
+                                xmom_src, ymom_src, zmom_src,
+                                base_state[level], forest_drag, terrain_blank,
+                                cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
+                                mapfac[level],
+                                dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                                d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                                input_sounding_data, n_qstate, false);
+
                 erf_fast_rhs_N(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity,
+                               S_data, S_scratch,
+                               cc_src, xmom_src, ymom_src, zmom_src,
+                               fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac, mapfac[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             } else {
                 // If this is not the first substep we pass in S_data as both the previous step's solution
                 //    and as the new-time solution to be defined here
+                make_mom_sources(level, nrk, dtau, old_substep_time, S_data, S_prim,
+                                z_phys_nd[level], z_phys_cc[level],
+                                xvel_new, yvel_new, zvel_new,
+                                xmom_src, ymom_src, zmom_src,
+                                base_state[level], forest_drag, terrain_blank,
+                                cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
+                                mapfac[level],
+                                dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                                d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                                input_sounding_data, n_qstate, false);
+
                 erf_fast_rhs_N(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity,
-                               dtau, beta_s, inv_fac, mapfac[level],
+                               S_data, S_scratch,
+                               cc_src, xmom_src, ymom_src, zmom_src,
+                               fine_geom, solverChoice.gravity,
+                               dtau, beta_s, inv_fac,
+                               mapfac[level],
                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
             }
         }

@@ -333,6 +333,11 @@ struct SolverChoice {
         pp.query("rayleigh_damp_T", rayleigh_damp_T);
         pp.query("rayleigh_dampcoef", rayleigh_dampcoef);
         pp.query("rayleigh_zdamp", rayleigh_zdamp);
+        pp.query("rayleigh_damp_substep", rayleigh_damp_substep); // apply Rayleigh damping source terms in substep only
+
+        // flags for whether to apply other source terms in substep only
+        pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply Rayleigh damping source terms in substep only
+        pp.query("forest_substep", forest_substep); // apply Rayleigh damping source terms in substep only
 
         // Flag to do MOST rotations with terrain
         pp.query("use_rotate_surface_flux",use_rotate_surface_flux);
@@ -696,6 +701,11 @@ struct SolverChoice {
     amrex::Real rayleigh_dampcoef      = 0.2; // inverse time scale [1/s]
     amrex::Real rayleigh_zdamp         = 500.0; // damping layer depth [m]
     amrex::Real rayleigh_ztop;
+    bool        rayleigh_damp_substep  = false; // use Rayleigh on substep only?
+
+    // Specify whether to apply other various source terms on substep only
+    bool        immersed_forcing_substep  = false;
+    bool        forest_substep            = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt    = true;

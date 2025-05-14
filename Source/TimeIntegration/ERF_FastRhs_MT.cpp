@@ -18,6 +18,10 @@ using namespace amrex;
  * @param[in   ] fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
  * @param[  out] S_data current solution
  * @param[in   ] S_scratch scratch space
+ * @param[in   ] cc_src source terms for conserved variables
+ * @param[in   ] xmom_src source terms for x-momentum
+ * @param[in   ] ymom_src source terms for y-momentum
+ * @param[in   ] zmom_src source terms for z-momentum
  * @param[in   ] geom container for geometric information
  * @param[in   ] gravity Magnitude of gravity
  * @param[in   ] use_lagged_delta_rt define lagged_delta_rt for our next step
@@ -50,6 +54,10 @@ void erf_fast_rhs_MT (int step, int nrk,
                       const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
                       Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
                       Vector<MultiFab>& S_scratch,                   // S_sum_old at most recent fast timestep for (rho theta)
+                      const MultiFab& cc_src,
+                      const MultiFab& xmom_src,
+                      const MultiFab& ymom_src,
+                      const MultiFab& zmom_src,
                       const Geometry geom,
                       const Real gravity,
                       const bool use_lagged_delta_rt,
@@ -125,6 +133,11 @@ void erf_fast_rhs_MT (int step, int nrk,
 
         Box vbx = mfi.validbox();
         const auto& vbx_hi = ubound(vbx);
+
+        const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
+        const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
+        const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
+        const Array4<Real const>& cc_src_arr     = cc_src.const_array(mfi);
 
         const Array4<const Real> & stg_cons = S_stg_data[IntVars::cons].const_array(mfi);
         const Array4<const Real> & stg_xmom = S_stg_data[IntVars::xmom].const_array(mfi);
@@ -260,7 +273,8 @@ void erf_fast_rhs_MT (int step, int nrk,
 
                 // We have already scaled the source terms to have the extra factor of dJ
                 cur_xmom(i,j,k) = h_zeta_old * prev_xmom(i,j,k) + dtau * fast_rhs_rho_u
-                                                                + dtau * slow_rhs_rho_u(i,j,k);
+                                                                + dtau * slow_rhs_rho_u(i,j,k)
+                                                                + dtau * xmom_src_arr(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -287,7 +301,8 @@ void erf_fast_rhs_MT (int step, int nrk,
 
                 // We have already scaled the source terms to have the extra factor of dJ
                 cur_ymom(i, j, k) = h_zeta_old * prev_ymom(i,j,k) + dtau * fast_rhs_rho_v
-                                                                  + dtau * slow_rhs_rho_v(i,j,k);
+                                                                  + dtau * slow_rhs_rho_v(i,j,k)
+                                                                  + dtau * ymom_src_arr(i,j,k);
         });
         } // end profile
 
@@ -327,7 +342,7 @@ void erf_fast_rhs_MT (int step, int nrk,
             (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i-1,j,k,0));
 
             (flx_arr[1])(i,j,k,0) = yflux_lo;
-            (flx_arr[1])(i,j,k,1) = (flx_arr[0])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
+            (flx_arr[1])(i,j,k,1) = (flx_arr[1])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
 
             if (i == vbx_hi.x) {
                 (flx_arr[0])(i+1,j,k,0) = xflux_hi;
@@ -442,7 +457,7 @@ void erf_fast_rhs_MT (int step, int nrk,
 
             // line 1
             RHS_a(i,j,k) = dJ_old_kface * prev_zmom(i,j,k) - dJ_stg_kface * stg_zmom(i,j,k)
-                            + dtau *(slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp );
+                            + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp + zmom_src_arr(i,j,k));
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
             Real UppVpp = dJ_new_kface * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
@@ -599,6 +614,10 @@ void erf_fast_rhs_MT (int step, int nrk,
                   (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                   (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
               }
+
+              // add in source terms for cell-centered conserved variables
+              cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
+              cur_cons(i,j,k,RhoTheta_comp) += dtau * cc_src_arr(i,j,k,RhoTheta_comp);
         });
         } // end profile
 
