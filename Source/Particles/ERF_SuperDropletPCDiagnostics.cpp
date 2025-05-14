@@ -497,7 +497,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int& a_iter)
                                         auto mi = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
                                         auto ri = std::cbrt( mi / ((4.0/3.0)*PI*density) );
                                         auto inbin = (r_l <= ri && ri < r_r) ? 1.0 : 0.0;
-                                        return ni*mi*inbin / inv_cell_volume / dln_R;
+                                        return ni*mi*inbin * inv_cell_volume / dln_R;
                                     } );
         g_num_ln_R[n] = ReduceSum(  *this,
                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
@@ -506,7 +506,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int& a_iter)
                                         auto mi = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
                                         auto ri = std::cbrt( mi / ((4.0/3.0)*PI*density) );
                                         auto inbin = (r_l <= ri && ri < r_r) ? 1.0 : 0.0;
-                                        return ni*inbin / inv_cell_volume / dln_R;
+                                        return ni*inbin * inv_cell_volume / dln_R;
                                     } );
     }
 
@@ -591,7 +591,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int& a_iter,
                 auto ri = std::cbrt( mi / ((4.0/3.0)*PI*density) );
                 auto inbin = (r_l <= ri && ri < r_r) ? 1.0 : 0.0;
 
-                Gpu::Atomic::AddNoRet(&mf_arr(iv, n), (ni*mi*inbin / inv_cell_volume / dln_R));
+                Gpu::Atomic::AddNoRet(&mf_arr(iv, n), (ni*mi*inbin * inv_cell_volume / dln_R));
             }, false);
 
         ParticleToMesh( *this, m_num_ln_R_mf, m_lev,
@@ -605,7 +605,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int& a_iter,
                 auto ri = std::cbrt( mi / ((4.0/3.0)*PI*density) );
                 auto inbin = (r_l <= ri && ri < r_r) ? 1.0 : 0.0;
 
-                Gpu::Atomic::AddNoRet(&mf_arr(iv, n), (ni*inbin / inv_cell_volume / dln_R) );
+                Gpu::Atomic::AddNoRet(&mf_arr(iv, n), (ni*inbin * inv_cell_volume / dln_R) );
             }, false);
 
     }
