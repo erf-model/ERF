@@ -90,8 +90,8 @@ void make_sources (int level,
     if (compute_averages)
     {
         // Rho
-        IntVect ng_for_avg(IntVect{1});
-        PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, ng_for_avg);
+        IntVect ng_c(S_data[IntVars::cons].nGrowVect()); ng_c[2] = 1;
+        PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, ng_c);
         r_ave.compute_averages(ZDir(), r_ave.field());
 
         int ncell = r_ave.ncell_line();
@@ -104,10 +104,10 @@ void make_sources (int level,
 
         Real* dptr_r = r_plane_d.data();
 
-        Box tdomain  = domain; tdomain.grow(2,ng_for_avg[2]);
+        Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
         r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
 
-        int offset = ng_for_avg[2];
+        int offset = ng_c[2];
         dptr_r_plane = r_plane_tab.table();
         ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
@@ -115,7 +115,7 @@ void make_sources (int level,
         });
 
         // Rho * Theta
-        PlaneAverage t_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, ng_for_avg);
+        PlaneAverage t_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, IntVect{ng_c[0],ng_c[1],1});
         t_ave.compute_averages(ZDir(), t_ave.field());
 
         Gpu::HostVector<    Real> t_plane_h(ncell);
@@ -141,13 +141,13 @@ void make_sources (int level,
             Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
 
             // Water vapor
-            PlaneAverage qv_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, ng_for_avg);
+            PlaneAverage qv_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, IntVect{ng_c[0],ng_c[1],1});
             qv_ave.compute_averages(ZDir(), qv_ave.field());
             qv_ave.line_average(RhoQ1_comp, qv_plane_h);
             Gpu::copyAsync(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
 
             // Cloud water
-            PlaneAverage qc_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, ng_for_avg);
+            PlaneAverage qc_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, IntVect{ng_c[0],ng_c[1],1});
             qc_ave.compute_averages(ZDir(), qc_ave.field());
             qc_ave.line_average(RhoQ2_comp, qc_plane_h);
             Gpu::copyAsync(Gpu::hostToDevice, qc_plane_h.begin(), qc_plane_h.end(), qc_plane_d.begin());
