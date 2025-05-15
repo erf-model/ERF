@@ -55,7 +55,11 @@ void make_sources (int level,
     // *****************************************************************************
     // Initialize source to zero since we re-compute it every RK stage
     // *****************************************************************************
-    source.setVal(0.0);
+    if (is_slow_step) {
+        source.setVal(0.);
+    } else {
+        source.setVal(0.0,Rho_comp,2);
+    }
 
     const bool l_use_ndiff      = solverChoice.use_num_diff;
 
