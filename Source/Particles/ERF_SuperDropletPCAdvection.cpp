@@ -41,7 +41,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
 
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
-    const Real rho_w = m_vapour_mat->density();
+    const Real rho_w = m_vapour_mat->m_density;
     const int num_aerosols = m_num_aerosols;
 
 #ifdef AMREX_USE_OMP
@@ -88,8 +88,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
                                                     + SuperDropletsRealIdxSoA_RT::ncomps
                                                     + i ).data();
-            aerosol_density_h[i] = m_aerosol_mat[i]->density();
-            aerosol_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
+            aerosol_density_h[i] = m_aerosol_mat[i]->m_density;
+            aerosol_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
         }
         Gpu::copy(  Gpu::hostToDevice,
                     aerosol_density_h.begin(),
@@ -100,7 +100,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                     aerosol_solubility_h.end(),
                     aerosol_solubility.begin() );
 
-        TerminalVelocity<ParticleReal> term_vel { m_vapour_mat->density() };
+        TerminalVelocity<ParticleReal> term_vel { m_vapour_mat->m_density };
         auto term_vel_type = m_term_vel_type;
 
         auto aero_rho_arr = aerosol_density.data();

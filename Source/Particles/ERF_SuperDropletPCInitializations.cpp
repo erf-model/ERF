@@ -58,7 +58,7 @@ void SuperDropletPC::readInputs ()
 
     std::string coal_kernel_name = "";
     std::string term_vel_name = "";
-    if (m_vapour_mat->name() == MaterialNames::h2o) {
+    if (m_vapour_mat->m_name == Species::Name::H2O) {
         m_coalescence_kernel = SDCoalescenceKernelType::sedimentation;
         coal_kernel_name = "sedimentation";
         m_include_brownian_coalescence = false;
@@ -152,10 +152,10 @@ void SuperDropletPC::readInputs ()
 }
 
 /*! define super-droplets */
-void SuperDropletPC::define (  const std::string&              a_vap_mat,
-                               const std::vector<std::string>& a_aerosol_mat,
-                               const BoxArray&                 a_ba,
-                               const DistributionMapping&      a_dmap )
+void SuperDropletPC::define (  const Species::Name&              a_vap_mat,
+                               const std::vector<Species::Name>& a_aerosol_mat,
+                               const BoxArray&                   a_ba,
+                               const DistributionMapping&        a_dmap )
 {
     m_num_sd_per_cell = 0;
     m_num_unconverged_particles = 0;
@@ -242,7 +242,7 @@ void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
     } else if (m_term_vel_type ==  SDTerminalVelocityType::CloudRainShima) {
         Print() << "CloudRainShima" << "\n";
     }
-    Print() << "    Vapour material: " << m_vapour_mat->name() << "\n";
+    Print() << "    Vapour material: " << getEnumNameString(m_vapour_mat->m_name) << "\n";
 
     for (int i = 0; i < m_num_initializations; i++) {
         Print() << "SuperDropletPC(" << m_name << ") Initialization";
@@ -401,7 +401,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
 
     const int n_aerosols = m_num_aerosols;
     const int n_aerosols_max = SupDropInit::num_aerosols_max;
-    const Real mat_density = m_vapour_mat->density();
+    const Real mat_density = m_vapour_mat->m_density;
 
     const auto sampled_multiplicity = a_init.sampledMultiplicity();
 
@@ -499,9 +499,9 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         for (int i = 0; i < n_aerosols; i++) {
             Vector<Real> aerosol_mass_h;
             if (sampled_multiplicity) {
-                a_init.getAerosolDistribution( aerosol_mass_h, multiplicity_h, i, np,  m_aerosol_mat[i]->density(), m_rndeng );
+                a_init.getAerosolDistribution( aerosol_mass_h, multiplicity_h, i, np,  m_aerosol_mat[i]->m_density, m_rndeng );
             } else {
-                a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->density(), m_rndeng );
+                a_init.getAerosolDistribution( aerosol_mass_h, i, np,  m_aerosol_mat[i]->m_density, m_rndeng );
             }
             Gpu::copy( Gpu::hostToDevice,
                        aerosol_mass_h.begin(),
@@ -685,7 +685,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     const int n_aerosols_max = SupDropInit::num_aerosols_max;
 
     // condensate density
-    const Real mat_density = m_vapour_mat->density();
+    const Real mat_density = m_vapour_mat->m_density;
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

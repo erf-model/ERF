@@ -68,8 +68,8 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Constructor */
         SuperDropletPC (  amrex::ParGDBBase* a_gdb,
-                          const std::string& a_vap_mat,
-                          const std::vector<std::string>& a_aerosol_mat,
+                          const Species::Name& a_vap_mat,
+                          const std::vector<Species::Name>& a_aerosol_mat,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_gdb, a_name)
         {
@@ -83,8 +83,8 @@ class SuperDropletPC : public ERFPC
         SuperDropletPC (  const amrex::Geometry& a_geom,
                           const amrex::DistributionMapping& a_dmap,
                           const amrex::BoxArray& a_ba,
-                          const std::string& a_vap_mat,
-                          const std::vector<std::string>& a_aerosol_mat,
+                          const Species::Name& a_vap_mat,
+                          const std::vector<Species::Name>& a_aerosol_mat,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_geom, a_dmap, a_ba, a_name)
         {
@@ -100,7 +100,7 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Set vapour material */
-        virtual inline void setVapourMaterial ( const std::string& a_name )
+        virtual inline void setVapourMaterial ( const Species::Name& a_name )
         {
             m_vapour_mat = std::make_unique<MaterialProperties>(a_name);
         }
@@ -112,16 +112,16 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Set aerosol material */
-        virtual inline void setAerosolMaterial ( const std::string& a_name )
+        virtual inline void setAerosolMaterial ( const Species::Name& a_name )
         {
             m_aerosol_mat.push_back(std::make_unique<MaterialProperties>(a_name));
         }
 
         /*! \brief Set aerosol material */
-        virtual inline void setAerosolMaterial ( const std::vector<std::string>& a_names )
+        virtual inline void setAerosolMaterial ( const std::vector<Species::Name>& a_names )
         {
-            for (unsigned long i = 0; i < a_names.size(); i++) {
-                setAerosolMaterial( a_names[i] );
+            for (auto name : a_names ) {
+                setAerosolMaterial( name );
             }
         }
 
@@ -183,6 +183,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int,
                                     amrex::Real,
+                                    const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
@@ -323,8 +324,8 @@ class SuperDropletPC : public ERFPC
     private:
 
         /*! \brief define super-droplets */
-        void define ( const std::string&,
-                      const std::vector<std::string>&,
+        void define ( const Species::Name&,
+                      const std::vector<Species::Name>&,
                       const amrex::BoxArray&,
                       const amrex::DistributionMapping& );
 

@@ -24,7 +24,7 @@ Vector<std::string> SuperDropletPC::varNames () const
 #endif
                                             "uid" };
     for (int i = 0; i < m_num_aerosols; i++) {
-        retval.push_back(std::string("aerosol_mass_"+m_aerosol_mat[i]->name()));
+        retval.push_back(std::string("aerosol_mass_"+getEnumNameString(m_aerosol_mat[i]->m_name)));
     }
     return retval;
 }
@@ -39,16 +39,16 @@ Vector<std::string> SuperDropletPC::meshPlotVarNames () const
                                           "number_density",
                                           "mass_density",
                                           "radius",
-                                          ("mass_density_"+m_vapour_mat->name()),
+                                          ("mass_density_"+getEnumNameString(m_vapour_mat->m_name)),
                                           AMREX_D_DECL (
-                                              ("mass_flux_x_"+m_vapour_mat->name()),
-                                              ("mass_flux_y_"+m_vapour_mat->name()),
-                                              ("mass_flux_z_"+m_vapour_mat->name()) ) };
+                                              ("mass_flux_x_"+getEnumNameString(m_vapour_mat->m_name)),
+                                              ("mass_flux_y_"+getEnumNameString(m_vapour_mat->m_name)),
+                                              ("mass_flux_z_"+getEnumNameString(m_vapour_mat->m_name)) ) };
     for (int i = 0; i < m_num_aerosols; i++) {
-        retval.push_back(std::string("aerosol_mass_density_"+m_aerosol_mat[i]->name()));
-        retval.push_back(std::string("aerosol_mass_flux_x_"+m_aerosol_mat[i]->name()));
-        retval.push_back(std::string("aerosol_mass_flux_y_"+m_aerosol_mat[i]->name()));
-        retval.push_back(std::string("aerosol_mass_flux_z_"+m_aerosol_mat[i]->name()));
+        retval.push_back(std::string("aerosol_mass_density_"+getEnumNameString(m_aerosol_mat[i]->m_name)));
+        retval.push_back(std::string("aerosol_mass_flux_x_"+getEnumNameString(m_aerosol_mat[i]->m_name)));
+        retval.push_back(std::string("aerosol_mass_flux_y_"+getEnumNameString(m_aerosol_mat[i]->m_name)));
+        retval.push_back(std::string("aerosol_mass_flux_z_"+getEnumNameString(m_aerosol_mat[i]->m_name)));
     }
     return retval;
 }
@@ -325,7 +325,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
 
         Print() << "    aerosol masses [kg]:\n";
         for (int ia = 0; ia < m_num_aerosols; ia++) {
-            Print() << "        " << m_aerosol_mat[ia]->name()
+            Print() << "        " << getEnumNameString(m_aerosol_mat[ia]->m_name)
                     << ": "
                     << min_mass_aerosols[ia] << ", " << max_mass_aerosols[ia] << ", " << avg_mass_aerosols[ia] << "\n";
         }
@@ -343,7 +343,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     }
 
     if (a_flag && (num_total_particles > 0)) {
-        auto density = m_vapour_mat->density();
+        auto density = m_vapour_mat->m_density;
         auto r_eff_min = std::cbrt( min_par_mass / ((4.0/3.0)*PI*density) );
         auto r_eff_max = std::cbrt( max_par_mass / ((4.0/3.0)*PI*density) );
         for (int ia = 0; ia < m_num_aerosols; ia++) {
@@ -397,7 +397,7 @@ void SuperDropletPC::ComputeDistributions( const int& a_iter,
     const ParticleReal lambda = 1.0 / (2.0*sigma*sigma);
     const ParticleReal gamma = 1.0/(std::sqrt(2.0*PI)*sigma) * inv_bin_volume;
 
-    auto density = m_vapour_mat->density();
+    auto density = m_vapour_mat->m_density;
 
     // compute g(ln R)
     using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
@@ -482,7 +482,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int& a_iter)
         ln_R[n] = std::log(r_min) + n*dln_R;
     }
 
-    auto density = m_vapour_mat->density(); // why is this a vapour_mat? should be a condensed phase
+    auto density = m_vapour_mat->m_density;
 
     // compute g(ln R)
     using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
@@ -567,7 +567,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int& a_iter,
         ln_R[n] = std::log(r_min) + n*dln_R;
     }
 
-    auto density = m_vapour_mat->density();
+    auto density = m_vapour_mat->m_density;
     Vector<std::string> varnames(Nbin,"");
     m_mass_ln_R_mf.setVal(0.0);
     m_num_ln_R_mf.setVal(0.0);

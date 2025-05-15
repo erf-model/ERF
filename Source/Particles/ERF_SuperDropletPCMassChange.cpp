@@ -14,6 +14,7 @@ using namespace SDMassChangeUtils;
 void SuperDropletPC::MassChange ( int                                         a_lev,
                                   Real                                        a_dt,
                                   const MultiFab&                             a_temperature,
+                                  const MultiFab&                             a_pressure,
                                   const MultiFab&                             a_sat_pressure,
                                   const MultiFab&                             a_sat_ratio,
                                   const Vector<std::unique_ptr<MultiFab>>&    a_z_phys_nd )
@@ -31,8 +32,8 @@ void SuperDropletPC::MassChange ( int                                         a_
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
     const int num_aerosols = m_num_aerosols;
-    const Real mat_density = m_vapour_mat->density();
-    const std::string vap_name = m_vapour_mat->name();
+    const MaterialProperties vapour_mat(*m_vapour_mat);
+    const Real mat_density = vapour_mat.m_density;
 
     const bool log_unconverged = m_mass_change_logging;
     [[maybe_unused]] FILE* file_handle = m_mass_change_log;
@@ -69,8 +70,8 @@ void SuperDropletPC::MassChange ( int                                         a_
                 aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
                                                         + SuperDropletsRealIdxSoA_RT::ncomps
                                                         + i ).data();
-                aerosol_mol_weight_h[i] = m_aerosol_mat[i]->molWeight();
-                aerosol_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
+                aerosol_mol_weight_h[i] = m_aerosol_mat[i]->m_mol_weight;
+                aerosol_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
             }
             Gpu::copy(  Gpu::hostToDevice,
                         aerosol_mol_weight_h.begin(),
@@ -85,24 +86,19 @@ void SuperDropletPC::MassChange ( int                                         a_
         const auto& sat_pressure_arr = a_sat_pressure[grid].array();
         const auto& sat_ratio_arr = a_sat_ratio[grid].array();
         const auto& temperature_arr = a_temperature[grid].array();
+        const auto& pressure_arr = a_pressure[grid].array();
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-        dRdt<ParticleReal> drdt{ m_vapour_mat->coeffCurv(),
-                                 m_vapour_mat->coeffVPSolute(),
-                                 m_vapour_mat->latHeatVap(),
+        dRdt<ParticleReal> drdt{ vapour_mat.m_lat_vap,
                                  therco, /* ERF_Constants.H */
-                                 m_vapour_mat->Rv(),
-                                 mat_density,
-                                 diffelq /* ERF_Constants.H */};
+                                 vapour_mat.m_Rv,
+                                 mat_density };
 #endif
 
-        dRsqdt<ParticleReal> drsqdt{ m_vapour_mat->coeffCurv(),
-                                     m_vapour_mat->coeffVPSolute(),
-                                     m_vapour_mat->latHeatVap(),
+        dRsqdt<ParticleReal> drsqdt{ vapour_mat.m_lat_vap,
                                      therco, /* ERF_Constants.H */
-                                     m_vapour_mat->Rv(),
-                                     mat_density,
-                                     diffelq /* ERF_Constants.H */};
+                                     vapour_mat.m_Rv,
+                                     mat_density };
 
         NewtonSolver< dRsqdt<ParticleReal>, ParticleReal > newton_solver{ drsqdt,
                                                                           m_newton_rtol,
@@ -126,15 +122,17 @@ void SuperDropletPC::MassChange ( int                                         a_
             if (p.id() <= 0) { return; }
             if (mult_ptr[i] == 0.0) { return; }
 
-            ParticleReal sat_ratio, e_sat, temperature;
+            ParticleReal sat_ratio, e_sat, temperature, pressure;
             if (is_periodic_z) {
                 cic_interpolate( p, plo, dxi, sat_pressure_arr, &e_sat, 1 );
                 cic_interpolate( p, plo, dxi, sat_ratio_arr, &sat_ratio, 1 );
                 cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
+                cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
             } else {
                 cic_interpolate_mapped_z( p, plo, dxi, sat_pressure_arr, zheight, &e_sat, 1 );
                 cic_interpolate_mapped_z( p, plo, dxi, sat_ratio_arr, zheight, &sat_ratio, 1 );
                 cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
             }
 
             ParticleReal solute_moles = 0.0;
@@ -144,14 +142,27 @@ void SuperDropletPC::MassChange ( int                                         a_
                 }
             }
 
+            auto coeff_curv = vapour_mat.coeffCurv(temperature);
+            auto coeff_sol = vapour_mat.coeffVPSolute();
+            auto coeff_moldiff = vapour_mat.coeffMolecularDiffusion(temperature, pressure);
+
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-            condt_ptr[i] = drdt( radius_ptr[i], sat_ratio, temperature, e_sat, solute_moles);
+            condt_ptr[i] = drdt( radius_ptr[i],
+                                 sat_ratio,
+                                 temperature,
+                                 e_sat,
+                                 coeff_moldiff,
+                                 coeff_curv,
+                                 coeff_sol,
+                                 solute_moles);
 #endif
 
             TI< dRsqdt<ParticleReal>,
                 NewtonSolver<dRsqdt<ParticleReal>, ParticleReal>,
                 ParticleReal > ti { drsqdt, newton_solver, a_dt, 100,
-                                    sat_ratio, temperature, e_sat, solute_moles,
+                                    sat_ratio, temperature, e_sat,
+                                    coeff_moldiff, coeff_curv, coeff_sol,
+                                    solute_moles,
                                     cfl, 1e-40, 1e-3, 1e-6, false, false };
 
 
