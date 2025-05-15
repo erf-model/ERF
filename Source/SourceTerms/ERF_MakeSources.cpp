@@ -91,7 +91,7 @@ void make_sources (int level,
     {
         //
         // The call to "compute_averages" currently does all the components in one call
-        // We can then extract each component separately with the "line_average" call 
+        // We can then extract each component separately with the "line_average" call
         //
         // We need just one ghost cell in the vertical
         //
@@ -102,7 +102,7 @@ void make_sources (int level,
         //
         int ncomp = (solverChoice.moisture_type == MoistureType::None) ? 2 : RhoQ2_comp+1;
         MultiFab cons(S_data[IntVars::cons], make_alias, 0, ncomp);
-       
+
         PlaneAverage cons_ave(&cons, geom, solverChoice.ave_plane, ng_c);
         cons_ave.compute_averages(ZDir(), cons_ave.field());
 
