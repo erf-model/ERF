@@ -140,9 +140,13 @@ void make_mom_sources (int level,
 
     if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding))
     {
-        // Rho
+        //
+        // We use the alias here to control ncomp inside the PlaneAverage
+        //
+        MultiFab cons(S_data[IntVars::cons], make_alias, 0, 1);
+
         IntVect ng_c = S_data[IntVars::cons].nGrowVect(); ng_c[2] = 1;
-        PlaneAverage r_ave(&S_data[IntVars::cons], geom, solverChoice.ave_plane, ng_c);
+        PlaneAverage r_ave(&cons, geom, solverChoice.ave_plane, ng_c);
         r_ave.compute_averages(ZDir(), r_ave.field());
 
         int ncell = r_ave.ncell_line();
