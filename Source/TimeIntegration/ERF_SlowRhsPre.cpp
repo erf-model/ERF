@@ -128,7 +128,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain_fitted_coords);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
-    const bool l_reflux = (solverChoice.coupling_type == CouplingType::TwoWay);
+    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
 
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
@@ -353,7 +353,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 flux_tmp[dir].setVal<RunOn::Device>(0.);
             }
         }
-        const GpuArray<const Array4<Real>, AMREX_SPACEDIM> flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
+        const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
+            flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
 
         // Define flux arrays for momentum variables (used only for EB now)
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_u_arr{};
@@ -822,7 +823,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // We only add to the flux registers in the final RK step
         // NOTE: for now we are only refluxing density not (rho theta) since the latter seems to introduce
         //       a problem at top and bottom boundaries
-        if (l_reflux && nrk == 2) {
+        if (l_reflux) {
             int strt_comp_reflux = (l_fixed_rho) ? 1 : 0;
             int  num_comp_reflux = 1;
             if (level < finest_level) {

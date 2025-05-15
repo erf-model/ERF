@@ -338,19 +338,21 @@ void erf_fast_rhs_MT (int step, int nrk,
                                      ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
                                        yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi) * 0.5;
 
-            (flx_arr[0])(i,j,k,0) = xflux_lo;
-            (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i-1,j,k,0));
+            if (l_reflux) {
+                (flx_arr[0])(i,j,k,0) = xflux_lo;
+                (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i-1,j,k,0));
 
-            (flx_arr[1])(i,j,k,0) = yflux_lo;
-            (flx_arr[1])(i,j,k,1) = (flx_arr[1])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
+                (flx_arr[1])(i,j,k,0) = yflux_lo;
+                (flx_arr[1])(i,j,k,1) = (flx_arr[1])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
 
-            if (i == vbx_hi.x) {
-                (flx_arr[0])(i+1,j,k,0) = xflux_hi;
-                (flx_arr[0])(i+1,j,k,1) = (flx_arr[0])(i+1,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i+1,j,k,0));
-            }
-            if (j == vbx_hi.y) {
-                (flx_arr[1])(i,j+1,k,0) = yflux_hi;
-                (flx_arr[1])(i,j+1,k,1) = (flx_arr[1])(i,j+1,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j+1,k,0));
+                if (i == vbx_hi.x) {
+                    (flx_arr[0])(i+1,j,k,0) = xflux_hi;
+                    (flx_arr[0])(i+1,j,k,1) = (flx_arr[0])(i+1,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i+1,j,k,0));
+                }
+                if (j == vbx_hi.y) {
+                    (flx_arr[1])(i,j+1,k,0) = yflux_hi;
+                    (flx_arr[1])(i,j+1,k,1) = (flx_arr[1])(i,j+1,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j+1,k,0));
+                }
             }
         });
         } // end profile
@@ -588,7 +590,9 @@ void erf_fast_rhs_MT (int step, int nrk,
               // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
               // so we don't update avg_zmom at k=vbx_hi.z+1
               avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
-              (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
+              if (l_reflux) {
+                  (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
+              }
 
               // Note that the factor of (1/J) in the fast source term is canceled
               // when we multiply old and new by detJ_old and detJ_new , respectively
@@ -607,12 +611,16 @@ void erf_fast_rhs_MT (int step, int nrk,
               Real temp_rth = detJ_old(i,j,k) * cur_cons(i,j,k,1) +
                               dtau * ( slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta );
               cur_cons(i,j,k,1) = temp_rth / detJ_new(i,j,k);
-              (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
+              if (l_reflux) {
+                  (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
+              }
 
               if (k == vbx_hi.z) {
                   avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
-                  (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
-                  (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
+                  if (l_reflux) {
+                      (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
+                      (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
+                  }
               }
 
               // add in source terms for cell-centered conserved variables
@@ -622,7 +630,7 @@ void erf_fast_rhs_MT (int step, int nrk,
         } // end profile
 
         // We only add to the flux registers in the final RK step
-        if (l_reflux && nrk == 2) {
+        if (l_reflux) {
             int strt_comp_reflux = 0;
             int  num_comp_reflux = 2;
             if (level < finest_level) {

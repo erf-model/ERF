@@ -108,7 +108,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     const bool l_use_terrain      = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
-    const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
+    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_anelastic   = solverChoice.anelastic[level];
@@ -587,7 +587,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         {
         BL_PROFILE("rhs_post_10");
         // We only add to the flux registers in the final RK step
-        if (l_reflux && nrk == 2) {
+        if (l_reflux) {
             int strt_comp_reflux = RhoTheta_comp + 1;
             int  num_comp_reflux = nvars - strt_comp_reflux;
             if (level < finest_level) {

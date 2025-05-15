@@ -76,7 +76,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         // *************************************************************************
         // Set up flux registers if using two_way coupling
         // *************************************************************************
-        const bool l_reflux = (solverChoice.coupling_type == CouplingType::TwoWay);
+        const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
 
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;
