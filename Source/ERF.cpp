@@ -1151,7 +1151,7 @@ ERF::InitData_post ()
 
 
         if (restart_chkfile != "") {
-            // Update surface fields if needed
+            // Update surface fields if needed (and available)
             ReadCheckpointFileSurfaceLayer();
         }
 
@@ -1192,7 +1192,7 @@ ERF::InitData_post ()
                 m_SurfaceLayer->update_fluxes(lev, time);
             }
         }
-    }
+    } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
 
     // Update micro vars before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {

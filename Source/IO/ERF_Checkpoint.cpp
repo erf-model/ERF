@@ -965,41 +965,62 @@ ERF::ReadCheckpointFileSurfaceLayer ()
         MultiFab* dst = nullptr;
 
         // U*
-        dst = m_SurfaceLayer->get_u_star(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Ustar"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        std::string UstarFileName(restart_chkfile + "/Level_0/Ustar_H");
+        if (amrex::FileExists(UstarFileName)) {
+            dst = m_SurfaceLayer->get_u_star(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Ustar"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
 
         // W*
-        dst = m_SurfaceLayer->get_w_star(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wstar"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        std::string WstarFileName(restart_chkfile + "/Level_0/Wstar_H");
+        if (amrex::FileExists(WstarFileName)) {
+            dst = m_SurfaceLayer->get_w_star(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wstar"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
 
         // T*
-        dst = m_SurfaceLayer->get_t_star(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Tstar"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        std::string TstarFileName(restart_chkfile + "/Level_0/Tstar_H");
+        if (amrex::FileExists(TstarFileName)) {
+            dst = m_SurfaceLayer->get_t_star(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Tstar"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
 
         // Q*
-        dst = m_SurfaceLayer->get_q_star(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qstar"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        std::string QstarFileName(restart_chkfile + "/Level_0/Qstar_H");
+        if (amrex::FileExists(QstarFileName)) {
+            dst = m_SurfaceLayer->get_q_star(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qstar"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
 
         // Olen
-        dst = m_SurfaceLayer->get_olen(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        std::string OlenFileName(restart_chkfile + "/Level_0/Olen_H");
+        if (amrex::FileExists(OlenFileName)) {
+            dst = m_SurfaceLayer->get_olen(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
 
         // PBLH
-        dst = m_SurfaceLayer->get_pblh(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PBLH"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        std::string PBLHFileName(restart_chkfile + "/Level_0/PBLH_H");
+        if (amrex::FileExists(PBLHFileName)) {
+            dst = m_SurfaceLayer->get_pblh(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PBLH"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
 
         // Z0
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
-        for (amrex::MFIter mfi(m_var); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.growntilebox();
-            FArrayBox* most_z0 = (m_SurfaceLayer->get_z0(lev));
-            most_z0->copy<RunOn::Device>(m_var[mfi], bx);
+        std::string Z0FileName(restart_chkfile + "/Level_0/Z0_H");
+        if (amrex::FileExists(Z0FileName)) {
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
+            for (amrex::MFIter mfi(m_var); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.growntilebox();
+                FArrayBox* most_z0 = (m_SurfaceLayer->get_z0(lev));
+                most_z0->copy<RunOn::Device>(m_var[mfi], bx);
+            }
         }
     }
 }
