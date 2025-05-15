@@ -142,13 +142,13 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // Source arrays for momenta -- these will be filled
     //     in the call to make_mom_sources in ERF_TI_slow_rhs_fun.H
     BoxArray ba_x(ba); ba_x.surroundingNodes(0);
-    MultiFab xmom_source(ba_x,dm,nvars,1); xmom_source.setVal(0.0);
+    MultiFab xmom_source(ba_x,dm,1,1); xmom_source.setVal(0.0);
 
     BoxArray ba_y(ba); ba_y.surroundingNodes(1);
-    MultiFab ymom_source(ba_y,dm,nvars,1); ymom_source.setVal(0.0);
+    MultiFab ymom_source(ba_y,dm,1,1); ymom_source.setVal(0.0);
 
     BoxArray ba_z(ba); ba_z.surroundingNodes(2);
-    MultiFab zmom_source(ba_z,dm,nvars,1); zmom_source.setVal(0.0);
+    MultiFab zmom_source(ba_z,dm,1,1); zmom_source.setVal(0.0);
 
     amrex::Vector<MultiFab> state_old;
     amrex::Vector<MultiFab> state_new;

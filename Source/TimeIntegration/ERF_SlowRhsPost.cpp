@@ -153,9 +153,9 @@ void erf_slow_rhs_post (int level, int finest_level,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, 0);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, 0);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 0);
     } else {
         dflux_x = nullptr;
         dflux_y = nullptr;
@@ -240,11 +240,11 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (solverChoice.terrain_type != TerrainType::EB) {
                 flux[dir].resize(surroundingNodes(tbx,dir),nvars);
             } else {
-                flux[dir].resize(surroundingNodes(tbx,dir).grow(1),nvars);
+                flux[dir].resize(surroundingNodes(tbx,dir).grow(1),1);
             }
             flux[dir].setVal<RunOn::Device>(0.);
             if (l_use_mono_adv) {
-                flux_tmp[dir].resize(surroundingNodes(tbx,dir),nvars);
+                flux_tmp[dir].resize(surroundingNodes(tbx,dir),1);
                 flux_tmp[dir].setVal<RunOn::Device>(0.);
             }
         }
@@ -392,8 +392,9 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (is_valid_slow_var[ivar])
             {
                 start_comp = ivar;
+                num_comp = 1;
 
-                if (ivar >= RhoQ1_comp) {
+                if (ivar == RhoQ1_comp) {
                     horiz_adv_type = ac.moistscal_horiz_adv_type;
                      vert_adv_type = ac.moistscal_vert_adv_type;
                     horiz_upw_frac = ac.moistscal_horiz_upw_frac;
@@ -416,7 +417,10 @@ void erf_slow_rhs_post (int level, int finest_level,
                          horiz_adv_type = EfficientAdvType(nrk,ac.dryscal_horiz_adv_type);
                           vert_adv_type = EfficientAdvType(nrk,ac.dryscal_vert_adv_type);
                     }
-                    num_comp = 1;
+
+                    if (ivar == RhoScalar_comp) {
+                        num_comp = NSCALARS;
+                    }
                 }
 
                 if (( ivar != RhoKE_comp                 ) ||
@@ -492,11 +496,11 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (is_valid_slow_var[ivar])
             {
                 start_comp = ivar;
-
-                if (ivar >= RhoQ1_comp) {
+                num_comp = 1;
+                if (ivar == RhoQ1_comp) {
                     num_comp = nvars - RhoQ1_comp;
-                } else {
-                    num_comp = 1;
+                } else if (ivar == RhoScalar_comp) {
+                    num_comp = NSCALARS;
                 }
 
                if (l_moving_terrain)
@@ -614,10 +618,11 @@ void erf_slow_rhs_post (int level, int finest_level,
               if (is_valid_slow_var[ivar])
               {
                   start_comp = ivar;
-                  if (ivar >= RhoQ1_comp) {
+                  num_comp   = 1;
+                  if (ivar == RhoQ1_comp) {
                       num_comp = nvars - RhoQ1_comp;
-                  } else {
-                      num_comp = 1;
+                  } else if (ivar == RhoScalar_comp) {
+                      num_comp = NSCALARS;
                   }
               }
           }
