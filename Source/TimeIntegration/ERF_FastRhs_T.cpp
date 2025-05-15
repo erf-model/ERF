@@ -37,7 +37,7 @@ using namespace amrex;
  * @param[in   ] l_implicit_substepping
  */
 
-void erf_fast_rhs_T (int step, int nrk,
+void erf_fast_rhs_T (int step, int /*nrk*/,
                      int level, int finest_level,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
