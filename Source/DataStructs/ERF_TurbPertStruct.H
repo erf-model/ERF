@@ -606,13 +606,13 @@ struct TurbulentPerturbation {
         // Computing the average magnitude within PB
         #ifdef USE_VOLUME_AVERAGE
         m_pb_mag[boxIdx] = sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1]);
-        m_pb_dir[boxIdx] = std::atan(std::abs(avg_h[0]) / std::abs(avg_h[1]));
+        m_pb_dir[boxIdx] = std::atan(std::abs(avg_h[0]) / std::abs(avg_h[1]+std::numeric_limits<amrex::Real>::epsilon()));
         #endif
 
         #ifdef USE_SLAB_AVERAGE
         m_pb_mag[boxIdx] = 0.5*( sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1])
                                + sqrt(avg_h[2]*avg_h[2] + avg_h[3]*avg_h[3]));
-        m_pb_dir[boxIdx] = std::atan(std::abs(0.5*(avg_h[0]+avg_h[2])) / std::abs(0.5*(avg_h[1]+avg_h[3])));
+        m_pb_dir[boxIdx] = std::atan(std::abs(0.5*(avg_h[0]+avg_h[2])) / std::abs(0.5*(avg_h[1]+avg_h[3])+std::numeric_limits<amrex::Real>::epsilon()));
         #endif
     }
 
