@@ -223,14 +223,14 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
 
-        ParticleReal condensate_density = m_vapour_mat->density();
+        ParticleReal condensate_density = m_vapour_mat->m_density;
         Gpu::DeviceVector<ParticleReal> aero_density_d;
         {
             Vector<ParticleReal> aero_density_h;
             aero_density_h.resize(num_aerosols);
             aero_density_d.resize(num_aerosols);
             for (int ia = 0; ia < num_aerosols; ia++) {
-                aero_density_h[ia] = m_aerosol_mat[ia]->density();
+                aero_density_h[ia] = m_aerosol_mat[ia]->m_density;
             }
             Gpu::copy(  Gpu::hostToDevice,
                         aero_density_h.begin(),

@@ -53,7 +53,7 @@ void SuperDropletsMoist::readInputs ()
     std::string aerosol_input = "aerosols";
     if (pp.contains(aerosol_input.c_str())) {
         int num_aerosols = pp.countval(aerosol_input.c_str());
-        std::string aero_name;
+        Species::Name aero_name;
         for (int i = 0; i < num_aerosols; i++) {
             pp.get(aerosol_input.c_str(), aero_name, i);
             m_aerosols.push_back(aero_name);
@@ -110,7 +110,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
     }
 
     /* create the super-droplet particle container */
-    std::string vapour_mat = MaterialNames::h2o; // water
+    Species::Name vapour_mat = Species::Name::H2O; // water
     m_super_droplets = new SuperDropletPC ( a_geom,
                                             a_cons_vars.DistributionMap(),
                                             a_cons_vars.boxArray(),

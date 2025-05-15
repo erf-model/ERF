@@ -196,7 +196,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         Array<FabPtr, MicVar_SD::NumVars> m_mic_fab_vars;
 
         /*! names of aerosols */
-        std::vector<std::string> m_aerosols;
+        std::vector<Species::Name> m_aerosols;
 
         /*! number of substeps for phase change */
         int m_num_substeps_phase_change;

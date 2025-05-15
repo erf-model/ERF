@@ -17,13 +17,13 @@ void SuperDropletPC::computeMeshVar( const std::string&  a_var_name,
             numberDensity( a_mf );
         } else if (a_var_name == "mass_density") {
             massDensity( a_mf );
-        } else if (a_var_name == ("mass_density_"+m_vapour_mat->name())) {
+        } else if (a_var_name == ("mass_density_"+getEnumNameString(m_vapour_mat->m_name))) {
             massDensityCondensate( a_mf );
-        } else if (a_var_name == ("mass_flux_x_"+m_vapour_mat->name())) {
+        } else if (a_var_name == ("mass_flux_x_"+getEnumNameString(m_vapour_mat->m_name))) {
             massFluxCondensate( a_mf, 0 );
-        } else if (a_var_name == ("mass_flux_y_"+m_vapour_mat->name())) {
+        } else if (a_var_name == ("mass_flux_y_"+getEnumNameString(m_vapour_mat->m_name))) {
             massFluxCondensate( a_mf, 1 );
-        } else if (a_var_name == ("mass_flux_z_"+m_vapour_mat->name())) {
+        } else if (a_var_name == ("mass_flux_z_"+getEnumNameString(m_vapour_mat->m_name))) {
             massFluxCondensate( a_mf, 2 );
         } else if (a_var_name == "mass_flux_x") {
             massFlux( a_mf, 0 );
@@ -35,28 +35,28 @@ void SuperDropletPC::computeMeshVar( const std::string&  a_var_name,
             effectiveRadius( a_mf );
         } else {
             for (int i = 0; i < m_num_aerosols; i++) {
-                std::string var_name = "aerosol_mass_density_"+m_aerosol_mat[i]->name();
+                std::string var_name = "aerosol_mass_density_"+getEnumNameString(m_aerosol_mat[i]->m_name);
                 if (a_var_name == var_name) {
                     aerosolMassDensity( a_mf, i );
                     break;
                 }
             }
             for (int i = 0; i < m_num_aerosols; i++) {
-                std::string var_name = "aerosol_mass_flux_x_"+m_aerosol_mat[i]->name();
+                std::string var_name = "aerosol_mass_flux_x_"+getEnumNameString(m_aerosol_mat[i]->m_name);
                 if (a_var_name == var_name) {
                     aerosolMassFlux( a_mf, i, 0 );
                     break;
                 }
             }
             for (int i = 0; i < m_num_aerosols; i++) {
-                std::string var_name = "aerosol_mass_flux_y_"+m_aerosol_mat[i]->name();
+                std::string var_name = "aerosol_mass_flux_y_"+getEnumNameString(m_aerosol_mat[i]->m_name);
                 if (a_var_name == var_name) {
                     aerosolMassFlux( a_mf, i, 1 );
                     break;
                 }
             }
             for (int i = 0; i < m_num_aerosols; i++) {
-                std::string var_name = "aerosol_mass_flux_z_"+m_aerosol_mat[i]->name();
+                std::string var_name = "aerosol_mass_flux_z_"+getEnumNameString(m_aerosol_mat[i]->m_name);
                 if (a_var_name == var_name) {
                     aerosolMassFlux( a_mf, i, 2 );
                     break;

@@ -30,7 +30,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     const auto dx_h = Geom(m_lev).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
-    const Real mat_density = m_vapour_mat->density();
+    const Real mat_density = m_vapour_mat->m_density;
     const int n_aerosols = m_num_aerosols;
     const int n_aerosols_max = SupDropInit::num_aerosols_max;
 

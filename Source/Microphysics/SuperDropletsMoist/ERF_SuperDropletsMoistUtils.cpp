@@ -228,7 +228,7 @@ void SuperDropletsMoist::rainAccumulation ()
     auto dt = m_dt;
 
     auto& vapour_mat = m_super_droplets->getVapourMaterial();
-    auto mat_density = vapour_mat.density();
+    auto mat_density = vapour_mat.m_density;
 
     MultiFab mf_zflux( m_mic_fab_vars[MicVar_SD::rain_accum]->boxArray(),
                        m_mic_fab_vars[MicVar_SD::rain_accum]->DistributionMap(),

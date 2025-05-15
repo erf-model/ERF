@@ -56,6 +56,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
         m_super_droplets->MassChange (  0,
                                         dt_s,
                                         (*m_mic_fab_vars[MicVar_SD::temperature]),
+                                        (*m_mic_fab_vars[MicVar_SD::pressure]),
                                         mf_sat_pressure,
                                         (*m_mic_fab_vars[MicVar_SD::rh]),
                                         a_z );

@@ -27,7 +27,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     const int k_lo = domain.smallEnd(2);
     const int k_hi = domain.bigEnd(2);
 
-    const Real mat_density = m_vapour_mat->density();
+    const Real mat_density = m_vapour_mat->m_density;
     const int n_aerosols = m_num_aerosols;
     const int n_aerosols_max = SupDropInit::num_aerosols_max;
 
