@@ -220,8 +220,8 @@ public:
           m_use_real_bcs(use_real_bcs),
           m_w_bc_data(w_bc_data)
     {
-          m_mapfac_u = mapfac_lev[MapFacType::ux].get();
-          m_mapfac_v = mapfac_lev[MapFacType::vx].get();
+          m_mapfac_u = mapfac_lev[MapFacType::u_x].get();
+          m_mapfac_v = mapfac_lev[MapFacType::v_x].get();
     }
 
     ~ERFPhysBCFunct_w () {}

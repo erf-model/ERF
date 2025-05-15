@@ -86,12 +86,12 @@ void erf_make_tau_terms (int level, int nrk,
             const Array4<const Real> & w = zvel.array(mfi);
 
             // Map factors
-            const Array4<const Real>& mf_mx  = mapfac[MapFacType::mx]->const_array(mfi);
-            const Array4<const Real>& mf_ux  = mapfac[MapFacType::ux]->const_array(mfi);
-            const Array4<const Real>& mf_vx  = mapfac[MapFacType::vx]->const_array(mfi);
-            const Array4<const Real>& mf_my  = mapfac[MapFacType::my]->const_array(mfi);
-            const Array4<const Real>& mf_uy  = mapfac[MapFacType::uy]->const_array(mfi);
-            const Array4<const Real>& mf_vy  = mapfac[MapFacType::vy]->const_array(mfi);
+            const Array4<const Real>& mf_mx  = mapfac[MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_ux  = mapfac[MapFacType::u_x]->const_array(mfi);
+            const Array4<const Real>& mf_vx  = mapfac[MapFacType::v_x]->const_array(mfi);
+            const Array4<const Real>& mf_my  = mapfac[MapFacType::m_y]->const_array(mfi);
+            const Array4<const Real>& mf_uy  = mapfac[MapFacType::u_y]->const_array(mfi);
+            const Array4<const Real>& mf_vy  = mapfac[MapFacType::v_y]->const_array(mfi);
 
             // Eddy viscosity
             const Array4<Real const>& mu_turb   = l_use_turb       ? eddyDiffs->const_array(mfi) :

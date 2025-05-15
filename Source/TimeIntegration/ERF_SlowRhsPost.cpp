@@ -285,10 +285,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& detJ_new_arr = l_moving_terrain ? detJ_new->const_array(mfi)    : Array4<const Real>{};
 
         // Map factors
-        const Array4<const Real>& mf_mx = mapfac[MapFacType::mx]->const_array(mfi);
-        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
-        const Array4<const Real>& mf_my = mapfac[MapFacType::mx]->const_array(mfi);
-        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
+        const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_my = mapfac[MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // SmnSmn for KE src with Deardorff or k-eqn RANS
         const Array4<const Real>& SmnSmn_a = l_need_SmnSmn ? SmnSmn->const_array(mfi) : Array4<const Real>{};

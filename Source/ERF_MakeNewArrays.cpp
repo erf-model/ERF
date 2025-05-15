@@ -240,21 +240,21 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     BoxArray ba2d_mf(std::move(bl2d_mf));
 
     mapfac[lev].resize(MapFacType::num);
-    mapfac[lev][MapFacType::mx] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
-    mapfac[lev][MapFacType::ux] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
-    mapfac[lev][MapFacType::vx] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+    mapfac[lev][MapFacType::m_x] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+    mapfac[lev][MapFacType::u_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+    mapfac[lev][MapFacType::v_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
 
 #if 0
     // For now we comment this out to avoid CI failures but we will need to re-enable
     //     this if using non-conformal mappings
-    if (MapFacType::my != MapFacType::mx) {
-        mapfac[lev][MapFacType::my] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+    if (MapFacType::m_y != MapFacType::m_x) {
+        mapfac[lev][MapFacType::m_y] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
     }
-    if (MapFacType::uy != MapFacType::ux) {
-        mapfac[lev][MapFacType::uy] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+    if (MapFacType::u_y != MapFacType::u_x) {
+        mapfac[lev][MapFacType::u_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
     }
-    if (MapFacType::vy != MapFacType::vx) {
-        mapfac[lev][MapFacType::vy] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+    if (MapFacType::v_y != MapFacType::v_x) {
+        mapfac[lev][MapFacType::v_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
     }
 #endif
 

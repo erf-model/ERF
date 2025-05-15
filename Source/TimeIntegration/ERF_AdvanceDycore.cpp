@@ -156,12 +156,12 @@ void ERF::advance_dycore(int level,
             Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = z_phys_nd[level]->const_array(mfi);
 
-            const Array4<const Real> mf_mx = mapfac[level][MapFacType::mx]->const_array(mfi);
-            const Array4<const Real> mf_ux = mapfac[level][MapFacType::ux]->const_array(mfi);
-            const Array4<const Real> mf_vx = mapfac[level][MapFacType::vx]->const_array(mfi);
-            const Array4<const Real> mf_my = mapfac[level][MapFacType::my]->const_array(mfi);
-            const Array4<const Real> mf_uy = mapfac[level][MapFacType::uy]->const_array(mfi);
-            const Array4<const Real> mf_vy = mapfac[level][MapFacType::vy]->const_array(mfi);
+            const Array4<const Real> mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real> mf_ux = mapfac[level][MapFacType::u_x]->const_array(mfi);
+            const Array4<const Real> mf_vx = mapfac[level][MapFacType::v_x]->const_array(mfi);
+            const Array4<const Real> mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
+            const Array4<const Real> mf_uy = mapfac[level][MapFacType::u_y]->const_array(mfi);
+            const Array4<const Real> mf_vy = mapfac[level][MapFacType::v_y]->const_array(mfi);
 
             if (l_use_terrain_fitted_coords) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,

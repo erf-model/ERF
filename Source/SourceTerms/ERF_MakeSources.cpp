@@ -347,8 +347,8 @@ void make_sources (int level,
             int sc;
             int nc;
 
-            const Array4<const Real>& mf_mx   = mapfac[MapFacType::mx]->const_array(mfi);
-            const Array4<const Real>& mf_my   = mapfac[MapFacType::my]->const_array(mfi);
+            const Array4<const Real>& mf_mx   = mapfac[MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_my   = mapfac[MapFacType::m_y]->const_array(mfi);
 
             // Rho is a special case
             NumericalDiffusion_Scal(bx, sc=0, nc=1, dt, solverChoice.num_diff_coeff,

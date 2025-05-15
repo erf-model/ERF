@@ -18,8 +18,8 @@
 #include <ERF_TurbPertStruct.H>
 
 enum MapFacType {
-    mx, ux, vx, num,
-    my = 0, uy = 1, vy = 2
+    m_x, u_x, v_x, num,
+    m_y = 0, u_y = 1, v_y = 2
 };
 
 enum TauType {

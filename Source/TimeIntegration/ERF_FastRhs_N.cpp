@@ -192,8 +192,8 @@ void erf_fast_rhs_N (int step, int nrk,
         const Array4<Real>& theta_extrap = extrap.array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
-        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
@@ -301,10 +301,10 @@ void erf_fast_rhs_N (int step, int nrk,
         const Array4<      Real>& avg_zmom = S_scratch[IntVars::zmom].array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_mx = mapfac[MapFacType::mx]->const_array(mfi);
-        const Array4<const Real>& mf_my = mapfac[MapFacType::my]->const_array(mfi);
-        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
-        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
+        const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real>& mf_my = mapfac[MapFacType::m_y]->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         FArrayBox RHS_fab;
         RHS_fab.resize(tbz,1, The_Async_Arena());
