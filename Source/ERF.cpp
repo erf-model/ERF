@@ -516,8 +516,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real> cons_arr = vars_new[lev][Vars::cons].array(mfi);
-                const Array4<const Real>  mfx_arr = mapfac[lev][MapFacType::mx]->const_array(mfi);
-                const Array4<const Real>  mfy_arr = mapfac[lev][MapFacType::my]->const_array(mfi);
+                const Array4<const Real>  mfx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+                const Array4<const Real>  mfy_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
                 if (SolverChoice::mesh_type == MeshType::ConstantDz) {
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
@@ -540,8 +540,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
-                const Array4<const Real>  mfx_arr = mapfac[lev][MapFacType::mx]->const_array(mfi);
-                const Array4<const Real>  mfy_arr = mapfac[lev][MapFacType::my]->const_array(mfi);
+                const Array4<const Real>  mfx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+                const Array4<const Real>  mfy_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
                 if (SolverChoice::mesh_type == MeshType::ConstantDz) {
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {

@@ -313,12 +313,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<const Real>& rho_w = S_data[IntVars::zmom].array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_mx  = mapfac[MapFacType::mx]->const_array(mfi);
-        const Array4<const Real>& mf_ux  = mapfac[MapFacType::ux]->const_array(mfi);
-        const Array4<const Real>& mf_vx  = mapfac[MapFacType::vx]->const_array(mfi);
-        const Array4<const Real>& mf_my  = mapfac[MapFacType::my]->const_array(mfi);
-        const Array4<const Real>& mf_uy  = mapfac[MapFacType::uy]->const_array(mfi);
-        const Array4<const Real>& mf_vy  = mapfac[MapFacType::vy]->const_array(mfi);
+        const Array4<const Real>& mf_mx  = mapfac[MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real>& mf_ux  = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vx  = mapfac[MapFacType::v_x]->const_array(mfi);
+        const Array4<const Real>& mf_my  = mapfac[MapFacType::m_y]->const_array(mfi);
+        const Array4<const Real>& mf_uy  = mapfac[MapFacType::u_y]->const_array(mfi);
+        const Array4<const Real>& mf_vy  = mapfac[MapFacType::v_y]->const_array(mfi);
 
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 

@@ -244,8 +244,8 @@ void erf_fast_rhs_T (int step, int nrk,
         const Array4<Real>& theta_extrap = extrap.array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
-        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
         // Note that we do the Copy and Subtract including one ghost cell
@@ -384,10 +384,10 @@ void erf_fast_rhs_T (int step, int nrk,
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_mx = mapfac[MapFacType::mx]->const_array(mfi);
-        const Array4<const Real>& mf_my = mapfac[MapFacType::my]->const_array(mfi);
-        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
-        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
+        const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real>& mf_my = mapfac[MapFacType::m_y]->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
         // Note that we do the Copy and Subtract including one ghost cell
