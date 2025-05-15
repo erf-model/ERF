@@ -400,7 +400,11 @@ ERF::ERF_shared ()
         TerrainIF ebterrain(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
         auto gshop = EB2::makeShop(ebterrain);
         bool build_coarse_level_by_coarsening(false);
-        amrex::EB2::Build(gshop, geom[max_level], max_level, max_level, build_coarse_level_by_coarsening);
+        // Note this just needs to be an integer > number of V-cycles one might use
+        int max_coarsening_level = ( solverChoice.terrain_type == TerrainType::EB &&
+                                    (solverChoice.project_initial_velocity ||
+                                     solverChoice.anelastic[0] == 1) ) ? 100 : 0;
+        amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
     }
 }
 

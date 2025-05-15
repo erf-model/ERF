@@ -244,12 +244,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     mapfac[lev][MapFacType::mx] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
     mapfac[lev][MapFacType::ux] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
     mapfac[lev][MapFacType::vx] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
-
+#if 0
     if (MapFacType::num == 6) {
         mapfac[lev][MapFacType::my] = std::make_unique<MultiFab>(        ba2d_mf,                dm,1,3);
         mapfac[lev][MapFacType::uy] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
         mapfac[lev][MapFacType::vy] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
     }
+#endif
 
     if (solverChoice.test_mapfactor) {
         for (int i = 0; i < mapfac[lev].size(); i++) {

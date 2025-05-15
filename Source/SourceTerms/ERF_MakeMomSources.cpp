@@ -71,7 +71,7 @@ void make_mom_sources (int level,
     Box domain(geom.Domain());
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
-    // Initialize sources to zero since we re-compute them ever RK stage
+    // Initialize sources to zero each time we may use them
     xmom_src.setVal(0.0);
     ymom_src.setVal(0.0);
     zmom_src.setVal(0.0);
@@ -138,10 +138,15 @@ void make_mom_sources (int level,
     Table1D<Real>     dptr_r_plane, dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> r_plane_tab,  u_plane_tab,  v_plane_tab;
 
-    if (dptr_wbar_sub || solverChoice.nudging_from_input_sounding)
+    if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding))
     {
-        // Rho
-        PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+        //
+        // We use the alias here to control ncomp inside the PlaneAverage
+        //
+        MultiFab cons(S_data[IntVars::cons], make_alias, 0, 1);
+
+        IntVect ng_c = S_data[IntVars::cons].nGrowVect(); ng_c[2] = 1;
+        PlaneAverage r_ave(&cons, geom, solverChoice.ave_plane, ng_c);
         r_ave.compute_averages(ZDir(), r_ave.field());
 
         int ncell = r_ave.ncell_line();
@@ -154,7 +159,6 @@ void make_mom_sources (int level,
 
         Real* dptr_r = r_plane_d.data();
 
-        IntVect ng_c = S_data[IntVars::cons].nGrowVect();
         Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
         r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
 
@@ -166,8 +170,11 @@ void make_mom_sources (int level,
         });
 
         // U and V momentum
-        PlaneAverage u_ave(&(S_data[IntVars::xmom]), geom, solverChoice.ave_plane, true);
-        PlaneAverage v_ave(&(S_data[IntVars::ymom]), geom, solverChoice.ave_plane, true);
+        IntVect ng_u = S_data[IntVars::xmom].nGrowVect(); ng_u[2] = 1;
+        PlaneAverage u_ave(&(S_data[IntVars::xmom]), geom, solverChoice.ave_plane, ng_u);
+
+        IntVect ng_v = S_data[IntVars::ymom].nGrowVect(); ng_v[2] = 1;
+        PlaneAverage v_ave(&(S_data[IntVars::ymom]), geom, solverChoice.ave_plane, ng_v);
 
         u_ave.compute_averages(ZDir(), u_ave.field());
         v_ave.compute_averages(ZDir(), v_ave.field());
@@ -186,8 +193,6 @@ void make_mom_sources (int level,
         Real* dptr_u = u_plane_d.data();
         Real* dptr_v = v_plane_d.data();
 
-        IntVect ng_u = S_data[IntVars::xmom].nGrowVect();
-        IntVect ng_v = S_data[IntVars::ymom].nGrowVect();
         Box udomain = domain; udomain.grow(2,ng_u[2]);
         Box vdomain = domain; vdomain.grow(2,ng_v[2]);
         u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
