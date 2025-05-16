@@ -85,16 +85,17 @@ void make_mom_sources (int level,
 
     // *****************************************************************************
     // Define source term for all three components of momenta from
-    //    1. buoyancy           for (zmom)
-    //    2. Coriolis forcing   for (xmom,ymom,zmom)
-    //    3. Rayleigh damping   for (xmom,ymom,zmom)
-    //    4. Constant / height-dependent geostrophic forcing
-    //    5. subsidence
-    //    6. nudging towards input sounding data
-    //    7. numerical diffusion for (xmom,ymom,zmom)
-    //    8. sponge
-    //    9. Forest canopy
-    //   10. Immersed Forcing
+    //    1. Coriolis forcing   for (xmom,ymom,zmom)
+    //    2. Rayleigh damping   for (xmom,ymom,zmom)
+    //    3. Constant / height-dependent geostrophic forcing
+    //    4. subsidence
+    //    5. nudging towards input sounding data
+    //    6. numerical diffusion for (xmom,ymom,zmom)
+    //    7. sponge
+    //    8. Forest canopy
+    //    9. Immersed Forcing
+    // *****************************************************************************
+    // NOTE: buoyancy is now computed in a separate routine - it should not appear here
     // *****************************************************************************
     //const bool l_use_ndiff       = solverChoice.use_num_diff;
 
@@ -211,14 +212,6 @@ void make_mom_sources (int level,
         {
             dptr_v_plane(k-v_offset) = dptr_v[k];
         });
-    }
-
-    // *****************************************************************************
-    // 1. Create the BUOYANCY forcing term in the z-direction
-    // *****************************************************************************
-    if (is_slow_step) {
-        make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, base_state,
-                    n_qstate, solverChoice.anelastic[level]);
     }
 
     // *****************************************************************************

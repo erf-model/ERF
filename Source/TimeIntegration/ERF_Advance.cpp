@@ -149,6 +149,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
     BoxArray ba_z(ba); ba_z.surroundingNodes(2);
     MultiFab zmom_source(ba_z,dm,1,1); zmom_source.setVal(0.0);
+    MultiFab    buoyancy(ba_z,dm,1,1); buoyancy.setVal(0.0);
 
     amrex::Vector<MultiFab> state_old;
     amrex::Vector<MultiFab> state_new;
@@ -176,7 +177,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     advance_dycore(lev, state_old, state_new,
                    U_old, V_old, W_old,
                    U_new, V_new, W_new,
-                   cc_source, xmom_source, ymom_source, zmom_source,
+                   cc_source, xmom_source, ymom_source, zmom_source, buoyancy,
                    Geom(lev), dt_lev, time);
 
     // **************************************************************************************
