@@ -36,8 +36,6 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         Real* dptr_u_geos = solverChoice.have_geo_wind_profile ? d_u_geos[level].data(): nullptr;
         Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
 
-        int n_qstate = micro->Get_Qstate_Size();
-
         // Canopy data for mom sources
         MultiFab* forest_drag = nullptr;
         if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
