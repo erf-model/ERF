@@ -59,6 +59,7 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
                                     const MatVec& a_aerosol_mat )
 {
     BL_PROFILE("SDInitialization::readInputs");
+    using namespace amrex;
 
     amrex::ParmParse pp(a_prefix);
     pp.query("initial_distribution_type", m_type);
@@ -117,86 +118,86 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
     }
     for (int i = 0; i < m_num_species; i++) {
         {
-            std::string key = "initial_species_distribution_type_"+a_species_mat[i]->name();
+            std::string key = "initial_species_distribution_type_"+getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_species_init_type[i]);
         }
         {
-            std::string key = "initial_species_min_mass_" + a_species_mat[i]->name();
+            std::string key = "initial_species_min_mass_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_species_min[i]);
         }
         {
-            std::string key = "initial_species_mean_mass_" + a_species_mat[i]->name();
+            std::string key = "initial_species_mean_mass_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_species_mean[i]);
         }
         {
             m_mass_species_max[i] = 5 * m_mass_species_mean[i]; // default
-            std::string key = "initial_species_max_mass_" + a_species_mat[i]->name();
+            std::string key = "initial_species_max_mass_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_species_max[i]);
         }
         {
-            std::string key = "initial_species_min_radius_" + a_species_mat[i]->name();
+            std::string key = "initial_species_min_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_min[i]);
         }
         {
-            std::string key = "initial_species_max_radius_" + a_species_mat[i]->name();
+            std::string key = "initial_species_max_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_max[i]);
         }
         {
             m_radius_species_mean[i] = std::exp(0.5*(std::log(m_radius_species_min[i])+std::log(m_radius_species_max[i])));
-            std::string key = "initial_species_mean_radius_" + a_species_mat[i]->name();
+            std::string key = "initial_species_mean_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_mean[i]);
         }
         {
             m_radius_species_geom_std[i] = 2.0;
-            std::string key = "initial_species_std_radius_" + a_species_mat[i]->name();
+            std::string key = "initial_species_std_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_geom_std[i]);
             m_radius_species_geom_std[i] = std::exp(m_radius_species_geom_std[i]);
         }
         {
-            std::string key = "initial_species_geomstd_radius_" + a_species_mat[i]->name();
+            std::string key = "initial_species_geomstd_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_geom_std[i]);
         }
     }
 
     for (int i = 0; i < m_num_aerosols; i++) {
         {
-            std::string key = "initial_aerosol_distribution_type_"+a_aerosol_mat[i]->name();
+            std::string key = "initial_aerosol_distribution_type_"+getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_aerosol_init_type[i]);
         }
         {
-            std::string key = "initial_aerosol_min_mass_" + a_aerosol_mat[i]->name();
+            std::string key = "initial_aerosol_min_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_aerosol_min[i]);
         }
         {
-            std::string key = "initial_aerosol_mean_mass_" + a_aerosol_mat[i]->name();
+            std::string key = "initial_aerosol_mean_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_aerosol_mean[i]);
         }
         {
             m_mass_aerosol_max[i] = 5 * m_mass_aerosol_mean[i]; // default
-            std::string key = "initial_aerosol_max_mass_" + a_aerosol_mat[i]->name();
+            std::string key = "initial_aerosol_max_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_aerosol_max[i]);
         }
         {
-            std::string key = "initial_aerosol_min_radius_" + a_aerosol_mat[i]->name();
+            std::string key = "initial_aerosol_min_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_min[i]);
         }
         {
-            std::string key = "initial_aerosol_max_radius_" + a_aerosol_mat[i]->name();
+            std::string key = "initial_aerosol_max_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_max[i]);
         }
         {
             m_radius_aerosol_mean[i] = std::exp(0.5*(std::log(m_radius_aerosol_min[i])+std::log(m_radius_aerosol_max[i])));
-            std::string key = "initial_aerosol_mean_radius_" + a_aerosol_mat[i]->name();
+            std::string key = "initial_aerosol_mean_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_mean[i]);
         }
         {
             m_radius_aerosol_geom_std[i] = 2.0;
-            std::string key = "initial_aerosol_std_radius_" + a_aerosol_mat[i]->name();
+            std::string key = "initial_aerosol_std_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_geom_std[i]);
             m_radius_aerosol_geom_std[i] = std::exp(m_radius_aerosol_geom_std[i]);
         }
         {
-            std::string key = "initial_aerosol_geomstd_radius_" + a_aerosol_mat[i]->name();
+            std::string key = "initial_aerosol_geomstd_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_geom_std[i]);
         }
     }
@@ -215,7 +216,7 @@ void SDInitialization::printParameters ( const MatVec& a_species_mat,
     Print() << "    Vapour/Condensate Species material:\n";
     for (unsigned long i=0; i < a_species_mat.size(); i++) {
         Print() << "        "
-                << a_species_mat[i]->name()
+                << getEnumNameString(a_species_mat[i]->m_name)
                 << " (Initial distribution: " << m_species_init_type[i];
         if (m_species_init_type[i] == SupDropInit::attrib_init_const) {
             Print() << ", value=" << m_mass_species_mean[i];
@@ -239,7 +240,7 @@ void SDInitialization::printParameters ( const MatVec& a_species_mat,
         Print() << "    Aerosols material:\n";
         for (unsigned long i=0; i < a_aerosol_mat.size(); i++) {
             Print() << "        "
-                    << a_aerosol_mat[i]->name()
+                    << getEnumNameString(a_aerosol_mat[i]->m_name)
                     << " (Initial distribution: " << m_aerosol_init_type[i];
             if (m_aerosol_init_type[i] == SupDropInit::attrib_init_const) {
                 Print() << ", value=" << m_mass_aerosol_mean[i];
@@ -373,7 +374,8 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         auto dlnr = (std::log(rmax) - std::log(rmin)) / a_np;
         auto P_min = 0.0;
         auto P_max = 1.0;
-        auto tol = 1.0 / m_numdens_init;
+        auto dV = 1e3;  // also an approximation for now -- ideally will use real cell volume
+        auto tol = 1.0 / (m_numdens_init * dV);
         int a_np_tail = static_cast<int>(std::ceil(0.01*a_np)); // this is an approximation for now; saves 1% of SDs for the tail
         amrex::Print() << "Finding aerosol radius sampling range\n";
         while ((P_max >= 1.0 - tol) || (P_min <= tol)) {

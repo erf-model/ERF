@@ -31,7 +31,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
     const int idx_w = m_idx_w;
-    const Real rho_w = m_species_mat[m_idx_w]->density();
+    const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int n_species  = m_num_species;
     const int n_aerosols = m_num_aerosols;
 

@@ -39,6 +39,10 @@ void SuperDropletPC::readInputs ()
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
     m_distribution_grid_size = 100;
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+    m_bindist_rmin = 1e-6;
+    m_bindist_rmax = 5e-3;
+#endif
     m_sigma0 = 0.62;
     m_place_randomly_in_cells = true;
 
@@ -76,6 +80,10 @@ void SuperDropletPC::readInputs ()
     pp.query("mass_change_unconverged_log", m_mass_change_logging);
     pp.query("mass_change_unconverged_log_filename", m_mass_change_log_fname);
     pp.query("distribution_grid_size", m_distribution_grid_size);
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+    pp.query("distribution_rmin", m_bindist_rmin);
+    pp.query("distribution_rmax", m_bindist_rmax);
+#endif
     pp.query("include_brownian_coalescence", m_include_brownian_coalescence);
     pp.query("sigma0", m_sigma0);
     pp.query("place_randomly_in_cells", m_place_randomly_in_cells);
@@ -145,8 +153,10 @@ void SuperDropletPC::readInputs ()
 }
 
 /*! define super-droplets */
-void SuperDropletPC::define (  const std::vector<std::string>& a_species_mat,
-                               const std::vector<std::string>& a_aerosol_mat)
+void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
+                               const std::vector<Species::Name>& a_aerosol_mat,
+                               const BoxArray&                   a_ba,
+                               const DistributionMapping&        a_dmap )
 {
     m_num_sd_per_cell = 0;
     m_num_unconverged_particles = 0;
@@ -188,6 +198,11 @@ void SuperDropletPC::define (  const std::vector<std::string>& a_species_mat,
         }
         m_rndeng.seed(seed);
     }
+
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+    m_mass_ln_R_mf.define(a_ba, a_dmap, m_distribution_grid_size, 0);
+    m_num_ln_R_mf.define(a_ba, a_dmap, m_distribution_grid_size, 0);
+#endif
 }
 
 /*! Initialize the particles */
@@ -391,7 +406,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
 
     const int n_species  = m_num_species;
     const int n_aerosols = m_num_aerosols;
-    const Real rho_w = m_species_mat[m_idx_w]->density();
+    const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int idx_w = m_idx_w;
     AMREX_ALWAYS_ASSERT(idx_w >= 0);
 
@@ -498,13 +513,13 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                                                    multiplicity_h,
                                                    i,
                                                    np,
-                                                   m_species_mat[i]->density(),
+                                                   m_species_mat[i]->m_density,
                                                    m_rndeng );
                 } else {
                     a_init.getSpeciesDistribution( species_mass_h,
                                                    i,
                                                    np,
-                                                   m_species_mat[i]->density(),
+                                                   m_species_mat[i]->m_density,
                                                    m_rndeng );
                 }
                 Gpu::copy( Gpu::hostToDevice,
@@ -524,13 +539,13 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                                                    multiplicity_h,
                                                    i,
                                                    np,
-                                                   m_aerosol_mat[i]->density(),
+                                                   m_aerosol_mat[i]->m_density,
                                                    m_rndeng );
                 } else {
                     a_init.getAerosolDistribution( aerosol_mass_h,
                                                    i,
                                                    np,
-                                                   m_aerosol_mat[i]->density(),
+                                                   m_aerosol_mat[i]->m_density,
                                                    m_rndeng );
                 }
                 Gpu::copy( Gpu::hostToDevice,
@@ -718,7 +733,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     const int n_aerosols = m_num_aerosols;
 
     // condensate density
-    const Real rho_w = m_species_mat[m_idx_w]->density();
+    const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int idx_w = m_idx_w;
 
 #ifdef AMREX_USE_OMP

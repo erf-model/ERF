@@ -115,26 +115,27 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Constructor */
         SuperDropletPC (  amrex::ParGDBBase* a_gdb,
-                          const std::vector<std::string>& a_species_mat,
-                          const std::vector<std::string>& a_aerosol_mat,
+                          const std::vector<Species::Name>& a_species_mat,
+                          const std::vector<Species::Name>& a_aerosol_mat,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_gdb, a_name)
         {
-            m_idx_w = -1;
-            define(a_species_mat, a_aerosol_mat);
+            define( a_species_mat,
+                    a_aerosol_mat,
+                    a_gdb->ParticleBoxArray(m_lev),
+                    a_gdb->ParticleDistributionMap(m_lev) );
         }
 
         /*! \brief Constructor */
         SuperDropletPC (  const amrex::Geometry& a_geom,
                           const amrex::DistributionMapping& a_dmap,
                           const amrex::BoxArray& a_ba,
-                          const std::vector<std::string>& a_species_mat,
-                          const std::vector<std::string>& a_aerosol_mat,
+                          const std::vector<Species::Name>& a_species_mat,
+                          const std::vector<Species::Name>& a_aerosol_mat,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_geom, a_dmap, a_ba, a_name)
         {
-            m_idx_w = -1;
-            define(a_species_mat, a_aerosol_mat);
+            define(a_species_mat, a_aerosol_mat, a_ba, a_dmap);
         }
 
         /*! \brief Destructor */
@@ -145,39 +146,44 @@ class SuperDropletPC : public ERFPC
             }
         }
 
-        /*! \brief Set vapour material */
-        virtual inline void setSpeciesMaterial ( const std::string& a_name )
+        /*! \brief Set vapour species material */
+        AMREX_FORCE_INLINE
+        virtual void setSpeciesMaterial ( const Species::Name& a_name )
         {
-            if (a_name == MaterialNames::h2o) {
+            if (a_name == Species::Name::H2O) {
                 m_idx_w = m_species_mat.size();
             }
             m_species_mat.push_back(std::make_unique<MaterialProperties>(a_name));
         }
 
-        /*! \brief Set aerosol material */
-        virtual inline void setSpeciesMaterial ( const std::vector<std::string>& a_names )
+        /*! \brief Set species material */
+        AMREX_FORCE_INLINE
+        virtual void setSpeciesMaterial ( const std::vector<Species::Name>& a_names )
         {
             for (auto& name : a_names) { setSpeciesMaterial(name); }
         }
 
         /*! \brief Get vapour material */
-        [[nodiscard]] virtual inline const MaterialProperties& getSpeciesMaterial(const std::string& a_name) const
+        AMREX_FORCE_INLINE
+        virtual const MaterialProperties& getSpeciesMaterial(const Species::Name& a_name) const
         {
             for (auto& species : m_species_mat) {
-                if (species->name() == a_name) { return *species; }
+                if (species->m_name == a_name) { return *species; }
             }
             amrex::Abort("SuperDropletPC::getSpeciesMaterial() - species not found");
             return *m_species_mat[0];
         }
 
         /*! \brief Set aerosol material */
-        virtual inline void setAerosolMaterial ( const std::string& a_name )
+        AMREX_FORCE_INLINE
+        virtual void setAerosolMaterial ( const Species::Name& a_name )
         {
             m_aerosol_mat.push_back(std::make_unique<MaterialProperties>(a_name));
         }
 
         /*! \brief Set aerosol material */
-        virtual inline void setAerosolMaterial ( const std::vector<std::string>& a_names )
+        AMREX_FORCE_INLINE
+        virtual void setAerosolMaterial ( const std::vector<Species::Name>& a_names )
         {
             for (auto& name : a_names) { setAerosolMaterial(name); }
         }
@@ -240,7 +246,8 @@ class SuperDropletPC : public ERFPC
         /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int,
                                     amrex::Real,
-                                    const std::string&,
+                                    const Species::Name&,
+                                    const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
@@ -270,11 +277,17 @@ class SuperDropletPC : public ERFPC
         [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
         /*! \brief Compute and print diagnostics */
-        virtual void Diagnostics (const int, const bool);
+        virtual void Diagnostics (int, amrex::Real, bool);
         /*! \brief Compute mass density distribution */
-        virtual void ComputeDistributions (  const int,
-                                             const amrex::ParticleReal,
-                                             const amrex::ParticleReal );
+        virtual void ComputeDistributions (  int,
+                                             amrex::ParticleReal,
+                                             amrex::ParticleReal );
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        /*! \brief Compute binned size distributions */
+        virtual void ComputeBinnedDistributions ( int );
+        /*! \brief Compute cell-wise binned size distributions */
+        virtual void ComputeBinnedDistributionsCell ( int, amrex::Real );
+#endif
 
         /*! \brief Compute the particle number density on a mesh */
         virtual void numberDensity ( amrex::MultiFab&, const int a_comp=0 ) const;
@@ -345,6 +358,16 @@ class SuperDropletPC : public ERFPC
 
         int m_distribution_grid_size; /*!< Size of 1D grid to compute distributions on */
 
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+        amrex::Real m_bindist_rmin; /*!< min radius for binned distribution */
+        amrex::Real m_bindist_rmax; /*!< max radius for binned distribution */
+
+        /*! Cell-wise mass distribution */
+        amrex::MultiFab m_mass_ln_R_mf;
+        /*! Cell-wise number distribution */
+        amrex::MultiFab m_num_ln_R_mf;
+#endif
+
         /*! maximum coalescence time scale */
         amrex::Real m_t_coalescence;
 
@@ -374,8 +397,10 @@ class SuperDropletPC : public ERFPC
     private:
 
         /*! \brief define super-droplets */
-        void define ( const std::vector<std::string>&,
-                      const std::vector<std::string>& );
+        void define ( const std::vector<Species::Name>&,
+                      const std::vector<Species::Name>&,
+                      const amrex::BoxArray&,
+                      const amrex::DistributionMapping& );
 
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();

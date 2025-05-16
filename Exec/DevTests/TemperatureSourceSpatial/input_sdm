@@ -16,8 +16,8 @@ geometry.is_periodic = 1 1 0
 zhi.type = "SlipWall"
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-zlo.type = "Most"
-erf.most.flux_type = "custom"
+zlo.type = "surface_layer"
+erf.surface_layer.flux_type = "custom"
 erf.most.ustar  = 0.28   # ustar
 erf.most.tstar  = 0.0 # theta flux
 erf.most.qstar  = 0.0 # qv    flux

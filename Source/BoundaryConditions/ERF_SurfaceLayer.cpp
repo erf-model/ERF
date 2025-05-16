@@ -240,14 +240,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::RICO) {
         rico_flux flux_comp(rico_theta_z0, rico_qsat_z0);
-        compute_SurfaceLayer_bcs(lev,
-                                 mfs,
-                                 xxmom_flux,
-                                 yymom_flux,
-                                 zzmom_flux,
-                                 xymom_flux, yxmom_flux,
-                                 xzmom_flux, zxmom_flux,
-                                 yzmom_flux, zymom_flux,
+        compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);

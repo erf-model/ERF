@@ -237,7 +237,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
 
-        const auto rho_w = m_species_mat[m_idx_w]->density();
+        const auto rho_w = m_species_mat[m_idx_w]->m_density;
 
         Gpu::DeviceVector<ParticleReal> aero_density_d;
         {
@@ -245,7 +245,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             aero_density_h.resize(num_aerosols);
             aero_density_d.resize(num_aerosols);
             for (int ia = 0; ia < num_aerosols; ia++) {
-                aero_density_h[ia] = m_aerosol_mat[ia]->density();
+                aero_density_h[ia] = m_aerosol_mat[ia]->m_density;
             }
             Gpu::copy(  Gpu::hostToDevice,
                         aero_density_h.begin(),

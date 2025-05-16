@@ -45,7 +45,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const int num_sp = m_num_species;
     const int num_ae = m_num_aerosols;
 
-    const Real rho_w = m_species_mat[m_idx_w]->density();
+    const Real rho_w = m_species_mat[m_idx_w]->m_density;
     int idx_w = m_idx_w;
 
 #ifdef AMREX_USE_OMP
@@ -91,8 +91,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             Vector<int> sp_solubility_h(num_sp);
             for (int i = 0; i < num_sp; i++) {
                 sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-                sp_density_h[i] = m_species_mat[i]->density();
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->isSoluble());
+                sp_density_h[i] = m_species_mat[i]->m_density;
+                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
             }
             Gpu::copy(  Gpu::hostToDevice,
                         sp_density_h.begin(),
@@ -112,8 +112,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             Vector<int> ae_solubility_h(num_ae);
             for (int i = 0; i < num_ae; i++) {
                 ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-                ae_density_h[i] = m_aerosol_mat[i]->density();
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->isSoluble());
+                ae_density_h[i] = m_aerosol_mat[i]->m_density;
+                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
             }
             Gpu::copy(  Gpu::hostToDevice,
                         ae_density_h.begin(),
@@ -125,7 +125,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                         ae_solubility.begin() );
         }
 
-        TerminalVelocity<ParticleReal> term_vel { m_species_mat[m_idx_w]->density() };
+        TerminalVelocity<ParticleReal> term_vel { m_species_mat[m_idx_w]->m_density };
         auto term_vel_type = m_term_vel_type;
 
         auto sp_rho_arr = sp_density.data();

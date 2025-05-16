@@ -51,12 +51,12 @@ void SuperDropletsMoist::readInputs ()
     m_species.clear();
     // add water
     m_idx_w = m_species.size();
-    m_species.push_back(MaterialNames::h2o);
+    m_species.push_back(Species::Name::H2O);
     // add other species
     std::string species_input = "species";
     if (pp.contains(species_input.c_str())) {
         int num_species = pp.countval(species_input.c_str());
-        std::string sp_name;
+        Species::Name sp_name;
         for (int i = 0; i < num_species; i++) {
             pp.get(species_input.c_str(), sp_name, i);
             m_species.push_back(sp_name);
@@ -70,7 +70,7 @@ void SuperDropletsMoist::readInputs ()
     std::string aerosol_input = "aerosols";
     if (pp.contains(aerosol_input.c_str())) {
         int num_aerosols = pp.countval(aerosol_input.c_str());
-        std::string aero_name;
+        Species::Name aero_name;
         for (int i = 0; i < num_aerosols; i++) {
             pp.get(aerosol_input.c_str(), aero_name, i);
             m_aerosols.push_back(aero_name);
@@ -275,7 +275,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         }
     }
 
-    m_super_droplets->Diagnostics(-1, true);
+    m_super_droplets->Diagnostics(-1, 0.0, true);
 
     return;
 }

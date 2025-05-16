@@ -75,6 +75,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                                             dt_s,
                                             m_species[is],
                                             (*m_mic_fab_vars[MicVar_SD::temperature]),
+                                            (*m_mic_fab_vars[MicVar_SD::pressure]),
                                             mf_sat_pressure,
                                             (*sr_ptr),
                                             a_z,

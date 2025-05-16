@@ -262,11 +262,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void GetPlotVarNames (Vector<std::string>& a_names) const override
         {
             for (int v = 1; v < m_num_species; v++) {
-                a_names.push_back("qv_"+m_species[v]);
-                a_names.push_back("qc_"+m_species[v]);
-                a_names.push_back("qt_"+m_species[v]);
-                a_names.push_back("sat_ratio_"+m_species[v]);
-                a_names.push_back("accum_"+m_species[v]);
+                a_names.push_back("qv_"+getEnumNameString(m_species[v]));
+                a_names.push_back("qc_"+getEnumNameString(m_species[v]));
+                a_names.push_back("qt_"+getEnumNameString(m_species[v]));
+                a_names.push_back("sat_ratio_"+getEnumNameString(m_species[v]));
+                a_names.push_back("accum_"+getEnumNameString(m_species[v]));
             }
         }
 
@@ -276,7 +276,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             AMREX_ASSERT(a_mf.nComp() >= 1);
             for (int v = 1; v < m_num_species; v++) {
                 {
-                    std::string varname = "qv_" + m_species[v];
+                    std::string varname = "qv_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_qv_idx(v)],
@@ -285,7 +285,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     }
                 }
                 {
-                    std::string varname = "qc_" + m_species[v];
+                    std::string varname = "qc_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_qc_idx(v)],
@@ -294,7 +294,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     }
                 }
                 {
-                    std::string varname = "qt_" + m_species[v];
+                    std::string varname = "qt_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_qt_idx(v)],
@@ -303,7 +303,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     }
                 }
                 {
-                    std::string varname = "sat_ratio_" + m_species[v];
+                    std::string varname = "sat_ratio_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_sr_idx(v)],
@@ -312,7 +312,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     }
                 }
                 {
-                    std::string varname = "accum_" + m_species[v];
+                    std::string varname = "accum_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_accum_idx(v)],
@@ -381,11 +381,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         Vector<FabPtr> m_mic_fab_vars;
 
         /*! names of vapour/condensate species */
-        std::vector<std::string> m_species;
+        std::vector<Species::Name> m_species;
         int m_num_species;
 
         /*! names of aerosols */
-        std::vector<std::string> m_aerosols;
+        std::vector<Species::Name> m_aerosols;
         int m_num_aerosols;
 
         /*! number of substeps for phase change */

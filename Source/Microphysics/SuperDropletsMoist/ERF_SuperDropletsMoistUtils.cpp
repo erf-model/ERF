@@ -79,7 +79,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
     // water
     {
         // Get vapour material properties object for water
-        auto& vapour_mat = m_super_droplets->getSpeciesMaterial(MaterialNames::h2o);
+        auto& vapour_mat = m_super_droplets->getSpeciesMaterial(Species::Name::H2O);
 
         // Compute saturation ratio
         vapour_mat.computeSaturationVapFrac( (*m_mic_fab_vars[MicVar_SD::rh]),
@@ -301,8 +301,8 @@ void SuperDropletsMoist::rainAccumulation ()
     int k_lo = domain.smallEnd(2);
     auto dt = m_dt;
 
-    auto& vapour_mat = m_super_droplets->getSpeciesMaterial(MaterialNames::h2o);
-    auto mat_density = vapour_mat.density();
+    auto& vapour_mat = m_super_droplets->getSpeciesMaterial(Species::Name::H2O);
+    auto mat_density = vapour_mat.m_density;
 
     MultiFab mf_zflux( m_mic_fab_vars[MicVar_SD::rain_accum]->boxArray(),
                        m_mic_fab_vars[MicVar_SD::rain_accum]->DistributionMap(),

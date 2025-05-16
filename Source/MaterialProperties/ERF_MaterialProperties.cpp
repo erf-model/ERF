@@ -48,37 +48,55 @@ namespace saturation_funcs
     }
 }
 
-MaterialProperties::MaterialProperties ( const std::string& a_name )
+MaterialProperties::MaterialProperties ( const Species::Name& a_name )
 {
     m_name = a_name;
-    if (a_name == MaterialNames::h2o) {
+
+    if (a_name == Species::Name::H2O) {
         setProperties_H2O();
-    } else if (a_name == MaterialNames::water) {
+    } else if (a_name == Species::Name::water) {
         setProperties_water();
-    } else if (a_name == MaterialNames::agua) {
+    } else if (a_name == Species::Name::agua) {
         setProperties_agua();
-    } else if (a_name == MaterialNames::nacl) {
+    } else if (a_name == Species::Name::NaCl) {
         setProperties_NaCl();
-    } else if (a_name == MaterialNames::amsu) {
-        setProperties_AmSu();
-    } else if (a_name == MaterialNames::soil) {
+    } else if (a_name == Species::Name::NH42SO4) {
+        setProperties_NH42SO4();
+    } else if (a_name == Species::Name::soil) {
         setProperties_soil();
     } else {
         amrex::Abort("ERROR: undefined material in MaterialProperties()");
     }
 }
 
+MaterialProperties::MaterialProperties ( const MaterialProperties& a_matprop )
+{
+    m_name = a_matprop.m_name;
+    m_density = a_matprop.m_density;
+    m_ionization = a_matprop.m_ionization;
+    m_lat_vap = a_matprop.m_lat_vap;
+    m_therm_cond = a_matprop.m_therm_cond;
+    m_Rv = a_matprop.m_Rv;
+    m_Tc = a_matprop.m_Tc;
+    m_Tb = a_matprop.m_Tb;
+    m_is_soluble = a_matprop.m_is_soluble;
+    m_is_water = a_matprop.m_is_water;
+    m_saturation_pressure_func = a_matprop.m_saturation_pressure_func;
+    m_saturation_vapfrac_func = a_matprop.m_saturation_vapfrac_func;
+    for (auto i = 0; i < 7; i++) { m_mol_Cp_coeffs[i] = a_matprop.m_mol_Cp_coeffs[i]; }
+}
+
 void MaterialProperties::setProperties_H2O()
 {
     m_density = rhor; // ERF_Constants.H
 
-    m_coeff_curv = 3.3e-07; // m K
-    m_coeff_VP_solute = 4.3e-06; // m^3
     m_ionization = 2;
     m_mol_weight = 1.802e-02; // kg mol^-1
     m_lat_vap = L_v; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
+    m_Tb = 373.15; // K
     m_is_soluble = true;
+    m_is_water = true;
 
     m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
     m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
@@ -89,13 +107,13 @@ void MaterialProperties::setProperties_water()
 {
     m_density = rhor; // ERF_Constants.H
 
-    m_coeff_curv = 3.3e-07; // m K
-    m_coeff_VP_solute = 4.3e-06; // m^3
     m_ionization = 2;
     m_mol_weight = 1.802e-02; // kg mol^-1
     m_lat_vap = L_v; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
+    m_Tb = 373.15; // K
     m_is_soluble = true;
+    m_is_water = true;
 
     m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
     m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
@@ -106,13 +124,13 @@ void MaterialProperties::setProperties_agua()
 {
     m_density = rhor; // ERF_Constants.H
 
-    m_coeff_curv = 3.3e-07; // m K
-    m_coeff_VP_solute = 4.3e-06; // m^3
     m_ionization = 2;
     m_mol_weight = 1.802e-02; // kg mol^-1
     m_lat_vap = L_v; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
+    m_Tb = 373.15; // K
     m_is_soluble = true;
+    m_is_water = true;
 
     m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
     m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
@@ -123,28 +141,20 @@ void MaterialProperties::setProperties_NaCl()
 {
     m_density = 2170.0;
 
-    m_coeff_curv = DBL_MAX; // m K
-    m_coeff_VP_solute = DBL_MAX; // m^3
     m_ionization = 2;
     m_mol_weight = 5.844e-02; //kg mol^-1
-    m_lat_vap = DBL_MAX;
-    m_Rv = DBL_MAX;
     m_is_soluble = true;
 
     m_saturation_pressure_func = nullptr;
     m_saturation_vapfrac_func = nullptr;
 }
 
-void MaterialProperties::setProperties_AmSu()
+void MaterialProperties::setProperties_NH42SO4()
 {
     m_density = 1780.0;
 
-    m_coeff_curv = DBL_MAX; // m K
-    m_coeff_VP_solute = DBL_MAX; // m^3
     m_ionization = 3; // 2xNH4 + 1xSO4
     m_mol_weight = 1.3214e-01; //kg mol^-1
-    m_lat_vap = DBL_MAX;
-    m_Rv = DBL_MAX;
     m_is_soluble = true;
 
     m_saturation_pressure_func = nullptr;
@@ -155,12 +165,6 @@ void MaterialProperties::setProperties_soil()
 {
     m_density = 1140.0; // NNSS Area 5 sample (Spriggs and Ray-Maitra, 2007)
 
-    m_coeff_curv = DBL_MAX; // m K
-    m_coeff_VP_solute = DBL_MAX; // m^3
-    m_ionization = DBL_MAX;
-    m_mol_weight = DBL_MAX; //kg mol^-1
-    m_lat_vap = DBL_MAX;
-    m_Rv = DBL_MAX;
     m_is_soluble = false;
 
     m_saturation_pressure_func = nullptr;

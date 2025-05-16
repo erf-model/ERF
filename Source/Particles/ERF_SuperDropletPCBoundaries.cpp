@@ -29,7 +29,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
     const int n_species = m_num_species;
     const int n_aerosols = m_num_aerosols;
-    const Real rho_w = m_species_mat[m_idx_w]->density();
+    const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int idx_w = m_idx_w;
 
     // number of super-droplets per cell
