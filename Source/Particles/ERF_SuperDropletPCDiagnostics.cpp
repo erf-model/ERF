@@ -419,6 +419,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
                                            const ParticleReal a_r_min,
                                            const ParticleReal a_r_max )
 {
+    BL_PROFILE("SuperDropletPC::ComputeDistributions()");
     int Nr = m_distribution_grid_size;
 
     const Geometry& geom = m_gdb->Geom(m_lev);
@@ -532,6 +533,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
     R, g_mass(ln R), g_n(ln R) */
 void SuperDropletPC::ComputeBinnedDistributions( const int a_iter)
 {
+    BL_PROFILE("SuperDropletPC::ComputeBinnedDistributions()");
     int Nbin = m_distribution_grid_size;
     auto r_min = m_bindist_rmin;
     auto r_max = m_bindist_rmax;

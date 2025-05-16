@@ -9,6 +9,7 @@ using namespace amrex;
 /*! Add super-droplet method-specific attributes to particles */
 void SuperDropletPC::add_superdroplet_attributes()
 {
+    BL_PROFILE("SuperDropletPC::add_superdroplets_attributes()");
     const bool communicate_this_comp = true;
     int count(0);
     for (int i = 0; i < SuperDropletsRealIdxSoA_RT::ncomps; i++) {
@@ -158,6 +159,7 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
                                const BoxArray&                   a_ba,
                                const DistributionMapping&        a_dmap )
 {
+    BL_PROFILE("SuperDropletPC::define()");
     m_num_sd_per_cell = 0;
     m_num_unconverged_particles = 0;
 
@@ -208,6 +210,7 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
 /*! Initialize the particles */
 void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
 {
+    BL_PROFILE("SuperDropletPC::InitializeParticles()");
     Print() << "SuperDropletPC(" << m_name << "):\n"
             << "    Density scaling: " << (m_density_scaling ? "true" : "false") << "\n"
             << "    Nucleate particles: " << (m_nucleate_particles ? "true" : "false") << "\n"

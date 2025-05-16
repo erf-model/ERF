@@ -11,6 +11,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                                        const Vector<std::unique_ptr<MultiFab>>& a_z, /*!< terrain */
                                        const bool a_update_qv )
 {
+    BL_PROFILE("SuperDropletsMoist::phaseChange()");
     for (int is = 0; is < m_num_species; is++) {
         auto& species = m_species[is];
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(species);

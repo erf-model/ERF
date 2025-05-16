@@ -7,6 +7,7 @@
 /*! Define the super-droplet moisture model parameters from provided inputs */
 void SuperDropletsMoist::Define (SolverChoice& a_sc /*!< Solver choices */)
 {
+    BL_PROFILE("SuperDropletsMoist::Define()");
     m_fac_cond = lcond / a_sc.c_p;
 }
 
@@ -216,6 +217,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
                                      MultiFab& a_cons_vars, /*!< Conserved variables */
                                      const Vector<MFPtr>& a_z_phys_nd /*!< terrain */)
 {
+    BL_PROFILE("SuperDropletsMoist::FinishInit()");
     m_super_droplets->DensityScaling(*(m_mic_fab_vars[MicVar_SD::rho]));
 
     if (m_init_type == SuperDropletsMoistInitializations::init_rhoc) {

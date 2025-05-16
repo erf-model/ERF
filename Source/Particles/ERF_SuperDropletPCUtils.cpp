@@ -11,6 +11,7 @@ void SuperDropletPC::computeMeshVar( const std::string&  a_var_name,
                                      MultiFab&           a_mf,
                                      const int           a_lev) const
 {
+    BL_PROFILE("SuperDropletPC::computeMeshVar()");
     a_mf.setVal(0.0);
     if (a_lev == 0) {
         if (a_var_name == "number_density") {
@@ -196,7 +197,7 @@ void SuperDropletPC::massFlux ( MultiFab& a_mf,  /*!< Mass flux multifab */
                                 const int a_dim, /*!< Flux component */
                                 const int a_comp /*!< Multifab component to fill with mass density */) const
 {
-    BL_PROFILE("SuperDropletPC::velocityComp()");
+    BL_PROFILE("SuperDropletPC::massFlux()");
 
     AMREX_ASSERT(OK());
     AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
@@ -367,7 +368,7 @@ void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,  /*!< Species mass flux m
                                        const int a_dim, /*!< Flux component */
                                        const int a_comp /*!< Multifab component to fill */) const
 {
-    BL_PROFILE("SuperDropletPC::speciesMassDensity()");
+    BL_PROFILE("SuperDropletPC::speciesMassFlux()");
 
     AMREX_ASSERT(OK());
     AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);

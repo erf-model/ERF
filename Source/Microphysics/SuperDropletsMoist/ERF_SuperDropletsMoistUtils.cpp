@@ -8,6 +8,7 @@
     member multifabs in this object, compute and save pressure and temperature */
 void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!< Conserved variables */)
 {
+    BL_PROFILE("SuperDropletsMoist::Copy_State_to_Micro()");
     const auto& gvec = a_cons_vars.nGrowVect();
 
     // Copy density and vapour mixing ratio from state variables
@@ -132,6 +133,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
     member multifabs in this object */
 void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conserved variables */)
 {
+    BL_PROFILE("SuperDropletsMoist::Copy_Micro_to_state()");
     const auto& gvec = a_cons_vars.nGrowVect();
 
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
@@ -184,6 +186,7 @@ void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conse
 /*! Update microphysics variables */
 void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars)
 {
+    BL_PROFILE("SuperDropletsMoist::Update_Micro_Vars()");
     Copy_State_to_Micro(a_cons_vars);
 }
 
@@ -191,6 +194,7 @@ void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars)
  *  from microphysics variables */
 void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
 {
+    BL_PROFILE("SuperDropletsMoist::Update_State_Vars()");
     computeQcQrWater();
     computeQtWater();
     rainAccumulation();
@@ -206,6 +210,7 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
 void SuperDropletsMoist::densityToRatio (  MultiFab& a_var, /*!< Multifab */
                                            const int a_comp /*!< Component */ )
 {
+    BL_PROFILE("SuperDropletsMoist::densityToRatio()");
     const auto& gvec = a_var.nGrowVect();
 
     for ( MFIter mfi(a_var); mfi.isValid(); ++mfi) {
@@ -227,6 +232,7 @@ void SuperDropletsMoist::densityToRatio (  MultiFab& a_var, /*!< Multifab */
 void SuperDropletsMoist::ratioToDensity (  MultiFab& a_var, /*!< Multifab */
                                            const int a_comp /*!< Component */ )
 {
+    BL_PROFILE("SuperDropletsMoist::ratioToDensity()");
     const auto& gvec = a_var.nGrowVect();
 
     for ( MFIter mfi(a_var); mfi.isValid(); ++mfi) {
@@ -247,6 +253,7 @@ void SuperDropletsMoist::ratioToDensity (  MultiFab& a_var, /*!< Multifab */
 /*! compute cloud/rain mixing ratio for water */
 void SuperDropletsMoist::computeQcQrWater ()
 {
+    BL_PROFILE("SuperDropletsMoist::computeQcQrWater()");
     m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[MicVar_SD::q_c]),
                                           m_idx_w,
                                           0,
@@ -279,6 +286,7 @@ void SuperDropletsMoist::computeQcQrWater ()
 /*! compute qt (total) for water */
 void SuperDropletsMoist::computeQtWater ()
 {
+    BL_PROFILE("SuperDropletsMoist::computeQtWater()");
     for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_t]); mfi.isValid(); ++mfi) {
 
         Box bx = mfi.tilebox();
@@ -297,6 +305,7 @@ void SuperDropletsMoist::computeQtWater ()
 /*! Compute rain accumulation */
 void SuperDropletsMoist::rainAccumulation ()
 {
+    BL_PROFILE("SuperDropletsMoist::rainAccumulation()");
     auto domain = m_geom.Domain();
     int k_lo = domain.smallEnd(2);
     auto dt = m_dt;
@@ -330,6 +339,7 @@ void SuperDropletsMoist::rainAccumulation ()
 /*! compute condensate mixing ratio */
 void SuperDropletsMoist::computeQcSpecies (const int a_i)
 {
+    BL_PROFILE("SuperDropletsMoist::computeQcSpecies()");
     m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[s_qc_idx(a_i)]), a_i );
     if (m_dimensionality == SDMSimulationDim::one_d_z) {
         for ( MFIter mfi(*m_mic_fab_vars[s_qc_idx(a_i)]); mfi.isValid(); ++mfi) {
@@ -348,6 +358,7 @@ void SuperDropletsMoist::computeQcSpecies (const int a_i)
 /*! compute qt (total) */
 void SuperDropletsMoist::computeQtSpecies (const int a_i)
 {
+    BL_PROFILE("SuperDropletsMoist::computeQtSpecies()");
     for ( MFIter mfi(*m_mic_fab_vars[s_qt_idx(a_i)]); mfi.isValid(); ++mfi) {
 
         Box bx = mfi.tilebox();
@@ -365,6 +376,7 @@ void SuperDropletsMoist::computeQtSpecies (const int a_i)
 /*! Compute ground accumulation for non-water species */
 void SuperDropletsMoist::speciesAccumulation ()
 {
+    BL_PROFILE("SuperDropletsMoist::speciesAccumulation()");
     auto domain = m_geom.Domain();
     const auto dx = m_geom.CellSizeArray();
     int k_lo = domain.smallEnd(2);

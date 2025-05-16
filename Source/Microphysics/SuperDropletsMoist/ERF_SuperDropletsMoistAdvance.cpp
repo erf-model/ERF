@@ -12,6 +12,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                    const Vector<MFPtr>& a_z, /*!< terrain */
                                    const BCTypeArr& a_bc /*! Boundary types */)
 {
+    BL_PROFILE("SuperDropletsMoist::Advance()");
     auto num_particles = m_super_droplets->TotalNumberOfParticles();
     auto num_SD = m_super_droplets->NumSuperDroplets();
     auto num_SD_inactive = m_super_droplets->NumSDDeactivated();
