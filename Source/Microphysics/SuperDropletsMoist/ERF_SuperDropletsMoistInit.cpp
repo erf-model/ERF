@@ -275,7 +275,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         }
     }
 
-    m_super_droplets->Diagnostics(-1, 0.0, true);
+    m_super_droplets->Diagnostics(-1, 0.0, (m_diagnostics_iter>0));
 
     return;
 }
