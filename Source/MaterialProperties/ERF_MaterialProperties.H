@@ -142,14 +142,14 @@ struct MaterialProperties {
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real surfaceTension( const amrex::Real a_T ) const
     {
-//        if (m_is_water) {
+        if (m_is_water) {
             return amrex::Real(0.076148325); // N m^{-1}
-//        } else {
-//            auto term1 = 6.0 * std::cbrt(s_N_av);
-//            auto term2 = std::cbrt((m_density/m_mol_weight)*(m_density/m_mol_weight));
-//            auto retval = molarHeatCapacity(a_T)*(term2/term1)*(m_Tc - a_T);
-//            return retval;
-//        }
+        } else {
+            auto term1 = 6.0 * std::cbrt(s_N_av);
+            auto term2 = std::cbrt((m_density/m_mol_weight)*(m_density/m_mol_weight));
+            auto retval = molarHeatCapacity(a_T)*(term2/term1)*(m_Tc - a_T);
+            return retval;
+        }
     }
 
     /*! \brief Return the coeff of curvature given the temperature */
@@ -165,11 +165,10 @@ struct MaterialProperties {
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real coeffVPSolute() const
     {
-//        auto retval = (0.75/PI)*(m_mol_weight/m_density) * m_ionization;
-//        if (m_is_water) {
-//            retval = 4.3e-06 * m_ionization;
-//        }
-        auto retval = 4.3e-06 * m_ionization;
+        auto retval = (0.75/PI)*(m_mol_weight/m_density) * m_ionization;
+        if (m_is_water) {
+            retval = 4.3e-06 * m_ionization;
+        }
         return retval;
     }
 
@@ -177,31 +176,31 @@ struct MaterialProperties {
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real coeffMolecularDiffusion( const amrex::Real a_T, const amrex::Real a_P ) const
     {
-//        if (m_is_water) {
+        if (m_is_water) {
 
             return diffelq; // from ERF_Constants.H (2.21e-05 [m^2 s^{-1}])
 
-//        } else {
-//
-//            auto sigma = 1.18e-8 * std::cbrt(m_mol_weight/m_density);
-//            auto sigma_v_air = 0.5 * (sigma + s_sigma_air);
-//
-//            auto eps_v = 1.15 * m_Tb * s_kb;
-//            auto eps_v_air = std::sqrt( eps_v * s_eps_air_k * s_kb);
-//            auto T_star = a_T / (eps_v_air/s_kb);
-//
-//            auto omegaD =    1.06036 / std::pow(T_star, 0.1561)
-//                          +  0.193   / std::exp(0.47635*T_star)
-//                          +  1.03587 / std::exp(1.52996*T_star)
-//                          +  1.76474 / std::exp(3.89411*T_star);
-//
-//            auto term1 = 3 * std::sqrt( s_kb*a_T * s_kb*a_T * s_kb*a_T);
-//            auto term2 = 8.0 * std::sqrt(2*PI) * a_P * sigma_v_air*sigma_v_air * omegaD;
-//            auto term3 = std::sqrt( s_N_av/m_mol_weight + s_N_av/s_mol_weight_air );
-//
-//            auto retval = term1*term3/term2;
-//            return retval;
-//        }
+        } else {
+
+            auto sigma = 1.18e-8 * std::cbrt(m_mol_weight/m_density);
+            auto sigma_v_air = 0.5 * (sigma + s_sigma_air);
+
+            auto eps_v = 1.15 * m_Tb * s_kb;
+            auto eps_v_air = std::sqrt( eps_v * s_eps_air_k * s_kb);
+            auto T_star = a_T / (eps_v_air/s_kb);
+
+            auto omegaD =    1.06036 / std::pow(T_star, 0.1561)
+                          +  0.193   / std::exp(0.47635*T_star)
+                          +  1.03587 / std::exp(1.52996*T_star)
+                          +  1.76474 / std::exp(3.89411*T_star);
+
+            auto term1 = 3 * std::sqrt( s_kb*a_T * s_kb*a_T * s_kb*a_T);
+            auto term2 = 8.0 * std::sqrt(2*PI) * a_P * sigma_v_air*sigma_v_air * omegaD;
+            auto term3 = std::sqrt( s_N_av/m_mol_weight + s_N_av/s_mol_weight_air );
+
+            auto retval = term1*term3/term2;
+            return retval;
+        }
     }
 
     /*! \brief Compute saturation pressure */
