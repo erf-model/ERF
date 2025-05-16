@@ -168,7 +168,7 @@
             make_buoyancy(S_data, S_prim, buoyancy, fine_geom, solverChoice, base_state_new[level],
                           n_qstate_moist, solverChoice.anelastic[level]);
 
-            make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
+            make_mom_sources(old_stage_time, S_data,
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new, zvel_new,
                              xmom_src, ymom_src, zmom_src,
@@ -176,7 +176,7 @@
                              cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
                              mapfac[level], dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                             input_sounding_data, n_qstate_moist, true);
+                             input_sounding_data, true);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -284,7 +284,7 @@
             make_buoyancy(S_data, S_prim, buoyancy, fine_geom, solverChoice, base_state[level],
                           n_qstate_moist, solverChoice.anelastic[level]);
 
-            make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
+            make_mom_sources(old_stage_time, S_data,
                              z_phys_nd[level], z_phys_cc[level],
                              xvel_new, yvel_new, zvel_new,
                              xmom_src, ymom_src, zmom_src,
@@ -292,7 +292,7 @@
                              cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
                              mapfac[level], dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                             input_sounding_data, n_qstate_moist, true);
+                             input_sounding_data, true);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -501,7 +501,7 @@
         make_buoyancy(S_data, S_prim, buoyancy, fine_geom, solverChoice, base_state[level],
                       n_qstate_moist, solverChoice.anelastic[level]);
 
-        make_mom_sources(level, nrk, slow_dt, old_stage_time, S_data, S_prim,
+        make_mom_sources(old_stage_time, S_data,
                          z_phys_nd[level], z_phys_cc[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
@@ -509,7 +509,7 @@
                          cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
                          mapfac[level], dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                         input_sounding_data, n_qstate_moist, true);
+                         input_sounding_data, true);
 
         erf_slow_rhs_pre(level, finest_level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,

@@ -15,11 +15,7 @@ using namespace amrex;
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
- * @param[in]  level level of resolution
- * @param[in]  nrk   which RK stage
- * @param[in]  dt    slow time step
  * @param[in]  S_data current solution
- * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
  * @param[in]  xvel x-component of velocity
  * @param[in]  yvel y-component of velocity
  * @param[in] xmom_src source terms for x-momentum
@@ -32,15 +28,10 @@ using namespace amrex;
  * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
- * @param[in] n_qstate number of moisture components
  */
 
-void make_mom_sources (int level,
-                       int /*nrk*/,
-                       Real /*dt*/,
-                       Real time,
+void make_mom_sources (Real time,
                        const Vector<MultiFab>& S_data,
-                       const  MultiFab & S_prim,
                        std::unique_ptr<MultiFab>& z_phys_nd,
                        std::unique_ptr<MultiFab>& z_phys_cc,
                        const  MultiFab & xvel,
@@ -63,7 +54,6 @@ void make_mom_sources (int level,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        InputSoundingData& input_sounding_data,
-                       int n_qstate,
                        bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
