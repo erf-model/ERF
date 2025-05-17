@@ -39,6 +39,7 @@ void SuperDropletPC::readInputs ()
     m_nucleate_particles = false;
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
+    m_prescribed_advection = false;
     m_distribution_grid_size = 100;
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     m_bindist_rmin = 1e-6;
@@ -74,6 +75,7 @@ void SuperDropletPC::readInputs ()
     pp.query("nucleate_particles", m_nucleate_particles);
     pp.query("advect_with_flow", m_advect_w_flow);
     pp.query("advect_with_gravity", m_advect_w_gravity);
+    pp.query("prescribed_advection", m_prescribed_advection);
     pp.query("newton_solver_rtol", m_newton_rtol);
     pp.query("newton_solver_atol", m_newton_atol);
     pp.query("newton_solver_stol", m_newton_stol);
@@ -216,6 +218,7 @@ void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
             << "    Nucleate particles: " << (m_nucleate_particles ? "true" : "false") << "\n"
             << "    Advect with flow: " << (m_advect_w_flow ? "true" : "false") << "\n"
             << "    Advect with gravity: " << (m_advect_w_gravity ? "true" : "false") << "\n"
+            << "    Prescribed advection: " << (m_prescribed_advection ? "true" : "false") << "\n"
             << "    Random initial placement: " << (m_place_randomly_in_cells ? "true" : "false") << "\n"
             << "    Coalescence bin size: " << m_coalescence_bin_size << "\n"
             << "    Include Brownian coaslescence: "

@@ -308,7 +308,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 5. Add custom subsidence for (rho theta)
         // *************************************************************************************
-        if (solverChoice.custom_w_subsidence) {
+        if (solverChoice.custom_w_subsidence && solverChoice.do_theta_advection) {
             const int n = RhoTheta_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;

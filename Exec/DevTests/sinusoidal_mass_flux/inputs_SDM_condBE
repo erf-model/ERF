@@ -69,6 +69,7 @@ erf.Sc_t      = 0.33333333333333
 super_droplets_moisture.initial_distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 100
 super_droplets_moisture.include_coalescence = false
+super_droplets_moisture.prescribed_advection = true
 super_droplets_moisture.density_scaling = true
 super_droplets_moisture.advect_with_gravity = false
 super_droplets_moisture.dimensionality = "one_d_z"
