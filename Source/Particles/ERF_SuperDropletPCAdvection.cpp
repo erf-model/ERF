@@ -10,7 +10,7 @@ using namespace amrex;
 
 /*! Evolve particles for one time step */
 void SuperDropletPC::AdvectParticles ( int                   a_lev,
-                                       Real                  /*a_time*/,
+                                       Real                  a_time,
                                        Real                  a_dt,
                                        const MultiFab* const a_flow_vel,
                                        const MultiFab&       a_density,
@@ -41,6 +41,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
 
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
+    const bool prescribed_advection = m_prescribed_advection;
 
     const int num_sp = m_num_species;
     const int num_ae = m_num_aerosols;
@@ -146,6 +147,20 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 mac_interpolate(p, plo, dxi, umacarr, v);
             } else {
                 mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
+            }
+
+            if (prescribed_advection) {
+               ParticleReal density;
+               if (is_periodic_z) {
+                  cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
+               } else {
+                  cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
+               }
+               if (a_time < 600) {
+                   v[2] = 2.0*sin(PI*a_time/600)/density;
+               } else {
+                   v[2] = 0.0;
+               }
             }
 
             // compute effective radius

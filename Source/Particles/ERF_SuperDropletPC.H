@@ -333,6 +333,7 @@ class SuperDropletPC : public ERFPC
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
         bool m_density_scaling; /*!< Scale initial number density with air density */
         bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
+        bool m_prescribed_advection; /*!< move particles with prescribed vertical velocity */
 
         int m_num_species; /*!< Number of vapour/condensate species */
         std::vector<std::unique_ptr<MaterialProperties>> m_species_mat; /*!< Vapour/condensate material */
