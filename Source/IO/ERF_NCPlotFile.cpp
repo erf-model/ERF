@@ -209,9 +209,9 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
             auto nc_y_grid = ncf.var("y_grid");
             auto nc_z_grid = ncf.var("z_grid");
 
-            nc_x_grid.par_access(NC_INDEPENDENT);
-            nc_y_grid.par_access(NC_INDEPENDENT);
-            nc_z_grid.par_access(NC_INDEPENDENT);
+            nc_x_grid.par_access(NC_COLLECTIVE);
+            nc_y_grid.par_access(NC_COLLECTIVE);
+            nc_z_grid.par_access(NC_COLLECTIVE);
 
             nc_x_grid.put(x_grid.data(), {goffset}, {glen});
             nc_y_grid.put(y_grid.data(), {goffset}, {glen});
@@ -245,7 +245,7 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
                Gpu::streamSynchronize();
 
                auto nc_plot_var = ncf.var(plot_var_names[k]);
-               nc_plot_var.par_access(NC_INDEPENDENT);
+               nc_plot_var.par_access(NC_COLLECTIVE);
                nc_plot_var.put(tmp.dataPtr(), {local_start_z,local_start_y,local_start_x},
                                               {local_nz, local_ny, local_nx});
            }
