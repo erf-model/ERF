@@ -391,14 +391,14 @@ struct TurbulentPerturbation {
             amrex::Box vbx = mfi.validbox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
             amrex::Box ubx = pbx & vbx;
-            double rand_number = static_cast<double>(rand()) / RAND_MAX;
             if (ubx.ok()) {
                 amrex::Real amp_copy = pb_amp[lev][boxIdx];
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
 
                 if (pt_type == 2) { // CPM
+                    amrex::Real rand_number_const = RandomReal(-1.0, 1.0);
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        pert_cell(i,j,k) = (rand_number*2.0 - 1.0) * amp_copy;
+                        pert_cell(i,j,k) = rand_number_const * amp_copy;
                     });
                 } else {
                     ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
