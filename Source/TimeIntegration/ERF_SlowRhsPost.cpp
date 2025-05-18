@@ -76,7 +76,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<MultiFab>& ay,
                         std::unique_ptr<MultiFab>& az,
                         std::unique_ptr<MultiFab>& detJ,
-                        std::unique_ptr<MultiFab>& detJ_new,
+                        MultiFab* detJ_new,
                         Vector<std::unique_ptr<MultiFab>>& mapfac,
                         amrex::EBFArrayBoxFactory const& ebfact,
 #if defined(ERF_USE_NETCDF)

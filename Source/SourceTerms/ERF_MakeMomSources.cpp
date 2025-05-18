@@ -32,14 +32,14 @@ using namespace amrex;
 
 void make_mom_sources (Real time,
                        const Vector<MultiFab>& S_data,
-                       std::unique_ptr<MultiFab>& z_phys_nd,
-                       std::unique_ptr<MultiFab>& z_phys_cc,
-                       const  MultiFab & xvel,
-                       const  MultiFab & yvel,
-                       const  MultiFab & wvel,
-                              MultiFab & xmom_src,
-                              MultiFab & ymom_src,
-                              MultiFab & zmom_src,
+                             MultiFab& z_phys_nd,
+                             MultiFab& z_phys_cc,
+                       const MultiFab& xvel,
+                       const MultiFab& yvel,
+                       const MultiFab& wvel,
+                             MultiFab& xmom_src,
+                             MultiFab& ymom_src,
+                             MultiFab& zmom_src,
                        const MultiFab& base_state,
                              MultiFab* forest_drag,
                              MultiFab* terrain_blank,
@@ -239,8 +239,8 @@ void make_mom_sources (Real time,
         const Array4<const Real>& sphi_arr = (sinPhi_mf) ? sinPhi_mf->const_array(mfi) :
                                                            Array4<const Real>{};
 
-        const Array4<const Real>& z_nd_arr =  z_phys_nd->const_array(mfi);
-        const Array4<const Real>& z_cc_arr =  z_phys_cc->const_array(mfi);
+        const Array4<const Real>& z_nd_arr =  z_phys_nd.const_array(mfi);
+        const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
 
         // *****************************************************************************
         // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)

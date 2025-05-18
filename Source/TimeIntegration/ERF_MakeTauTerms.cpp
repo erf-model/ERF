@@ -11,7 +11,7 @@ using namespace amrex;
 
 void erf_make_tau_terms (int level, int nrk,
                          const Vector<BCRec>& domain_bcs_type_h,
-                         std::unique_ptr<MultiFab>& z_phys_nd,
+                         const MultiFab& z_phys_nd,
                          Vector<MultiFab>& S_data,
                          const MultiFab& xvel,
                          const MultiFab& yvel,
@@ -22,7 +22,7 @@ void erf_make_tau_terms (int level, int nrk,
                          const Geometry geom,
                          const SolverChoice& solverChoice,
                          std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
-                         std::unique_ptr<MultiFab>& detJ,
+                         const MultiFab& detJ,
                          Vector<std::unique_ptr<MultiFab>>& mapfac)
 {
     BL_PROFILE_REGION("erf_make_tau_terms()");
@@ -100,8 +100,8 @@ void erf_make_tau_terms (int level, int nrk,
                                                                      Array4<const Real>{};
 
             // Terrain metrics
-            const Array4<const Real>& z_nd     = z_phys_nd->const_array(mfi);
-            const Array4<const Real>& detJ_arr = detJ->const_array(mfi);
+            const Array4<const Real>& z_nd     = z_phys_nd.const_array(mfi);
+            const Array4<const Real>& detJ_arr = detJ.const_array(mfi);
 
             //-------------------------------------------------------------------------------
             // NOTE: Tile boxes with terrain are not intuitive. The linear combination of

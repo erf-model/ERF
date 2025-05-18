@@ -94,11 +94,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<SurfaceLayer>& SurfLayer,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                        const Vector<BCRec>& domain_bcs_type_h,
-                       std::unique_ptr<MultiFab>& z_phys_nd,
-                       std::unique_ptr<MultiFab>& ax,
-                       std::unique_ptr<MultiFab>& ay,
-                       std::unique_ptr<MultiFab>& az,
-                       std::unique_ptr<MultiFab>& detJ,
+                       const MultiFab& z_phys_nd,
+                       const MultiFab& ax, const MultiFab& ay, const MultiFab& az,
+                       const MultiFab& detJ,
                        Gpu::DeviceVector<Real>& stretched_dz_d,
                        Vector<MultiFab>& gradp,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
@@ -185,7 +183,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
                                                Hfx1, Hfx2, Hfx3,
                                                Q1fx1, Q1fx2, Q1fx3,
-                                               z_phys_nd.get());
+                                               &z_phys_nd);
         }
     } // l_use_diff
 
@@ -339,7 +337,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Terrain metrics
-        const Array4<const Real>& z_nd = z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_nd = z_phys_nd.const_array(mfi);
 
         // *****************************************************************************
         // Define flux arrays for use in advection
@@ -500,10 +498,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
             mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
         } else {
-            ax_arr   = ax->const_array(mfi);
-            ay_arr   = ay->const_array(mfi);
-            az_arr   = az->const_array(mfi);
-            detJ_arr = detJ->const_array(mfi);
+            ax_arr   = ax.const_array(mfi);
+            ay_arr   = ay.const_array(mfi);
+            az_arr   = az.const_array(mfi);
+            detJ_arr = detJ.const_array(mfi);
         }
 
         if (solverChoice.terrain_type != TerrainType::EB){
@@ -595,6 +593,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real const>& source_arr   = cc_src.const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            if (i == 128  and j == 0 and k == 18) amrex::Print() <<" RHS " << cell_rhs(i,j,k,Rho_comp) << " " << source_arr(i,j,k,Rho_comp) << std::endl;
             cell_rhs(i,j,k,Rho_comp)      += source_arr(i,j,k,Rho_comp);
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
         });

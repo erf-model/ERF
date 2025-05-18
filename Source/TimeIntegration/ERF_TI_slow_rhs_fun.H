@@ -31,14 +31,12 @@
 
         Real slow_dt = new_stage_time - old_step_time;
 
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-
         // *************************************************************************
         // Set up flux registers if using two_way coupling
         // *************************************************************************
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;
-        if (solverChoice.coupling_type == CouplingType::TwoWay) {
+        if (solverChoice.coupling_type == CouplingType::TwoWay && finest_level > 0) {
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
                 fr_as_crse->reset();
@@ -48,19 +46,16 @@
             }
         }
 
-        Real* dptr_u_geos = solverChoice.have_geo_wind_profile ? d_u_geos[level].data(): nullptr;
-        Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
-
         // Canopy data for mom sources
-        MultiFab* forest_drag = nullptr;
-        if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
+        MultiFab* forest_drag = (solverChoice.do_forest_drag) ?
+            m_forest_drag[level]->get_drag_field() : nullptr;
+
         // Immersed Forcing
-        MultiFab* terrain_blank = nullptr;
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-            terrain_blank = terrain_blanking[level].get();
-        }
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing) ?
+            terrain_blanking[level].get() : nullptr;
 
         // Construct the source terms for the cell-centered (conserved) variables
+        // TODO -- DONT WE NEED z_phys_cc_src if we need z_phys_nd_src??
         make_sources(level, nrk, slow_dt, old_stage_time,
                      S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
 #if defined(ERF_USE_RRTMGP)
@@ -71,6 +66,9 @@
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert, true);
+
+        MultiFab p0_to_use, base_to_use;
+        MultiFab *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use;
 
         // Moving terrain
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
@@ -146,6 +144,81 @@
 
             } // mfi
 
+              p0_to_use = MultiFab(base_state_new[level], make_alias, BaseState::p0_comp, 1);
+            base_to_use = MultiFab(base_state_new[level], make_alias, 0, BaseState::num_comps);
+             zpn_to_use =   z_phys_nd_src[level].get();
+             zpc_to_use =   z_phys_cc[level].get();
+              ax_to_use =      ax_src[level].get();
+              ay_to_use =      ay_src[level].get();
+              az_to_use =      az_src[level].get();
+              dJ_to_use = detJ_cc_src[level].get();
+
+        } else {
+              p0_to_use = MultiFab(base_state[level], make_alias, BaseState::p0_comp, 1);
+            base_to_use = MultiFab(base_state[level], make_alias, 0, BaseState::num_comps);
+             zpn_to_use = z_phys_nd[level].get();
+             zpc_to_use = z_phys_cc[level].get();
+              ax_to_use =        ax[level].get();
+              ay_to_use =        ay[level].get();
+              az_to_use =        az[level].get();
+              dJ_to_use =   detJ_cc[level].get();
+        }
+
+        // *****************************************************************************
+        // Define the pressure gradient
+        // *****************************************************************************
+        // TODO -- DONT WE NEED z_phys_cc_src if we need z_phys_nd_src??
+        make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons],
+                        p0_to_use, *zpn_to_use, *zpc_to_use, gradp[level]);
+
+        // *****************************************************************************
+        // Define the buoyancy forcing term in the z-direction
+        // *****************************************************************************
+        make_buoyancy(S_data, S_prim, buoyancy, fine_geom, solverChoice, base_to_use,
+                      micro->Get_Qstate_Moist_Size(), solverChoice.anelastic[level]);
+
+        // *****************************************************************************
+        // Make remaining (not gradp or buoyancy) momentum sources
+        // *****************************************************************************
+
+        Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
+        make_mom_sources(old_stage_time, S_data,
+                         *zpn_to_use, *zpc_to_use,
+                         xvel_new, yvel_new, zvel_new,
+                         xmom_src, ymom_src, zmom_src,
+                         base_to_use, forest_drag, terrain_blank,
+                         cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
+                         mapfac[level],
+                         (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data(): nullptr,
+                         (solverChoice.have_geo_wind_profile) ? d_v_geos[level].data(): nullptr,
+                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                         input_sounding_data, true);
+
+        // *****************************************************************************
+        // Add body sources if doing flow around a body
+        // *****************************************************************************
+        add_thin_body_sources(xmom_src, ymom_src, zmom_src,
+                              xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                              thin_xforce[level], thin_yforce[level], thin_zforce[level]);
+
+        // *****************************************************************************
+        // Define RHS for rho, rho_theta and momenta
+        // *****************************************************************************
+        erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
+                         xvel_new, yvel_new, zvel_new,
+                         z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
+                         (level > 0) ? &zmom_crse_rhs[level] : nullptr,
+                         Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
+                         fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
+                         *zpn_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
+                         stretched_dz_d[level], gradp[level],
+                         mapfac[level], get_eb(level), fr_as_crse, fr_as_fine);
+
+        // *****************************************************************************
+        // Update for moving terrain
+        // *****************************************************************************
+        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
+        {
             MultiFab  r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
             MultiFab  p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
             MultiFab pi_hse_new (base_state_new[level], make_alias, BaseState::pi0_comp, 1);
@@ -155,42 +228,6 @@
             MultiFab* p0_new  = &p_hse_new;
             MultiFab* pi0_new = &pi_hse_new;
             MultiFab* th0_new = &th_hse_new;
-
-            // *****************************************************************************
-            // Define the pressure gradient
-            // *****************************************************************************
-            make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons], *p0_new,
-                            z_phys_nd_src[level], z_phys_cc[level], gradp[level]);
-
-            // *****************************************************************************
-            // Define the buoyancy forcing term in the z-direction
-            // *****************************************************************************
-            make_buoyancy(S_data, S_prim, buoyancy, fine_geom, solverChoice, base_state_new[level],
-                          n_qstate_moist, solverChoice.anelastic[level]);
-
-            make_mom_sources(old_stage_time, S_data,
-                             z_phys_nd[level], z_phys_cc[level],
-                             xvel_new, yvel_new, zvel_new,
-                             xmom_src, ymom_src, zmom_src,
-                             base_state_new[level], forest_drag, terrain_blank,
-                             cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                             mapfac[level], dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
-                             d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                             input_sounding_data, true);
-
-            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
-                             xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
-                             (level > 0) ? &zmom_crse_rhs[level] : nullptr,
-                             Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
-                             fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level],
-                             stretched_dz_d[level], gradp[level],
-                             mapfac[level], get_eb(level), fr_as_crse, fr_as_fine);
-
-            add_thin_body_sources(xmom_src, ymom_src, zmom_src,
-                                  xflux_imask[level], yflux_imask[level], zflux_imask[level],
-                                  thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
             //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
@@ -269,44 +306,6 @@
             r0_new->FillBoundary(fine_geom.periodicity());
             p0_new->FillBoundary(fine_geom.periodicity());
             th0_new->FillBoundary(fine_geom.periodicity());
-
-        } else { // If not moving_terrain
-
-            // *****************************************************************************
-            // Define the pressure gradient
-            // *****************************************************************************
-            make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons], *p0,
-                            z_phys_nd[level], z_phys_cc[level], gradp[level]);
-
-            // *****************************************************************************
-            // Define the buoyancy forcing term in the z-direction
-            // *****************************************************************************
-            make_buoyancy(S_data, S_prim, buoyancy, fine_geom, solverChoice, base_state[level],
-                          n_qstate_moist, solverChoice.anelastic[level]);
-
-            make_mom_sources(old_stage_time, S_data,
-                             z_phys_nd[level], z_phys_cc[level],
-                             xvel_new, yvel_new, zvel_new,
-                             xmom_src, ymom_src, zmom_src,
-                             base_state[level], forest_drag, terrain_blank,
-                             cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
-                             mapfac[level], dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
-                             d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                             input_sounding_data, true);
-
-            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
-                             xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
-                             (level > 0) ? &zmom_crse_rhs[level] : nullptr,
-                             Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3,Q2fx3, Diss,
-                             fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
-                             stretched_dz_d[level], gradp[level],
-                             mapfac[level], get_eb(level), fr_as_crse, fr_as_fine);
-
-            add_thin_body_sources(xmom_src, ymom_src, zmom_src,
-                                  xflux_imask[level], yflux_imask[level], zflux_imask[level],
-                                  thin_xforce[level], thin_yforce[level], thin_zforce[level]);
         }
 
 #ifdef ERF_USE_NETCDF
@@ -321,18 +320,11 @@
             }
         }
 #endif
-
-#if 0
-        // HACK -- NO RELAXATION INSIDE FINE GRIDS
-        // Compute RHS for fine interior ghost
-        if (level > 0 && cf_width > 0) {
-            fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
-                                            cf_width, cf_set_width, fine_geom,
-                                            &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
-                                            domain_bcs_type, S_rhs, S_data);
-        }
-#endif
     }; // end slow_rhs_fun_pre
+
+    // **********************************************************************************************
+    // **********************************************************************************************
+    // **********************************************************************************************
 
     // *************************************************************
     // The "slow" integrator for MRI and the only integrator for SRI
@@ -347,8 +339,6 @@
                                  const Real new_stage_time,
                                  const int nrk)
     {
-        amrex::ignore_unused(nrk);
-
         // Note that the "old" and "new" metric terms correspond to
         // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
         // will be used to advance to
@@ -360,13 +350,9 @@
                                     << " with dt = " << slow_dt
                                     << " using RHS created at " << old_stage_time << std::endl;
 
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-
 #if defined(ERF_USE_NETCDF)
         bool moist_set_rhs = false;
-        if ( solverChoice.use_real_bcs &&
-             (level==0)   &&
-             (real_set_width > 0) &&
+        if ( solverChoice.use_real_bcs && (level==0) && (real_set_width > 0) &&
              (solverChoice.moisture_type != MoistureType::None) )
         {
             moist_set_rhs = true;
@@ -378,7 +364,7 @@
         // *************************************************************************
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;
-        if (solverChoice.coupling_type == CouplingType::TwoWay)
+        if (solverChoice.coupling_type == CouplingType::TwoWay && finest_level > 0)
         {
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
@@ -388,36 +374,22 @@
             }
         }
 
-        // Moving terrain
-        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh ) {
-            erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate_moist,
-                              S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
-                              xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
-                              Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
-                              fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                              z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc_new[level],
-                              mapfac[level], EBFactory(level),
+        MultiFab* new_detJ =
+           (solverChoice.terrain_type == TerrainType::MovingFittedMesh) ? (detJ_cc_new[level].get()) : (detJ_cc[level].get());
+
+        erf_slow_rhs_post(level, finest_level, nrk, slow_dt, micro->Get_Qstate_Moist_Size(),
+                          S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
+                          xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
+                          Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
+                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
+                          z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], new_detJ,
+                          mapfac[level], EBFactory(level),
 #if defined(ERF_USE_NETCDF)
-                              moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
-                              real_width, real_set_width,
-                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                          moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
+                          real_width, real_set_width,
+                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                              fr_as_crse, fr_as_fine);
-        } else {
-            erf_slow_rhs_post(level, finest_level, nrk, slow_dt, n_qstate_moist,
-                              S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
-                              xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
-                              Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
-                              fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                              z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc[level],
-                              mapfac[level], EBFactory(level),
-#if defined(ERF_USE_NETCDF)
-                              moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
-                              real_width, real_set_width,
-                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-#endif
-                              fr_as_crse, fr_as_fine);
-        }
+                          fr_as_crse, fr_as_fine);
 
         // Apply boundary conditions on all the state variables that have been updated
         // in both the fast and slow integrators
@@ -425,6 +397,10 @@
                   fast_only=false, vel_and_mom_synced=false);
 
     }; // end slow_rhs_fun_post
+
+    // **********************************************************************************************
+    // **********************************************************************************************
+    // **********************************************************************************************
 
     auto slow_rhs_fun_inc = [&](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_old,
@@ -456,7 +432,8 @@
         // *************************************************************************
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;
-        if (solverChoice.coupling_type == CouplingType::TwoWay) {
+        if (solverChoice.coupling_type == CouplingType::TwoWay && finest_level > 0)
+        {
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
                 fr_as_crse->reset();
@@ -470,14 +447,12 @@
         Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
 
         // Canopy data for mom sources
-        MultiFab* forest_drag = nullptr;
-        if (solverChoice.do_forest_drag) { forest_drag = m_forest_drag[level]->get_drag_field(); }
+        MultiFab* forest_drag = (solverChoice.do_forest_drag) ?
+            m_forest_drag[level]->get_drag_field() : nullptr;
+
         // Immersed Forcing
-        MultiFab* terrain_blank = nullptr;
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-            terrain_blank = terrain_blanking[level].get();
-        }
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing) ?
+            terrain_blanking[level].get() : nullptr;
 
         make_sources(level, nrk, slow_dt, old_stage_time,
                      S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
@@ -493,16 +468,16 @@
         // Define the pressure gradient
         // *****************************************************************************
         make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons], *p0,
-                        z_phys_nd[level], z_phys_cc[level], gradp[level]);
+                        *z_phys_nd[level].get(), *z_phys_cc[level].get(), gradp[level]);
 
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction
         // *****************************************************************************
         make_buoyancy(S_data, S_prim, buoyancy, fine_geom, solverChoice, base_state[level],
-                      n_qstate_moist, solverChoice.anelastic[level]);
+                      micro->Get_Qstate_Moist_Size(), solverChoice.anelastic[level]);
 
         make_mom_sources(old_stage_time, S_data,
-                         z_phys_nd[level], z_phys_cc[level],
+                         *z_phys_nd[level].get(), *z_phys_cc[level].get(),
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
                          base_state[level], forest_drag, terrain_blank,
@@ -511,6 +486,10 @@
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
                          input_sounding_data, true);
 
+         add_thin_body_sources(xmom_src, ymom_src, zmom_src,
+                               xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                               thin_xforce[level], thin_yforce[level], thin_zforce[level]);
+
         erf_slow_rhs_pre(level, finest_level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
@@ -518,14 +497,10 @@
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                          Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                         z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level],
+                         *z_phys_nd[level].get(), *ax[level].get(), *ay[level].get(), *az[level].get(), *detJ_cc[level].get(),
                          stretched_dz_d[level], gradp[level], mapfac[level],
                          get_eb(level),
                          fr_as_crse, fr_as_fine);
-
-         add_thin_body_sources(xmom_src, ymom_src, zmom_src,
-                               xflux_imask[level], yflux_imask[level], zflux_imask[level],
-                               thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs

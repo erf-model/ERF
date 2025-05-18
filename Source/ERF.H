@@ -95,26 +95,6 @@ AMREX_ENUM(PlotFileType,
     None, Amrex, Netcdf
 );
 
-
-#if 0
-/**
- * Enum of possible coarse/fine interpolation options
-*/
-namespace InterpType {
-    enum {
-        PCInterp = 0,
-        NodeBilinear,
-        CellConservativeLinear,
-        CellBilinear,
-        CellQuadratic,
-        CellConservativeProtected,
-        CellConservativeQuartic,
-        FaceLinear,
-        FaceConserativeLinear
-    };
-}
-#endif
-
 /**
  * Main class in ERF code, instantiated from main.cpp
 */

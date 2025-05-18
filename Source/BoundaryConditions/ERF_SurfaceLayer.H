@@ -373,7 +373,7 @@ public:
                              amrex::MultiFab* xqv_flux,
                              amrex::MultiFab* yqv_flux,
                              amrex::MultiFab* zqv_flux,
-                             amrex::MultiFab* z_phys);
+                             const amrex::MultiFab* z_phys);
 
     template <typename FluxCalc>
     void
@@ -386,7 +386,7 @@ public:
                               amrex::MultiFab* xqv_flux,
                               amrex::MultiFab* yqv_flux,
                               amrex::MultiFab* zqv_flux,
-                              amrex::MultiFab* z_phys,
+                              const amrex::MultiFab* z_phys,
                               const FluxCalc& flux_comp);
 
     void

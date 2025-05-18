@@ -156,7 +156,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
                 make_mom_sources(old_substep_time, S_old,
-                                z_phys_nd[level], z_phys_cc[level],
+                                *z_phys_nd[level].get(), *z_phys_cc[level].get(),
                                 xvel_new, yvel_new, zvel_new,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state_new[level], forest_drag, terrain_blank,
@@ -180,7 +180,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 make_mom_sources(old_substep_time, S_data,
-                                z_phys_nd[level], z_phys_cc[level],
+                                *z_phys_nd[level].get(), *z_phys_cc[level].get(),
                                 xvel_new, yvel_new, zvel_new,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state_new[level], forest_drag, terrain_blank,
@@ -213,7 +213,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                 // If this is the first substep we pass in S_old as the previous step's solution
                 //    and S_data is the new-time solution to be defined here
                 make_mom_sources(old_substep_time, S_old,
-                                z_phys_nd[level], z_phys_cc[level],
+                                *z_phys_nd[level].get(), *z_phys_cc[level].get(),
                                 xvel_new, yvel_new, zvel_new,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state[level], forest_drag, terrain_blank,
@@ -235,7 +235,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                 // If this is not the first substep we pass in S_data as both the previous step's solution
                 //    and as the new-time solution to be defined here
                 make_mom_sources(old_substep_time, S_data,
-                                z_phys_nd[level], z_phys_cc[level],
+                                *z_phys_nd[level].get(), *z_phys_cc[level].get(),
                                 xvel_new, yvel_new, zvel_new,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state[level], forest_drag, terrain_blank,
@@ -264,7 +264,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                 // If this is the first substep we pass in S_old as the previous step's solution
                 //    and S_data is the new-time solution to be defined here
                 make_mom_sources(old_substep_time, S_old,
-                                z_phys_nd[level], z_phys_cc[level],
+                                *z_phys_nd[level].get(), *z_phys_cc[level].get(),
                                 xvel_new, yvel_new, zvel_new,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state[level], forest_drag, terrain_blank,
@@ -285,7 +285,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                 // If this is not the first substep we pass in S_data as both the previous step's solution
                 //    and as the new-time solution to be defined here
                 make_mom_sources(old_substep_time, S_data,
-                                z_phys_nd[level], z_phys_cc[level],
+                                *z_phys_nd[level].get(), *z_phys_cc[level].get(),
                                 xvel_new, yvel_new, zvel_new,
                                 xmom_src, ymom_src, zmom_src,
                                 base_state[level], forest_drag, terrain_blank,
