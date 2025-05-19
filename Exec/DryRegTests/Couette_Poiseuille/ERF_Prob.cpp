@@ -22,6 +22,10 @@ Problem::Problem()
 
   pp.get("prob_type", parms.prob_type);
 
+  pp.query("u_0_pert_mag", parms.u_0_pert_mag);
+  pp.query("v_0_pert_mag", parms.v_0_pert_mag);
+  pp.query("w_0_pert_mag", parms.w_0_pert_mag);
+
   init_base_parms(parms.rho_0, parms.T_0);
 }
 
@@ -58,7 +62,9 @@ Problem::init_custom_pert(
         }
     });
 
-    AMREX_ALWAYS_ASSERT (parms.prob_type == 1 || parms.prob_type == 10 || parms.prob_type == 11);
+    AMREX_ALWAYS_ASSERT (parms.prob_type == 1 ||
+                         parms.prob_type == 10 || parms.prob_type == 11 ||
+                         parms.prob_type == 20 || parms.prob_type == 21);
 
     // Couette flow
     if (parms.prob_type == 1) {
@@ -115,6 +121,49 @@ Problem::init_custom_pert(
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             z_vel_pert(i, j, k) = 0.0;
+        });
+
+    // plane channel flow initialization
+    } else if (parms.prob_type == 20 || parms.prob_type == 21) {
+
+        ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+        {
+            const Real* prob_lo = geomdata.ProbLo();
+            const Real* prob_hi = geomdata.ProbHi();
+            const Real* dx      = geomdata.CellSize();
+
+            Real y_h;
+            if (parms_d.prob_type == 20) {
+                y_h = 2.0 * (j + 0.5) * dx[1] / (prob_hi[1] - prob_lo[1]) - 1.0;
+            } else {
+                y_h = 2.0 * (k + 0.5) * dx[2] / (prob_hi[2] - prob_lo[2]) - 1.0;
+            }
+            x_vel_pert(i, j, k) = parms_d.u_0 * (1.0 - y_h * y_h);
+
+            if (parms_d.u_0_pert_mag != 0.0) {
+                Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+                x_vel_pert(i, j, k) += (rand_double*2.0 - 1.0)*parms_d.u_0_pert_mag;
+            }
+        });
+
+        ParallelForRNG(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+        {
+            if (parms_d.v_0_pert_mag != 0.0) {
+                Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+                y_vel_pert(i, j, k) = (rand_double*2.0 - 1.0)*parms_d.v_0_pert_mag;
+            } else {
+                y_vel_pert(i, j, k) = 0.0;
+            }
+        });
+
+        ParallelForRNG(zbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+        {
+            if (parms_d.w_0_pert_mag != 0.0) {
+                Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+                z_vel_pert(i, j, k) = (rand_double*2.0 - 1.0)*parms_d.w_0_pert_mag;
+            } else {
+                z_vel_pert(i, j, k) = 0.0;
+            }
         });
     } // prob_type
 }

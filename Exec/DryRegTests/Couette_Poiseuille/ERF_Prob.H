@@ -14,6 +14,11 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real w_0   = 0.0;
   amrex::Real T_0   = 300.0;
 
+  // random initial perturbations (legacy code)
+  amrex::Real u_0_pert_mag = 0.0;
+  amrex::Real v_0_pert_mag = 0.0;
+  amrex::Real w_0_pert_mag = 0.0;
+
   int prob_type = -1;
 }; // namespace ProbParm
 
