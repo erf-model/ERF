@@ -593,7 +593,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real const>& source_arr   = cc_src.const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (i == 128  and j == 0 and k == 18) amrex::Print() <<" RHS " << cell_rhs(i,j,k,Rho_comp) << " " << source_arr(i,j,k,Rho_comp) << std::endl;
             cell_rhs(i,j,k,Rho_comp)      += source_arr(i,j,k,Rho_comp);
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
         });
