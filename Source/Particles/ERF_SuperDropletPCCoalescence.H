@@ -310,7 +310,7 @@ struct CollisionKernel
         RT sumdia = diameter_1 + diameter_2;
         RT sumd   = diff_term_1   + diff_term_2;
         RT sumc   = std::sqrt( vel_term_1*vel_term_1 + vel_term_2*vel_term_2 );
-        RT sumg   = std::sqrt( length_term_1*length_term_1 + length_term_2*length_term_2 );
+        RT sumg   = std::sqrt( 2.0*length_term_1*length_term_1 + 2.0*length_term_2*length_term_2 );
 
         dtmp = sumdia/(sumdia+2.0*sumg) + (8.0*sumd)/(sumdia*sumc);
         RT k12 = 2.0*PI * sumdia*sumd/dtmp;
