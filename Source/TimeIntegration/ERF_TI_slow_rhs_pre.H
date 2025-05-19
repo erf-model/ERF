@@ -75,7 +75,7 @@
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
-            update_terrain_stage(level, old_step_time, old_stage_time, new_stage_time, slow_dt, S_data);
+            update_terrain_stage(level, old_step_time, old_stage_time, new_stage_time, slow_dt);
 
               p0_to_use = MultiFab(base_state_new[level], make_alias, BaseState::p0_comp, 1);
             base_to_use = MultiFab(base_state_new[level], make_alias, 0, BaseState::num_comps);

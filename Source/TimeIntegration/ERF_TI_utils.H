@@ -138,8 +138,7 @@
                               ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons);
     };
 
-    auto update_terrain_stage = [&](int level, Real old_step_time, Real old_stage_time, Real new_stage_time, Real slow_dt,
-                                    Vector<MultiFab>& S_data)
+    auto update_terrain_stage = [&](int level, Real old_step_time, Real old_stage_time, Real new_stage_time, Real slow_dt)
     {
             // Note that the "old" and "new" metric terms correspond to
             // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
