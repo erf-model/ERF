@@ -114,7 +114,6 @@
         // Make remaining (not gradp or buoyancy) momentum sources
         // *****************************************************************************
 
-        Real* dptr_v_geos = solverChoice.have_geo_wind_profile ? d_v_geos[level].data(): nullptr;
         make_mom_sources(old_stage_time, S_data, *zpn_to_use, *zpc_to_use,
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
