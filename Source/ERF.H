@@ -832,9 +832,6 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax_new;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay_new;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az_new;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 

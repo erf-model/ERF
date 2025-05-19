@@ -112,11 +112,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;
-        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
-        {
-            z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
-            update_terrain_substep(level, old_substep_time, new_substep_time, dtau, S_data, z_t_pert);
-        }
+        z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
 
         if ( (fast_step == 0) || (solverChoice.terrain_type == TerrainType::MovingFittedMesh) )
         {
@@ -127,6 +123,66 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
+#if 0
+            z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
+            update_terrain(level, old_substep_time, new_substep_time, dtau, S_data, z_t_pert);
+#else
+            // Make "old" fast geom -- store in z_phys_nd for convenience
+            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[level]->nGrow());
+
+            if (verbose) Print() << "Making geometry at start of substep time: "
+                                 << std::setprecision(timeprecision) << old_substep_time << std::endl;
+            FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
+            prob->init_terrain_surface(fine_geom,terrain_fab_old,old_substep_time);
+
+            // Make "new" fast geom
+            if (verbose) Print() << "Making geometry for end of substep time :"
+                                 << std::setprecision(timeprecision) << new_substep_time << std::endl;
+            FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
+            prob->init_terrain_surface(fine_geom,terrain_fab_new,new_substep_time);
+
+            // Copy on intersection
+            for (MFIter mfi(*z_phys_nd[level],false); mfi.isValid(); ++mfi)
+            {
+                Box isect = terrain_fab_old.box() & (*z_phys_nd[level])[mfi].box();
+                (    *z_phys_nd[level])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
+                (*z_phys_nd_new[level])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
+            }
+
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
+            make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
+
+            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
+            make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
+
+            Real inv_dt   = 1./dtau;
+
+            z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
+
+            for (MFIter mfi(*z_t_rk[level],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                Box gbx = mfi.growntilebox(IntVect(1,1,0));
+
+                const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
+                const Array4<Real      >& zp_t_arr     =  z_t_pert->array(mfi);
+
+                const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[level]->const_array(mfi);
+                const Array4<Real const>& z_nd_old_arr =  z_phys_nd[level]->const_array(mfi);
+
+                // Loop over horizontal plane
+                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Evaluate between RK stages assuming the geometry is linear between old and new time
+                    zp_t_arr(i,j,k) = 0.25 * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
+                                                      +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
+                                                      +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
+                                                      +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
+                    // Convert to perturbation: z"_t(t) = z_t(t) - z_t^{RK}
+                    zp_t_arr(i,j,k) -= z_t_arr(i,j,k);
+                });
+            } // mfi
+#endif
+
             erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
                             S_slow_rhs, Svec_to_use, S_stage, S_prim, pi_stage, fast_coeffs,
                             S_data, S_scratch,
@@ -146,8 +202,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                            S_data, S_scratch,
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity,
-                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
-                           mapfac[level],
+                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
 
         } else {

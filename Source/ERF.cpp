@@ -282,9 +282,6 @@ ERF::ERF_shared ()
 
     z_phys_nd_new.resize(nlevs_max);
     detJ_cc_new.resize(nlevs_max);
-    ax_new.resize(nlevs_max);
-    ay_new.resize(nlevs_max);
-    az_new.resize(nlevs_max);
 
     z_phys_nd_src.resize(nlevs_max);
     detJ_cc_src.resize(nlevs_max);

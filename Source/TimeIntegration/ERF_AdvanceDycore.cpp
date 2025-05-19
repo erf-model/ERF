@@ -283,7 +283,8 @@ void ERF::advance_dycore(int level,
 
 #include "ERF_TI_no_substep_fun.H"
 #include "ERF_TI_substep_fun.H"
-#include "ERF_TI_slow_rhs_fun.H"
+#include "ERF_TI_slow_rhs_pre.H"
+#include "ERF_TI_slow_rhs_post.H"
 
     // ***************************************************************************************
     // Setup the integrator and integrate for a single timestep
@@ -294,10 +295,6 @@ void ERF::advance_dycore(int level,
     // any state data (e.g. at RK stages or at the end of a timestep)
     mri_integrator.set_slow_rhs_pre(slow_rhs_fun_pre);
     mri_integrator.set_slow_rhs_post(slow_rhs_fun_post);
-
-    if (solverChoice.anelastic[level]) {
-        mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);
-    }
 
     mri_integrator.set_fast_rhs(fast_rhs_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);

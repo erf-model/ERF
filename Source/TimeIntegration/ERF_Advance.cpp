@@ -136,11 +136,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     int nvars = S_old.nComp();
 
     // Source array for conserved cell-centered quantities -- this will be filled
-    //     in the call to make_sources in ERF_TI_slow_rhs_fun.H
+    //     in the call to make_sources in ERF_TI_slow_rhs_pre.H
     MultiFab cc_source(ba,dm,nvars,1); cc_source.setVal(0.0);
 
     // Source arrays for momenta -- these will be filled
-    //     in the call to make_mom_sources in ERF_TI_slow_rhs_fun.H
+    //     in the call to make_mom_sources in ERF_TI_slow_rhs_pre.H
     BoxArray ba_x(ba); ba_x.surroundingNodes(0);
     MultiFab xmom_source(ba_x,dm,1,1); xmom_source.setVal(0.0);
 
@@ -311,7 +311,7 @@ check_for_negative_theta(amrex::MultiFab& S_old)
             if (cell_data(i,j,k,RhoTheta_comp) <= 0.) {
                 printf("BAD THETA AT %d %d %d %e %e \n",
                 i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
-                amrex::Abort("Bad theta in ERF_slow_rhs_pre");
+                amrex::Abort("Bad theta in check_for_negative_theta");
             }
 #endif
             });
