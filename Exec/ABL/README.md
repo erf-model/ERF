@@ -26,7 +26,7 @@ sbatch Scaling/Perlmutter/WeakScaling_GPU.qsub
 sbatch Scaling/Perlmutter/StrongScaling_GPU.qsub
 ```
 
-3. Interactive sessions can be requested on Perlmutter for upto 4 nodes (ie. 16 GPUs ( 4 GPUs per node))
+3. For small scaling studies, interactive sessions can be requested on Perlmutter for upto 4 nodes (ie. 16 GPUs ( 4 GPUs per node))
 ```
 sh Scaling/Perlmutter/get_interactive_nodes.sh
 ``` 
@@ -52,5 +52,6 @@ sh Scaling/Aurora/get_interactive_nodes.sh
 sh WeakScaling_GPU.sh
 sh Scaling/Aurora/StrongScaling_GPU.sh
 ```
+
 
 
