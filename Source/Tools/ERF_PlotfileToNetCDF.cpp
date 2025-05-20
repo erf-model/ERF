@@ -33,7 +33,10 @@ void
 writeNCPlotFile (int lev, int which, const std::string& dir,
                  const amrex::Vector<const amrex::MultiFab*> &mf,
                  const amrex::Vector<std::string> &plot_var_names,
-                 const amrex::Vector<int>& level_steps, amrex::Real time);
+                 const amrex::Vector<int>& level_steps,
+                 const amrex::Vector<Geometry>& geom,
+                 amrex::Vector<amrex::Vector<amrex::Box>> boxes_at_level,
+                 amrex::Real time, amrex::Real start_bdy_time);
 
 static
 void
@@ -94,6 +97,10 @@ main (int   argc,
     int max_grid_size = 64;
 
     Vector<MultiFab> mfvec(finest_level+1);
+    Vector<Geometry> geom(finest_level+1);
+    Vector<Vector<Box>> boxes_at_level(finest_level+1);
+
+    Real start_bdy_time = time;
 
     for (int lev = 0; lev < finest_level; lev++)
     {
@@ -109,7 +116,7 @@ main (int   argc,
             std::cout << "Writing " << outfile << std::endl;
         }
 
-       writeNCPlotFile(lev, l_which, outfile, GetVecOfConstPtrs(mfvec), varnames, istep, time);
+       writeNCPlotFile(lev, l_which, outfile, GetVecOfConstPtrs(mfvec), varnames, istep, geom, boxes_at_level, time, start_bdy_time);
     }
   }
 
