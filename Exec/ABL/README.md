@@ -43,8 +43,7 @@ queue that gets upto 31 nodes (ie. 372 Intel GPUs (12 GPUs per node)).
 
 1. To compile the code on Aurora Intel PVC GPUs
 ```
-cd Scaling/Aurora
-cp GNUmakefile_GPU.aurora GNUmakefile
+cp Scaling/Aurora/GNUmakefile_GPU.aurora GNUmakefile
 make -j8
 ```
 
