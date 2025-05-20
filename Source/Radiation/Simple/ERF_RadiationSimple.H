@@ -9,6 +9,7 @@
 
 #include <ERF_RadiationInterface.H>
 #include <ERF_DataStruct.H>
+#include <ERF_EOS.H>
 
 class RadiationSimple : public IRadiation
 {
