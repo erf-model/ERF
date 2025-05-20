@@ -10,7 +10,7 @@ with random perturbations in velocity and potential temperature.
 ## Scaling studies
 Scripts have been added in the `Scaling` directory to perform weak and strong 
 scaling studies on GPUs on Perlmutter (NVIDIA A100) and Aurora (Intel PVC). The 
-`inputs` files are set to not write output. If output needs to be written change 
+`inputs` files are set to not write output. If output needs to be written, change 
 `erf.plot_int_1` parameter in the `inputs` file to the frequency of writing the 
 output (ie. number of time steps)
 
