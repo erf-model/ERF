@@ -14,7 +14,7 @@ export OMP_NUM_THREADS=${NTHREADS}
 export OMP_PLACES=cores
 
 for n_nodes in 1 2 4 8 16
-do  
+do
   NTOTRANKS=$(( n_nodes * NRANKS_PER_NODE ))
   echo "Test $lc: $n_nodes nodes, $NRANKS_PER_NODE tasks per node, $NTOTRANKS procs, $probx $proby 1024, $nx $ny 256"
 
