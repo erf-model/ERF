@@ -8,8 +8,8 @@ with random perturbations in velocity and potential temperature.
 
 
 ## Scaling studies
-Scripts have been added to perform scaling studies on GPUs on Perlmutter (NVIDIA A100) 
-and Aurora (Intel PVC)
+Scripts have been added in the `Scaling` directory to perform weak and strong 
+scaling studies on GPUs on Perlmutter (NVIDIA A100) and Aurora (Intel PVC)
 
 ### Perlmutter
 1. To compile the code on Perlmutter NVIDIA A100 GPUs
