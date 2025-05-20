@@ -52,7 +52,7 @@ sh Scaling/Aurora/get_interactive_nodes.sh
 
 3. Execute the scripts
 ```
-sh WeakScaling_GPU.sh
+sh Scaling/Aurora/WeakScaling_GPU.sh
 sh Scaling/Aurora/StrongScaling_GPU.sh
 ```
 
