@@ -39,6 +39,8 @@
 #include <ERF_DataStruct.H>
 #include <ERF_EOS.H>
 
+#include <ERF_LandSurface.H>
+
 class Radiation {
 public:
 
@@ -64,6 +66,68 @@ public:
                amrex::MultiFab* z_phys,
                amrex::MultiFab* lat,
                amrex::MultiFab* lon);
+
+    template<typename LandSurfaceModelType>
+    void set_lsm_inputs(LandSurfaceModelType *model)
+    {
+        if constexpr(std::is_same_v<LandSurfaceModelType, SLM>)
+        {
+            if (!m_update_rad)
+            {
+                // skip getting LSM inputs if radiation not updating this timestep
+                return;
+            }
+
+            // get surface temperature, LW flux, and emissivities from SLM
+            /*
+            auto slm_to_rad_vars = model->export_to_RRTMGP();
+
+            for (amrex::MFIter mfi(*slm_to_rad_vars[0]); mfi.isValid(); ++mfi) {
+                const auto& vbx  = mfi.validbox();
+                const auto& sbx  = amrex::makeSlab(vbx, 2, 0);
+
+                const int nx     = vbx.length(0);
+                const int imin   = vbx.smallEnd(0);
+                const int jmin   = vbx.smallEnd(1);
+                const int offset = m_col_offsets[mfi.index()];
+
+                const auto &slm_tsurf           = slm_to_rad_vars[0]->const_array(mfi);
+                const auto &slm_alb_dir_vis_arr = slm_to_rad_vars[2]->const_array(mfi);
+                const auto &slm_alb_dir_nir_arr = slm_to_rad_vars[4]->const_array(mfi);
+                const auto &slm_IR_emis_arr     = slm_to_rad_vars[5]->const_array(mfi);
+                const auto &slm_net_rad_arr     = slm_to_rad_vars[6]->const_array(mfi);
+                amrex::ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    // map [i,j,k] 0-based to [icol, ilay] 1-based
+                    const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
+                    const int ilay = 1;
+
+                    t_sfc(icol) = slm_tsurf(i, j, k);
+
+                    sfc_alb_dir_vis(icol) = slm_alb_dir_vis_arr(i, j, k);
+                    sfc_alb_dir_nir(icol) = slm_alb_dir_nir_arr(i, j, k);
+                    sfc_alb_dif_vis(icol) = slm_alb_dir_vis_arr(i, j, k);
+                    sfc_alb_dif_nir(icol) = slm_alb_dir_nir_arr(i, j, k);
+
+                    sfc_emis(icol) = slm_IR_emis_arr(i, j, k);
+
+                    //lw_src(icol) = slm_net_rad_arr(i, j, k, SLM_NetRad::net_lwup1);
+                    lw_src(icol) = 0.0; // TODO
+                });
+            }
+
+            // expand sfc_emis and lw_src over nlwbands
+            // TODO: check if this is correct - should emissivity vary based on band?
+            yakl::fortran::parallel_for(yakl::fortran::SimpleBounds<2>(m_nlwbands, m_ncol), YAKL_LAMBDA(const int ibnd, const int icol)
+            {
+                emis_sfc(icol, ibnd) = sfc_emis(icol);
+            });
+            */
+
+            yakl::memset(emis_sfc, 0.95);
+            yakl::memset(lw_src, 0.0);
+        }
+    }
 
     // Initialize the temporary variables
     void
@@ -142,6 +206,9 @@ private:
     // Do we have moisture and cold comps?
     bool m_moist = false;
     bool m_ice   = false;
+
+    // Do we have a land surface model?
+    bool m_lsm   = false;
 
     // Pointer to the CC conserved vars
     amrex::MultiFab* m_cons_in = nullptr;
@@ -269,6 +336,9 @@ private:
     real1d sfc_flux_dif_nir;
     real1d lat;
     real1d lon;
+    real1d sfc_emis;
+    real1d t_sfc;
+    real1d lw_src;
 
     // 2d size (ncol, nlay)
     real2d r_lay;
@@ -326,6 +396,9 @@ private:
     // 2d size (ncol, nswbands)
     real2d sfc_alb_dir;
     real2d sfc_alb_dif;
+
+    // 2d size (ncol, nlwbands)
+    real2d emis_sfc;
 
     // 3d size (ncol, nlay, n[sw,lw]bands)
     real3d aero_tau_sw;

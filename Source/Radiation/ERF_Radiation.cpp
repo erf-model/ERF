@@ -32,6 +32,9 @@ Radiation::Radiation (const int& lev,
     // Check if we have a moisture model with ice
     if (sc.moisture_type == MoistureType::SAM)  { m_ice = true; }
 
+    // Check if we have a land surface model enabled
+    if (sc.lsm_type != LandSurfaceType::None) { m_lsm = true; }
+
     // Construct parser object for following reads
     ParmParse pp("erf");
 
@@ -136,13 +139,14 @@ Radiation::set_grids (int& level,
     m_geom           = geom;
     m_cons_in        = cons_in;
     m_lsm_fluxes     = lsm_fluxes;
+    m_lsm_zenith     = lsm_zenith;
     m_qheating_rates = qheating_rates;
     m_z_phys         = z_phys;
     m_lat            = lat;
     m_lon            = lon;
 
     // Update the day and month
-    time_t timestamp = time_t(int(time));
+    time_t timestamp = time_t(time);
     struct tm *timeinfo = gmtime(&timestamp);
     if (m_fixed_orbital_year) {
         m_orbital_mon  = timeinfo->tm_mon + 1;
@@ -220,6 +224,9 @@ Radiation::alloc_buffers ()
     sfc_flux_dif_nir = real1d("sfc_flux_dif_nir", m_ncol);
     lat              = real1d("lat"             , m_ncol);
     lon              = real1d("lon"             , m_ncol);;
+    sfc_emis         = real1d("sfc_emis"        , m_ncol);
+    t_sfc            = real1d("t_sfc"           , m_ncol);
+    lw_src           = real1d("lw_src"          , m_ncol);
 
     // 2d size (ncol, nlay)
     r_lay         = real2d("r_lay"        , m_ncol, m_nlay);
@@ -278,6 +285,9 @@ Radiation::alloc_buffers ()
     sfc_alb_dir = real2d("sfc_alb_dir", m_ncol, m_nswbands);
     sfc_alb_dif = real2d("sfc_alb_dif", m_ncol, m_nswbands);
 
+    // 2d size (ncol, nlwbands)
+    emis_sfc    = real2d("emis_sfc", m_ncol, m_nlwbands);
+
     // 3d size (ncol, nlay, n[sw,lw]bands)
     aero_tau_sw = real3d("aero_tau_sw", m_ncol, m_nlay, m_nswbands);
     aero_ssa_sw = real3d("aero_ssa_sw", m_ncol, m_nlay, m_nswbands);
@@ -315,6 +325,9 @@ Radiation::dealloc_buffers ()
     sfc_flux_dif_nir.deallocate();
     lat.deallocate();
     lon.deallocate();
+    sfc_emis.deallocate();
+    t_sfc.deallocate();
+    lw_src.deallocate();
 
     // 2d size (ncol, nlay)
     r_lay.deallocate();
@@ -375,6 +388,9 @@ Radiation::dealloc_buffers ()
     sfc_alb_dir.deallocate();
     sfc_alb_dif.deallocate();
 
+    // 2d size (ncol, nlwbands)
+    emis_sfc.deallocate();
+
     // 3d size (ncol, nlay, n[sw,lw]bands)
     aero_tau_sw.deallocate();
     aero_ssa_sw.deallocate();
@@ -396,6 +412,7 @@ Radiation::mf_to_yakl_buffers ()
 {
     bool moist = m_moist;
     bool ice   = m_ice;
+    const bool lsm = m_lsm;
     int  ncol  = m_ncol;
     int  nlay  = m_nlay;
     Real dz    = m_geom.CellSize(2);
@@ -474,6 +491,11 @@ Radiation::mf_to_yakl_buffers ()
             if (k==0) {
                 lat(icol) = (m_lat) ? lat_arr(i,j,0) : cons_lat;
                 lon(icol) = (m_lon) ? lon_arr(i,j,0) : cons_lon;
+
+                if (!lsm) {
+                    // if no LSM, then set surface temperature as temperature at k=0
+                    t_sfc(icol) = t_lev(icol, 1);
+                }
             }
 
         });
@@ -482,16 +504,18 @@ Radiation::mf_to_yakl_buffers ()
     // Separate YAKL kernel for derived quantities
     parallel_for(SimpleBounds<2>(ncol, nlay), YAKL_LAMBDA (int icol, int ilay)
     {
-        p_del(icol,ilay)  = p_lev(icol,ilay+1) - p_lev(icol,ilay);
+        p_del(icol,ilay)  = std::abs(p_lev(icol,ilay+1) - p_lev(icol,ilay));
     });
 
     // TODO: Fill properly
     // No LSM, so follow EAMXX dummy atmos and set constants
-    yakl::memset(mu0, 0.86);
-    yakl::memset(sfc_alb_dir_vis, 0.06);
-    yakl::memset(sfc_alb_dir_nir, 0.06);
-    yakl::memset(sfc_alb_dif_vis, 0.06);
-    yakl::memset(sfc_alb_dif_nir, 0.06);
+    if (!lsm) {
+        yakl::memset(mu0, 0.86);
+        yakl::memset(sfc_alb_dir_vis, 0.06);
+        yakl::memset(sfc_alb_dir_nir, 0.06);
+        yakl::memset(sfc_alb_dif_vis, 0.06);
+        yakl::memset(sfc_alb_dif_nir, 0.06);
+    }
 
     // TODO: Fill properly
     yakl::memset(aero_tau_sw, 0.0);
@@ -559,6 +583,17 @@ Radiation::yakl_buffers_to_mf ()
 
                 // LW flux for LSM (at bottom surface)
                 lsm_arr(i,j,k,5) = lw_flux_dn(icol,1);
+            });
+        }
+        if (m_lsm_zenith) {
+            const Array4<Real>& lsm_zenith_arr =  m_lsm_zenith->array(mfi);
+            ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // map [i,j,k] 0-based to [icol, ilay] 1-based
+                const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
+
+                // export cosine zenith angle for LSM
+                lsm_zenith_arr(i,j,k) = mu0(icol);
             });
         }
     }
@@ -635,10 +670,14 @@ Radiation::run_impl ()
 
     // Use the orbital parameters to calculate the solar declination and eccentricity factor
     real delta, eccf;
-    // TODO: Generalize the days per month.
     // Want day + fraction; calday 1 == Jan 1 0Z
-    static constexpr real dpm = (365.0/12.0);
-    real calday = (m_orbital_mon-1.0)*dpm + std::min(m_orbital_day-1.0,dpm-1.0) + m_orbital_sec/86400.0;
+    static constexpr real dpy[] = {0.0, 31.0, 59.0, 90.0, 120.0, 151.0, 181.0, 212.0, 243.0, 273.0, 304.0, 334.0};
+    bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
+    real calday = dpy[m_orbital_mon] + m_orbital_day + m_orbital_sec/86400.0;
+    // add extra day if leap year
+    if (leap) {
+        calday += 1.0;
+    }
     orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
 
     // Overwrite eccf if using a fixed solar constant.
@@ -692,7 +731,11 @@ Radiation::run_impl ()
     // TODO: No LSM so leaving comment for code
     // Calculate T_int from longwave flux up from the surface, assuming
     // blackbody emission with emissivity of 1.
-
+    if (!m_lsm) {
+        // If no LSM, set default values for surface emissivity and LW src
+        yakl::memset(emis_sfc, 0.98);
+        yakl::memset(lw_src, 0.0);
+    }
 
     // Determine the cosine zenith angle.
     // This must be done on HOST and copied to device.
@@ -740,6 +783,7 @@ Radiation::run_impl ()
                         p_lay, t_lay, p_lev, t_lev,
                         m_gas_concs,
                         sfc_alb_dir, sfc_alb_dif, mu0,
+                        t_sfc, emis_sfc, lw_src,
                         lwp, iwp, eff_radius_qc, eff_radius_qi, cldfrac_tot,
                         aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
                         cld_tau_sw_bnd, cld_tau_lw_bnd,
@@ -821,7 +865,8 @@ Radiation::run_impl ()
     rrtmgp::compute_heating_rate(lw_flux_up, lw_flux_dn, r_lay, z_del, lw_heating);
 
     // Compute surface fluxes
-    const int kbot = nlay + 1; // Should this be 1 for our layout?
+    //const int kbot = nlay + 1; // Should this be 1 for our layout?
+    const int kbot = 1;
     parallel_for(SimpleBounds<3>(ncol, nlay+1, nswbands), YAKL_LAMBDA (int icol, int ilay, int ibnd)
     {
         sw_bnd_flux_dif(icol,ilay,ibnd) = sw_bnd_flux_dn(icol,ilay,ibnd) - sw_bnd_flux_dir(icol,ilay,ibnd);
