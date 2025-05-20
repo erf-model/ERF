@@ -7,13 +7,14 @@
 #include "ERF_DataStruct.H"
 #include "ERF_InputSoundingData.H"
 #include "ERF_TurbPertStruct.H"
+#include "ERF_EB.H"
 
 /**
  * Function for computing the buoyancy term to be used in the evolution
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  */
-void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
+void make_buoyancy (const amrex::Vector<  amrex::MultiFab>& S_data,
                     const           amrex::MultiFab & S_prim,
                     amrex::MultiFab& buoyancy,
                     const amrex::Geometry geom,
@@ -22,9 +23,25 @@ void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
                     const int n_qstate,
                     const int anelastic);
 
+void make_gradp_pert (int level,
+                      const SolverChoice& solverChoice,
+                      const amrex::Geometry& geom,
+                      amrex::MultiFab& S_data,
+                      amrex::MultiFab& p0,
+                      amrex::MultiFab& z_phys_nd,
+                      amrex::MultiFab& z_phys_cc,
+                      amrex::Vector<amrex::MultiFab>& gradp);
+
+void compute_gradp (const amrex::MultiFab& p,
+                    const amrex::Geometry& geom,
+                    amrex::MultiFab& z_phys_nd,
+                    amrex::MultiFab& z_phys_cc,
+                    amrex::Vector<amrex::MultiFab>& gradp,
+                    const SolverChoice& solverChoice);
+
 void make_sources (int level, int nrk,
                    amrex::Real dt, amrex::Real time,
-                   amrex::Vector<amrex::MultiFab>& S_data,
+                   const amrex::MultiFab& S_data,
                    const amrex::MultiFab& S_prim,
                          amrex::MultiFab& cc_source,
                    const amrex::MultiFab& base_state,
@@ -35,25 +52,22 @@ void make_sources (int level, int nrk,
                    amrex::MultiFab* terrain_blank,
                    const amrex::Geometry geom,
                    const SolverChoice& solverChoice,
-                   std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                   std::unique_ptr<amrex::MultiFab>& mapfac_v,
-                   std::unique_ptr<amrex::MultiFab>& mapfac_m,
+                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                    const amrex::MultiFab* rhotheta_src,
                    const amrex::MultiFab* rhoqt_src,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                    InputSoundingData& input_sounding_data,
-                   TurbulentPerturbation& turbPert);
+                   TurbulentPerturbation& turbPert,
+                   bool is_slow_step);
 
-void make_mom_sources (int level, int nrk,
-                       amrex::Real dt, amrex::Real time,
-                       amrex::Vector<amrex::MultiFab>& S_data,
-                       const amrex::MultiFab& S_prim,
-                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                       std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+void make_mom_sources (amrex::Real time,
+                       const amrex::Vector<amrex::MultiFab>& S_data,
+                             amrex::MultiFab& z_phys_nd,
+                             amrex::MultiFab& z_phys_cc,
                        const amrex::MultiFab& xvel,
                        const amrex::MultiFab& yvel,
-                       const amrex::MultiFab& wvel,
+                       const amrex::MultiFab& zvel,
                              amrex::MultiFab& xmom_source,
                              amrex::MultiFab& ymom_source,
                              amrex::MultiFab& zmom_source,
@@ -64,16 +78,14 @@ void make_mom_sources (int level, int nrk,
                              amrex::MultiFab* sinPhi_mf,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        const amrex::Real* dptr_rhotheta_src,
                        const amrex::Real* dptr_rhoqt_src,
                        const amrex::Real* dptr_wbar_sub,
                        const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
                        InputSoundingData& input_sounding_data,
-                       const int n_qstate);
+                       bool is_slow_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             amrex::MultiFab& ymom_source,

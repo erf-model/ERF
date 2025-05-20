@@ -576,7 +576,7 @@ ERF::ClearLevel (int lev)
         zmom_crse_rhs[lev].clear();
     }
 
-    if (solverChoice.anelastic[lev] == 1) {
+    if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity) {
         pp_inc[lev].clear();
     }
 

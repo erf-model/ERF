@@ -72,6 +72,11 @@
 #include <AMReX_Lazy.H>
 #endif
 
+#ifndef AMREX_USE_MPI
+using amrex::MPI_COMM_WORLD;
+using amrex::MPI_Comm;
+#endif
+
 #ifdef ERF_USE_MULTIBLOCK
 class MultiBlockContainer;
 #endif
@@ -89,26 +94,6 @@ AMREX_ENUM(StateInterpType,
 AMREX_ENUM(PlotFileType,
     None, Amrex, Netcdf
 );
-
-
-#if 0
-/**
- * Enum of possible coarse/fine interpolation options
-*/
-namespace InterpType {
-    enum {
-        PCInterp = 0,
-        NodeBilinear,
-        CellConservativeLinear,
-        CellBilinear,
-        CellQuadratic,
-        CellConservativeProtected,
-        CellConservativeQuartic,
-        FaceLinear,
-        FaceConserativeLinear
-    };
-}
-#endif
 
 /**
  * Main class in ERF code, instantiated from main.cpp
@@ -179,12 +164,10 @@ public:
                              amrex::Geometry const& geom_at_lev);
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
-    void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
-                             amrex::MultiFab& p);
+    void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars);
 
     // Project the velocities to be divergence-free with a thin body
-    void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
-                                amrex::MultiFab& p);
+    void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars);
 
     // Calculate wall distance by solving a Poisson equation
     void poisson_wall_dist (int lev);
@@ -346,7 +329,7 @@ public:
                          amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
                          amrex::MultiFab& source,    amrex::MultiFab& xmom_src,
                          amrex::MultiFab& ymom_src,  amrex::MultiFab& zmom_src,
-                         amrex::Geometry fine_geom,
+                         amrex::MultiFab& buoyancy,  amrex::Geometry fine_geom,
                          amrex::Real dt, amrex::Real time);
 
     void advance_microphysics (int lev,
@@ -451,6 +434,8 @@ public:
 
     // Public data copy for MB
     std::vector<amrex::Box> domain_p;
+
+    // Primary solution data data containers
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 
@@ -731,11 +716,14 @@ private:
     amrex::Vector<amrex::Real> dt;
     amrex::Vector<long> dt_mri_ratio;
 
-    // array of multifabs to store the solution at each level of refinement
-    // after advancing a level we use "swap".
 #ifndef ERF_USE_MULTIBLOCK
+    // Array of multifabs to store the solution at each level of refinement;
+    // after advancing a level we use "swap".
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
+
+    // Pressure gradient at each level
+    amrex::Vector<amrex::Vector<amrex::MultiFab> > gradp;
 
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
@@ -844,9 +832,6 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax_new;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay_new;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az_new;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
@@ -856,10 +841,8 @@ private:
     // Wall distance function
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  walldist;
 
-    // Map scale factors
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
+    // Map scale factors -- vector across levels of vector across types
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> mapfac;
 
     amrex::Vector<amrex::Vector<amrex::Real>> stretched_dz_h;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> stretched_dz_d;
@@ -990,7 +973,7 @@ private:
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
                                                     "eq_pot_temp", "num_turb", "SMark0", "SMark1",
-                                                    "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
+                                                    "dpdx", "dpdy", "dpdz", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",

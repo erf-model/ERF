@@ -218,7 +218,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                        MultiFab* xqv_flux,
                                        MultiFab* yqv_flux,
                                        MultiFab* zqv_flux,
-                                       MultiFab* z_phys)
+                                       const MultiFab* z_phys)
 {
     if (flux_type == FluxCalcType::MOENG) {
         moeng_flux flux_comp;
@@ -273,7 +273,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                         MultiFab* xqv_flux,
                                         MultiFab* yqv_flux,
                                         MultiFab* zqv_flux,
-                                        MultiFab* z_phys,
+                                        const MultiFab* z_phys,
                                         const FluxCalc& flux_comp)
 {
     bool rotate = m_rotate;

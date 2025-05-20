@@ -5,7 +5,6 @@
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
-#include <ERF_PlaneAverage.H>
 #include <ERF_SrcHeaders.H>
 #include <ERF_BuoyancyUtils.H>
 
@@ -29,7 +28,7 @@ using namespace amrex;
  * @param[in]  n_qstate      Number of moist variables used by the current model
  */
 
-void make_buoyancy (Vector<MultiFab>& S_data,
+void make_buoyancy (const Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
                           MultiFab& buoyancy,
                     const Geometry geom,

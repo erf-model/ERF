@@ -441,10 +441,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*mapfac_u[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mapfac[lev][MapFacType::u_x], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
                   // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac_u[lev])[mfi];
+                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::u_x])[mfi];
                   msf_fab.template copy<RunOn::Device>(var_fab);
               }
           }
@@ -459,12 +459,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(*mapfac_v[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-            {
-              // Define fabs for holding the initial data
-              FArrayBox &msf_fab = (*mapfac_v[lev])[mfi];
-              msf_fab.template copy<RunOn::Device>(var_fab);
-            }
+              for ( MFIter mfi(*mapfac[lev][MapFacType::v_x], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              {
+                  // Define fabs for holding the initial data
+                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::v_x])[mfi];
+                  msf_fab.template copy<RunOn::Device>(var_fab);
+              }
           }
 
           // Initialize MapFac M
@@ -477,10 +477,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*mapfac_m[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mapfac[lev][MapFacType::m_x], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
                   // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac_m[lev])[mfi];
+                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::m_x])[mfi];
                   msf_fab.template copy<RunOn::Device>(var_fab);
               }
           }
@@ -497,7 +497,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     {
         Box bx = mfi.tilebox();
         const Array4<      Real>& dst_arr = lev_new[Vars::xvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac_u[lev]->const_array(mfi);
+        const Array4<const Real>& src_arr = mapfac[lev][MapFacType::u_x]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             dst_arr(i,j,k) /= src_arr(i,j,0);
@@ -507,7 +507,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     {
         Box bx = mfi.tilebox();
         const Array4<      Real>& dst_arr = lev_new[Vars::yvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac_v[lev]->const_array(mfi);
+        const Array4<const Real>& src_arr = mapfac[lev][MapFacType::v_x]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             dst_arr(i,j,k) /= src_arr(i,j,0);
@@ -517,7 +517,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     {
         Box bx = mfi.tilebox();
         const Array4<      Real>& dst_arr = lev_new[Vars::zvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac_m[lev]->const_array(mfi);
+        const Array4<const Real>& src_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             dst_arr(i,j,k) /= src_arr(i,j,0);
@@ -672,8 +672,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     bool use_P_eos = (solverChoice.rebalance_wrfinput);
 
     init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate_moist,
-                                    lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
-                                    mf_PB, mf_P, use_P_eos);
+                                  lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
+                                  mf_PB, mf_P, use_P_eos);
 
     // FillBoundary to populate the internal ghost cells (no averaging in above call)
      r_hse.FillBoundary(geom[lev].periodicity());

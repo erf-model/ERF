@@ -145,6 +145,14 @@ namespace Vars {
     };
 }
 
+namespace GpVars {
+    enum {
+        gpx = 0,
+        gpy,
+        gpz,
+    };
+}
+
 namespace IntVars {
     enum {
         cons = 0,

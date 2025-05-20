@@ -65,10 +65,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         ay_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
         az_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
 
-        ax_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,1);
-        ay_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
-        az_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
-
         z_t_rk[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(0,0,1)), dm, 1, 1 );
 
         z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
@@ -142,12 +138,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
+    gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp[lev][GpVars::gpx].setVal(0.);
+    gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(0.);
+    gradp[lev][GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1); gradp[lev][GpVars::gpz].setVal(0.);
+
     // Note that we need the ghost cells in the z-direction if we are doing any
     // kind of domain decomposition in the vertical (at level 0 or above)
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
-    if (solverChoice.anelastic[lev] == 1) {
+    if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity) {
         pp_inc[lev].define(ba, dm, 1, 1);
         pp_inc[lev].setVal(0.0);
     }
@@ -235,18 +235,34 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
     BoxArray ba2d_mf(std::move(bl2d_mf));
 
-    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
-    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
-    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+    mapfac[lev].resize(MapFacType::num);
+    mapfac[lev][MapFacType::m_x] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+    mapfac[lev][MapFacType::u_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+    mapfac[lev][MapFacType::v_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+
+#if 0
+    // For now we comment this out to avoid CI failures but we will need to re-enable
+    //     this if using non-conformal mappings
+    if (MapFacType::m_y != MapFacType::m_x) {
+        mapfac[lev][MapFacType::m_y] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+    }
+    if (MapFacType::u_y != MapFacType::u_x) {
+        mapfac[lev][MapFacType::u_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+    }
+    if (MapFacType::v_y != MapFacType::v_x) {
+        mapfac[lev][MapFacType::v_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+    }
+#endif
+
     if (solverChoice.test_mapfactor) {
-        mapfac_m[lev]->setVal(0.5);
-        mapfac_u[lev]->setVal(0.5);
-        mapfac_v[lev]->setVal(0.5);
+        for (int i = 0; i < mapfac[lev].size(); i++) {
+            mapfac[lev][i]->setVal(0.5);
+        }
     }
     else {
-        mapfac_m[lev]->setVal(1.);
-        mapfac_u[lev]->setVal(1.);
-        mapfac_v[lev]->setVal(1.);
+        for (int i = 0; i < mapfac[lev].size(); i++) {
+            mapfac[lev][i]->setVal(1.0);
+        }
     }
 
     // ********************************************************************************************
@@ -363,7 +379,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Turbulent perturbation region initialization
     //*********************************************************
     if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct)
+        solverChoice.pert_type == PerturbationType::Direct ||
+        solverChoice.pert_type == PerturbationType::CPM)
     {
         amrex::Box bnd_bx = ba.minimalBox();
         turbPert.init_tpi_type(solverChoice.pert_type);
@@ -643,7 +660,7 @@ ERF::make_physbcs (int lev)
                                                             z_phys_nd[lev], solverChoice.use_real_bcs, yvel_bc_data[lev].data());
     physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            solverChoice.terrain_type, mapfac_u[lev], mapfac_v[lev], z_phys_nd[lev],
+                                                            solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             solverChoice.use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                (solverChoice.terrain_type == TerrainType::MovingFittedMesh));

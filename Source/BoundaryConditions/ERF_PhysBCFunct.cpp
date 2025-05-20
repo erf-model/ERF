@@ -38,7 +38,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
     //    those directly inside the lateral and vertical calls.
     //
     if (do_fb) {
-        mf.FillBoundary(m_geom.periodicity());
+        mf.FillBoundary(icomp,ncomp,m_geom.periodicity());
     }
 
 #ifdef AMREX_USE_OMP
