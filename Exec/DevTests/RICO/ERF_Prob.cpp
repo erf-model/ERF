@@ -236,8 +236,8 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
     if (src->empty()) return;
 
     const int khi       = geom.Domain().bigEnd()[2];
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
+    //const Real* prob_lo = geom.ProbLo();
+    //const auto dx       = geom.CellSize();
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
@@ -250,7 +250,7 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
     }
 
-    const Real* d_zlevels_arr = d_zlevels.dataPtr();
+    //const Real* d_zlevels_arr = d_zlevels.dataPtr();
 
     // Only apply temperature source below nominal inversion height
     for ( amrex::MFIter mfi(*src, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -261,7 +261,7 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
         {
             src->setVal(0.0);
         } else {
-            bool use_zlevels = (z_phys_cc != nullptr);
+            //bool use_zlevels = (z_phys_cc != nullptr);
             ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) {
                 //const Real z_cc = (use_zlevels) ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)* dx[2];
                 src_arr(i, j, k) = parms_d.advection_heating_rate;
@@ -348,7 +348,7 @@ Problem::update_w_subsidence (const Real& /*time*/,
     }
 
     // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
-    Real z_0    = (z_phys_nd) ? zlevels[0] : prob_lo[2];
+    //Real z_0    = (z_phys_nd) ? zlevels[0] : prob_lo[2];
     //Real slope1 =  parms.wbar_sub_max / (parms.wbar_cutoff_max - z_0);
     //Real slope2 = -parms.wbar_sub_max / (parms.wbar_cutoff_min - parms.wbar_cutoff_max);
     wbar[0]     = 0.0;
