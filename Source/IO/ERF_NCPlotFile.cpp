@@ -3,26 +3,21 @@
 #include <string>
 #include <ctime>
 
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-
 #include <AMReX_Utility.H>
-#include <AMReX_buildInfo.H>
-#include <AMReX_ParmParse.H>
+#include <AMReX_MultiFab.H>
 
-#include "ERF.H"
 #include "ERF_NCInterface.H"
-#include "ERF_NCPlotFile.H"
-#include "ERF_IndexDefines.H"
 
 using namespace amrex;
 
 void
-ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
-                      const Vector<const MultiFab*> &plotMF,
-                      const Vector<std::string> &plot_var_names,
-                      const Vector<int>& /*level_steps*/, const Real time) const
+writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
+                 const Vector<const MultiFab*> &plotMF,
+                 const Vector<std::string> &plot_var_names,
+                 const Vector<int>& /*level_steps*/,
+                 const Vector<Geometry>& geom,
+                 Vector<Vector<Box>> boxes_at_level,
+                 const Real time, const Real start_bdy_time)
 {
      //
      // Set the full IO path for NetCDF output
@@ -44,8 +39,10 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
      auto ncf = ncutils::NCFile::create_par(FullPath, NC_NETCDF4 | NC_MPIIO,
                                             amrex::ParallelContext::CommunicatorSub(), MPI_INFO_NULL);
 
-     int nblocks = grids[lev].size();
+     auto ba = plotMF[lev]->boxArray();
      auto dm = plotMF[lev]->DistributionMap();
+
+     int nblocks = ba.size();
 
      Box subdomain;
      if (lev == 0) {
@@ -186,15 +183,14 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
     // *******************************************************************************
     // NOTE: the (x,y,z) output here are for a mesh withOUT terrain-fitted coordinates
     // *******************************************************************************
-    AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::StaticFittedMesh);
-    for (int i = 0; i < grids[lev].size(); ++i) {
-        auto box = grids[lev][i];
-        if (subdomain.contains(box)) {
-            RealBox gridloc = RealBox(grids[lev][i], geom[lev].CellSize(), geom[lev].ProbLo());
+    for (int i = 0; i < ba.size(); ++i) {
+        auto bx = ba[i];
+        if (subdomain.contains(bx)) {
+            RealBox gridloc = RealBox(bx, geom[lev].CellSize(), geom[lev].ProbLo());
             x_grid.clear(); y_grid.clear(); z_grid.clear();
-            for (auto k3 = 0; k3 < grids[lev][i].length(2); ++k3) {
-                for (auto k2 = 0; k2 < grids[lev][i].length(1); ++k2) {
-                    for (auto k1 = 0; k1 < grids[lev][i].length(0); ++k1) {
+            for (auto k3 = 0; k3 < bx.length(2); ++k3) {
+                for (auto k2 = 0; k2 < bx.length(1); ++k2) {
+                    for (auto k1 = 0; k1 < bx.length(0); ++k1) {
                         x_grid.push_back(gridloc.lo(0)+dx[0]*(static_cast<Real>(k1)+0.5));
                         y_grid.push_back(gridloc.lo(1)+dx[1]*(static_cast<Real>(k2)+0.5));
                         z_grid.push_back(gridloc.lo(2)+dx[2]*(static_cast<Real>(k3)+0.5));
@@ -203,7 +199,7 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
             }
 
             goffset += glen;
-            glen = grids[lev][i].length(0)*grids[lev][i].length(1)*grids[lev][i].length(2);
+            glen = ba.numPts();
 
             auto nc_x_grid = ncf.var("x_grid");
             auto nc_y_grid = ncf.var("y_grid");

@@ -1,14 +1,20 @@
-#include <ERF_EOS.H>
-#include <ERF.H>
-#include "AMReX_Interp_3D_C.H"
-#include "ERF_TerrainMetrics.H"
-#include "ERF_Constants.H"
+#include "ERF.H"
 #include "ERF_SrcHeaders.H"
-#include "ERF_Container.H"
 
 using namespace amrex;
 
 PhysBCFunctNoOp null_bc_for_fill;
+
+#ifdef ERF_USE_NETCDF
+void
+writeNCPlotFile (int lev, int which, const std::string& dir,
+                 const amrex::Vector<const amrex::MultiFab*> &mf,
+                 const amrex::Vector<std::string> &plot_var_names,
+                 const amrex::Vector<int>& level_steps,
+                 const amrex::Vector<Geometry>& geom,
+                 amrex::Vector<amrex::Vector<amrex::Box>> boxes_at_level,
+                 amrex::Real time, amrex::Real start_bdy_time);
+#endif
 
 void
 ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
@@ -1384,7 +1390,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         } else if (plotfile_type == PlotFileType::Netcdf) {
              int lev   = 0;
              int l_which = 0;
-             writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
+             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::StaticFittedMesh);
+             writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
+                             geom, boxes_at_level, t_new[0], start_bdy_time);
 #endif
         } else {
             // Here we assume the plotfile_type is PlotFileType::None
@@ -1519,7 +1527,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         } else if (plotfile_type == PlotFileType::Netcdf) {
              for (int lev = 0; lev <= finest_level; ++lev) {
                  for (int which_box = 0; which_box < num_boxes_at_level[lev]; which_box++) {
-                     writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
+                     AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::StaticFittedMesh);
+                     writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
+                                     geom, boxes_at_level, t_new[0], start_bdy_time);
                  }
              }
 #endif
