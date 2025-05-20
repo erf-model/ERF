@@ -17,15 +17,40 @@ and Aurora (Intel PVC)
 cp Scaling/Perlmutter/GNUmakefile_GPU.perlmutter GNUmakefile
 make -j8
 ```
-2. Submit the job
+2. Submit the batch job
  
 Make sure to put the account id `ACCOUNT_ID` and the executable `<exec>` names in the 
 job scripts (.qsub)
 ```
-sbatch WeakScaling_GPU.qsub
-sbatch StrongScaling_GPU.qsub
+sbatch Scaling/Perlmutter/WeakScaling_GPU.qsub
+sbatch Scaling/Perlmutter/StrongScaling_GPU.qsub
 ```
 
+3. Interactive sessions can be requested on Perlmutter for upto 4 nodes (ie. 16 GPUs ( 4 GPUs per node))
+```
+sh Scaling/Perlmutter/get_interactive_nodes.sh
+``` 
+
 ### Aurora
+
+On Aurora, the scaling studies can be done on an interactive session on the `debug-scaling`
+queue that gets upto 31 nodes (ie. 192 Intel GPUs (12 GPUs per node)).
+
+1. To compile the code on Aurora Intel PVC GPUs
+```
+cp Scaling/Aurora/GNUmakefile_GPU.aurora GNUmakefile
+make -j8
+```
+
+2. To get an interactive session
+```
+sh Scaling/Aurora/get_interactive_nodes.sh
+```
+
+3. Execute the scripts
+```
+sh WeakScaling_GPU.sh
+sh Scaling/Aurora/StrongScaling_GPU.sh
+```
 
 
