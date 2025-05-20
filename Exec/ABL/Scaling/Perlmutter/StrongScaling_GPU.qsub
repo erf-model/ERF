@@ -29,7 +29,7 @@ do
   echo "Test $n_nodes nodes, 4 tasks per node, $np procs, $probx $proby $probz, $nx $ny $nz"
 
   srun -n $np -N $n_nodes --gpus=$np --ntasks-per-node=4 --cpu-bind=sockets \
-  ERF3d.gnu.TPROF.MPI.CUDA.ex inputs_smagorinsky_StrongScaling amrex.the_arena_is_managed=0 amrex.use_gpu_aware_mpi=1 \
+  <exec> inputs_smagorinsky_StrongScaling amrex.the_arena_is_managed=0 amrex.use_gpu_aware_mpi=1 \
   > $FILENAME
 
 done

@@ -35,7 +35,7 @@ do
   num_total_ranks=$(( n_nodes * num_ranks_per_node ))
   FILENAME=$(printf "weak_scaling_%03d.out" "$num_total_ranks")
   srun -N $n_nodes -n $num_total_ranks --ntasks-per-node=$num_ranks_per_node --cpus-per-task=32 --cpu-bind=cores --gpus=$num_total_ranks\
-  bash -c "./ERF3d.gnu.TPROF.MPI.CUDA.ex inputs_smagorinsky_WeakScaling geometry.prob_extent=$probx $proby 1024  amr.n_cell=$nx $ny 256 amrex.the_arena_is_managed=0 amrex.use_gpu_aware_mpi=1" \
+  bash -c "<exec> inputs_smagorinsky_WeakScaling geometry.prob_extent=$probx $proby 1024  amr.n_cell=$nx $ny 256 amrex.the_arena_is_managed=0 amrex.use_gpu_aware_mpi=1" \
   > $FILENAME
 
   # for FILENAME in plt*; do mv $FILENAME plotfiles_$SLURM_JOB_ID/${FILENAME}_${np}p; done
