@@ -17,7 +17,8 @@ and Aurora (Intel PVC)
 cp Scaling/Perlmutter/GNUmakefile_GPU.perlmutter GNUmakefile
 make -j8
 ```
-2. Submit the job 
+2. Submit the job
+ 
 Make sure to put the account id `ACCOUNT_ID` and the executable `<exec>` names in the 
 job scripts (.qsub)
 ```
