@@ -34,7 +34,7 @@ sh Scaling/Perlmutter/get_interactive_nodes.sh
 ### Aurora
 
 On Aurora, the scaling studies can be done on an interactive session on the `debug-scaling`
-queue that gets upto 31 nodes (ie. 192 Intel GPUs (12 GPUs per node)).
+queue that gets upto 31 nodes (ie. 372 Intel GPUs (12 GPUs per node)).
 
 1. To compile the code on Aurora Intel PVC GPUs
 ```
