@@ -12,7 +12,18 @@ Scripts have been added to perform scaling studies on GPUs on Perlmutter (NVIDIA
 and Aurora (Intel PVC)
 
 ### Perlmutter
-
+1. To compile the code on Perlmutter NVIDIA A100 GPUs
+```
+cp Scaling/Perlmutter/GNUmakefile_GPU.perlmutter GNUmakefile
+make -j8
+```
+2. Submit the job 
+Make sure to put the account id `ACCOUNT_ID` and the executable `<exec>` names in the 
+job scripts (.qsub)
+```
+sbatch WeakScaling_GPU.qsub
+sbatch StrongScaling_GPU.qsub
+```
 
 ### Aurora
 
