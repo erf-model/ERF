@@ -1275,16 +1275,17 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
 #endif
 
-#ifdef ERF_USE_RRTMGP
-    if (containerHasElement(plot_var_names, "qsrc_sw")) {
-        MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 0, mf_comp, 1, 0);
-        mf_comp += 1;
+    if (solverChoice.rad_type != RadiationType::None) {
+        if (containerHasElement(plot_var_names, "qsrc_sw")) {
+            MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 0, mf_comp, 1, 0);
+            mf_comp += 1;
+        }
+        if (containerHasElement(plot_var_names, "qsrc_lw")) {
+            MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 1, mf_comp, 1, 0);
+            mf_comp += 1;
+        }
     }
-    if (containerHasElement(plot_var_names, "qsrc_lw")) {
-        MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 1, mf_comp, 1, 0);
-        mf_comp += 1;
-    }
-#endif
+
     }
 
     if (solverChoice.terrain_type == TerrainType::EB)

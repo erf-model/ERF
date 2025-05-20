@@ -183,6 +183,13 @@ Radiation::set_grids (int& level,
 
         // Fill the YAKL Arrays from AMReX MFs
         mf_to_yakl_buffers();
+
+        if (m_first_step) {
+            // Initialize datalog MF on first step
+            m_first_step = false;
+            datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), 25, 0);
+            datalog_mf.setVal(0.0);
+        }
     }
 }
 
@@ -245,6 +252,8 @@ Radiation::alloc_buffers ()
     iwp           = real2d("iwp"          , m_ncol, m_nlay);
     sw_heating    = real2d("sw_heating"   , m_ncol, m_nlay);
     lw_heating    = real2d("lw_heating"   , m_ncol, m_nlay);
+    sw_clrsky_heating = real2d("sw_clrsky_heating", m_ncol, m_nlay);
+    lw_clrsky_heating = real2d("lw_clrsky_heating", m_ncol, m_nlay);
 
     // 2d size (ncol, nlay+1)
     d_tint                   = real2d("d_tint"                  , m_ncol, m_nlay+1);
@@ -347,6 +356,8 @@ Radiation::dealloc_buffers ()
 
     sw_heating.deallocate();
     lw_heating.deallocate();
+    sw_clrsky_heating.deallocate();
+    lw_clrsky_heating.deallocate();
 
     // 2d size (ncol, nlay+1)
     d_tint.deallocate();
@@ -634,6 +645,200 @@ Radiation::write_rrtmgp_fluxes ()
    WriteSingleLevelPlotfile(plotfilename, mf_flux, flux_names, m_geom, m_time, m_step);
 }
 
+void Radiation::populateDatalogMF()
+{
+    for (MFIter mfi(datalog_mf); mfi.isValid(); ++mfi) {
+        const auto& vbx      = mfi.validbox();
+        const int nx         = vbx.length(0);
+        const int imin       = vbx.smallEnd(0);
+        const int jmin       = vbx.smallEnd(1);
+        const int offset     = m_col_offsets[mfi.index()];
+        const Array4<Real>& dst_arr = datalog_mf.array(mfi);
+        const Array4<Real>& q_arr = m_qheating_rates->array(mfi);
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            // map [i,j,k] 0-based to [icol, ilay] 1-based
+            const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
+            const int ilay = k+1;
+
+            dst_arr(i,j,k,0) = q_arr(i, j, k, 0);
+            dst_arr(i,j,k,1) = q_arr(i, j, k, 1);
+
+            // SW and LW fluxes
+            dst_arr(i,j,k,2) = sw_flux_up(icol,ilay);
+            dst_arr(i,j,k,3) = sw_flux_dn(icol,ilay);
+            dst_arr(i,j,k,4) = sw_flux_dn_dir(icol,ilay);
+            dst_arr(i,j,k,5) = lw_flux_up(icol,ilay);
+            dst_arr(i,j,k,6) = lw_flux_dn(icol,ilay);
+
+            // Cosine zenith angle
+            dst_arr(i,j,k,7) = mu0(icol);
+
+            // Clear sky heating rates and fluxes:
+            dst_arr(i,j,k,8) = sw_clrsky_heating(icol, ilay);
+            dst_arr(i,j,k,9) = lw_clrsky_heating(icol, ilay);
+
+            dst_arr(i,j,k,10) = sw_clrsky_flux_up(icol,ilay);
+            dst_arr(i,j,k,11) = sw_clrsky_flux_dn(icol,ilay);
+            dst_arr(i,j,k,12) = sw_clrsky_flux_dn_dir(icol,ilay);
+            dst_arr(i,j,k,13) = lw_clrsky_flux_up(icol,ilay);
+            dst_arr(i,j,k,14) = lw_clrsky_flux_dn(icol,ilay);
+
+            // Clean sky fluxes:
+            if (m_extra_clnsky_diag) {
+                dst_arr(i,j,k,15) = sw_clnsky_flux_up(icol,ilay);
+                dst_arr(i,j,k,16) = sw_clnsky_flux_dn(icol,ilay);
+                dst_arr(i,j,k,17) = sw_clnsky_flux_dn_dir(icol,ilay);
+                dst_arr(i,j,k,18) = lw_clnsky_flux_up(icol,ilay);
+                dst_arr(i,j,k,19) = lw_clnsky_flux_dn(icol,ilay);
+            }
+
+            // Clean-clear sky fluxes:
+            if (m_extra_clnclrsky_diag) {
+                dst_arr(i,j,k,20) = sw_clnclrsky_flux_up(icol,ilay);
+                dst_arr(i,j,k,21) = sw_clnclrsky_flux_dn(icol,ilay);
+                dst_arr(i,j,k,22) = sw_clnclrsky_flux_dn_dir(icol,ilay);
+                dst_arr(i,j,k,23) = lw_clnclrsky_flux_up(icol,ilay);
+                dst_arr(i,j,k,24) = lw_clnclrsky_flux_dn(icol,ilay);
+            }
+        });
+   }
+}
+
+void Radiation::WriteDataLog(const amrex::Real &time)
+{
+    constexpr int datwidth = 14;
+    constexpr int datprecision = 9;
+    constexpr int timeprecision = 13;
+
+    Gpu::HostVector<Real> h_avg_radqrsw, h_avg_radqrlw, h_avg_sw_up, h_avg_sw_dn, h_avg_sw_dn_dir, h_avg_lw_up, h_avg_lw_dn, h_avg_zenith;
+    // Clear sky
+    Gpu::HostVector<Real> h_avg_radqrcsw, h_avg_radqrclw, h_avg_sw_clr_up, h_avg_sw_clr_dn, h_avg_sw_clr_dn_dir, h_avg_lw_clr_up, h_avg_lw_clr_dn;
+    // Clean sky
+    Gpu::HostVector<Real> h_avg_sw_cln_up, h_avg_sw_cln_dn, h_avg_sw_cln_dn_dir, h_avg_lw_cln_up, h_avg_lw_cln_dn;
+    // Clean clear sky
+    Gpu::HostVector<Real> h_avg_sw_clnclr_up, h_avg_sw_clnclr_dn, h_avg_sw_clnclr_dn_dir, h_avg_lw_clnclr_up, h_avg_lw_clnclr_dn;
+
+
+    auto domain = m_geom.Domain();
+    h_avg_radqrsw    = sumToLine(datalog_mf, 0, 1, domain, 2);
+    h_avg_radqrlw    = sumToLine(datalog_mf, 1, 1, domain, 2);
+    h_avg_sw_up      = sumToLine(datalog_mf, 2, 1, domain, 2);
+    h_avg_sw_dn      = sumToLine(datalog_mf, 3, 1, domain, 2);
+    h_avg_sw_dn_dir  = sumToLine(datalog_mf, 4, 1, domain, 2);
+    h_avg_lw_up      = sumToLine(datalog_mf, 5, 1, domain, 2);
+    h_avg_lw_dn      = sumToLine(datalog_mf, 6, 1, domain, 2);
+    h_avg_zenith     = sumToLine(datalog_mf, 7, 1, domain, 2);
+
+    h_avg_radqrcsw       = sumToLine(datalog_mf, 8, 1, domain, 2);
+    h_avg_radqrclw       = sumToLine(datalog_mf, 9, 1, domain, 2);
+    h_avg_sw_clr_up      = sumToLine(datalog_mf, 10, 1, domain, 2);
+    h_avg_sw_clr_dn      = sumToLine(datalog_mf, 11, 1, domain, 2);
+    h_avg_sw_clr_dn_dir  = sumToLine(datalog_mf, 12, 1, domain, 2);
+    h_avg_lw_clr_up      = sumToLine(datalog_mf, 13, 1, domain, 2);
+    h_avg_lw_clr_dn      = sumToLine(datalog_mf, 14, 1, domain, 2);
+
+    if (m_extra_clnsky_diag) {
+        h_avg_sw_cln_up      = sumToLine(datalog_mf, 15, 1, domain, 2);
+        h_avg_sw_cln_dn      = sumToLine(datalog_mf, 16, 1, domain, 2);
+        h_avg_sw_cln_dn_dir  = sumToLine(datalog_mf, 17, 1, domain, 2);
+        h_avg_lw_cln_up      = sumToLine(datalog_mf, 18, 1, domain, 2);
+        h_avg_lw_cln_dn      = sumToLine(datalog_mf, 19, 1, domain, 2);
+    }
+
+    if (m_extra_clnclrsky_diag) {
+        h_avg_sw_clnclr_up      = sumToLine(datalog_mf, 20, 1, domain, 2);
+        h_avg_sw_clnclr_dn      = sumToLine(datalog_mf, 21, 1, domain, 2);
+        h_avg_sw_clnclr_dn_dir  = sumToLine(datalog_mf, 22, 1, domain, 2);
+        h_avg_lw_clnclr_up      = sumToLine(datalog_mf, 23, 1, domain, 2);
+        h_avg_lw_clnclr_dn      = sumToLine(datalog_mf, 24, 1, domain, 2);
+    }
+
+    Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+    int nz = domain.length(2);
+    for (int k = 0; k < nz; k++) {
+        h_avg_radqrsw[k] /= area_z;
+        h_avg_radqrlw[k] /= area_z;
+        h_avg_sw_up[k] /= area_z;
+        h_avg_sw_dn[k] /= area_z;
+        h_avg_sw_dn_dir[k] /= area_z;
+        h_avg_lw_up[k] /= area_z;
+        h_avg_lw_dn[k] /= area_z;
+        h_avg_zenith[k] /= area_z;
+
+        h_avg_radqrcsw[k] /= area_z;
+        h_avg_radqrclw[k] /= area_z;
+        h_avg_sw_clr_up[k] /= area_z;
+        h_avg_sw_clr_dn[k] /= area_z;
+        h_avg_sw_clr_dn_dir[k] /= area_z;
+        h_avg_lw_clr_up[k] /= area_z;
+        h_avg_lw_clr_dn[k] /= area_z;
+    }
+
+    if (m_extra_clnsky_diag) {
+        for (int k = 0; k < nz; k++) {
+            h_avg_sw_cln_up[k] /= area_z;
+            h_avg_sw_cln_dn[k] /= area_z;
+            h_avg_sw_cln_dn_dir[k] /= area_z;
+            h_avg_lw_cln_up[k] /= area_z;
+            h_avg_lw_cln_dn[k] /= area_z;
+        }
+    }
+
+    if (m_extra_clnclrsky_diag) {
+        for (int k = 0; k < nz; k++) {
+            h_avg_sw_clnclr_up[k] /= area_z;
+            h_avg_sw_clnclr_dn[k] /= area_z;
+            h_avg_sw_clnclr_dn_dir[k] /= area_z;
+            h_avg_lw_clnclr_up[k] /= area_z;
+            h_avg_lw_clnclr_dn[k] /= area_z;
+        }
+    }
+
+    if (ParallelDescriptor::IOProcessor()) {
+        std::ostream& log = *datalog;
+        if (log.good()) {
+
+            for (int k = 0; k < nz; k++)
+            {
+                Real z = k * m_geom.CellSize(2);
+                log << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
+                    << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                    << h_avg_radqrsw[k]   << " " << h_avg_radqrlw[k]       << " " << h_avg_sw_up[k] << " "
+                    << h_avg_sw_dn[k]     << " " << h_avg_sw_dn_dir[k]     << " " << h_avg_lw_up[k] << " "
+                    << h_avg_lw_dn[k]     << " " << h_avg_zenith[k]        << " "
+                    << h_avg_radqrcsw[k]  << " " << h_avg_radqrclw[k]      << " " << h_avg_sw_clr_up[k] << " "
+                    << h_avg_sw_clr_dn[k] << " " << h_avg_sw_clr_dn_dir[k] << " " << h_avg_lw_clr_up[k] << " "
+                    << h_avg_lw_clr_dn[k] << " ";
+                    if (m_extra_clnsky_diag) {
+                        log << h_avg_sw_cln_up[k] << " " << h_avg_sw_cln_dn[k] << " " << h_avg_sw_cln_dn_dir[k] << " "
+                            << h_avg_lw_cln_up[k] << " " << h_avg_lw_cln_dn[k] << " ";
+                    } else {
+                        log << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " ";
+                    }
+
+                    if (m_extra_clnclrsky_diag) {
+                        log << h_avg_sw_clnclr_up[k] << " " << h_avg_sw_clnclr_dn[k] << " " << h_avg_sw_clnclr_dn_dir[k] << " "
+                            << h_avg_lw_clnclr_up[k] << " " << h_avg_lw_clnclr_dn[k] << std::endl;
+                    } else {
+                        log << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << std::endl;
+                    }
+            }
+            // Write top face values
+            Real z = nz * m_geom.CellSize(2);
+            log << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
+                << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " "
+                << 0.0 << " " << 0.0 << " "
+                << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " "
+                << 0.0 << " "
+                << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " "
+                << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0 << " " << 0.0
+                << std::endl;
+        }
+    }
+}
+
 void
 Radiation::initialize_impl ()
 {
@@ -890,6 +1095,14 @@ Radiation::finalize_impl ()
 
     // Write fluxes if requested
     if (m_rad_write_fluxes) { write_rrtmgp_fluxes(); }
+
+    // Fill output data for datalog before deallocating
+    if (datalog_int > 0 && m_step % datalog_int == 0) {
+        rrtmgp::compute_heating_rate(sw_clrsky_flux_up, sw_clrsky_flux_dn, r_lay, z_del, sw_clrsky_heating);
+        rrtmgp::compute_heating_rate(lw_clrsky_flux_up, lw_clrsky_flux_dn, r_lay, z_del, lw_clrsky_heating);
+
+        populateDatalogMF();
+    }
 
     // Deallocate the buffer arrays
     dealloc_buffers();

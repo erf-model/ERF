@@ -62,9 +62,7 @@
 #include "ERF_WindFarm.H"
 #endif
 
-#ifdef ERF_USE_RRTMGP
-#include "ERF_Radiation.H"
-#endif
+#include <ERF_RadiationModels.H>
 
 #include <iostream>
 
@@ -344,11 +342,9 @@ public:
                       amrex::MultiFab& yvel_in,
                       const amrex::Real& dt_advance);
 
-#if defined(ERF_USE_RRTMGP)
     void advance_radiation (int lev,
                             amrex::MultiFab& cons_in,
                             const amrex::Real& dt_advance);
-#endif
 
     amrex::MultiFab& build_fine_mask (int lev);
 
@@ -777,16 +773,15 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
 
-#if defined(ERF_USE_RRTMGP)
-    amrex::Vector<std::unique_ptr<Radiation>> rad;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms
+    amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW)
 
     // Containers for additional SLM inputs
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sw_lw_fluxes; // Direct SW (visible, NIR), Diffuse SW (visible, NIR), LW flux
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> solar_zenith; // Solar zenith angle
 
     bool plot_rad = false;
-#endif
+    int rad_datalog_int = -1;
 
     // Fillpatcher classes for coarse-fine boundaries
     int cf_width{0};
@@ -1000,9 +995,7 @@ private:
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
-#ifdef ERF_USE_RRTMGP
                                                     ,"qsrc_sw", "qsrc_lw"
-#endif
                                                    };
 
     // algorithm choices

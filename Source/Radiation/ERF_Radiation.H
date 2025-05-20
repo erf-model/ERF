@@ -31,6 +31,7 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_PlotFileUtil.H>
 
+#include <ERF_RadiationInterface.H>
 #include <ERF_RRTMGP_Interface.H>
 #include <ERF_RRTMGP_Utils.H>
 #include <ERF_OrbCosZenith.H>
@@ -41,7 +42,7 @@
 
 #include <ERF_LandSurface.H>
 
-class Radiation {
+class Radiation : public IRadiation {
 public:
 
     // Constructor
@@ -50,6 +51,28 @@ public:
 
     // Destructor
     ~Radiation () = default;
+
+    virtual void Init(const amrex::Geometry& geom,
+                    const amrex::BoxArray& ba,
+                    amrex::MultiFab* cons_in) override {};
+
+    virtual void Run(int& level,
+                     int& step,
+                     amrex::Real& time,
+                     const amrex::Real& dt,
+                     const amrex::BoxArray& ba,
+                     amrex::Geometry& geom,
+                     amrex::MultiFab* cons_in,
+                     amrex::MultiFab* lsm_fluxes,
+                     amrex::MultiFab* lsm_zenith,
+                     amrex::MultiFab* qheating_rates,
+                     amrex::MultiFab* z_phys,
+                     amrex::MultiFab* lat,
+                     amrex::MultiFab* lon) override
+    {
+        set_grids(level, step, time, dt, ba, geom, cons_in, lsm_fluxes, lsm_zenith, qheating_rates, z_phys, lat, lon);
+        rad_run_impl();
+    }
 
     // Set the grid info for columnar data in YAKL
     void
@@ -174,6 +197,10 @@ public:
         }
     }
 
+    void populateDatalogMF();
+
+    virtual void WriteDataLog(const amrex::Real &time) override;
+
 private:
 
     // Process interface vars from ERF/AMReX
@@ -203,6 +230,8 @@ private:
     // Are we writing out the fluxes?
     bool m_rad_write_fluxes = false;
 
+    bool m_first_step = true;
+
     // Do we have moisture and cold comps?
     bool m_moist = false;
     bool m_ice   = false;
@@ -230,6 +259,9 @@ private:
     // Pointer to output data for LSM
     amrex::MultiFab* m_lsm_fluxes = nullptr;
     amrex::MultiFab* m_lsm_zenith = nullptr;
+
+    // Holds output from YAKL arrays used in the datalog
+    amrex::MultiFab datalog_mf;
 
     // Path, data file, and coefficient file for K-distribution
     std::string rrtmgp_file_path       = ".";
@@ -357,6 +389,8 @@ private:
     real2d iwp;
     real2d sw_heating;
     real2d lw_heating;
+    real2d sw_clrsky_heating;
+    real2d lw_clrsky_heating;
 
     // 2d size (ncol, nlay+1)
     real2d d_tint;

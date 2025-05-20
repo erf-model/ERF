@@ -1,4 +1,5 @@
-
+CEXE_headers += ERF_RadiationInterface.H
+CEXE_headers += ERF_RadiationModels.H
 CEXE_headers += ERF_RRTMGP_Interface.H
 CEXE_headers += ERF_RRTMGP_Utils.H
 CEXE_headers += ERF_Radiation.H

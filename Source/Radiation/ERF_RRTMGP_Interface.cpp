@@ -937,7 +937,7 @@ rrtmgp_lw (const int ncol,
     SourceFuncLW lw_sources;
     lw_sources.alloc(ncol, nlay, k_dist);
     // set the LW source
-    //   TODO: figure out how to do this correcty?
+    //   TODO: figure out how to do this correctly?
     YAKL_SCOPE(d_lw_src, lw_sources.sfc_source);
     //parallel_for(SimpleBounds<2>(ncol,m_nlwgpts), YAKL_LAMBDA(int icol, int igpt)
     parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
