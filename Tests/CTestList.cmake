@@ -110,21 +110,26 @@ function(add_test_0 TEST_NAME TEST_DIR TEST_EXE PLTFILE)
 endfunction(add_test_0)
 
 # SDM regression test
-function(add_test_sdm TEST_NAME TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
+function(add_test_sdm TEST_NAME TEST_DIR TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
     set(options )
     set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS")
     set(multiValueArgs )
-    cmake_parse_arguments(add_test_sdm "${options}" "${oneValueArgs}"
+    cmake_parse_arguments(ADD_TEST_SDM "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
 
     setup_test()
 
-    set(RUNTIME_OPTIONS "${ADD_TEST_R_RUNTIME_OPTIONS}")
-    if(NOT "${ADD_TEST_R_INPUT_SOUNDING}" STREQUAL "")
-      string(APPEND RUNTIME_OPTIONS "erf.input_sounding_file=${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_R_INPUT_SOUNDING}")
+    set(RUNTIME_OPTIONS "${ADD_TEST_SDM_RUNTIME_OPTIONS}")
+    if(NOT "${ADD_TEST_SDM_INPUT_SOUNDING}" STREQUAL "")
+      string(APPEND RUNTIME_OPTIONS "erf.input_sounding_file=${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_SDM_INPUT_SOUNDING}")
     endif()
 
-    set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
+    if(WIN32)
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
+    else()
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}")
+    endif()
+
     set(FCOMPARE_TOLERANCE "--rel_tol ${TEST_RTOL} --abs_tol ${TEST_ATOL}")
     set(FCOMPARE_FLAGS "--abort_if_not_all_found --allow_diff_grids ${FCOMPARE_TOLERANCE}")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
@@ -193,9 +198,11 @@ add_test_0(PoiseuilleFlow_y                  "DryRegTests/Couette_Poiseuille" "e
 add_test_0(InitSoundingIdeal_stationary      "ABL" "erf_abl" "plt00010")
 add_test_0(Deardorff_stationary              "ABL" "erf_abl" "plt00010")
 
-add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble/erf_bubble"   "plt00050" 1e-12 1e-12)
-add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests/Bubble/erf_bubble"   "plt00001" 1e-14 1e-14)
-add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests/Bubble/erf_bubble"   "plt00010" 5e-13 1e-14)
+add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
+add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests/Bubble" "erf_bubble"   "plt00001" 1e-14 1e-14)
+add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests/Bubble" "erf_bubble"   "plt00010" 5e-13 1e-14)
+add_test_sdm(SDM_Congestus3D                 "DevTests/TemperatureSourceSpatial"   "erf_abl_with_spatial_temperature_source" "plt00020" 5e-13 1e-14 INPUT_SOUNDING "input_sounding")
+add_test_sdm(SDM_RICO3D                      "DevTests/RICO"        "erf_rico"     "plt00010" 5e-13 1e-14 INPUT_SOUNDING "input_sounding")
 
 #=============================================================================
 # Performance tests

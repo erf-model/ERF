@@ -1,0 +1,46 @@
+HyperCLaw-V1.1
+18
+density
+rhotheta
+rhoQ1
+x_velocity
+y_velocity
+z_velocity
+temp
+theta
+pressure
+qt
+qv
+qc
+qp
+qrain
+qsat
+rain_accum
+rel_humidity
+super_droplets_moisture_number_density
+3
+10
+0
+0 0 0 
+6400 6400 10000 
+
+((0,0,0) (31,31,49) (0,0,0)) 
+20 
+200 200 200 
+0
+0
+0 4 10
+20
+0 3200
+0 3200
+0 10000
+3200 6400
+0 3200
+0 10000
+0 3200
+3200 6400
+0 10000
+3200 6400
+3200 6400
+0 10000
+Level_0/Cell
