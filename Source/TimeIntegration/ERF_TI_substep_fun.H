@@ -51,9 +51,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
         make_sources(level, nrk, dtau, old_substep_time,
                      S_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level],
-#if defined(ERF_USE_RRTMGP)
                      qheating_rates[level].get(),
-#endif
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,

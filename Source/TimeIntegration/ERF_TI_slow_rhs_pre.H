@@ -58,9 +58,7 @@
         // TODO -- DONT WE NEED z_phys_cc_src if we need z_phys_nd_src??
         make_sources(level, nrk, slow_dt, old_stage_time,
                      S_data[IntVars::cons], S_prim, cc_src, base_state[level], z_phys_cc[level],
-#if defined(ERF_USE_RRTMGP)
                      qheating_rates[level].get(),
-#endif
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
