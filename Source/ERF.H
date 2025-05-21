@@ -615,17 +615,6 @@ private:
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
 
 #ifdef ERF_USE_NETCDF
-    //! Write plotfile using NETCDF
-    void writeNCPlotFile (int lev, int which, const std::string& dir,
-                          const amrex::Vector<const amrex::MultiFab*> &mf,
-                          const amrex::Vector<std::string> &plot_var_names,
-                          const amrex::Vector<int>& level_steps, amrex::Real time) const;
-
-    //! Write MultiFab in NetCDF format
-    static void WriteNCMultiFab (const amrex::FabArray<amrex::FArrayBox> &fab,
-                                 const std::string& name,
-                                 bool set_ghost = false) ;
-
     //! Create 1D vertical column output for coupling
     void createNCColumnFile (int lev,
                              const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc);

@@ -1,14 +1,22 @@
-#include <ERF_EOS.H>
-#include <ERF.H>
-#include "AMReX_Interp_3D_C.H"
-#include "ERF_TerrainMetrics.H"
-#include "ERF_Constants.H"
+#include "ERF.H"
 #include "ERF_SrcHeaders.H"
-#include "ERF_Container.H"
 
 using namespace amrex;
 
 PhysBCFunctNoOp null_bc_for_fill;
+
+#ifdef ERF_USE_NETCDF
+void
+writeNCPlotFile (int lev, int which, const std::string& dir,
+                 const Vector<const MultiFab*> &mf,
+                 const Vector<std::string> &plot_var_names,
+                 const Vector<int>& level_steps,
+                 amrex::Array<amrex::Real,AMREX_SPACEDIM> prob_lo,
+                 amrex::Array<amrex::Real,AMREX_SPACEDIM> prob_hi,
+                 amrex::Array<amrex::Real,AMREX_SPACEDIM> dx,
+                 const Box& bounding_region,
+                 Real time, Real start_bdy_time);
+#endif
 
 void
 ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
@@ -1383,9 +1391,15 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 #endif
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == PlotFileType::Netcdf) {
+             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::StaticFittedMesh);
              int lev   = 0;
              int l_which = 0;
-             writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
+             const Real* p_lo = geom[lev].ProbLo();
+             const Real* p_hi = geom[lev].ProbHi();
+             const auto dx    = geom[lev].CellSize();
+             writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
+                             {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
+                             geom[lev].Domain(), t_new[0], start_bdy_time);
 #endif
         } else {
             // Here we assume the plotfile_type is PlotFileType::None
@@ -1518,9 +1532,16 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == PlotFileType::Netcdf) {
+             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type != TerrainType::StaticFittedMesh);
              for (int lev = 0; lev <= finest_level; ++lev) {
                  for (int which_box = 0; which_box < num_boxes_at_level[lev]; which_box++) {
-                     writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
+                     Box bounding_region = (lev == 0)  ? geom[lev].Domain() : boxes_at_level[lev][which_box];
+                     const Real* p_lo = geom[lev].ProbLo();
+                     const Real* p_hi = geom[lev].ProbHi();
+                     const auto dx    = geom[lev].CellSizeArray();
+                     writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
+                                     {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
+                                     bounding_region, t_new[0], start_bdy_time);
                  }
              }
 #endif

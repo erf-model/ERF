@@ -57,7 +57,7 @@
         // Construct the source terms for the cell-centered (conserved) variables
         // TODO -- DONT WE NEED z_phys_cc_src if we need z_phys_nd_src??
         make_sources(level, nrk, slow_dt, old_stage_time,
-                     S_data[IntVars::cons], S_prim, cc_src, base_state[level], z_phys_cc[level],
+                     S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],

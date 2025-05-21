@@ -30,7 +30,7 @@ using namespace amrex;
 
 void make_sources (int level,
                    int /*nrk*/, Real dt, Real time,
-                   const MultiFab& S_data,
+                   const Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
                    const  MultiFab & base_state,
@@ -97,13 +97,13 @@ void make_sources (int level,
         //
         // We need just one ghost cell in the vertical
         //
-        IntVect ng_c(S_data.nGrowVect()); ng_c[2] = 1;
+        IntVect ng_c(S_data[IntVars::cons].nGrowVect()); ng_c[2] = 1;
         //
         // With no moisture we only (rho) and (rho theta); with moisture we also do qv and qc
         // We use the alias here to control ncomp inside the PlaneAverage
         //
         int ncomp = (solverChoice.moisture_type == MoistureType::None) ? 2 : RhoQ2_comp+1;
-        MultiFab cons(S_data, make_alias, 0, ncomp);
+        MultiFab cons(S_data[IntVars::cons], make_alias, 0, ncomp);
 
         PlaneAverage cons_ave(&cons, geom, solverChoice.ave_plane, ng_c);
         cons_ave.compute_averages(ZDir(), cons_ave.field());
@@ -189,11 +189,11 @@ void make_sources (int level,
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
-    for ( MFIter mfi(S_data,TileNoZ()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
 
-        const Array4<const Real>& cell_data  = S_data.array(mfi);
+        const Array4<const Real>& cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real>& cell_prim  = S_prim.array(mfi);
         const Array4<Real>      & cell_src   = source.array(mfi);
 
@@ -379,7 +379,7 @@ void make_sources (int level,
         // 8. Add perturbation
         // *************************************************************************************
         if (solverChoice.pert_type == PerturbationType::Source && is_slow_step) {
-            auto m_ixtype = S_data.boxArray().ixType(); // Conserved term
+            auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
             const amrex::Array4<const amrex::Real>& pert_cell = turbPert.pb_cell[level].const_array(mfi);
             turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src, pert_cell); // Applied as source term
         }
