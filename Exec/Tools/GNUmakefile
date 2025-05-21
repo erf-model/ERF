@@ -20,6 +20,8 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.defs
 
 DEFINES += -DERF_USE_NETCDF
 
+EBASE = PlotfileToNetCDF
+
 #Turn on NetCDF macro define
 has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
 ifeq ($(has_netcdf_mpi),0)
@@ -46,7 +48,5 @@ INCLUDE_LOCATIONS += $(AMREX_HOME)/Src/Base
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
-executable = PlotfileToNetCDF.ex
-
 clean::
-	$(SILENT) $(RM) PlotfileToNetCDF.ex
+	$(SILENT) $(RM) $(EBASE).ex
