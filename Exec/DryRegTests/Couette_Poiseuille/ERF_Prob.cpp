@@ -43,7 +43,7 @@ Problem::init_custom_pert(
     Array4<Real      > const& /*r_hse*/,
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
-    Array4<Real const> const& /*z_cc*/,
+    Array4<Real const> const& z_cc,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
@@ -132,12 +132,10 @@ Problem::init_custom_pert(
             const Real* prob_hi = geomdata.ProbHi();
             const Real* dx      = geomdata.CellSize();
 
-            Real y_h;
-            if (parms_d.prob_type == 20) {
-                y_h = 2.0 * (j + 0.5) * dx[1] / (prob_hi[1] - prob_lo[1]) - 1.0;
-            } else {
-                y_h = 2.0 * (k + 0.5) * dx[2] / (prob_hi[2] - prob_lo[2]) - 1.0;
-            }
+            // Normalized values between -1 and 1
+            Real y_h = (parms_d.prob_type == 20) ? 2.0 * (j + 0.5) * dx[1]          / (prob_hi[1] - prob_lo[1]) - 1.0
+                                                 : 2.0 * (z_cc(i,j,k) - prob_lo[2]) / (prob_hi[2] - prob_lo[2]) - 1.0;
+
             x_vel_pert(i, j, k) = parms_d.u_0 * (1.0 - y_h * y_h);
 
             if (parms_d.u_0_pert_mag != 0.0) {
