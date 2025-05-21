@@ -165,7 +165,7 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
     std::vector<Real> z_grid;
     long unsigned goffset = 0;
     long unsigned glen    = 0;
- 
+
     // *******************************************************************************
     // NOTE: the (x,y,z) output here are for a mesh withOUT terrain-fitted coordinates
     // *******************************************************************************

@@ -1398,8 +1398,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
              const Real* p_hi = geom[lev].ProbHi();
              const auto dx    = geom[lev].CellSize();
              writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
-                             {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},  
-                             geom[lev].Domain(), t_new[0], start_bdy_time); 
+                             {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
+                             geom[lev].Domain(), t_new[0], start_bdy_time);
 #endif
         } else {
             // Here we assume the plotfile_type is PlotFileType::None
@@ -1540,7 +1540,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                      const Real* p_hi = geom[lev].ProbHi();
                      const auto dx    = geom[lev].CellSizeArray();
                      writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
-                                     {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},  
+                                     {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
                                      bounding_region, t_new[0], start_bdy_time);
                  }
              }
