@@ -14,8 +14,8 @@ amr.n_cell           =  8    8    4
 geometry.is_periodic =  1 1 1
 
 # TIME STEP CONTROL
-erf.fixed_dt = 0.005
-erf.fixed_mri_dt_ratio = 4
+erf.fixed_dt = 0.0025
+erf.substepping_type = "None"
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

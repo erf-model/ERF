@@ -24,7 +24,7 @@ super_droplets_moisture_aerosol_mass_flux_x_NaCl
 super_droplets_moisture_aerosol_mass_flux_y_NaCl
 super_droplets_moisture_aerosol_mass_flux_z_NaCl
 3
-0.0050000000000000001
+0.0025000000000000001
 0
 0 0 0 
 8 8 4 
@@ -34,7 +34,7 @@ super_droplets_moisture_aerosol_mass_flux_z_NaCl
 1 1 1 
 0
 0
-0 4 0.0050000000000000001
+0 4 0.0025000000000000001
 1
 0 4
 0 4
