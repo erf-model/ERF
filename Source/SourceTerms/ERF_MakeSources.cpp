@@ -35,9 +35,7 @@ void make_sources (int level,
                           MultiFab & source,
                    const  MultiFab & base_state,
                    std::unique_ptr<MultiFab>& z_phys_cc,
-#ifdef ERF_USE_RRTMGP
                    const MultiFab* qheating_rates,
-#endif
                           MultiFab* terrain_blank,
                    const Geometry geom,
                    const SolverChoice& solverChoice,
@@ -206,11 +204,10 @@ void make_sources (int level,
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                Array4<const Real>{};
 
-#ifdef ERF_USE_RRTMGP
         // *************************************************************************************
         // 2. Add radiation source terms to (rho theta)
         // *************************************************************************************
-        if (is_slow_step) {
+        if (solverChoice.rad_type != RadiationType::None && is_slow_step) {
             auto const& qheating_arr = qheating_rates->const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -219,7 +216,6 @@ void make_sources (int level,
             });
         }
 
-#endif
 
         // *************************************************************************************
         // 3. Add Rayleigh damping for (rho theta)

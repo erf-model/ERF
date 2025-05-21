@@ -134,11 +134,9 @@ ERF::ERF_shared ()
     SMark.resize(nlevs_max);
 #endif
 
-#if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
     sw_lw_fluxes.resize(nlevs_max);
     solar_zenith.resize(nlevs_max);
-#endif
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
     lsm.ReSize(nlevs_max);
@@ -156,10 +154,18 @@ ERF::ERF_shared ()
     initializeWindFarm(nlevs_max);
 #endif
 
-#ifdef ERF_USE_RRTMGP
     rad.resize(nlevs_max);
-    for (int lev = 0; lev <= max_level; ++lev) { rad[lev] = std::make_unique<Radiation>(lev,solverChoice); }
+    for (int lev = 0; lev <= max_level; ++lev) {
+        if (solverChoice.rad_type == RadiationType::RRTMGP) {
+#ifdef ERF_USE_RRTMGP
+            rad[lev] = std::make_unique<Radiation>(lev, solverChoice);
+            // pass radiation datalog frequency to model - RRTMGP needs to know when to save data for profiles
+            rad[lev]->setDataLogFrequency(rad_datalog_int);
 #endif
+        } else if (solverChoice.rad_type != RadiationType::None) {
+            Abort("Don't know this radiation model!");
+        }
+    }
 
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
@@ -588,6 +594,15 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         } else {
             // some variables staggered
             write_1D_profiles_stag(time);
+        }
+    }
+
+    if (solverChoice.rad_type != RadiationType::None)
+    {
+        if (rad_datalog_int > 0 && (nstep+1) % rad_datalog_int == 0) {
+            if (rad[0]->hasDatalog()) {
+                rad[0]->WriteDataLog(time);
+            }
         }
     }
 
@@ -1270,6 +1285,12 @@ ERF::InitData_post ()
         }
     }
 
+    if (solverChoice.rad_type != RadiationType::None)
+    {
+        // Create data log for radiation model if requested
+        rad[0]->setupDataLog();
+    }
+
 
     if (restart_chkfile.empty() && profile_int > 0) {
         if (destag_profiles) {
@@ -1571,8 +1592,14 @@ ERF::ReadParameters ()
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {
             start_time = getEpochTime(start_datetime, datetime_format);
+            if (start_time == -1.0) {
+               amrex::Abort("Invalid start_datetime string!");
+            }
             if (pp.query("stop_datetime", stop_datetime)) {
                 stop_time = getEpochTime(stop_datetime, datetime_format);
+                if (stop_time == -1.0) {
+                    amrex::Abort("Invalid stop_datetime string!");
+                }
             }
             use_datetime = true;
         } else {
@@ -1764,6 +1791,7 @@ ERF::ReadParameters ()
 #ifdef ERF_USE_RRTMGP
         pp.query("plot_rad", plot_rad);
 #endif
+        pp.query("profile_rad_int", rad_datalog_int);
 
         pp.query("output_1d_column", output_1d_column);
         pp.query("column_per", column_per);

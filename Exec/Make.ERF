@@ -204,6 +204,11 @@ ifeq ($(USE_NOAH), TRUE)
 endif
 
 
+ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
+include $(ERF_RAD_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
+
 # If using RRTMGP Radiation, compile relevant source and headers
 #ifeq ($(USE_RRTMGP), TRUE)
 #  ifneq ($(USE_NETCDF), TRUE)

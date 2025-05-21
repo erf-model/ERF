@@ -80,9 +80,9 @@ compute_heating_rate (yakl::Array<T,2,myMem,myStyle> const &flux_up,
     auto nlay = flux_up.dimension[1]-1;
     yakl::fortran::parallel_for(yakl::fortran::SimpleBounds<2>(nlay,ncol), YAKL_LAMBDA(int ilay, int icol)
     {
-        heating_rate(icol,ilay) = ( flux_up(icol,ilay+1) - flux_up(icol,ilay)
-                                  - flux_dn(icol,ilay+1) + flux_dn(icol,ilay) )
-                                  / (Cp_d * rho(icol,ilay) * dz(icol,ilay));
+        heating_rate(icol,ilay) = -1.0 * ( flux_up(icol,ilay+1) - flux_up(icol,ilay)
+                                         - flux_dn(icol,ilay+1) + flux_dn(icol,ilay) )
+                                         / (Cp_d * rho(icol,ilay) * dz(icol,ilay));
 
         /*
         if (icol == 1) {

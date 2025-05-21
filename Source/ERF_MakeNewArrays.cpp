@@ -342,12 +342,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 #endif
 
 
-#if defined(ERF_USE_RRTMGP)
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-    qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
-    qheating_rates[lev]->setVal(0.);
+    if (solverChoice.rad_type != RadiationType::None || solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
+        qheating_rates[lev]->setVal(0.);
+    }
 
     //*********************************************************
     // Radiation fluxes for coupling to LSM
@@ -358,7 +360,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //       care must be taken before applying these fluxes to an LSM model. For
 
     // Radiative fluxes for LSM
-    if (solverChoice.lsm_type != LandSurfaceType::None)
+    if (solverChoice.lsm_type != LandSurfaceType::None &&
+        solverChoice.rad_type != RadiationType::None)
     {
         BoxList m_bl = ba.boxList();
         for (auto& b : m_bl) {
@@ -373,7 +376,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         sw_lw_fluxes[lev]->setVal(0.);
         solar_zenith[lev]->setVal(0.);
     }
-#endif
 
     //*********************************************************
     // Turbulent perturbation region initialization

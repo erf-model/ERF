@@ -70,6 +70,10 @@ AMREX_ENUM(LandSurfaceType,
     SLM, MM5, None, NOAH
 );
 
+AMREX_ENUM(RadiationType,
+    None, RRTMGP
+);
+
 enum struct Coord {
     x, y, z
 };
@@ -170,6 +174,18 @@ struct SolverChoice {
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
+
+        // What type of radiation model to use
+        rad_type = RadiationType::None; // Default
+        pp.query_enum_case_insensitive("radiation_model", rad_type);
+
+        // Verify that radiation model cannot be RRTMGP if ERF was not compiled with RRTMGP
+#ifndef ERF_USE_RRTMGP
+        if (rad_type == RadiationType::RRTMGP)
+        {
+            amrex::Abort("ERF was not compiled with RRTMGP enabled!");
+        }
+#endif
 
         // Is the terrain none, static or moving?
         std::string terrain_type_temp = "";
@@ -582,6 +598,12 @@ struct SolverChoice {
             }
         }
 
+        if (rad_type == RadiationType::RRTMGP) {
+            amrex::Print() << "Radiation Model: RRTMGP" << std::endl;
+        } else {
+            amrex::Print() << "Radiation Model: None" << std::endl;
+        }
+
         amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;
 
            advChoice.display(pp_prefix);
@@ -762,6 +784,7 @@ struct SolverChoice {
     WindFarmType windfarm_type;
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
+    RadiationType rad_type;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
