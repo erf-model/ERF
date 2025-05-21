@@ -53,8 +53,8 @@ void make_mom_sources (Real time,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
-                       InputSoundingData& input_sounding_data,
-                       bool is_slow_step)
+                             InputSoundingData& input_sounding_data,
+                             bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
 
@@ -125,12 +125,21 @@ void make_mom_sources (Real time,
     Real*     wbar = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
 
     // *****************************************************************************
+    // Data for constant mass flux
+    // *****************************************************************************
+    bool enforce_massflux_x = (solverChoice.const_massflux_x != 0);
+    bool enforce_massflux_y = (solverChoice.const_massflux_y != 0);
+    Real rhoUA = solverChoice.const_massflux_x;
+    Real rhoVA = solverChoice.const_massflux_y;
+
+    // *****************************************************************************
     // Planar averages for subsidence, nudging, or constant mass flux
     // *****************************************************************************
     Table1D<Real>     dptr_r_plane, dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> r_plane_tab,  u_plane_tab,  v_plane_tab;
 
-    if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding))
+    if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding ||
+                         enforce_massflux_x || enforce_massflux_y))
     {
         //
         // We use the alias here to control ncomp inside the PlaneAverage

@@ -84,8 +84,8 @@ void make_mom_sources (amrex::Real time,
                        const amrex::Real* dptr_wbar_sub,
                        const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
-                       InputSoundingData& input_sounding_data,
-                       bool is_slow_step);
+                             InputSoundingData& input_sounding_data,
+                             bool is_slow_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             amrex::MultiFab& ymom_source,
