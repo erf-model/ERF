@@ -200,7 +200,7 @@ add_test_0(Deardorff_stationary              "ABL" "erf_abl" "plt00010")
 
 add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
 add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests/Bubble" "erf_bubble"   "plt00001" 1e-14 1e-14)
-add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests/Bubble" "erf_bubble"   "plt00010" 5e-13 1e-14)
+add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests/Bubble" "erf_bubble"   "plt00001" 5e-13 1e-14)
 add_test_sdm(SDM_Congestus3D                 "DevTests/TemperatureSourceSpatial"   "erf_abl_with_spatial_temperature_source" "plt00020" 5e-13 1e-14 INPUT_SOUNDING "input_sounding")
 add_test_sdm(SDM_RICO3D                      "DevTests/RICO"        "erf_rico"     "plt00010" 5e-13 1e-14 INPUT_SOUNDING "input_sounding")
 

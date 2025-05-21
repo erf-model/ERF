@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step  = 10
+max_step  = 1
 stop_time = 3600.0
 
 amrex.fpe_trap_invalid = 1
@@ -14,8 +14,8 @@ amr.n_cell           =  8    8    4
 geometry.is_periodic =  1 1 1
 
 # TIME STEP CONTROL
-erf.fixed_dt = 0.005
-erf.fixed_mri_dt_ratio = 4
+erf.fixed_dt = 0.00125
+erf.substepping_type = "None"
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -31,7 +31,7 @@ erf.check_int       = -1        # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
-erf.plot_int_1      = 1          # number of timesteps between plotfiles
+erf.plot_int_1      = 99999      # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta pressure theta temp eq_pot_temp super_droplets_moisture_mass_flux_x super_droplets_moisture_mass_flux_y super_droplets_moisture_mass_flux_z super_droplets_moisture_number_density super_droplets_moisture_mass_density super_droplets_moisture_radius super_droplets_moisture_mass_density_H2O super_droplets_moisture_mass_flux_x_H2O super_droplets_moisture_mass_flux_y_H2O super_droplets_moisture_mass_flux_z_H2O super_droplets_moisture_aerosol_mass_density_NaCl super_droplets_moisture_aerosol_mass_flux_x_NaCl super_droplets_moisture_aerosol_mass_flux_y_NaCl super_droplets_moisture_aerosol_mass_flux_z_NaCl 
 
 # SOLVER CHOICES
