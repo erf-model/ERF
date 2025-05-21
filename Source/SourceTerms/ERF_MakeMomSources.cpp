@@ -75,15 +75,16 @@ void make_mom_sources (Real time,
 
     // *****************************************************************************
     // Define source term for all three components of momenta from
-    //    1. Coriolis forcing   for (xmom,ymom,zmom)
-    //    2. Rayleigh damping   for (xmom,ymom,zmom)
+    //    1. Coriolis forcing for (xmom,ymom,zmom)
+    //    2. Rayleigh damping for (xmom,ymom,zmom)
     //    3. Constant / height-dependent geostrophic forcing
-    //    4. subsidence
-    //    5. nudging towards input sounding data
-    //    6. numerical diffusion for (xmom,ymom,zmom)
-    //    7. sponge
+    //    4. Subsidence
+    //    5. Nudging towards input sounding data
+    //    6. Numerical diffusion for (xmom,ymom,zmom)
+    //    7. Sponge
     //    8. Forest canopy
-    //    9. Immersed Forcing
+    //    9. Immersed forcing
+    //   10. Constant mass flux
     // *****************************************************************************
     // NOTE: buoyancy is now computed in a separate routine - it should not appear here
     // *****************************************************************************
@@ -124,7 +125,7 @@ void make_mom_sources (Real time,
     Real*     wbar = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
 
     // *****************************************************************************
-    // Planar averages for subsidence terms
+    // Planar averages for subsidence, nudging, or constant mass flux
     // *****************************************************************************
     Table1D<Real>     dptr_r_plane, dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> r_plane_tab,  u_plane_tab,  v_plane_tab;
@@ -243,7 +244,7 @@ void make_mom_sources (Real time,
         const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
 
         // *****************************************************************************
-        // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
+        // 1. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
             if (var_coriolis && has_lat_lon) {
@@ -285,7 +286,7 @@ void make_mom_sources (Real time,
         } // use_coriolis
 
         // *****************************************************************************
-        // 3. Add RAYLEIGH damping
+        // 2. Add RAYLEIGH damping
         // *****************************************************************************
         Real zlo      = geom.ProbLo(2);
         Real dz       = geom.CellSize(2);
@@ -338,7 +339,7 @@ void make_mom_sources (Real time,
         } // fast or slow step
 
         // *****************************************************************************
-        // 4. Add constant GEOSTROPHIC forcing
+        // 3a. Add constant GEOSTROPHIC forcing
         // *****************************************************************************
         if (is_slow_step) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -359,7 +360,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // 4. Add height-dependent GEOSTROPHIC forcing
+        // 3b. Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
         if (geo_wind_profile && is_slow_step) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -375,7 +376,7 @@ void make_mom_sources (Real time,
         } // geo_wind_profile
 
         // *****************************************************************************
-        // 5. Add custom SUBSIDENCE terms
+        // 4. Add custom SUBSIDENCE terms
         // *****************************************************************************
         if (solverChoice.custom_w_subsidence && is_slow_step) {
             if (solverChoice.custom_forcing_prim_vars) {
@@ -447,7 +448,7 @@ void make_mom_sources (Real time,
         }
 
         // *************************************************************************************
-        // 6. Add nudging towards value specified in input sounding
+        // 5. Add nudging towards value specified in input sounding
         // *************************************************************************************
         if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
@@ -494,7 +495,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // 7. Add NUMERICAL DIFFUSION terms
+        // 6. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
 #if 0
         if (l_use_ndiff) {
@@ -510,7 +511,7 @@ void make_mom_sources (Real time,
 #endif
 
         // *****************************************************************************
-        // 8. Add SPONGING
+        // 7. Add SPONGING
         // *****************************************************************************
         if (is_slow_step) {
             if (solverChoice.spongeChoice.sponge_type == "input_sponge")
@@ -528,7 +529,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // 9. Add CANOPY source terms
+        // 8. Add CANOPY source terms
         // *****************************************************************************
         if (solverChoice.do_forest_drag &&
            ((is_slow_step && !use_canopy_fast) || (!is_slow_step && use_canopy_fast))) {
@@ -567,7 +568,7 @@ void make_mom_sources (Real time,
             });
         }
         // *****************************************************************************
-        // 10. Add Immersed source terms
+        // 9. Add Immersed source terms
         // *****************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
