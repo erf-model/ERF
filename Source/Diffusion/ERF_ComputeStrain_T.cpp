@@ -152,8 +152,8 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             } else {
                 tau12(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
                                      + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]*mfx
-                                     - (met_h_eta/met_h_zeta)*GradUz*mfy
-                                     - (met_h_xi /met_h_zeta)*GradVz*mfx );
+                                     - (met_h_eta)*GradUz*mfy
+                                     - (met_h_xi )*GradVz*mfx );
             }
             tau21(i,j,k) = tau12(i,j,k);
         });
@@ -407,7 +407,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz1  = 0.5 * ( z_nd(i,j,k+2) + z_nd(i,j+1,k+2)
                               - z_nd(i,j,k+1) - z_nd(i,j+1,k+1) );
             Real idz0 = 1.0 / dz0;
-            Real f    = 3.0 * (dz1 / dz0);
+            Real f    = (dz1 / dz0) + 2.0;
             Real f2   = f*f;
             Real c3   = 2.0 / (f - f2);
             Real c2   = -f2*c3;
@@ -438,7 +438,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz1  = 0.5 * ( z_nd(i,j,k-1) + z_nd(i,j+1,k-1)
                               - z_nd(i,j,k-2) - z_nd(i,j+1,k-2) );
             Real idz0 = 1.0 / dz0;
-            Real f    = 3.0 * (dz1 / dz0);
+            Real f    = (dz1 / dz0) + 2.0;
             Real f2   = f*f;
             Real c3   = 2.0 / (f - f2);
             Real c2   = -f2*c3;
@@ -446,7 +446,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real mfx = mf_ux(i,j,0);
 
-            tau13(i,j,k) = 0.5 * ( -(c1 * u(i,j,k) + c2 * u(i,j,k-1) c3 * u(i,j,k-2))*idz0
+            tau13(i,j,k) = 0.5 * ( -(c1 * u(i,j,k) + c2 * u(i,j,k-1) + c3 * u(i,j,k-2))*idz0
                                  +  (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mfx );
             tau31(i,j,k) = tau13(i,j,k);
         });
@@ -462,7 +462,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz1  = 0.5 * ( z_nd(i,j,k+2) + z_nd(i+1,j,k+2)
                               - z_nd(i,j,k+1) - z_nd(i+1,j,k+1) );
             Real idz0 = 1.0 / dz0;
-            Real f    = 3.0 * (dz1 / dz0);
+            Real f    = (dz1 / dz0) + 2.0;
             Real f2   = f*f;
             Real c3   = 2.0 / (f - f2);
             Real c2   = -f2*c3;
@@ -493,7 +493,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz1  = 0.5 * ( z_nd(i,j,k-1) + z_nd(i+1,j,k-1)
                               - z_nd(i,j,k-2) - z_nd(i+1,j,k-2) );
             Real idz0 = 1.0 / dz0;
-            Real f    = 3.0 * (dz1 / dz0);
+            Real f    = (dz1 / dz0) + 2.0;
             Real f2   = f*f;
             Real c3   = 2.0 / (f - f2);
             Real c2   = -f2*c3;
@@ -518,7 +518,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz1  = 0.25 * ( z_nd(i,j,k+2) + z_nd(i,j+1,k+2) + z_nd(i+1,j,k+2) + z_nd(i+1,j+1,k+2)
                                - z_nd(i,j,k+1) - z_nd(i,j+1,k+1) - z_nd(i+1,j,k+1) - z_nd(i+1,j+1,k+1) );
             Real idz0 = 1.0 / dz0;
-            Real f    = 3.0 * (dz1 / dz0);
+            Real f    = (dz1 / dz0) + 2.0;
             Real f2   = f*f;
             Real c3   = 2.0 / (f - f2);
             Real c2   = -f2*c3;
@@ -550,7 +550,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz0  = ( z_nd(i,j,k+1) - z_nd(i,j,k  ) );
             Real dz1  = ( z_nd(i,j,k+2) - z_nd(i,j,k+1) );
             Real idz0 = 1.0 / dz0;
-            Real f    = 3.0 * (dz1 / dz0);
+            Real f    = (dz1 / dz0) + 2.0;
             Real f2   = f*f;
             Real c3   = 2.0 / (f - f2);
             Real c2   = -f2*c3;
@@ -691,10 +691,9 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
         Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
-        Real met_h_xi,met_h_eta,met_h_zeta;
+        Real met_h_xi,met_h_eta;
         met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
         met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
-        met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
         tau12(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
                              + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]*mfx
