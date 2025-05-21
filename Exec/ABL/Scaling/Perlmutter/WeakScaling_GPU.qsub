@@ -1,0 +1,49 @@
+#!/bin/bash
+
+## specify your allocation (with the _g) and that you want GPU nodes
+#SBATCH -A <ACCOUNT_ID>
+#SBATCH -C gpu
+#SBATCH -q regular
+
+#SBATCH -J ERF
+#SBATCH -o erf.out
+#SBATCH -e erf.out
+
+## set the max walltime and memory
+#SBATCH -t 10
+#SBATCH --mem=0
+
+## specify the number of nodes you want
+#SBATCH -N 32
+#SBATCH -c 32
+#SBATCH --exclusive
+
+## we use the same number of MPI ranks per node as GPUs per node
+#SBATCH --gpus-per-node=4
+#SBATCH --gpu-bind=none
+
+#export MPICH_OFI_NIC_POLICY=GPU
+export MPICH_GPU_SUPPORT_ENABLED=1
+
+lc=1; nx=512; ny=512; probx=2048; proby=2048;
+# the -n argument is (--ntasks-per-node) * (-N) = (number of MPI ranks per node) * (number of nodes)
+num_ranks_per_node=4
+for n_nodes in 1 2 4 8 16 32
+do
+  echo "Test $lc: $N nodes, $num_ranks_per_node tasks per node, $np procs, $probx $proby 1024, $nx $ny 256"
+
+  num_total_ranks=$(( n_nodes * num_ranks_per_node ))
+  FILENAME=$(printf "weak_scaling_%03d.out" "$num_total_ranks")
+  srun -N $n_nodes -n $num_total_ranks --ntasks-per-node=$num_ranks_per_node --cpus-per-task=32 --cpu-bind=cores --gpus=$num_total_ranks\
+  bash -c "<exec> inputs_smagorinsky_WeakScaling geometry.prob_extent=$probx $proby 1024  amr.n_cell=$nx $ny 256 amrex.the_arena_is_managed=0 amrex.use_gpu_aware_mpi=1" \
+  > $FILENAME
+
+  # for FILENAME in plt*; do mv $FILENAME plotfiles_$SLURM_JOB_ID/${FILENAME}_${np}p; done
+  lc=$(( lc+1  ))
+  if [ $(( $lc%2 )) -eq 0 ]
+  then
+    probx=$(( probx*2  )); nx=$(( nx*2  ));
+  else
+    proby=$(( proby*2  )); ny=$(( ny*2  ));
+  fi
+done
