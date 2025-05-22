@@ -109,7 +109,6 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
             // ******************************************************************************************
             // Dry compressible
             // ******************************************************************************************
-            int n_q_dry = 0;
             if (solverChoice.buoyancy_type == 1) {
 
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -117,7 +116,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                     //
                     // Return -rho0 g (thetaprime / theta0)
                     //
-                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,n_q_dry,grav_gpu[2],
+                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
                                                              r0_arr,cell_data,qt_arr);
                 });
             }
@@ -161,7 +160,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
             {
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,n_qstate,grav_gpu[2],
+                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
                                                              r0_arr,cell_data,qt_arr);
                 });
             }

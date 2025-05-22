@@ -70,7 +70,6 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_rhopert (int& i, int& j, int& k,
-                  const int& n_qstate,
                   amrex::Real const& grav_gpu,
                   const amrex::Array4<const amrex::Real>& r0_arr,
                   const amrex::Array4<const amrex::Real>& cell_data,
