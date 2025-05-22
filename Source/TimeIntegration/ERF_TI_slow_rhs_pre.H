@@ -54,6 +54,12 @@
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing) ?
             terrain_blanking[level].get() : nullptr;
 
+        // Update the total moisture variable *before* computing sources since this is used in
+        //    the buoyancy calculation
+        if (solverChoice.moisture_type != MoistureType::None) {
+            make_qt(S_data[IntVars::cons], qt);
+        }
+
         // Construct the source terms for the cell-centered (conserved) variables
         // TODO -- DONT WE NEED z_phys_cc_src if we need z_phys_nd_src??
         make_sources(level, nrk, slow_dt, old_stage_time,
@@ -105,7 +111,7 @@
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction
         // *****************************************************************************
-        make_buoyancy(S_data, S_prim, buoyancy, fine_geom, solverChoice, base_to_use,
+        make_buoyancy(S_data, S_prim, qt, buoyancy, fine_geom, solverChoice, base_to_use,
                       micro->Get_Qstate_Moist_Size(), solverChoice.anelastic[level]);
 
         // *****************************************************************************
@@ -133,8 +139,8 @@
         // *****************************************************************************
         // Define RHS for rho, rho_theta and momenta
         // *****************************************************************************
-        erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
-                         xvel_new, yvel_new, zvel_new,
+        erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data,
+                         S_prim, qt, S_scratch, xvel_new, yvel_new, zvel_new,
                          z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                          Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,

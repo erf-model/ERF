@@ -45,6 +45,35 @@
     };
 
 /**
+ *  Define the total water content in each cell
+ */
+    auto make_qt = [&](const MultiFab& cons_state, MultiFab& qt)
+    {
+        BL_PROFILE("make_qt()");
+
+        int n_qstate_moist   = micro->Get_Qstate_Moist_Size();
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+      for (MFIter mfi(cons_state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      {
+          const Box& gbx = mfi.growntilebox(1);
+          const Array4<const Real>& cons_arr     = cons_state.array(mfi);
+          const Array4<      Real>&   qt_arr     = qt.array(mfi);
+
+          amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+          {
+              qt_arr(i,j,k) = cons_arr(i,j,k,RhoQ1_comp);
+              for (int q_offset(1); q_offset < n_qstate_moist; ++q_offset) {
+                  qt_arr(i,j,k) += cons_arr(i,j,k,RhoQ1_comp+q_offset);
+              }
+              qt_arr(i,j,k) /= cons_arr(i,j,k,Rho_comp);
+          });
+      } // mfi
+    };
+
+/**
  *  This routine is called after the scalars are updated for each RK stage
  */
     auto apply_bcs = [&](Vector<MultiFab>& S_data,

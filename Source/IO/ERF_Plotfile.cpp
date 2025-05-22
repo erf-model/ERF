@@ -942,21 +942,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 mf_comp += 1;
             }
 
-            // Non-precipitating components
-            //--------------------------------------------------------------------------
-            if(containerHasElement(plot_var_names, "qt"))
-            {
-                int n_start = RhoQ1_comp; // qv
-                int n_end   = RhoQ2_comp; // qc
-                if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
-                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
-                    MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
-                }
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
             if(containerHasElement(plot_var_names, "qv") && (n_qstate_moist >= 1))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ1_comp, mf_comp, 1, 0);
@@ -974,20 +959,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             if(containerHasElement(plot_var_names, "qi") && (n_qstate_moist >= 4))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ3_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
-            // Precipitating components
-            //--------------------------------------------------------------------------
-            if(containerHasElement(plot_var_names, "qp") && (n_qstate_moist >= 3))
-            {
-                int n_start = (n_qstate_moist > 3) ? RhoQ4_comp : RhoQ3_comp;
-                int n_end   = ncomp_cons - 1;
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
-                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
-                    MultiFab::Add(  mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
-                }
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
@@ -1011,6 +982,49 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ6_comp, mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            // Precipitating + non-precipitating components
+            //--------------------------------------------------------------------------
+            if(containerHasElement(plot_var_names, "qt"))
+            {
+                int n_start = RhoQ1_comp; // qv
+                int n_end   = n_qstate_moist;
+                MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
+                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
+                    MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
+                }
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            // Non-precipitating components
+            //--------------------------------------------------------------------------
+            if (containerHasElement(plot_var_names, "qn"))
+            {
+                int n_start = RhoQ1_comp; // qv
+                int n_end   = RhoQ2_comp; // qc
+                if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
+                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
+                    MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
+                }
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            // Precipitating components
+            //--------------------------------------------------------------------------
+            if(containerHasElement(plot_var_names, "qp") && (n_qstate_moist >= 3))
+            {
+                int n_start = (n_qstate_moist > 3) ? RhoQ4_comp : RhoQ3_comp;
+                int n_end   = ncomp_cons - 1;
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
+                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
+                    MultiFab::Add(  mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
+                }
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
