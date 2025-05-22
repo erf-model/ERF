@@ -436,7 +436,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                     dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_lo.z,dest_comp) -
                         delta_z*l_bc_neumann_vals_d[bc_comp][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
-                    Real delta_k = Compute_Zrel_AtCellCenter(i,j,k,z_phys_nd);
+                    Real delta_k = (dom_lo.z - k);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_k)*dest_arr(i,j,dom_lo.z,dest_comp) - delta_k*dest_arr(i,j,dom_lo.z+1,dest_comp);
                 }
             },
@@ -467,8 +467,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                             delta_z*l_bc_neumann_vals_d[bc_comp][5]*dest_arr(i,j,dom_hi.z,Rho_comp);
                     }
                 } else if (h_bc_type == ERFBCType::hoextrap){
-                    Real delta_k = Compute_Z_AtCellCenter(i,j,k       ,z_phys_nd)
-                                 - Compute_Z_AtCellCenter(i,j,dom_hi.z,z_phys_nd);
+                    Real delta_k = (k - dom_hi.z);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_k)*dest_arr(i,j,dom_hi.z,dest_comp) - delta_k*dest_arr(i,j,dom_hi.z-1,dest_comp);
                 }
             }
