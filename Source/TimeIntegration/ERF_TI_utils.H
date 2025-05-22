@@ -138,7 +138,7 @@
                               ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons);
     };
 
-    auto update_terrain_stage = [&](int level, Real old_step_time, Real old_stage_time, Real new_stage_time, Real slow_dt)
+    auto update_terrain_stage = [&](int lev, Real old_step_time, Real old_stage_time, Real new_stage_time, Real slow_dt)
     {
             // Note that the "old" and "new" metric terms correspond to
             // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
@@ -152,7 +152,7 @@
             //
             // Make a temporary MF to fill the terrain
             //
-            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[level]->nGrow());
+            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
             FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
             FArrayBox terrain_fab_src(makeSlab(terrain_bx,2,0),1);
             FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
@@ -162,41 +162,41 @@
             prob->init_terrain_surface(fine_geom,terrain_fab_new,new_stage_time);
 
             // Copy on intersection
-            for (MFIter mfi(*z_phys_nd[level],false); mfi.isValid(); ++mfi)
+            for (MFIter mfi(*z_phys_nd[lev],false); mfi.isValid(); ++mfi)
             {
-                Box isect = terrain_fab_old.box() & (*z_phys_nd[level])[mfi].box();
-                (    *z_phys_nd[level])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
-                (*z_phys_nd_src[level])[mfi].template copy<RunOn::Device>(terrain_fab_src,isect,0,isect,0,1);
-                (*z_phys_nd_new[level])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
+                Box isect = terrain_fab_old.box() & (*z_phys_nd[lev])[mfi].box();
+                (    *z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
+                (*z_phys_nd_src[lev])[mfi].template copy<RunOn::Device>(terrain_fab_src,isect,0,isect,0,1);
+                (*z_phys_nd_new[lev])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
             }
 
-            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
-            make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
-            make_areas         (fine_geom,*z_phys_nd[level], *ax[level], *ay[level], *az[level]);
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+            make_J             (fine_geom,*z_phys_nd[lev], *detJ_cc[lev]);
+            make_areas         (fine_geom,*z_phys_nd[lev], *ax[lev], *ay[lev], *az[lev]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  "
                                  << std::setprecision(timeprecision) << old_stage_time << std::endl;
-            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_src[level], zlevels_stag[level], phys_bc_type);
-            make_J             (fine_geom,*z_phys_nd_src[level], *detJ_cc_src[level]);
-            make_areas         (fine_geom,*z_phys_nd_src[level], *ax_src[level], *ay_src[level], *az_src[level]);
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_src[lev], zlevels_stag[lev], phys_bc_type);
+            make_J             (fine_geom,*z_phys_nd_src[lev], *detJ_cc_src[lev]);
+            make_areas         (fine_geom,*z_phys_nd_src[lev], *ax_src[lev], *ay_src[lev], *az_src[lev]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: "
                                  << std::setprecision(timeprecision) << new_stage_time << std::endl;
-            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
-            make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
+            make_J             (fine_geom,*z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
             Real inv_dt  = 1./slow_dt;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for (MFIter mfi(*z_t_rk[level],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            for (MFIter mfi(*z_t_rk[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box gbx = mfi.growntilebox(IntVect(1,1,0));
 
-                const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
-                const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[level]->const_array(mfi);
-                const Array4<Real const>& z_nd_old_arr =  z_phys_nd[level]->const_array(mfi);
+                const Array4<Real      >& z_t_arr      =  z_t_rk[lev]->array(mfi);
+                const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[lev]->const_array(mfi);
+                const Array4<Real const>& z_nd_old_arr =  z_phys_nd[lev]->const_array(mfi);
 
                 // Loop over horizontal plane
                 amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -211,11 +211,11 @@
             } // mfi
     };
 
-    auto update_terrain_substep = [&](int level, Real old_substep_time, Real new_substep_time, Real dtau,
+    auto update_terrain_substep = [&](int lev, Real old_substep_time, Real new_substep_time, Real dtau,
                                       Vector<MultiFab>& S_data, std::unique_ptr<MultiFab>& z_t_pert)
     {
         // Make "old" fast geom -- store in z_phys_nd for convenience
-        Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[level]->nGrow());
+        Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
 
         if (verbose) Print() << "Making geometry at start of substep time: "
                              << std::setprecision(timeprecision) << old_substep_time << std::endl;
@@ -229,32 +229,32 @@
         prob->init_terrain_surface(fine_geom,terrain_fab_new,new_substep_time);
 
         // Copy on intersection
-        for (MFIter mfi(*z_phys_nd[level],false); mfi.isValid(); ++mfi)
+        for (MFIter mfi(*z_phys_nd[lev],false); mfi.isValid(); ++mfi)
         {
-            Box isect = terrain_fab_old.box() & (*z_phys_nd[level])[mfi].box();
-            (    *z_phys_nd[level])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
-            (*z_phys_nd_new[level])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
+            Box isect = terrain_fab_old.box() & (*z_phys_nd[lev])[mfi].box();
+            (    *z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
+            (*z_phys_nd_new[lev])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
         }
 
-        make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
-        make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
+        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+        make_J             (fine_geom,*z_phys_nd[lev], *detJ_cc[lev]);
 
-        make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
-        make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
+        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
+        make_J             (fine_geom,*z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
         Real inv_dt   = 1./dtau;
 
         z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
 
-        for (MFIter mfi(*z_t_rk[level],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for (MFIter mfi(*z_t_rk[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box gbx = mfi.growntilebox(IntVect(1,1,0));
 
-            const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
+            const Array4<Real      >& z_t_arr      =  z_t_rk[lev]->array(mfi);
             const Array4<Real      >& zp_t_arr     =  z_t_pert->array(mfi);
 
-            const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[level]->const_array(mfi);
-            const Array4<Real const>& z_nd_old_arr =  z_phys_nd[level]->const_array(mfi);
+            const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[lev]->const_array(mfi);
+            const Array4<Real const>& z_nd_old_arr =  z_phys_nd[lev]->const_array(mfi);
 
             // Loop over horizontal plane
             amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

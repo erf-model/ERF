@@ -50,8 +50,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const Array4<const Real>& SmnSmn_a,
                         const Array4<const Real>& mf_mx,
-                        const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_ux,
+                        const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_vy,
                               Array4<      Real>& hfx_z,
                               Array4<      Real>& qfx1_z,
@@ -224,11 +224,11 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
                                                  + 3. * cell_prim(i  , j, k, prim_index)
-                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv;
+                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
             } else if (ext_dir_on_xhi) {
                 xflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
                                                  - 3. * cell_prim(i-1, j, k, prim_index)
-                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv;
+                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) -
                                             cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0);
@@ -260,11 +260,11 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
                                                  + 3. * cell_prim(i, j  , k, prim_index)
-                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
+                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
             } else if (ext_dir_on_yhi) {
                 yflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
                                                  - 3. * cell_prim(i, j-1, k, prim_index)
-                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv;
+                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0);
             }
@@ -347,11 +347,11 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
                                                  + 3. * cell_prim(i  , j, k, prim_index)
-                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv;
+                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
             } else if (ext_dir_on_xhi) {
                 xflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
                                                  - 3. * cell_prim(i-1, j, k, prim_index)
-                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv;
+                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0);
             }
@@ -381,11 +381,11 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
                                                  + 3. * cell_prim(i, j  , k, prim_index)
-                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
+                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
             } else if (ext_dir_on_yhi) {
                 yflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
                                                  - 3. * cell_prim(i, j-1, k, prim_index)
-                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv;
+                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0);
             }
@@ -463,11 +463,11 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
                                                  + 3. * cell_prim(i  , j, k, prim_index)
-                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv;
+                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
             } else if (ext_dir_on_xhi) {
                 xflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
                                                  - 3. * cell_prim(i-1, j, k, prim_index)
-                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv;
+                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0);
             }
@@ -496,11 +496,11 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
                                                  + 3. * cell_prim(i, j  , k, prim_index)
-                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
+                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
             } else if (ext_dir_on_yhi) {
                 yflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
                                                  - 3. * cell_prim(i, j-1, k, prim_index)
-                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv;
+                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0);
             }
@@ -577,11 +577,11 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
                                                  + 3. * cell_prim(i  , j, k, prim_index)
-                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv;
+                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
             } else if (ext_dir_on_xhi) {
                 xflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
                                                  - 3. * cell_prim(i-1, j, k, prim_index)
-                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv;
+                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0);
             }
@@ -609,11 +609,11 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
                                                  + 3. * cell_prim(i, j  , k, prim_index)
-                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
+                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
             } else if (ext_dir_on_yhi) {
                 yflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
                                                  - 3. * cell_prim(i, j-1, k, prim_index)
-                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv;
+                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0);
             }
@@ -668,10 +668,10 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     // Use fluxes to compute RHS
     ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-
-        cell_rhs(i,j,k,qty_index) -= (xflux(i+1,j  ,k  ) - xflux(i, j, k)) * dx_inv * mf_mx(i,j,0)  // Diffusive flux in x-dir
-                                    +(yflux(i  ,j+1,k  ) - yflux(i, j, k)) * dy_inv * mf_my(i,j,0)  // Diffusive flux in y-dir
-                                    +(zflux(i  ,j  ,k+1) - zflux(i, j, k)) * dz_inv;               // Diffusive flux in z-dir
+        Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+        cell_rhs(i,j,k,qty_index) -= (xflux(i+1,j  ,k  ) - xflux(i, j, k)) * dx_inv * mfsq  // Diffusive flux in x-dir
+                                    +(yflux(i  ,j+1,k  ) - yflux(i, j, k)) * dy_inv * mfsq  // Diffusive flux in y-dir
+                                    +(zflux(i  ,j  ,k+1) - zflux(i, j, k)) * dz_inv;        // Diffusive flux in z-dir
     });
     } // n
 

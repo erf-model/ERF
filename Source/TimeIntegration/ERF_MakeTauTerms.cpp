@@ -262,7 +262,9 @@ void erf_make_tau_terms (int level, int nrk,
                                             s12, s21,
                                             s13, s31,
                                             s23, s32,
-                                            er_arr, z_nd, detJ_arr, dxInv);
+                                            er_arr, z_nd, detJ_arr, dxInv,
+                                            mf_mx, mf_ux, mf_vx,
+                                            mf_my, mf_uy, mf_vy);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -270,7 +272,9 @@ void erf_make_tau_terms (int level, int nrk,
                                            s12, s21,
                                            s13, s31,
                                            s23, s32,
-                                           er_arr, z_nd, detJ_arr, dxInv);
+                                           er_arr, z_nd, detJ_arr, dxInv,
+                                           mf_mx, mf_ux, mf_vx,
+                                           mf_my, mf_uy, mf_vy);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
