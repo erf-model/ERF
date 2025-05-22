@@ -185,8 +185,8 @@ buoyancy_moist_Thpert (int& i, int& j, int& k,
     amrex::Real qv0_hi = qv0_arr(i,j,k  );
     amrex::Real qv0_lo = qv0_arr(i,j,k-1);
 
-    amrex::Real q_hi = amrex::Real(0.61) * (qv_hi-qv0_hi) - (qt_arr(i,j,k  )-qv_hi) + dth_hi/th0_arr(i,j,k  );
-    amrex::Real q_lo = amrex::Real(0.61) * (qv_lo-qv0_lo) - (qt_arr(i,j,k-1)-qv_lo) + dth_lo/th0_arr(i,j,k-1);
+    amrex::Real q_hi = amrex::Real(0.61) * (qv_hi-qv0_hi) - qt_hi + dth_hi/th0_arr(i,j,k  );
+    amrex::Real q_lo = amrex::Real(0.61) * (qv_lo-qv0_lo) - qt_lo + dth_lo/th0_arr(i,j,k-1);
 
     amrex::Real qavg  = amrex::Real(0.5) * (q_hi + q_lo);
 

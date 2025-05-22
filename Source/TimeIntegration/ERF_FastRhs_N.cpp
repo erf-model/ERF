@@ -173,7 +173,6 @@ void erf_fast_rhs_N (int step, int nrk,
 
         const Array4<const Real> & stage_xmom = S_stage_data[IntVars::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
-        const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
         const Array4<const Real> & qt_arr     = qt.const_array(mfi);
 
         const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVars::xmom].const_array(mfi);
