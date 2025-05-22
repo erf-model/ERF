@@ -47,6 +47,7 @@ void RadiationSimple::Run(int& level,
 
     const int zlo = geom.Domain().smallEnd(2);
     const Real fixed_dz = geom.CellSize(2);
+    const int nz = geom.Domain().length(2);
 
     flux.setVal(0.0);
     deltaq.setVal(0.0);
@@ -54,8 +55,6 @@ void RadiationSimple::Run(int& level,
     for (MFIter mfi(*cons_in, TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box box = mfi.validbox();
-
-        const int nz = box.bigEnd(2);
         box.makeSlab(2, 0);
 
         const Array4<const Real>& cons_arr = cons_in->const_array(mfi);
