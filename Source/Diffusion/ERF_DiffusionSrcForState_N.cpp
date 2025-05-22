@@ -51,7 +51,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const Array4<const Real>& SmnSmn_a,
                         const Array4<const Real>& mf_mx,
                         const Array4<const Real>& mf_ux,
+                        const Array4<const Real>& mf_vx,
                         const Array4<const Real>& mf_my,
+                        const Array4<const Real>& mf_uy,
                         const Array4<const Real>& mf_vy,
                               Array4<      Real>& hfx_z,
                               Array4<      Real>& qfx1_z,
@@ -224,14 +226,14 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
                                                  + 3. * cell_prim(i  , j, k, prim_index)
-                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
+                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             } else if (ext_dir_on_xhi) {
                 xflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
                                                  - 3. * cell_prim(i-1, j, k, prim_index)
-                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
+                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) -
-                                            cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0);
+                                            cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             }
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -260,13 +262,13 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
                                                  + 3. * cell_prim(i, j  , k, prim_index)
-                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
+                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             } else if (ext_dir_on_yhi) {
                 yflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
                                                  - 3. * cell_prim(i, j-1, k, prim_index)
-                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
+                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             } else {
-                yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0);
+              yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             }
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -347,13 +349,13 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
                                                  + 3. * cell_prim(i  , j, k, prim_index)
-                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
+                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             } else if (ext_dir_on_xhi) {
                 xflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
                                                  - 3. * cell_prim(i-1, j, k, prim_index)
-                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
+                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             } else {
-                xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0);
+              xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             }
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -381,13 +383,13 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
                                                  + 3. * cell_prim(i, j  , k, prim_index)
-                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
+                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             } else if (ext_dir_on_yhi) {
                 yflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
                                                  - 3. * cell_prim(i, j-1, k, prim_index)
-                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
+                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             } else {
-                yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0);
+              yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             }
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -463,13 +465,13 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
                                                  + 3. * cell_prim(i  , j, k, prim_index)
-                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
+                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             } else if (ext_dir_on_xhi) {
                 xflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
                                                  - 3. * cell_prim(i-1, j, k, prim_index)
-                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
+                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             } else {
-                xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0);
+              xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             }
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -496,13 +498,13 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
                                                  + 3. * cell_prim(i, j  , k, prim_index)
-                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
+                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             } else if (ext_dir_on_yhi) {
                 yflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
                                                  - 3. * cell_prim(i, j-1, k, prim_index)
-                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
+                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             } else {
-                yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0);
+              yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             }
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -577,13 +579,13 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
                                                  + 3. * cell_prim(i  , j, k, prim_index)
-                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
+                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             } else if (ext_dir_on_xhi) {
                 xflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
                                                  - 3. * cell_prim(i-1, j, k, prim_index)
-                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0);
+                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             } else {
-                xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0);
+              xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             }
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -609,13 +611,13 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
                                                  + 3. * cell_prim(i, j  , k, prim_index)
-                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
+                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             } else if (ext_dir_on_yhi) {
                 yflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
                                                  - 3. * cell_prim(i, j-1, k, prim_index)
-                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0);
+                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             } else {
-                yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0);
+              yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             }
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
