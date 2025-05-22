@@ -129,8 +129,10 @@ void make_mom_sources (Real time,
     // *****************************************************************************
     bool enforce_massflux_x = (solverChoice.const_massflux_x != 0);
     bool enforce_massflux_y = (solverChoice.const_massflux_y != 0);
-    Real rhoUA = solverChoice.const_massflux_x;
-    Real rhoVA = solverChoice.const_massflux_y;
+    Real rhoUA_target = solverChoice.const_massflux_x;
+    Real rhoVA_target = solverChoice.const_massflux_y;
+    Real rhoUA{0}; // to be integrated
+    Real rhoVA{0}; // to be integrated
 
     // *****************************************************************************
     // Planar averages for subsidence, nudging, or constant mass flux
@@ -212,6 +214,22 @@ void make_mom_sources (Real time,
         {
             dptr_v_plane(k-v_offset) = dptr_v[k];
         });
+
+        // sum in z for massflux adjustment
+        if (enforce_massflux_x || enforce_massflux_y) {
+            if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                Real Lx = geom.ProbHi(0) - geom.ProbLo(0);
+                Real Ly = geom.ProbHi(1) - geom.ProbLo(1);
+                Real Lz = geom.ProbHi(2) - geom.ProbLo(2);
+                rhoUA = std::accumulate(u_plane_h.begin(), u_plane_h.end(), 0.0) / u_plane_h.size();
+                rhoVA = std::accumulate(v_plane_h.begin(), v_plane_h.end(), 0.0) / v_plane_h.size();
+                rhoUA *= Ly * Lz;
+                rhoVA *= Lx * Lz;
+                Print() << "Integrated mass flux : " << rhoUA << " " << rhoVA << std::endl;
+            } else {
+                Error("Integrating mass flux with terrain not supported yet.");
+            }
+        }
     }
 
     // *****************************************************************************
@@ -618,6 +636,26 @@ void make_mom_sources (Real time,
                 const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
                 zmom_src_arr(i, j, k) -= t_blank * CdM * uz * windspeed;
+            });
+        }
+
+        // *****************************************************************************
+        // 10. Enforce constant mass flux
+        // *****************************************************************************
+        if (enforce_massflux_x) {
+            Real tau_inv = Real(1.0) / solverChoice.const_massflux_tau;
+
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                xmom_src_arr(i, j, k) += tau_inv * (rhoUA_target - rhoUA);
+            });
+        }
+        if (enforce_massflux_x) {
+            Real tau_inv = Real(1.0) / solverChoice.const_massflux_tau;
+
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                ymom_src_arr(i, j, k) += tau_inv * (rhoVA_target - rhoVA);
             });
         }
     } // mfi
