@@ -51,26 +51,18 @@
     {
         BL_PROFILE("make_qt()");
 
-        int n_qstate_moist   = micro->Get_Qstate_Moist_Size();
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
 
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-      for (MFIter mfi(cons_state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-      {
-          const Box& gbx = mfi.growntilebox(1);
-          const Array4<const Real>& cons_arr     = cons_state.array(mfi);
-          const Array4<      Real>&   qt_arr     = qt.array(mfi);
+        // All moisture models are guaranteed to have RhoQ1_comp
+        MultiFab::Copy(qt, cons_state, RhoQ1_comp, 0, 1, 1);
 
-          amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-          {
-              qt_arr(i,j,k) = cons_arr(i,j,k,RhoQ1_comp);
-              for (int q_offset(1); q_offset < n_qstate_moist; ++q_offset) {
-                  qt_arr(i,j,k) += cons_arr(i,j,k,RhoQ1_comp+q_offset);
-              }
-              qt_arr(i,j,k) /= cons_arr(i,j,k,Rho_comp);
-          });
-      } // mfi
+        // Sum up each component
+        for (int n(1); n<n_qstate_moist; ++n) {
+            MultiFab::Add(qt, cons_state, RhoQ1_comp+n, 0, 1, 1);
+        }
+
+        // Divide out the dry density
+        MultiFab::Divide(qt, cons_state, Rho_comp, 0, 1, 1);
     };
 
 /**
