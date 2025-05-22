@@ -723,6 +723,17 @@ ERF::InitData_pre ()
             Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
         }
 
+        if ( (solverChoice.const_massflux_x != 0) &&
+             (phys_bc_type[Orientation(Direction::x,Orientation::low)] != ERF_BC::periodic ) )
+        {
+            Abort("Constant mass flux (in x) should be used with periodic boundaries");
+        }
+        if ( (solverChoice.const_massflux_y != 0) &&
+             (phys_bc_type[Orientation(Direction::y,Orientation::low)] != ERF_BC::periodic ) )
+        {
+            Abort("Constant mass flux (in y) should be used with periodic boundaries");
+        }
+
         // mesoscale diffusion
         if ((geom[lev].CellSize(0) > 2000.) || (geom[lev].CellSize(1) > 2000.))
         {
