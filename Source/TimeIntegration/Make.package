@@ -4,6 +4,7 @@ CEXE_sources += ERF_TimeStep.cpp
 CEXE_sources += ERF_AdvanceDycore.cpp
 CEXE_sources += ERF_AdvanceMicrophysics.cpp
 CEXE_sources += ERF_AdvanceLSM.cpp
+CEXE_sources += ERF_AdvanceRadiation.cpp
 CEXE_sources += ERF_MakeFastCoeffs.cpp
 CEXE_sources += ERF_MakeTauTerms.cpp
 CEXE_sources += ERF_SlowRhsPre.cpp

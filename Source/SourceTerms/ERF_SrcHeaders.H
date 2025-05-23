@@ -41,14 +41,12 @@ void compute_gradp (const amrex::MultiFab& p,
 
 void make_sources (int level, int nrk,
                    amrex::Real dt, amrex::Real time,
-                   const amrex::MultiFab& S_data,
+                   const amrex::Vector<amrex::MultiFab>& S_data,
                    const amrex::MultiFab& S_prim,
                          amrex::MultiFab& cc_source,
                    const amrex::MultiFab& base_state,
                    std::unique_ptr<amrex::MultiFab>& z_phys_cc,
-#if defined(ERF_USE_RRTMGP)
                    const amrex::MultiFab* qheating_rates,
-#endif
                    amrex::MultiFab* terrain_blank,
                    const amrex::Geometry geom,
                    const SolverChoice& solverChoice,
