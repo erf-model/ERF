@@ -809,6 +809,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc_src;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_src;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax_src;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay_src;

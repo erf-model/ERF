@@ -358,13 +358,20 @@ void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int ncomp, In
             Box cbx1 = bx; cbx1.grow(IntVect(nghost[0],nghost[1],0));
             Box cbx2 = bx; cbx2.grow(nghost);
 
+            Array4<const Real> z_nd_arr;
+
+            if (m_z_phys_nd)
+            {
+                z_nd_arr = m_z_phys_nd->const_array(mfi);
+            }
+
             if (!gdomain.contains(cbx2))
             {
                 const Array4<Real> base_arr = mf.array(mfi);
 
                 impose_lateral_basestate_bcs(base_arr,cbx1,domain,ncomp,nghost);
                 if (!m_moving_terrain) { // TODO: I don't know why the CI test fails if this is called
-                   impose_vertical_basestate_bcs(base_arr,cbx2,domain,ncomp,nghost);
+                    impose_vertical_basestate_bcs(base_arr,z_nd_arr,cbx2,domain,ncomp,nghost);
                 }
             }
 

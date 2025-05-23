@@ -78,7 +78,7 @@ Problem::init_custom_pert (
                                           + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
             : prob_lo[2] + (k + 0.5) * dx[2];
 
-        x_vel_pert(i, j, k) = 10.0;
+        x_vel_pert(i, j, k) = 0.0;
         if ((z <= parms_d.pert_ref_height) && (parms_d.U_0_Pert_Mag != 0.0))
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0

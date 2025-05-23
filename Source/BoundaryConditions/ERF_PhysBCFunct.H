@@ -281,11 +281,13 @@ public:
     ERFPhysBCFunct_base (const int lev,
                          const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                          const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                         std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                          bool moving_terrain)
         : m_lev(lev), m_geom(geom),
           m_moving_terrain(moving_terrain),
           m_domain_bcs_type(domain_bcs_type),
-          m_domain_bcs_type_d(domain_bcs_type_d)
+          m_domain_bcs_type_d(domain_bcs_type_d),
+          m_z_phys_nd(z_phys_nd.get())
     {}
 
     ~ERFPhysBCFunct_base () {}
@@ -305,6 +307,7 @@ public:
                                        const amrex::Box& bx, const amrex::Box& domain,
                                        int ncomp, const amrex::IntVect& nghost);
     void impose_vertical_basestate_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                        const amrex::Array4<amrex::Real const>& z_nd,
                                         const amrex::Box& bx, const amrex::Box& domain,
                                         int ncomp, const amrex::IntVect& nghost);
 
@@ -314,6 +317,7 @@ private:
     bool                 m_moving_terrain;
     amrex::Vector<amrex::BCRec>            m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
+    amrex::MultiFab*     m_z_phys_nd;
 };
 
 #endif

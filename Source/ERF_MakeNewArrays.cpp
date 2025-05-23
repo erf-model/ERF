@@ -69,6 +69,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
         z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
         z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
+        z_phys_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
     }
     else
     {
@@ -76,6 +77,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
           detJ_cc_new[lev] = nullptr;
 
         z_phys_nd_src[lev] = nullptr;
+        z_phys_cc_src[lev] = nullptr;
           detJ_cc_src[lev] = nullptr;
 
                z_t_rk[lev] = nullptr;
@@ -664,6 +666,6 @@ ERF::make_physbcs (int lev)
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             solverChoice.use_real_bcs, zvel_bc_data[lev].data());
-    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_phys_nd[lev],
                                                                (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 }
