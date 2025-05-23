@@ -103,29 +103,6 @@ Problem::init_custom_terrain (
     FArrayBox& terrain_fab,
     const Real& /*time*/)
 {
-    // Domain cell size and real bounds
-    auto dx = geom.CellSizeArray();
-    auto ProbLoArr = geom.ProbLoArray();
-    auto ProbHiArr = geom.ProbHiArray();
-
-    const amrex::Box& domain = geom.Domain();
-    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    // int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
-    int domlo_z = domain.smallEnd(2);
-
-    // User function parameters
-    Real a    = 0.5;
-    Real num  = 8 * a * a * a;
-    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-    // Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
-
-    // if hm is nonzero, then use alternate hill definition
-    Real hm = parms.hmax;
-    Real L = parms.L;
-
-    // Populate bottom plane
-    int k0 = domlo_z;
-
     //
     // We put this here as a convenience for testing the map factor implementation
     // Note that these factors must match those in Source/ERF_MakeNewArrays.cpp
@@ -138,16 +115,58 @@ Problem::init_custom_terrain (
     if (test_mapfactor) {
         mf_x = 0.5;
         mf_y = 0.25;
+        //mf_y = 0.5;
     } else {
         mf_x = 1.;
         mf_y = 1.;
     }
+
+    // Domain cell size and real bounds
+    auto dx = geom.CellSizeArray();
+    auto ProbLoArr = geom.ProbLoArray();
+    auto ProbHiArr = geom.ProbHiArray();
+
+    const amrex::Box& domain = geom.Domain();
+    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+    int domlo_z = domain.smallEnd(2);
+
+    // User function parameters
+    Real a    = 0.5;
+    Real num  = 8. * a * a * a;
+    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]) / mf_x;
+
+    // if hm is nonzero, then use alternate hill definition
+    Real hm = parms.hmax;
+    Real L = parms.L;
+
+    // Populate bottom plane
+    int k0 = domlo_z;
 
     amrex::Box zbx = terrain_fab.box();
     if (zbx.smallEnd(2) <= k0)
     {
         amrex::Array4<Real> const& z_arr = terrain_fab.array();
 
+#if 0
+        // This is a 3D hill with variation in both the x- and y-directions
+        int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
+        Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]) / mf_y;
+        num  = 8000. * a * a * a;
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
+            // Clip indices for ghost-cells
+            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+            int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
+
+            // Location of nodes
+            Real x = (ProbLoArr[0] + ii * dx[0]) / mf_x - xcen;
+            Real y = (ProbLoArr[1] + jj * dx[1]) / mf_y - ycen;
+
+            // WoA Hill in x-direction
+            z_arr(i,j,k0) = num / (x*x + y*y + 4 * a * a);
+        });
+#else
+        // This is a 2D hill with variation in only the x-direction
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Clip indices for ghost-cells
@@ -166,5 +185,6 @@ Problem::init_custom_terrain (
                 z_arr(i,j,k0) = hm / (1 + x_L*x_L);
             }
         });
+#endif
     }
 }
