@@ -16,7 +16,6 @@ geometry.is_periodic = 0 1 0
 erf.init_type = "input_sounding"
 erf.init_sounding_ideal = true
 
-
 xlo.type = "Outflow"
 xhi.type = "Outflow"
 xlo.velocity = 1. 0. 0.
@@ -26,7 +25,6 @@ xlo.scalar   = 0.
     
 zlo.type = "SlipWall"
 zhi.type = "Outflow"
-
 
 erf.sponge_strength = 100.0
 erf.use_xlo_sponge_damping = true
