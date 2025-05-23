@@ -14,6 +14,7 @@ namespace Species
         H2O,
         NaCl,
         NH42SO4,
+        NH4HSO4,
         soil,
         water, // same as H2O, to test multispecies SDM
         agua,  // same as H2O, to test multispecies SDM
@@ -121,6 +122,9 @@ struct MaterialProperties {
     /*! \brief Set this material to ammonium sulfate */
     AMREX_GPU_HOST_DEVICE
     void setProperties_NH42SO4();
+    /*! \brief Set this material to ammonium bisulfate */
+    AMREX_GPU_HOST_DEVICE
+    void setProperties_NH4HSO4();
     /*! \brief Set this material to soil */
     AMREX_GPU_HOST_DEVICE
     void setProperties_soil();
