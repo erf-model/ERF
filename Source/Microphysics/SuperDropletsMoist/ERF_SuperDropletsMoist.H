@@ -271,7 +271,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         virtual void GetPlotVar (const std::string& a_name,
-                                 MultiFab& a_mf )  const
+                                 MultiFab& a_mf )  const override
         {
             AMREX_ASSERT(a_mf.nComp() >= 1);
             for (int v = 1; v < m_num_species; v++) {
