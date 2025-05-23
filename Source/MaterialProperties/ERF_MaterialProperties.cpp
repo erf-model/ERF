@@ -62,6 +62,8 @@ MaterialProperties::MaterialProperties ( const Species::Name& a_name )
         setProperties_NaCl();
     } else if (a_name == Species::Name::NH42SO4) {
         setProperties_NH42SO4();
+    } else if (a_name == Species::Name::NH4HSO4) {
+        setProperties_NH4HSO4();
     } else if (a_name == Species::Name::soil) {
         setProperties_soil();
     } else {
@@ -151,10 +153,22 @@ void MaterialProperties::setProperties_NaCl()
 
 void MaterialProperties::setProperties_NH42SO4()
 {
-    m_density = 1780.0;
+    m_density = 1770.0;
 
     m_ionization = 3; // 2xNH4 + 1xSO4
     m_mol_weight = 1.3214e-01; //kg mol^-1
+    m_is_soluble = true;
+
+    m_saturation_pressure_func = nullptr;
+    m_saturation_vapfrac_func = nullptr;
+}
+
+void MaterialProperties::setProperties_NH4HSO4()
+{
+    m_density = 1780.0;
+
+    m_ionization = 2; // NH4+ and HSO4-
+    m_mol_weight = 1.1511e-01; //kg mol^-1
     m_is_soluble = true;
 
     m_saturation_pressure_func = nullptr;
