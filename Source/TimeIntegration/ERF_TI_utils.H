@@ -45,6 +45,27 @@
     };
 
 /**
+ *  Define the total water content in each cell
+ */
+    auto make_qt = [&](const MultiFab& cons_state, MultiFab& qt)
+    {
+        BL_PROFILE("make_qt()");
+
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+
+        // All moisture models are guaranteed to have RhoQ1_comp
+        MultiFab::Copy(qt, cons_state, RhoQ1_comp, 0, 1, 1);
+
+        // Sum up each component
+        for (int n(1); n<n_qstate_moist; ++n) {
+            MultiFab::Add(qt, cons_state, RhoQ1_comp+n, 0, 1, 1);
+        }
+
+        // Divide out the dry density
+        MultiFab::Divide(qt, cons_state, Rho_comp, 0, 1, 1);
+    };
+
+/**
  *  This routine is called after the scalars are updated for each RK stage
  */
     auto apply_bcs = [&](Vector<MultiFab>& S_data,
@@ -171,19 +192,20 @@
             }
 
             make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
-            make_J             (fine_geom,*z_phys_nd[lev], *detJ_cc[lev]);
-            make_areas         (fine_geom,*z_phys_nd[lev], *ax[lev], *ay[lev], *az[lev]);
+            make_J             (fine_geom, *z_phys_nd[lev], *detJ_cc[lev]);
+            make_areas         (fine_geom, *z_phys_nd[lev], *ax[lev], *ay[lev], *az[lev]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  "
                                  << std::setprecision(timeprecision) << old_stage_time << std::endl;
             make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_src[lev], zlevels_stag[lev], phys_bc_type);
-            make_J             (fine_geom,*z_phys_nd_src[lev], *detJ_cc_src[lev]);
-            make_areas         (fine_geom,*z_phys_nd_src[lev], *ax_src[lev], *ay_src[lev], *az_src[lev]);
+            make_J             (fine_geom, *z_phys_nd_src[lev], *detJ_cc_src[lev]);
+            make_areas         (fine_geom, *z_phys_nd_src[lev], *ax_src[lev], *ay_src[lev], *az_src[lev]);
+            make_zcc           (fine_geom, *z_phys_nd_src[lev], *z_phys_cc_src[lev]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: "
                                  << std::setprecision(timeprecision) << new_stage_time << std::endl;
             make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
-            make_J             (fine_geom,*z_phys_nd_new[lev], *detJ_cc_new[lev]);
+            make_J             (fine_geom, *z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
             Real inv_dt  = 1./slow_dt;
 

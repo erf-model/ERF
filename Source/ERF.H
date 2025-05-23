@@ -809,6 +809,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc_src;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_src;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax_src;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay_src;
@@ -974,7 +975,7 @@ private:
                                                     // dissipation
                                                     "diss",
                                                     // moisture vars
-                                                    "moist_density", "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
+                                                    "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "qt", "qn", "qp", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",

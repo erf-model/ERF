@@ -17,9 +17,9 @@ pressure
 pert_pres
 pert_dens
 eq_pot_temp
-qt
 qv
 qc
+qt
 3
 5
 0
@@ -31,9 +31,12 @@ qc
 100 100 100 
 0
 0
-0 1 5
+0 2 5
 10
-0 20000
+0 10000
+0 400
+0 10000
+10000 20000
 0 400
 0 10000
 Level_0/Cell

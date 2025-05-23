@@ -30,7 +30,6 @@ using namespace amrex;
  * @param[in]  xvel x-component of velocity
  * @param[in]  yvel y-component of velocity
  * @param[in]  zvel z-component of velocity
- * @param[in]  qv   water vapor
  * @param[in]  z_t_ mf rate of change of grid height -- only relevant for moving terrain
  * @param[in] cc_src source terms for conserved variables
  * @param[in] xmom_src source terms for x-momentum
@@ -67,6 +66,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
                        const MultiFab& S_prim,
+                       const MultiFab& qt,
                        Vector<MultiFab>& S_scratch,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
@@ -290,6 +290,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real const>& gpx_arr   = gradp[GpVars::gpx].const_array(mfi);
         const Array4<Real const>& gpy_arr   = gradp[GpVars::gpy].const_array(mfi);
         const Array4<Real const>& gpz_arr   = gradp[GpVars::gpz].const_array(mfi);
+
+        const Array4<Real const>&  qt_arr   = qt.const_array(mfi);
 
         const Array4<Real>& rho_u_old = S_old[IntVars::xmom].array(mfi);
         const Array4<Real>& rho_v_old = S_old[IntVars::ymom].array(mfi);
@@ -674,11 +676,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real gpx = gpx_arr(i,j,k) * mf_ux(i,j,0);
 
-            Real q = 0.0;
-            if (l_use_moisture) {
-                q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
-                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
-            }
+            Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : 0.0;
 
             rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
 
@@ -698,13 +696,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real gpy = gpy_arr(i,j,k) * mf_vy(i,j,0);
 
-            Real q = 0.0;
-            if (l_use_moisture) {
-                q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
-                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
-            }
+            Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : 0.0;
 
-            rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q) + ymom_src_arr(i,j,k);
+            rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
@@ -784,11 +778,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real gpz = gpz_arr(i,j,k);
 
-            Real q = 0.0;
-            if (l_use_moisture) {
-                q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
-                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
-            }
+            Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : 0.0;
+
             rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k);
 
             if (l_use_terrain_fitted_coords && l_moving_terrain) {

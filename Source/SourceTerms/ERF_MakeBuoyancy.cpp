@@ -30,6 +30,7 @@ using namespace amrex;
 
 void make_buoyancy (const Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
+                    const MultiFab& qt,
                           MultiFab& buoyancy,
                     const Geometry geom,
                     const SolverChoice& solverChoice,
@@ -66,6 +67,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
 
         const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
+        const Array4<const Real> &    qt_arr  = qt.array(mfi);
         const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
         // Base state density and pressure
@@ -99,7 +101,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                 // Return -rho0 g (thetaprime / theta0)
                 //
                 buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],rv_over_rd,
-                                                                 r0_arr,th0_arr,qv0_arr,cell_data);
+                                                                 r0_arr,th0_arr,qv0_arr,cell_data,qt_arr);
             });
         }
         else if ( !anelastic && (solverChoice.moisture_type == MoistureType::None) )
@@ -107,7 +109,6 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
             // ******************************************************************************************
             // Dry compressible
             // ******************************************************************************************
-            int n_q_dry = 0;
             if (solverChoice.buoyancy_type == 1) {
 
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -115,8 +116,8 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                     //
                     // Return -rho0 g (thetaprime / theta0)
                     //
-                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,n_q_dry,grav_gpu[2],
-                                                             r0_arr,cell_data);
+                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
+                                                             r0_arr,cell_data,qt_arr);
                 });
             }
             else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3)
@@ -159,8 +160,8 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
             {
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,n_qstate,grav_gpu[2],
-                                                             r0_arr,cell_data);
+                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
+                                                             r0_arr,cell_data,qt_arr);
                 });
             }
             else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3)
@@ -170,7 +171,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                 {
                     buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],rd_over_cp,
                                                                  r0_arr,th0_arr,qv0_arr,p0_arr,
-                                                                 cell_prim,cell_data);
+                                                                 cell_prim,cell_data,qt_arr);
                 });
             }
             else if (solverChoice.buoyancy_type == 4)
@@ -178,7 +179,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     buoyancy_fab(i, j, k) = buoyancy_moist_Thpert(i,j,k,n_qstate,grav_gpu[2],
-                                                                  r0_arr,th0_arr,qv0_arr,cell_prim);
+                                                                  r0_arr,th0_arr,qv0_arr,cell_prim,qt_arr);
                 });
             }
         } // moist compressible
