@@ -54,8 +54,6 @@
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing) ?
             terrain_blanking[level].get() : nullptr;
 
-
-
         MultiFab p0_to_use, base_to_use;
         MultiFab *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use;
 

@@ -179,7 +179,7 @@
             make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_src[lev], zlevels_stag[lev], phys_bc_type);
             make_J             (fine_geom, *z_phys_nd_src[lev], *detJ_cc_src[lev]);
             make_areas         (fine_geom, *z_phys_nd_src[lev], *ax_src[lev], *ay_src[lev], *az_src[lev]);
-            make_zcc           (find_geom, *z_phys_nd_src[lev], *z_phys_cc_src[lev]);
+            make_zcc           (fine_geom, *z_phys_nd_src[lev], *z_phys_cc_src[lev]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: "
                                  << std::setprecision(timeprecision) << new_stage_time << std::endl;
