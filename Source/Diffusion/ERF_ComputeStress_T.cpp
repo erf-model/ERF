@@ -297,6 +297,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mfx = 0.5 * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
+        Real mfy = 0.5 * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
 
         Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
@@ -304,7 +305,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                            + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
 
         tau12(i,j,k) *= -mu_tot*met_h_zeta/mfx;
-        tau21(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+        tau21(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     });
 }
 
@@ -626,6 +627,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mfx = 0.5 * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
+        Real mfy = 0.5 * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
 
         Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
@@ -636,6 +638,6 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
         tau12(i,j,k) *= -mu_tot*met_h_zeta/mfx;
-        tau21(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+        tau21(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     });
 }

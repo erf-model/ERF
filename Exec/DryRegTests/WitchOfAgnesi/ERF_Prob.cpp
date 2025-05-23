@@ -126,6 +126,23 @@ Problem::init_custom_terrain (
     // Populate bottom plane
     int k0 = domlo_z;
 
+    //
+    // We put this here as a convenience for testing the map factor implementation
+    // Note that these factors must match those in Source/ERF_MakeNewArrays.cpp
+    //
+    ParmParse pp("erf");
+    bool test_mapfactor;
+    pp.query("test_mapfactor",test_mapfactor);
+
+    Real mf_x, mf_y;
+    if (test_mapfactor) {
+        mf_x = 0.5;
+        mf_y = 0.25;
+    } else {
+        mf_x = 1.;
+        mf_y = 1.;
+    }
+
     amrex::Box zbx = terrain_fab.box();
     if (zbx.smallEnd(2) <= k0)
     {
@@ -138,8 +155,8 @@ Problem::init_custom_terrain (
             // int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
             // Location of nodes
-            Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
-            // Real y = (jj  * dx[1] - ycen);
+            Real x = (ProbLoArr[0] + ii * dx[0] - xcen) * mf_x;
+            // Real y = (ProbLoArr[1] + jj * dx[1] - ycen) * mf_y;
 
             // WoA Hill in x-direction
             if (hm==0) {
