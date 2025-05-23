@@ -26,15 +26,19 @@ namespace Species
 namespace saturation_funcs
 {
     /*! \brief Null function for saturation pressure */
+    AMREX_GPU_HOST
     void compute_saturation_pressure_null (  amrex::MultiFab&, const amrex::MultiFab& );
     /*! \brief Compute saturation pressure for moist air */
+    AMREX_GPU_HOST
     void compute_saturation_pressure_H2O  (  amrex::MultiFab&, const amrex::MultiFab& );
 
     /*! \brief Null function for saturation vapour fraction */
+    AMREX_GPU_HOST
     void compute_saturation_vapfrac_null ( amrex::MultiFab&,
                                            const amrex::MultiFab&,
                                            const amrex::MultiFab& );
     /*! \brief Compute saturation vapour fraction for moist air */
+    AMREX_GPU_HOST
     void compute_saturation_vapfrac_H2O  ( amrex::MultiFab&,
                                            const amrex::MultiFab&,
                                            const amrex::MultiFab& );
@@ -208,14 +212,14 @@ struct MaterialProperties {
     }
 
     /*! \brief Compute saturation pressure */
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    AMREX_GPU_HOST AMREX_FORCE_INLINE
     void computeSaturationPressure ( amrex::MultiFab& a_e, const amrex::MultiFab& a_T) const
     {
         m_saturation_pressure_func(a_e, a_T);
     }
 
     /*! \brief Compute saturation vapour fraction */
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    AMREX_GPU_HOST AMREX_FORCE_INLINE
     void computeSaturationVapFrac  ( amrex::MultiFab&         a_S,
                                      const amrex::MultiFab&   a_T,
                                      const amrex::MultiFab&   a_p ) const

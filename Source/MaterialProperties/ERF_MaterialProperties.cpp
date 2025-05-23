@@ -5,8 +5,10 @@ using namespace amrex;
 
 namespace saturation_funcs
 {
+    AMREX_GPU_HOST
     void compute_saturation_pressure_null ( MultiFab&, const MultiFab&) { }
 
+    AMREX_GPU_HOST
     void compute_saturation_pressure_H2O  ( MultiFab&       a_mf_sat_pressure,
                                             const MultiFab& a_mf_temperature)
     {
@@ -23,8 +25,10 @@ namespace saturation_funcs
         }
     }
 
+    AMREX_GPU_HOST
     void compute_saturation_vapfrac_null ( MultiFab&, const MultiFab&) { }
 
+    AMREX_GPU_HOST
     void compute_saturation_vapfrac_H2O ( MultiFab&          a_mf_sat_vapfrac,
                                           const MultiFab&    a_mf_temperature,
                                           const MultiFab&    a_mf_pressure )
@@ -48,6 +52,7 @@ namespace saturation_funcs
     }
 }
 
+AMREX_GPU_HOST_DEVICE
 MaterialProperties::MaterialProperties ( const Species::Name& a_name )
 {
     m_name = a_name;
@@ -71,6 +76,7 @@ MaterialProperties::MaterialProperties ( const Species::Name& a_name )
     }
 }
 
+AMREX_GPU_HOST_DEVICE
 MaterialProperties::MaterialProperties ( const MaterialProperties& a_matprop )
 {
     m_name = a_matprop.m_name;
@@ -88,6 +94,7 @@ MaterialProperties::MaterialProperties ( const MaterialProperties& a_matprop )
     for (auto i = 0; i < 7; i++) { m_mol_Cp_coeffs[i] = a_matprop.m_mol_Cp_coeffs[i]; }
 }
 
+AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_H2O()
 {
     m_density = rhor; // ERF_Constants.H
@@ -105,6 +112,7 @@ void MaterialProperties::setProperties_H2O()
 
 }
 
+AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_water()
 {
     m_density = rhor; // ERF_Constants.H
@@ -122,6 +130,7 @@ void MaterialProperties::setProperties_water()
 
 }
 
+AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_agua()
 {
     m_density = rhor; // ERF_Constants.H
@@ -139,6 +148,7 @@ void MaterialProperties::setProperties_agua()
 
 }
 
+AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_NaCl()
 {
     m_density = 2170.0;
@@ -151,6 +161,7 @@ void MaterialProperties::setProperties_NaCl()
     m_saturation_vapfrac_func = nullptr;
 }
 
+AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_NH42SO4()
 {
     m_density = 1770.0;
@@ -163,6 +174,7 @@ void MaterialProperties::setProperties_NH42SO4()
     m_saturation_vapfrac_func = nullptr;
 }
 
+AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_NH4HSO4()
 {
     m_density = 1780.0;
@@ -175,6 +187,7 @@ void MaterialProperties::setProperties_NH4HSO4()
     m_saturation_vapfrac_func = nullptr;
 }
 
+AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_soil()
 {
     m_density = 1140.0; // NNSS Area 5 sample (Spriggs and Ray-Maitra, 2007)
