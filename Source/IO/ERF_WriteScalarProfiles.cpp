@@ -222,15 +222,16 @@ ERF::sum_derived_quantities (Real time)
     Real enstrsq_avg = volWgtSumMF(lev, enstrophysq,     0, *mapfac[lev][MapFacType::m_x],false);
 
     // Get volume including terrain (consistent with volWgtSumMF routine)
-    Real vol = geom[lev].ProbDomain().volume();
+    MultiFab volume(grids[lev], dmap[lev], 1, 0);
+    auto const& dx = geom[lev].CellSizeArray();
+    Real cell_vol  = dx[0]*dx[1]*dx[2];
+    volume.setVal(cell_vol);
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-        MultiFab volume(grids[lev], dmap[lev], 1, 0);
-        auto const& dx = geom[lev].CellSizeArray();
-        Real cell_vol  = dx[0]*dx[1]*dx[2];
-        volume.setVal(cell_vol);
         MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
-        vol = volume.sum();
     }
+    MultiFab::Divide(volume, *mapfac[lev][MapFacType::m_x], 0, 0, 1, 0);
+    MultiFab::Divide(volume, *mapfac[lev][MapFacType::m_y], 0, 0, 1, 0);
+    Real vol = volume.sum();
 
      unwted_avg /= vol;
      r_wted_avg /= vol;
@@ -346,18 +347,19 @@ ERF::sum_energy_quantities (Real time)
     Real  tot_energy_avg = volWgtSumMF(lev, tot_energy, 0, *mapfac[lev][MapFacType::m_x],false);
 
     // Get volume including terrain (consistent with volWgtSumMF routine)
-    Real vol = geom[lev].ProbDomain().volume();
+    MultiFab volume(grids[lev], dmap[lev], 1, 0);
+    Real cell_vol  = dx[0]*dx[1]*dx[2];
+    volume.setVal(cell_vol);
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-        MultiFab volume(grids[lev], dmap[lev], 1, 0);
-        Real cell_vol = dx[0]*dx[1]*dx[2];
-        volume.setVal(cell_vol);
         MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
-        vol = volume.sum();
     }
+    MultiFab::Divide(volume, *mapfac[lev][MapFacType::m_x], 0, 0, 1, 0);
+    MultiFab::Divide(volume, *mapfac[lev][MapFacType::m_y], 0, 0, 1, 0);
+    Real vol = volume.sum();
 
     // Divide by the volume
-     tot_mass_avg   /= vol;
-     tot_energy_avg /= vol;
+    tot_mass_avg   /= vol;
+    tot_energy_avg /= vol;
 
     const int nfoo = 2;
     Real foo[nfoo] = {tot_mass_avg,tot_energy_avg};
@@ -619,13 +621,16 @@ ERF::volWgtSumMF (int lev,
         MultiFab::Multiply(tmp, mask, 0, 0, 1, 0);
     }
 
+    // Get volume including terrain (consistent with volWgtSumMF routine)
     MultiFab volume(grids[lev], dmap[lev], 1, 0);
     auto const& dx = geom[lev].CellSizeArray();
-    Real cell_vol = dx[0]*dx[1]*dx[2];
+    Real cell_vol  = dx[0]*dx[1]*dx[2];
     volume.setVal(cell_vol);
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
     }
+    MultiFab::Divide(volume, *mapfac[lev][MapFacType::m_x], 0, 0, 1, 0);
+    MultiFab::Divide(volume, *mapfac[lev][MapFacType::m_y], 0, 0, 1, 0);
 
     //
     // Note that when we send in local = true, NO ParallelAllReduce::Sum
