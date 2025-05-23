@@ -89,8 +89,10 @@ MaterialProperties::MaterialProperties ( const MaterialProperties& a_matprop )
     m_Tb = a_matprop.m_Tb;
     m_is_soluble = a_matprop.m_is_soluble;
     m_is_water = a_matprop.m_is_water;
-    m_saturation_pressure_func = a_matprop.m_saturation_pressure_func;
-    m_saturation_vapfrac_func = a_matprop.m_saturation_vapfrac_func;
+    AMREX_IF_ON_HOST((
+        m_saturation_pressure_func = a_matprop.m_saturation_pressure_func;
+        m_saturation_vapfrac_func = a_matprop.m_saturation_vapfrac_func;
+    ))
     for (auto i = 0; i < 7; i++) { m_mol_Cp_coeffs[i] = a_matprop.m_mol_Cp_coeffs[i]; }
 }
 
@@ -107,8 +109,10 @@ void MaterialProperties::setProperties_H2O()
     m_is_soluble = true;
     m_is_water = true;
 
-    m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
-    m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
+    AMREX_IF_ON_HOST((
+        m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
+        m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
+    ))
 
 }
 
@@ -125,8 +129,10 @@ void MaterialProperties::setProperties_water()
     m_is_soluble = true;
     m_is_water = true;
 
-    m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
-    m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
+    AMREX_IF_ON_HOST((
+        m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
+        m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
+    ))
 
 }
 
@@ -143,8 +149,10 @@ void MaterialProperties::setProperties_agua()
     m_is_soluble = true;
     m_is_water = true;
 
-    m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
-    m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
+    AMREX_IF_ON_HOST((
+        m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
+        m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
+    ))
 
 }
 
