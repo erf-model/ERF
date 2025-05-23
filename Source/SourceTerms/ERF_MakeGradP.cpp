@@ -240,23 +240,69 @@ compute_gradp (const MultiFab& p,
             Array4<const Real      > w_fcy   = (ebfact.get_w_const_factory())->getFaceCent()[1]->const_array(mfi);
             Array4<const Real      > w_fcz   = (ebfact.get_w_const_factory())->getFaceCent()[2]->const_array(mfi);
 
-
             if (l_fitting) {
 
                 // STEP 1: Compute pressure in the staggered grids
 
-                ParallelFor(tbx, tby, tbz,
+                const Box tbx_g1 = amrex::grow(tbx,1);
+                const Box tby_g1 = amrex::grow(tby,1);
+                const Box tbz_g1 = amrex::grow(tbz,1);
+
+                int tbx_g1_ilo = tbx_g1.smallEnd(0);
+                int tby_g1_jlo = tby_g1.smallEnd(1);
+                int tbz_g1_klo = tbz_g1.smallEnd(2);
+                int tbx_g1_ihi = tbx_g1.bigEnd(0);
+                int tby_g1_jhi = tby_g1.bigEnd(1);
+                int tbz_g1_khi = tbz_g1.bigEnd(2);
+
+                // Print()<<"SK: tbx    = "<<tbx   <<", tby    = "<<tby   <<", tbz    = "<<tbz<<std::endl;
+                // Print()<<"SK: tbx_g1 = "<<tbx_g1<<", tby_g1 = "<<tby_g1<<", tbz_g1 = "<<tbz_g1<<std::endl;
+
+                ParallelFor(tbx_g1, tby_g1, tbz_g1,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    u_p_arr(i,j,k) = 0.5 * ( p_arr(i-1,j,k) + p_arr(i,j,k) );
+                    if (u_vfrac(i,j,k) > 0.0) {
+                        // Print()<<"SK: tbx_g1/ i,j,k = "<<i<<" "<<j<<" "<<k<<" "<<std::endl;
+                        if (i == tbx_g1_ilo) {
+                            u_p_arr(i,j,k) = p_arr(i,j,k);
+                        } else if (i == tbx_g1_ihi) {
+                            u_p_arr(i,j,k) = p_arr(i-1,j,k);
+                        } else {
+                            u_p_arr(i,j,k) = 0.5 * ( p_arr(i-1,j,k) + p_arr(i,j,k) );
+                        }
+                    } else {
+                        u_p_arr(i,j,k) = 0.0;
+                    }
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    v_p_arr(i,j,k) = 0.5 * ( p_arr(i,j-1,k) + p_arr(i,j,k) );
+                    if (u_vfrac(i,j,k) > 0.0) {
+                        // Print()<<"SK: tby_g1/ i,j,k = "<<i<<" "<<j<<" "<<k<<" "<<std::endl;
+                        if (j == tby_g1_jlo) {
+                            v_p_arr(i,j,k) = p_arr(i,j,k);
+                        } else if (j == tby_g1_jhi) {
+                            v_p_arr(i,j,k) = p_arr(i,j-1,k);
+                        } else {
+                            v_p_arr(i,j,k) = 0.5 * ( p_arr(i,j-1,k) + p_arr(i,j,k) );
+                        }
+                        
+                    } else {
+                        v_p_arr(i,j,k) = 0.0;
+                    }
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    w_p_arr(i,j,k) = 0.5 * ( p_arr(i,j,k-1) + p_arr(i,j,k) );
+                    if (w_vfrac(i,j,k) > 0.0) {
+                        if (k == tbz_g1_klo) {
+                            w_p_arr(i,j,k) = p_arr(i,j,k);
+                        } else if (k == tbz_g1_khi) {
+                            w_p_arr(i,j,k) = p_arr(i,j,k-1);
+                        } else {
+                            w_p_arr(i,j,k) = 0.5 * ( p_arr(i,j,k-1) + p_arr(i,j,k) );
+                        }
+                    } else {
+                        w_p_arr(i,j,k) = 0.0;
+                    }
                 });
 
                 // STEP 2: Compute Least-Squares slopes
@@ -267,7 +313,7 @@ compute_gradp (const MultiFab& p,
                         GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
     
                         slopes_eb = amrex_calc_slopes_extdir_eb(
-                            i,j,k,n,u_p_arr,u_vcent,u_vfrac,
+                            i, j, k, n, u_p_arr, u_vcent, u_vfrac,
                             AMREX_D_DECL(u_fcx,u_fcy,u_fcz),u_cflag,
                             AMREX_D_DECL(extdir_ilo, extdir_jlo, extdir_klo),
                             AMREX_D_DECL(extdir_ihi, extdir_jhi, extdir_khi),
@@ -279,7 +325,6 @@ compute_gradp (const MultiFab& p,
                     } else {
                         gpx_arr(i,j,k) = 0.0;
                     }
-                    
                 });
     
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -290,7 +335,7 @@ compute_gradp (const MultiFab& p,
                         GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
     
                         slopes_eb = amrex_calc_slopes_extdir_eb(
-                            i,j,k,n,v_p_arr,v_vcent,v_vfrac,
+                            i, j, k, n, v_p_arr, v_vcent, v_vfrac,
                             AMREX_D_DECL(v_fcx,v_fcy,v_fcz),v_cflag,
                             AMREX_D_DECL(extdir_ilo, extdir_jlo, extdir_klo),
                             AMREX_D_DECL(extdir_ihi, extdir_jhi, extdir_khi),
@@ -312,7 +357,7 @@ compute_gradp (const MultiFab& p,
                         GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
     
                         slopes_eb = amrex_calc_slopes_extdir_eb(
-                            i,j,k,n,w_p_arr,w_vcent,w_vfrac,
+                            i, j, k, n, w_p_arr, w_vcent, w_vfrac,
                             AMREX_D_DECL(w_fcx,w_fcy,w_fcz),w_cflag,
                             AMREX_D_DECL(extdir_ilo, extdir_jlo, extdir_klo),
                             AMREX_D_DECL(extdir_ihi, extdir_jhi, extdir_khi),
