@@ -54,16 +54,7 @@
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing) ?
             terrain_blanking[level].get() : nullptr;
 
-        // Construct the source terms for the cell-centered (conserved) variables
-        // TODO -- DONT WE NEED z_phys_cc_src if we need z_phys_nd_src??
-        make_sources(level, nrk, slow_dt, old_stage_time,
-                     S_data, S_prim, cc_src, base_state[level], z_phys_cc[level],
-                     qheating_rates[level].get(),
-                     terrain_blank, fine_geom, solverChoice,
-                     mapfac[level],
-                     dptr_rhotheta_src, dptr_rhoqt_src,
-                     dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     input_sounding_data, turbPert, true);
+
 
         MultiFab p0_to_use, base_to_use;
         MultiFab *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use;
@@ -78,7 +69,7 @@
               p0_to_use = MultiFab(base_state_new[level], make_alias, BaseState::p0_comp, 1);
             base_to_use = MultiFab(base_state_new[level], make_alias, 0, BaseState::num_comps);
              zpn_to_use =   z_phys_nd_src[level].get();
-             zpc_to_use =   z_phys_cc[level].get();
+             zpc_to_use =   z_phys_cc_src[level].get();
               ax_to_use =      ax_src[level].get();
               ay_to_use =      ay_src[level].get();
               az_to_use =      az_src[level].get();
@@ -96,9 +87,20 @@
         }
 
         // *****************************************************************************
+        // Construct the source terms for the cell-centered (conserved) variables
+        // *****************************************************************************
+        make_sources(level, nrk, slow_dt, old_stage_time,
+                     S_data, S_prim, cc_src, base_state[level], *zpc_to_use,
+                     qheating_rates[level].get(),
+                     terrain_blank, fine_geom, solverChoice,
+                     mapfac[level],
+                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                     input_sounding_data, turbPert, true);
+
+        // *****************************************************************************
         // Define the pressure gradient
         // *****************************************************************************
-        // TODO -- DONT WE NEED z_phys_cc_src if we need z_phys_nd_src??
         make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons],
                         p0_to_use, *zpn_to_use, *zpc_to_use, gradp[level]);
 
@@ -111,7 +113,6 @@
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources
         // *****************************************************************************
-
         make_mom_sources(old_stage_time, S_data, *zpn_to_use, *zpc_to_use,
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
