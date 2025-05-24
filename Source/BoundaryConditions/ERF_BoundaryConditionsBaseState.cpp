@@ -246,7 +246,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
 }
 
 void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& dest_arr,
-                                                         const Array4<Real const>& z_phys_nd,
+                                                         const Array4<Real const>& /*z_phys_nd*/,
                                                          const Box& bx,
                                                          const Box& domain,
                                                          int ncomp,
