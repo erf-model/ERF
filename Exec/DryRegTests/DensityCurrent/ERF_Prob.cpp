@@ -50,8 +50,6 @@ Problem::init_custom_pert(
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
     const bool const_rho    =  sc.fixed_density;
 
-    IntVect ijm(bx.smallEnd());
-
     const Real l_x_r = parms.x_r;
     const Real l_x_c = parms.x_c;
 
