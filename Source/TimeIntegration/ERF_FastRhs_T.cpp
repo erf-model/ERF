@@ -43,6 +43,7 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
                      Vector<MultiFab>& S_stage_data,                 // S_stage = S^n, S^* or S^**
                      const MultiFab& S_stage_prim,                   // Primitive version of S_stage_data[IntVars::cons]
+                     const MultiFab& qt,                             // Total moisture
                      const MultiFab& pi_stage,                       // Exner function evaluated at last stage
                      const MultiFab& fast_coeffs,                    // Coeffs for tridiagonal solve
                      Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
@@ -219,7 +220,7 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
 
         const Array4<const Real> & stage_xmom = S_stage_data[IntVars::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
-        const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
+        const Array4<const Real> & qt_arr     = qt.const_array(mfi);
 
         const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
         const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
@@ -277,14 +278,10 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
                 Real gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
                 gpx *= mf_ux(i,j,0);
 
-                if (l_use_moisture) {
-                    Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i-1,j,k,PrimQ1_comp)
-                                    +prim(i,j,k,PrimQ2_comp) + prim(i-1,j,k,PrimQ2_comp) );
-                    gpx /= (1.0 + q);
-                }
+                Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : 0.0;
 
                 Real pi_c =  0.5 * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i  ,j,k,0));
-                Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
+                Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx / (1.0 + q);
 
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                         + dtau * slow_rhs_rho_u(i,j,k)
@@ -313,14 +310,10 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
                 Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
                 gpy *= mf_vy(i,j,0);
 
-                if (l_use_moisture) {
-                    Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j-1,k,PrimQ1_comp)
-                                    +prim(i,j,k,PrimQ2_comp) + prim(i,j-1,k,PrimQ2_comp) );
-                    gpy /= (1.0 + q);
-                }
+                Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : 0.0;
 
                 Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j  ,k,0));
-                Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
+                Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy / (1.0 + q);
 
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
                                                         + dtau * slow_rhs_rho_v(i,j,k)
@@ -359,6 +352,7 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
 
         const Array4<const Real> & stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
+        const Array4<const Real> & qt_arr     = qt.const_array(mfi);
 
         const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
         const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
@@ -387,6 +381,8 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
         const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
         const Array4<const Real>& mf_my = mapfac[MapFacType::m_y]->const_array(mfi);
         const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_uy = mapfac[MapFacType::u_y]->const_array(mfi);
+        const Array4<const Real>& mf_vx = mapfac[MapFacType::v_x]->const_array(mfi);
         const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
@@ -443,21 +439,20 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
               (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
                 -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
 
-            Real xflux_lo = new_drho_u(i  ,j,k)*h_zeta_cc_xface_lo / mf_ux(i  ,j,0);
-            Real xflux_hi = new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi / mf_ux(i+1,j,0);
-            Real yflux_lo = new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo / mf_vy(i,j  ,0);
-            Real yflux_hi = new_drho_v(i,j+1,k)*h_zeta_cc_yface_hi / mf_vy(i,j+1,0);
+            Real xflux_lo = new_drho_u(i  ,j,k)*h_zeta_cc_xface_lo / mf_uy(i  ,j,0);
+            Real xflux_hi = new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi / mf_uy(i+1,j,0);
+            Real yflux_lo = new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo / mf_vx(i,j  ,0);
+            Real yflux_hi = new_drho_v(i,j+1,k)*h_zeta_cc_yface_hi / mf_vx(i,j+1,0);
 
-            Real mfxsq = mf_mx(i,j,0) * mf_mx(i,j,0);
-            Real mfysq = mf_my(i,j,0) * mf_my(i,j,0);
+            Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
             // NOTE: we are saving the (1/J) weighting for later when we add this to rho and theta
-            temp_rhs_arr(i,j,k,0) =  ( xflux_hi - xflux_lo ) * dxi * mfxsq +
-                                     ( yflux_hi - yflux_lo ) * dyi * mfysq;
+            temp_rhs_arr(i,j,k,0) =  ( xflux_hi - xflux_lo ) * dxi * mfsq +
+                                     ( yflux_hi - yflux_lo ) * dyi * mfsq;
             temp_rhs_arr(i,j,k,1) = (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -
-                                       xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi * mfxsq+
+                                       xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi * mfsq+
                                      ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
-                                       yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfysq) * 0.5;
+                                       yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfsq) * 0.5;
 
             if (l_reflux) {
                 (flx_arr[0])(i,j,k,0) = xflux_lo;
@@ -523,15 +518,10 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
         {
             Real     detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
 
-            Real coeff_P = coeffP_a(i,j,k);
-            Real coeff_Q = coeffQ_a(i,j,k);
+            Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : 0.0;
 
-            if (l_use_moisture) {
-                Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
-                                +prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
-                coeff_P /= (1.0 + q);
-                coeff_Q /= (1.0 + q);
-            }
+            Real coeff_P = coeffP_a(i,j,k) / (1.0 + q);
+            Real coeff_Q = coeffQ_a(i,j,k) / (1.0 + q);
 
             Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
             Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );

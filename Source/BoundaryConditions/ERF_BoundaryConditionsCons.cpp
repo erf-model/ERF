@@ -1,5 +1,6 @@
 #include "AMReX_PhysBCFunct.H"
-#include <ERF_PhysBCFunct.H>
+#include "ERF_PhysBCFunct.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
@@ -431,7 +432,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,j,kflip,dest_comp);
                 } else if (l_bc_type == ERFBCType::neumann) {
-                    Real delta_z = (dom_lo.z - k) / dxInv[2];
+                    Real delta_z = Compute_Zrel_AtCellCenter(i,j,k,z_phys_nd);
                     dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_lo.z,dest_comp) -
                         delta_z*l_bc_neumann_vals_d[bc_comp][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
@@ -456,7 +457,8 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,j,kflip,dest_comp);
                 } else if (h_bc_type == ERFBCType::neumann) {
-                    Real delta_z = (k - dom_hi.z) / dxInv[2];
+                    Real delta_z = Compute_Z_AtCellCenter(i,j,k       ,z_phys_nd)
+                                 - Compute_Z_AtCellCenter(i,j,dom_hi.z,z_phys_nd);
                     if( (icomp+n) == Rho_comp ) {
                         dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_hi.z,dest_comp) +
                             delta_z*l_bc_neumann_vals_d[bc_comp][5];

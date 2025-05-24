@@ -28,6 +28,10 @@ in the AMReX native format is typically negligible relative to the overall cost 
 in a recent performance study the cost of writing a plotfile was roughly a percent or two
 of the cost of a single timestep.
 
+If NetCDF output is preferred, one suggestion is to write the plotfiles in the native AMReX
+format for efficient I/O performance, then to convert the plotfiles to NetCDF files using
+the executable you can build in Exec/Tools.
+
 The following options in the inputs file control the generation of plotfiles.
 Note that plotfiles can be written at two different frequencies; the names,
 frequency and content of the two streams are controlled separately.
@@ -332,7 +336,9 @@ Output Options
 |                             | Eddy Diffusivity |
 |                             | of Heat          |
 +-----------------------------+------------------+
-| **qt**                      | Nonprecipitating |
+| **qt**                      | Total water      |
++-----------------------------+------------------+
+| **qn**                      | Nonprecipitating |
 |                             | water (qv + qc + |
 |                             | qi)              |
 +-----------------------------+------------------+
@@ -350,14 +356,6 @@ Output Options
 +-----------------------------+------------------+
 | **qv**                      | Water vapor      |
 |                             | mixing ratio     |
-|                             |                  |
-+-----------------------------+------------------+
-| **rhoQt**                   | Density * qt     |
-|                             |                  |
-|                             |                  |
-+-----------------------------+------------------+
-| **rhoQp**                   | Density * qp     |
-|                             |                  |
 |                             |                  |
 +-----------------------------+------------------+
 

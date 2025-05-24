@@ -7,10 +7,15 @@
 Visualization
 =============
 
-ERF currently generates plotfile in the native AMReX format.
+ERF currently generates plotfile in the native AMReX format or as NetCDF files; see
+ :ref:`sec:Plotfiles` for how to set the plotfile options.
 
 There are several visualization tools that can be used for AMReX plotfiles, specifically
 ParaView, VisIt and yt.
+
+If NetCDF output is preferred, one suggestion is to write the plotfiles in the native AMReX
+format for efficient I/O performance, then to convert the plotfiles to NetCDF files using
+the executable you can build in Exec/Tools.
 
 .. _section-1:
 

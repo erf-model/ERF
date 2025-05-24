@@ -69,6 +69,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
         z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
         z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
+        z_phys_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
     }
     else
     {
@@ -76,6 +77,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
           detJ_cc_new[lev] = nullptr;
 
         z_phys_nd_src[lev] = nullptr;
+        z_phys_cc_src[lev] = nullptr;
           detJ_cc_src[lev] = nullptr;
 
                z_t_rk[lev] = nullptr;
@@ -255,11 +257,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 #endif
 
     if (solverChoice.test_mapfactor) {
-        for (int i = 0; i < mapfac[lev].size(); i++) {
+        for (int i = 0; i < 3; i++) {
             mapfac[lev][i]->setVal(0.5);
         }
-    }
-    else {
+        for (int i = 3; i < mapfac[lev].size(); i++) {
+            mapfac[lev][i]->setVal(0.25);
+        }
+    } else {
         for (int i = 0; i < mapfac[lev].size(); i++) {
             mapfac[lev][i]->setVal(1.0);
         }
@@ -342,12 +346,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 #endif
 
 
-#if defined(ERF_USE_RRTMGP)
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-    qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
-    qheating_rates[lev]->setVal(0.);
+    if (solverChoice.rad_type != RadiationType::None || solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
+        qheating_rates[lev]->setVal(0.);
+    }
 
     //*********************************************************
     // Radiation fluxes for coupling to LSM
@@ -358,7 +364,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //       care must be taken before applying these fluxes to an LSM model. For
 
     // Radiative fluxes for LSM
-    if (solverChoice.lsm_type != LandSurfaceType::None)
+    if (solverChoice.lsm_type != LandSurfaceType::None &&
+        solverChoice.rad_type != RadiationType::None)
     {
         BoxList m_bl = ba.boxList();
         for (auto& b : m_bl) {
@@ -373,7 +380,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         sw_lw_fluxes[lev]->setVal(0.);
         solar_zenith[lev]->setVal(0.);
     }
-#endif
 
     //*********************************************************
     // Turbulent perturbation region initialization
@@ -662,6 +668,6 @@ ERF::make_physbcs (int lev)
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             solverChoice.use_real_bcs, zvel_bc_data[lev].data());
-    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_phys_nd[lev],
                                                                (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 }

@@ -40,20 +40,24 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing) ?
             terrain_blanking[level].get() : nullptr;
 
-        MultiFab S_to_use;
+        Vector<MultiFab> Svec_to_use;
         if (fast_step == 0) {
             // If this is the first substep we pass in S_old as the previous step's solution
-            S_to_use = MultiFab(S_old[IntVars::cons], make_alias, 0, S_old[IntVars::cons].nComp());
+            Svec_to_use.push_back(MultiFab(S_old[IntVars::cons],make_alias,0,S_old[IntVars::cons].nComp()));
+            Svec_to_use.push_back(MultiFab(S_old[IntVars::xmom],make_alias,0,1));
+            Svec_to_use.push_back(MultiFab(S_old[IntVars::ymom],make_alias,0,1));
+            Svec_to_use.push_back(MultiFab(S_old[IntVars::zmom],make_alias,0,1));
         } else {
             // If this is not the first substep we pass in S_data as the previous step's solution
-            S_to_use = MultiFab(S_data[IntVars::cons], make_alias, 0, S_data[IntVars::cons].nComp());
+            Svec_to_use.push_back(MultiFab(S_data[IntVars::cons],make_alias,0,S_data[IntVars::cons].nComp()));
+            Svec_to_use.push_back(MultiFab(S_data[IntVars::xmom],make_alias,0,1));
+            Svec_to_use.push_back(MultiFab(S_data[IntVars::ymom],make_alias,0,1));
+            Svec_to_use.push_back(MultiFab(S_data[IntVars::zmom],make_alias,0,1));
         }
 
         make_sources(level, nrk, dtau, old_substep_time,
-                     S_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level],
-#if defined(ERF_USE_RRTMGP)
+                     Svec_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level].get(),
                      qheating_rates[level].get(),
-#endif
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
@@ -74,21 +78,6 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             if (level > 0) {
                 fr_as_fine = getAdvFluxReg(level);
             }
-        }
-
-        Vector<MultiFab> Svec_to_use;
-        if (fast_step == 0) {
-            // If this is the first substep we pass in S_old as the previous step's solution
-            Svec_to_use.push_back(MultiFab(S_old[IntVars::cons],make_alias,0,S_old[IntVars::cons].nComp()));
-            Svec_to_use.push_back(MultiFab(S_old[IntVars::xmom],make_alias,0,1));
-            Svec_to_use.push_back(MultiFab(S_old[IntVars::ymom],make_alias,0,1));
-            Svec_to_use.push_back(MultiFab(S_old[IntVars::zmom],make_alias,0,1));
-        } else {
-            // If this is not the first substep we pass in S_data as the previous step's solution
-            Svec_to_use.push_back(MultiFab(S_data[IntVars::cons],make_alias,0,S_data[IntVars::cons].nComp()));
-            Svec_to_use.push_back(MultiFab(S_data[IntVars::xmom],make_alias,0,1));
-            Svec_to_use.push_back(MultiFab(S_data[IntVars::ymom],make_alias,0,1));
-            Svec_to_use.push_back(MultiFab(S_data[IntVars::zmom],make_alias,0,1));
         }
 
         MultiFab base_to_use;
@@ -128,7 +117,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
-                            S_slow_rhs, Svec_to_use, S_stage, S_prim, pi_stage, fast_coeffs,
+                            S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
                             S_data, S_scratch,
                             cc_src, xmom_src, ymom_src, zmom_src,
                             fine_geom,
@@ -142,7 +131,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         } else if (solverChoice.mesh_type != MeshType::ConstantDz) {
 
             erf_fast_rhs_T(fast_step, nrk, level, finest_level,
-                           S_slow_rhs, Svec_to_use, S_stage, S_prim, pi_stage, fast_coeffs,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
                            S_data, S_scratch,
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity,
@@ -153,7 +142,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         } else {
 
             erf_fast_rhs_N(fast_step, nrk, level, finest_level,
-                           S_slow_rhs, Svec_to_use, S_stage, S_prim, pi_stage, fast_coeffs,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
                            S_data, S_scratch,
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity,

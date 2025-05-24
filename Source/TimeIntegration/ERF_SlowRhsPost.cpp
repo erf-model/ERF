@@ -287,7 +287,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         // Map factors
         const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
         const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
-        const Array4<const Real>& mf_my = mapfac[MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real>& mf_vx = mapfac[MapFacType::v_x]->const_array(mfi);
+        const Array4<const Real>& mf_my = mapfac[MapFacType::m_y]->const_array(mfi);
+        const Array4<const Real>& mf_uy = mapfac[MapFacType::u_y]->const_array(mfi);
         const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // SmnSmn for KE src with Deardorff or k-eqn RANS
@@ -454,16 +456,18 @@ void erf_slow_rhs_post (int level, int finest_level,
                         DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, l_rotate, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
-                                               z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
-                                               dxInv, SmnSmn_a, mf_mx, mf_my, mf_ux, mf_vy,
+                                               z_nd, ax_arr, ay_arr, az_arr, detJ_arr,dxInv, SmnSmn_a,
+                                               mf_mx, mf_ux, mf_vx,
+                                               mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z,
-                                               dxInv, SmnSmn_a, mf_mx, mf_my, mf_ux, mf_vy,
+                                               diffflux_x, diffflux_y, diffflux_z, dxInv, SmnSmn_a,
+                                               mf_mx, mf_ux, mf_vx,
+                                               mf_my, mf_uy, mf_vy,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
