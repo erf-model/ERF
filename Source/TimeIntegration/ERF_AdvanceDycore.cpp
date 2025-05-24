@@ -281,6 +281,13 @@ void ERF::advance_dycore(int level,
               fast_only, vel_and_mom_synced);
     cons_to_prim(state_old[IntVars::cons], state_old[IntVars::cons].nGrow());
 
+    // ***********************************************************************************************
+    // Define a new MultiFab that holds q_total and fill it by summing the moisture components --
+    //      to be used in buoyancy calculation and as part of the inertial weighting in the
+    // ***********************************************************************************************
+    MultiFab qt(grids[level], dmap[level], 1, 1);
+    qt.setVal(0.0);
+
 #include "ERF_TI_no_substep_fun.H"
 #include "ERF_TI_substep_fun.H"
 #include "ERF_TI_slow_rhs_pre.H"

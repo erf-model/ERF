@@ -40,7 +40,11 @@ void DiffusionSrcForMom_T (const amrex::Box& bxx, const amrex::Box& bxy, const a
                            const amrex::Array4<const amrex::Real>& detJ,
                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
                            const amrex::Array4<const amrex::Real>& mf_mx     ,
-                           const amrex::Array4<const amrex::Real>& mf_my     );
+                           const amrex::Array4<const amrex::Real>& mf_ux     ,
+                           const amrex::Array4<const amrex::Real>& mf_vx     ,
+                           const amrex::Array4<const amrex::Real>& mf_my     ,
+                           const amrex::Array4<const amrex::Real>& mf_uy     ,
+                           const amrex::Array4<const amrex::Real>& mf_vy     );
 
 
 void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
@@ -57,7 +61,9 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& SmnSmn_a,
                              const amrex::Array4<const amrex::Real>& mf_mx,
                              const amrex::Array4<const amrex::Real>& mf_ux,
+                             const amrex::Array4<const amrex::Real>& mf_vx,
                              const amrex::Array4<const amrex::Real>& mf_my,
+                             const amrex::Array4<const amrex::Real>& mf_uy,
                              const amrex::Array4<const amrex::Real>& mf_vy,
                                    amrex::Array4<      amrex::Real>& hfx_z,
                                    amrex::Array4<      amrex::Real>& qfx1_z,
@@ -91,7 +97,9 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& SmnSmn_a,
                              const amrex::Array4<const amrex::Real>& mf_mx,
                              const amrex::Array4<const amrex::Real>& mf_ux,
+                             const amrex::Array4<const amrex::Real>& mf_vx,
                              const amrex::Array4<const amrex::Real>& mf_my,
+                             const amrex::Array4<const amrex::Real>& mf_uy,
                              const amrex::Array4<const amrex::Real>& mf_vy,
                                    amrex::Array4<      amrex::Real>& hfx_x,
                                    amrex::Array4<      amrex::Real>& hfx_y,
@@ -138,7 +146,13 @@ void ComputeStressConsVisc_T (amrex::Box bxcc,
                               const amrex::Array4<const amrex::Real>& er_arr,
                               const amrex::Array4<const amrex::Real>& z_nd,
                               const amrex::Array4<const amrex::Real>& detJ,
-                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv);
+                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
+                              const amrex::Array4<const amrex::Real>& mf_mx,
+                              const amrex::Array4<const amrex::Real>& mf_ux,
+                              const amrex::Array4<const amrex::Real>& mf_vx,
+                              const amrex::Array4<const amrex::Real>& mf_my,
+                              const amrex::Array4<const amrex::Real>& mf_uy,
+                              const amrex::Array4<const amrex::Real>& mf_vy);
 
 
 
@@ -173,7 +187,13 @@ void ComputeStressVarVisc_T (amrex::Box bxcc,
                              const amrex::Array4<const amrex::Real>& er_arr,
                              const amrex::Array4<const amrex::Real>& z_nd,
                              const amrex::Array4<const amrex::Real>& detJ,
-                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv);
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
+                             const amrex::Array4<const amrex::Real>& mf_mx,
+                             const amrex::Array4<const amrex::Real>& mf_ux,
+                             const amrex::Array4<const amrex::Real>& mf_vx,
+                             const amrex::Array4<const amrex::Real>& mf_my,
+                             const amrex::Array4<const amrex::Real>& mf_uy,
+                             const amrex::Array4<const amrex::Real>& mf_vy);
 
 
 

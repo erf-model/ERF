@@ -65,7 +65,7 @@
                     const Array4<const Real>& z_nd_new = z_phys_nd_new[level]->const_array(mfi);
 
                     const Array4<const Real>& mf_u = mapfac[level][MapFacType::u_x]->const_array(mfi);
-                    const Array4<const Real>& mf_v = mapfac[level][MapFacType::v_x]->const_array(mfi);
+                    const Array4<const Real>& mf_v = mapfac[level][MapFacType::v_y]->const_array(mfi);
 
                     const Array4<Real      >& z_t_arr  =  z_t_rk[level]->array(mfi);
 

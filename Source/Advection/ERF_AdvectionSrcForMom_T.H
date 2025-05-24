@@ -87,7 +87,7 @@ AdvectionSrcForXMom (int i, int j, int k,
 
     // ****************************************************************************************
 
-    amrex::Real mfsq = 1 / (mf_ux_inv(i,j,0) * mf_uy_inv(i,j,0));
+    amrex::Real mfsq = 1. / (mf_ux_inv(i,j,0) * mf_uy_inv(i,j,0));
 
     advectionSrc = (centFluxXXNext - centFluxXXPrev) * dxInv * mfsq
                  + (edgeFluxXYNext - edgeFluxXYPrev) * dyInv * mfsq
@@ -385,7 +385,7 @@ AdvectionSrcForMomWrapper (const amrex::Box& bxx, const amrex::Box& bxy, const a
     {
         rho_u_rhs(i, j, k) = -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, Omega, z_nd, ax, ay, az, detJ,
                                                   interp_u_h, interp_u_v,
-                                                  cellSizeInv, mf_ux_inv, mf_uy_inv, mf_vy_inv);
+                                                  cellSizeInv, mf_ux_inv, mf_uy_inv, mf_vx_inv);
     });
 
     amrex::ParallelFor(bxy,

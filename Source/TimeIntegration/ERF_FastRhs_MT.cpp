@@ -50,6 +50,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
                       const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
                       Vector<MultiFab>& S_stg_data,                  // at last RK stg: S^n, S^* or S^**
                       const MultiFab& S_stg_prim,                    // Primitive version of S_stg_data[IntVars::cons]
+                      const MultiFab& qt,                            // Total moisture
                       const MultiFab& pi_stage,                      // Exner function evaluated at last RK stg
                       const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
                       Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
@@ -144,6 +145,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         const Array4<const Real> & stg_ymom = S_stg_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real> & stg_zmom = S_stg_data[IntVars::zmom].const_array(mfi);
         const Array4<const Real> & prim     = S_stg_prim.const_array(mfi);
+        const Array4<const Real> & qt_arr   = qt.const_array(mfi);
 
         const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVars::cons].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVars::xmom].const_array(mfi);
@@ -262,14 +264,10 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
                 Real gpx = h_zeta_old * gp_xi - h_xi_old * gp_zeta_on_iface;
                 gpx *= mf_ux(i,j,0);
 
-                if (l_use_moisture) {
-                    Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i-1,j,k,PrimQ1_comp)
-                                    +prim(i,j,k,PrimQ2_comp) + prim(i-1,j,k,PrimQ2_comp) );
-                    gpx /= (1.0 + q);
-                }
+                Real q = (l_use_moisture) ? 0.5 * (qt_arr(i-1,j,k) + qt_arr(i,j,k)) : 0.0;
 
                 Real pi_c =  0.5 * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i  ,j,k,0));
-                Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
+                Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx / (1.0 + q);
 
                 // We have already scaled the source terms to have the extra factor of dJ
                 cur_xmom(i,j,k) = h_zeta_old * prev_xmom(i,j,k) + dtau * fast_rhs_rho_u
@@ -290,14 +288,10 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
                 Real gpy = h_zeta_old * gp_eta - h_eta_old  * gp_zeta_on_jface;
                 gpy *= mf_vy(i,j,0);
 
-                if (l_use_moisture) {
-                    Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j-1,k,PrimQ1_comp)
-                                    +prim(i,j,k,PrimQ2_comp) + prim(i,j-1,k,PrimQ2_comp) );
-                    gpy /= (1.0 + q);
-                }
+                Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j-1,k) + qt_arr(i,j,k)) : 0.0;
 
                 Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j  ,k,0));
-                Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
+                Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy / (1.0 + q);
 
                 // We have already scaled the source terms to have the extra factor of dJ
                 cur_ymom(i, j, k) = h_zeta_old * prev_ymom(i,j,k) + dtau * fast_rhs_rho_v
@@ -416,15 +410,10 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
             Real     dJ_new_kface = 0.5 * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
             Real     dJ_stg_kface = 0.5 * (detJ_stg(i,j,k) + detJ_stg(i,j,k-1));
 
-            Real coeff_P = coeffP_a(i,j,k);
-            Real coeff_Q = coeffQ_a(i,j,k);
+            Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k-1) + qt_arr(i,j,k)) : 0.0;
 
-            if (l_use_moisture) {
-                Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
-                                +prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
-                coeff_P /= (1.0 + q);
-                coeff_Q /= (1.0 + q);
-            }
+            Real coeff_P = coeffP_a(i,j,k) / (1.0 + q);
+            Real coeff_Q = coeffQ_a(i,j,k) / (1.0 + q);
 
             Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
             Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
