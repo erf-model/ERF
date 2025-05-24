@@ -744,7 +744,7 @@ define( int const& a_idim,
         EB2::build_cellflag_from_ap (i, j, k, aux_flag, aux_afrac_x, aux_afrac_y, aux_afrac_z);
       });
 
-    } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) 
+    } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
 
   } // MFIter
 

@@ -111,7 +111,7 @@ compute_gradp (const MultiFab& p,
         const Array4<      Real>& gpx_arr = gradp[GpVars::gpx].array(mfi);
         const Array4<      Real>& gpy_arr = gradp[GpVars::gpy].array(mfi);
         const Array4<      Real>& gpz_arr = gradp[GpVars::gpz].array(mfi);
-      
+
         if (solverChoice.terrain_type != TerrainType::EB) {
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -285,7 +285,7 @@ compute_gradp (const MultiFab& p,
                         } else {
                             v_p_arr(i,j,k) = 0.5 * ( p_arr(i,j-1,k) + p_arr(i,j,k) );
                         }
-                        
+
                     } else {
                         v_p_arr(i,j,k) = 0.0;
                     }
@@ -306,12 +306,12 @@ compute_gradp (const MultiFab& p,
                 });
 
                 // STEP 2: Compute Least-Squares slopes
-    
+
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (u_vfrac(i,j,k) > 0.0) {
                         GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
-    
+
                         slopes_eb = amrex_calc_slopes_extdir_eb(
                             i, j, k, n, u_p_arr, u_vcent, u_vfrac,
                             AMREX_D_DECL(u_fcx,u_fcy,u_fcz),u_cflag,
@@ -320,20 +320,20 @@ compute_gradp (const MultiFab& p,
                             AMREX_D_DECL(domain_ilo, domain_jlo, domain_klo),
                             AMREX_D_DECL(domain_ihi, domain_jhi, domain_khi),
                             2);
-    
+
                         gpx_arr(i,j,k) = slopes_eb[0];
                     } else {
                         gpx_arr(i,j,k) = 0.0;
                     }
                 });
-    
+
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     // Need to interpolate pressure from CC to FC grid here.
-    
+
                     if (v_vfrac(i,j,k) > 0.0) {
                         GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
-    
+
                         slopes_eb = amrex_calc_slopes_extdir_eb(
                             i, j, k, n, v_p_arr, v_vcent, v_vfrac,
                             AMREX_D_DECL(v_fcx,v_fcy,v_fcz),v_cflag,
@@ -342,20 +342,20 @@ compute_gradp (const MultiFab& p,
                             AMREX_D_DECL(domain_ilo, domain_jlo, domain_klo),
                             AMREX_D_DECL(domain_ihi, domain_jhi, domain_khi),
                             2);
-    
+
                         gpy_arr(i,j,k) = slopes_eb[1];
                     } else {
                         gpy_arr(i,j,k) = 0.0;
                     }
                 });
-    
+
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     // Need to interpolate pressure from CC to FC grid here.
-    
+
                     if (w_vfrac(i,j,k) > 0.0) {
                         GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
-    
+
                         slopes_eb = amrex_calc_slopes_extdir_eb(
                             i, j, k, n, w_p_arr, w_vcent, w_vfrac,
                             AMREX_D_DECL(w_fcx,w_fcy,w_fcz),w_cflag,
@@ -364,7 +364,7 @@ compute_gradp (const MultiFab& p,
                             AMREX_D_DECL(domain_ilo, domain_jlo, domain_klo),
                             AMREX_D_DECL(domain_ihi, domain_jhi, domain_khi),
                             2);
-    
+
                         gpz_arr(i,j,k) = slopes_eb[2];
                     } else {
                         gpz_arr(i,j,k) = 0.0;
@@ -381,18 +381,18 @@ compute_gradp (const MultiFab& p,
                         gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
                     } else {
                         gpx_arr(i,j,k) = 0.0;
-                    }                        
+                    }
                 });
-    
+
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (v_vfrac(i,j,k) > 0.0) {
-                        gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));    
+                        gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
                     } else {
                         gpy_arr(i,j,k) = 0.0;
                     }
                 });
-    
+
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (w_vfrac(i,j,k) > 0.0) {
