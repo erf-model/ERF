@@ -1,0 +1,36 @@
+#!/bin/bash
+
+#!/bin/bash
+
+## specify your allocation (with the _g) and that you want GPU nodes
+#SBATCH -A <ACCOUNT_ID>
+#SBATCH -C gpu
+#SBATCH -q regular
+
+#SBATCH -J ERF
+#SBATCH -o erf.out
+#SBATCH -e erf.out
+
+## set the max walltime and memory
+#SBATCH -t 00:30:00
+#SBATCH --mem=0
+
+## specify the number of nodes you want
+#SBATCH -N 32
+#SBATCH --exclusive
+
+export MPICH_GPU_SUPPORT_ENABLED=1
+nx=512; ny=512; nz=256; probx=2048; proby=2048; probz=1024;
+# the -n argument is (--ntasks-per-node) * (-N) = (number of MPI ranks per node) * (number of nodes)
+for n_nodes in 2 4 8 16 32
+do
+  np=$((n_nodes*4)) # 4 GPUs per node
+  FILENAME=$(printf "strong_scaling_%03d.out" "$np")
+  echo "Test $n_nodes nodes, 4 tasks per node, $np procs, $probx $proby $probz, $nx $ny $nz"
+
+  srun -n $np -N $n_nodes --gpus=$np --ntasks-per-node=4 --cpu-bind=sockets \
+  <exec> inputs_smagorinsky_StrongScaling amrex.the_arena_is_managed=0 amrex.use_gpu_aware_mpi=1 \
+  > $FILENAME
+
+done
+

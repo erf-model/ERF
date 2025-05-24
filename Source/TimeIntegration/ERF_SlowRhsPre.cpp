@@ -36,6 +36,7 @@ using namespace amrex;
  * @param[in] xmom_src source terms for x-momentum
  * @param[in] ymom_src source terms for y-momentum
  * @param[in] zmom_src source terms for z-momentum
+ * @param[in] buoyancy buoyancy source term for z-momentum
  * @param[in] zmom_crse_rhs update term from coarser level for z-momentum; non-zero on c/f boundary only
  * @param[in] Tau_lev components of stress tensor
  * @param[in] SmnSmn strain rate magnitude
@@ -75,6 +76,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& xmom_src,
                        const MultiFab& ymom_src,
                        const MultiFab& zmom_src,
+                       const MultiFab& buoyancy,
                        const MultiFab* zmom_crse_rhs,
                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                        MultiFab* SmnSmn,
@@ -92,11 +94,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<SurfaceLayer>& SurfLayer,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                        const Vector<BCRec>& domain_bcs_type_h,
-                       std::unique_ptr<MultiFab>& z_phys_nd,
-                       std::unique_ptr<MultiFab>& ax,
-                       std::unique_ptr<MultiFab>& ay,
-                       std::unique_ptr<MultiFab>& az,
-                       std::unique_ptr<MultiFab>& detJ,
+                       const MultiFab& z_phys_nd,
+                       const MultiFab& ax, const MultiFab& ay, const MultiFab& az,
+                       const MultiFab& detJ,
                        Gpu::DeviceVector<Real>& stretched_dz_d,
                        Vector<MultiFab>& gradp,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
@@ -128,7 +128,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain_fitted_coords);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
-    const bool l_reflux = (solverChoice.coupling_type == CouplingType::TwoWay);
+    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
 
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
@@ -183,7 +183,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
                                                Hfx1, Hfx2, Hfx3,
                                                Q1fx1, Q1fx2, Q1fx3,
-                                               z_phys_nd.get());
+                                               &z_phys_nd);
         }
     } // l_use_diff
 
@@ -285,6 +285,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
         const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
         const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
+        const Array4<Real const>& buoyancy_arr   = buoyancy.const_array(mfi);
 
         const Array4<Real const>& gpx_arr   = gradp[GpVars::gpx].const_array(mfi);
         const Array4<Real const>& gpy_arr   = gradp[GpVars::gpy].const_array(mfi);
@@ -313,12 +314,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<const Real>& rho_w = S_data[IntVars::zmom].array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_mx  = mapfac[MapFacType::mx]->const_array(mfi);
-        const Array4<const Real>& mf_ux  = mapfac[MapFacType::ux]->const_array(mfi);
-        const Array4<const Real>& mf_vx  = mapfac[MapFacType::vx]->const_array(mfi);
-        const Array4<const Real>& mf_my  = mapfac[MapFacType::my]->const_array(mfi);
-        const Array4<const Real>& mf_uy  = mapfac[MapFacType::uy]->const_array(mfi);
-        const Array4<const Real>& mf_vy  = mapfac[MapFacType::vy]->const_array(mfi);
+        const Array4<const Real>& mf_mx  = mapfac[MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real>& mf_ux  = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vx  = mapfac[MapFacType::v_x]->const_array(mfi);
+        const Array4<const Real>& mf_my  = mapfac[MapFacType::m_y]->const_array(mfi);
+        const Array4<const Real>& mf_uy  = mapfac[MapFacType::u_y]->const_array(mfi);
+        const Array4<const Real>& mf_vy  = mapfac[MapFacType::v_y]->const_array(mfi);
 
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
@@ -336,7 +337,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Terrain metrics
-        const Array4<const Real>& z_nd = z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_nd = z_phys_nd.const_array(mfi);
 
         // *****************************************************************************
         // Define flux arrays for use in advection
@@ -353,7 +354,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 flux_tmp[dir].setVal<RunOn::Device>(0.);
             }
         }
-        const GpuArray<const Array4<Real>, AMREX_SPACEDIM> flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
+        const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
+            flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
 
         // Define flux arrays for momentum variables (used only for EB now)
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_u_arr{};
@@ -496,10 +498,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
             mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
         } else {
-            ax_arr   = ax->const_array(mfi);
-            ay_arr   = ay->const_array(mfi);
-            az_arr   = az->const_array(mfi);
-            detJ_arr = detJ->const_array(mfi);
+            ax_arr   = ax.const_array(mfi);
+            ay_arr   = ay.const_array(mfi);
+            az_arr   = az.const_array(mfi);
+            detJ_arr = detJ.const_array(mfi);
         }
 
         if (solverChoice.terrain_type != TerrainType::EB){
@@ -675,8 +677,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
             }
 
-            rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
-                                  + xmom_src_arr(i,j,k);
+            rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
@@ -785,7 +786,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
                            +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
             }
-            rho_w_rhs(i, j, k) += (zmom_src_arr(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q);
+            rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k);
 
             if (l_use_terrain_fitted_coords && l_moving_terrain) {
                  rho_w_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
@@ -822,7 +823,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // We only add to the flux registers in the final RK step
         // NOTE: for now we are only refluxing density not (rho theta) since the latter seems to introduce
         //       a problem at top and bottom boundaries
-        if (l_reflux && nrk == 2) {
+        if (l_reflux) {
             int strt_comp_reflux = (l_fixed_rho) ? 1 : 0;
             int  num_comp_reflux = 1;
             if (level < finest_level) {

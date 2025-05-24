@@ -429,11 +429,11 @@ ERF::init_from_metgrid (int lev)
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     // Use map scale factors directly from the met_em files
-    for ( MFIter mfi(*mapfac[lev][MapFacType::ux], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+    for ( MFIter mfi(*mapfac[lev][MapFacType::u_x], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         // Define fabs for holding the initial data
-        FArrayBox &msfu_fab = (*mapfac[lev][MapFacType::ux])[mfi];
-        FArrayBox &msfv_fab = (*mapfac[lev][MapFacType::vx])[mfi];
-        FArrayBox &msfm_fab = (*mapfac[lev][MapFacType::mx])[mfi];
+        FArrayBox &msfu_fab = (*mapfac[lev][MapFacType::u_x])[mfi];
+        FArrayBox &msfv_fab = (*mapfac[lev][MapFacType::v_x])[mfi];
+        FArrayBox &msfm_fab = (*mapfac[lev][MapFacType::m_x])[mfi];
 
         init_msfs_from_metgrid(metgrid_debug_msf,
                                msfu_fab, msfv_fab, msfm_fab, flag_msf[0],

@@ -30,8 +30,8 @@ void make_gradp_pert (int level,
                       const Geometry& geom,
                       Vector<MultiFab>& S_data,
                       MultiFab& p0,
-                      std::unique_ptr<MultiFab>& z_phys_nd,
-                      std::unique_ptr<MultiFab>& z_phys_cc,
+                      MultiFab& z_phys_nd,
+                      MultiFab& z_phys_cc,
                       BCRec const* d_bcrec_ptr,
                       const eb_& ebfact,
                       Vector<MultiFab>& gradp)
@@ -70,8 +70,8 @@ void make_gradp_pert (int level,
 void
 compute_gradp (const MultiFab& p,
                const Geometry& geom,
-               std::unique_ptr<MultiFab>& z_phys_nd,
-               std::unique_ptr<MultiFab>& z_phys_cc,
+               MultiFab& z_phys_nd,
+               MultiFab& z_phys_cc,
                BCRec const* d_bcrec_ptr,
                const eb_& ebfact,
                Vector<MultiFab>& gradp,
@@ -103,8 +103,8 @@ compute_gradp (const MultiFab& p,
         }
 
         // Terrain metrics
-        const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
-        const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
+        const Array4<const Real>& z_nd_arr = z_phys_nd.const_array(mfi);
+        const Array4<const Real>& z_cc_arr = z_phys_cc.const_array(mfi);
 
         const Array4<const Real>& p_arr = p.const_array(mfi);
 

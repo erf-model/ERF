@@ -130,6 +130,11 @@ public:
         }
     }
 
+    template<class SurfModelType>
+    SurfModelType* get_model_lev(const int &lev) {
+        return static_cast<SurfModelType*>(m_lsm_model[lev].get());
+    }
+
 private:
     // lsm model at each level
     amrex::Vector<std::unique_ptr<NullSurf>> m_lsm_model;

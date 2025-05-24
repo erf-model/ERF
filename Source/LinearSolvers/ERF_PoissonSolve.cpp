@@ -85,8 +85,8 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             const Array4<Real      >& rho0w_arr = mom_mf[IntVars::zmom].array(mfi);
 
             const Array4<Real const>&     z_nd = z_phys_nd[lev]->const_array(mfi);
-            const Array4<Real const>&     mf_u =  mapfac[lev][MapFacType::ux]->const_array(mfi);
-            const Array4<Real const>&     mf_v =  mapfac[lev][MapFacType::vx]->const_array(mfi);
+            const Array4<Real const>&     mf_u =  mapfac[lev][MapFacType::u_x]->const_array(mfi);
+            const Array4<Real const>&     mf_v =  mapfac[lev][MapFacType::v_x]->const_array(mfi);
 
             //
             // Define Omega from (rho0 W) but store it in the same array
@@ -300,8 +300,8 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
              const Array4<Real      >& rho0v_arr = mom_mf[IntVars::ymom].array(mfi);
              const Array4<Real      >& rho0w_arr = mom_mf[IntVars::zmom].array(mfi);
              const Array4<Real const>&      z_nd = z_phys_nd[lev]->const_array(mfi);
-             const Array4<Real const>&      mf_u =  mapfac[lev][MapFacType::ux]->const_array(mfi);
-             const Array4<Real const>&      mf_v =  mapfac[lev][MapFacType::vx]->const_array(mfi);
+             const Array4<Real const>&      mf_u =  mapfac[lev][MapFacType::u_x]->const_array(mfi);
+             const Array4<Real const>&      mf_v =  mapfac[lev][MapFacType::v_x]->const_array(mfi);
              ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                  Real omega = rho0w_arr(i,j,k);
                  rho0w_arr(i,j,k) = WFromOmega(i,j,k,omega,

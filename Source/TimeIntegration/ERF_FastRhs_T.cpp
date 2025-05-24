@@ -37,7 +37,7 @@ using namespace amrex;
  * @param[in   ] l_implicit_substepping
  */
 
-void erf_fast_rhs_T (int step, int nrk,
+void erf_fast_rhs_T (int step, int /*nrk*/,
                      int level, int finest_level,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
@@ -244,8 +244,8 @@ void erf_fast_rhs_T (int step, int nrk,
         const Array4<Real>& theta_extrap = extrap.array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
-        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
         // Note that we do the Copy and Subtract including one ghost cell
@@ -384,10 +384,10 @@ void erf_fast_rhs_T (int step, int nrk,
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_mx = mapfac[MapFacType::mx]->const_array(mfi);
-        const Array4<const Real>& mf_my = mapfac[MapFacType::my]->const_array(mfi);
-        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
-        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
+        const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real>& mf_my = mapfac[MapFacType::m_y]->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
         // Note that we do the Copy and Subtract including one ghost cell
@@ -459,21 +459,22 @@ void erf_fast_rhs_T (int step, int nrk,
                                      ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
                                        yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfysq) * 0.5;
 
-            (flx_arr[0])(i,j,k,0) = xflux_lo;
-            (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i-1,j,k,0));
+            if (l_reflux) {
+                (flx_arr[0])(i,j,k,0) = xflux_lo;
+                (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i-1,j,k,0));
 
-            (flx_arr[1])(i,j,k,0) = yflux_lo;
-            (flx_arr[1])(i,j,k,1) = (flx_arr[1])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
+                (flx_arr[1])(i,j,k,0) = yflux_lo;
+                (flx_arr[1])(i,j,k,1) = (flx_arr[1])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
 
-            if (i == vbx_hi.x) {
-                (flx_arr[0])(i+1,j,k,0) = xflux_hi;
-                (flx_arr[0])(i+1,j,k,1) = (flx_arr[0])(i+1,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i+1,j,k,0));
+                if (i == vbx_hi.x) {
+                    (flx_arr[0])(i+1,j,k,0) = xflux_hi;
+                    (flx_arr[0])(i+1,j,k,1) = (flx_arr[0])(i+1,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i+1,j,k,0));
+                }
+                if (j == vbx_hi.y) {
+                    (flx_arr[1])(i,j+1,k,0) = yflux_hi;
+                    (flx_arr[1])(i,j+1,k,1) = (flx_arr[1])(i,j+1,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j+1,k,0));
+                }
             }
-            if (j == vbx_hi.y) {
-                (flx_arr[1])(i,j+1,k,0) = yflux_hi;
-                (flx_arr[1])(i,j+1,k,1) = (flx_arr[1])(i,j+1,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j+1,k,0));
-            }
-
         });
         } // end profile
 
@@ -675,12 +676,16 @@ void erf_fast_rhs_T (int step, int nrk,
               // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
               // so we don't update avg_zmom at k=vbx_hi.z+1
               avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
-              (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
+              if (l_reflux) {
+                  (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
+              }
 
               if (k == vbx_hi.z) {
                   avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
-                  (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
-                  (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
+                  if (l_reflux) {
+                      (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
+                      (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
+                  }
               }
 
               Real fast_rhs_rho = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi) / detJ(i,j,k);
@@ -692,7 +697,9 @@ void erf_fast_rhs_T (int step, int nrk,
 
               cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta);
 
-              (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
+              if (l_reflux) {
+                  (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
+              }
 
               // add in source terms for cell-centered conserved variables
               cur_cons(i,j,k,Rho_comp)      += dtau * cc_src_arr(i,j,k,Rho_comp);
@@ -701,7 +708,7 @@ void erf_fast_rhs_T (int step, int nrk,
         } // end profile
 
         // We only add to the flux registers in the final RK step
-        if (l_reflux && nrk == 2) {
+        if (l_reflux) {
             int strt_comp_reflux = 0;
             // For now we don't reflux (rho theta) because it seems to create issues at c/f boundaries
             int  num_comp_reflux = 1;

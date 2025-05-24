@@ -36,8 +36,8 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMRE
             const Array4<Real const>& rho0w_arr = rho0_u_const[2]->const_array(mfi);
             const Array4<Real      >&   rhs_arr = rhs.array(mfi);
 
-            const Array4<Real const>&      mf_mx = mapfac[lev][MapFacType::mx]->const_array(mfi);
-            const Array4<Real const>&      mf_my = mapfac[lev][MapFacType::my]->const_array(mfi);
+            const Array4<Real const>&      mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+            const Array4<Real const>&      mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
 
             if (SolverChoice::mesh_type == MeshType::StretchedDz) {
                 Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();

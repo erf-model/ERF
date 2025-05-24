@@ -65,10 +65,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         ay_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
         az_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
 
-        ax_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,1);
-        ay_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
-        az_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
-
         z_t_rk[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(0,0,1)), dm, 1, 1 );
 
         z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
@@ -240,18 +236,24 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     BoxArray ba2d_mf(std::move(bl2d_mf));
 
     mapfac[lev].resize(MapFacType::num);
-    mapfac[lev][MapFacType::mx] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
-    if (MapFacType::my != MapFacType::mx) {
-        mapfac[lev][MapFacType::my] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+    mapfac[lev][MapFacType::m_x] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+    mapfac[lev][MapFacType::u_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+    mapfac[lev][MapFacType::v_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+
+#if 0
+    // For now we comment this out to avoid CI failures but we will need to re-enable
+    //     this if using non-conformal mappings
+    if (MapFacType::m_y != MapFacType::m_x) {
+        mapfac[lev][MapFacType::m_y] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
     }
-    mapfac[lev][MapFacType::ux] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
-    if (MapFacType::uy != MapFacType::ux) {
-        mapfac[lev][MapFacType::uy] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+    if (MapFacType::u_y != MapFacType::u_x) {
+        mapfac[lev][MapFacType::u_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
     }
-    mapfac[lev][MapFacType::vx] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
-    if (MapFacType::vy != MapFacType::vx) {
-        mapfac[lev][MapFacType::vy] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+    if (MapFacType::v_y != MapFacType::v_x) {
+        mapfac[lev][MapFacType::v_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
     }
+#endif
+
     if (solverChoice.test_mapfactor) {
         for (int i = 0; i < mapfac[lev].size(); i++) {
             mapfac[lev][i]->setVal(0.5);
@@ -340,12 +342,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 #endif
 
 
-#if defined(ERF_USE_RRTMGP)
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-    qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
-    qheating_rates[lev]->setVal(0.);
+    if (solverChoice.rad_type != RadiationType::None || solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
+        qheating_rates[lev]->setVal(0.);
+    }
 
     //*********************************************************
     // Radiation fluxes for coupling to LSM
@@ -356,7 +360,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //       care must be taken before applying these fluxes to an LSM model. For
 
     // Radiative fluxes for LSM
-    if (solverChoice.lsm_type != LandSurfaceType::None)
+    if (solverChoice.lsm_type != LandSurfaceType::None &&
+        solverChoice.rad_type != RadiationType::None)
     {
         BoxList m_bl = ba.boxList();
         for (auto& b : m_bl) {
@@ -371,7 +376,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         sw_lw_fluxes[lev]->setVal(0.);
         solar_zenith[lev]->setVal(0.);
     }
-#endif
 
     //*********************************************************
     // Turbulent perturbation region initialization

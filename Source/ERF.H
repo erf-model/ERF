@@ -62,14 +62,17 @@
 #include "ERF_WindFarm.H"
 #endif
 
-#ifdef ERF_USE_RRTMGP
-#include "ERF_Radiation.H"
-#endif
+#include <ERF_RadiationModels.H>
 
 #include <iostream>
 
 #ifdef AMREX_LAZY
 #include <AMReX_Lazy.H>
+#endif
+
+#ifndef AMREX_USE_MPI
+using amrex::MPI_COMM_WORLD;
+using amrex::MPI_Comm;
 #endif
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -89,26 +92,6 @@ AMREX_ENUM(StateInterpType,
 AMREX_ENUM(PlotFileType,
     None, Amrex, Netcdf
 );
-
-
-#if 0
-/**
- * Enum of possible coarse/fine interpolation options
-*/
-namespace InterpType {
-    enum {
-        PCInterp = 0,
-        NodeBilinear,
-        CellConservativeLinear,
-        CellBilinear,
-        CellQuadratic,
-        CellConservativeProtected,
-        CellConservativeQuartic,
-        FaceLinear,
-        FaceConserativeLinear
-    };
-}
-#endif
 
 /**
  * Main class in ERF code, instantiated from main.cpp
@@ -344,7 +327,7 @@ public:
                          amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
                          amrex::MultiFab& source,    amrex::MultiFab& xmom_src,
                          amrex::MultiFab& ymom_src,  amrex::MultiFab& zmom_src,
-                         amrex::Geometry fine_geom,
+                         amrex::MultiFab& buoyancy,  amrex::Geometry fine_geom,
                          amrex::Real dt, amrex::Real time);
 
     void advance_microphysics (int lev,
@@ -359,11 +342,9 @@ public:
                       amrex::MultiFab& yvel_in,
                       const amrex::Real& dt_advance);
 
-#if defined(ERF_USE_RRTMGP)
     void advance_radiation (int lev,
                             amrex::MultiFab& cons_in,
                             const amrex::Real& dt_advance);
-#endif
 
     amrex::MultiFab& build_fine_mask (int lev);
 
@@ -634,17 +615,6 @@ private:
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
 
 #ifdef ERF_USE_NETCDF
-    //! Write plotfile using NETCDF
-    void writeNCPlotFile (int lev, int which, const std::string& dir,
-                          const amrex::Vector<const amrex::MultiFab*> &mf,
-                          const amrex::Vector<std::string> &plot_var_names,
-                          const amrex::Vector<int>& level_steps, amrex::Real time) const;
-
-    //! Write MultiFab in NetCDF format
-    static void WriteNCMultiFab (const amrex::FabArray<amrex::FArrayBox> &fab,
-                                 const std::string& name,
-                                 bool set_ghost = false) ;
-
     //! Create 1D vertical column output for coupling
     void createNCColumnFile (int lev,
                              const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc);
@@ -792,16 +762,15 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
 
-#if defined(ERF_USE_RRTMGP)
-    amrex::Vector<std::unique_ptr<Radiation>> rad;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms
+    amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW)
 
     // Containers for additional SLM inputs
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sw_lw_fluxes; // Direct SW (visible, NIR), Diffuse SW (visible, NIR), LW flux
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> solar_zenith; // Solar zenith angle
 
     bool plot_rad = false;
-#endif
+    int rad_datalog_int = -1;
 
     // Fillpatcher classes for coarse-fine boundaries
     int cf_width{0};
@@ -847,9 +816,6 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax_new;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay_new;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az_new;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
@@ -1018,9 +984,7 @@ private:
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
-#ifdef ERF_USE_RRTMGP
                                                     ,"qsrc_sw", "qsrc_lw"
-#endif
                                                    };
 
     // algorithm choices

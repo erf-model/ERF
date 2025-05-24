@@ -15,11 +15,7 @@ using namespace amrex;
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
- * @param[in]  level level of resolution
- * @param[in]  nrk   which RK stage
- * @param[in]  dt    slow time step
  * @param[in]  S_data current solution
- * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
  * @param[in]  xvel x-component of velocity
  * @param[in]  yvel y-component of velocity
  * @param[in] xmom_src source terms for x-momentum
@@ -32,23 +28,18 @@ using namespace amrex;
  * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
- * @param[in] n_qstate number of moisture components
  */
 
-void make_mom_sources (int level,
-                       int /*nrk*/,
-                       Real /*dt*/,
-                       Real time,
+void make_mom_sources (Real time,
                        const Vector<MultiFab>& S_data,
-                       const  MultiFab & S_prim,
-                       std::unique_ptr<MultiFab>& z_phys_nd,
-                       std::unique_ptr<MultiFab>& z_phys_cc,
-                       const  MultiFab & xvel,
-                       const  MultiFab & yvel,
-                       const  MultiFab & wvel,
-                              MultiFab & xmom_src,
-                              MultiFab & ymom_src,
-                              MultiFab & zmom_src,
+                             MultiFab& z_phys_nd,
+                             MultiFab& z_phys_cc,
+                       const MultiFab& xvel,
+                       const MultiFab& yvel,
+                       const MultiFab& wvel,
+                             MultiFab& xmom_src,
+                             MultiFab& ymom_src,
+                             MultiFab& zmom_src,
                        const MultiFab& base_state,
                              MultiFab* forest_drag,
                              MultiFab* terrain_blank,
@@ -63,7 +54,6 @@ void make_mom_sources (int level,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        InputSoundingData& input_sounding_data,
-                       int n_qstate,
                        bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
@@ -71,7 +61,7 @@ void make_mom_sources (int level,
     Box domain(geom.Domain());
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
-    // Initialize sources to zero since we re-compute them ever RK stage
+    // Initialize sources to zero each time we may use them
     xmom_src.setVal(0.0);
     ymom_src.setVal(0.0);
     zmom_src.setVal(0.0);
@@ -85,16 +75,17 @@ void make_mom_sources (int level,
 
     // *****************************************************************************
     // Define source term for all three components of momenta from
-    //    1. buoyancy           for (zmom)
-    //    2. Coriolis forcing   for (xmom,ymom,zmom)
-    //    3. Rayleigh damping   for (xmom,ymom,zmom)
-    //    4. Constant / height-dependent geostrophic forcing
-    //    5. subsidence
-    //    6. nudging towards input sounding data
-    //    7. numerical diffusion for (xmom,ymom,zmom)
-    //    8. sponge
-    //    9. Forest canopy
-    //   10. Immersed Forcing
+    //    1. Coriolis forcing   for (xmom,ymom,zmom)
+    //    2. Rayleigh damping   for (xmom,ymom,zmom)
+    //    3. Constant / height-dependent geostrophic forcing
+    //    4. subsidence
+    //    5. nudging towards input sounding data
+    //    6. numerical diffusion for (xmom,ymom,zmom)
+    //    7. sponge
+    //    8. Forest canopy
+    //    9. Immersed Forcing
+    // *****************************************************************************
+    // NOTE: buoyancy is now computed in a separate routine - it should not appear here
     // *****************************************************************************
     //const bool l_use_ndiff       = solverChoice.use_num_diff;
 
@@ -138,10 +129,15 @@ void make_mom_sources (int level,
     Table1D<Real>     dptr_r_plane, dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> r_plane_tab,  u_plane_tab,  v_plane_tab;
 
-    if (dptr_wbar_sub || solverChoice.nudging_from_input_sounding)
+    if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding))
     {
-        // Rho
-        PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+        //
+        // We use the alias here to control ncomp inside the PlaneAverage
+        //
+        MultiFab cons(S_data[IntVars::cons], make_alias, 0, 1);
+
+        IntVect ng_c = S_data[IntVars::cons].nGrowVect(); ng_c[2] = 1;
+        PlaneAverage r_ave(&cons, geom, solverChoice.ave_plane, ng_c);
         r_ave.compute_averages(ZDir(), r_ave.field());
 
         int ncell = r_ave.ncell_line();
@@ -154,7 +150,6 @@ void make_mom_sources (int level,
 
         Real* dptr_r = r_plane_d.data();
 
-        IntVect ng_c = S_data[IntVars::cons].nGrowVect();
         Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
         r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
 
@@ -166,8 +161,11 @@ void make_mom_sources (int level,
         });
 
         // U and V momentum
-        PlaneAverage u_ave(&(S_data[IntVars::xmom]), geom, solverChoice.ave_plane, true);
-        PlaneAverage v_ave(&(S_data[IntVars::ymom]), geom, solverChoice.ave_plane, true);
+        IntVect ng_u = S_data[IntVars::xmom].nGrowVect(); ng_u[2] = 1;
+        PlaneAverage u_ave(&(S_data[IntVars::xmom]), geom, solverChoice.ave_plane, ng_u);
+
+        IntVect ng_v = S_data[IntVars::ymom].nGrowVect(); ng_v[2] = 1;
+        PlaneAverage v_ave(&(S_data[IntVars::ymom]), geom, solverChoice.ave_plane, ng_v);
 
         u_ave.compute_averages(ZDir(), u_ave.field());
         v_ave.compute_averages(ZDir(), v_ave.field());
@@ -186,8 +184,6 @@ void make_mom_sources (int level,
         Real* dptr_u = u_plane_d.data();
         Real* dptr_v = v_plane_d.data();
 
-        IntVect ng_u = S_data[IntVars::xmom].nGrowVect();
-        IntVect ng_v = S_data[IntVars::ymom].nGrowVect();
         Box udomain = domain; udomain.grow(2,ng_u[2]);
         Box vdomain = domain; vdomain.grow(2,ng_v[2]);
         u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
@@ -206,14 +202,6 @@ void make_mom_sources (int level,
         {
             dptr_v_plane(k-v_offset) = dptr_v[k];
         });
-    }
-
-    // *****************************************************************************
-    // 1. Create the BUOYANCY forcing term in the z-direction
-    // *****************************************************************************
-    if (is_slow_step) {
-        make_buoyancy(S_data, S_prim, zmom_src, geom, solverChoice, base_state,
-                    n_qstate, solverChoice.anelastic[level]);
     }
 
     // *****************************************************************************
@@ -251,8 +239,8 @@ void make_mom_sources (int level,
         const Array4<const Real>& sphi_arr = (sinPhi_mf) ? sinPhi_mf->const_array(mfi) :
                                                            Array4<const Real>{};
 
-        const Array4<const Real>& z_nd_arr =  z_phys_nd->const_array(mfi);
-        const Array4<const Real>& z_cc_arr =  z_phys_cc->const_array(mfi);
+        const Array4<const Real>& z_nd_arr =  z_phys_nd.const_array(mfi);
+        const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
 
         // *****************************************************************************
         // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)

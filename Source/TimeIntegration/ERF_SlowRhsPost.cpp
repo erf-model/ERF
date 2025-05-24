@@ -76,7 +76,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<MultiFab>& ay,
                         std::unique_ptr<MultiFab>& az,
                         std::unique_ptr<MultiFab>& detJ,
-                        std::unique_ptr<MultiFab>& detJ_new,
+                        MultiFab* detJ_new,
                         Vector<std::unique_ptr<MultiFab>>& mapfac,
                         amrex::EBFArrayBoxFactory const& ebfact,
 #if defined(ERF_USE_NETCDF)
@@ -108,7 +108,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     const bool l_use_terrain      = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
-    const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
+    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_anelastic   = solverChoice.anelastic[level];
@@ -285,10 +285,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& detJ_new_arr = l_moving_terrain ? detJ_new->const_array(mfi)    : Array4<const Real>{};
 
         // Map factors
-        const Array4<const Real>& mf_mx = mapfac[MapFacType::mx]->const_array(mfi);
-        const Array4<const Real>& mf_ux = mapfac[MapFacType::ux]->const_array(mfi);
-        const Array4<const Real>& mf_my = mapfac[MapFacType::mx]->const_array(mfi);
-        const Array4<const Real>& mf_vy = mapfac[MapFacType::vy]->const_array(mfi);
+        const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_my = mapfac[MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // SmnSmn for KE src with Deardorff or k-eqn RANS
         const Array4<const Real>& SmnSmn_a = l_need_SmnSmn ? SmnSmn->const_array(mfi) : Array4<const Real>{};
@@ -587,7 +587,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         {
         BL_PROFILE("rhs_post_10");
         // We only add to the flux registers in the final RK step
-        if (l_reflux && nrk == 2) {
+        if (l_reflux) {
             int strt_comp_reflux = RhoTheta_comp + 1;
             int  num_comp_reflux = nvars - strt_comp_reflux;
             if (level < finest_level) {

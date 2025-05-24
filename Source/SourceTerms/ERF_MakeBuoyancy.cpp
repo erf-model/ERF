@@ -5,7 +5,6 @@
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
-#include <ERF_PlaneAverage.H>
 #include <ERF_SrcHeaders.H>
 #include <ERF_BuoyancyUtils.H>
 

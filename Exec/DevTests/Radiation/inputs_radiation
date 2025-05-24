@@ -50,6 +50,9 @@ erf.input_sounding_file = "input_sounding_moist"
 erf.init_sounding_ideal = true
     
 # RADIATION INPUTS
+erf.radiation_model        = "RRTMGP"
+erf.rad.datalog            = "radiation"
+erf.profile_rad_int        = 1
 erf.rad_freq_in_steps      = 1
 erf.rad_do_subcol_sampling = true
 erf.rad_write_fluxes       = false
