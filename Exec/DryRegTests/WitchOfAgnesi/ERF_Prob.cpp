@@ -111,14 +111,11 @@ Problem::init_custom_terrain (
     bool test_mapfactor;
     pp.query("test_mapfactor",test_mapfactor);
 
-    Real mf_x, mf_y;
+    Real mf_x;
     if (test_mapfactor) {
         mf_x = 0.5;
-        mf_y = 0.25;
-        //mf_y = 0.5;
     } else {
         mf_x = 1.;
-        mf_y = 1.;
     }
 
     // Domain cell size and real bounds
@@ -148,10 +145,18 @@ Problem::init_custom_terrain (
         amrex::Array4<Real> const& z_arr = terrain_fab.array();
 
 #if 0
+        Real mf_y;
+        if (test_mapfactor) {
+            mf_y = 0.25;
+        } else {
+            mf_y = 1.;
+        }
+
         // This is a 3D hill with variation in both the x- and y-directions
         int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
         Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]) / mf_y;
         num  = 8000. * a * a * a;
+
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Clip indices for ghost-cells
