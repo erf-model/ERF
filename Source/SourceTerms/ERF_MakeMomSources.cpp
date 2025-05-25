@@ -143,12 +143,16 @@ void make_mom_sources (Real time,
     if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding ||
                          enforce_massflux_x || enforce_massflux_y))
     {
+        const int offset = 1;
+        const int u_offset = 1;
+        const int v_offset = 1;
+
         //
         // We use the alias here to control ncomp inside the PlaneAverage
         //
         MultiFab cons(S_data[IntVars::cons], make_alias, 0, 1);
 
-        IntVect ng_c = S_data[IntVars::cons].nGrowVect(); ng_c[2] = 1;
+        IntVect ng_c = S_data[IntVars::cons].nGrowVect(); ng_c[2] = offset;
         PlaneAverage r_ave(&cons, geom, solverChoice.ave_plane, ng_c);
         r_ave.compute_averages(ZDir(), r_ave.field());
 
@@ -165,7 +169,6 @@ void make_mom_sources (Real time,
         Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
         r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
 
-        int offset = ng_c[2];
         dptr_r_plane = r_plane_tab.table();
         ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
@@ -173,10 +176,10 @@ void make_mom_sources (Real time,
         });
 
         // U and V momentum
-        IntVect ng_u = S_data[IntVars::xmom].nGrowVect(); ng_u[2] = 1;
+        IntVect ng_u = S_data[IntVars::xmom].nGrowVect(); ng_u[2] = u_offset;
         PlaneAverage u_ave(&(S_data[IntVars::xmom]), geom, solverChoice.ave_plane, ng_u);
 
-        IntVect ng_v = S_data[IntVars::ymom].nGrowVect(); ng_v[2] = 1;
+        IntVect ng_v = S_data[IntVars::ymom].nGrowVect(); ng_v[2] = v_offset;
         PlaneAverage v_ave(&(S_data[IntVars::ymom]), geom, solverChoice.ave_plane, ng_v);
 
         u_ave.compute_averages(ZDir(), u_ave.field());
@@ -201,14 +204,12 @@ void make_mom_sources (Real time,
         u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
         v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
 
-        int u_offset = ng_u[2];
         dptr_u_plane = u_plane_tab.table();
         ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
             dptr_u_plane(k-u_offset) = dptr_u[k];
         });
 
-        int v_offset = ng_v[2];
         dptr_v_plane = v_plane_tab.table();
         ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
