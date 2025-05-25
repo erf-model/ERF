@@ -223,10 +223,10 @@ void make_mom_sources (Real time,
                 Real Ly = geom.ProbHi(1) - geom.ProbLo(1);
                 Real Lz = geom.ProbHi(2) - geom.ProbLo(2);
                 // average rho*u, rho*v
-                rhoUA = std::accumulate(u_plane_h.begin(), u_plane_h.end(), 0.0) / u_plane_h.size();
-                rhoVA = std::accumulate(v_plane_h.begin(), v_plane_h.end(), 0.0) / v_plane_h.size();
-                rhoUA *= Ly * Lz;
-                rhoVA *= Lx * Lz;
+                rhoUA = std::accumulate(u_plane_h.begin() + u_offset, u_plane_h.end() - u_offset, 0.0);
+                rhoVA = std::accumulate(v_plane_h.begin() + v_offset, v_plane_h.end() - v_offset, 0.0);
+                rhoUA = rhoUA / domain.length(2) * Ly * Lz;
+                rhoVA = rhoVA / domain.length(2) * Lx * Lz;
             } else { // MeshType::StretchedDz, MeshType::VariableDz
                 if (solverChoice.mesh_type == MeshType::VariableDz) {
                     Warning("Planar averages on k rather than constant-z planes");
