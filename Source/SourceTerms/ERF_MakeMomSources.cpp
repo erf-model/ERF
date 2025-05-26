@@ -34,6 +34,7 @@ void make_mom_sources (Real time,
                        const Vector<MultiFab>& S_data,
                              MultiFab& z_phys_nd,
                              MultiFab& z_phys_cc,
+                             Vector<Real>& stretched_dz_h,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& wvel,
@@ -218,20 +219,27 @@ void make_mom_sources (Real time,
 
         // sum in z for massflux adjustment
         if (enforce_massflux_x || enforce_massflux_y) {
+            Real Lx = geom.ProbHi(0) - geom.ProbLo(0);
+            Real Ly = geom.ProbHi(1) - geom.ProbLo(1);
+            Real Lz = geom.ProbHi(2) - geom.ProbLo(2);
+
             if (solverChoice.mesh_type == MeshType::ConstantDz) {
-                Real Lx = geom.ProbHi(0) - geom.ProbLo(0);
-                Real Ly = geom.ProbHi(1) - geom.ProbLo(1);
-                Real Lz = geom.ProbHi(2) - geom.ProbLo(2);
-                // average rho*u, rho*v
                 rhoUA = std::accumulate(u_plane_h.begin() + u_offset, u_plane_h.end() - u_offset, 0.0);
                 rhoVA = std::accumulate(v_plane_h.begin() + v_offset, v_plane_h.end() - v_offset, 0.0);
                 rhoUA = rhoUA / domain.length(2) * Ly * Lz;
                 rhoVA = rhoVA / domain.length(2) * Lx * Lz;
-            } else { // MeshType::StretchedDz, MeshType::VariableDz
-                if (solverChoice.mesh_type == MeshType::VariableDz) {
-                    Warning("Planar averages on k rather than constant-z planes");
+            } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+                for (int k=0; k < domain.length(2); ++k) {
+                    rhoUA += u_plane_h[k+u_offset] * stretched_dz_h[k];
                 }
-
+                for (int k=0; k < domain.length(2); ++k) {
+                    rhoVA += v_plane_h[k+v_offset] * stretched_dz_h[k];
+                }
+                rhoUA = rhoUA * Ly;
+                rhoVA = rhoVA * Lx;
+            } else { // solverChoice.mesh_type == MeshType::VariableDz
+                Error("Variable dz not supported -- planar averages are on k rather than constant-z planes");
+#if 0
                 Real dx = geom.CellSize(0);
                 Real dy = geom.CellSize(1);
 
@@ -281,6 +289,7 @@ void make_mom_sources (Real time,
 
                 rhoUA = rhoUA * dy; // == sum(u[k] * dy * dz[j,k])
                 rhoVA = rhoUA * dx; // == sum(v[k] * dx * dz[i,k])
+#endif
             }
             Print() << "Integrated mass flux : " << rhoUA << " " << rhoVA << std::endl;
         }
