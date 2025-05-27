@@ -196,7 +196,7 @@ def ReadERA5_3DData(file_path, is_IC):
 
 	print("size is ", len(qv_3d_hr3))
 
-	pressure_typical = np.loadtxt("pressure_vs_z_actual.txt")
+	pressure_typical = np.loadtxt("./TypicalAtmosphereData/pressure_vs_z_actual.txt")
 	pressure_interp_func = interp1d(pressure_typical[:,1], pressure_typical[:,0], kind='linear', fill_value="extrapolate")
 
 	# Find the index of the desired pressure level
