@@ -74,8 +74,6 @@ public:
         rad_run_impl();
     }
 
-    virtual void WriteDataLog(const amrex::Real &time) override {};
-
     // Set the grid info for columnar data in YAKL
     void
     set_grids (int& level,
