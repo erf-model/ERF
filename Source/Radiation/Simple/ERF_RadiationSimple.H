@@ -20,7 +20,7 @@ public:
         if (sc.moisture_type != MoistureType::None) { moist = true; }
 
         // Check if we have a moisture model with ice
-        if (sc.moisture_type == MoistureType::SAM)  { ice = true; }
+        if (sc.moisture_type == MoistureType::SAM || sc.moisture_type == MoistureType::Kessler || sc.moisture_type == MoistureType::Morrison)  { ice = true; }
     };
 
     ~RadiationSimple() = default;
