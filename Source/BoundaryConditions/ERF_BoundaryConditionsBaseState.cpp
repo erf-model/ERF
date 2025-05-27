@@ -246,7 +246,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
 }
 
 void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& dest_arr,
-                                                         const Array4<Real const>& z_phys_nd,
+                                                         const Array4<Real const>& /*z_phys_nd*/,
                                                          const Box& bx,
                                                          const Box& domain,
                                                          int ncomp,
@@ -261,12 +261,8 @@ void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& des
     ParallelFor(
         bx_zlo1, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // TODO: There is an inconsistency between getExnergivenP and getExnergivenRTh here
-            Real hz = Compute_Zrel_AtCellCenter(i,j,k,z_phys_nd);
-            Real r0 = dest_arr(i,j,dom_lo.z,BaseState::r0_comp);
-            Real p0 = dest_arr(i,j,dom_lo.z,BaseState::p0_comp);
-            dest_arr(i,j,k,BaseState::r0_comp)  = r0;
-            dest_arr(i,j,k,BaseState::p0_comp)  = p0 - r0 * hz * CONST_GRAV;
+            dest_arr(i,j,k,BaseState::r0_comp)  = dest_arr(i,j,dom_lo.z,BaseState::r0_comp);
+            dest_arr(i,j,k,BaseState::p0_comp)  = dest_arr(i,j,dom_lo.z,BaseState::p0_comp);
             dest_arr(i,j,k,BaseState::pi0_comp) = dest_arr(i,j,dom_lo.z,BaseState::pi0_comp);
             dest_arr(i,j,k,BaseState::th0_comp) = dest_arr(i,j,dom_lo.z,BaseState::th0_comp);
         }

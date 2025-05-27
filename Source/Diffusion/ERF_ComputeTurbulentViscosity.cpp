@@ -71,7 +71,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
 
             Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
-            Array4<Real const> mf_v = mapfac[MapFacType::v_x]->const_array(mfi);
+            Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
 
             Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
@@ -151,7 +151,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             const Array4<Real const > &cell_data = cons_in.array(mfi);
 
             Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
-            Array4<Real const> mf_v = mapfac[MapFacType::v_x]->const_array(mfi);
+            Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
 
             Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 

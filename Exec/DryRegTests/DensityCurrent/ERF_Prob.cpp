@@ -42,7 +42,7 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& z_cc,
     GeometryData const& geomdata,
-    Array4<Real const> const& /*mf_m*/,
+    Array4<Real const> const&   mf_m,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
@@ -51,10 +51,11 @@ Problem::init_custom_pert(
     const bool const_rho    =  sc.fixed_density;
 
     const Real l_x_r = parms.x_r;
-    //const Real l_x_r = parms.x_r * mf_u(0,0,0); //used to validate constant msf
-    const Real l_z_r = parms.z_r;
     const Real l_x_c = parms.x_c;
+
+    const Real l_z_r = parms.z_r;
     const Real l_z_c = parms.z_c;
+
     const Real l_Tpt = parms.T_pert;
     const Real rdOcp = sc.rdOcp;
 
@@ -65,7 +66,7 @@ Problem::init_custom_pert(
         const auto prob_lo = geomdata.ProbLo();
         const auto dx      = geomdata.CellSize();
 
-        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real x = ( prob_lo[0] + (i + 0.5) * dx[0] ) / mf_m(i,j,0);
         const Real z = z_cc(i,j,k);
 
         Real L = std::sqrt(
@@ -103,7 +104,7 @@ Problem::init_custom_pert(
         const auto prob_lo = geomdata.ProbLo();
         const auto dx      = geomdata.CellSize();
 
-        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real x = ( prob_lo[0] + (i + 0.5) * dx[0] ) / mf_m(i,j,0);
         const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         Real L = std::sqrt(

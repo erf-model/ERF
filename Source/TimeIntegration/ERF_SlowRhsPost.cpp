@@ -240,7 +240,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (solverChoice.terrain_type != TerrainType::EB) {
                 flux[dir].resize(surroundingNodes(tbx,dir),nvars);
             } else {
-                flux[dir].resize(surroundingNodes(tbx,dir).grow(1),1);
+                flux[dir].resize(surroundingNodes(tbx,dir).grow(1),nvars);
             }
             flux[dir].setVal<RunOn::Device>(0.);
             if (l_use_mono_adv) {

@@ -177,7 +177,6 @@ define( int const& a_idim,
         } else if ( flag(iv_lo).isRegular() && flag(iv_hi).isRegular()) {
 
           aux_flag(i,j,k).setRegular();
-          aux_flag(i,j,k).setConnected(vdim);
 
           aux_vfrac(i,j,k) = 1.0;
 
@@ -444,7 +443,6 @@ define( int const& a_idim,
           } else if (lo_eb_cc.isRegular() && hi_eb_cc.isRegular()) {
 
             aux_flag(i,j,k).setRegular();
-            aux_flag(i,j,k).setConnected(vdim);
 
             aux_vfrac(i,j,k) = 1.0;
 
@@ -480,7 +478,6 @@ define( int const& a_idim,
           } else {
 
             aux_flag(i,j,k).setSingleValued();
-            aux_flag(i,j,k).setConnected(vdim);
 
             // 1. Volume Fraction
 
@@ -737,10 +734,17 @@ define( int const& a_idim,
           }
 
         } // flag(iv_lo) and flag(iv_hi)
-
       });
 
-    }
+
+      // Set Connectivities
+
+      ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        EB2::build_cellflag_from_ap (i, j, k, aux_flag, aux_afrac_x, aux_afrac_y, aux_afrac_z);
+      });
+
+    } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
 
   } // MFIter
 
