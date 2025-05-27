@@ -632,8 +632,8 @@ ERF::volWgtSumMF (int lev,
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
     // m is the map scale factor at cell centers
     for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        const auto  tmp = tmp.array(mfi);
+        const Box& bx   = mfi.tilebox();
+        const auto  dst = tmp.array(mfi);
         const auto& mfx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
         const auto& mfy = mapfac[lev][MapFacType::m_y]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
