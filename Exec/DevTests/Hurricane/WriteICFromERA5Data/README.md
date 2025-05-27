@@ -19,7 +19,8 @@ Note: The geogprahical area is specified as latitude maximum, longitude minimum,
 
 3. `python3 ReadERA5DataAndWriteERF_IC.py <input_file>`   
 
-4. The output VTK files for visualization is written into a directory `Output`.
+4. The output VTK files for visualization is written into a directory `Output`. The initial condition binary file for ERF   
+is also written into `Output`.
 
 An example input is given in the input file `input_for_era5`. Run `python3 ReadERA5DataAndWriteERF_IC.py input_for_era5`.  
 
