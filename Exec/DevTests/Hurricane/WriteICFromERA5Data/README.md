@@ -27,5 +27,5 @@ is also written into `Output`.
 An example input is given in the input file `input_for_era5`. 
 
 1. Run `python3 ReadERA5DataAndWriteERF_IC.py input_for_era5`.  
-2. Visualize the VTK files in `Output` in VisIt or ParaView.
+2. Visualize the VTK files in the `Output` directory in VisIt or ParaView.
 
