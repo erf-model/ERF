@@ -3,25 +3,16 @@
 
 This folder contains examples for hurricane simulations from real weather data.
 
-## Hurricane Henri
+1. Generate the initial condition file (`*bin`) for ERF from ERA5 weather data. See the README section of 
+[WriteICFromERA5Data](https://github.com/erf-model/ERF/tree/development/Exec/DevTests/Hurricane) for details.
 
-1. Download the initial condition file 
-
+2. `make -j8
+3. Run the simulation with the inputs option 
 ```
-wget https://zenodo.org/record/15043093/files/ERF_IC_HenriERA5_20210819_VeryLarge.bin
+erf.IC_file = <ERF_IC_file (*bin)>
 ```
+to initialize the simulation with the ERA5 data.
 
-2. `make -j8`
-3. Run with `inputs_20210819_Henri_NoAMR`
+## Example
 
-## Hurricane Laura
-
-1. Download the initial condition file 
-
-```
-wget https://zenodo.org/record/15043093/files/ERF_IC_Laura_LargeDomain.bin
-```
-
-2. `make -j8`.
-3. Run with `inputs_20200826_Laura_NoAMR` or `inputs_20200826_Laura_2LevelAMR`.
-
+1. TBD

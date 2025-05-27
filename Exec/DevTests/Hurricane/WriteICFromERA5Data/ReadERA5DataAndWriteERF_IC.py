@@ -355,13 +355,6 @@ def ReadERA5_3DData(file_path, is_IC):
 
 	plot_1d(temp_3d, pressure_3d, theta_3d, qv_3d, qsat_3d, z_grid, k_to_delete)
 	
-# Specify the path to your GRIB2 file
-file_paths = ["Laura_LargeDomain.grib",
-			  #"gdas1.fnl0p25.2021082106.f00.grib2",
-			  #"gdas1.fnl0p25.2021082112.f00.grib2",
-			  #"gdas1.fnl0p25.2021082118.f00.grib2"
-			]
-
 if __name__ == "__main__":
 	if len(sys.argv) != 2:
 		print("Usage: python3 download_era5.py <input_filename>")

@@ -22,10 +22,10 @@ If any packages are missing, install them using `pip install <package>`
 4. The output VTK files for visualization is written into a directory `Output`. The initial condition binary file (`*bin`) for ERF   
 is also written into `Output`.
 
-## Example
+## Examples
 
-An example input is given in the input file `input_for_era5`. 
+Example inputs are given in the input file `input_for_era5_Laura` and `input_for_era5_Henri`. 
 
-1. Run `python3 ReadERA5DataAndWriteERF_IC.py input_for_era5`.  
+1. Run `python3 ReadERA5DataAndWriteERF_IC.py input_for_era5_Laura`.  
 2. Visualize the VTK files in the `Output` directory in VisIt or ParaView.
 

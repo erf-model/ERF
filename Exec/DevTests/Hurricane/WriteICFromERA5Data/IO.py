@@ -247,7 +247,7 @@ def find_erf_domain_extents(x_grid, y_grid, nx, ny):
 	
 	y2 = y_grid[0,i1]
 
-	ymin = min(y1,y2) + 100e3 
+	ymin = max(y1,y2) + 100e3 
 	
 	print("xmin, xmax, ymin, ymax are ", xmin, xmax, ymin, ymax);
 	
@@ -264,8 +264,10 @@ def write_binary_vtk_cartesian(output_binary, domain_lats, domain_lons,
 	#print("xmin, xmax, ymin, ymax are ", xmin, xmax, ymin, ymax);
 	
 
-	nx_erf = 321
-	ny_erf = 161
+	print("Value of nx and ny are ", nx, ny)
+
+	nx_erf = ny
+	ny_erf = nx
 	nz_erf= nz - len(k_to_delete) + 1
 	dx = (xmax - xmin)/(nx_erf-1)
 	dy = (ymax - ymin)/(ny_erf-1)
