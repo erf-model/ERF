@@ -132,7 +132,7 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf)
 
         // If all Neumann BCs, adjust RHS to make sure we can converge
         if (need_adjust_rhs) {
-            Real offset = volWgtSumMF(lev, rhs[0], 0, *mapfac[lev][MapFacType::m_x], false);
+            Real offset = volWgtSumMF(lev, rhs[0], 0, false);
             // amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
             rhs[0].plus(-offset, 0, 1);
         }
