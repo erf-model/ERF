@@ -15,7 +15,7 @@ day: 26
 time: 00:00
 area: 50,-130,10,-50
 ```
-Note: The geogprahical area is specified as latitude maximum, longitude minimum, latitude minimum, longitude maximum.
+Note: The geographical area is specified as latitude maximum, longitude minimum, latitude minimum, longitude maximum.
 
 3. `python3 ReadERA5DataAndWriteERF_IC.py <input_file>`   
 
