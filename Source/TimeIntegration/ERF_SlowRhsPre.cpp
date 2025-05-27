@@ -95,6 +95,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                        const Vector<BCRec>& domain_bcs_type_h,
                        const MultiFab& z_phys_nd,
+                       const MultiFab& z_phys_cc,
                        const MultiFab& ax, const MultiFab& ay, const MultiFab& az,
                        const MultiFab& detJ,
                        Gpu::DeviceVector<Real>& stretched_dz_d,
@@ -340,6 +341,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         // Terrain metrics
         const Array4<const Real>& z_nd = z_phys_nd.const_array(mfi);
+        const Array4<const Real>& z_cc = z_phys_cc.const_array(mfi);
 
         // *****************************************************************************
         // Define flux arrays for use in advection
@@ -574,7 +576,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
-                                       z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
+                                       z_nd, z_cc, ax_arr, ay_arr, az_arr, detJ_arr,
                                        dxInv, SmnSmn_a,
                                        mf_mx, mf_ux, mf_vx,
                                        mf_my, mf_uy, mf_vy,
