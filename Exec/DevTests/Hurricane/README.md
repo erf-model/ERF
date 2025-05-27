@@ -3,7 +3,7 @@
 
 This folder contains examples for hurricane simulations from real weather data.
 
-1. Generate the initial condition file (`*bin`) for ERF from ERA5 weather data. See the README section of 
+1. Generate the initial condition file (`*.bin`) for ERF from ERA5 weather data. See the README section of 
 [WriteICFromERA5Data](https://github.com/erf-model/ERF/tree/development/Exec/DevTests/Hurricane) for details.
 
 2. `make -j8
