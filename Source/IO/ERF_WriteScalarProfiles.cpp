@@ -638,7 +638,7 @@ ERF::volWgtSumMF (int lev,
         const auto& mfy = mapfac[lev][MapFacType::m_y]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            tmp(i,j,k) /= (mfx(i,j,0)*mfy(i,j,0));
+            dst(i,j,k) /= (mfx(i,j,0)*mfy(i,j,0));
         });
     } // mfi
 
