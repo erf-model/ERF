@@ -5,7 +5,8 @@
 using namespace amrex;
 
 /**
- * Function for computing the momentum RHS for diffusion operator with terrain.
+ * Function for computing the momentum RHS for diffusion operator with terrain
+ * or stretched dz.
  *
  * @param[in]  bxx nodal x box for x-mom
  * @param[in]  bxy nodal y box for y-mom
