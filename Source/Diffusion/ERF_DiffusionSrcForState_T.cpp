@@ -302,8 +302,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
-                Real dz0  = z_cc(i,j,k+1) - z_cc(i,j,k  );
-                Real dz1  = z_cc(i,j,k+2) - z_cc(i,j,k+1);
+                Real zm   = Compute_Z_AtWFace(i,j,k+1,z_nd);
+                Real dz0  = zm - Compute_Z_AtWFace(i,j,k,z_nd);
+                Real dz1  = Compute_Z_AtWFace(i,j,k+2,z_nd) - zm;
                 Real idz0 = 1.0 / dz0;
                 Real f    = (dz1 / dz0) + 2.0;
                 Real f2   = f*f;
@@ -315,8 +316,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
             } else if (ext_dir_on_zhi) {
                 // Third order stencil with variable dz
-                Real dz0  = z_cc(i,j,k  ) - z_cc(i,j,k-1);
-                Real dz1  = z_cc(i,j,k-1) - z_cc(i,j,k-2);
+                Real zm   = Compute_Z_AtWFace(i,j,k-1,z_nd);
+                Real dz0  = Compute_Z_AtWFace(i,j,k,z_nd) - zm;
+                Real dz1  = zm - Compute_Z_AtWFace(i,j,k-2,z_nd);
                 Real idz0 = 1.0 / dz0;
                 Real f    = (dz1 / dz0) + 2.0;
                 Real f2   = f*f;
@@ -435,8 +437,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
-                Real dz0  = z_cc(i,j,k+1) - z_cc(i,j,k  );
-                Real dz1  = z_cc(i,j,k+2) - z_cc(i,j,k+1);
+                Real zm   = Compute_Z_AtWFace(i,j,k+1,z_nd);
+                Real dz0  = zm - Compute_Z_AtWFace(i,j,k,z_nd);
+                Real dz1  = Compute_Z_AtWFace(i,j,k+2,z_nd) - zm;
                 Real idz0 = 1.0 / dz0;
                 Real f    = (dz1 / dz0) + 2.0;
                 Real f2   = f*f;
@@ -448,8 +451,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
             } else if (ext_dir_on_zhi) {
                 // Third order stencil with variable dz
-                Real dz0  = z_cc(i,j,k  ) - z_cc(i,j,k-1);
-                Real dz1  = z_cc(i,j,k-1) - z_cc(i,j,k-2);
+                Real zm   = Compute_Z_AtWFace(i,j,k-1,z_nd);
+                Real dz0  = Compute_Z_AtWFace(i,j,k,z_nd) - zm;
+                Real dz1  = zm - Compute_Z_AtWFace(i,j,k-2,z_nd);
                 Real idz0 = 1.0 / dz0;
                 Real f    = (dz1 / dz0) + 2.0;
                 Real f2   = f*f;
@@ -564,8 +568,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
-                Real dz0  = z_cc(i,j,k+1) - z_cc(i,j,k  );
-                Real dz1  = z_cc(i,j,k+2) - z_cc(i,j,k+1);
+                Real zm   = Compute_Z_AtWFace(i,j,k+1,z_nd);
+                Real dz0  = zm - Compute_Z_AtWFace(i,j,k,z_nd);
+                Real dz1  = Compute_Z_AtWFace(i,j,k+2,z_nd) - zm;
                 Real idz0 = 1.0 / dz0;
                 Real f    = (dz1 / dz0) + 2.0;
                 Real f2   = f*f;
@@ -577,8 +582,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
             } else if (ext_dir_on_zhi) {
                 // Third order stencil with variable dz
-                Real dz0  = z_cc(i,j,k  ) - z_cc(i,j,k-1);
-                Real dz1  = z_cc(i,j,k-1) - z_cc(i,j,k-2);
+                Real zm   = Compute_Z_AtWFace(i,j,k-1,z_nd);
+                Real dz0  = Compute_Z_AtWFace(i,j,k,z_nd) - zm;
+                Real dz1  = zm - Compute_Z_AtWFace(i,j,k-2,z_nd);
                 Real idz0 = 1.0 / dz0;
                 Real f    = (dz1 / dz0) + 2.0;
                 Real f2   = f*f;
@@ -691,8 +697,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
-                Real dz0  = z_cc(i,j,k+1) - z_cc(i,j,k  );
-                Real dz1  = z_cc(i,j,k+2) - z_cc(i,j,k+1);
+                Real zm   = Compute_Z_AtWFace(i,j,k+1,z_nd);
+                Real dz0  = zm - Compute_Z_AtWFace(i,j,k,z_nd);
+                Real dz1  = Compute_Z_AtWFace(i,j,k+2,z_nd) - zm;
                 Real idz0 = 1.0 / dz0;
                 Real f    = (dz1 / dz0) + 2.0;
                 Real f2   = f*f;
@@ -704,8 +711,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
             } else if (ext_dir_on_zhi) {
                 // Third order stencil with variable dz
-                Real dz0  = z_cc(i,j,k  ) - z_cc(i,j,k-1);
-                Real dz1  = z_cc(i,j,k-1) - z_cc(i,j,k-2);
+                Real zm   = Compute_Z_AtWFace(i,j,k-1,z_nd);
+                Real dz0  = Compute_Z_AtWFace(i,j,k,z_nd) - zm;
+                Real dz1  = zm - Compute_Z_AtWFace(i,j,k-2,z_nd);
                 Real idz0 = 1.0 / dz0;
                 Real f    = (dz1 / dz0) + 2.0;
                 Real f2   = f*f;
