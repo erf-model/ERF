@@ -14,8 +14,9 @@
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  */
-void make_buoyancy (const amrex::Vector<  amrex::MultiFab>& S_data,
-                    const           amrex::MultiFab & S_prim,
+void make_buoyancy (const amrex::Vector<amrex::MultiFab>& S_data,
+                    const               amrex::MultiFab & S_prim,
+                    const               amrex::MultiFab & qt,
                     amrex::MultiFab& buoyancy,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
@@ -26,16 +27,20 @@ void make_buoyancy (const amrex::Vector<  amrex::MultiFab>& S_data,
 void make_gradp_pert (int level,
                       const SolverChoice& solverChoice,
                       const amrex::Geometry& geom,
-                      amrex::MultiFab& S_data,
+                      amrex::Vector<amrex::MultiFab>& S_data,
                       amrex::MultiFab& p0,
                       amrex::MultiFab& z_phys_nd,
                       amrex::MultiFab& z_phys_cc,
+                      amrex::BCRec const* bcrec_ptr,
+                      const eb_& ebfact,
                       amrex::Vector<amrex::MultiFab>& gradp);
 
 void compute_gradp (const amrex::MultiFab& p,
                     const amrex::Geometry& geom,
                     amrex::MultiFab& z_phys_nd,
                     amrex::MultiFab& z_phys_cc,
+                    amrex::BCRec const* bcrec_ptr,
+                    const eb_& ebfact,
                     amrex::Vector<amrex::MultiFab>& gradp,
                     const SolverChoice& solverChoice);
 
@@ -45,7 +50,7 @@ void make_sources (int level, int nrk,
                    const amrex::MultiFab& S_prim,
                          amrex::MultiFab& cc_source,
                    const amrex::MultiFab& base_state,
-                   std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                   const amrex::MultiFab* z_phys_cc,
                    const amrex::MultiFab* qheating_rates,
                    amrex::MultiFab* terrain_blank,
                    const amrex::Geometry geom,

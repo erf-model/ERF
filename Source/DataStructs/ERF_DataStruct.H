@@ -18,8 +18,12 @@
 #include <ERF_TurbPertStruct.H>
 
 enum MapFacType {
+//  This version assumes isotropic
     m_x, u_x, v_x, num,
     m_y = 0, u_y = 1, v_y = 2
+//  This version allows for non-isotropic
+//  m_x, u_x, v_x,
+//  m_y, u_y, v_y, num
 };
 
 enum TauType {

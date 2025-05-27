@@ -647,7 +647,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             if ( (containerHasElement(plot_var_names, "dpdx")) ||
                  (containerHasElement(plot_var_names, "dpdy")) ||
                  (containerHasElement(plot_var_names, "dpdz")) ) {
-                compute_gradp(pressure, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), gradp_temp, solverChoice);
+                BCRec const* bcrec_ptr = domain_bcs_type_d.data();
+                compute_gradp(pressure, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
             }
         }
 
@@ -656,11 +657,12 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
-                const Array4<Real      >&  derdat  = mf[lev].array(mfi);
-                const Array4<Real const>&  gpx_arr = (solverChoice.anelastic[lev] == 1) ?
+                const Array4<Real      >&   derdat  = mf[lev].array(mfi);
+                const Array4<Real const>&   gpx_arr = (solverChoice.anelastic[lev] == 1) ?
                       gradp[lev][GpVars::gpx].array(mfi) : gradp_temp[GpVars::gpx].array(mfi);
+                const Array4<Real const>& mf_mx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k));
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k)) * mf_mx_arr(i,j,0);
                 });
             }
             mf_comp ++;
@@ -670,11 +672,12 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
-                const Array4<Real      >&  derdat  = mf[lev].array(mfi);
-                const Array4<Real const>&  gpy_arr = (solverChoice.anelastic[lev] == 1) ?
+                const Array4<Real      >&   derdat  = mf[lev].array(mfi);
+                const Array4<Real const>&   gpy_arr = (solverChoice.anelastic[lev] == 1) ?
                       gradp[lev][GpVars::gpy].array(mfi) : gradp_temp[GpVars::gpy].array(mfi);
+                const Array4<Real const>& mf_my_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k));
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k)) * mf_my_arr(i,j,0);
                 });
             }
             mf_comp ++;
@@ -700,7 +703,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
         if ( (containerHasElement(plot_var_names, "pres_hse_x")) ||
              (containerHasElement(plot_var_names, "pres_hse_y")) ) {
-            compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), gradp_temp, solverChoice);
+            BCRec const* bcrec_ptr = domain_bcs_type_d.data();
+            compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
         }
 
         if (containerHasElement(plot_var_names, "pres_hse_x"))
@@ -710,8 +714,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >&  derdat  = mf[lev].array(mfi);
                 const Array4<Real const>&  gpx_arr = gradp_temp[0].array(mfi);
+                const Array4<Real const>& mf_mx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k));
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k)) * mf_mx_arr(i,j,0);
                 });
             }
             mf_comp += 1;
@@ -724,8 +729,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >&  derdat  = mf[lev].array(mfi);
                 const Array4<Real const>&  gpy_arr = gradp_temp[1].array(mfi);
+                const Array4<Real const>& mf_my_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k));
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k)) * mf_my_arr(i,j,0);
                 });
             }
             mf_comp += 1;
@@ -952,21 +958,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 mf_comp += 1;
             }
 
-            // Non-precipitating components
-            //--------------------------------------------------------------------------
-            if(containerHasElement(plot_var_names, "qt"))
-            {
-                int n_start = RhoQ1_comp; // qv
-                int n_end   = RhoQ2_comp; // qc
-                if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
-                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
-                    MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
-                }
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
             if(containerHasElement(plot_var_names, "qv") && (n_qstate_moist >= 1))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ1_comp, mf_comp, 1, 0);
@@ -984,20 +975,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             if(containerHasElement(plot_var_names, "qi") && (n_qstate_moist >= 4))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ3_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
-            // Precipitating components
-            //--------------------------------------------------------------------------
-            if(containerHasElement(plot_var_names, "qp") && (n_qstate_moist >= 3))
-            {
-                int n_start = (n_qstate_moist > 3) ? RhoQ4_comp : RhoQ3_comp;
-                int n_end   = ncomp_cons - 1;
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
-                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
-                    MultiFab::Add(  mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
-                }
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
@@ -1021,6 +998,49 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ6_comp, mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            // Precipitating + non-precipitating components
+            //--------------------------------------------------------------------------
+            if(containerHasElement(plot_var_names, "qt"))
+            {
+                int n_start = RhoQ1_comp; // qv
+                int n_end   = n_qstate_moist;
+                MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
+                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
+                    MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
+                }
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            // Non-precipitating components
+            //--------------------------------------------------------------------------
+            if (containerHasElement(plot_var_names, "qn"))
+            {
+                int n_start = RhoQ1_comp; // qv
+                int n_end   = RhoQ2_comp; // qc
+                if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
+                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
+                    MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
+                }
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            // Precipitating components
+            //--------------------------------------------------------------------------
+            if(containerHasElement(plot_var_names, "qp") && (n_qstate_moist >= 3))
+            {
+                int n_start = (n_qstate_moist > 3) ? RhoQ4_comp : RhoQ3_comp;
+                int n_end   = ncomp_cons - 1;
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
+                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
+                    MultiFab::Add(  mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
+                }
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
 

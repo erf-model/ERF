@@ -56,7 +56,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         }
 
         make_sources(level, nrk, dtau, old_substep_time,
-                     Svec_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level],
+                     Svec_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level].get(),
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
@@ -117,7 +117,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
-                            S_slow_rhs, Svec_to_use, S_stage, S_prim, pi_stage, fast_coeffs,
+                            S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
                             S_data, S_scratch,
                             cc_src, xmom_src, ymom_src, zmom_src,
                             fine_geom,
@@ -131,7 +131,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         } else if (solverChoice.mesh_type != MeshType::ConstantDz) {
 
             erf_fast_rhs_T(fast_step, nrk, level, finest_level,
-                           S_slow_rhs, Svec_to_use, S_stage, S_prim, pi_stage, fast_coeffs,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
                            S_data, S_scratch,
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity,
@@ -142,7 +142,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         } else {
 
             erf_fast_rhs_N(fast_step, nrk, level, finest_level,
-                           S_slow_rhs, Svec_to_use, S_stage, S_prim, pi_stage, fast_coeffs,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
                            S_data, S_scratch,
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity,

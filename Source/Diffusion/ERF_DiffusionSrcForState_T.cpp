@@ -59,8 +59,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const Array4<const Real>& SmnSmn_a,
                         const Array4<const Real>& mf_mx,
-                        const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_ux,
+                        const Array4<const Real>& mf_vx,
+                        const Array4<const Real>& mf_my,
+                        const Array4<const Real>& mf_uy,
                         const Array4<const Real>& mf_vy,
                               Array4<      Real>& hfx_x,
                               Array4<      Real>& hfx_y,
@@ -683,7 +685,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_lo+1) + yflux(i  , j+1, k_lo+1) );
             Real yfluxbar = 1.5*yfluxlo - 0.5*yfluxhi;
 
-            zflux(i,j,k_lo) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
+            zflux(i,j,k_lo) -= met_h_xi*mf_mx(i,j,0)*xfluxbar + met_h_eta*mf_my(i,j,0)*yfluxbar;
           }
 
           { // Top face
@@ -698,7 +700,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_hi-1) + yflux(i  , j+1, k_hi-1) );
             Real yfluxbar = 1.5*yfluxhi - 0.5*yfluxlo;
 
-            zflux(i,j,k_hi) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
+            zflux(i,j,k_hi) -= met_h_xi*mf_mx(i,j,0)*xfluxbar + met_h_eta*mf_my(i,j,0)*yfluxbar;
           }
       });
     }
@@ -714,18 +716,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
       Real yfluxbar = 0.25 * ( yflux(i  , j  , k  ) + yflux(i  , j+1, k  )
                              + yflux(i  , j  , k-1) + yflux(i  , j+1, k-1) );
 
-      zflux(i,j,k) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
+      zflux(i,j,k) -= met_h_xi*mf_mx(i,j,0)*xfluxbar + met_h_eta*mf_my(i,j,0)*yfluxbar;
     });
     // Multiply h_zeta by x/y-fluxes
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
       Real met_h_zeta = Compute_h_zeta_AtIface(i,j,k,cellSizeInv,z_nd);
-      xflux(i,j,k) *= met_h_zeta;
+      xflux(i,j,k) *= met_h_zeta/mf_uy(i,j,0);
     });
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
       Real met_h_zeta = Compute_h_zeta_AtJface(i,j,k,cellSizeInv,z_nd);
-      yflux(i,j,k) *= met_h_zeta;
+      yflux(i,j,k) *= met_h_zeta/mf_vx(i,j,0);
     });
 
 
@@ -733,9 +735,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     //-----------------------------------------------------------------------------------
     ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real stateContrib = (xflux(i+1,j  ,k  ) - xflux(i, j, k)) * dx_inv * mf_mx(i,j,0)  // Diffusive flux in x-dir
-                           +(yflux(i  ,j+1,k  ) - yflux(i, j, k)) * dy_inv * mf_my(i,j,0)  // Diffusive flux in y-dir
-                           +(zflux(i  ,j  ,k+1) - zflux(i, j, k)) * dz_inv;  // Diffusive flux in z-dir
+        Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+        Real stateContrib = (xflux(i+1,j  ,k  ) - xflux(i, j, k)) * dx_inv * mfsq  // Diffusive flux in x-dir
+                           +(yflux(i  ,j+1,k  ) - yflux(i, j, k)) * dy_inv * mfsq  // Diffusive flux in y-dir
+                           +(zflux(i  ,j  ,k+1) - zflux(i, j, k)) * dz_inv;        // Diffusive flux in z-dir
 
         stateContrib /= detJ(i,j,k);
 

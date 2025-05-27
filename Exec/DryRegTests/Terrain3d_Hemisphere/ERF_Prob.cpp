@@ -1,3 +1,5 @@
+#include <AMReX_ParmParse.H>
+
 #include "ERF_Prob.H"
 #include "ERF_TerrainMetrics.H"
 
@@ -78,7 +80,7 @@ Problem::init_custom_pert (
                                           + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
             : prob_lo[2] + (k + 0.5) * dx[2];
 
-        x_vel_pert(i, j, k) = 10.0;
+        x_vel_pert(i, j, k) = 0.0;
         if ((z <= parms_d.pert_ref_height) && (parms_d.U_0_Pert_Mag != 0.0))
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
@@ -169,6 +171,24 @@ Problem::init_custom_terrain (
 
     Box zbx = terrain_fab.box();
 
+    //
+    // We put this here as a convenience for testing the map factor implementation
+    // Note that these factors must match those in Source/ERF_MakeNewArrays.cpp
+    //
+    ParmParse pp("erf");
+    bool test_mapfactor;
+    pp.query("test_mapfactor",test_mapfactor);
+
+    Real mf_x, mf_y;
+
+    if (test_mapfactor) {
+        mf_x = 0.5;
+        mf_y = 0.25;
+    } else {
+        mf_x = 1.;
+        mf_y = 1.;
+    }
+
     if (zbx.smallEnd(2) <= k0)
     {
         amrex::Array4<Real> const& z_arr = terrain_fab.array();
@@ -181,8 +201,8 @@ Problem::init_custom_terrain (
             int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
             // Location of nodes
-            Real x = (ii  * dx[0] - xcen);
-            Real y = (jj  * dx[1] - ycen);
+            Real x = (ii  * dx[0] - xcen) * mf_x;
+            Real y = (jj  * dx[1] - ycen) * mf_y;
 
             if(std::pow(x*x + y*y, 0.5) < a){
                 z_arr(i,j,k0) = std::pow(a*a - x*x - y*y , 0.5);
