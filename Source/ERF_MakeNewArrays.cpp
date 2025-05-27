@@ -257,11 +257,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 #endif
 
     if (solverChoice.test_mapfactor) {
-        for (int i = 0; i < mapfac[lev].size(); i++) {
+        for (int i = 0; i < 3; i++) {
             mapfac[lev][i]->setVal(0.5);
         }
-    }
-    else {
+        for (int i = 3; i < mapfac[lev].size(); i++) {
+            mapfac[lev][i]->setVal(0.25);
+        }
+    } else {
         for (int i = 0; i < mapfac[lev].size(); i++) {
             mapfac[lev][i]->setVal(1.0);
         }

@@ -221,7 +221,7 @@ public:
           m_w_bc_data(w_bc_data)
     {
           m_mapfac_u = mapfac_lev[MapFacType::u_x].get();
-          m_mapfac_v = mapfac_lev[MapFacType::v_x].get();
+          m_mapfac_v = mapfac_lev[MapFacType::v_y].get();
     }
 
     ~ERFPhysBCFunct_w () {}
