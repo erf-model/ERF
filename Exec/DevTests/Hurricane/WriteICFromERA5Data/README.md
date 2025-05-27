@@ -4,6 +4,7 @@
    to download ERA5 data
 
 2. Give the year, month, day, time and the geographical area to download the data in a input file as  
+To download the data on August 26, 2020 at 00:00 (24 hour format)
 ```
 year: 2020
 month: 08
@@ -11,10 +12,11 @@ day: 26
 time: 00:00
 area: 50,-130,10,-50
 ```
-Note: The geogprahical area is specified as latitude maximum, logitude minimum, latitude minimum, longitude maximum.
+Note: The geogprahical area is specified as latitude maximum, longitude minimum, latitude minimum, longitude maximum.
 
 3. `python3 ReadERA5DataAndWriteERF_IC.py <input_file>`   
 
+4. The output VTK files for visualization is written into a directory `Output`.
 
-An example input is given in the input file `input_for_era5`. Run `python3 ReadERA5DataAndWriteERF_IC.py input_for_era5`. 
+An example input is given in the input file `input_for_era5`. Run `python3 ReadERA5DataAndWriteERF_IC.py input_for_era5`.  
 
