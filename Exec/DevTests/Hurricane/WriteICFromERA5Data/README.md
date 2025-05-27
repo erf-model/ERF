@@ -1,10 +1,13 @@
 # Read weather data from ERA5 and write initial condition file for ERF
 
+This directory contains the python scripts to create an initial condition for hurricane simulations   
+in ERF from the ERA5 weather data.
+
 1. Follow the steps here https://cds.climate.copernicus.eu/how-to-api to create a free account   
    to download ERA5 data
 
-2. Give the year, month, day, time and the geographical area to download the data in a input file as  
-To download the data on August 26, 2020 at 00:00 (24 hour format)
+2. Give the year, month, day, time and the geographical area to download the data in a text file.  
+For example, to download the data on August 26, 2020 at 00:00 (24 hour format)
 ```
 year: 2020
 month: 08
