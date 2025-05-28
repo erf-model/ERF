@@ -239,25 +239,14 @@ struct CollisionKernel
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Brownian_SeinfeldPandis ( const RT a_r1, /*!< radius of particle 1 */
                                  const RT a_r2, /*!< radius of particle 2 */
-                                 const RT a_mass_aerosol_1, /*!< total aerosol mass of particle 1 */
-                                 const RT a_mass_aerosol_2, /*!< total aerosol mass of particle 2 */
-                                 const RT a_vol_aerosol_1, /*!< total aerosol mass of particle 1 */
-                                 const RT a_vol_aerosol_2, /*!< total aerosol mass of particle 2 */
-                                 const RT a_rho_c, /*!< condensate density */
+                                 const RT a_mass_1, /*!< total mass of particle 1 */
+                                 const RT a_mass_2, /*!< total mass of particle 2 */
                                  const RT a_pressure, /*!< pressure */
                                  const RT a_temperature /*!< temperature */ ) const noexcept
     {
-        // diameter and mass and volume of droplets
-        RT total_vol_1 = a_vol_aerosol_1 + (4.0/3.0)*PI*(a_r1*a_r1*a_r1);
-        RT total_vol_2 = a_vol_aerosol_2 + (4.0/3.0)*PI*(a_r2*a_r2*a_r2);
-
-        RT total_mass_1 = a_mass_aerosol_1
-                          + (4.0/3.0)*PI*(a_r1*a_r1*a_r1) * a_rho_c;
-        RT total_mass_2 = a_mass_aerosol_2
-                          + (4.0/3.0)*PI*(a_r2*a_r2*a_r2) * a_rho_c;
-
-        RT diameter_1 = std::exp(std::log(6.0*total_vol_1/PI)/3.0);
-        RT diameter_2 = std::exp(std::log(6.0*total_vol_2/PI)/3.0);
+        // diameter of droplets
+        RT diameter_1 = 2*a_r1;
+        RT diameter_2 = 2*a_r2;
 
         RT p_crs = a_pressure; // [Pa]
         RT t_crs = a_temperature; // [K]
@@ -290,8 +279,8 @@ struct CollisionKernel
 
         // velocity term [m/s]
         dtmp = (8.0*boltz*t_crs)/PI;
-        RT vel_term_1 = std::sqrt(dtmp/total_mass_1);
-        RT vel_term_2 = std::sqrt(dtmp/total_mass_2);
+        RT vel_term_1 = std::sqrt(dtmp/a_mass_1);
+        RT vel_term_2 = std::sqrt(dtmp/a_mass_2);
 
         // mean free path of droplets [m]
         dtmp = 8.0/PI;

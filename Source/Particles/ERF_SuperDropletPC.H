@@ -5,10 +5,16 @@
 
 #include <random>
 
+#include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_MaterialProperties.H"
 #include "ERFPC.H"
 #include "ERF_SDInitialization.H"
+
+using SDSpeciesMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_species_max>;
+using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
+using MFPtr = std::unique_ptr<amrex::MultiFab>;
+using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
 
 /*! \brief Real-type array-of-struct attributes of a super-droplet */
 using SuperDropletsRealIdxAoS = ERFParticlesRealIdxAoS;
@@ -84,6 +90,51 @@ static int ridx_s(const int a_i, /*!< Species index */
             + a_i;
 }
 
+/*! \brief Compute effective radius of a droplet from its components */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+static auto effective_radius( const int a_idx, /*!< Particle index */
+                              const int a_idx_w, /*!< Species index of water */
+                              amrex::ParticleReal a_rho_w,  /*!< density of water */
+                              amrex::ParticleReal a_radius, /*!< wet radius */
+                              const int a_num_sp,   /*!< number of species */
+                              const int a_num_ae,   /*!< number of aerosols */
+                              const int* const a_sp_sol_arr, /*!< solubility of species */
+                              const int* const a_ae_sol_arr, /*!< solubility of aerosols */
+                              const SDSpeciesMassArr& a_sp_mass, /*!< species masses */
+                              const SDAerosolMassArr& a_ae_mass, /*!< aerosol masses */
+                              const amrex::ParticleReal* const a_sp_rho, /*!< species densities */
+                              const amrex::ParticleReal* const a_ae_rho  /*!< aerosol densities */ )
+{
+    amrex::ParticleReal m_w = 4.0/3.0 * PI * a_rho_w * a_radius*a_radius*a_radius;
+    amrex::ParticleReal m_s = 0.0;
+    amrex::ParticleReal m_p = 0.0;
+    amrex::ParticleReal rho_p = 0.0;
+    for (int j = 0; j < a_num_sp; j++) {
+        if (j != a_idx_w) {
+            if (a_sp_sol_arr[j]) {
+                m_s += a_sp_mass[j][a_idx];
+            } else {
+                m_p += a_sp_mass[j][a_idx];
+                rho_p += a_sp_rho[j]*a_sp_mass[j][a_idx];
+            }
+        }
+    }
+    for (int j = 0; j < a_num_ae; j++) {
+        if (a_ae_sol_arr[j]) {
+            m_s += a_ae_mass[j][a_idx];
+        } else {
+            m_p += a_ae_mass[j][a_idx];
+            rho_p += a_ae_rho[j]*a_ae_mass[j][a_idx];
+        }
+    }
+    if (m_p > 0.0) { rho_p /= m_p; }
+    else           { rho_p = 1.0; }
+    auto m_t = m_w + m_s + (a_rho_w/rho_p)*m_p;
+    auto r_eff = std::cbrt(m_t / (4.0/3.0*PI*a_rho_w));
+    return r_eff;
+}
+
+
 /*! \brief Types of terminal velocity models */
 enum struct SDTerminalVelocityType {
     RogersYau,
@@ -103,11 +154,6 @@ enum struct SDCoalescenceKernelType {
 enum struct SDMassChangeTIMethod {
     RK3BS, RK4, BE, CN, DIRK2
 };
-
-using SDSpeciesMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_species_max>;
-using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
-using MFPtr = std::unique_ptr<amrex::MultiFab>;
-using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
 
 class SuperDropletPC : public ERFPC
 {

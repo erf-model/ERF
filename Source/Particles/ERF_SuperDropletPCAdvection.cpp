@@ -164,36 +164,14 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             }
 
             // compute effective radius
-            ParticleReal r_eff = 0.0;
-            {
-                ParticleReal m_w = 4.0/3.0 * PI * rho_w
-                                   * radius_ptr[i]*radius_ptr[i]*radius_ptr[i];
-                ParticleReal m_s = 0.0;
-                ParticleReal m_p = 0.0;
-                ParticleReal rho_p = 0.0;
-                for (int j = 0; j < num_sp; j++) {
-                    if (j != idx_w) {
-                        if (sp_sol_arr[j]) {
-                            m_s += sp_mass_ptrs[j][i];
-                        } else {
-                            m_p += sp_mass_ptrs[j][i];
-                            rho_p += sp_rho_arr[j]*sp_mass_ptrs[j][i];
-                        }
-                    }
-                }
-                for (int j = 0; j < num_ae; j++) {
-                    if (ae_sol_arr[j]) {
-                        m_s += ae_mass_ptrs[j][i];
-                    } else {
-                        m_p += ae_mass_ptrs[j][i];
-                        rho_p += ae_rho_arr[j]*ae_mass_ptrs[j][i];
-                    }
-                }
-                if (m_p > 0.0) { rho_p /= m_p; }
-                else           { rho_p = 1.0; }
-                auto m_t = m_w + m_s + (rho_w/rho_p)*m_p;
-                r_eff = std::cbrt(m_t / (4.0/3.0*PI*rho_w));
-            }
+            auto r_eff = effective_radius( i, idx_w,
+                                           rho_w,
+                                           radius_ptr[i],
+                                           num_sp, num_ae,
+                                           sp_sol_arr, ae_sol_arr,
+                                           sp_mass_ptrs, ae_mass_ptrs,
+                                           sp_rho_arr, ae_rho_arr );
+
 
             ParticleReal terminal_vel = 0.0;
             if (term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {

@@ -97,8 +97,11 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto dxi = geom.InvCellSizeArray();
     const auto domain = geom.Domain();
 
-    const int num_aerosols = m_num_aerosols;
-    const int num_species  = m_num_species;
+    const auto rho_w = m_species_mat[m_idx_w]->m_density;
+    const auto idx_w = m_idx_w;
+
+    const int num_ae = m_num_aerosols;
+    const int num_sp  = m_num_species;
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     const ParticleReal inv_bin_size
         = 1.0 / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
@@ -139,15 +142,53 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
 
         /* species masses */
-        SDSpeciesMassArr species_mass_ptrs;
-        for (int i = 0; i < num_species; i++) {
-            species_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_aerosols,num_species)).data();
+        SDSpeciesMassArr sp_mass_ptrs;
+        for (int i = 0; i < num_sp; i++) {
+            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
         }
 
         /* aerosol masses */
-        SDAerosolMassArr aerosol_mass_ptrs;
-        for (int i = 0; i < num_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_aerosols,num_species)).data();
+        SDAerosolMassArr ae_mass_ptrs;
+        for (int i = 0; i < num_ae; i++) {
+            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
+        }
+
+        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
+        Gpu::DeviceVector<int> sp_solubility(num_sp);
+        {
+            Vector<ParticleReal> sp_density_h(num_sp);
+            Vector<int> sp_solubility_h(num_sp);
+            for (int i = 0; i < num_sp; i++) {
+                sp_density_h[i] = m_species_mat[i]->m_density;
+                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_density_h.begin(),
+                        sp_density_h.end(),
+                        sp_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_solubility_h.begin(),
+                        sp_solubility_h.end(),
+                        sp_solubility.begin() );
+        }
+
+        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
+        Gpu::DeviceVector<int> ae_solubility(num_ae);
+        {
+            Vector<ParticleReal> ae_density_h(num_ae);
+            Vector<int> ae_solubility_h(num_ae);
+            for (int i = 0; i < num_ae; i++) {
+                ae_density_h[i] = m_aerosol_mat[i]->m_density;
+                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_density_h.begin(),
+                        ae_density_h.end(),
+                        ae_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_solubility_h.begin(),
+                        ae_solubility_h.end(),
+                        ae_solubility.begin() );
         }
 
         int grid = pti.index();
@@ -237,23 +278,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
 
-        const auto rho_w = m_species_mat[m_idx_w]->m_density;
-
-        Gpu::DeviceVector<ParticleReal> aero_density_d;
-        {
-            Vector<ParticleReal> aero_density_h;
-            aero_density_h.resize(num_aerosols);
-            aero_density_d.resize(num_aerosols);
-            for (int ia = 0; ia < num_aerosols; ia++) {
-                aero_density_h[ia] = m_aerosol_mat[ia]->m_density;
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        aero_density_h.begin(),
-                        aero_density_h.end(),
-                        aero_density_d.begin() );
-        }
-        auto aero_density = aero_density_d.data();
-
         Gpu::Buffer<Real> particle_collisions({0});
         auto particle_collisions_ptr = particle_collisions.data();
 
@@ -319,6 +343,11 @@ void SuperDropletPC::Coalescence( int   a_lev,
         struct timeval coalescence_start, coalescence_end;
         gettimeofday(&coalescence_start, NULL);
 
+        auto sp_rho_arr = sp_density.data();
+        auto sp_sol_arr = sp_solubility.data();
+        auto ae_rho_arr = ae_density.data();
+        auto ae_sol_arr = ae_solubility.data();
+
         ParallelForRNG( np, [=] AMREX_GPU_DEVICE (int i, RandomEngine const& rnd_eng) noexcept
         {
             if (partner_idx_ptr[i] < 0) { return; }
@@ -366,24 +395,36 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     temperature = temperature_arr(iv[0],iv[1],iv[2],0);
                 }
 
-                ParticleReal aero_mass_1 = 0.0,
-                             aero_mass_2 = 0.0,
-                             aero_vol_1 = 0.0,
-                             aero_vol_2 = 0.0;
-                for (int ia = 0; ia < num_aerosols; ia++) {
-                    aero_mass_1 += aerosol_mass_ptrs[ia][pi];
-                    aero_mass_2 += aerosol_mass_ptrs[ia][pj];
-                    aero_vol_1 += aerosol_mass_ptrs[ia][pi]/aero_density[ia];
-                    aero_vol_2 += aerosol_mass_ptrs[ia][pj]/aero_density[ia];
+                ParticleReal sd_mass_1 = 0.0,
+                             sd_mass_2 = 0.0;
+                for (int ia = 0; ia < num_ae; ia++) {
+                    sd_mass_1 += ae_mass_ptrs[ia][pi];
+                    sd_mass_2 += ae_mass_ptrs[ia][pj];
+                }
+                for (int ia = 0; ia < num_sp; ia++) {
+                    sd_mass_1 += sp_mass_ptrs[ia][pi];
+                    sd_mass_2 += sp_mass_ptrs[ia][pj];
                 }
 
-                auto k_brown = ckernel.Brownian_SeinfeldPandis( radius_ptr[pi],
-                                                                radius_ptr[pj],
-                                                                aero_mass_1,
-                                                                aero_mass_2,
-                                                                aero_vol_1,
-                                                                aero_vol_2,
-                                                                rho_w,
+                auto r_eff_1 = effective_radius( pi, idx_w,
+                                                 rho_w,
+                                                 radius_ptr[pi],
+                                                 num_sp, num_ae,
+                                                 sp_sol_arr, ae_sol_arr,
+                                                 sp_mass_ptrs, ae_mass_ptrs,
+                                                 sp_rho_arr, ae_rho_arr );
+                auto r_eff_2 = effective_radius( pj, idx_w,
+                                                 rho_w,
+                                                 radius_ptr[pj],
+                                                 num_sp, num_ae,
+                                                 sp_sol_arr, ae_sol_arr,
+                                                 sp_mass_ptrs, ae_mass_ptrs,
+                                                 sp_rho_arr, ae_rho_arr );
+
+                auto k_brown = ckernel.Brownian_SeinfeldPandis( r_eff_1,
+                                                                r_eff_2,
+                                                                sd_mass_1,
+                                                                sd_mass_2,
                                                                 pressure,
                                                                 temperature );
                 if (k_brown < 0.0) {
@@ -428,10 +469,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                  mass_ptr,
                                  radius_ptr,
                                  mult_ptr,
-                                 num_species,
-                                 species_mass_ptrs,
-                                 num_aerosols,
-                                 aerosol_mass_ptrs );
+                                 num_sp,
+                                 sp_mass_ptrs,
+                                 num_ae,
+                                 ae_mass_ptrs );
         } );
         Gpu::synchronize();
 
