@@ -121,12 +121,6 @@ ComputeDiffusivityMRF(
               : std::pow(
                   (1 - 8 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                   -1.0 / 3.0);
-          const Real phit =
-            (l_obuk_arr(i, j, 0) > 0)
-              ? (1 + 5 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0))
-              : std::pow(
-                  (1 - 16 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
-                  -1.0 / 2.0);
           const Real wstar = u_star_arr(i, j, 0) / phiM;
           const Real t_excess = -const_b * cell_data(i, j, kpbl, Rho_comp) *
                                 1000 * u_star_arr(i, j, 0) *
