@@ -27,16 +27,20 @@ void make_buoyancy (const amrex::Vector<amrex::MultiFab>& S_data,
 void make_gradp_pert (int level,
                       const SolverChoice& solverChoice,
                       const amrex::Geometry& geom,
-                      amrex::MultiFab& S_data,
+                      amrex::Vector<amrex::MultiFab>& S_data,
                       amrex::MultiFab& p0,
                       amrex::MultiFab& z_phys_nd,
                       amrex::MultiFab& z_phys_cc,
+                      amrex::BCRec const* bcrec_ptr,
+                      const eb_& ebfact,
                       amrex::Vector<amrex::MultiFab>& gradp);
 
 void compute_gradp (const amrex::MultiFab& p,
                     const amrex::Geometry& geom,
                     amrex::MultiFab& z_phys_nd,
                     amrex::MultiFab& z_phys_cc,
+                    amrex::BCRec const* bcrec_ptr,
+                    const eb_& ebfact,
                     amrex::Vector<amrex::MultiFab>& gradp,
                     const SolverChoice& solverChoice);
 

@@ -296,9 +296,9 @@
         if (solverChoice.anelastic[level]) {
             bool have_tb = (thin_xforce[0] || thin_yforce[0] || thin_zforce[0]);
             if (have_tb) {
-                project_velocities_tb(level, slow_dt, S_sum);
+                project_velocity_tb(level, slow_dt, S_sum);
             } else {
-                project_velocities(level, slow_dt, S_sum);
+                project_momenta(level, slow_dt, S_sum);
             }
         }
     };

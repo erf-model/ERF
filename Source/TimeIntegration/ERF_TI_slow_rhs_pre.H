@@ -105,8 +105,9 @@
         // *****************************************************************************
         // Define the pressure gradient
         // *****************************************************************************
-        make_gradp_pert(level, solverChoice, fine_geom, S_data[Vars::cons],
-                        p0_to_use, *zpn_to_use, *zpc_to_use, gradp[level]);
+        BCRec const* bcrec_ptr = domain_bcs_type_d.data();
+        make_gradp_pert(level, solverChoice, fine_geom, S_data,
+                        p0_to_use, *zpn_to_use, *zpc_to_use, bcrec_ptr, get_eb(level), gradp[level]);
 
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction
