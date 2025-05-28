@@ -60,12 +60,13 @@ struct MaterialProperties {
     Species::Name m_name = Species::Name::none; /*!< name */
     amrex::Real m_density = DBL_MAX; /*!< density */
     amrex::Real m_ionization = DBL_MAX; /*!< ionization */
-    amrex::Real m_mol_weight = DBL_MAX; /*!< molecular weight */
+    amrex::Real m_mol_weight = DBL_MAX; /*!< molecular weight (condensate) */
     amrex::Real m_lat_vap = DBL_MAX; /*!< latent heat of vaporization */
     amrex::Real m_therm_cond = DBL_MAX; /*!< thermal conductivity */
     amrex::Real m_Rv = DBL_MAX; /*!< gas constant for vapour of this material */
     amrex::Real m_Tc = DBL_MAX; /*!< critical temperature for surface tension */
     amrex::Real m_Tb = DBL_MAX; /*!< boiling temperature */
+    amrex::Real m_Nav_by_molweight = DBL_MAX; /*!< Avogadro number by vapour mol. weight */
     /*! vector of molar heat capacity polynomial coeffs */
     amrex::Real m_mol_Cp_coeffs[7] = {  amrex::Real(DBL_MAX),
                                         amrex::Real(DBL_MAX),
@@ -204,7 +205,7 @@ struct MaterialProperties {
 
             auto term1 = 3 * std::sqrt( s_kb*a_T * s_kb*a_T * s_kb*a_T);
             auto term2 = 8.0 * std::sqrt(2*PI) * a_P * sigma_v_air*sigma_v_air * omegaD;
-            auto term3 = std::sqrt( s_N_av/m_mol_weight + s_N_av/s_mol_weight_air );
+            auto term3 = std::sqrt( m_Nav_by_molweight + s_N_av/s_mol_weight_air );
 
             auto retval = term1*term3/term2;
             return retval;
