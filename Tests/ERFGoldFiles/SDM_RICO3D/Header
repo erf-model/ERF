@@ -8,11 +8,11 @@ z_velocity
 temp
 theta
 pressure
-qt
 qv
 qc
-qp
 qrain
+qt
+qp
 qsat
 rain_accum
 rel_humidity
