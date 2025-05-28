@@ -98,6 +98,7 @@ struct TurbChoice {
                 query_one_or_per_level(pp, "pbl_mrf_Ribcr", pbl_mrf_Ribcr, lev, max_level);
                 query_one_or_per_level(pp, "pbl_mrf_const_b", pbl_mrf_const_b, lev, max_level);
                 query_one_or_per_level(pp, "pbl_mrf_sf", pbl_mrf_sf, lev, max_level);
+                query_one_or_per_level(pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
             }
         }
 
@@ -247,6 +248,7 @@ struct TurbChoice {
             amrex::Print() << "    pbl_mrf_Ribcr         : " << pbl_mrf_Ribcr << std::endl;
             amrex::Print() << "    pbl_mrf_const_b       : " << pbl_mrf_const_b << std::endl;
             amrex::Print() << "    pbl_mrf_sf            : " << pbl_mrf_sf << std::endl;
+            amrex::Print() << "    mrf_moistvars         : " << mrf_moistvars << std::endl;
         }
     }
 
@@ -314,6 +316,7 @@ struct TurbChoice {
     amrex::Real pbl_mrf_Ribcr = 0.5; // Critical Bulk Richardson number for MRF PBL model
     amrex::Real pbl_mrf_const_b = 7.8; // Constant b in MRF PBL model, used to compute the PBL height
     amrex::Real pbl_mrf_sf = 0.1; // MRF surface flux, used to compute the PBL height
+    bool mrf_moistvars = false; // if true, adds turbulence to moisture 
     // MYNN2.5 PBL model
     // TKE/QKE stuff
     bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in Z-direction only
