@@ -101,7 +101,7 @@ void MaterialProperties::setProperties_H2O()
 {
     m_density = rhor; // ERF_Constants.H
 
-    m_ionization = 2;
+    m_ionization = 0;
     m_mol_weight = 1.802e-02; // kg mol^-1
     m_lat_vap = L_v; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
@@ -121,7 +121,7 @@ void MaterialProperties::setProperties_water()
 {
     m_density = rhor; // ERF_Constants.H
 
-    m_ionization = 2;
+    m_ionization = 0;
     m_mol_weight = 1.802e-02; // kg mol^-1
     m_lat_vap = L_v; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
@@ -141,7 +141,7 @@ void MaterialProperties::setProperties_agua()
 {
     m_density = rhor; // ERF_Constants.H
 
-    m_ionization = 2;
+    m_ionization = 0;
     m_mol_weight = 1.802e-02; // kg mol^-1
     m_lat_vap = L_v; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
@@ -200,6 +200,7 @@ void MaterialProperties::setProperties_soil()
 {
     m_density = 1140.0; // NNSS Area 5 sample (Spriggs and Ray-Maitra, 2007)
 
+    m_ionization = 0;
     m_is_soluble = false;
 
     m_saturation_pressure_func = nullptr;

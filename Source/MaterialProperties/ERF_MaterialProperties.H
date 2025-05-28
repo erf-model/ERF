@@ -173,9 +173,9 @@ struct MaterialProperties {
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real coeffVPSolute() const
     {
-        auto retval = (0.75/PI)*(m_mol_weight/m_density) * m_ionization;
+        auto retval = (0.75/PI)*(m_mol_weight/m_density);
         if (m_is_water) {
-            retval = 4.3e-06 * m_ionization;
+            retval = 4.3e-06;
         }
         return retval;
     }
