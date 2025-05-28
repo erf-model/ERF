@@ -197,7 +197,7 @@ ComputeDiffusivityMRF(
           const Real Prt = phit / phiM + const_b * KAPPA * sf;
           const Real wstar = u_star_arr(i, j, 0) / phiM;
           K_turb(i, j, k, EddyDiff::Mom_v) =
-            wstar * KAPPA * zval * (1 - zval / pblh_corr_arr(i, j, 0)) *
+            rho * wstar * KAPPA * zval * (1 - zval / pblh_corr_arr(i, j, 0)) *
             (1 - zval / pblh_corr_arr(i, j, 0));
           K_turb(i, j, k, EddyDiff::Theta_v) =
             K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
@@ -227,9 +227,9 @@ ComputeDiffusivityMRF(
               ? (std::exp(-8.5 * grad_Ri) + (0.15 / (grad_Ri + 3.0)))
               : std::pow((1 - 16 * grad_Ri), -1.0 / 2.0);
           K_turb(i, j, k, EddyDiff::Mom_v) =
-            lscale * lscale * fm * std::sqrt(wind_shear);
+            rho * lscale * lscale * fm * std::sqrt(wind_shear);
           K_turb(i, j, k, EddyDiff::Theta_v) =
-            lscale * lscale * ft * std::sqrt(wind_shear);
+            rho * lscale * lscale * ft * std::sqrt(wind_shear);
         }
 
         // limit both diffusion coefficients - from WRF, not documented in
