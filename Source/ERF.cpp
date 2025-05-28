@@ -1062,6 +1062,25 @@ ERF::InitData_post ()
 
     ComputeDt();
 
+    // Check the viscous limit
+    DiffChoice dc = solverChoice.diffChoice;
+    if (dc.molec_diff_type == MolecDiffType::Constant ||
+        dc.molec_diff_type == MolecDiffType::ConstantAlpha) {
+        Real delta = std::min({geom[finest_level].CellSize(0),
+                               geom[finest_level].CellSize(1),
+                               dz_min[finest_level]});
+        Real nu = dc.dynamic_viscosity / dc.rho0_trans;
+        AMREX_ALWAYS_ASSERT(nu > 0);
+
+        Real viscous_limit = 0.5 * delta*delta / nu;
+        Print() << "Viscous CFL is " << dt[finest_level] / viscous_limit << std::endl;
+        if (fixed_dt[finest_level] >= viscous_limit) {
+            Warning("Specified fixed_dt is above the viscous limit");
+        } else if (dt[finest_level] >= viscous_limit) {
+            Warning("Adaptive dt based on convective CFL only is above the viscous limit");
+        }
+    }
+
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
     {
