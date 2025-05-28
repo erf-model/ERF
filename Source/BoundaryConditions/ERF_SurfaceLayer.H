@@ -87,7 +87,11 @@ public:
             pblh_type = PBLHeightCalcType::MYNN25;
         } else if (pblh_string == "ysu") {
             pblh_type = PBLHeightCalcType::YSU;
-        } else {
+        } 
+        else if (pblh_string =="mrf"){
+            pblh_type = PBLHeightCalcType::MRF;
+        } 
+        else {
             amrex::Abort("Undefined PBLH calc type!");
         }
 
@@ -520,7 +524,7 @@ public:
     };
 
     enum struct PBLHeightCalcType {
-        None, MYNN25, YSU
+        None, MYNN25, YSU, MRF
     };
 
     FluxCalcType   flux_type{FluxCalcType::MOENG};

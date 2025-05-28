@@ -7,7 +7,7 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYNN25, MYNNEDMF, YSU);
+AMREX_ENUM(PBLType, None, MYNN25, MYNNEDMF, YSU, MRF);
 
 template <typename T>
 void query_one_or_per_level(const amrex::ParmParse& pp, const char* query_string, T& query_var, const int lev, const int maxlev)
@@ -93,11 +93,16 @@ struct TurbChoice {
                 query_one_or_per_level(pp, "pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr, lev, max_level);
                 query_one_or_per_level(pp, "pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr, lev, max_level);
             }
+                else if (pbl_type == PBLType::MRF) {
+                query_one_or_per_level(pp, "pbl_mrf_coriolis_freq", pbl_mrf_coriolis_freq, lev, max_level);
+                query_one_or_per_level(pp, "pbl_mrf_Ribcr", pbl_mrf_Ribcr, lev, max_level);
+            }
         }
 
         // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
         if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
             use_pbl_tke = true;
+
             query_one_or_per_level(pp, "advect_tke"    , advect_tke, lev, max_level);
             query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
         }
@@ -178,6 +183,11 @@ struct TurbChoice {
         } else if  (pbl_type == PBLType::YSU) {
             amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
         }
+        else if  (pbl_type == PBLType::MRF) {
+            amrex::Print() << "    Using MRF PBL model at level " << lev << std::endl;
+        } else {
+            amrex::Error("Unknown turbulence model");
+        }
 
         if (les_type != LESType::None) {
             if (les_type == LESType::Smagorinsky) {
@@ -229,6 +239,12 @@ struct TurbChoice {
             amrex::Print() << "    pbl_ysu_force_over_water        : " << pbl_ysu_force_over_water << std::endl;
             amrex::Print() << "    pbl_ysu_land_Ribcr              : " << pbl_ysu_land_Ribcr << std::endl;
             amrex::Print() << "    pbl_ysu_unst_Ribcr              : " << pbl_ysu_unst_Ribcr << std::endl;
+        }
+        else if (pbl_type == PBLType::MRF) {
+            amrex::Print() << "    pbl_mrf_coriolis_freq : " << pbl_mrf_coriolis_freq << std::endl;
+            amrex::Print() << "    pbl_mrf_Ribcr         : " << pbl_mrf_Ribcr << std::endl;
+            amrex::Print() << "    pbl_mrf_const_b       : " << pbl_mrf_const_b << std::endl;
+            amrex::Print() << "    pbl_mrf_sf            : " << pbl_mrf_sf << std::endl;
         }
     }
 
@@ -291,7 +307,12 @@ struct TurbChoice {
     bool        pbl_ysu_force_over_water = false; // Force YSU to act as if it is over water regardless of other inputs (for testing)
     amrex::Real pbl_ysu_land_Ribcr = 0.25; // Critical Bulk Richardson number of Land for stable conditions
     amrex::Real pbl_ysu_unst_Ribcr = 0.0;  // Critical Bulk Richardson number for unstable conditions
-
+    // Model coefficients - MRF
+    amrex::Real pbl_mrf_coriolis_freq = 1.0e-4;
+    amrex::Real pbl_mrf_Ribcr = 0.5; // Critical Bulk Richardson number for MRF PBL model
+    amrex::Real pbl_mrf_const_b = 6.2;
+    amrex::Real pbl_mrf_sf = 0.1; // MRF surface flux, used to compute the PBL height
+    // MYNN2.5 PBL model
     // TKE/QKE stuff
     bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in Z-direction only
     bool diffuse_tke_3D = true; // if numerical diffusion is turned on
