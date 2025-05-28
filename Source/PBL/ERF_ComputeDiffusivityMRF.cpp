@@ -236,7 +236,7 @@ ComputeDiffusivityMRF(
           1.0/((1.0+5.0*grad_Ri)*(1.0+5.0*grad_Ri))
           :1 - 8 * grad_Ri/(1+1.286*std::sqrt(-grad_Ri));
           K_turb(i, j, k, EddyDiff::Mom_v) =
-            rho * lscale * lscale * fm * std::sqrt(wind_shear);
+            rho * lscale * lscale * fm * Pr * std::sqrt(wind_shear);
           K_turb(i, j, k, EddyDiff::Theta_v) =
             rho * lscale * lscale * ft * std::sqrt(wind_shear);
         }
