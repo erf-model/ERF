@@ -145,7 +145,7 @@
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                          Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
-                         *zpn_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
+                         *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
                          mapfac[level], get_eb(level), fr_as_crse, fr_as_fine);
 
