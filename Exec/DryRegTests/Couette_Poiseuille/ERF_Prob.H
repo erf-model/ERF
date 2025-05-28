@@ -21,13 +21,21 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real pert_lo = -1e34;
   amrex::Real pert_hi =  1e34;
 
+  // divergence-free initial perturbations
+  amrex::Real pert_delta_u = 0.0;
+  amrex::Real pert_delta_v = 0.0;
+  amrex::Real pert_periods_u = 5.0;
+  amrex::Real pert_periods_v = 5.0;
+  amrex::Real aval;
+  amrex::Real bval;
+
   int prob_type = -1;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
 {
 public:
-    Problem();
+    Problem(const amrex::Real* problo, const amrex::Real* probhi);
 
 #include "Prob/ERF_InitConstantDensityHSE.H"
 
