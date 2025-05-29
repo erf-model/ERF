@@ -407,7 +407,6 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real idz0 = 1.0 / dz0;
             Real f    = (dz1 / dz0) + 2.0;
             Real f2   = f*f;
-            Real c3   = 2.0 / (f - f2);
 
             Real mfx = mf_mx(i,j,0);
             Real mfy = mf_my(i,j,0);
@@ -425,7 +424,6 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz1  = dz_ptr[k+1];
             Real f    = (dz1 / dz0) + 2.0;
             Real f2   = f*f;
-            Real c3   = 2.0 / (f - f2);
 
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
