@@ -71,6 +71,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
 #include "ERF_DiffSetup.H"
 
+    const Real dz_inv = cellSizeInv[2];
+
     for (int n(0); n<num_comp; ++n) {
         const int qty_index = start_comp + n;
 

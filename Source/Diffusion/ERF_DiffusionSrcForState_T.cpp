@@ -53,8 +53,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const Array4<Real>& zflux,
                         const Array4<const Real>& z_nd,
                         const Array4<const Real>& z_cc,
-                        const Array4<const Real>& /*ax*/,
-                        const Array4<const Real>& /*ay*/,
+                        const Array4<const Real>& ax,
+                        const Array4<const Real>& ay,
                         const Array4<const Real>& az,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -84,6 +84,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
 #include "ERF_DiffSetup.H"
+
+    const Real dz_inv = cellSizeInv[2];
 
     Box zbx3 = zbx;
 
@@ -687,13 +689,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     // Multiply h_zeta by x/y-fluxes
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real met_h_zeta = Compute_h_zeta_AtIface(i,j,k,cellSizeInv,z_nd);
-        xflux(i,j,k) *= met_h_zeta/mf_uy(i,j,0);
+        xflux(i,j,k) *= ax(i,j,k)/mf_uy(i,j,0);
     });
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real met_h_zeta = Compute_h_zeta_AtJface(i,j,k,cellSizeInv,z_nd);
-        yflux(i,j,k) *= met_h_zeta/mf_vx(i,j,0);
+        yflux(i,j,k) *= ay(i,j,k)/mf_vx(i,j,0);
     });
 
 

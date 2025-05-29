@@ -5,7 +5,6 @@
 
     const Real dx_inv = cellSizeInv[0];
     const Real dy_inv = cellSizeInv[1];
-    const Real dz_inv = cellSizeInv[2];
 
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
