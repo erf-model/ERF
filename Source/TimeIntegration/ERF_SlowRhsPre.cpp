@@ -144,6 +144,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool l_anelastic = solverChoice.anelastic[level];
     const bool l_fixed_rho = solverChoice.fixed_density;
+    const bool l_imp_diff  = dc.implicit_diffusion;
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
@@ -173,7 +174,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
                            S_data,xvel,yvel,zvel,Tau_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
-                           detJ,mapfac);
+                           detJ,mapfac,l_imp_diff);
 
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);

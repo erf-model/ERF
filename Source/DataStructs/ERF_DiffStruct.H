@@ -59,6 +59,11 @@ struct DiffChoice {
             amrex::Print() << "  scalar : " << rhoAlpha_C << " kg/(m-s)" << std::endl;
         }
 
+        // Implicit diffusion
+        if (molec_diff_type != MolecDiffType::None) {
+            pp.query("implicit_diffusion",implicit_diffusion);
+        }
+
     }
 
     void display()
@@ -91,5 +96,8 @@ struct DiffChoice {
     amrex::Real rhoAlpha_T = 0.0;
     amrex::Real rhoAlpha_C = 0.0;
     amrex::Real dynamic_viscosity = 0.0;
+
+    // Flag for implicit diffusion
+    bool implicit_diffusion = false;
 };
 #endif

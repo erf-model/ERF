@@ -23,7 +23,8 @@ void erf_make_tau_terms (int level, int nrk,
                          const SolverChoice& solverChoice,
                          std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
                          const MultiFab& detJ,
-                         Vector<std::unique_ptr<MultiFab>>& mapfac)
+                         Vector<std::unique_ptr<MultiFab>>& mapfac,
+                         const bool& l_imp_diff)
 {
     BL_PROFILE_REGION("erf_make_tau_terms()");
 
@@ -229,7 +230,8 @@ void erf_make_tau_terms (int level, int nrk,
                                 s23, s32,
                                 z_nd, detJ_arr, bc_ptr_h, dxInv,
                                 mf_mx, mf_ux, mf_vx,
-                                mf_my, mf_uy, mf_vy);
+                                mf_my, mf_uy, mf_vy,
+                                l_imp_diff);
                 } // profile
 
                 // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)

@@ -27,6 +27,7 @@ void DiffusionSrcForMom_N (const amrex::Box& bxx, const amrex::Box& bxy, const a
                            const amrex::Array4<const amrex::Real>& mf_uy     ,
                            const amrex::Array4<const amrex::Real>& mf_vy     );
 
+
 void DiffusionSrcForMom_T (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                            const amrex::Array4<      amrex::Real>& rho_u_rhs,
                            const amrex::Array4<      amrex::Real>& rho_v_rhs,
@@ -45,6 +46,7 @@ void DiffusionSrcForMom_T (const amrex::Box& bxx, const amrex::Box& bxy, const a
                            const amrex::Array4<const amrex::Real>& mf_my     ,
                            const amrex::Array4<const amrex::Real>& mf_uy     ,
                            const amrex::Array4<const amrex::Real>& mf_vy     );
+
 
 void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,
@@ -75,6 +77,7 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer);
+
 
 void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,
@@ -111,6 +114,7 @@ void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer);
+
 
 void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,
@@ -153,6 +157,7 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer);
 
+
 void ComputeStressConsVisc_N (amrex::Box bxcc,
                               amrex::Box tbxxy,
                               amrex::Box tbxxz,
@@ -166,6 +171,7 @@ void ComputeStressConsVisc_N (amrex::Box bxcc,
                               amrex::Array4<amrex::Real>& tau13,
                               amrex::Array4<amrex::Real>& tau23,
                               const amrex::Array4<const amrex::Real>& er_arr);
+
 
 void ComputeStressConsVisc_T (amrex::Box bxcc,
                               amrex::Box tbxxy,
@@ -191,7 +197,6 @@ void ComputeStressConsVisc_T (amrex::Box bxcc,
                               const amrex::Array4<const amrex::Real>& mf_vy);
 
 
-
 void ComputeStressVarVisc_N (amrex::Box bxcc,
                              amrex::Box tbxxy,
                              amrex::Box tbxxz,
@@ -206,6 +211,7 @@ void ComputeStressVarVisc_N (amrex::Box bxcc,
                              amrex::Array4<amrex::Real>& tau13,
                              amrex::Array4<amrex::Real>& tau23,
                              const amrex::Array4<const amrex::Real>& er_arr);
+
 
 void ComputeStressVarVisc_T (amrex::Box bxcc,
                              amrex::Box tbxxy,
@@ -232,7 +238,6 @@ void ComputeStressVarVisc_T (amrex::Box bxcc,
                              const amrex::Array4<const amrex::Real>& mf_vy);
 
 
-
 void ComputeStrain_N (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex::Box tbxyz, amrex::Box domain,
                       const amrex::Array4<const amrex::Real>& u,
                       const amrex::Array4<const amrex::Real>& v,
@@ -252,6 +257,7 @@ void ComputeStrain_N (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex
                       const amrex::Array4<const amrex::Real>& mf_uy,
                       const amrex::Array4<const amrex::Real>& mf_vy);
 
+
 void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex::Box tbxyz, amrex::Box domain,
                       const amrex::Array4<const amrex::Real>& u,
                       const amrex::Array4<const amrex::Real>& v,
@@ -270,5 +276,15 @@ void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex
                       const amrex::Array4<const amrex::Real>& mf_vx,
                       const amrex::Array4<const amrex::Real>& mf_my,
                       const amrex::Array4<const amrex::Real>& mf_uy,
-                      const amrex::Array4<const amrex::Real>& mf_vy);
+                      const amrex::Array4<const amrex::Real>& mf_vy,
+                      const bool& l_imp_diff);
+
+
+void ImplicitXmomDiffusion (int& lev,
+                            amrex::Real& dt,
+                            amrex::Real mu,
+                            const amrex::Geometry& geom,
+                            amrex::MultiFab& xmom,
+                            std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
 #endif

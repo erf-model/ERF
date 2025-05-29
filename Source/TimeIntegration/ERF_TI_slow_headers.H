@@ -32,7 +32,8 @@ void erf_make_tau_terms (int level, int nrk,
                          const SolverChoice& solverChoice,
                          std::unique_ptr<SurfaceLayer>& SurfLayer,
                          const amrex::MultiFab& detJ,
-                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac);
+                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                         const bool& l_imp_diff);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.

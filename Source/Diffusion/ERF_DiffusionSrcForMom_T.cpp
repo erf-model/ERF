@@ -86,3 +86,103 @@ DiffusionSrcForMom_T (const Box& bxx, const Box& bxy , const Box& bxz,
         rho_w_rhs(i,j,k) -= diffContrib;
     });
 }
+
+
+void ImplicitXmomDiffusion (int& /*lev*/,
+                            amrex::Real& dt,
+                            amrex::Real mu,
+                            const amrex::Geometry& /*geom*/,
+                            amrex::MultiFab& xmom,
+                            std::unique_ptr<amrex::MultiFab>& z_phys_nd)
+{
+  amrex::Print() << "IMPLICIT DIFFUSION: Starting Tridiagonal solve...";
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+  for ( amrex::MFIter mfi(xmom); mfi.isValid(); ++mfi)
+  {
+    // Boxes
+    amrex::Box vbx = mfi.validbox();
+    amrex::Box gbx = amrex::grow(vbx,2,1);
+    amrex::Box b2d = gbx;
+    b2d.setRange(2,0);
+
+    // State data
+    auto  xm_arr = xmom.array(mfi);
+    auto znd_arr = z_phys_nd->array(mfi);
+
+    // Box bounds
+    int ilo = gbx.smallEnd(0);
+    int ihi = gbx.bigEnd(0);
+    int jlo = gbx.smallEnd(1);
+    int jhi = gbx.bigEnd(1);
+    int klo = gbx.smallEnd(2);
+    int khi = gbx.bigEnd(2);
+
+    // Temporary FABs for tridiagonal solve (allocated on column)
+    amrex::FArrayBox RHS_fab, soln_fab, coeffA_fab, inv_coeffB_fab, coeffC_fab;
+           RHS_fab.resize(gbx,1, amrex::The_Async_Arena());
+          soln_fab.resize(gbx,1, amrex::The_Async_Arena());
+        coeffA_fab.resize(gbx,1, amrex::The_Async_Arena());
+    inv_coeffB_fab.resize(gbx,1, amrex::The_Async_Arena());
+        coeffC_fab.resize(gbx,1, amrex::The_Async_Arena());
+    auto const& RHS_a        =        RHS_fab.array();
+    auto const& soln_a       =       soln_fab.array();
+    auto const& coeffA_a     =     coeffA_fab.array();
+    auto const& inv_coeffB_a = inv_coeffB_fab.array();
+    auto const& coeffC_a     =     coeffC_fab.array();
+
+    for (int lj(jlo); lj<=jhi; ++lj) {
+      for (int li(ilo); li<=ihi; ++li) {
+
+        // Dirichlet top/bottom
+        RHS_a(li,lj,klo) = 0.;
+        RHS_a(li,lj,khi) = 0.;
+        coeffA_a(li,lj,klo) = 0.0;
+        coeffA_a(li,lj,khi) = 0.0;
+        coeffC_a(li,lj,klo) = 0.0;
+        coeffC_a(li,lj,khi) = 0.0;
+        inv_coeffB_a(li,lj,klo) = 1.0;
+        inv_coeffB_a(li,lj,khi) = 1.0;
+
+
+        // Build the coefficients and RHS
+        for (int lk(klo+1); lk<khi; lk++) {
+          amrex::Real z0 = (lk==klo+1) ? 0.5 *(znd_arr(li,lj,lk  ) + znd_arr(li,lj+1,lk  )) :
+                                         0.25*(znd_arr(li,lj,lk  ) + znd_arr(li,lj+1,lk  )
+                                              +znd_arr(li,lj,lk-1) + znd_arr(li,lj+1,lk-1));
+          amrex::Real z1 = 0.25*(znd_arr(li,lj,lk  ) + znd_arr(li,lj+1,lk  )
+                                +znd_arr(li,lj,lk+1) + znd_arr(li,lj+1,lk+1));
+          amrex::Real z2 = (lk==khi-1) ? 0.5 *(znd_arr(li,lj,lk+1) + znd_arr(li,lj+1,lk+1)) :
+                                         0.25*(znd_arr(li,lj,lk+1) + znd_arr(li,lj+1,lk+1)
+                                              +znd_arr(li,lj,lk+2) + znd_arr(li,lj+1,lk+2));
+          amrex::Real dz_lo = z1 - z0;
+          amrex::Real dz_hi = z2 - z1;
+          amrex::Real dz    = z2 - z0;
+
+          coeffA_a(li,lj,lk)     = -mu * dt / (dz_lo*dz);
+          coeffC_a(li,lj,lk)     = -mu * dt / (dz_hi*dz);
+          amrex::Real b = 1.0 + (mu * dt) / (dz_lo*dz_hi);
+          inv_coeffB_a(li,lj,lk) = 1.0 / (b - coeffA_a(li,lj,lk)*(coeffC_a(li,lj,lk)/b));
+          RHS_a(li,lj,lk)        = xm_arr(li,lj,lk);
+        }
+
+        // Tridiagonal solve
+        soln_a(li,lj,klo) = RHS_a(li,lj,klo) * inv_coeffB_a(li,lj,klo);
+        for (int lk(klo+1); lk<=khi; ++lk) {
+          soln_a(li,lj,lk) = (RHS_a(li,lj,lk)-coeffA_a(li,lj,lk)*soln_a(li,lj,lk-1)) * inv_coeffB_a(li,lj,lk);
+        }
+        for (int lk(khi-1); lk>=klo; --lk) {
+          soln_a(li,lj,lk) -= ( coeffC_a(li,lj,lk) * inv_coeffB_a(li,lj,lk) ) * soln_a(li,lj,lk+1);
+        }
+
+        // Write soln back to state
+        for (int lk(klo+1); lk<khi; ++lk) {
+          xm_arr(li,lj,lk) = soln_a(li,lj,lk);
+        }
+      } // li
+    } // lj
+  } // mfi
+  amrex::Print() << "DONE\n";
+}

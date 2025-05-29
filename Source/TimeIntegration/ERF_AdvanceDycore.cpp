@@ -91,6 +91,7 @@ void ERF::advance_dycore(int level,
                            l_use_kturb );
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
+    bool l_imp_diff = dc.implicit_diffusion;
 
     const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
     const FArrayBox* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
@@ -172,7 +173,8 @@ void ERF::advance_dycore(int level,
                                 tau13, tau31,
                                 tau23, tau32,
                                 z_nd, detJ_cc[level]->const_array(mfi), bc_ptr_h, dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy);
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy,
+                                l_imp_diff);
             } else {
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
