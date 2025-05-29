@@ -31,6 +31,7 @@ void erf_make_tau_terms (int level, int nrk,
                          const amrex::Geometry geom,
                          const SolverChoice& solverChoice,
                          std::unique_ptr<SurfaceLayer>& SurfLayer,
+                         amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                          const amrex::MultiFab& detJ,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac);
 
