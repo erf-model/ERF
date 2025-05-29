@@ -83,18 +83,19 @@ MaterialProperties::MaterialProperties ( const MaterialProperties& a_matprop )
     m_name = a_matprop.m_name;
     m_density = a_matprop.m_density;
     m_ionization = a_matprop.m_ionization;
+    m_mol_weight = a_matprop.m_mol_weight;
     m_lat_vap = a_matprop.m_lat_vap;
-    m_therm_cond = a_matprop.m_therm_cond;
     m_Rv = a_matprop.m_Rv;
     m_Tc = a_matprop.m_Tc;
     m_Tb = a_matprop.m_Tb;
+    m_Nav_by_molweight = a_matprop.m_Nav_by_molweight;
+    for (auto i = 0; i < 7; i++) { m_mol_Cp_coeffs[i] = a_matprop.m_mol_Cp_coeffs[i]; }
     m_is_soluble = a_matprop.m_is_soluble;
     m_is_water = a_matprop.m_is_water;
     AMREX_IF_ON_HOST((
         m_saturation_pressure_func = a_matprop.m_saturation_pressure_func;
         m_saturation_vapfrac_func = a_matprop.m_saturation_vapfrac_func;
     ))
-    for (auto i = 0; i < 7; i++) { m_mol_Cp_coeffs[i] = a_matprop.m_mol_Cp_coeffs[i]; }
 }
 
 AMREX_GPU_HOST_DEVICE
