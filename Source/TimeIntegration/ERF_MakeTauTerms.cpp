@@ -182,8 +182,6 @@ void erf_make_tau_terms (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_er_S");
-                Box gbxo = surroundingNodes(bxcc,2);
-
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real mfsq = mf_mx(i,j,0)*mf_my(i,j,0);
