@@ -167,7 +167,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
 
-            Real met_h_zeta = az(i,j,k);
+            Real met_h_zeta = Compute_h_zeta_AtKface(i,j,k,cellSizeInv,z_nd);
 
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -302,7 +302,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
-            Real met_h_zeta = az(i,j,k);
+            Real met_h_zeta = Compute_h_zeta_AtKface(i,j,k,cellSizeInv,z_nd);
 
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -433,7 +433,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
-            Real met_h_zeta = az(i,j,k);
+            Real met_h_zeta = Compute_h_zeta_AtKface(i,j,k,cellSizeInv,z_nd);
 
             Real GradCz;
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
