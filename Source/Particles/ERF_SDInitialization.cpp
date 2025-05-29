@@ -260,10 +260,6 @@ void SDInitialization::printParameters ( const MatVec& a_species_mat,
             Print() << ")" << "\n";
         }
     }
-
-    Print() << "    Number of seed particles per cell: " << m_ppc_seed << "\n"
-            << "    Seed condensate mass: " << m_seed_mass << "\n";
-
 }
 
 void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,

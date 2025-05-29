@@ -90,22 +90,39 @@ static int ridx_s(const int a_i, /*!< Species index */
             + a_i;
 }
 
+/*! \brief Compute total mass of a droplet from its components */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+static auto SD_total_mass( const int a_idx, /*!< Particle index */
+                           const int a_num_sp,   /*!< number of species */
+                           const int a_num_ae,   /*!< number of aerosols */
+                           const SDSpeciesMassArr& a_sp_mass, /*!< species masses */
+                           const SDAerosolMassArr& a_ae_mass  /*!< aerosol masses */ )
+{
+    amrex::ParticleReal retval = 0.0;
+    for (int j = 0; j < a_num_sp; j++) {
+        retval += a_sp_mass[j][a_idx];
+    }
+    for (int j = 0; j < a_num_ae; j++) {
+        retval += a_ae_mass[j][a_idx];
+    }
+    return retval;
+}
+
 /*! \brief Compute effective radius of a droplet from its components */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static auto effective_radius( const int a_idx, /*!< Particle index */
-                              const int a_idx_w, /*!< Species index of water */
-                              amrex::ParticleReal a_rho_w,  /*!< density of water */
-                              amrex::ParticleReal a_radius, /*!< wet radius */
-                              const int a_num_sp,   /*!< number of species */
-                              const int a_num_ae,   /*!< number of aerosols */
-                              const int* const a_sp_sol_arr, /*!< solubility of species */
-                              const int* const a_ae_sol_arr, /*!< solubility of aerosols */
-                              const SDSpeciesMassArr& a_sp_mass, /*!< species masses */
-                              const SDAerosolMassArr& a_ae_mass, /*!< aerosol masses */
-                              const amrex::ParticleReal* const a_sp_rho, /*!< species densities */
-                              const amrex::ParticleReal* const a_ae_rho  /*!< aerosol densities */ )
+static auto SD_effective_radius( const int a_idx, /*!< Particle index */
+                                 const int a_idx_w, /*!< Species index of water */
+                                 amrex::ParticleReal a_rho_w,  /*!< density of water */
+                                 const int a_num_sp,   /*!< number of species */
+                                 const int a_num_ae,   /*!< number of aerosols */
+                                 const int* const a_sp_sol_arr, /*!< solubility of species */
+                                 const int* const a_ae_sol_arr, /*!< solubility of aerosols */
+                                 const SDSpeciesMassArr& a_sp_mass, /*!< species masses */
+                                 const SDAerosolMassArr& a_ae_mass, /*!< aerosol masses */
+                                 const amrex::ParticleReal* const a_sp_rho, /*!< species densities */
+                                 const amrex::ParticleReal* const a_ae_rho  /*!< aerosol densities */ )
 {
-    amrex::ParticleReal m_w = 4.0/3.0 * PI * a_rho_w * a_radius*a_radius*a_radius;
+    amrex::ParticleReal m_w = a_sp_mass[a_idx_w][a_idx];
     amrex::ParticleReal m_s = 0.0;
     amrex::ParticleReal m_p = 0.0;
     amrex::ParticleReal rho_p = 0.0;
@@ -133,7 +150,6 @@ static auto effective_radius( const int a_idx, /*!< Particle index */
     auto r_eff = std::cbrt(m_t / (4.0/3.0*PI*a_rho_w));
     return r_eff;
 }
-
 
 /*! \brief Types of terminal velocity models */
 enum struct SDTerminalVelocityType {

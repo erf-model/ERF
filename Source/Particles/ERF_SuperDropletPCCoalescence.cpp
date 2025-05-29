@@ -406,20 +406,18 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     sd_mass_2 += sp_mass_ptrs[ia][pj];
                 }
 
-                auto r_eff_1 = effective_radius( pi, idx_w,
-                                                 rho_w,
-                                                 radius_ptr[pi],
-                                                 num_sp, num_ae,
-                                                 sp_sol_arr, ae_sol_arr,
-                                                 sp_mass_ptrs, ae_mass_ptrs,
-                                                 sp_rho_arr, ae_rho_arr );
-                auto r_eff_2 = effective_radius( pj, idx_w,
-                                                 rho_w,
-                                                 radius_ptr[pj],
-                                                 num_sp, num_ae,
-                                                 sp_sol_arr, ae_sol_arr,
-                                                 sp_mass_ptrs, ae_mass_ptrs,
-                                                 sp_rho_arr, ae_rho_arr );
+                auto r_eff_1 = SD_effective_radius( pi, idx_w,
+                                                    rho_w,
+                                                    num_sp, num_ae,
+                                                    sp_sol_arr, ae_sol_arr,
+                                                    sp_mass_ptrs, ae_mass_ptrs,
+                                                    sp_rho_arr, ae_rho_arr );
+                auto r_eff_2 = SD_effective_radius( pj, idx_w,
+                                                    rho_w,
+                                                    num_sp, num_ae,
+                                                    sp_sol_arr, ae_sol_arr,
+                                                    sp_mass_ptrs, ae_mass_ptrs,
+                                                    sp_rho_arr, ae_rho_arr );
 
                 auto k_brown = ckernel.Brownian_SeinfeldPandis( r_eff_1,
                                                                 r_eff_2,

@@ -80,7 +80,6 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         auto zheight = (*z_height)[grid].array();
 
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
@@ -164,13 +163,12 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             }
 
             // compute effective radius
-            auto r_eff = effective_radius( i, idx_w,
-                                           rho_w,
-                                           radius_ptr[i],
-                                           num_sp, num_ae,
-                                           sp_sol_arr, ae_sol_arr,
-                                           sp_mass_ptrs, ae_mass_ptrs,
-                                           sp_rho_arr, ae_rho_arr );
+            auto r_eff = SD_effective_radius( i, idx_w,
+                                              rho_w,
+                                              num_sp, num_ae,
+                                              sp_sol_arr, ae_sol_arr,
+                                              sp_mass_ptrs, ae_mass_ptrs,
+                                              sp_rho_arr, ae_rho_arr );
 
 
             ParticleReal terminal_vel = 0.0;

@@ -410,16 +410,13 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
     Print() << "    Number of physical particles per cell: " << num_par_per_cell << "\n"
             << "    Number of super droplets per cell: " << num_sd_per_cell << "\n";
 
-    const int n_species  = m_num_species;
-    const int n_aerosols = m_num_aerosols;
+    const int num_sp  = m_num_species;
+    const int num_ae = m_num_aerosols;
     const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int idx_w = m_idx_w;
     AMREX_ALWAYS_ASSERT(idx_w >= 0);
 
     const auto sampled_multiplicity = a_init.sampledMultiplicity();
-
-    const int n_seeds = a_init.m_ppc_seed;
-    const Real condensate_mass_seed = a_init.m_seed_mass;
 
     iMultiFab num_superdroplets( ParticleBoxArray(m_lev),
                                  ParticleDistributionMap(m_lev),
@@ -499,20 +496,20 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
 #endif
         auto* uid_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::uid).data() + size_old;
 
-        SDSpeciesMassArr species_mass_ptrs;
-        for (int i = 0; i < n_species; i++) {
-            species_mass_ptrs[i] = soa.GetRealData(idx_s(i,n_aerosols,n_species)).data() + size_old;
+        SDSpeciesMassArr sp_mass_ptrs;
+        for (int i = 0; i < num_sp; i++) {
+            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data() + size_old;
         }
 
-        SDAerosolMassArr aerosol_mass_ptrs;
-        for (int i = 0; i < n_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(idx_a(i,n_aerosols,n_species)).data() + size_old;
+        SDAerosolMassArr ae_mass_ptrs;
+        for (int i = 0; i < num_ae; i++) {
+            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data() + size_old;
         }
 
-        Gpu::DeviceVector<Real> species_mass_d(n_species*np);
+        Gpu::DeviceVector<Real> species_mass_d(num_sp*np);
         {
             Vector<Real> multiplicity_h(np, 0.0);
-            for (int i = 0; i < n_species; i++) {
+            for (int i = 0; i < num_sp; i++) {
                 Vector<Real> species_mass_h;
                 if (sampled_multiplicity) {
                     a_init.getSpeciesDistribution( species_mass_h,
@@ -534,11 +531,11 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                            species_mass_d.begin() + (i*np) );
             }
         }
-        Gpu::DeviceVector<Real> aerosol_mass_d(n_aerosols*np);
+        Gpu::DeviceVector<Real> aerosol_mass_d(num_ae*np);
         Gpu::DeviceVector<Real> multiplicity_d(np);
         {
             Vector<Real> multiplicity_h(np, 0.0);
-            for (int i = 0; i < n_aerosols; i++) {
+            for (int i = 0; i < num_ae; i++) {
                 Vector<Real> aerosol_mass_h;
                 if (sampled_multiplicity) {
                     a_init.getAerosolDistribution( aerosol_mass_h,
@@ -568,9 +565,51 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         }
         Gpu::synchronize();
 
+        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
+        Gpu::DeviceVector<int> sp_solubility(num_sp);
+        {
+            Vector<ParticleReal> sp_density_h(num_sp);
+            Vector<int> sp_solubility_h(num_sp);
+            for (int i = 0; i < num_sp; i++) {
+                sp_density_h[i] = m_species_mat[i]->m_density;
+                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_density_h.begin(),
+                        sp_density_h.end(),
+                        sp_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_solubility_h.begin(),
+                        sp_solubility_h.end(),
+                        sp_solubility.begin() );
+        }
+
+        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
+        Gpu::DeviceVector<int> ae_solubility(num_ae);
+        {
+            Vector<ParticleReal> ae_density_h(num_ae);
+            Vector<int> ae_solubility_h(num_ae);
+            for (int i = 0; i < num_ae; i++) {
+                ae_density_h[i] = m_aerosol_mat[i]->m_density;
+                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_density_h.begin(),
+                        ae_density_h.end(),
+                        ae_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_solubility_h.begin(),
+                        ae_solubility_h.end(),
+                        ae_solubility.begin() );
+        }
+
         auto species_mass = species_mass_d.data();
         auto aerosol_mass = aerosol_mass_d.data();
         auto mult_arr = multiplicity_d.data();
+        auto sp_rho_arr = sp_density.data();
+        auto sp_sol_arr = sp_solubility.data();
+        auto ae_rho_arr = ae_density.data();
+        auto ae_sol_arr = ae_solubility.data();
 
         auto num_superdroplets_arr = num_superdroplets[mfi].array();
         auto random_place = m_place_randomly_in_cells;
@@ -623,59 +662,26 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 num_to_add -= mult_ptr[n];
                 if (mult_ptr[n] == 0) { mult_ptr[n] = 1; }
 
-                for (int ctr = 0; ctr < n_species; ctr++) {
-                    species_mass_ptrs[ctr][n] = species_mass[ctr*np+n];
+                for (int ctr = 0; ctr < num_sp; ctr++) {
+                    sp_mass_ptrs[ctr][n] = species_mass[ctr*np+n];
                 }
-                for (int ctr = 0; ctr < n_aerosols; ctr++) {
-                    aerosol_mass_ptrs[ctr][n] = aerosol_mass[ctr*np+n];
-                }
-
-                ParticleReal par_radius = 0.0;
-                if (species_mass_ptrs[idx_w][n] > 0.0) {
-                    auto cond_mass = species_mass_ptrs[idx_w][n];
-                    par_radius = std::cbrt(cond_mass/((4.0/3.0)*PI*rho_w));
-                } else {
-                    par_radius = 1.0e-15;
-                    species_mass_ptrs[idx_w][n] = (4.0/3.0)*PI*par_radius*par_radius*par_radius*rho_w;
+                for (int ctr = 0; ctr < num_ae; ctr++) {
+                    ae_mass_ptrs[ctr][n] = aerosol_mass[ctr*np+n];
                 }
 
-                {
-                    ParticleReal species_mass_total = 0.0;
-                    for (int ctr = 0; ctr < n_species; ctr++) {
-                        species_mass_total += species_mass[ctr*np+n];
-                    }
-                    ParticleReal aerosol_mass_total = 0.0;
-                    for (int ctr = 0; ctr < n_aerosols; ctr++) {
-                        aerosol_mass_total += aerosol_mass[ctr*np+n];
-                    }
-                    mass_ptr[n] = species_mass_total + aerosol_mass_total;
-                }
+                radius_ptr[n] = SD_effective_radius( n, idx_w,
+                                                     rho_w,
+                                                     num_sp, num_ae,
+                                                     sp_sol_arr, ae_sol_arr,
+                                                     sp_mass_ptrs, ae_mass_ptrs,
+                                                     sp_rho_arr, ae_rho_arr );
+                mass_ptr[n] = SD_total_mass( n, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
 
-                radius_ptr[n] = par_radius;
                 vterm_ptr[n] = 0.0;
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
                 condt_ptr[n] = 0.0;
 #endif
                 uid_ptr[n] = ParticleReal((pid+n-1)*nprocs + my_proc + 1);
-            }
-
-            /* Seed particles */
-            for (int ns = 0; ns < n_seeds; ns++) {
-                int n = start + Random_int(num_sd_this_cell, rnd_engine);
-
-                ParticleReal aerosol_mass_total = 0.0;
-                for (int ctr = 0; ctr < n_aerosols; ctr++) {
-                    aerosol_mass_total += aerosol_mass_ptrs[ctr][n];
-                }
-                auto par_mass = condensate_mass_seed + aerosol_mass_total;
-                auto par_radius = std::cbrt(par_mass/((4.0/3.0)*PI*rho_w));
-                if (par_radius == 0.0) {
-                    par_radius = 1.0e-16;
-                }
-
-                mult_ptr[n] = 1.0;
-                mass_ptr[n] = par_mass;
-                radius_ptr[n] = par_radius;
             }
         });
         Gpu::synchronize();
@@ -735,8 +741,8 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     const auto domain = Geom(m_lev).Domain();
 
     const int num_sd_per_cell = m_num_sd_per_cell;
-    const int n_species  = m_num_species;
-    const int n_aerosols = m_num_aerosols;
+    const int num_sp  = m_num_species;
+    const int num_ae = m_num_aerosols;
 
     // condensate density
     const Real rho_w = m_species_mat[m_idx_w]->m_density;
@@ -760,14 +766,14 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
-        SDSpeciesMassArr species_mass_ptrs;
-        for (int i = 0; i < n_species; i++) {
-            species_mass_ptrs[i] = soa.GetRealData(idx_s(i,n_aerosols,n_species)).data();
+        SDSpeciesMassArr sp_mass_ptrs;
+        for (int i = 0; i < num_sp; i++) {
+            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
         }
 
-        SDAerosolMassArr aerosol_mass_ptrs;
-        for (int i = 0; i < n_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(idx_a(i,n_aerosols,n_species)).data();
+        SDAerosolMassArr ae_mass_ptrs;
+        for (int i = 0; i < num_ae; i++) {
+            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
         }
 
         auto condensate_mass_density = a_rhoc[pti.index()].array();
@@ -785,15 +791,15 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             mult_ptr[i] += mult_rnd;
 
             ParticleReal species_mass_total = 0.0;
-            for (int ctr = 0; ctr < n_species; ctr++) {
+            for (int ctr = 0; ctr < num_sp; ctr++) {
                 if (ctr != idx_w) {
-                    species_mass_total += species_mass_ptrs[ctr][n];
+                    species_mass_total += sp_mass_ptrs[ctr][n];
                 }
             }
 
             ParticleReal aerosol_mass_total = 0.0;
-            for (int ctr = 0; ctr < n_aerosols; ctr++) {
-                aerosol_mass_total += aerosol_mass_ptrs[ctr][n];
+            for (int ctr = 0; ctr < num_ae; ctr++) {
+                aerosol_mass_total += ae_mass_ptrs[ctr][n];
             }
 
             const Real mass_particle = mass_condensate_sd / mult_ptr[i] + aerosol_mass_total + species_mass_total;

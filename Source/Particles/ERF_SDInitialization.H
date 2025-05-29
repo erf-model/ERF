@@ -58,11 +58,6 @@ struct SDInitialization
     /*!< Initial number of super-droplets per cell */
     int m_ppc_init = 1;
 
-    /*!< Number of seed particles per cell */
-    int m_ppc_seed = 0;
-    /*!< Condensate mass of seed */
-    amrex::Real m_seed_mass = 0.0;
-
     /*! Minimum species mass */
     std::vector<amrex::Real> m_mass_species_min;
     /*! Maximum species mass */
