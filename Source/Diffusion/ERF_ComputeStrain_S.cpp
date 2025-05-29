@@ -135,11 +135,6 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz0 = dz_ptr[k] + dz_ptr[k-1];
             Real idz0 = 1.0 / dz0;
 
-            Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
-                                       - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
-                                       - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
-
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
@@ -162,11 +157,6 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real dz0 = dz_ptr[k] + dz_ptr[k-1];
             Real idz0 = 1.0 / dz0;
-
-            Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
-                                       - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
-                                       - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
@@ -251,11 +241,6 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz0  = dz_ptr[k] + dz_ptr[k-1];
             Real idz0 = 1.0 / dz0;
 
-            Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
-                                       - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
-                                       - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
-
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
@@ -277,11 +262,6 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real dz0  = dz_ptr[k] + dz_ptr[k-1];
             Real idz0 = 1.0 / dz0;
-
-            Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
-                                       - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
-                                       - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
@@ -464,11 +444,6 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real c2   = -f2*c3;
             Real c1   = -(1.0-f2)*c3;
 
-            Real GradUz = 0.5 * idz0 * ( (c1 * u(i  ,j,k-1) + c2 * u(i  ,j,k) + c3 * u(i  ,j,k+1))
-                                       + (c1 * u(i-1,j,k-1) + c2 * u(i-1,j,k) + c3 * u(i-1,j,k+1)) );
-            Real GradVz = 0.5 * idz0 * ( (c1 * v(i,j  ,k-1) + c2 * v(i,j  ,k) + c3 * v(i,j  ,k+1))
-                                       + (c1 * v(i,j-1,k-1) + c2 * v(i,j-1,k) + c3 * v(i,j-1,k+1)) );
-
             Real mfx = mf_mx(i,j,0);
             Real mfy = mf_my(i,j,0);
 
@@ -489,11 +464,6 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real c3   = 2.0 / (f - f2);
             Real c2   = -f2*c3;
             Real c1   = -(1.0-f2)*c3;
-
-            Real GradUz = 0.5 * idz0 * ( (c1 * u(i,j  ,k-1) + c2 * u(i,j  ,k) + c3 * u(i,j  ,k+1))
-                                       + (c1 * u(i,j-1,k-1) + c2 * u(i,j-1,k) + c3 * u(i,j-1,k+1)) );
-            Real GradVz = 0.5 * idz0 * ( (c1 * v(i  ,j,k-1) + c2 * v(i  ,j,k) + c3 * v(i  ,j,k+1))
-                                       + (c1 * v(i-1,j,k-1) + c2 * v(i-1,j,k) + c3 * v(i-1,j,k+1)) );
 
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
@@ -578,11 +548,6 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Real dz0  = dz_ptr[k] + dz_ptr[k-1];
         Real idz0 = 1.0 / dz0;
 
-        Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
-                                   - u(i  ,j  ,k-1) - u(i-1,j  ,k-1) );
-        Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i  ,j-1,k+1)
-                                   - v(i  ,j  ,k-1) - v(i  ,j-1,k-1) );
-
         Real mfx = mf_mx(i,j,0);
         Real mfy = mf_my(i,j,0);
 
@@ -598,11 +563,6 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real dz0  = dz_ptr[k] + dz_ptr[k-1];
         Real idz0 = 1.0 / dz0;
-
-        Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
-                                   - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-        Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
-                                   - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
         Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
         Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
