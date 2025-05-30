@@ -241,8 +241,12 @@ void SuperDropletPC::MassChange ( int                                         a_
                                     solute_moles,
                                     cfl, 1e-40, 1e-3, 1e-6, false, false };
 
-            auto mass = sp_mass_ptrs[idx_vap][i];
-            auto r_init = std::cbrt(mass / ((4.0/3.0)*PI*mat_density));
+            auto r_init = SD_effective_radius( i, idx_w,
+                                               rho_w,
+                                               num_sp, num_ae,
+                                               sp_sol_arr, ae_sol_arr,
+                                               sp_mass_ptrs, ae_mass_ptrs,
+                                               sp_rho_arr, ae_rho_arr );
 
             auto r_sq = r_init*r_init;
             bool success = false;
@@ -273,7 +277,11 @@ void SuperDropletPC::MassChange ( int                                         a_
             } else {
                 // update particle attributes
                 auto r_new = std::sqrt(r_sq);
-                sp_mass_ptrs[idx_vap][i] = (4.0/3.0)*PI*r_new*r_sq*mat_density;
+                auto d_mass = (4.0/3.0)*PI*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
+                sp_mass_ptrs[idx_vap][i] += d_mass;
+                // don't let it go negative
+                sp_mass_ptrs[idx_vap][i] = std::max(sp_mass_ptrs[idx_vap][i],0.0);
+
                 radius_ptr[i] = SD_effective_radius( i, idx_w,
                                                      rho_w,
                                                      num_sp, num_ae,
