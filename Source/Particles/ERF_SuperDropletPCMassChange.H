@@ -28,8 +28,12 @@ namespace SDMassChangeUtils
                          const RT a_b,   /*!< solute coeff */
                          const RT a_N_s  /*!< total solute moles */ ) const noexcept
         {
+            RT lambda_v = 2*a_D/std::sqrt(8*a_T*Rv/PI);
+            RT Kn = lambda_v/a_R;
+            RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
+
             RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
-            RT F_d = (rho_l*Rv*a_T) / (a_D*a_e_s);
+            RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
             RT R_inv = 1.0/a_R;
             RT R_inv_cubed = R_inv*R_inv*R_inv;
@@ -69,8 +73,12 @@ namespace SDMassChangeUtils
                       const RT a_b,    /*!< solute coeff */
                       const RT a_N_s   /*!< total solute moles */ ) const noexcept
         {
+            RT lambda_v = 2*a_D/std::sqrt(8*a_T*Rv/PI);
+            RT Kn = lambda_v/std::sqrt(a_R_sq);
+            RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
+
             RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
-            RT F_d = (rho_l*Rv*a_T) / (a_D*a_e_s);
+            RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
             RT R_inv = std::exp(-0.5*std::log(a_R_sq));
             RT R_inv_cubed = R_inv*R_inv*R_inv;
@@ -97,8 +105,12 @@ namespace SDMassChangeUtils
                      const RT a_b,    /*!< solute coeff */
                      const RT a_N_s   /*!< total solute moles */ ) const noexcept
         {
+            RT lambda_v = 2*a_D/std::sqrt(8*a_T*Rv/PI);
+            RT Kn = lambda_v/std::sqrt(a_R_sq);
+            RT dcf = (1+Kn) / (1+2*Kn*(1+Kn));
+
             RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
-            RT F_d = (rho_l*Rv*a_T) / (a_D*a_e_s);
+            RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
             RT R_inv = 1.0/std::sqrt(a_R_sq);
             RT R_inv_3 = R_inv*R_inv*R_inv;
