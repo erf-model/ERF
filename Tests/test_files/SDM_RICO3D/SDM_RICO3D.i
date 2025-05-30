@@ -121,14 +121,14 @@ super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 30.0e-9 #kg (0.0
 #super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 1.5440783508342682e-07 #kg (0.03 mu-m)
 super_droplets_moisture.0.initial_aerosol_std_radius_NH4HSO4 = 0.2468600779315258
 super_droplets_moisture.0.initial_number_density = 9.0e7 #m^{-3}
-super_droplets_moisture.0.initial_particles_per_cell = 64
+super_droplets_moisture.0.initial_particles_per_cell = 4
 
 super_droplets_moisture.1.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
 super_droplets_moisture.1.initial_aerosol_mean_radius_NH4HSO4 = 140.0e-9 #kg (0.14 mu-m)
 #super_droplets_moisture.1.initial_aerosol_mean_radius_NH4HSO4 = 2.993331986277269e-06
 super_droplets_moisture.1.initial_aerosol_std_radius_NH4HSO4 = 0.5596157879354227
 super_droplets_moisture.1.initial_number_density = 1.5e7 #m^{-3}
-super_droplets_moisture.1.initial_particles_per_cell = 64
+super_droplets_moisture.1.initial_particles_per_cell = 4
 
 erf.molec_diff_type = "None"
 
