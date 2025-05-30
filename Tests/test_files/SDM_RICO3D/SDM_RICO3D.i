@@ -69,7 +69,7 @@ erf.plot_vars_1     = density \
                       qrain \
                       rain_accum \
                       rel_humidity \
-                      super_droplets_moisture_number_density
+                      super_droplets_moisture_number_density \
                       super_droplets_moisture_mass_flux_x \
                       super_droplets_moisture_mass_flux_y \
                       super_droplets_moisture_mass_flux_z \

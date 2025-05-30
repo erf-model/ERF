@@ -67,7 +67,7 @@ erf.plot_vars_1     = density \
                       qc_agua \
                       qt_agua \
                       sat_ratio_agua \
-                      accum_agua 
+                      accum_agua \
                       super_droplets_moisture_mass_flux_x \
                       super_droplets_moisture_mass_flux_y \
                       super_droplets_moisture_mass_flux_z \
