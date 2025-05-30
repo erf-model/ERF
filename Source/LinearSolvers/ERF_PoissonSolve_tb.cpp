@@ -17,9 +17,9 @@ bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
  * Project the single-level velocity field to enforce incompressibility with a
  * thin body
  */
-void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf)
+void ERF::project_velocity_tb (int lev, Real l_dt, Vector<MultiFab>& vmf)
 {
-    BL_PROFILE("ERF::project_velocities_tb()");
+    BL_PROFILE("ERF::project_velocity_tb()");
     AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::ConstantDz);
 
     // Make sure the solver only sees the levels over which we are solving
@@ -132,7 +132,7 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf)
 
         // If all Neumann BCs, adjust RHS to make sure we can converge
         if (need_adjust_rhs) {
-            Real offset = volWgtSumMF(lev, rhs[0], 0, *mapfac[lev][MapFacType::m_x], false);
+            Real offset = volWgtSumMF(lev, rhs[0], 0, false);
             // amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
             rhs[0].plus(-offset, 0, 1);
         }

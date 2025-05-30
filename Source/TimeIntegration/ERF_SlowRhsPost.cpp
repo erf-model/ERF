@@ -72,6 +72,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                         const Vector<BCRec>& domain_bcs_type_h,
                         std::unique_ptr<MultiFab>& z_phys_nd,
+                        std::unique_ptr<MultiFab>& z_phys_cc,
                         std::unique_ptr<MultiFab>& ax,
                         std::unique_ptr<MultiFab>& ay,
                         std::unique_ptr<MultiFab>& az,
@@ -282,6 +283,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         const Array4<const Real>& z_nd         = z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_cc         = z_phys_cc->const_array(mfi);
         const Array4<const Real>& detJ_new_arr = l_moving_terrain ? detJ_new->const_array(mfi)    : Array4<const Real>{};
 
         // Map factors
@@ -456,7 +458,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, l_rotate, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
-                                               z_nd, ax_arr, ay_arr, az_arr, detJ_arr,dxInv, SmnSmn_a,
+                                               z_nd, z_cc, ax_arr, ay_arr, az_arr,
+                                               detJ_arr, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
