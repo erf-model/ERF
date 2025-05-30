@@ -1,5 +1,5 @@
 HyperCLaw-V1.1
-18
+31
 density
 rhotheta
 rhoQ1
@@ -17,7 +17,20 @@ qp
 qsat
 rain_accum
 rel_humidity
+super_droplets_moisture_mass_flux_x
+super_droplets_moisture_mass_flux_y
+super_droplets_moisture_mass_flux_z
 super_droplets_moisture_number_density
+super_droplets_moisture_mass_density
+super_droplets_moisture_radius
+super_droplets_moisture_mass_density_H2O
+super_droplets_moisture_mass_flux_x_H2O
+super_droplets_moisture_mass_flux_y_H2O
+super_droplets_moisture_mass_flux_z_H2O
+super_droplets_moisture_aerosol_mass_density_NH42SO4
+super_droplets_moisture_aerosol_mass_flux_x_NH42SO4
+super_droplets_moisture_aerosol_mass_flux_y_NH42SO4
+super_droplets_moisture_aerosol_mass_flux_z_NH42SO4
 3
 10
 0
