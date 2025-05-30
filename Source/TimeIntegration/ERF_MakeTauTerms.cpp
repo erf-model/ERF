@@ -235,7 +235,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             s12, s21,
                                             s13, s31,
                                             s23, s32,
-                                            er_arr, z_nd, detJ_arr, dxInv,
+                                            er_arr, stretched_dz_d, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy);
                 } else {
@@ -245,7 +245,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            s12, s21,
                                            s13, s31,
                                            s23, s32,
-                                           er_arr, z_nd, detJ_arr, dxInv,
+                                           er_arr, stretched_dz_d, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy);
                 }
