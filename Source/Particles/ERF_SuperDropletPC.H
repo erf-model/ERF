@@ -151,6 +151,38 @@ static auto SD_effective_radius( const int a_idx, /*!< Particle index */
     return r_eff;
 }
 
+/*! \brief Compute "dry" radius of a droplet from its insoluble components */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+static auto SD_dry_radius( const int a_idx, /*!< Particle index */
+                           const int a_num_sp,   /*!< number of species */
+                           const int a_num_ae,   /*!< number of aerosols */
+                           const int* const a_sp_sol_arr, /*!< solubility of species */
+                           const int* const a_ae_sol_arr, /*!< solubility of aerosols */
+                           const SDSpeciesMassArr& a_sp_mass, /*!< species masses */
+                           const SDAerosolMassArr& a_ae_mass, /*!< aerosol masses */
+                           const amrex::ParticleReal* const a_sp_rho, /*!< species densities */
+                           const amrex::ParticleReal* const a_ae_rho  /*!< aerosol densities */ )
+{
+    amrex::ParticleReal m_p = 0.0;
+    amrex::ParticleReal rho_p = 0.0;
+    for (int j = 0; j < a_num_sp; j++) {
+        if (!a_sp_sol_arr[j]) {
+            m_p += a_sp_mass[j][a_idx];
+            rho_p += a_sp_rho[j]*a_sp_mass[j][a_idx];
+        }
+    }
+    for (int j = 0; j < a_num_ae; j++) {
+        if (!a_ae_sol_arr[j]) {
+            m_p += a_ae_mass[j][a_idx];
+            rho_p += a_ae_rho[j]*a_ae_mass[j][a_idx];
+        }
+    }
+    if (m_p > 0.0) { rho_p /= m_p; }
+    else           { rho_p = 1.0; }
+    auto r_dry = std::cbrt(m_p / (4.0/3.0*PI*rho_p));
+    return r_dry;
+}
+
 /*! \brief Types of terminal velocity models */
 enum struct SDTerminalVelocityType {
     RogersYau,
