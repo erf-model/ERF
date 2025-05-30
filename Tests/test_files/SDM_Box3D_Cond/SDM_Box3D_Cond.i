@@ -17,6 +17,9 @@ geometry.is_periodic =  1 1 1
 erf.fixed_dt = 0.0025
 erf.substepping_type = "None"
 
+# initialization type
+erf.init_type = "uniform"
+
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
@@ -32,7 +35,7 @@ erf.check_int       = -1        # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 1          # number of timesteps between plotfiles
-erf.plot_vars_1     = density \ 
+erf.plot_vars_1     = density \
                       rhotheta \
                       rhoQ1 \
                       rhoQ2 \
@@ -57,28 +60,15 @@ erf.plot_vars_1     = density \
                       super_droplets_moisture_aerosol_mass_flux_z_NaCl 
 
 # SOLVER CHOICES
-erf.use_gravity  = true
+erf.use_gravity  = false
 erf.use_coriolis = false
-erf.use_rayleigh_damping = false
     
-erf.dycore_horiz_adv_type    = "Upwind_3rd"
-erf.dycore_vert_adv_type     = "Upwind_3rd"
-erf.dryscal_horiz_adv_type   = "Upwind_3rd"
-erf.dryscal_vert_adv_type    = "Upwind_3rd"
-erf.moistscal_horiz_adv_type = "Upwind_3rd"
-erf.moistscal_vert_adv_type  = "Upwind_3rd"       
-
 # PHYSICS OPTIONS
 erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "SuperDroplets"
 erf.buoyancy_type   = 1
 erf.use_moist_background = true
-
-erf.molec_diff_type  = "ConstantAlpha"
-erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 1.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
-erf.alpha_T          = 1.0 # [m^2/s]
 
 #sdm parameters
 super_droplets_moisture.stable_redistribute = true
