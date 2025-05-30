@@ -4,7 +4,7 @@
 using namespace amrex;
 
 /**
- * Function for computing the strain rates with terrain.
+ * Function for computing the strain rates with stretched dz
  *
  * @param[in] bxcc cell center box for tau_ii
  * @param[in] tbxxy nodal xy box for tau_12

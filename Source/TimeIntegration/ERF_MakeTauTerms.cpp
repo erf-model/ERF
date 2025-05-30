@@ -229,23 +229,23 @@ void erf_make_tau_terms (int level, int nrk,
                 tbxyz.grow(IntVect(-1,-1,0));
 
                 if (!l_use_turb) {
-                    ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                    ComputeStressConsVisc_S(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
                                             cell_data,
                                             s11, s22, s33,
                                             s12, s21,
                                             s13, s31,
                                             s23, s32,
-                                            er_arr, z_nd, detJ_arr, dxInv,
+                                            er_arr, stretched_dz_d, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy);
                 } else {
-                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
+                    ComputeStressVarVisc_S(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
                                            s11, s22, s33,
                                            s12, s21,
                                            s13, s31,
                                            s23, s32,
-                                           er_arr, z_nd, detJ_arr, dxInv,
+                                           er_arr, stretched_dz_d, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy);
                 }
