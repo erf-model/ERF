@@ -16,6 +16,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
         auto& species = m_species[is];
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(species);
         bool is_water = vapour_mat.m_is_water;
+        const auto idx_w = m_idx_w;
 
         MultiFab* qv_ptr = nullptr;
         MultiFab* qc_ptr = nullptr;
@@ -107,7 +108,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                     ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         auto old_qv = qv_arr(i,j,k);
-                        if (is == m_idx_w) {
+                        if (is == idx_w) {
                             auto qw = qc_arr(i,j,k) + qr_arr(i,j,k);
                             if (qw > qt_arr(i,j,k)) {
                                 qv_arr(i,j,k) = 0.0;
@@ -132,7 +133,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                         AMREX_ALWAYS_ASSERT(qv_arr(i,j,k) >= 0.0);
                         AMREX_ALWAYS_ASSERT(qc_arr(i,j,k) >= 0.0);
 
-                        if (is == m_idx_w) { dqc_arr(i,j,k) = - (qv_arr(i,j,k) - old_qv) / dt_s; }
+                        if (is == idx_w) { dqc_arr(i,j,k) = - (qv_arr(i,j,k) - old_qv) / dt_s; }
 
                         auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
                         theta_arr(i,j,k) += theta_over_T * fac_cond * (old_qv-qv_arr(i,j,k));
