@@ -35,7 +35,30 @@ erf.check_int       = -1        # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 50         # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure theta scalar temp eq_pot_temp super_droplets_moisture_mass_flux_x super_droplets_moisture_mass_flux_y super_droplets_moisture_mass_flux_z super_droplets_moisture_number_density super_droplets_moisture_mass_density super_droplets_moisture_radius super_droplets_moisture_mass_density_H2O super_droplets_moisture_mass_flux_x_H2O super_droplets_moisture_mass_flux_y_H2O super_droplets_moisture_mass_flux_z_H2O super_droplets_moisture_aerosol_mass_density_NaCl super_droplets_moisture_aerosol_mass_flux_x_NaCl super_droplets_moisture_aerosol_mass_flux_y_NaCl super_droplets_moisture_aerosol_mass_flux_z_NaCl 
+erf.plot_vars_1     = density \
+                      rhotheta \
+                      x_velocity \
+                      y_velocity \
+                      z_velocity \
+                      pressure \
+                      theta \
+                      scalar \
+                      temp \
+                      eq_pot_temp \
+                      super_droplets_moisture_mass_flux_x \
+                      super_droplets_moisture_mass_flux_y \
+                      super_droplets_moisture_mass_flux_z \
+                      super_droplets_moisture_number_density \
+                      super_droplets_moisture_mass_density \
+                      super_droplets_moisture_radius \
+                      super_droplets_moisture_mass_density_H2O \
+                      super_droplets_moisture_mass_flux_x_H2O \
+                      super_droplets_moisture_mass_flux_y_H2O \
+                      super_droplets_moisture_mass_flux_z_H2O \
+                      super_droplets_moisture_aerosol_mass_density_NaCl \
+                      super_droplets_moisture_aerosol_mass_flux_x_NaCl \
+                      super_droplets_moisture_aerosol_mass_flux_y_NaCl \
+                      super_droplets_moisture_aerosol_mass_flux_z_NaCl 
 
 # SOLVER CHOICES
 erf.use_gravity          = true

@@ -35,7 +35,65 @@ erf.check_int       = -1        # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 100        # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhotheta rhoQ1 rhoQ2 rhoadv_0 x_velocity y_velocity z_velocity pressure theta scalar temp pres_hse dens_hse pert_pres pert_dens eq_pot_temp qt qv qc qrain rel_humidity rain_accum qv_water qc_water qt_water sat_ratio_water accum_water qv_agua qc_agua qt_agua sat_ratio_agua accum_agua 
+erf.plot_vars_1     = density \
+                      rhotheta \
+                      rhoQ1 \
+                      rhoQ2 \
+                      rhoadv_0 \
+                      x_velocity \
+                      y_velocity \
+                      z_velocity \
+                      pressure \
+                      theta \
+                      scalar \
+                      temp \
+                      pres_hse \
+                      dens_hse \
+                      pert_pres \
+                      pert_dens \
+                      eq_pot_temp \
+                      qt \
+                      qv \
+                      qc \
+                      qrain \
+                      rel_humidity \
+                      rain_accum \
+                      qv_water \
+                      qc_water \
+                      qt_water \
+                      sat_ratio_water \
+                      accum_water \
+                      qv_agua \
+                      qc_agua \
+                      qt_agua \
+                      sat_ratio_agua \
+                      accum_agua 
+                      super_droplets_moisture_mass_flux_x \
+                      super_droplets_moisture_mass_flux_y \
+                      super_droplets_moisture_mass_flux_z \
+                      super_droplets_moisture_number_density \
+                      super_droplets_moisture_mass_density \
+                      super_droplets_moisture_radius \
+                      super_droplets_moisture_mass_density_H2O \
+                      super_droplets_moisture_mass_flux_x_H2O \
+                      super_droplets_moisture_mass_flux_y_H2O \
+                      super_droplets_moisture_mass_flux_z_H2O \
+                      super_droplets_moisture_aerosol_mass_density_NaCl \
+                      super_droplets_moisture_aerosol_mass_flux_x_NaCl \
+                      super_droplets_moisture_aerosol_mass_flux_y_NaCl \
+                      super_droplets_moisture_aerosol_mass_flux_z_NaCl \
+                      super_droplets_moisture_species_mass_density_H2O \
+                      super_droplets_moisture_species_mass_flux_x_H2O \
+                      super_droplets_moisture_species_mass_flux_y_H2O \
+                      super_droplets_moisture_species_mass_flux_z_H2O \
+                      super_droplets_moisture_species_mass_density_water \
+                      super_droplets_moisture_species_mass_flux_x_water \
+                      super_droplets_moisture_species_mass_flux_y_water \
+                      super_droplets_moisture_species_mass_flux_z_water \
+                      super_droplets_moisture_species_mass_density_agua \
+                      super_droplets_moisture_species_mass_flux_x_agua \
+                      super_droplets_moisture_species_mass_flux_y_agua \
+                      super_droplets_moisture_species_mass_flux_z_agua
 particles.disable_plt = true
 
 # SOLVER CHOICES
