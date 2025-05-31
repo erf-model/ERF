@@ -124,9 +124,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
     const Real    l_horiz_upw_frac = solverChoice.advChoice.dycore_horiz_upw_frac;
     const Real    l_vert_upw_frac  = solverChoice.advChoice.dycore_vert_upw_frac;
-    const bool    l_use_terrain_fitted_coords    = (solverChoice.mesh_type != MeshType::ConstantDz);
-    const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
-    if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain_fitted_coords);
+    const bool    l_use_stretched_dz             = (solverChoice.mesh_type == MeshType::StretchedDz);
+    const bool    l_use_terrain_fitted_coords    = (solverChoice.mesh_type == MeshType::VariableDz);
+    const bool    l_moving_terrain               = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_stretched_dz || l_use_terrain_fitted_coords);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
@@ -572,7 +573,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_start = RhoTheta_comp;
             int n_comp  = 1;
 
-            if (solverChoice.mesh_type == MeshType::StretchedDz) {
+            if (l_use_stretched_dz) {
                 DiffusionSrcForState_S(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
@@ -614,7 +615,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         });
 
         // Multiply the slow RHS for rho and rhotheta by detJ here so we don't have to later
-        if (l_use_terrain_fitted_coords && l_moving_terrain) {
+        if (l_moving_terrain) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 cell_rhs(i,j,k,Rho_comp)      *= detJ_arr(i,j,k);
@@ -645,8 +646,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
                            cell_data, u, v, w,
                            rho_u, rho_v, omega_arr,
-                           z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
-                           stretched_dz_d,
+                           z_nd, ax_arr, ay_arr, az_arr,
+                           detJ_arr, stretched_dz_d,
                            dxInv, mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
@@ -657,28 +658,19 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         if (l_use_diff) {
             // Note: tau** were calculated with calls to
-            // ComputeStress[Cons|Var]Visc_[N|T] in which ConsVisc ("constant
+            // ComputeStress[Cons|Var]Visc_[N|S|T] in which ConsVisc ("constant
             // viscosity") means that there is no contribution from a
             // turbulence model. However, whether this field truly is constant
             // depends on whether MolecDiffType is Constant or ConstantAlpha.
-            if (l_use_terrain_fitted_coords) {
-                DiffusionSrcForMom_T(tbx, tby, tbz,
-                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                     tau11, tau22, tau33,
-                                     tau12, tau21,
-                                     tau13, tau31,
-                                     tau23, tau32,
-                                     detJ_arr, dxInv,
-                                     mf_mx, mf_ux, mf_vx,
-                                     mf_my, mf_uy, mf_vy);
-            } else {
-                DiffusionSrcForMom_N(tbx, tby, tbz,
-                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                     tau11, tau22, tau33,
-                                     tau12, tau13, tau23, dxInv,
-                                     mf_mx, mf_ux, mf_vx,
-                                     mf_my, mf_uy, mf_vy);
-            }
+            DiffusionSrcForMom(tbx, tby, tbz,
+                               rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                               tau11, tau22, tau33,
+                               tau12, tau21, tau13, tau31, tau23, tau32,
+                               detJ_arr, stretched_dz_d, dxInv,
+                               mf_mx, mf_ux, mf_vx,
+                               mf_my, mf_uy, mf_vy,
+                               l_use_stretched_dz,
+                               l_use_terrain_fitted_coords);
         }
 
         auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
@@ -794,7 +786,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k);
 
-            if (l_use_terrain_fitted_coords && l_moving_terrain) {
+            if (l_moving_terrain) {
                  rho_w_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
             }
         });

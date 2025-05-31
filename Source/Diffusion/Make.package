@@ -1,6 +1,4 @@
-CEXE_sources += ERF_DiffusionSrcForMom_N.cpp
-CEXE_sources += ERF_DiffusionSrcForMom_T.cpp
-
+CEXE_sources += ERF_DiffusionSrcForMom.cpp
 CEXE_sources += ERF_DiffusionSrcForState_N.cpp
 CEXE_sources += ERF_DiffusionSrcForState_S.cpp
 CEXE_sources += ERF_DiffusionSrcForState_T.cpp
