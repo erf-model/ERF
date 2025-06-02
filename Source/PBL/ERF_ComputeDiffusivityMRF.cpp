@@ -97,10 +97,11 @@ ComputeDiffusivityMRF(
         // Avoiding detailed interpolation here and just using map-nearest
         // neighbor Empirical expression for PBLH is given by h = c u* / f
         // Garratt (1994) and Tennekes (1982)
-        const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? 0.16 : 0.60;
-        const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
+        //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? 0.16 : 0.60;
+        //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
+        const Real pblh_emp = gdata.ProbLo(2) + 0.5 * gdata.CellSize(2);
         pblh_arr(i, j, 0) = above_critical ? zval : pblh_emp;
-        pbli_arr(i, j, 0) = kpbl;
+        pbli_arr(i, j, 0) = above_critical ? kpbl : 1;
       });
       // Corrector PBL height for thermal excess
       const Real const_b = turbChoice.pbl_mrf_const_b;
@@ -136,10 +137,11 @@ ComputeDiffusivityMRF(
             CONST_GRAV * zval * (theta - t_surf) / (ws * ws * t_layer);
           above_critical = Rib >= Ribcr;
         }
-        const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? 0.16 : 0.60;
-        const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
+        //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? 0.16 : 0.60;
+        //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
+        const Real pblh_emp = gdata.ProbLo(2) + 0.5 * gdata.CellSize(2);
         pblh_corr_arr(i, j, 0) = above_critical ? zval : pblh_emp;
-        pbli_arr(i, j, 0) = kpbl;
+        pbli_arr(i, j, 0) = above_critical ? kpbl : 1;
       });
       amrex::Print() << "PBL height computed for MRF scheme at level "
                      << pblh_arr(2, 2, 0) << "  " << pblh_corr_arr(2, 2, 0)
