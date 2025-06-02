@@ -122,11 +122,9 @@ ComputeDiffusivityMRF(
                   (1 - 8 * sf * pblh_arr(i, j, 0) / l_obuk_arr(i, j, 0)),
                   -1.0 / 3.0);
           const Real wstar = u_star_arr(i, j, 0) / phiM;
-          const Real t_excess = -const_b * cell_data(i, j, kpbl, Rho_comp) *
-                                1000 * u_star_arr(i, j, 0) *
-                                t_star_arr(i, j, 0) /
-                                (wstar * pblh_arr(i, j, 0));
-          const Real t_surf = t_layer + std::min(t_excess, 3.0);
+          const Real t_excess = -const_b * u_star_arr(i, j, 0) *
+                                t_star_arr(i, j, 0) / wstar;
+          const Real t_surf = t_layer + std::max(std::min(t_excess, 3.0), 0.0);
           const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
                              cell_data(i, j, kpbl, Rho_comp);
           const Real ws = std::sqrt(
@@ -269,6 +267,8 @@ ComputeDiffusivityMRF(
           K_turb(i, j, k, EddyDiff::Theta_v) =
             K_turb(i, j, 0, EddyDiff::Theta_v);
         }
+      // Entrainement Test 
+      
       });
     }
   }
