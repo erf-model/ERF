@@ -130,13 +130,13 @@ MRF PBL Model
 
 .. warning::
 
-   Implementation is in progress with basic support. Need to be tuned in future for real flows. 
+   Implementation is in progress with basic support. Need to be tuned in future for real flows.
 
-The Medium Range Forecast (MRF) PBL model is a nonlocal PBL scheme that was originally developed for the MRF model, 
-which was used in the NCEP global forecast system. It is a nonlocal scheme that uses a countergradient diffusion approach 
+The Medium Range Forecast (MRF) PBL model is a nonlocal PBL scheme that was originally developed for the MRF model,
+which was used in the NCEP global forecast system. It is a nonlocal scheme that uses a countergradient diffusion approach
 to model vertical turbulent transport within the PBL.
 
-The turbulent diffusion for prognostic variables (:math:`C= u, v, \theta, q_k`), where :math:`q_k` includes all moisture 
+The turbulent diffusion for prognostic variables (:math:`C= u, v, \theta, q_k`), where :math:`q_k` includes all moisture
 variables is given by 
 
 .. math::
@@ -155,7 +155,7 @@ The turbulent diffusion coefficient in the mixed layer is given by:
 .. math::
    w_s = \frac{u_*}{\phi_m}
 
-where :math:`\kappa` is the von Karman constant, :math:`w_s` is a representative velocity scale in the mixed layer, 
+where :math:`\kappa` is the von Karman constant, :math:`w_s` is a representative velocity scale in the mixed layer,
 and :math:`h` is the PBL height. The stability function :math:`\phi_m` is computed to be consistent with the surface layer
 bottom. For unstable regime (:math:`u_*\theta_* < 0`), it is calculated as follows:
 
