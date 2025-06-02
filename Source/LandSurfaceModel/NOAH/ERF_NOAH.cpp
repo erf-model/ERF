@@ -223,11 +223,10 @@ NOAH::Advance_With_State (const int& lev,
 
                 // Loop on CPU to copy slice at klev, since no direct 2D copy in AMReX API
                 // This is host code; amrex::Gpu::copy cannot copy a slice directly, so do manual copy:
-                for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
-                    for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
-                        U_arr(i,j,0) = xvel_arr(i,j,klev);
-                        V_arr(i,j,0) = yvel_arr(i,j,klev);
-                    }
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+                {
+                   U_arr(i,j,0) = xvel_arr(i,j,klev);
+                   V_arr(i,j,0) = yvel_arr(i,j,klev);
                 }
             }
 
@@ -238,10 +237,9 @@ NOAH::Advance_With_State (const int& lev,
 
                 // For each component copy slice at klev
                 for (int comp = 0; comp < ncons; ++comp) {
-                    for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
-                        for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
-                            c_arr(i,j,0,comp) = cons_arr(i,j,klev,comp);
-                        }
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+                    {
+                       c_arr(i,j,0,comp) = cons_arr(i,j,klev,comp);
                     }
                 }
             }
@@ -289,6 +287,8 @@ NOAH::Advance_With_State (const int& lev,
             FArrayBox EVBXY_host(bx_2d, 1, pinned_arena);
             auto& SHB_arr = SHBXY_host.array();
             auto& EVB_arr = EVBXY_host.array();
+            amrex::Array4<amrex::Real> SHBXY = hfx3_out->array(mfi);
+            amrex::Array4<amrex::Real> EVBXY = qfx3_out->array(mfi);
 
             // Copy from noahmpio CPU arrays into pinned host FABs
             for (int j = bx_2d.smallEnd(1); j <= bx_2d.bigEnd(1); ++j) {
@@ -299,12 +299,12 @@ NOAH::Advance_With_State (const int& lev,
             }
 
             // Copy from pinned host FABs back to device MultiFabs
-            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                             SHBXY_host.dataPtr(), SHBXY_host.dataPtr() + SHBXY_host.size(),
-                             hfx3_out->dataPtr(mfi));
-            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                             EVBXY_host.dataPtr(), EVBXY_host.dataPtr() + EVBXY_host.size(),
-                             qfx3_out->dataPtr(mfi));
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+            {
+                SHBXY(i,j,0) = SHB_arr(i,j);
+                EVBXY(i,j,0) = EVB_arr(i,j); 
+            } 
+
 #else
             // CPU only: copy arrays directly
             amrex::Array4<amrex::Real> SHBXY = hfx3_out->array(mfi);
