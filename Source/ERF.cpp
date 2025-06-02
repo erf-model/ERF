@@ -1071,15 +1071,17 @@ ERF::InitData_post ()
         Real delta = std::min({geom[finest_level].CellSize(0),
                                geom[finest_level].CellSize(1),
                                dz_min[finest_level]});
-        Real nu = dc.dynamic_viscosity / dc.rho0_trans;
-        AMREX_ALWAYS_ASSERT(nu > 0);
-
-        Real viscous_limit = 0.5 * delta*delta / nu;
-        Print() << "Viscous CFL is " << dt[finest_level] / viscous_limit << std::endl;
-        if (fixed_dt[finest_level] >= viscous_limit) {
-            Warning("Specified fixed_dt is above the viscous limit");
-        } else if (dt[finest_level] >= viscous_limit) {
-            Warning("Adaptive dt based on convective CFL only is above the viscous limit");
+        if (dc.dynamic_viscosity == 0) {
+            Print() << "Note: Molecular diffusion specified but dynamic_viscosity has not been specified" << std::endl;
+        } else {
+            Real nu = dc.dynamic_viscosity / dc.rho0_trans;
+            Real viscous_limit = 0.5 * delta*delta / nu;
+            Print() << "Viscous CFL is " << dt[finest_level] / viscous_limit << std::endl;
+            if (fixed_dt[finest_level] >= viscous_limit) {
+                Warning("Specified fixed_dt is above the viscous limit");
+            } else if (dt[finest_level] >= viscous_limit) {
+                Warning("Adaptive dt based on convective CFL only is above the viscous limit");
+            }
         }
     }
 
