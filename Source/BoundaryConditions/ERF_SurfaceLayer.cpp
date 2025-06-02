@@ -531,8 +531,8 @@ SurfaceLayer::update_pblh (const int& lev,
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
         compute_pblh(lev, vars, z_phys_cc, estimator, RhoQv_comp, RhoQc_comp, RhoQr_comp);
-    } else if (pblh_type == PBLHeightCalcType::YSU) {
-        amrex::Error("YSU PBLH calc not implemented yet");
+    } else if (pblh_type == PBLHeightCalcType::YSU || pblh_type == PBLHeightCalcType::MRF) {
+        amrex::Error("YSU/MRF PBLH calc not implemented yet");
     }
 }
 

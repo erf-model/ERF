@@ -164,22 +164,31 @@ void ERF::advance_dycore(int level,
             const Array4<const Real> mf_uy = mapfac[level][MapFacType::u_y]->const_array(mfi);
             const Array4<const Real> mf_vy = mapfac[level][MapFacType::v_y]->const_array(mfi);
 
-            if (l_use_terrain_fitted_coords) {
+            if (solverChoice.mesh_type == MeshType::StretchedDz) {
+                ComputeStrain_S(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                                u, v, w,
+                                tau11, tau22, tau33,
+                                tau12, tau21,
+                                tau13, tau31,
+                                tau23, tau32,
+                                stretched_dz_d[level], dxInv,
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h);
+            } else if (l_use_terrain_fitted_coords) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau21,
                                 tau13, tau31,
                                 tau23, tau32,
-                                z_nd, detJ_cc[level]->const_array(mfi), bc_ptr_h, dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy);
+                                z_nd, detJ_cc[level]->const_array(mfi), dxInv,
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h);
             } else {
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau13, tau23,
-                                bc_ptr_h, dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy);
+                                dxInv,
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h);
             }
         } // mfi
     } // l_use_diff

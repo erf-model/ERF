@@ -594,6 +594,12 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd);
     }
+    else if (turbChoice.pbl_type == PBLType::MRF) {
+        ComputeDiffusivityMRF(xvel, yvel, cons_in, eddyViscosity,
+                              geom, turbChoice, SurfLayer,
+                              use_terrain_fitted_coords, use_moisture,
+                              level, bc_ptr, vert_only, z_phys_nd);
+    }
 
     //
     // At all levels we need to fill values outside the physical boundary for the LES coeffs.
