@@ -4,6 +4,7 @@ CEXE_sources += ERF_EBAux.cpp
 CEXE_sources += ERF_EBBox.cpp
 CEXE_sources += ERF_EBCutCell.cpp
 CEXE_sources += ERF_EBRedistribute.cpp
+CEXE_sources += ERF_EBSlopes.cpp
 CEXE_sources += ERF_EBToPVD.cpp
 CEXE_sources += ERF_EBWriteSurface.cpp
 
@@ -17,5 +18,6 @@ CEXE_headers += ERF_EBIF.H
 CEXE_headers += ERF_EBIFTerrain.H
 CEXE_headers += ERF_EBPolygon.H
 CEXE_headers += ERF_EBRedistribute.H
+CEXE_headers += ERF_EBSlopes.H
 CEXE_headers += ERF_EBToPVD.H
 CEXE_headers += ERF_EBUtils.H

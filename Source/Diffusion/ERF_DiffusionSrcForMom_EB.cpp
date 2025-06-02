@@ -3,6 +3,7 @@
 #include <ERF_EB.H>
 #include <ERF_Diffusion.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_EBSlopes.H>
 
 using namespace amrex;
 
@@ -174,7 +175,11 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     //     AMREX_D_DECL(domain_ihi, domain_jhi, domain_khi),
                     //     2);
 
-                    
+                    const Real ccent_x = u_volcent(i,j,k,0);
+                    const Real ccent_y = u_volcent(i,j,k,1);
+                    const Real ccent_z = u_volcent(i,j,k,2);
+
+                    // erf_calc_slopes_eb(ccent_x, ccent_y, ccent_z, u_volcent);
 
                 }
             }
