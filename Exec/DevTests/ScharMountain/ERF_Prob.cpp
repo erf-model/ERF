@@ -17,12 +17,6 @@ Problem::Problem ()
   ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.T_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("V_0", parms.V_0);
-  pp.query("W_0", parms.W_0);
-
-  pp.query("hmax", parms.hmax);
-  pp.query("L", parms.L);
 
   init_base_parms(parms.rho_0, parms.T_0);
 }
@@ -64,7 +58,7 @@ Problem::init_custom_pert (
     // Set the x-velocity
     ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        x_vel_pert(i, j, k) = parms_d.U_0;
+        x_vel_pert(i, j, k) = 0.0;
     });
 
     // Set the y-velocity
@@ -114,7 +108,6 @@ Problem::init_custom_terrain (
     // User function parameters
     Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
 
-    // if hm is nonzero, then use alternate hill definition
     Real asq    = 5000.0 * 5000.0;
     Real Hm     =  250.0;
     Real lambda = 4000.0;

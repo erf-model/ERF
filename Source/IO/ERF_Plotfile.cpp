@@ -487,6 +487,11 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                pressure.FillBoundary(geom[lev].periodicity());
             } // compute compressible pressure
         } // not anelastic
+        else {
+            // Copy p_hse into pressure if using anelastic
+            pressure.define(ba,dm,1,0);
+            MultiFab::Copy(pressure,p_hse,0,0,1,0);
+        }
 
         if (containerHasElement(plot_var_names, "divU"))
         {

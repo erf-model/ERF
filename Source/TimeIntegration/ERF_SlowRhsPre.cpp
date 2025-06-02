@@ -95,6 +95,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                        const Vector<BCRec>& domain_bcs_type_h,
                        const MultiFab& z_phys_nd,
+                       const MultiFab& z_phys_cc,
                        const MultiFab& ax, const MultiFab& ay, const MultiFab& az,
                        const MultiFab& detJ,
                        Gpu::DeviceVector<Real>& stretched_dz_d,
@@ -172,7 +173,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
                            S_data,xvel,yvel,zvel,Tau_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
-                           detJ,mapfac);
+                           stretched_dz_d, detJ,mapfac);
 
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
@@ -340,6 +341,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         // Terrain metrics
         const Array4<const Real>& z_nd = z_phys_nd.const_array(mfi);
+        const Array4<const Real>& z_cc = z_phys_cc.const_array(mfi);
 
         // *****************************************************************************
         // Define flux arrays for use in advection
@@ -570,11 +572,21 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_start = RhoTheta_comp;
             int n_comp  = 1;
 
-            if (l_use_terrain_fitted_coords) {
+            if (solverChoice.mesh_type == MeshType::StretchedDz) {
+                DiffusionSrcForState_S(bx, domain, n_start, n_comp, l_rotate, u, v,
+                                       cell_data, cell_prim, cell_rhs,
+                                       diffflux_x, diffflux_y, diffflux_z,
+                                       stretched_dz_d, dxInv, SmnSmn_a,
+                                       mf_mx, mf_ux, mf_vx,
+                                       mf_my, mf_uy, mf_vy,
+                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
+                                       mu_turb, solverChoice, level,
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
+            } else if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
-                                       z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
+                                       z_nd, z_cc, ax_arr, ay_arr, az_arr, detJ_arr,
                                        dxInv, SmnSmn_a,
                                        mf_mx, mf_ux, mf_vx,
                                        mf_my, mf_uy, mf_vy,

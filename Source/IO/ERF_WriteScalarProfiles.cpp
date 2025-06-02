@@ -28,9 +28,9 @@ ERF::sum_integrated_quantities (Real time)
     Real scal_ml = 0.0;
 
 #if 1
-    mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,*mapfac[0][MapFacType::m_x],false);
+    mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,false);
     for (int lev = 0; lev <= finest_level; lev++) {
-        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,*mapfac[lev][MapFacType::m_x],true);
+        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,true);
     }
 #else
     for (int lev = 0; lev <= finest_level; lev++) {
@@ -49,18 +49,18 @@ ERF::sum_integrated_quantities (Real time)
             });
         }
         if (lev == 0) {
-            mass_sl = volWgtSumMF(0,pert_dens,0,*mapfac[0][MapFacType::m_x],false);
+            mass_sl = volWgtSumMF(0,pert_dens,0,false);
         }
-        mass_ml += volWgtSumMF(lev,pert_dens,0,*mapfac[lev][MapFacType::m_x],true);
+        mass_ml += volWgtSumMF(lev,pert_dens,0,true);
     } // lev
 #endif
 
-    Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,*mapfac[0][MapFacType::m_x],false);
-    Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,*mapfac[0][MapFacType::m_x],false);
+    Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,false);
+    Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,false);
 
     for (int lev = 0; lev <= finest_level; lev++) {
-        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,*mapfac[lev][MapFacType::m_x],true);
-        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,*mapfac[lev][MapFacType::m_x],true);
+        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,true);
+        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,true);
     }
 
     Gpu::HostVector<Real> h_avg_ustar; h_avg_ustar.resize(1);
@@ -217,20 +217,33 @@ ERF::sum_derived_quantities (Real time)
     // Multiply the MF holding 1/2(u^2 + v^2 + w^2) by rho to get  1/2 rho (u^2 + v^2 + w^2)
     MultiFab::Multiply(r_wted_magvelsq, vars_new[lev][Vars::cons], 0, 0, 1, 0);
 
-    Real  unwted_avg = volWgtSumMF(lev, unwted_magvelsq, 0, *mapfac[lev][MapFacType::m_x],false);
-    Real  r_wted_avg = volWgtSumMF(lev, r_wted_magvelsq, 0, *mapfac[lev][MapFacType::m_x],false);
-    Real enstrsq_avg = volWgtSumMF(lev, enstrophysq,     0, *mapfac[lev][MapFacType::m_x],false);
+    Real  unwted_avg = volWgtSumMF(lev, unwted_magvelsq, 0, false);
+    Real  r_wted_avg = volWgtSumMF(lev, r_wted_magvelsq, 0, false);
+    Real enstrsq_avg = volWgtSumMF(lev, enstrophysq,     0, false);
 
     // Get volume including terrain (consistent with volWgtSumMF routine)
-    Real vol = geom[lev].ProbDomain().volume();
+    MultiFab volume(grids[lev], dmap[lev], 1, 0);
+    auto const& dx = geom[lev].CellSizeArray();
+    Real cell_vol  = dx[0]*dx[1]*dx[2];
+    volume.setVal(cell_vol);
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-        MultiFab volume(grids[lev], dmap[lev], 1, 0);
-        auto const& dx = geom[lev].CellSizeArray();
-        Real cell_vol  = dx[0]*dx[1]*dx[2];
-        volume.setVal(cell_vol);
         MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
-        vol = volume.sum();
     }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(volume, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& tbx  = mfi.tilebox();
+        auto dst        = volume.array(mfi);
+        const auto& mfx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+        const auto& mfy = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            dst(i,j,k) /= (mfx(i,j,0)*mfy(i,j,0));
+        });
+    }
+    Real vol = volume.sum();
 
      unwted_avg /= vol;
      r_wted_avg /= vol;
@@ -342,22 +355,35 @@ ERF::sum_energy_quantities (Real time)
 
     }
 
-    Real  tot_mass_avg   = volWgtSumMF(lev, tot_mass  , 0, *mapfac[lev][MapFacType::m_x],false);
-    Real  tot_energy_avg = volWgtSumMF(lev, tot_energy, 0, *mapfac[lev][MapFacType::m_x],false);
+    Real  tot_mass_avg   = volWgtSumMF(lev, tot_mass  , 0, false);
+    Real  tot_energy_avg = volWgtSumMF(lev, tot_energy, 0, false);
 
     // Get volume including terrain (consistent with volWgtSumMF routine)
-    Real vol = geom[lev].ProbDomain().volume();
+    MultiFab volume(grids[lev], dmap[lev], 1, 0);
+    Real cell_vol  = dx[0]*dx[1]*dx[2];
+    volume.setVal(cell_vol);
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-        MultiFab volume(grids[lev], dmap[lev], 1, 0);
-        Real cell_vol = dx[0]*dx[1]*dx[2];
-        volume.setVal(cell_vol);
         MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
-        vol = volume.sum();
     }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(volume, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& tbx  = mfi.tilebox();
+        auto dst        = volume.array(mfi);
+        const auto& mfx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+        const auto& mfy = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            dst(i,j,k) /= (mfx(i,j,0)*mfy(i,j,0));
+        });
+    }
+    Real vol = volume.sum();
 
     // Divide by the volume
-     tot_mass_avg   /= vol;
-     tot_energy_avg /= vol;
+    tot_mass_avg   /= vol;
+    tot_energy_avg /= vol;
 
     const int nfoo = 2;
     Real foo[nfoo] = {tot_mass_avg,tot_energy_avg};
@@ -593,8 +619,9 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
  */
 Real
 ERF::volWgtSumMF (int lev,
-                  const MultiFab& mf, int comp,
-                  const MultiFab& mf_m, bool finemask)
+                  const MultiFab& mf,
+                  int comp,
+                  bool finemask)
 {
     BL_PROFILE("ERF::volWgtSumMF()");
 
@@ -605,12 +632,13 @@ ERF::volWgtSumMF (int lev,
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
     // m is the map scale factor at cell centers
     for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        const Array4<      Real>    tmp_arr =    tmp.array(mfi);
-        const Array4<const Real> mapfac_arr = mf_m.const_array(mfi);
+        const Box& bx   = mfi.tilebox();
+        const auto  dst = tmp.array(mfi);
+        const auto& mfx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+        const auto& mfy = mapfac[lev][MapFacType::m_y]->const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            tmp_arr(i,j,k) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+            dst(i,j,k) /= (mfx(i,j,0)*mfy(i,j,0));
         });
     } // mfi
 
@@ -619,12 +647,27 @@ ERF::volWgtSumMF (int lev,
         MultiFab::Multiply(tmp, mask, 0, 0, 1, 0);
     }
 
+    // Get volume including terrain (consistent with volWgtSumMF routine)
     MultiFab volume(grids[lev], dmap[lev], 1, 0);
     auto const& dx = geom[lev].CellSizeArray();
-    Real cell_vol = dx[0]*dx[1]*dx[2];
+    Real cell_vol  = dx[0]*dx[1]*dx[2];
     volume.setVal(cell_vol);
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
+    }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(volume, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& tbx  = mfi.tilebox();
+        auto dst        = volume.array(mfi);
+        const auto& mfx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+        const auto& mfy = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            dst(i,j,k) /= (mfx(i,j,0)*mfy(i,j,0));
+        });
     }
 
     //
