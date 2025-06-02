@@ -8,6 +8,7 @@
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
+#include "ERF_EB.H"
 
 void DiffusionSrcForMom_N (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                            const amrex::Array4<      amrex::Real>& rho_u_rhs,
@@ -46,6 +47,30 @@ void DiffusionSrcForMom_T (const amrex::Box& bxx, const amrex::Box& bxy, const a
                            const amrex::Array4<const amrex::Real>& mf_uy     ,
                            const amrex::Array4<const amrex::Real>& mf_vy     );
 
+void DiffusionSrcForMom_EB (const amrex::MFIter& mfi,
+                        const amrex::Box& domain,
+                        const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                        const amrex::Array4<      amrex::Real>& rho_u_rhs,
+                        const amrex::Array4<      amrex::Real>& rho_v_rhs,
+                        const amrex::Array4<      amrex::Real>& rho_w_rhs,
+                        const amrex::Array4<const amrex::Real>& u        ,
+                        const amrex::Array4<const amrex::Real>& v        ,
+                        const amrex::Array4<const amrex::Real>& w        ,
+                        const amrex::Array4<const amrex::Real>& tau11    ,
+                        const amrex::Array4<const amrex::Real>& tau22    ,
+                        const amrex::Array4<const amrex::Real>& tau33    ,
+                        const amrex::Array4<const amrex::Real>& tau12    ,
+                        const amrex::Array4<const amrex::Real>& tau13    ,
+                        const amrex::Array4<const amrex::Real>& tau23    ,
+                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
+                        const amrex::Array4<const amrex::Real>& mf_mx     ,
+                        const amrex::Array4<const amrex::Real>& mf_ux     ,
+                        const amrex::Array4<const amrex::Real>& mf_vx     ,
+                        const amrex::Array4<const amrex::Real>& mf_my     ,
+                        const amrex::Array4<const amrex::Real>& mf_uy     ,
+                        const amrex::Array4<const amrex::Real>& mf_vy     ,
+                        const eb_& ebfact,
+                        const amrex::BCRec* bc_ptr);
 
 void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,
