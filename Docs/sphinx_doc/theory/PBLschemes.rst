@@ -137,7 +137,7 @@ which was used in the NCEP global forecast system. It is a nonlocal scheme that 
 to model vertical turbulent transport within the PBL.
 
 The turbulent diffusion for prognostic variables (:math:`C= u, v, \theta, q_k`), where :math:`q_k` includes all moisture
-variables is given by 
+variables is given by
 
 .. math::
    \frac{\partial C}{\partial t}
@@ -179,8 +179,9 @@ temperature and moisture is given by:
 
 .. math::
    Pr = \left(\frac{\phi_t}{\phi_m}+ b \kappa sf\right)
+
 where :math:`K_t` is the turbulent diffusion coefficient for temperature, :math:`K_q` is the turbulent diffusion coefficient for moisture
-and :math:`Pr` is the Prandtl number. 
+and :math:`Pr` is the Prandtl number.
 
 The turbulent diffusion coefficient in the free atmosphere is computed from the YSU model as the MRF
 expressions showed oscillations in the canonical stable boundary layer tests.
@@ -217,7 +218,7 @@ The countergradient correction term is given by:
 .. math::
    \gamma_c = b \frac{ u_* \theta_*}{w_s}
 
-where :math:`b=7.8` is a constant, :math:`u_*` is the surface frictional velocity scale, :math:`\theta_*` is the 
+where :math:`b=7.8` is a constant, :math:`u_*` is the surface frictional velocity scale, :math:`\theta_*` is the
 surface potential temperature scale. 
 
 
