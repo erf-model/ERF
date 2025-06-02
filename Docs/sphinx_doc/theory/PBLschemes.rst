@@ -150,7 +150,7 @@ Here :math:`K_c` is the turbulent diffusion coefficient, and :math:`\gamma_c` is
 The turbulent diffusion coefficient in the mixed layer is given by:
 
 .. math::
-   K_m = \kappa w_s z \left( 1- \frac{z}{h} \right)^2 
+   K_m = \kappa w_s z \left( 1- \frac{z}{h} \right)^2
 
 .. math::
    w_s = \frac{u_*}{\phi_m}
@@ -219,7 +219,7 @@ The countergradient correction term is given by:
    \gamma_c = b \frac{ u_* \theta_*}{w_s}
 
 where :math:`b=7.8` is a constant, :math:`u_*` is the surface frictional velocity scale, :math:`\theta_*` is the
-surface potential temperature scale. 
+surface potential temperature scale.
 
 
 .. _YSUPBL:
