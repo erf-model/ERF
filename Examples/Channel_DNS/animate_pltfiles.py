@@ -26,7 +26,7 @@ def animate_pltfiles(simdir):
     yslice = pf.prob_extent[1] / 2
 
     # setup plotting grid
-    nx,ny,nz = pf.dims    
+    nx,ny,nz = pf.dims
     x1 = np.linspace(0, pf.prob_extent[0], nx+1)
     if pf.stretched_dz:
         z1 = pf.terrain_z_levels
@@ -42,9 +42,9 @@ def animate_pltfiles(simdir):
         ds = pf.slice(1, yslice, fields='x_velocity')
         fld = ds['x_velocity'].squeeze()
         print(f'\r({itime+1}/{len(pltfiles)}) t={pf.time:g}',end='')
-        
+
         if itime == 0:
-            cmsh = ax.pcolormesh(xx, zz, fld, vmin=0)        
+            cmsh = ax.pcolormesh(xx, zz, fld, vmin=0)
             cbar = fig.colorbar(cmsh, ax=ax, label='$u^+$')
             ax.set_xlabel('$x/\\delta$')
             ax.set_ylabel('$y/\\delta$')
@@ -52,9 +52,9 @@ def animate_pltfiles(simdir):
         else:
             cmsh.set_array(fld.values.ravel())
             #cmsh.set_clim((np.min(values), np.max(values)))
-            
+
         ax.set_title(f'$t = {pf.time:.4f}$')
-        
+
         fig.savefig(f'{animdir}/channel_DNS_u.{itime:04d}.png')
 
 #==============================================================================
