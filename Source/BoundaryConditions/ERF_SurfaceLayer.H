@@ -98,12 +98,15 @@ public:
 
       // Get surface temperature
       auto erf_st = pp.query("most.surf_temp", surf_temp);
-      auto erf_sq = pp.query("most.surf_moist", surf_moist);
+      if (use_moisture) { auto erf_sq = pp.query("most.surf_moist", surf_moist); }
       if (erf_st || erf_sq) {
           pp.get("most.surf_temp",surf_temp);
-          pp.get("most.surf_moist",surf_moist);
           default_land_surf_temp  = surf_temp;
-          default_land_surf_moist = surf_moist;
+
+          if (use_moisture) {
+              pp.get("most.surf_moist",surf_moist);
+              default_land_surf_moist = surf_moist;
+          }
       }
 
       // Custom type user must specify the fluxes
