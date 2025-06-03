@@ -35,9 +35,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     const Array4<Real>& rho_u_rhs  ,
                     const Array4<Real>& rho_v_rhs  ,
                     const Array4<Real>& rho_w_rhs  ,
-                    const Array4<const Real>& u    ,
-                    const Array4<const Real>& v    ,
-                    const Array4<const Real>& w    ,
+                    const Array4<const Real>& u_arr,
+                    const Array4<const Real>& v_arr,
+                    const Array4<const Real>& w_arr,
                     const Array4<const Real>& tau11,
                     const Array4<const Real>& tau22,
                     const Array4<const Real>& tau33,
@@ -77,6 +77,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     bool extdir_jhi = (d_bcrec_ptr[n].hi(1)==BCType::ext_dir || d_bcrec_ptr[n].hi(1)==BCType::hoextrap);
     bool extdir_klo = (d_bcrec_ptr[n].lo(2)==BCType::ext_dir || d_bcrec_ptr[n].lo(2)==BCType::hoextrap);
     bool extdir_khi = (d_bcrec_ptr[n].hi(2)==BCType::ext_dir || d_bcrec_ptr[n].hi(2)==BCType::hoextrap);
+
+    Print()<<"SK: DiffusionSrcForMom_EB()/ extdir_ilo = "<<extdir_ilo<<" extdir_ihi = "<<extdir_ihi<<" extdir_jlo = "<<extdir_jlo<<" extdir_jhi = "<<extdir_jhi<<" extdir_klo = "<<extdir_klo<<" extdir_khi = "<<extdir_khi<<std::endl;
 
     // EB u-factory
     Array4<const EBCellFlag> u_cellflg = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
@@ -158,13 +160,14 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dist_z = u_bcent(i,j,k,2)*dz;
                     Real dn = std::sqrt( dist_x * dist_x + dist_y * dist_y + dist_z * dist_z );
 
-                    rho_u_rhs(i,j,k) -= - barea / vol * u(i,j,k) / dn / u_volfrac(i,j,k);
+                    rho_u_rhs(i,j,k) -= - barea / vol * u_arr(i,j,k) / dn / u_volfrac(i,j,k);
 
                 } else {
 
-                    // tau11, tau12, tau13
+                    const RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
+                    const Real u_eb {0.};
 
-                    // GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
+                    GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
 
                     // slopes_eb = amrex_calc_slopes_extdir_eb(
                     //     i, j, k, n, u, u_volcent, u_volfrac,
@@ -175,12 +178,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     //     AMREX_D_DECL(domain_ihi, domain_jhi, domain_khi),
                     //     2);
 
-                    const Real ccent_x = u_volcent(i,j,k,0);
-                    const Real ccent_y = u_volcent(i,j,k,1);
-                    const Real ccent_z = u_volcent(i,j,k,2);
-
-                    // erf_calc_slopes_eb(ccent_x, ccent_y, ccent_z, u_volcent);
-
+                    slopes_eb = erf_calc_slopes_eb( 0, i, j, k, bcent_eb, u_eb,
+                                        u_arr, u_volcent, u_cellflg);
                 }
             }
         }
@@ -225,7 +224,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dist_z = v_bcent(i,j,k,2)*dz;
                     Real dn = std::sqrt( dist_x * dist_x + dist_y * dist_y + dist_z * dist_z );
 
-                    rho_v_rhs(i,j,k) -= - barea / vol * v(i,j,k) / dn / v_volfrac(i,j,k);
+                    rho_v_rhs(i,j,k) -= - barea / vol * v_arr(i,j,k) / dn / v_volfrac(i,j,k);
 
                 } else {
 
@@ -275,7 +274,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 Real dist_z = w_bcent(i,j,k,2)*dz;
                 Real dn = std::sqrt( dist_x * dist_x + dist_y * dist_y + dist_z * dist_z );
 
-                rho_w_rhs(i,j,k) -= - barea / vol * w(i,j,k) / dn / w_volfrac(i,j,k);
+                rho_w_rhs(i,j,k) -= - barea / vol * w_arr(i,j,k) / dn / w_volfrac(i,j,k);
             }
         }
     });

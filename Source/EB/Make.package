@@ -4,7 +4,6 @@ CEXE_sources += ERF_EBAux.cpp
 CEXE_sources += ERF_EBBox.cpp
 CEXE_sources += ERF_EBCutCell.cpp
 CEXE_sources += ERF_EBRedistribute.cpp
-CEXE_sources += ERF_EBSlopes.cpp
 CEXE_sources += ERF_EBToPVD.cpp
 CEXE_sources += ERF_EBWriteSurface.cpp
 
