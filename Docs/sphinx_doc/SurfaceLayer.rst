@@ -36,6 +36,8 @@ With these assumptions, the MOST theory can be written as:
 
   \overline{w^{'}} \overline{\theta^{'}} = {\rm const} = -u_{\star}\theta_{\star},
 
+  \overline{w^{'}} \overline{q_{v}^{'}} = {\rm const} = -u_{\star}q_{v,\star},
+
   \Phi_{m}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \overline{u}(z)}{\partial z},
 
   \Phi_{h}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \overline{\theta}(z)}{\partial z}
@@ -47,7 +49,7 @@ Here, :math:`L` is the Monin-Obukhov length,
 :math:`\overline{\theta}` is the reference virtual potential temperature for the ASL,
 and :math:`\kappa` is the von Karman constant (taken to be :math:`0.41`).
 
-Integration of the MOST assumption equations give the classical MOST profiles of mean velocity and potential temperature
+Integration of the MOST assumption equations give the classical MOST profiles of mean velocity, potential temperature, and water vapor
 
 .. math::
 
@@ -55,8 +57,10 @@ Integration of the MOST assumption equations give the classical MOST profiles of
 
   \overline{\theta}(z) - \theta_0 &= \frac{\theta_{\star}}{\kappa} \left[ \mathrm{ln}\left(\frac{z}{z_0}\right) - \Psi_{h}(\zeta) \right]
 
+  \overline{q_{v}}(z) - q_{v,0} &= \frac{q_{v,\star}}{\kappa} \left[ \mathrm{ln}\left(\frac{z}{z_0}\right) - \Psi_{h}(\zeta) \right]
 
-where :math:`\theta_0` is the surface potential temperature and  :math:`z_0` is a characteristic roughness height. The integrated similarity functions,
+
+where :math:`\theta_0` and :math:`q_{v,0}` are the surface values and :math:`z_0` is a characteristic roughness height. The integrated similarity functions,
 
 .. math::
 
@@ -133,8 +137,12 @@ with the flux type. Therefore, the MOST implementation in ERF is a specific meth
                                                 u_{\star} \kappa  \frac{|\mathbf{\bar{u}}| ({\theta} - \overline{\theta})  +
                                                 \sqrt{u^2+v^2} (\overline{\theta} - \theta_0) }{ |\mathbf{\bar{u}}| [  \mathrm{ln}(z_{ref} / z_0)-\Psi_{h}(z_{ref}/L)] }
 
-   where :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are the plane averaged values (at :math:`z_{ref}`) of the
-   two horizontal velocity components and the potential temperature, respectively, and
+     \left.  \frac{\tau_{q_{v} z}}{\rho} \right|_0  &= q_{v,\star} u_{\star} \frac{|\mathbf{\bar{u}}| ({q_{v}} - \overline{q_{v}}) +
+                                                \sqrt{u^2+v^2}  (\overline{q_{v}} - q_{v,0}) }{ |\mathbf{\bar{u}}| (\overline{q_{v}} - q_{v,0}) } =
+                                                u_{\star} \kappa  \frac{|\mathbf{\bar{u}}| ({q_{v}} - \overline{q_{v}})  +
+                                                \sqrt{u^2+v^2} (\overline{q_{v}} - q_{v,0}) }{ |\mathbf{\bar{u}}| [  \mathrm{ln}(z_{ref} / z_0)-\Psi_{h}(z_{ref}/L)] }
+
+   where :math:`\bar{\psi}` are plane averaged values (at :math:`z_{ref}`) and
    :math:`|\mathbf{\bar{u}}|` is the plane averaged magnitude of horizontal velocity (plane averaged wind speed).
    We note a slight variation in the denominator of the velocity terms from the form of the
    equations presented in Moeng. This difference is due to how the stress components are computed
@@ -175,7 +183,9 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.z0                = FLOAT  #SURFACE ROUGHNESS
    erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH)
    erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE TEMP
-   erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE FLUX
+   erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE TEMP FLUX
+   erf.most.surf_moist        = FLOAT  #SPECIFIED SURFACE MOISTURE
+   erf.most.surf_moist_flux   = FLOAT  #SPECIFIED SURFACE MOISTURE FLUX
    erf.most.k_arr_in          = INT    #SPECIFIED K INDEX ARRAY (MAXLEV)
    erf.most.radius            = INT    #SPECIFIED REGION RADIUS
    erf.most.time_window       = FLOAT  #WINDOW FOR TIME AVG
@@ -189,6 +199,8 @@ We now consider two concrete examples. To employ an instantaneous ``planar avera
    erf.most.time_average      = false
    erf.most.z0                = 0.1
    erf.most.zref              = 1.0
+   erf.most.surf_temp_flux    = 0.0
+   erf.most.surf_moist_flux   = 0.0
 
 By contrast, ``local region averaging`` would be employed in conjunction with ``time averaging`` for the following inputs:
 
@@ -201,6 +213,7 @@ By contrast, ``local region averaging`` would be employed in conjunction with ``
    erf.most.z0                = 0.1
    erf.most.zref              = 1.0
    erf.most.surf_temp_flux    = 0.0
+   erf.most.surf_moist_flux   = 0.0
    erf.most.radius            = 1
    erf.most.time_window       = 10.0
 
