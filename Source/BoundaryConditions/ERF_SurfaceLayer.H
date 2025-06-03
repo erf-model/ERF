@@ -97,8 +97,9 @@ public:
       }
 
       // Get surface temperature
+      bool erf_sq = false;
       auto erf_st = pp.query("most.surf_temp", surf_temp);
-      if (use_moisture) { auto erf_sq = pp.query("most.surf_moist", surf_moist); }
+      if (use_moisture) { erf_sq = pp.query("most.surf_moist", surf_moist); }
       if (erf_st || erf_sq) {
           pp.get("most.surf_temp",surf_temp);
           default_land_surf_temp  = surf_temp;
