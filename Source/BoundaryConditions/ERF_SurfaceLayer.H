@@ -131,7 +131,6 @@ public:
               }
           } else {
               pp.query("most.surf_temp_flux", surf_temp_flux);
-
               if (pp.query("most.surf_heating_rate", surf_heating_rate)) {
                   amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
               }
