@@ -14,16 +14,19 @@ using namespace amrex;
  * @param[in] Theta_prim Primitive theta component at each level
  * @param[in] z_phys_nd Physical heights at each level
  */
-MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
+MOSTAverage::MOSTAverage (Orientation face,
+                          Vector<Geometry> geom,
                           const bool& has_zphys,
                           std::string a_pp_prefix,
                           const TerrainType& terrain_type)
-  : m_geom(std::move(geom)),
-    m_pp_prefix(a_pp_prefix),
+  : m_face(face),
+    m_geom(std::move(geom)),
+    m_pp_prefix(a_pp_prefix + "." + BoundaryFaceName[face]),
     m_terrain_type(terrain_type)
 {
     // Get basic info
     //--------------------------------------------------------
+    //amrex::Print() << " MOSTAverage ParmParse prefix: " << m_pp_prefix << std::endl;
     ParmParse pp(m_pp_prefix);
     pp.query("most.radius",m_radius);
     pp.query("most.time_average",m_t_avg);
@@ -82,12 +85,22 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     bool use_terrain_fitted_coords = ( (m_terrain_type == TerrainType::StaticFittedMesh) ||
                                        (m_terrain_type == TerrainType::MovingFittedMesh) );
 
+    const int dir = m_face.coordDir();
+    int sm_index;
+    if (m_face.isLow()) {
+        sm_index = m_geom[lev].Domain().smallEnd(dir);
+    } else {
+        sm_index = m_geom[lev].Domain().bigEnd(dir);
+    }
+
+    //amrex::Print() << " MostAverage:: Face = " << m_face << ": dir = " << dir << " sm_index = " << sm_index << std::endl;
+
     { // Nodal in x
         auto& mf = *vars_old[Vars::xvel];
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba = mf.boxArray();
         BoxList bl2d = ba.boxList();
-        for (auto& b : bl2d) b.setRange(2,0);
+        for (auto& b : bl2d) b.setRange(dir, sm_index);
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
@@ -108,7 +121,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba = mf.boxArray();
         BoxList bl2d = ba.boxList();
-        for (auto& b : bl2d) b.setRange(2,0);
+        for (auto& b : bl2d) b.setRange(dir, sm_index);
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
@@ -129,7 +142,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba = mf.boxArray();
         BoxList bl2d = ba.boxList();
-        for (auto& b : bl2d) b.setRange(2,0);
+        for (auto& b : bl2d) b.setRange(dir, sm_index);
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp  = 1;
@@ -362,7 +375,8 @@ MOSTAverage::set_plane_normalization (const int& lev)
 
         m_ncell_plane[lev][iavg] = 1;
         for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
-            if (idim != 2) {
+            //if (idim != 2) {
+            if (idim != m_face.coordDir()) {
                 if (ixt.nodeCentered(idim) && is_per[idim]) {
                     m_ncell_plane[lev][iavg] *= (bnd_bx_hi[idim] - bnd_bx_lo[idim]);
                 } else {
@@ -385,35 +399,55 @@ MOSTAverage::set_k_indices_N (const int& lev)
     auto read_z = pp.query("most.zref",m_zref);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
+    const int dir = m_face.coordDir();
+    const bool is_lo_face = m_face.isLow();
+
     // Default behavior is to use the first cell center
     if (!read_z && !read_k) {
-        Real m_zlo = m_geom[0].ProbLo(2);
-        Real m_dz  = m_geom[0].CellSize(2);
-        m_zref = m_zlo + 0.5 * m_dz;
+        Real m_face = (is_lo_face) ? m_geom[0].ProbLo(dir) : m_geom[0].ProbHi(dir);
+        Real m_dz  = m_geom[0].CellSize(dir);
+        m_zref = (is_lo_face) ? (m_face + 0.5 * m_dz) : (m_face - 0.5 * m_dz);
         Print() << "Reference height for MOST set to " << m_zref << std::endl;
         read_z = true;
     }
 
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
-        Real m_zlo = m_geom[lev].ProbLo(2);
-        Real m_zhi = m_geom[lev].ProbHi(2);
-        Real m_dz  = m_geom[lev].CellSize(2);
+        //Real m_zlo = (is_lo_face) ? m_geom[lev].ProbLo(dir) : m_geom[lev].ProbHi(dir);
+        //Real m_zhi = (is_lo_face) ? m_geom[lev].ProbHi(dir) : m_geom[lev].ProbLo(dir);
+        Real m_zlo = m_geom[lev].ProbLo(dir);
+        Real m_zhi = m_geom[lev].ProbHi(dir);
+        Real sign = (is_lo_face) ? 1.0 : -1.0;
+        Real m_dz  = m_geom[lev].CellSize(dir);
+        int lk = 0;
 
         amrex::ignore_unused(m_zhi);
 
-        AMREX_ASSERT_WITH_MESSAGE(m_zref >= m_zlo + 0.5 * m_dz,
+        if (is_lo_face) {
+            AMREX_ASSERT_WITH_MESSAGE(m_zref >= m_zlo + 0.5 * m_dz,
+                                    "Query point must be past first z-cell!");
+
+            AMREX_ASSERT_WITH_MESSAGE(m_zref <= m_zhi - 0.5 * m_dz,
+                                    "Query point must be below the last z-cell!");
+
+            lk = static_cast<int>(floor((m_zref - m_zlo) / m_dz - 0.5));
+
+            m_zref = (lk + 0.5) * m_dz + m_zlo;
+        } else {
+            AMREX_ASSERT_WITH_MESSAGE(m_zref <= m_zhi - 0.5 * m_dz,
                                   "Query point must be past first z-cell!");
 
-        AMREX_ASSERT_WITH_MESSAGE(m_zref <= m_zhi - 0.5 * m_dz,
+            AMREX_ASSERT_WITH_MESSAGE(m_zref >= m_zlo + 0.5 * m_dz,
                                   "Query point must be below the last z-cell!");
 
-        int lk = static_cast<int>(floor((m_zref - m_zlo) / m_dz - 0.5));
+            lk = m_geom[0].Domain().bigEnd(dir) - static_cast<int>(floor((m_zhi - m_zref) / m_dz - 0.5));
 
-        m_zref = (lk + 0.5) * m_dz + m_zlo;
+            m_zref = (lk + 0.5) * m_dz;
+        }
 
         AMREX_ALWAYS_ASSERT(lk >= m_radius);
-
+        
+        // TODO: for X and Y faces -- k index should not be constant -- fix this
         m_k_indx[lev]->setVal(lk);
     // Specified k_indx & compute z_ref
     } else if (read_k) {
@@ -422,8 +456,8 @@ MOSTAverage::set_k_indices_N (const int& lev)
         m_k_indx[lev]->setVal(m_k_in[lev]);
 
         // TODO: check that z_ref is constant across levels
-        Real m_zlo = m_geom[0].ProbLo(2);
-        Real m_dz  = m_geom[0].CellSize(2);
+        Real m_zlo = m_geom[0].ProbLo(dir);
+        Real m_dz  = m_geom[0].CellSize(dir);
         m_zref = ((Real)m_k_in[0] + 0.5) * m_dz + m_zlo;
     }
 }
@@ -450,32 +484,125 @@ MOSTAverage::set_k_indices_T (const int& lev)
     Real d_radius = m_radius;
     amrex::ignore_unused(d_radius);
 
+    const int dir = m_face.coordDir();
+    const bool is_lo_face = m_face.isLow();
+
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
-        int kmax = m_geom[lev].Domain().bigEnd(2);
-        for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
-            const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
-            auto k_arr = m_k_indx[lev]->array(mfi);
-            ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                k_arr(i,j,k) = 0;
-                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
-                Real z_target    = z_bot_face + d_zref;
-                for (int lk(0); lk<=kmax; ++lk) {
-                    Real z_lo = 0.25 * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
-                                       + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
-                    Real z_hi = 0.25 * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
-                                       + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
-                    if (z_target > z_lo && z_target < z_hi){
-                        AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
-                                                  "K index must be larger than averaging radius!");
-                        k_arr(i,j,k) = lk;
-                        break;
-                    }
+        if (dir == 0 || dir == 1) {
+            Real prob_lo = m_geom[lev].ProbLo(dir);
+            Real prob_hi = m_geom[lev].ProbHi(dir);
+            auto dx = m_geom[lev].CellSizeArray();
+
+            // for X faces, kmax is "jmax"
+            // for Y faces, kmax is "imax"
+            int kmax = m_geom[lev].Domain().bigEnd(dir);
+
+            for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+                Box npbx = mfi.tilebox(IntVect::TheDimensionVector(dir), IntVect::TheDimensionVector(dir));
+                auto k_arr = m_k_indx[lev]->array(mfi);
+                if (is_lo_face) {
+                    ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        k_arr(i,j,k) = 0;
+                        Real face = prob_lo;
+                        int index = (dir == 0) ? i : j;
+
+                        Real z_target = (face + index*dx[dir]);
+
+                        for (int lk(0); lk<=kmax; ++lk) {
+                            Real z_lo = face + lk*dx[dir];
+                            Real z_hi = face + (lk+1)*dx[dir];
+                            if (z_target > z_lo && z_target < z_hi){
+                                AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
+                                                        "K index must be larger than averaging radius!");
+                                k_arr(i,j,k) = lk;
+                                break;
+                            }
+                        }
+
+                        // TODO: -- fix this to work properly with X and Y faces -- 
+                        k_arr(i, j, k) = k;
+                    });
+                } else {
+                    ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        k_arr(i,j,k) = kmax;
+                        Real face = prob_hi;
+                        int index = (dir == 0) ? i : j;
+
+                        Real z_target = (face - index*dx[dir]);
+
+                        for (int lk(kmax); lk>=0; --lk) {                            
+                            Real z_hi = face - lk*dx[dir];
+                            Real z_lo = face - (lk+1)*dx[dir];
+                            if (z_target > z_lo && z_target < z_hi){
+                                AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
+                                                        "K index must be larger than averaging radius!");
+                                k_arr(i,j,k) = lk;
+                                break;
+                            }
+                        }
+
+                        // TODO: -- fix this to work properly with X and Y faces -- 
+                        k_arr(i, j, k) = k;
+                    });
                 }
-            });
+            }
+        } else {
+            if (is_lo_face) {
+                int kmax = m_geom[lev].Domain().bigEnd(2);
+                for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+                    const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
+                    auto k_arr = m_k_indx[lev]->array(mfi);
+                    ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        k_arr(i,j,k) = 0;
+                        Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                                + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                        Real z_target    = z_bot_face + d_zref;
+                        for (int lk(0); lk<=kmax; ++lk) {
+                            Real z_lo = 0.25 * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
+                                            + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
+                            Real z_hi = 0.25 * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
+                                            + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
+                            if (z_target > z_lo && z_target < z_hi){
+                                AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
+                                                        "K index must be larger than averaging radius!");
+                                k_arr(i,j,k) = lk;
+                                break;
+                            }
+                        }
+                    });
+                }
+            } else {
+                int kmax = m_geom[lev].Domain().bigEnd(2);
+                for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+                    const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
+                    auto k_arr = m_k_indx[lev]->array(mfi);
+                    ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        k_arr(i,j,k) = kmax;
+                        Real z_top_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                                + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                        Real z_target    = z_top_face - d_zref;
+                        for (int lk(kmax); lk>=0; --lk) {
+                            Real z_hi = 0.25 * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
+                                            + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
+                            Real z_lo = 0.25 * ( z_phys_arr(i,j  ,lk-1) + z_phys_arr(i+1,j  ,lk-1)
+                                            + z_phys_arr(i,j+1,lk-1) + z_phys_arr(i+1,j+1,lk-1) );
+                            if (z_target > z_lo && z_target < z_hi){
+                                AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
+                                                        "K index must be larger than averaging radius!");
+                                k_arr(i,j,k) = lk;
+                                break;
+                            }
+                        }
+                    });
+                }
+            }
         }
     // Specified k_indx & compute z_ref
     } else if (read_k) {
@@ -493,6 +620,8 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
     pp.get("most.zref",m_zref);
+
+    AMREX_ALWAYS_ASSERT(m_face.coordDir() == 2);
 
     // Capture for device
     Real d_zref   = m_zref;
@@ -562,6 +691,9 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 void
 MOSTAverage::set_z_positions_T (const int& lev)
 {
+    
+    AMREX_ALWAYS_ASSERT(m_face.coordDir() == 2);
+
     ParmParse pp(m_pp_prefix);
     pp.get("most.zref",m_zref);
 
@@ -607,6 +739,8 @@ MOSTAverage::set_z_positions_T (const int& lev)
 void
 MOSTAverage::set_norm_positions_T (const int& lev)
 {
+    AMREX_ALWAYS_ASSERT(m_face.coordDir() == 2);
+
     ParmParse pp(m_pp_prefix);
     pp.get("most.zref",m_zref);
 
@@ -752,8 +886,20 @@ MOSTAverage::compute_plane_averages (const int& lev)
         if (geom.isPeriodic(idim)) is_per[idim] = 1;
     }
 
+    const int dir = m_face.coordDir();
+
     // Averages for U,V,T,Qv (not Qr or W)
     for (int imf(0); imf < 4; ++imf) {
+
+        int sm_index = 0;
+        if (m_face.isLow()) {
+            sm_index = m_geom[lev].Domain().smallEnd(dir);
+        } else {
+            sm_index = m_geom[lev].Domain().bigEnd(dir);
+            if (imf < 2 && imf == dir) {
+                sm_index += 1;
+            }
+        }
 
         // Continue if no valid Qv pointer
         if (!fields[imf]) continue;
@@ -767,10 +913,23 @@ MOSTAverage::compute_plane_averages (const int& lev)
         for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
             Box vbx = mfi.validbox(); // This is the grid (not tile)
             Box pbx = mfi.tilebox();  // This is the tile (not grid)
-            pbx.setSmall(2,0); pbx.setBig(2,0);
+
+            if (m_face.isLow()) {
+                if (vbx.smallEnd(dir) != sm_index) {
+                    continue;
+                }
+            } else {
+                if (vbx.bigEnd(dir) != sm_index) {
+                    continue;
+                }
+            }
+
+            //pbx.setSmall(2,0); pbx.setBig(2,0);
+            pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
 
             // Avoid double counting nodal data by changing the high end when we are
             //     at the high side of the grid (not just of the tile)
+            if (dir == 2) {
             IndexType ixt = averages[imf]->boxArray().ixType();
             for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
                 if ( ixt.nodeCentered(idim)  && (pbx.bigEnd(idim) == vbx.bigEnd(idim)) ) {
@@ -779,6 +938,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                         pbx.growHi(idim,-1);
                     }
                 }
+            }
             }
 
             auto mf_arr = (m_rotate) ? rot_fields[imf]->const_array(mfi) :
@@ -807,7 +967,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
-                    int mk = k_arr(i,j,k);
+                    int mk = (dir == 2) ? k_arr(i,j,k) : k;
                     int mj = j_arr ? j_arr(i,j,k) : j;
                     int mi = i_arr ? i_arr(i,j,k) : i;
                     Real val = mf_arr(mi,mj,mk);
@@ -825,6 +985,13 @@ MOSTAverage::compute_plane_averages (const int& lev)
     //
     if (fields[3]) // We have water vapor
     {
+        int sm_index = 0;
+        if (m_face.isLow()) {
+            sm_index = m_geom[lev].Domain().smallEnd(dir);
+        } else {
+            sm_index = m_geom[lev].Domain().bigEnd(dir);
+        }
+
         int iavg = 4;
         denom[iavg]   = 1.0 / (Real)ncell_plane[iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
@@ -832,10 +999,23 @@ MOSTAverage::compute_plane_averages (const int& lev)
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi)
+        for (MFIter mfi(*fields[3], TileNoZ()); mfi.isValid(); ++mfi)
+        //for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
-            pbx.setSmall(2,0); pbx.setBig(2,0);
+            //pbx.setSmall(2,0); pbx.setBig(2,0);
+            
+            if (m_face.isLow()) {
+                if (pbx.smallEnd(dir) != sm_index) {
+                    continue;
+                }
+            } else {
+                if (pbx.bigEnd(dir) != sm_index) {
+                    continue;
+                }
+            }
+
+            pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
 
             const Array4<Real const>& T_mf_arr = fields[2]->const_array(mfi);
             const Array4<Real const>& qv_mf_arr = (fields[3])? fields[3]->const_array(mfi) : Array4<const Real>{};
@@ -877,7 +1057,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
-                    int mk = k_arr(i,j,k);
+                    int mk = (dir == 2) ? k_arr(i,j,k) : k;
                     int mj = j_arr ? j_arr(i,j,k) : j;
                     int mi = i_arr ? i_arr(i,j,k) : i;
                     Real vfac;
@@ -909,6 +1089,14 @@ MOSTAverage::compute_plane_averages (const int& lev)
     //------------------------------------------------------------------------
     //
     {
+        int sm_index = 0;
+        if (m_face.isLow()) {
+            sm_index = m_geom[lev].Domain().smallEnd(dir);
+        } else {
+            sm_index = m_geom[lev].Domain().bigEnd(dir);
+            if (dir == 0) sm_index += 1;
+        }
+
         int imf  = 0;
         int iavg = m_navg - 1;
         denom[iavg]   = 1.0 / (Real)ncell_plane[iavg];
@@ -919,10 +1107,23 @@ MOSTAverage::compute_plane_averages (const int& lev)
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi)
+        for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi)
+        //for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
-            pbx.setSmall(2,0); pbx.setBig(2,0);
+            //pbx.setSmall(2,0); pbx.setBig(2,0);
+
+            if (m_face.isLow()) {
+                if (pbx.smallEnd(dir) != sm_index) {
+                    continue;
+                }
+            } else {
+                if (pbx.bigEnd(dir) != sm_index) {
+                    continue;
+                }
+            }
+
+            pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
 
             // Last element is Umag and always cell centered
             auto u_mf_arr = (m_rotate) ? rot_fields[imf  ]->const_array(mfi) :
@@ -956,7 +1157,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
-                    int mk = k_arr(i,j,k);
+                    int mk = (dir == 2) ? k_arr(i,j,k) : k;
                     int mj = j_arr ? j_arr(i,j,k) : j;
                     int mi = i_arr ? i_arr(i,j,k) : i;
                     const Real u_val = 0.5 * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
@@ -1353,23 +1554,43 @@ MOSTAverage::write_k_indices (const int& lev)
     int navg = m_navg - 1;
 
     std::ofstream ofile;
-    ofile.open ("MOST_k_indices.txt");
+    ofile.open ("MOST_k_indices_" + std::to_string(m_face) + ".txt");
     ofile << "K indices used to compute averages via MOSTAverages class:\n";
 
+    const int dir = m_face.coordDir();
+    int sm_index;
+    if (m_face.isLow()) {
+        sm_index = m_geom[lev].Domain().smallEnd(dir);
+    } else {
+        sm_index = m_geom[lev].Domain().bigEnd(dir);
+    }
+
     for (MFIter mfi(*averages[navg], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box bx  = mfi.tilebox(); bx.setBig(2,0);
+        Box bx  = mfi.tilebox(); bx.setRange(dir,sm_index);
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
+        int kl = bx.smallEnd(2); int ku = bx.bigEnd(2);
 
         auto k_arr = k_indx->array(mfi);
 
         for (int j(jl); j <= ju; ++j) {
             for (int i(il); i <= iu; ++i) {
-                ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
-                int k = 0;
-                ofile << "K_ind: "
-                      << k_arr(i,j,k) << "\n";
-                ofile << "\n";
+                for (int k(kl); k <= ku; ++k) {
+                    /*
+                    if (dir == 0) {
+                        ofile << "(J,K): " << "(" << j << "," << k << ")" << "\n";
+                    } else if (dir == 1) {
+                        ofile << "(I,K): " << "(" << i << "," << k << ")" << "\n";
+                    } else {
+                        ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
+                    }
+                    */
+                    ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
+                    //int k = 0;
+                    ofile << "K_ind: "
+                        << k_arr(i,j,k) << "\n";
+                    ofile << "\n";
+                }
             }
         }
     }
@@ -1394,13 +1615,22 @@ MOSTAverage::write_norm_indices (const int& lev)
     int navg = m_navg - 1;
 
     std::ofstream ofile;
-    ofile.open ("MOST_ijk_indices.txt");
+    ofile.open ("MOST_ijk_indices_" + std::to_string(m_face) + ".txt");
     ofile << "IJK indices used to compute averages via MOSTAverages class:\n";
 
+    const int dir = m_face.coordDir();
+    int sm_index;
+    if (m_face.isLow()) {
+        sm_index = m_geom[lev].Domain().smallEnd(dir);
+    } else {
+        sm_index = m_geom[lev].Domain().bigEnd(dir);
+    }
+
     for (MFIter mfi(*averages[navg], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box bx  = mfi.tilebox(); bx.setBig(2,0);
+        Box bx  = mfi.tilebox(); bx.setRange(dir,sm_index);
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
+        int kl = bx.smallEnd(2); int ku = bx.bigEnd(2);
 
         auto k_arr = k_indx->array(mfi);
         auto j_arr = j_indx ? j_indx->array(mfi) : Array4<int> {};
@@ -1408,16 +1638,17 @@ MOSTAverage::write_norm_indices (const int& lev)
 
         for (int j(jl); j <= ju; ++j) {
             for (int i(il); i <= iu; ++i) {
-                ofile << "(I1,J1,K1): " << "(" << i << "," << j << "," << 0 << ")" << "\n";
+                for (int k(kl); k <= ku; ++k) {
+                    ofile << "(I1,J1,K1): " << "(" << i << "," << j << "," << k << ")" << "\n";
 
-                int k = 0;
-                int km = k_arr(i,j,k);
-                int jm = j_arr ? j_arr(i,j,k) : j;
-                int im = i_arr ? i_arr(i,j,k) : i;
+                    int km = k_arr(i,j,k);
+                    int jm = j_arr ? j_arr(i,j,k) : j;
+                    int im = i_arr ? i_arr(i,j,k) : i;
 
-                ofile << "(I2,J2,K2): "
-                      << "(" << im << "," << jm << "," << km << ")" << "\n";
-                ofile << "\n";
+                    ofile << "(I2,J2,K2): "
+                        << "(" << im << "," << jm << "," << km << ")" << "\n";
+                    ofile << "\n";
+                }
             }
         }
     }
@@ -1463,7 +1694,7 @@ MOSTAverage::write_xz_positions (const int& lev,
  * @param[in] lev Current level
  */
 void
-MOSTAverage::write_averages (const int& lev)
+MOSTAverage::write_averages (const int& lev, const int step)
 {
     // Peel back the level
     auto& averages = m_averages[lev];
@@ -1471,25 +1702,45 @@ MOSTAverage::write_averages (const int& lev)
     int navg = m_navg - 1;
 
     std::ofstream ofile;
-    ofile.open ("MOST_averages.txt");
+    ofile.open (std::string("MOST_averages_" + std::to_string(m_face) + 
+                            "_rank" + std::to_string(amrex::ParallelDescriptor::MyProc()) 
+                            + "_t" + std::to_string(step) + ".txt"));
     ofile << "Averages computed via MOSTAverages class:\n";
 
+    const int dir = m_face.coordDir();
+    int sm_index;
+    if (m_face.isLow()) {
+        sm_index = m_geom[lev].Domain().smallEnd(dir);
+    } else {
+        sm_index = m_geom[lev].Domain().bigEnd(dir);
+    }
+
     for (MFIter mfi(*averages[navg], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box bx  = mfi.tilebox(); bx.setBig(2,0);
+        Box bx  = mfi.tilebox(); bx.setRange(dir,sm_index);
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
+        int kl = bx.smallEnd(2); int ku = bx.bigEnd(2);
 
+        //amrex::Print() << " Writing MOST average: i range: " << il << " to " << iu << ", j range: " << jl << " to " << ju << ", k range: " << kl << " to " << ku << std::endl;
         for (int j(jl); j <= ju; ++j) {
             for (int i(il); i <= iu; ++i) {
-                ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
-                int k = 0;
-                for (int iavg(0); iavg <= navg; ++iavg) {
-                    auto mf_arr = averages[iavg]->array(mfi);
-                    ofile << "iavg val: "
-                          << iavg << ' '
-                          << mf_arr(i,j,k) << "\n";
+                for (int k(kl); k <= ku; ++k) {
+                    if (dir == 0) {
+                        ofile << "(J,K): " << "(" << j << "," << k << ")" << "\n";
+                    } else if (dir == 1) {
+                        ofile << "(I,K): " << "(" << i << "," << k << ")" << "\n";
+                    } else {
+                        ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
+                    }
+                    //int k = 0;
+                    for (int iavg(0); iavg <= navg; ++iavg) {
+                        auto mf_arr = averages[iavg]->array(mfi);
+                        ofile << "iavg val: "
+                            << iavg << ' '
+                            << mf_arr(i,j,k) << "\n";
+                    }
+                    ofile << "\n";
                 }
-                ofile << "\n";
             }
         }
     }

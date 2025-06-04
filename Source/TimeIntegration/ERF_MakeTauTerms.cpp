@@ -21,7 +21,7 @@ void erf_make_tau_terms (int level, int nrk,
                          MultiFab* eddyDiffs,
                          const Geometry geom,
                          const SolverChoice& solverChoice,
-                         std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
+                         const amrex::Vector<std::unique_ptr<SurfaceLayer>>& /*SurfLayer*/,
                          std::unique_ptr<MultiFab>& detJ,
                          std::unique_ptr<MultiFab>& mapfac_m,
                          std::unique_ptr<MultiFab>& mapfac_u,
@@ -159,6 +159,7 @@ void erf_make_tau_terms (int level, int nrk,
             Array4<Real> tau11 = Tau_lev[TauType::tau11]->array(mfi); Array4<Real> tau22 = Tau_lev[TauType::tau22]->array(mfi);
             Array4<Real> tau33 = Tau_lev[TauType::tau33]->array(mfi); Array4<Real> tau12 = Tau_lev[TauType::tau12]->array(mfi);
             Array4<Real> tau13 = Tau_lev[TauType::tau13]->array(mfi); Array4<Real> tau23 = Tau_lev[TauType::tau23]->array(mfi);
+            Array4<Real> tau21 = Tau_lev[TauType::tau21]->array(mfi);
 
             // Strain magnitude
             Array4<Real> SmnSmn_a;
@@ -168,7 +169,7 @@ void erf_make_tau_terms (int level, int nrk,
                 FArrayBox S21,S31,S32;
                 S21.resize(tbxxy,1,The_Async_Arena()); S31.resize(tbxxz,1,The_Async_Arena()); S32.resize(tbxyz,1,The_Async_Arena());
                 Array4<Real> s21   = S21.array();       Array4<Real> s31   = S31.array();       Array4<Real> s32   = S32.array();
-                Array4<Real> tau21 = Tau_lev[TauType::tau21]->array(mfi);
+                //Array4<Real> tau21 = Tau_lev[TauType::tau21]->array(mfi);
                 Array4<Real> tau31 = Tau_lev[TauType::tau31]->array(mfi);
                 Array4<Real> tau32 = Tau_lev[TauType::tau32]->array(mfi);
 

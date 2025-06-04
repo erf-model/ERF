@@ -91,8 +91,8 @@ void ERF::advance_dycore(int level,
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
-    const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
-    const FArrayBox* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
+    const bool use_SurfLayer = (m_SurfaceLayer[Orientation(Direction::z, Orientation::low)] != nullptr);
+    const FArrayBox* z_0     = (use_SurfLayer) ? m_SurfaceLayer[Orientation(Direction::z, Orientation::low)]->get_z0(level) : nullptr;
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -151,9 +151,14 @@ void ERF::advance_dycore(int level,
             Array4<Real> tau13 = Tau[level][TauType::tau13].get()->array(mfi);
             Array4<Real> tau23 = Tau[level][TauType::tau23].get()->array(mfi);
 
-            Array4<Real> tau21  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau31  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
+            //Array4<Real> tau21  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
+            //Array4<Real> tau31  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
+            //Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
+            
+            Array4<Real> tau21  = (Tau[level][TauType::tau21]) ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31  = (Tau[level][TauType::tau31]) ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32  = (Tau[level][TauType::tau32]) ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
+            
             const Array4<const Real>& z_nd = z_phys_nd[level]->const_array(mfi);
 
             const Array4<const Real> mf_m = mapfac_m[level]->array(mfi);
@@ -214,7 +219,7 @@ void ERF::advance_dycore(int level,
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], solverChoice,
-                                  m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
+                                  m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], z_0, l_use_terrain_fitted_coords,
                                   l_use_moisture, level, bc_ptr_h);
     }
 

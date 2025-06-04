@@ -57,7 +57,11 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& mf_m,
                              const amrex::Array4<const amrex::Real>& mf_u,
                              const amrex::Array4<const amrex::Real>& mf_v ,
+                                   amrex::Array4<      amrex::Real>& hfx_x,
+                                   amrex::Array4<      amrex::Real>& hfx_y,
                                    amrex::Array4<      amrex::Real>& hfx_z,
+                                   amrex::Array4<      amrex::Real>& qfx1_x,
+                                   amrex::Array4<      amrex::Real>& qfx1_y,
                                    amrex::Array4<      amrex::Real>& qfx1_z,
                                    amrex::Array4<      amrex::Real>& qfx2_z,
                                    amrex::Array4<      amrex::Real>& diss,
@@ -67,7 +71,8 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& tm_arr,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
-                             const bool use_SurfLayer);
+                             const bool use_SurfLayer,
+                             const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer);
 
 void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,
@@ -104,7 +109,8 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& tm_arr,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
-                             const bool use_SurfLayer);
+                             const bool use_SurfLayer,
+                             const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer);
 
 void ComputeStressConsVisc_N (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex::Box tbxyz, amrex::Real mu_eff,
                               const amrex::Array4<const amrex::Real>& cell_data,

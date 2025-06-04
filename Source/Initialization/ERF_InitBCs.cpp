@@ -418,10 +418,42 @@ void ERF::init_bcs ()
             }
             else if ( bct == ERF_BC::surface_layer )
             {
-                AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
-                domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::hoextrap);
-                domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::hoextrap);
-                domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::ext_dir);
+                // TODO: clean this up!
+                if (side == Orientation::low) {
+                    if (dir == 0) {
+                        // xlo
+                        domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::ext_dir);
+                        domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::foextrap);
+                    } else if (dir == 1) {
+                        // ylo
+                        domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::ext_dir);
+                        domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::foextrap);
+                    } else {
+                        // zlo
+                        domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::ext_dir);
+                    }
+                } else {
+                    if (dir == 0) {
+                        // xhi
+                        domain_bcs_type[BCVars::xvel_bc+0].setHi(dir, ERFBCType::ext_dir);
+                        domain_bcs_type[BCVars::xvel_bc+1].setHi(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+2].setHi(dir, ERFBCType::foextrap);
+                    } else if (dir == 1) {
+                        // yhi
+                        domain_bcs_type[BCVars::xvel_bc+0].setHi(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+1].setHi(dir, ERFBCType::ext_dir);
+                        domain_bcs_type[BCVars::xvel_bc+2].setHi(dir, ERFBCType::foextrap);
+                    } else {
+                        // zhi
+                        domain_bcs_type[BCVars::xvel_bc+0].setHi(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+1].setHi(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+2].setHi(dir, ERFBCType::ext_dir);
+                    }
+                }
             }
         }
     }
@@ -637,9 +669,15 @@ void ERF::init_bcs ()
             }
             else if ( bct == ERF_BC::surface_layer )
             {
-                AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
-                for (int i = 0; i < NBCVAR_max; i++) {
-                    domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrap);
+                //AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
+                if (side == Orientation::low) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                    }
+                } else {
+                    for (int i = 0; i < NBCVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                    }
                 }
             }
         }

@@ -79,6 +79,8 @@ enum Sponge {
     ubar_sponge, vbar_sponge, nvars_sponge
 };
 
+static const std::string BoundaryFaceName[] = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
+
 /**
  * Container holding many of the algorithmic options and parameters
  */

@@ -32,7 +32,8 @@ class SurfaceLayer
 public:
 
     // Constructor
-    explicit SurfaceLayer (const amrex::Vector<amrex::Geometry>& geom,
+    explicit SurfaceLayer (amrex::Orientation face,
+                           const amrex::Vector<amrex::Geometry>& geom,
                            bool& use_rot_surface_flux,
                            std::string a_pp_prefix,
                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
@@ -40,17 +41,18 @@ public:
                            const TerrainType& a_terrain_type,
                            amrex::Real start_bdy_time = 0.0,
                            amrex::Real bdy_time_interval = 0.0)
-    : m_geom(geom),
+    : m_face(face), 
+      m_geom(geom),
       m_rotate(use_rot_surface_flux),
       m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
-      m_ma(geom,(z_phys_nd[0]!=nullptr),a_pp_prefix,a_terrain_type)
+      m_ma(face, geom,(z_phys_nd[0]!=nullptr),a_pp_prefix,a_terrain_type)
     {
         // We have a moisture model if Qv_prim is a valid pointer
         use_moisture = (Qv_prim[0].get());
 
         // Get roughness
-        amrex::ParmParse pp("erf");
+        amrex::ParmParse pp("erf." + BoundaryFaceName[face]);
         pp.query("most.z0", z0_const);
 
         // Specify how to compute the flux
@@ -295,10 +297,18 @@ public:
         // Attributes for MFs and FABs
         //--------------------------------------------------------
         // Create a 2D ba, dm, & ghost cells
+        const int dir = m_face.coordDir();
+        int sm_index;
+        if (m_face.isLow()) {
+            sm_index = m_geom[lev].Domain().smallEnd(dir);
+        } else {
+            sm_index = m_geom[lev].Domain().bigEnd(dir);
+        }
+
         amrex::BoxArray ba  = mf.boxArray();
         amrex::BoxList bl2d = ba.boxList();
         for (auto& b : bl2d) {
-            b.setRange(2,0);
+            b.setRange(dir,sm_index);
         }
         amrex::BoxArray ba2d(std::move(bl2d));
         const amrex::DistributionMapping& dm = mf.DistributionMap();
@@ -312,8 +322,12 @@ public:
         Arena_Used = amrex::The_Pinned_Arena();
 #endif
         amrex::Box bx = amrex::grow(m_geom[lev].Domain(),ng);
-        bx.setSmall(2,0);
-        bx.setBig(2,0);
+        if (m_face.isLow()) {
+            bx.setBig(dir, sm_index);
+        } else {
+            bx.setSmall(dir, sm_index);
+        }
+
         z_0[lev].resize(bx,1,Arena_Used);
         z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
         if (read_z0) read_custom_roughness(lev,fname);
@@ -531,6 +545,7 @@ public:
 
 private:
     // Set in constructor
+    amrex::Orientation m_face;
     amrex::Vector<amrex::Geometry>  m_geom;
     bool m_rotate   = false;
     amrex::Real m_start_bdy_time;

@@ -85,32 +85,39 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     }
 
     // configure SurfaceLayer params if needed
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        if (m_SurfaceLayer) {
-            IntVect ng = Theta_prim[lev]->nGrowVect();
-            MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
-            MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
-            if (solverChoice.moisture_type != MoistureType::None) {
-                ng = Qv_prim[lev]->nGrowVect();
+    bool updated_prim = false;
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (phys_bc_type[ori] == ERF_BC::surface_layer && m_SurfaceLayer[ori]) {
+            if (!updated_prim) {
+                // This only needs to be done once
+                IntVect ng = Theta_prim[lev]->nGrowVect();
+                MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
+                MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
+                if (solverChoice.moisture_type != MoistureType::None) {
+                    ng = Qv_prim[lev]->nGrowVect();
 
-                MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
-                MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+                    MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
+                    MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
 
-                if (solverChoice.RhoQr_comp > -1) {
-                    MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.RhoQr_comp, 0, 1, ng);
-                    MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
-                } else {
-                    Qr_prim[lev]->setVal(0.0);
+                    if (solverChoice.RhoQr_comp > -1) {
+                        MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.RhoQr_comp, 0, 1, ng);
+                        MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+                    } else {
+                        Qr_prim[lev]->setVal(0.0);
+                    }
                 }
+                updated_prim = true;
             }
             // NOTE: std::swap above causes the field ptrs to be out of date.
             //       Reassign the field ptrs for MAC avg computation.
-            m_SurfaceLayer->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
-            m_SurfaceLayer->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
+
+            m_SurfaceLayer[ori]->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
+            m_SurfaceLayer[ori]->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
                                         solverChoice.RhoQv_comp,
                                         solverChoice.RhoQc_comp,
                                         solverChoice.RhoQr_comp);
-            m_SurfaceLayer->update_fluxes(lev, time);
+            m_SurfaceLayer[ori]->update_fluxes(lev, time);
         }
     }
 

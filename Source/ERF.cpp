@@ -1106,80 +1106,86 @@ ERF::InitData_post ()
     // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
-    {
-        bool rotate = solverChoice.use_rotate_surface_flux;
-        if (rotate) {
-            Print() << "Using surface layer model with stress rotations" << std::endl;
-        }
+    //if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
+    m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            bool rotate = solverChoice.use_rotate_surface_flux;
+            if (rotate) {
+                Print() << "Using surface layer model with stress rotations" << std::endl;
+            }
 
-        //
-        // This constructor will make the ABLMost object but not allocate the arrays at each level.
-        //
-        m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
-                                                        z_phys_nd, solverChoice.terrain_type
-#ifdef ERF_USE_NETCDF
-                                                        ,start_bdy_time, bdy_time_interval
-#endif
-                                                        );
-        // This call will allocate the arrays at each level. If we regrid later, either changing
-        // the number of level sor just the grids at each existing level, we will call an update routine
-        // to redefine the internal arrays in m_SurfaceLayer.
-        int nlevs = geom.size();
-        for (int lev = 0; lev < nlevs; lev++)
-        {
-            Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
-                                         &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
-                                                       mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                                       Qr_prim[lev], z_phys_nd[lev],
-                                                       Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                       lsm_data[lev], lsm_flux[lev], sst_lev[lev],
-                                                       tsk_lev[lev], lmask_lev[lev]);
-        }
+            //
+            // This constructor will make the ABLMost object but not allocate the arrays at each level.
+            //
+            m_SurfaceLayer[ori] = std::make_unique<SurfaceLayer>(ori, geom, rotate, pp_prefix, Qv_prim,
+                                                            z_phys_nd, solverChoice.terrain_type
+    #ifdef ERF_USE_NETCDF
+                                                            ,start_bdy_time, bdy_time_interval
+    #endif
+                                                            );
+            // This call will allocate the arrays at each level. If we regrid later, either changing
+            // the number of level sor just the grids at each existing level, we will call an update routine
+            // to redefine the internal arrays in m_SurfaceLayer.
+            int nlevs = geom.size();
+            for (int lev = 0; lev < nlevs; lev++)
+            {
+                Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
+                                            &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
+                m_SurfaceLayer[ori]->make_SurfaceLayer_at_level(lev,nlevs,
+                                                        mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                                        Qr_prim[lev], z_phys_nd[lev],
+                                                        Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                                                        lsm_data[lev], lsm_flux[lev], sst_lev[lev],
+                                                        tsk_lev[lev], lmask_lev[lev]);
+            }
 
 
-        if (restart_chkfile != "") {
-            // Update surface fields if needed
-            ReadCheckpointFileSurfaceLayer();
-        }
+            if (restart_chkfile != "") {
+                // Update surface fields if needed
+                ReadCheckpointFileSurfaceLayer();
+            }
 
-        // We now configure ABLMost params here so that we can print the averages at t=0
-        // Note we don't fill ghost cells here because this is just for diagnostics
-        for (int lev = 0; lev <= finest_level; ++lev)
-        {
-            Real time  = t_new[lev];
-            IntVect ng = Theta_prim[lev]->nGrowVect();
+            // We now configure ABLMost params here so that we can print the averages at t=0
+            // Note we don't fill ghost cells here because this is just for diagnostics
+            for (int lev = 0; lev <= finest_level; ++lev)
+            {
+                Real time  = t_new[lev];
+                IntVect ng = Theta_prim[lev]->nGrowVect();
 
-            MultiFab::Copy(  *Theta_prim[lev], vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, ng);
-            MultiFab::Divide(*Theta_prim[lev], vars_new[lev][Vars::cons],      Rho_comp, 0, 1, ng);
+                MultiFab::Copy(  *Theta_prim[lev], vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, ng);
+                MultiFab::Divide(*Theta_prim[lev], vars_new[lev][Vars::cons],      Rho_comp, 0, 1, ng);
 
-            if (solverChoice.moisture_type != MoistureType::None) {
-                ng = Qv_prim[lev]->nGrowVect();
+                if (solverChoice.moisture_type != MoistureType::None) {
+                    ng = Qv_prim[lev]->nGrowVect();
 
-                MultiFab::Copy(  *Qv_prim[lev], vars_new[lev][Vars::cons], RhoQ1_comp, 0, 1, ng);
-                MultiFab::Divide(*Qv_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
+                    MultiFab::Copy(  *Qv_prim[lev], vars_new[lev][Vars::cons], RhoQ1_comp, 0, 1, ng);
+                    MultiFab::Divide(*Qv_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
 
-                int rhoqr_comp = solverChoice.RhoQr_comp;
-                if (rhoqr_comp > -1) {
-                    MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
-                    MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
-                } else {
-                    Qr_prim[lev]->setVal(0.0);
+                    int rhoqr_comp = solverChoice.RhoQr_comp;
+                    if (rhoqr_comp > -1) {
+                        MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
+                        MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
+                    } else {
+                        Qr_prim[lev]->setVal(0.0);
+                    }
+                }
+                m_SurfaceLayer[ori]->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
+
+                if (restart_chkfile == "") {
+                    // Only do this if starting from scratch; if restarting, then
+                    // we don't want to call update_fluxes multiple times because
+                    // it will change u* and theta* from their previous values
+                    m_SurfaceLayer[ori]->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
+                                                solverChoice.RhoQv_comp,
+                                                solverChoice.RhoQc_comp,
+                                                solverChoice.RhoQr_comp);
+                    m_SurfaceLayer[ori]->update_fluxes(lev, time);
                 }
             }
-            m_SurfaceLayer->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
-
-            if (restart_chkfile == "") {
-                // Only do this if starting from scratch; if restarting, then
-                // we don't want to call update_fluxes multiple times because
-                // it will change u* and theta* from their previous values
-                m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
-                                            solverChoice.RhoQv_comp,
-                                            solverChoice.RhoQc_comp,
-                                            solverChoice.RhoQr_comp);
-                m_SurfaceLayer->update_fluxes(lev, time);
-            }
+        } else {
+            m_SurfaceLayer[ori] = nullptr;
         }
     }
 

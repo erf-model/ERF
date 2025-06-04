@@ -13,18 +13,24 @@ SurfaceLayer::update_fluxes (const int& lev,
                              const Real& time,
                              int max_iters)
 {
+    bool zlo = (int) m_face == Orientation::zlo();
     // Update SST data if we have a valid pointer
-    if (m_sst_lev[lev][0]) fill_tsurf_with_sst_and_tsk(lev, time);
+    if (m_sst_lev[lev][0] && zlo) fill_tsurf_with_sst_and_tsk(lev, time);
 
     // TODO: we want 0 index to always be theta?
     // Update land surface temp if we have a valid pointer
-    if (m_lsm_data_lev[lev][0]) get_lsm_tsurf(lev);
+    if (m_lsm_data_lev[lev][0] && zlo) get_lsm_tsurf(lev);
 
     // Fill interior ghost cells
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
+
+    //m_ma.write_averages(lev, step);
+    //m_ma.write_k_indices(lev);
+    //m_ma.write_norm_indices(lev);
+    //step+=1;
 
     // ***************************************************************
     // Iterate the fluxes if moeng type
@@ -131,6 +137,17 @@ SurfaceLayer::update_fluxes (const int& lev,
         t_star[lev]->setVal(custom_tstar);
         q_star[lev]->setVal(custom_qstar);
     }
+
+    // Need to fill boundaries on ustar, tstar, and qstar if on X or Y faces
+    /*
+    if (m_face.coordDir() == 0) {
+        amrex::AllPrint() << " Filling ustar boundaries on X" << std::endl;
+        u_star[lev]->FillBoundary(u_star[lev]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(0)));
+    } else if (m_face.coordDir() == 1) {
+        amrex::AllPrint() << " Filling ustar boundaries on Y" << std::endl;
+        u_star[lev]->FillBoundary(Periodicity(IntVect::TheDimensionVector(1)));
+    }
+    */
 }
 
 /**
@@ -153,9 +170,48 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const auto *const tvm_ptr = m_ma.get_average(lev,4); // virtual potential temperature
     const auto *const umm_ptr = m_ma.get_average(lev,5); // horizontal velocity magnitude
 
-    for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+    const int dir = m_face.coordDir();
+    int sm_index = 0;
+    if (m_face.isLow()) {
+        sm_index = m_geom[lev].Domain().smallEnd(dir);
+    } else {
+        sm_index = m_geom[lev].Domain().bigEnd(dir);
+    }
+
+    //for (MFIter mfi(*u_star[lev], TileNoZ()); mfi.isValid(); ++mfi)
+    // NOTE: need to use lmask (defined over entire X/Y grid) for MFIter here so that we can properly detect if a box on a given MPI rank is not on the current face
+    //       if u_star is used instead, then all ranks will participate, even if their boxes do not coincide with the face!
+    for (MFIter mfi(*m_lmask_lev[lev][0]); mfi.isValid(); ++mfi)
     {
+        //Box gtbx = mfi.growntilebox().makeSlab(dir, sm_index); // makeSlab misses ghost cells!
+        Box vbx = mfi.tilebox();
         Box gtbx = mfi.growntilebox();
+        const int face_lo = vbx.smallEnd(dir);
+
+        // Since lmask is used in the MFIter, the Z dimensions of the box is 0!
+        // X and Y faces need the entire domain Z range, so resize the box accordingly
+        vbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
+        gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
+
+        if (m_face.isLow()) {
+            if (vbx.smallEnd(dir) != sm_index) {
+                continue;
+            }
+            gtbx.setBig(dir, sm_index);
+        } else {
+            if (vbx.bigEnd(dir) != sm_index) {
+                continue;
+            }
+            gtbx.setSmall(dir, sm_index);
+        }
+
+        /*
+        if (dir != 2) {
+            // Since lmask is used in the MFIter, the Z dimensions of the box is 0!
+            // X and Y faces need the entire domain Z range, so resize the box accordingly
+            gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
+        }
+        */
 
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
@@ -185,8 +241,9 @@ SurfaceLayer::compute_fluxes (const int& lev,
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            if (( is_land && lmask_arr(i,j,k) == 1) ||
-                (!is_land && lmask_arr(i,j,k) == 0))
+            // always check for land mask at k=0 even if on other faces
+            if (( is_land && lmask_arr(i,j,0) == 1) ||
+                (!is_land && lmask_arr(i,j,0) == 0))
             {
                 most_flux.iterate_flux(i, j, k, max_iters,
                                        z0_arr, umm_arr, tm_arr, tvm_arr, qvm_arr,
@@ -270,7 +327,17 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                         const FluxCalc& flux_comp)
 {
     bool rotate = m_rotate;
-    const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    const int dir = m_face.coordDir();
+    int sm_index = 0;
+    if (m_face.isLow()) {
+        sm_index = m_geom[lev].Domain().smallEnd(dir);
+    } else {
+        sm_index = m_geom[lev].Domain().bigEnd(dir);
+    }
+
+    //const int klo = m_geom[lev].Domain().smallEnd(dir);
+    const int klo = sm_index;
     const auto& dxInv = m_geom[lev].InvCellSizeArray();
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
@@ -280,12 +347,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
         const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
 
+        // Output stresses:
+        //            T     Q      U     V
+        // X-faces: hfx1   qfx1   t31   t21
+        // Y-faces: hfx2   qfx2   t12   t32
+        // Z-faces: hfx3   qfx3   t13   t23
+
         // Diffusive stress vars
         auto t13_arr =  Tau_lev[TauType::tau13]->array(mfi);
-        auto t31_arr = (Tau_lev[TauType::tau31]) ? Tau_lev[TauType::tau31]->array(mfi) : Array4<Real>{};
+        //auto t31_arr = (Tau_lev[TauType::tau31]) ? Tau_lev[TauType::tau31]->array(mfi) : Array4<Real>{};
+        auto t31_arr = (dir == 0 || Tau_lev[TauType::tau31]) ? Tau_lev[TauType::tau31]->array(mfi) : Array4<Real>{};
 
         auto t23_arr =  Tau_lev[TauType::tau23]->array(mfi);
-        auto t32_arr = (Tau_lev[TauType::tau32]) ? Tau_lev[TauType::tau32]->array(mfi) : Array4<Real>{};
+        //auto t32_arr = (Tau_lev[TauType::tau32]) ? Tau_lev[TauType::tau32]->array(mfi) : Array4<Real>{};
+        auto t32_arr = (dir == 1 || Tau_lev[TauType::tau32]) ? Tau_lev[TauType::tau32]->array(mfi) : Array4<Real>{};
+
 
         auto hfx3_arr = zheat_flux->array(mfi);
         auto qfx3_arr = (zqv_flux)  ? zqv_flux->array(mfi)   : Array4<Real>{};
@@ -294,13 +370,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         auto t11_arr = (m_rotate) ? Tau_lev[TauType::tau11]->array(mfi) : Array4<Real>{};
         auto t22_arr = (m_rotate) ? Tau_lev[TauType::tau22]->array(mfi) : Array4<Real>{};
         auto t33_arr = (m_rotate) ? Tau_lev[TauType::tau33]->array(mfi) : Array4<Real>{};
-        auto t12_arr = (m_rotate) ? Tau_lev[TauType::tau12]->array(mfi) : Array4<Real>{};
-        auto t21_arr = (m_rotate) ? Tau_lev[TauType::tau21]->array(mfi) : Array4<Real>{};
+        auto t12_arr = (m_rotate || dir == 1) ? Tau_lev[TauType::tau12]->array(mfi) : Array4<Real>{};
+        auto t21_arr = (m_rotate || dir == 0) ? Tau_lev[TauType::tau21]->array(mfi) : Array4<Real>{};
 
-        auto hfx1_arr = (m_rotate) ? xheat_flux->array(mfi) : Array4<Real>{};
-        auto hfx2_arr = (m_rotate) ? yheat_flux->array(mfi) : Array4<Real>{};
-        auto qfx1_arr = (m_rotate && xqv_flux) ? xqv_flux->array(mfi) : Array4<Real>{};
-        auto qfx2_arr = (m_rotate && yqv_flux) ? yqv_flux->array(mfi) : Array4<Real>{};
+        auto hfx1_arr = (m_rotate || dir == 0) ? xheat_flux->array(mfi) : Array4<Real>{};
+        auto hfx2_arr = (m_rotate || dir == 1) ? yheat_flux->array(mfi) : Array4<Real>{};
+        auto qfx1_arr = (xqv_flux && (m_rotate || dir == 0)) ? xqv_flux->array(mfi) : Array4<Real>{};
+        auto qfx2_arr = (yqv_flux && (m_rotate || dir == 1)) ? yqv_flux->array(mfi) : Array4<Real>{};
 
         // Terrain
         const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
@@ -333,8 +409,18 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Rho*Theta flux
         //============================================================================
         Box bx = mfi.tilebox();
-        if (bx.smallEnd(2) != klo) { continue; }
-        bx.makeSlab(2,klo);
+        if (m_face.isLow()) {
+            if (bx.smallEnd(dir) != klo) {
+                continue;
+            }
+            bx.setBig(dir, klo);
+        } else {
+            if (bx.bigEnd(dir) != klo) {
+                continue;
+            }
+            bx.setSmall(dir, klo);
+        }
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real Tflux = flux_comp.compute_t_flux(i, j, k,
@@ -346,8 +432,34 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 rotate_scalar_flux(i, j, k, Tflux, dxInv, zphys_arr,
                                    hfx1_arr, hfx2_arr, hfx3_arr);
             } else {
-                hfx3_arr(i,j,klo) = Tflux;
-                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+                // TODO: better way to generalize this?
+                if (dir == 0) {
+                    hfx1_arr(i,j,k) = Tflux;
+                    /*
+                    if ((i == bx.smallEnd(dir) && j == bx.smallEnd(1)) ||
+                        (i == bx.bigEnd(dir) && j == bx.bigEnd(1)))
+                        amrex::Print() << " writing XFLUX at i = " << i << " j = " << j << " k = " << k << ": = " << hfx1_arr(i,j,k) << " tsurf = " << t_surf_arr(i, j, k) << std::endl;
+                    AMREX_ALWAYS_ASSERT(i == klo);
+                    */
+                } else if (dir == 1) {
+                    hfx2_arr(i,j,k) = Tflux;
+                    /*
+                    if ((j == bx.smallEnd(dir) && k == bx.smallEnd(2)) ||
+                        (j == bx.bigEnd(dir) && k == bx.bigEnd(2)))
+                        amrex::Print() << " writing YFLUX at i = " << i << " j = " << j << " k = " << k << ": = " << hfx2_arr(i,j,k) << " tsurf = " << t_surf_arr(i, j, k) << std::endl;
+                    AMREX_ALWAYS_ASSERT(j == klo);
+                    */
+                } else {
+                    hfx3_arr(i,j,k) = Tflux;
+                    /*
+                    if ((k == bx.smallEnd(dir) && i == bx.smallEnd(0)) ||
+                        (k == bx.bigEnd(dir) && i == bx.bigEnd(0)))
+                        amrex::Print() << " writing ZFLUX at i = " << i << " j = " << j << " k = " << k << ": = " << hfx3_arr(i,j,k) << " tsurf = " << t_surf_arr(i, j, k) << std::endl;
+                    AMREX_ALWAYS_ASSERT(k == klo);
+                    */
+                }
+                // TODO: should lmask always be checked at k = 0?
+                int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                 if (is_land && lsm_flux_arr) {
                     lsm_flux_arr(i,j,k) = Tflux;
                 }
@@ -369,7 +481,32 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     rotate_scalar_flux(i, j, k, Qflux, dxInv, zphys_arr,
                                        qfx1_arr, qfx2_arr, qfx3_arr);
                 } else {
-                    qfx3_arr(i,j,k) = Qflux;
+                    // TODO: better way to generalize this?
+                    if (dir == 0) {
+                        qfx1_arr(i,j,k) = Qflux;
+                        /*
+                        if ((i == bx.smallEnd(dir) && j == bx.smallEnd(1)) ||
+                            (i == bx.bigEnd(dir) && j == bx.bigEnd(1))) {
+                            amrex::Print() << " writing QXFLUX at i = " << i << " j = " << j << " k = " << k << ": = " << qfx1_arr(i,j,k) << std::endl;
+                        }
+                        */
+                    } else if (dir == 1) {
+                        qfx2_arr(i,j,k) = Qflux;
+                        /*
+                        if ((j == bx.smallEnd(dir) && k == bx.smallEnd(2)) ||
+                            (j == bx.bigEnd(dir) && k == bx.bigEnd(2))) {
+                            amrex::Print() << " writing QYFLUX at i = " << i << " j = " << j << " k = " << k << ": = " << qfx2_arr(i,j,k) << std::endl;
+                        }
+                        */
+                    } else {
+                        qfx3_arr(i,j,k) = Qflux;
+                        /*
+                        if ((k == bx.smallEnd(dir) && i == bx.smallEnd(0)) ||
+                            (k == bx.bigEnd(dir) && i == bx.bigEnd(0))) {
+                            amrex::Print() << " writing QZFLUX at i = " << i << " j = " << j << " k = " << k << ": = " << qfx3_arr(i,j,k) << std::endl;
+                        }
+                        */
+                    }
                 }
             });
         } // custom
@@ -377,6 +514,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Rho*u flux
         //============================================================================
         Box bxx = surroundingNodes(bx,0);
+        if (m_face.isLow()) {
+            bxx.setBig(dir, klo);
+        } else {
+            bxx.setSmall(dir, bxx.bigEnd(dir));
+        }
         ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real stressx = flux_comp.compute_u_flux(i, j, k,
@@ -391,14 +533,47 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                      t13_arr, t31_arr,
                                      t23_arr, t32_arr);
             } else {
-                t13_arr(i,j,k) = stressx;
-                if (t31_arr) { t31_arr(i,j,k) = stressx; }
+                // TODO: better way to generalize this?
+                if (dir == 0) {
+                    t31_arr(i,j,k) = stressx; // z flux
+                    /*
+                    if ((i == bx.smallEnd(dir) && j == bx.smallEnd(1)) ||
+                        (i == bx.bigEnd(dir) && j == bx.bigEnd(1))) {
+                            amrex::AllPrint() << " rank = " << amrex::ParallelDescriptor::MyProc() << " writing TAU31 at i = " << i << " j = " << j << " k = " << k << ": = " << t31_arr(i,j,k) << " ustar = " << u_star_arr(i, j, k) << std::endl;
+                    }
+                    */
+                } else if (dir == 1) {
+                    t12_arr(i,j,k) = stressx;
+                    /*
+                    if ((j == bx.smallEnd(dir) && k == bx.smallEnd(2)) ||
+                        (j == bx.bigEnd(dir) && k == bx.bigEnd(2))) {
+                            amrex::Print() << " writing TAU12 at i = " << i << " j = " << j << " k = " << k << ": = " << t12_arr(i,j,k) << std::endl;
+                    }
+                    */
+                } else {
+                    t13_arr(i,j,k) = stressx;
+                    if (t31_arr) { t31_arr(i,j,k) = stressx; }
+                    /*
+                    if ((k == bx.smallEnd(dir) && i == bx.smallEnd(0)) ||
+                        (k == bx.bigEnd(dir) && i == bx.bigEnd(0))) {
+                            amrex::Print() << " writing TAU13 at i = " << i << " j = " << j << " k = " << k << ": = " << t13_arr(i,j,k) << std::endl;
+                        if (t31_arr) {
+                            amrex::Print() << " writing TAU31 at i = " << i << " j = " << j << " k = " << k << ": = " << t31_arr(i,j,k) << std::endl;
+                        }
+                    }
+                    */
+                }
             }
         });
 
         // Rho*v flux
         //============================================================================
         Box bxy = surroundingNodes(bx,1);
+        if (m_face.isLow()) {
+            bxy.setBig(dir, klo);
+        } else {
+            bxy.setSmall(dir, bxy.bigEnd(dir));
+        }
         ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real stressy = flux_comp.compute_v_flux(i, j, k,
@@ -407,8 +582,35 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
             // NOTE: One stress rotation for ALL the stress components
             if (!rotate) {
-                t23_arr(i,j,k) = stressy;
-                if (t32_arr) { t32_arr(i,j,k) = stressy; }
+                if (dir == 0) {
+                    t21_arr(i,j,k) = stressy;
+                    /*
+                    if ((i == bx.smallEnd(dir) && j == bx.smallEnd(1)) ||
+                        (i == bx.bigEnd(dir) && j == bx.bigEnd(1))) {
+                            amrex::Print() << " writing TAU21 at i = " << i << " j = " << j << " k = " << k << ": = " << t21_arr(i,j,k) << std::endl;
+                    }
+                    */
+                } else if (dir == 1) {
+                    t32_arr(i,j,k) = stressy; // z flux
+                    /*
+                    if ((j == bx.smallEnd(dir) && k == bx.smallEnd(2)) ||
+                        (j == bx.bigEnd(dir) && k == bx.bigEnd(2))) {
+                            amrex::Print() << " writing TAU32 at i = " << i << " j = " << j << " k = " << k << ": = " << t32_arr(i,j,k) << std::endl;
+                    }
+                    */
+                } else {
+                    t23_arr(i,j,k) = stressy;
+                    if (t32_arr) { t32_arr(i,j,k) = stressy; }
+                    /*
+                    if ((k == bx.smallEnd(dir) && i == bx.smallEnd(0)) ||
+                        (k == bx.bigEnd(dir) && i == bx.bigEnd(0))) {
+                            amrex::Print() << " writing TAU23 at i = " << i << " j = " << j << " k = " << k << ": = " << t23_arr(i,j,k) << std::endl;
+                            if (t32_arr) {
+                                amrex::Print() << " writing TAU32 at i = " << i << " j = " << j << " k = " << k << ": = " << t32_arr(i,j,k) << std::endl;
+                            }
+                    }
+                    */
+                }
             }
         });
     } // mfiter

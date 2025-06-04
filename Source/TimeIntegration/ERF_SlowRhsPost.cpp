@@ -70,7 +70,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         MultiFab* Diss,
                         const Geometry geom,
                         const SolverChoice& solverChoice,
-                        std::unique_ptr<SurfaceLayer>& SurfLayer,
+                        const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                         const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                         const Vector<BCRec>& domain_bcs_type_h,
                         std::unique_ptr<MultiFab>& z_phys_nd,
@@ -108,7 +108,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     TurbChoice tc = solverChoice.turbChoice[level];
 
     const MultiFab*  t_mean_mf = nullptr;
-    if (SurfLayer) { t_mean_mf = SurfLayer->get_mac_avg(level,2); }
+    if (SurfLayer[Orientation(Direction::z, Orientation::low)]) { t_mean_mf = SurfLayer[Orientation(Direction::z, Orientation::low)]->get_mac_avg(level,2); }
 
     const bool l_use_terrain      = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
@@ -369,8 +369,15 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> diffflux_x, diffflux_y, diffflux_z;
         Array4<Real> hfx_x, hfx_y, hfx_z, diss;
         Array4<Real> q1fx_x, q1fx_y, q1fx_z, q2fx_z;
-        const bool use_SurfLayer = (SurfLayer != nullptr);
-
+        auto any_SurfLayer = [&SurfLayer_ = SurfLayer]() -> bool {
+            for (auto it = SurfLayer_.begin(); it != SurfLayer_.end(); it++)
+            {
+                if (*it != nullptr) { return true; }
+            }
+            return false;
+        };
+        //const bool use_SurfLayer = (SurfLayer[Orientation(Direction::z, Orientation::low)] != nullptr);
+        const bool use_SurfLayer = any_SurfLayer();
         if (l_use_diff) {
             diffflux_x = dflux_x->array(mfi);
             diffflux_y = dflux_y->array(mfi);
@@ -457,15 +464,15 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer, SurfLayer);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                               hfx_z, q1fx_z, q2fx_z, diss,
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer, SurfLayer);
                     }
                 } // use_diff
             } // valid slow var

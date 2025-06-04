@@ -13,7 +13,8 @@
 
 class MOSTAverage {
 public:
-    explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
+    explicit MOSTAverage (amrex::Orientation face,
+                          amrex::Vector<amrex::Geometry>  geom,
                           const bool& has_zphys,
                           std::string a_pp_prefix,
                           const TerrainType& m_terrain_type);
@@ -95,7 +96,7 @@ public:
                              const int& j);
 
     // Write averages on 2D mf
-    void write_averages (const int& lev);
+    void write_averages (const int& lev, const int step = 0);
 
     // Get pointer to the 2D mf of averages
     [[nodiscard]] const amrex::MultiFab* get_average (const int& lev, const int& comp) const { return m_averages[lev][comp].get(); }
@@ -180,6 +181,7 @@ protected:
 
     // Passed through constructor
     //--------------------------------------------
+    amrex::Orientation m_face;                                       // Face to perform averages on
     const amrex::Vector<amrex::Geometry> m_geom;                     // Geometry at each level
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_fields;         // Ptr to fields to be averaged
     amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain height coords

@@ -212,52 +212,70 @@ ERF::WriteCheckpointFile () const
         MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ng);
         VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
 
-        if (m_SurfaceLayer)  {
-            amrex::Print() << "Writing SurfaceLayer variables" << std::endl;
-            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-            MultiFab   m_var(ba2d[lev],dmap[lev],1,ng);
-            MultiFab* src = nullptr;
+        for (OrientationIter oit; oit; ++oit) {
+            Orientation ori = oit();
+            if (m_SurfaceLayer[ori])  {
+                amrex::Print() << "Writing SurfaceLayer variables for face " << ori << std::endl;
+                ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
 
-            // U*
-            src = m_SurfaceLayer->get_u_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Ustar"));
+                const int dir = ori.coordDir();
+                int sm_index;
+                if (ori.isLow()) {
+                    sm_index = geom[lev].Domain().smallEnd(dir);;
+                } else {
+                    sm_index = geom[lev].Domain().bigEnd(dir);
+                }
 
-            // W*
-            src = m_SurfaceLayer->get_w_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Wstar"));
+                BoxList bl2d = vars_new[lev][Vars::cons].boxArray().boxList();
+                for (auto& b : bl2d) b.setRange(dir, sm_index);
+                BoxArray ba2d(std::move(bl2d));
 
-            // T*
-            src = m_SurfaceLayer->get_t_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tstar"));
+                MultiFab   m_var(ba2d,dmap[lev],1,ng);
+                MultiFab* src = nullptr;
 
-            // Q*
-            src = m_SurfaceLayer->get_q_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qstar"));
+                std::string face = "_" + std::to_string(ori);
 
-            // Olen
-            src = m_SurfaceLayer->get_olen(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Olen"));
+                // U*
+                src = m_SurfaceLayer[ori]->get_u_star(lev);
+                MultiFab::Copy(m_var,*src,0,0,1,ng);
+                VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Ustar" + face));
 
-            // PBLH
-            src = m_SurfaceLayer->get_pblh(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PBLH"));
+                // W*
+                src = m_SurfaceLayer[ori]->get_w_star(lev);
+                MultiFab::Copy(m_var,*src,0,0,1,ng);
+                VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Wstar" + face));
 
-            // Z0
-            for (MFIter mfi(m_var); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.growntilebox();
-                Array4<const Real> const& fab_arr = m_SurfaceLayer->get_z0(lev)->const_array();
-                Array4<      Real> const&  mv_arr = m_var.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    mv_arr(i,j,k) = fab_arr(i,j,k);
-                });
+                // T*
+                src = m_SurfaceLayer[ori]->get_t_star(lev);
+                MultiFab::Copy(m_var,*src,0,0,1,ng);
+                VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tstar" + face));
+
+                // Q*
+                src = m_SurfaceLayer[ori]->get_q_star(lev);
+                MultiFab::Copy(m_var,*src,0,0,1,ng);
+                VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qstar" + face));
+
+                // Olen
+                src = m_SurfaceLayer[ori]->get_olen(lev);
+                MultiFab::Copy(m_var,*src,0,0,1,ng);
+                VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Olen" + face));
+
+                // PBLH
+                src = m_SurfaceLayer[ori]->get_pblh(lev);
+                MultiFab::Copy(m_var,*src,0,0,1,ng);
+                VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PBLH" + face));
+
+                // Z0
+                for (MFIter mfi(m_var); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.growntilebox().makeSlab(dir, sm_index);
+                    Array4<const Real> const& fab_arr = m_SurfaceLayer[ori]->get_z0(lev)->const_array();
+                    Array4<      Real> const&  mv_arr = m_var.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        mv_arr(i,j,k) = fab_arr(i,j,k);
+                    });
+                }
+                VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0" + face));
             }
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
         }
 
         if (sst_lev[lev][0]) {
@@ -876,50 +894,69 @@ ERF::ReadCheckpointFile ()
 void
 ERF::ReadCheckpointFileSurfaceLayer ()
 {
-    for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        amrex::Print() << "Reading MOST variables" << std::endl;
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (m_SurfaceLayer[ori])  {
+            for (int lev = 0; lev <= finest_level; ++lev)
+            {
+                amrex::Print() << "Reading MOST variables for face " << ori << std::endl;
 
-        IntVect ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-        MultiFab  m_var(ba2d[lev],dmap[lev],1,ng);
-        MultiFab* dst = nullptr;
+                IntVect ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+                
+                const int dir = ori.coordDir();
+                int sm_index;
+                if (ori.isLow()) {
+                    sm_index = geom[lev].Domain().smallEnd(dir);
+                } else {
+                    sm_index = geom[lev].Domain().bigEnd(dir);
+                }
 
-        // U*
-        dst = m_SurfaceLayer->get_u_star(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Ustar"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+                BoxList bl2d = vars_new[lev][Vars::cons].boxArray().boxList();
+                for (auto& b : bl2d) b.setRange(dir, sm_index);
+                BoxArray ba2d(std::move(bl2d));
+                MultiFab  m_var(ba2d,dmap[lev],1,ng);
+                MultiFab* dst = nullptr;
 
-        // W*
-        dst = m_SurfaceLayer->get_w_star(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wstar"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+                std::string face = "_" + std::to_string(ori);
 
-        // T*
-        dst = m_SurfaceLayer->get_t_star(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Tstar"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+                // U*
+                dst = m_SurfaceLayer[ori]->get_u_star(lev);
+                VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Ustar" + face));
+                MultiFab::Copy(*dst,m_var,0,0,1,ng);
 
-        // Q*
-        dst = m_SurfaceLayer->get_q_star(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qstar"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+                // W*
+                dst = m_SurfaceLayer[ori]->get_w_star(lev);
+                VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wstar" + face));
+                MultiFab::Copy(*dst,m_var,0,0,1,ng);
 
-        // Olen
-        dst = m_SurfaceLayer->get_olen(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+                // T*
+                dst = m_SurfaceLayer[ori]->get_t_star(lev);
+                VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Tstar" + face));
+                MultiFab::Copy(*dst,m_var,0,0,1,ng);
 
-        // PBLH
-        dst = m_SurfaceLayer->get_pblh(lev);
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PBLH"));
-        MultiFab::Copy(*dst,m_var,0,0,1,ng);
+                // Q*
+                dst = m_SurfaceLayer[ori]->get_q_star(lev);
+                VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qstar" + face));
+                MultiFab::Copy(*dst,m_var,0,0,1,ng);
 
-        // Z0
-        VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
-        for (amrex::MFIter mfi(m_var); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.growntilebox();
-            FArrayBox* most_z0 = (m_SurfaceLayer->get_z0(lev));
-            most_z0->copy<RunOn::Device>(m_var[mfi], bx);
+                // Olen
+                dst = m_SurfaceLayer[ori]->get_olen(lev);
+                VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen" + face));
+                MultiFab::Copy(*dst,m_var,0,0,1,ng);
+
+                // PBLH
+                dst = m_SurfaceLayer[ori]->get_pblh(lev);
+                VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PBLH" + face));
+                MultiFab::Copy(*dst,m_var,0,0,1,ng);
+
+                // Z0
+                VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0" + face));
+                for (amrex::MFIter mfi(m_var); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.growntilebox().makeSlab(dir, sm_index);
+                    FArrayBox* most_z0 = (m_SurfaceLayer[ori]->get_z0(lev));
+                    most_z0->copy<RunOn::Device>(m_var[mfi], bx);
+                }
+            }
         }
     }
 }
