@@ -97,18 +97,13 @@ public:
       }
 
       // Get surface temperature
-      bool erf_sq = false;
       auto erf_st = pp.query("most.surf_temp", surf_temp);
-      if (use_moisture) { erf_sq = pp.query("most.surf_moist", surf_moist); }
-      if (erf_st || erf_sq) {
-          pp.get("most.surf_temp",surf_temp);
-          default_land_surf_temp  = surf_temp;
+      if (erf_st) { default_land_surf_temp  = surf_temp; }
 
-          if (use_moisture) {
-              pp.get("most.surf_moist",surf_moist);
-              default_land_surf_moist = surf_moist;
-          }
-      }
+      // Get surface moisture
+      bool erf_sq = false;
+      if (use_moisture) { erf_sq = pp.query("most.surf_moist", surf_moist); }
+      if (erf_sq) { default_land_surf_moist = surf_moist; }
 
       // Custom type user must specify the fluxes
       if (flux_type == FluxCalcType::CUSTOM) {
@@ -127,21 +122,18 @@ public:
 
       // Specify surface temperature/moisture or surface flux
       } else {
-          if (erf_st || erf_sq) {
+          if (erf_st) {
               theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-              moist_type = MoistCalcType::SURFACE_MOISTURE;
               pp.query("most.surf_heating_rate", surf_heating_rate); // [K/h]
               surf_heating_rate = surf_heating_rate / 3600.0;        // [K/s]
               if (pp.query("most.surf_temp_flux", surf_temp_flux)) {
-                  amrex::Abort(
-                               "Can only specify one of surf_temp_flux or surf_heating_rate");
+                  amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
               }
           } else {
               pp.query("most.surf_temp_flux", surf_temp_flux);
-              pp.query("most.surf_moist_flux", surf_moist_flux);
+
               if (pp.query("most.surf_heating_rate", surf_heating_rate)) {
-                  amrex::Abort(
-                               "Can only specify one of surf_temp_flux or surf_heating_rate");
+                  amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
               }
               if (std::abs(surf_temp_flux) >
                   std::numeric_limits<amrex::Real>::epsilon()) {
@@ -149,6 +141,13 @@ public:
               } else {
                   theta_type = ThetaCalcType::ADIABATIC;
               }
+
+          }
+
+          if (erf_sq) {
+              moist_type = MoistCalcType::SURFACE_MOISTURE;
+          } else {
+              pp.query("most.surf_moist_flux", surf_moist_flux);
               if (std::abs(surf_moist_flux) >
                   std::numeric_limits<amrex::Real>::epsilon()) {
                   moist_type = MoistCalcType::MOISTURE_FLUX;
@@ -377,6 +376,9 @@ public:
       t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
       t_surf[lev]->setVal(default_land_surf_temp);
 
+      q_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+      q_surf[lev]->setVal(default_land_surf_moist);
+
       // TODO: Do we want lsm_data to have theta at 0 index always?
       //       Do we want an external enum struct for indexing?
       if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_lsm_data_lev[lev][0]) {
@@ -384,15 +386,9 @@ public:
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
           //      while sea temp will be set from m_sst_lev
           theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-
-          // Moisture must be the same calc type
-          moist_type = MoistCalcType::SURFACE_MOISTURE;
-          pp.get("most.surf_moist",surf_moist);
-          default_land_surf_moist = surf_moist;
       }
 
-      q_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
-      q_surf[lev]->setVal(default_land_surf_moist);
+
   }
 
   void
@@ -540,8 +536,8 @@ public:
 
   enum struct MoistCalcType {
     ADIABATIC = 0,
-    MOISTURE_FLUX,          ///< Qv-flux specified
-    SURFACE_MOISTURE ///< Surface Qv specified
+    MOISTURE_FLUX,      ///< Qv-flux specified
+    SURFACE_MOISTURE    ///< Surface Qv specified
   };
 
   enum struct RoughCalcType {
@@ -570,11 +566,11 @@ private:
 
   bool m_include_wstar = false;
   amrex::Real z0_const{0.1};
-  amrex::Real default_land_surf_temp = 300.;
+  amrex::Real default_land_surf_temp{300.};
   amrex::Real surf_temp;
   amrex::Real surf_heating_rate{0};
   amrex::Real surf_temp_flux{0};
-  amrex::Real default_land_surf_moist = 0.;
+  amrex::Real default_land_surf_moist{0.};
   amrex::Real surf_moist;
   amrex::Real surf_moist_flux{0};
   amrex::Real custom_ustar{0};

@@ -423,11 +423,13 @@ struct surface_flux
 {
     surface_flux (amrex::Real zref,
                   amrex::Real Tflux,
-                  amrex::Real Qvflux)
+                  amrex::Real Qvflux,
+                  bool cons_qflux)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        spec_qflux = cons_qflux;
     }
 
     AMREX_GPU_DEVICE
@@ -458,6 +460,7 @@ struct surface_flux
         amrex::Real ustar = 0.0;
         amrex::Real wstar = 0.0;
         amrex::Real tflux = 0.0;
+        amrex::Real qflux = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
         amrex::Real psi_h = 0.0;
@@ -473,8 +476,10 @@ struct surface_flux
         }
         do {
             ustar = u_star_arr(i,j,k);
-            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k))
-                  + mdata.surf_moist_flux*0.61*tm_arr(i,j,k);
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) + qflux*0.61*tm_arr(i,j,k);
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -502,6 +507,7 @@ struct surface_flux
 
 private:
     most_data mdata;
+    bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
@@ -517,13 +523,15 @@ struct surface_flux_charnock
                            amrex::Real Tflux,
                            amrex::Real Qvflux,
                            amrex::Real cnk_a,
-                           bool cnk_visc)
+                           bool cnk_visc,
+                           bool cons_qflux)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         mdata.Cnk_a = cnk_a;
         mdata.visc  = cnk_visc;
+        spec_qflux = cons_qflux;
     }
 
     AMREX_GPU_DEVICE
@@ -554,6 +562,7 @@ struct surface_flux_charnock
         amrex::Real ustar = 0.0;
         amrex::Real wstar = 0.0;
         amrex::Real tflux = 0.0;
+        amrex::Real qflux = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
@@ -578,8 +587,10 @@ struct surface_flux_charnock
             } else {
                 z0 = COARE3_roughness(mdata.zref, umm, ustar);
             }
-            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k))
-                  + mdata.surf_moist_flux*0.61*tm_arr(i,j,k);
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) + qflux*0.61*tm_arr(i,j,k);
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -608,6 +619,7 @@ struct surface_flux_charnock
 
 private:
     most_data mdata;
+    bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
@@ -622,13 +634,15 @@ struct surface_flux_mod_charnock
     surface_flux_mod_charnock (amrex::Real zref,
                                amrex::Real Tflux,
                                amrex::Real Qvflux,
-                               amrex::Real depth)
+                               amrex::Real depth,
+                               bool cons_qflux)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         mdata.Cnk_d = depth;
         mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
+        spec_qflux  = cons_qflux;
     }
 
     AMREX_GPU_DEVICE
@@ -659,6 +673,7 @@ struct surface_flux_mod_charnock
         amrex::Real ustar = 0.0;
         amrex::Real wstar = 0.0;
         amrex::Real tflux = 0.0;
+        amrex::Real qflux = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
@@ -676,8 +691,10 @@ struct surface_flux_mod_charnock
         do {
             ustar = u_star_arr(i,j,k);
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
-            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k))
-                  + mdata.surf_moist_flux*0.61*tm_arr(i,j,k);
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) + qflux*0.61*tm_arr(i,j,k);
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -706,6 +723,7 @@ struct surface_flux_mod_charnock
 
 private:
     most_data mdata;
+    bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
@@ -719,11 +737,13 @@ struct surface_flux_donelan
 {
     surface_flux_donelan (amrex::Real zref,
                           amrex::Real Tflux,
-                          amrex::Real Qvflux)
+                          amrex::Real Qvflux,
+                          bool cons_qflux)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        spec_qflux = cons_qflux;
     }
 
     AMREX_GPU_DEVICE
@@ -754,6 +774,7 @@ struct surface_flux_donelan
         amrex::Real ustar = 0.0;
         amrex::Real wstar = 0.0;
         amrex::Real tflux = 0.0;
+        amrex::Real qflux = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
@@ -771,8 +792,10 @@ struct surface_flux_donelan
         do {
             ustar = u_star_arr(i,j,k);
             z0    = Donelan_roughness(ustar);
-            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k))
-                  + mdata.surf_moist_flux*0.61*tm_arr(i,j,k);
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) + qflux*0.61*tm_arr(i,j,k);
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -801,6 +824,7 @@ struct surface_flux_donelan
 
 private:
     most_data mdata;
+    bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
@@ -814,11 +838,13 @@ struct surface_flux_wave_coupled
 {
     surface_flux_wave_coupled (amrex::Real zref,
                                amrex::Real Tflux,
-                               amrex::Real Qvflux)
+                               amrex::Real Qvflux,
+                               bool cons_qflux)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        spec_qflux = cons_qflux;
     }
 
     AMREX_GPU_DEVICE
@@ -849,6 +875,7 @@ struct surface_flux_wave_coupled
         amrex::Real ustar = 0.0;
         amrex::Real wstar = 0.0;
         amrex::Real tflux = 0.0;
+        amrex::Real qflux = 0.0;
         amrex::Real z0    = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
@@ -872,8 +899,10 @@ struct surface_flux_wave_coupled
             ustar = u_star_arr(i,j,k);
             z0    = std::min( std::max(1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/(Lwave_arr(i,j,k)+eps), 4.5 )
                                       + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
-            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k))
-                  + mdata.surf_moist_flux*0.61*tm_arr(i,j,k);
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) + qflux*0.61*tm_arr(i,j,k);
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -902,6 +931,7 @@ struct surface_flux_wave_coupled
 
 private:
     most_data mdata;
+    bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
     const amrex::Real eps = 1e-15;
@@ -918,11 +948,13 @@ struct surface_temp
 {
     surface_temp (amrex::Real zref,
                   amrex::Real Tflux,
-                  amrex::Real Qvflux)
+                  amrex::Real Qvflux,
+                  bool cons_qflux)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        spec_qflux = cons_qflux;
     }
 
     AMREX_GPU_DEVICE
@@ -974,8 +1006,9 @@ struct surface_temp
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
             tflux *= (1 + 0.61*qvm_arr(i,j,k));
-            qflux = -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
             tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
             if (w_star_arr) {
                 // update w* and Umagmean
@@ -1007,6 +1040,7 @@ struct surface_temp
 
 private:
     most_data mdata;
+    bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
@@ -1022,13 +1056,15 @@ struct surface_temp_charnock
                            amrex::Real Tflux,
                            amrex::Real Qvflux,
                            amrex::Real cnk_a,
-                           bool cnk_visc)
+                           bool cnk_visc,
+                           bool cons_qflux)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         mdata.Cnk_a = cnk_a;
         mdata.visc  = cnk_visc;
+        spec_qflux  = cons_qflux;
     }
 
     AMREX_GPU_DEVICE
@@ -1089,8 +1125,9 @@ struct surface_temp_charnock
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0) - psi_h); // <w'T'>
             tflux *= (1 + 0.61*qvm_arr(i,j,k));
-            qflux = -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
             tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
             if (w_star_arr) {
                 // update w* and Umagmean
@@ -1123,6 +1160,7 @@ struct surface_temp_charnock
 
 private:
     most_data mdata;
+    bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
@@ -1137,13 +1175,15 @@ struct surface_temp_mod_charnock
     surface_temp_mod_charnock (amrex::Real zref,
                                amrex::Real Tflux,
                                amrex::Real Qvflux,
-                               amrex::Real depth)
+                               amrex::Real depth,
+                               bool cons_qflux)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         mdata.Cnk_d = depth;
         mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
+        spec_qflux  = cons_qflux;
     }
 
     AMREX_GPU_DEVICE
@@ -1197,8 +1237,9 @@ struct surface_temp_mod_charnock
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0) - psi_h); // <w'T'>
             tflux *= (1 + 0.61*qvm_arr(i,j,k));
-            qflux = -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
             tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
             if (w_star_arr) {
                 // update w* and Umagmean
@@ -1231,6 +1272,7 @@ struct surface_temp_mod_charnock
 
 private:
     most_data mdata;
+    bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
@@ -1244,11 +1286,13 @@ struct surface_temp_donelan
 {
     surface_temp_donelan (amrex::Real zref,
                           amrex::Real Tflux,
-                          amrex::Real Qvflux)
+                          amrex::Real Qvflux,
+                          bool cons_qflux)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        spec_qflux = cons_qflux;
     }
 
     AMREX_GPU_DEVICE
@@ -1302,8 +1346,9 @@ struct surface_temp_donelan
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0) - psi_h); // <w'T'>
             tflux *= (1 + 0.61*qvm_arr(i,j,k));
-            qflux = -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
             tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
             if (w_star_arr) {
                 // update w* and Umagmean
@@ -1336,6 +1381,7 @@ struct surface_temp_donelan
 
 private:
     most_data mdata;
+    bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
@@ -1349,11 +1395,13 @@ struct surface_temp_wave_coupled
 {
     surface_temp_wave_coupled (amrex::Real zref,
                                amrex::Real Tflux,
-                               amrex::Real Qvflux)
+                               amrex::Real Qvflux,
+                               bool cons_qflux)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        spec_qflux = cons_qflux;
     }
 
     AMREX_GPU_DEVICE
@@ -1413,8 +1461,9 @@ struct surface_temp_wave_coupled
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0) - psi_h); // <w'T'>
             tflux *= (1 + 0.61*qvm_arr(i,j,k));
-            qflux = -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
             tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
             if (w_star_arr) {
                 // update w* and Umagmean
@@ -1447,6 +1496,7 @@ struct surface_temp_wave_coupled
 
 private:
     most_data mdata;
+    bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
     const amrex::Real eps = 1e-15;
