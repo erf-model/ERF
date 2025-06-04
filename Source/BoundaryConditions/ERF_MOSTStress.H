@@ -1035,7 +1035,6 @@ struct surface_temp
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
             tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
-            amrex::Print() << "Added value: " << amrex::IntVect(i,j,k) << ' ' << 0.61*tm_arr(i,j,k) * qflux << "\n";
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
