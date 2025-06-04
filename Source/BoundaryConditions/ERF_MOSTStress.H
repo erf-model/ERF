@@ -499,10 +499,15 @@ struct surface_flux
         t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
         t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
-        q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
-                            (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
-        q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
-        olen_arr(i,j,k)   = Olen;
+          olen_arr(i,j,k) = Olen;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
     }
 
 private:
@@ -610,11 +615,16 @@ struct surface_flux_charnock
         t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
         t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
-        q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0) - psi_h) /
-                            (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
-        q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
           olen_arr(i,j,k) = Olen;
            z0_arr(i,j,k)  = z0;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
     }
 
 private:
@@ -714,11 +724,16 @@ struct surface_flux_mod_charnock
         t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
         t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
-        q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0) - psi_h) /
-                            (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
-        q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
           olen_arr(i,j,k) = Olen;
-           z0_arr(i,j,k)  = z0;
+            z0_arr(i,j,k) = z0;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
     }
 
 private:
@@ -815,11 +830,16 @@ struct surface_flux_donelan
         t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
         t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
-        q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0) - psi_h) /
-                            (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
-        q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
           olen_arr(i,j,k) = Olen;
-           z0_arr(i,j,k)  = z0;
+            z0_arr(i,j,k) = z0;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
     }
 
 private:
@@ -922,11 +942,16 @@ struct surface_flux_wave_coupled
         t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
         t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
-        q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0) - psi_h) /
-                            (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
-        q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
           olen_arr(i,j,k) = Olen;
-           z0_arr(i,j,k)  = z0;
+            z0_arr(i,j,k) = z0;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
     }
 
 private:
@@ -1010,6 +1035,7 @@ struct surface_temp
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
             tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
+            amrex::Print() << "Added value: " << amrex::IntVect(i,j,k) << ' ' << 0.61*tm_arr(i,j,k) * qflux << "\n";
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -1033,9 +1059,15 @@ struct surface_temp
 
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
                             (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
-        q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
-                            (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
-        olen_arr(i,j,k)   = Olen;
+          olen_arr(i,j,k) = Olen;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
     }
 
 private:
@@ -1152,10 +1184,16 @@ struct surface_temp_charnock
 
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
                             (std::log(mdata.zref / z0) - psi_h);
-        q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
-                            (std::log(mdata.zref / z0) - psi_h);
           olen_arr(i,j,k) = Olen;
             z0_arr(i,j,k) = z0;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
     }
 
 private:
@@ -1264,10 +1302,16 @@ struct surface_temp_mod_charnock
 
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
                             (std::log(mdata.zref / z0) - psi_h);
-        q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
-                            (std::log(mdata.zref / z0) - psi_h);
           olen_arr(i,j,k) = Olen;
             z0_arr(i,j,k) = z0;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
     }
 
 private:
@@ -1373,10 +1417,16 @@ struct surface_temp_donelan
 
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
                             (std::log(mdata.zref / z0) - psi_h);
-        q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
-                            (std::log(mdata.zref / z0) - psi_h);
           olen_arr(i,j,k) = Olen;
             z0_arr(i,j,k) = z0;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
     }
 
 private:
@@ -1488,10 +1538,16 @@ struct surface_temp_wave_coupled
 
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
                             (std::log(mdata.zref / z0) - psi_h);
-        q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
-                            (std::log(mdata.zref / z0) - psi_h);
           olen_arr(i,j,k) = Olen;
             z0_arr(i,j,k) = z0;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
     }
 
 private:
