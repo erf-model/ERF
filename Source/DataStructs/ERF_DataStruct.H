@@ -371,6 +371,8 @@ struct SolverChoice {
         pp.query("const_massflux_x", const_massflux_x);
         pp.query("const_massflux_y", const_massflux_y);
         pp.query("const_massflux_tau", const_massflux_tau);
+        pp.query("const_massflux_layer_lo", const_massflux_layer_lo);
+        pp.query("const_massflux_layer_hi", const_massflux_layer_hi);
 
         // Which type of inflow turbulent generation
         pert_type = PerturbationType::None; // Default
@@ -841,5 +843,9 @@ struct SolverChoice {
     amrex::Real const_massflux_x = 0.0;
     amrex::Real const_massflux_y = 0.0;
     amrex::Real const_massflux_tau = 1.0;
+    amrex::Real const_massflux_layer_lo = -1e34;
+    amrex::Real const_massflux_layer_hi =  1e34;
+    int massflux_klo {0}; // these are updated in ERF.cpp
+    int massflux_khi {0};
 };
 #endif
