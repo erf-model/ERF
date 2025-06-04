@@ -203,6 +203,31 @@ ERF::ERF_shared ()
         // Redefine the problem domain here?
     }
 
+    // Get lo/hi indices for massflux calc
+    if ((solverChoice.const_massflux_x != 0) || (solverChoice.const_massflux_y != 0)) {
+        const Real massflux_lo = solverChoice.const_massflux_layer_lo - geom[0].ProbLo(2);
+        const Real massflux_hi = solverChoice.const_massflux_layer_hi - geom[0].ProbLo(2);
+        if (solverChoice.mesh_type == MeshType::ConstantDz) {
+            const Real dz = geom[0].CellSize(2);
+            if (massflux_lo == -1e34) {
+                solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
+            } else {
+                solverChoice.massflux_klo = static_cast<int>(std::floor(massflux_lo / dz));
+            }
+            if (massflux_hi ==  1e34) {
+                solverChoice.massflux_khi = geom[0].Domain().bigEnd(2);
+            } else {
+                solverChoice.massflux_khi = static_cast<int>(std::ceil(massflux_hi / dz));
+            }
+        } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+        } else { // solverChoice.mesh_type == MeshType::VariableDz
+            Error("Const massflux with variable dz not supported -- planar averages are on k rather than constant-z planes");
+        }
+
+        Print() << "Constant mass flux based on k in ["
+            << solverChoice.massflux_klo << ", " << solverChoice.massflux_khi << "]" << std::endl;
+    }
+
     prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.

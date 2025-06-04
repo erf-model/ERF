@@ -132,6 +132,8 @@ void make_mom_sources (Real time,
     bool enforce_massflux_y = (solverChoice.const_massflux_y != 0);
     Real rhoUA_target = solverChoice.const_massflux_x;
     Real rhoVA_target = solverChoice.const_massflux_y;
+    int massflux_klo = solverChoice.massflux_klo;
+    int massflux_khi = solverChoice.massflux_khi;
     Real rhoUA{0}; // to be integrated
     Real rhoVA{0}; // to be integrated
 
@@ -221,13 +223,14 @@ void make_mom_sources (Real time,
         if (enforce_massflux_x || enforce_massflux_y) {
             Real Lx = geom.ProbHi(0) - geom.ProbLo(0);
             Real Ly = geom.ProbHi(1) - geom.ProbLo(1);
-            Real Lz = geom.ProbHi(2) - geom.ProbLo(2);
 
             if (solverChoice.mesh_type == MeshType::ConstantDz) {
-                rhoUA = std::accumulate(u_plane_h.begin() + u_offset, u_plane_h.end() - u_offset, 0.0);
-                rhoVA = std::accumulate(v_plane_h.begin() + v_offset, v_plane_h.end() - v_offset, 0.0);
-                rhoUA = rhoUA / domain.length(2) * Ly * Lz;
-                rhoVA = rhoVA / domain.length(2) * Lx * Lz;
+                rhoUA = std::accumulate(u_plane_h.begin() + u_offset + massflux_klo,
+                                        u_plane_h.begin() + u_offset + massflux_khi+1, 0.0);
+                rhoVA = std::accumulate(v_plane_h.begin() + v_offset + massflux_klo,
+                                        v_plane_h.begin() + v_offset + massflux_khi+1, 0.0);
+                rhoUA = rhoUA * geom.CellSize(2) * Ly;
+                rhoVA = rhoVA * geom.CellSize(2) * Lx;
             } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
                 for (int k=0; k < domain.length(2); ++k) {
                     rhoUA += u_plane_h[k+u_offset] * stretched_dz_h[k];
@@ -237,59 +240,6 @@ void make_mom_sources (Real time,
                 }
                 rhoUA = rhoUA * Ly;
                 rhoVA = rhoVA * Lx;
-            } else { // solverChoice.mesh_type == MeshType::VariableDz
-                Error("Variable dz not supported -- planar averages are on k rather than constant-z planes");
-#if 0
-                Real dx = geom.CellSize(0);
-                Real dy = geom.CellSize(1);
-
-                Gpu::DeviceScalar<Real> d_udz{0}, d_vdz{0};
-                Real* d_udz_ptr = d_udz.dataPtr();
-                Real* d_vdz_ptr = d_vdz.dataPtr();
-
-                // weighted average
-                for (MFIter mfi(z_phys_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    Box tbx = mfi.tilebox();
-
-                    // use xlo/ylo boundaries to calculate face areas
-                    if (tbx.smallEnd(0) == domain.smallEnd(0)) {
-                        Box xlo_slab = makeSlab(tbx, 0, 0);
-
-                        const Array4<const Real>& z_nd_arr = z_phys_nd.const_array(mfi);
-
-                        ParallelFor(xlo_slab,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                        {
-                            Real dz = 0.5 * ( z_nd_arr(i, j, k+1) + z_nd_arr(i, j+1, k+1)
-                                            - z_nd_arr(i, j, k  ) - z_nd_arr(i, j+1, k  ));
-                            Gpu::Atomic::Add(d_udz_ptr, dptr_u_plane(k) * dz);
-                        });
-                    }
-
-                    if (tbx.smallEnd(1) == domain.smallEnd(1)) {
-                        Box ylo_slab = makeSlab(tbx, 1, 0);
-
-                        const Array4<const Real>& z_nd_arr = z_phys_nd.const_array(mfi);
-
-                        ParallelFor(ylo_slab,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                        {
-                            Real dz = 0.5 * ( z_nd_arr(i, j, k+1) + z_nd_arr(i+1, j, k+1)
-                                            - z_nd_arr(i, j, k  ) - z_nd_arr(i+1, j, k  ));
-                            Gpu::Atomic::Add(d_vdz_ptr, dptr_v_plane(k) * dz);
-                        });
-                    }
-                }
-
-                Gpu::copy(Gpu::deviceToHost, d_udz_ptr, d_udz_ptr+1, &rhoUA);
-                Gpu::copy(Gpu::deviceToHost, d_vdz_ptr, d_vdz_ptr+1, &rhoVA);
-
-                ParallelAllReduce::Sum(&rhoUA, 1, ParallelContext::CommunicatorAll());
-                ParallelAllReduce::Sum(&rhoVA, 1, ParallelContext::CommunicatorAll());
-
-                rhoUA = rhoUA * dy; // == sum(u[k] * dy * dz[j,k])
-                rhoVA = rhoUA * dx; // == sum(v[k] * dx * dz[i,k])
-#endif
             }
             Print() << "Integrated mass flux : " << rhoUA << " " << rhoVA << std::endl;
         }
