@@ -205,19 +205,19 @@ ERF::ERF_shared ()
 
     // Get lo/hi indices for massflux calc
     if ((solverChoice.const_massflux_x != 0) || (solverChoice.const_massflux_y != 0)) {
-        const Real massflux_lo = solverChoice.const_massflux_layer_lo - geom[0].ProbLo(2);
-        const Real massflux_hi = solverChoice.const_massflux_layer_hi - geom[0].ProbLo(2);
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
+            const Real massflux_zlo = solverChoice.const_massflux_layer_lo - geom[0].ProbLo(2);
+            const Real massflux_zhi = solverChoice.const_massflux_layer_hi - geom[0].ProbLo(2);
             const Real dz = geom[0].CellSize(2);
-            if (massflux_lo == -1e34) {
+            if (massflux_zlo == -1e34) {
                 solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
             } else {
-                solverChoice.massflux_klo = static_cast<int>(std::floor(massflux_lo / dz));
+                solverChoice.massflux_klo = static_cast<int>(std::floor(massflux_zlo / dz));
             }
-            if (massflux_hi ==  1e34) {
+            if (massflux_zhi ==  1e34) {
                 solverChoice.massflux_khi = geom[0].Domain().bigEnd(2);
             } else {
-                solverChoice.massflux_khi = static_cast<int>(std::ceil(massflux_hi / dz));
+                solverChoice.massflux_khi = static_cast<int>(std::ceil(massflux_zhi / dz));
             }
         } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
         } else { // solverChoice.mesh_type == MeshType::VariableDz
