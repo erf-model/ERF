@@ -220,6 +220,14 @@ ERF::ERF_shared ()
                 solverChoice.massflux_khi = static_cast<int>(std::ceil(massflux_zhi / dz));
             }
         } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+            const Real massflux_zlo = solverChoice.const_massflux_layer_lo;
+            const Real massflux_zhi = solverChoice.const_massflux_layer_hi;
+            solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
+            solverChoice.massflux_khi = geom[0].Domain().bigEnd(2) + 1;
+            for (int k=0; k <= geom[0].Domain().bigEnd(2)+1; ++k) {
+                if (zlevels_stag[0][k] <= massflux_zlo) solverChoice.massflux_klo = k;
+                if (zlevels_stag[0][k] <= massflux_zhi) solverChoice.massflux_khi = k;
+            }
         } else { // solverChoice.mesh_type == MeshType::VariableDz
             Error("Const massflux with variable dz not supported -- planar averages are on k rather than constant-z planes");
         }
