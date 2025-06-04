@@ -232,10 +232,9 @@ void make_mom_sources (Real time,
                 rhoUA = rhoUA * geom.CellSize(2) * Ly;
                 rhoVA = rhoVA * geom.CellSize(2) * Lx;
             } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                for (int k=0; k < domain.length(2); ++k) {
+                // note: massflux_khi corresponds to z-face indices in this case
+                for (int k=massflux_klo; k < massflux_khi; ++k) {
                     rhoUA += u_plane_h[k+u_offset] * stretched_dz_h[k];
-                }
-                for (int k=0; k < domain.length(2); ++k) {
                     rhoVA += v_plane_h[k+v_offset] * stretched_dz_h[k];
                 }
                 rhoUA = rhoUA * Ly;
