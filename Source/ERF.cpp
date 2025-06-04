@@ -212,12 +212,12 @@ ERF::ERF_shared ()
             if (massflux_zlo == -1e34) {
                 solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
             } else {
-                solverChoice.massflux_klo = static_cast<int>(std::floor(massflux_zlo / dz));
+                solverChoice.massflux_klo = static_cast<int>(std::ceil(massflux_zlo / dz - 0.5));
             }
             if (massflux_zhi ==  1e34) {
                 solverChoice.massflux_khi = geom[0].Domain().bigEnd(2);
             } else {
-                solverChoice.massflux_khi = static_cast<int>(std::ceil(massflux_zhi / dz));
+                solverChoice.massflux_khi = static_cast<int>(std::floor(massflux_zhi / dz - 0.5));
             }
         } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
             const Real massflux_zlo = solverChoice.const_massflux_layer_lo;
