@@ -18,6 +18,18 @@
     bool l_consA  = (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = turbChoice.use_kturb;
 
+    const bool SurfLayer_xlo = SurfLayer[0] != nullptr;
+    const bool SurfLayer_ylo = SurfLayer[1] != nullptr;
+    const bool SurfLayer_zlo = SurfLayer[2] != nullptr;
+    const bool SurfLayer_xhi = SurfLayer[3] != nullptr;
+    const bool SurfLayer_yhi = SurfLayer[4] != nullptr;
+    const bool SurfLayer_zhi = SurfLayer[5] != nullptr;
+
+    //amrex::Print() << " DiffusionSrcForState_N: " << std::endl;
+    //amrex::Print() << "    SurfaceLayer on XLO = " << SurfLayer_xlo << " XHI = " << SurfLayer_xhi << std::endl;
+    //amrex::Print() << "    SurfaceLayer on YLO = " << SurfLayer_ylo << " YHI = " << SurfLayer_yhi << std::endl;
+    //amrex::Print() << "    SurfaceLayer on ZLO = " << SurfLayer_zlo << " ZHI = " << SurfLayer_zhi << std::endl;
+
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
     const Box zbx = surroundingNodes(bx,2);

@@ -471,7 +471,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer, SurfLayer);
                     } else if (l_use_terrain) {
                         DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, l_rotate, u, v,
                                                new_cons, cur_prim, cell_rhs,
