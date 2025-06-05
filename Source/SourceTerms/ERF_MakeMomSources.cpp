@@ -225,6 +225,7 @@ void make_mom_sources (Real time,
             Real Ly = geom.ProbHi(1) - geom.ProbLo(1);
 
             if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                // note: massflux_khi corresponds to unstaggered indices in this case
                 rhoUA = std::accumulate(u_plane_h.begin() + u_offset + massflux_klo,
                                         u_plane_h.begin() + u_offset + massflux_khi+1, 0.0);
                 rhoVA = std::accumulate(v_plane_h.begin() + v_offset + massflux_klo,
@@ -232,7 +233,7 @@ void make_mom_sources (Real time,
                 rhoUA = rhoUA * geom.CellSize(2) * Ly;
                 rhoVA = rhoVA * geom.CellSize(2) * Lx;
             } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                // note: massflux_khi corresponds to z-face indices in this case
+                // note: massflux_khi corresponds to staggered indices in this case
                 for (int k=massflux_klo; k < massflux_khi; ++k) {
                     rhoUA += u_plane_h[k+u_offset] * stretched_dz_h[k];
                     rhoVA += v_plane_h[k+v_offset] * stretched_dz_h[k];
@@ -654,7 +655,7 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         // 10. Enforce constant mass flux
         // *****************************************************************************
-        if (enforce_massflux_x) {
+        if (is_slow_step && enforce_massflux_x) {
             Real tau_inv = Real(1.0) / solverChoice.const_massflux_tau;
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -662,10 +663,10 @@ void make_mom_sources (Real time,
                 xmom_src_arr(i, j, k) += tau_inv * (rhoUA_target - rhoUA);
             });
         }
-        if (enforce_massflux_x) {
+        if (is_slow_step && enforce_massflux_y) {
             Real tau_inv = Real(1.0) / solverChoice.const_massflux_tau;
 
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 ymom_src_arr(i, j, k) += tau_inv * (rhoVA_target - rhoVA);
             });
