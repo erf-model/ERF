@@ -206,8 +206,7 @@ public:
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
                       const TerrainType& terrain_type,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac_lev,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                       const bool use_real_bcs,
                       amrex::Real* w_bc_data)
@@ -217,12 +216,13 @@ public:
           m_bc_extdir_vals(bc_extdir_vals),
           m_bc_neumann_vals(bc_neumann_vals),
           m_terrain_type(terrain_type),
-          m_mapfac_u(mapfac_u.get()),
-          m_mapfac_v(mapfac_v.get()),
           m_z_phys_nd(z_phys_nd.get()),
           m_use_real_bcs(use_real_bcs),
           m_w_bc_data(w_bc_data)
-    { }
+    {
+          m_mapfac_u = mapfac_lev[MapFacType::u_x].get();
+          m_mapfac_v = mapfac_lev[MapFacType::v_y].get();
+    }
 
     ~ERFPhysBCFunct_w () {}
 
@@ -281,11 +281,13 @@ public:
     ERFPhysBCFunct_base (const int lev,
                          const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                          const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                         std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                          bool moving_terrain)
         : m_lev(lev), m_geom(geom),
           m_moving_terrain(moving_terrain),
           m_domain_bcs_type(domain_bcs_type),
-          m_domain_bcs_type_d(domain_bcs_type_d)
+          m_domain_bcs_type_d(domain_bcs_type_d),
+          m_z_phys_nd(z_phys_nd.get())
     {}
 
     ~ERFPhysBCFunct_base () {}
@@ -305,6 +307,7 @@ public:
                                        const amrex::Box& bx, const amrex::Box& domain,
                                        int ncomp, const amrex::IntVect& nghost);
     void impose_vertical_basestate_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                        const amrex::Array4<amrex::Real const>& z_nd,
                                         const amrex::Box& bx, const amrex::Box& domain,
                                         int ncomp, const amrex::IntVect& nghost);
 
@@ -314,6 +317,7 @@ private:
     bool                 m_moving_terrain;
     amrex::Vector<amrex::BCRec>            m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
+    amrex::MultiFab*     m_z_phys_nd;
 };
 
 #endif

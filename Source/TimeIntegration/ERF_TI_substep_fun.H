@@ -1,3 +1,5 @@
+#include "ERF_SrcHeaders.H"
+
 /**
  *  Wrapper for calling the routine that creates the fast RHS
  */
@@ -24,17 +26,48 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         // beta_s = -1.0 : fully explicit
         // beta_s =  1.0 : fully implicit
         Real beta_s;
-        if (solverChoice.substepping_type[level] == SubsteppingType::Implicit)
-        {
+        if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
             beta_s = 0.1;
         } else { // Fully explicit
             beta_s = -1.0;
         }
 
+        // Canopy data for mom sources
+        MultiFab* forest_drag = (solverChoice.do_forest_drag) ?
+            m_forest_drag[level]->get_drag_field() : nullptr;
+
+        // Immersed Forcing
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing) ?
+            terrain_blanking[level].get() : nullptr;
+
+        Vector<MultiFab> Svec_to_use;
+        if (fast_step == 0) {
+            // If this is the first substep we pass in S_old as the previous step's solution
+            Svec_to_use.push_back(MultiFab(S_old[IntVars::cons],make_alias,0,S_old[IntVars::cons].nComp()));
+            Svec_to_use.push_back(MultiFab(S_old[IntVars::xmom],make_alias,0,1));
+            Svec_to_use.push_back(MultiFab(S_old[IntVars::ymom],make_alias,0,1));
+            Svec_to_use.push_back(MultiFab(S_old[IntVars::zmom],make_alias,0,1));
+        } else {
+            // If this is not the first substep we pass in S_data as the previous step's solution
+            Svec_to_use.push_back(MultiFab(S_data[IntVars::cons],make_alias,0,S_data[IntVars::cons].nComp()));
+            Svec_to_use.push_back(MultiFab(S_data[IntVars::xmom],make_alias,0,1));
+            Svec_to_use.push_back(MultiFab(S_data[IntVars::ymom],make_alias,0,1));
+            Svec_to_use.push_back(MultiFab(S_data[IntVars::zmom],make_alias,0,1));
+        }
+
+        make_sources(level, nrk, dtau, old_substep_time,
+                     Svec_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level].get(),
+                     qheating_rates[level].get(),
+                     terrain_blank, fine_geom, solverChoice,
+                     mapfac[level],
+                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                     input_sounding_data, turbPert, false);
+
         // *************************************************************************
         // Set up flux registers if using two_way coupling
         // *************************************************************************
-        const bool l_reflux = (solverChoice.coupling_type == CouplingType::TwoWay);
+        const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
 
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;
@@ -47,149 +80,74 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             }
         }
 
+        MultiFab base_to_use;
+        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh ) {
+            base_to_use = MultiFab(base_state_new[level], make_alias, 0, BaseState::num_comps);
+        } else {
+            base_to_use = MultiFab(base_state[level], make_alias, 0, BaseState::num_comps);
+        }
+
+        make_mom_sources(old_substep_time, Svec_to_use,
+                         *z_phys_nd[level].get(), *z_phys_cc[level].get(),
+                         xvel_new, yvel_new, zvel_new,
+                         xmom_src, ymom_src, zmom_src,
+                         base_to_use, forest_drag, terrain_blank,
+                         cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
+                         mapfac[level],
+                         (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data() : nullptr,
+                         (solverChoice.have_geo_wind_profile) ? d_v_geos[level].data() : nullptr,
+                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                         input_sounding_data, false);
+
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
-            // Make "old" fast geom -- store in z_phys_nd for convenience
-            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[level]->nGrow());
-
-            if (verbose) Print() << "Making geometry at start of substep time: "
-                                 << std::setprecision(timeprecision) << old_substep_time << std::endl;
-            FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
-            prob->init_terrain_surface(fine_geom,terrain_fab_old,old_substep_time);
-
-            // Make "new" fast geom
-            if (verbose) Print() << "Making geometry for end of substep time :"
-                                 << std::setprecision(timeprecision) << new_substep_time << std::endl;
-            FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
-            prob->init_terrain_surface(fine_geom,terrain_fab_new,new_substep_time);
-
-            // Copy on intersection
-            for (MFIter mfi(*z_phys_nd[level],false); mfi.isValid(); ++mfi)
-            {
-                Box isect = terrain_fab_old.box() & (*z_phys_nd[level])[mfi].box();
-                (    *z_phys_nd[level])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
-                (*z_phys_nd_new[level])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
-            }
-
-            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd[level], zlevels_stag[level], phys_bc_type);
-            make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
-
-            make_terrain_fitted_coords(level,fine_geom,*z_phys_nd_new[level], zlevels_stag[level], phys_bc_type);
-            make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
-            make_areas         (fine_geom,*z_phys_nd_new[level], *ax_new[level], *ay_new[level], *az_new[level]);
-
-            Real inv_dt   = 1./dtau;
-
             z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
+            update_terrain_substep(level, old_substep_time, new_substep_time, dtau, S_data, z_t_pert);
+        }
 
-            for (MFIter mfi(*z_t_rk[level],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                Box gbx = mfi.growntilebox(IntVect(1,1,0));
-
-                const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
-                const Array4<Real      >& zp_t_arr     =  z_t_pert->array(mfi);
-
-                const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[level]->const_array(mfi);
-                const Array4<Real const>& z_nd_old_arr =  z_phys_nd[level]->const_array(mfi);
-
-                // Loop over horizontal plane
-                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    // Evaluate between RK stages assuming the geometry is linear between old and new time
-                    zp_t_arr(i,j,k) = 0.25 * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
-                                                      +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
-                                                      +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
-                                                      +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
-                    // Convert to perturbation: z"_t(t) = z_t(t) - z_t^{RK}
-                    zp_t_arr(i,j,k) -= z_t_arr(i,j,k);
-                });
-            } // mfi
-
-            // We have to call this each step since it depends on the substep time now
-            // Note we pass in the *old* detJ here
+        if ( (fast_step == 0) || (solverChoice.terrain_type == TerrainType::MovingFittedMesh) )
+        {
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
                              detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
+        }
 
-            if (fast_step == 0) {
-                // If this is the first substep we pass in S_old as the previous step's solution
-                erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
-                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                                S_data, S_scratch, fine_geom,
-                                solverChoice.gravity, solverChoice.use_lagged_delta_rt,
-                                z_t_rk[level], z_t_pert.get(),
-                                z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
-                                  detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
-                                dtau, beta_s, inv_fac,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
-            } else {
-                // If this is not the first substep we pass in S_data as the previous step's solution
-                erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
-                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                                S_data, S_scratch, fine_geom,
-                                solverChoice.gravity, solverChoice.use_lagged_delta_rt,
-                                z_t_rk[level], z_t_pert.get(),
-                                z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
-                                  detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
-                                dtau, beta_s, inv_fac,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
-            }
+        if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
+        {
+            erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
+                            S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
+                            S_data, S_scratch,
+                            cc_src, xmom_src, ymom_src, zmom_src,
+                            fine_geom,
+                            solverChoice.gravity, solverChoice.use_lagged_delta_rt,
+                            z_t_rk[level], z_t_pert.get(),
+                            z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
+                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
+                            dtau, beta_s, inv_fac, mapfac[level],
+                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
+
         } else if (solverChoice.mesh_type != MeshType::ConstantDz) {
-            if (fast_step == 0) {
 
-                // If this is the first substep we make the coefficients since they are based only on stage data
-                make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                                 l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
-                                 detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
+            erf_fast_rhs_T(fast_step, nrk, level, finest_level,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
+                           S_data, S_scratch,
+                           cc_src, xmom_src, ymom_src, zmom_src,
+                           fine_geom, solverChoice.gravity,
+                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
+                           mapfac[level],
+                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
 
-                // If this is the first substep we pass in S_old as the previous step's solution
-                //    and S_data is the new-time solution to be defined here
-                erf_fast_rhs_T(fast_step, nrk, level, finest_level,
-                               S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity,
-                               z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
-            } else {
-                // If this is not the first substep we pass in S_data as both the previous step's solution
-                //    and as the new-time solution to be defined here
-                erf_fast_rhs_T(fast_step, nrk, level, finest_level,
-                               S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity,
-                               z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
-            }
         } else {
-            if (fast_step == 0) {
 
-                // If this is the first substep we make the coefficients since they are based only on stage data
-                make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                                 l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
-                                 detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
-
-                // If this is the first substep we pass in S_old as the previous step's solution
-                //    and S_data is the new-time solution to be defined here
-                erf_fast_rhs_N(fast_step, nrk, level, finest_level,
-                               S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity,
-                               dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
-            } else {
-                // If this is not the first substep we pass in S_data as both the previous step's solution
-                //    and as the new-time solution to be defined here
-                erf_fast_rhs_N(fast_step, nrk, level, finest_level,
-                               S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice.gravity,
-                               dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
-            }
+            erf_fast_rhs_N(fast_step, nrk, level, finest_level,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
+                           S_data, S_scratch,
+                           cc_src, xmom_src, ymom_src, zmom_src,
+                           fine_geom, solverChoice.gravity,
+                           dtau, beta_s, inv_fac, mapfac[level],
+                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
         }
 
         // Even if we update all the conserved variables we don't need

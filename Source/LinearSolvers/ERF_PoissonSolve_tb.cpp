@@ -17,9 +17,9 @@ bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
  * Project the single-level velocity field to enforce incompressibility with a
  * thin body
  */
-void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFab& pmf)
+void ERF::project_velocity_tb (int lev, Real l_dt, Vector<MultiFab>& vmf)
 {
-    BL_PROFILE("ERF::project_velocities_tb()");
+    BL_PROFILE("ERF::project_velocity_tb()");
     AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::ConstantDz);
 
     // Make sure the solver only sees the levels over which we are solving
@@ -132,7 +132,7 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
 
         // If all Neumann BCs, adjust RHS to make sure we can converge
         if (need_adjust_rhs) {
-            Real offset = volWgtSumMF(lev, rhs[0], 0, *mapfac_m[lev], false);
+            Real offset = volWgtSumMF(lev, rhs[0], 0, false);
             // amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
             rhs[0].plus(-offset, 0, 1);
         }
@@ -186,7 +186,7 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
         //        }
 
         // Update pressure variable with phi -- note that phi is change in pressure, not the full pressure
-        MultiFab::Saxpy(pmf, 1.0, phi[0],0,0,1,0);
+        MultiFab::Saxpy(pp_inc[lev], 1.0, phi[0],0,0,1,0);
 
         // Subtract grad(phi) from the velocity components
         Real beta = 1.0;
@@ -203,6 +203,17 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
             ApplyMask(vmf[Vars::zvel], *zflux_imask[0]);
         }
     } // itp: pressure-force iterations
+
+    // ****************************************************************************
+    // Define gradp from fluxes -- note that fluxes is dt * change in Gp
+    // ****************************************************************************
+    MultiFab::Saxpy(gradp[lev][GpVars::gpx],-1.0/l_dt,fluxes[0][0],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpy],-1.0/l_dt,fluxes[0][1],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpz],-1.0/l_dt,fluxes[0][2],0,0,1,0);
+
+    gradp[lev][GpVars::gpx].FillBoundary(geom_tmp[0].periodicity());
+    gradp[lev][GpVars::gpy].FillBoundary(geom_tmp[0].periodicity());
+    gradp[lev][GpVars::gpz].FillBoundary(geom_tmp[0].periodicity());
 
     // Subtract grad(phi) from the velocity components
 //    Real beta = 1.0;

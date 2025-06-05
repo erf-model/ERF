@@ -77,6 +77,9 @@ void ERF::solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi
     }
     mlpoisson.setLevelBC(0, nullptr);
 
+    // Use low order for outflow at physical boundaries
+    mlpoisson.setMaxOrder(2);
+
     MLMG mlmg(mlpoisson);
     int max_iter = 100;
     mlmg.setMaxIter(max_iter);

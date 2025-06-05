@@ -17,6 +17,9 @@ using namespace amrex;
  */
 
 void
+check_for_negative_theta(amrex::MultiFab& S_old);
+
+void
 ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 {
     BL_PROFILE("ERF::Advance()");
@@ -41,13 +44,15 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     V_new.setVal(1.e34,V_new.nGrowVect());
     W_new.setVal(1.e34,W_new.nGrowVect());
 
+    // Do error checking for negative (rho theta) here
+    if (solverChoice.anelastic[lev] != 1) {
+        check_for_negative_theta(S_old);
+    }
+
     //
     // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
     // If lev == 0 we have already FillPatched this in ERF::TimeStep
     //
-//  if (lev == 0) {
-//      FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old});
-//  } else {
     if (lev > 0) {
         FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
                              {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
@@ -66,14 +71,16 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
     // Update the inflow perturbation update time and amplitude
     if (solverChoice.pert_type == PerturbationType::Source ||
-        solverChoice.pert_type == PerturbationType::Direct)
+        solverChoice.pert_type == PerturbationType::Direct ||
+        solverChoice.pert_type == PerturbationType::CPM)
     {
         turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
     }
 
-    // If PerturbationType::Direct is selected, directly add the computed perturbation
+    // If PerturbationType::Direct or CPM is selected, directly add the computed perturbation
     // on the conserved field
-    if (solverChoice.pert_type == PerturbationType::Direct)
+    if (solverChoice.pert_type == PerturbationType::Direct ||
+        solverChoice.pert_type == PerturbationType::CPM)
     {
         auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
         for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
@@ -136,23 +143,20 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     int nvars = S_old.nComp();
 
     // Source array for conserved cell-centered quantities -- this will be filled
-    //     in the call to make_sources in ERF_TI_slow_rhs_fun.H
+    //     in the call to make_sources in ERF_TI_slow_rhs_pre.H
     MultiFab cc_source(ba,dm,nvars,1); cc_source.setVal(0.0);
 
     // Source arrays for momenta -- these will be filled
-    //     in the call to make_mom_sources in ERF_TI_slow_rhs_fun.H
+    //     in the call to make_mom_sources in ERF_TI_slow_rhs_pre.H
     BoxArray ba_x(ba); ba_x.surroundingNodes(0);
-    MultiFab xmom_source(ba_x,dm,nvars,1); xmom_source.setVal(0.0);
+    MultiFab xmom_source(ba_x,dm,1,1); xmom_source.setVal(0.0);
 
     BoxArray ba_y(ba); ba_y.surroundingNodes(1);
-    MultiFab ymom_source(ba_y,dm,nvars,1); ymom_source.setVal(0.0);
+    MultiFab ymom_source(ba_y,dm,1,1); ymom_source.setVal(0.0);
 
     BoxArray ba_z(ba); ba_z.surroundingNodes(2);
-    MultiFab zmom_source(ba_z,dm,nvars,1); zmom_source.setVal(0.0);
-
-    // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
-    MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
-    MultiFab::Copy(cons_mf,S_old,0,0,S_old.nComp(),S_old.nGrowVect());
+    MultiFab zmom_source(ba_z,dm,1,1); zmom_source.setVal(0.0);
+    MultiFab    buoyancy(ba_z,dm,1,1); buoyancy.setVal(0.0);
 
     amrex::Vector<MultiFab> state_old;
     amrex::Vector<MultiFab> state_new;
@@ -162,7 +166,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     // Initial solution
     // Note that "old" and "new" here are relative to each RK stage.
-    state_old.push_back(MultiFab(cons_mf    , amrex::make_alias, 0, nvars)); // cons
+    state_old.push_back(MultiFab(S_old      , amrex::make_alias, 0, nvars)); // cons
     state_old.push_back(MultiFab(rU_old[lev], amrex::make_alias, 0,     1)); // xmom
     state_old.push_back(MultiFab(rV_old[lev], amrex::make_alias, 0,     1)); // ymom
     state_old.push_back(MultiFab(rW_old[lev], amrex::make_alias, 0,     1)); // zmom
@@ -180,7 +184,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     advance_dycore(lev, state_old, state_new,
                    U_old, V_old, W_old,
                    U_new, V_new, W_new,
-                   cc_source, xmom_source, ymom_source, zmom_source,
+                   cc_source, xmom_source, ymom_source, zmom_source, buoyancy,
                    Geom(lev), dt_lev, time);
 
     // **************************************************************************************
@@ -193,12 +197,10 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     advance_lsm(lev, S_new, U_new, V_new, dt_lev);
 
-#if defined(ERF_USE_RRTMGP)
     // **************************************************************************************
     // Update the radiation
     // **************************************************************************************
     advance_radiation(lev, S_new, dt_lev);
-#endif
 
 #ifdef ERF_USE_PARTICLES
     // **************************************************************************************
@@ -293,4 +295,30 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     if (solverChoice.time_avg_vel) {
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
+}
+
+void
+check_for_negative_theta(amrex::MultiFab& S_old)
+{
+    // *****************************************************************************
+    // Test for negative (rho theta)
+    // *****************************************************************************
+    for (MFIter mfi(S_old); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        const Array4<Real> &cell_data  = S_old.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+#ifdef AMREX_USE_GPU
+            if (cell_data(i,j,k,RhoTheta_comp) <= 0.) AMREX_DEVICE_PRINTF("BAD THETA AT %d %d %d %e %e \n",
+                i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
+#else
+            if (cell_data(i,j,k,RhoTheta_comp) <= 0.) {
+                printf("BAD THETA AT %d %d %d %e %e \n",
+                i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
+                amrex::Abort("Bad theta in check_for_negative_theta");
+            }
+#endif
+            });
+    } // mfi
 }

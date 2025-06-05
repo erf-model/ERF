@@ -219,6 +219,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
+    //********************************************************************************************
+    // Radiation
+    // *******************************************************************************************
+    if (solverChoice.rad_type != RadiationType::None)
+    {
+        rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
+    }
+
     // ********************************************************************************************
     // If we are making a new level then the FillPatcher for this level hasn't been allocated yet
     // ********************************************************************************************
@@ -582,7 +590,7 @@ ERF::ClearLevel (int lev)
         zmom_crse_rhs[lev].clear();
     }
 
-    if (solverChoice.anelastic[lev] == 1) {
+    if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity) {
         pp_inc[lev].clear();
     }
 

@@ -135,13 +135,15 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_FillBdyCCVels.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
-       ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_N.cpp
-       ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_T.cpp
+       ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_N.cpp
+       ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_S.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_N.cpp
+       ${SRC_DIR}/Diffusion/ERF_ComputeStress_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_N.cpp
+       ${SRC_DIR}/Diffusion/ERF_ComputeStrain_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeTurbulentViscosity.cpp
        ${SRC_DIR}/EB/ERF_EBAdvectionSrcForState.cpp
@@ -203,6 +205,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeBuoyancy.cpp
        ${SRC_DIR}/SourceTerms/ERF_AddThinBodySources.cpp
+       ${SRC_DIR}/SourceTerms/ERF_MakeGradP.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeMomSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_MoistSetRhs.cpp
@@ -293,6 +296,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/MM5>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation/>)
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC AMReX::amrex)

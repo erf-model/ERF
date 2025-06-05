@@ -17,7 +17,7 @@ public:
     explicit PlaneAverage (const amrex::MultiFab* field_in,
                            amrex::Geometry geom_in,
                            int axis_in,
-                           bool inc_ghost=false);
+                           amrex::IntVect n_ghost_to_inc=amrex::IntVect{0});
     PlaneAverage () = delete;
     ~PlaneAverage () = default;
 
@@ -75,9 +75,8 @@ protected:
     const amrex::MultiFab* m_field;
     amrex::Geometry m_geom;
     const int m_axis;
-    bool m_inc_ghost = false;
+    amrex::IntVect m_ghost_to_inc = amrex::IntVect{0};
     amrex::IntVect m_ixtype;
-    amrex::IntVect m_ng = amrex::IntVect(0);
 
 public:
     /** fill line storage with averages */
@@ -90,8 +89,8 @@ public:
 PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
                             amrex::Geometry geom_in,
                             int axis_in,
-                            bool inc_ghost)
-    : m_field(field_in), m_geom(geom_in), m_axis(axis_in), m_inc_ghost(inc_ghost)
+                            amrex::IntVect n_ghost_to_inc)
+    : m_field(field_in), m_geom(geom_in), m_axis(axis_in), m_ghost_to_inc(n_ghost_to_inc)
 {
     AMREX_ALWAYS_ASSERT(m_axis >= 0 && m_axis < AMREX_SPACEDIM);
 
@@ -101,10 +100,9 @@ PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
     m_ixtype = m_field->boxArray().ixType().toIntVect();
 
     amrex::Box domain = m_geom.Domain();
-    if (inc_ghost) {
-        m_ng = field_in->nGrowVect();
-        domain.grow(axis_in, m_ng[axis_in]);
-    }
+    m_ghost_to_inc = std::min(field_in->nGrowVect(),m_ghost_to_inc);
+    domain.grow(axis_in, m_ghost_to_inc[axis_in]);
+
     amrex::IntVect dom_lo(domain.loVect());
     amrex::IntVect dom_hi(domain.hiVect());
 
@@ -191,8 +189,8 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
     amrex::Box domain = amrex::convert(m_geom.Domain(),m_ixtype);
 
     amrex::IntVect ng = amrex::IntVect(0);
-    int offset = m_ng[m_axis];
-    if (m_inc_ghost) ng[m_axis] = offset;
+    int offset = m_ghost_to_inc[m_axis];
+    ng[m_axis] = offset;
 
     std::unique_ptr<amrex::iMultiFab> mask = OwnerMask(*m_field, m_geom.periodicity(), ng);
 

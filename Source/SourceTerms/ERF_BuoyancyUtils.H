@@ -33,29 +33,32 @@ buoyancy_moist_anelastic (int& i, int& j, int& k,
                           const amrex::Array4<const amrex::Real>&  r0_arr,
                           const amrex::Array4<const amrex::Real>& th0_arr,
                           const amrex::Array4<const amrex::Real>& qv0_arr,
-                          const amrex::Array4<const amrex::Real>& cell_data)
+                          const amrex::Array4<const amrex::Real>& cell_data,
+                          const amrex::Array4<const amrex::Real>& qt_arr)
 {
     amrex::Real Fact = (1.0 - rv_over_rd); // = -0.61
 
-    amrex::Real theta_d_hi = cell_data(i,j,k,RhoTheta_comp)/cell_data(i,j,k,Rho_comp);
-    amrex::Real qv_hi      = cell_data(i,j,k,RhoQ1_comp)   /cell_data(i,j,k,Rho_comp);
-    amrex::Real qc_hi      = cell_data(i,j,k,RhoQ2_comp)   /cell_data(i,j,k,Rho_comp);
-    amrex::Real qt_hi      = qv_hi + qc_hi;
-    amrex::Real theta_v_hi = theta_d_hi * (1.0 - Fact*qt_hi - rv_over_rd*qc_hi);
+    amrex::Real th_d_hi = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
+    amrex::Real th_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
 
-    amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
-    amrex::Real qv_lo      = cell_data(i,j,k-1,RhoQ1_comp)   /cell_data(i,j,k-1,Rho_comp);
-    amrex::Real qc_lo      = cell_data(i,j,k-1,RhoQ2_comp)   /cell_data(i,j,k-1,Rho_comp);
-    amrex::Real qt_lo      = qv_lo + qc_lo;
-    amrex::Real theta_v_lo = theta_d_lo * (1.0 - Fact*qt_lo - rv_over_rd*qc_lo);
+    amrex::Real qv_hi   = cell_data(i,j,k  ,RhoQ1_comp)   /cell_data(i,j,k  ,Rho_comp);
+    amrex::Real qv_lo   = cell_data(i,j,k-1,RhoQ1_comp)   /cell_data(i,j,k-1,Rho_comp);
 
-    amrex::Real theta_v0_hi = th0_arr(i,j,k  ) * (1.0 - Fact*qv0_arr(i,j,k  ));
-    amrex::Real theta_v0_lo = th0_arr(i,j,k-1) * (1.0 - Fact*qv0_arr(i,j,k-1));
+    amrex::Real qt_hi   = qt_arr(i,j,k  ) - qv_hi;
+    amrex::Real th_v_hi = th_d_hi * (1.0 - Fact*qt_hi - rv_over_rd*qt_hi);
+
+    amrex::Real qt_lo   = qt_arr(i,j,k-1) - qv_lo;
+    amrex::Real th_v_lo = th_d_lo * (1.0 - Fact*qt_lo - rv_over_rd*qt_lo);
+
+    amrex::Real th_v0_hi = th0_arr(i,j,k  ) * (1.0 - Fact*qv0_arr(i,j,k  ));
+    amrex::Real th_v0_lo = th0_arr(i,j,k-1) * (1.0 - Fact*qv0_arr(i,j,k-1));
+
     amrex::Real qv0_hi      = qv0_arr(i,j,k  );
     amrex::Real qv0_lo      = qv0_arr(i,j,k-1);
 
-    amrex::Real q_hi = (qv_hi-qv0_hi) - qc_hi + (theta_v_hi - theta_v0_hi) / theta_v0_hi;
-    amrex::Real q_lo = (qv_lo-qv0_lo) - qc_lo + (theta_v_lo - theta_v0_lo) / theta_v0_lo;
+    amrex::Real q_hi = (qv_hi-qv0_hi) - qt_hi + (th_v_hi - th_v0_hi) / th_v0_hi;
+    amrex::Real q_lo = (qv_lo-qv0_lo) - qt_lo + (th_v_lo - th_v0_lo) / th_v0_lo;
+
     amrex::Real qavg = amrex::Real(0.5) * (q_hi + q_lo);
 
     amrex::Real r0avg = amrex::Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
@@ -67,17 +70,13 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_rhopert (int& i, int& j, int& k,
-                  const int& n_qstate,
                   amrex::Real const& grav_gpu,
                   const amrex::Array4<const amrex::Real>& r0_arr,
-                  const amrex::Array4<const amrex::Real>& cell_data)
+                  const amrex::Array4<const amrex::Real>& cell_data,
+                  const amrex::Array4<const amrex::Real>& qt_arr)
 {
-    amrex::Real rhop_hi = cell_data(i,j,k  ,Rho_comp) - r0_arr(i,j,k  );
-    amrex::Real rhop_lo = cell_data(i,j,k-1,Rho_comp) - r0_arr(i,j,k-1);
-    for (int q_offset(0); q_offset<n_qstate; ++q_offset) {
-        rhop_hi += cell_data(i,j,k  ,RhoQ1_comp+q_offset);
-        rhop_lo += cell_data(i,j,k-1,RhoQ1_comp+q_offset);
-    }
+    amrex::Real rhop_hi = cell_data(i,j,k  ,Rho_comp) * (1.0 + qt_arr(i,j,k  ))- r0_arr(i,j,k  );
+    amrex::Real rhop_lo = cell_data(i,j,k-1,Rho_comp) * (1.0 + qt_arr(i,j,k-1))- r0_arr(i,j,k-1);
     return( grav_gpu * amrex::Real(0.5) * ( rhop_hi + rhop_lo ) );
 }
 
@@ -137,27 +136,24 @@ buoyancy_moist_Tpert (int& i, int& j, int& k,
                       const amrex::Array4<const amrex::Real>& qv0_arr,
                       const amrex::Array4<const amrex::Real>& p0_arr,
                       const amrex::Array4<const amrex::Real>& cell_prim,
-                      const amrex::Array4<const amrex::Real>& cell_data)
+                      const amrex::Array4<const amrex::Real>& cell_data,
+                      const amrex::Array4<const amrex::Real>& qt_arr)
 {
     amrex::Real qv_hi = (n_qstate >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
-    amrex::Real qc_hi = (n_qstate >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
-    amrex::Real qp_hi = (n_qstate >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
-
     amrex::Real qv_lo = (n_qstate >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
-    amrex::Real qc_lo = (n_qstate >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
-    amrex::Real qp_lo = (n_qstate >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
-
-    amrex::Real t_hi  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp), qv_hi);
-    amrex::Real t_lo  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp), qv_lo);
 
     amrex::Real t0_hi = getTgivenPandTh(p0_arr(i,j,k  ), th0_arr(i,j,k  ), rd_over_cp);
     amrex::Real t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), th0_arr(i,j,k-1), rd_over_cp);
 
+    amrex::Real dt_hi  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp), qv_hi) - t0_hi;
+    amrex::Real dt_lo  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp), qv_lo) - t0_lo;
+
     amrex::Real qv0_hi = qv0_arr(i,j,k  );
     amrex::Real qv0_lo = qv0_arr(i,j,k-1);
 
-    amrex::Real q_hi = amrex::Real(0.61) * (qv_hi-qv0_hi) - (qc_hi + qp_hi) + (t_hi-t0_hi)/t0_hi;
-    amrex::Real q_lo = amrex::Real(0.61) * (qv_lo-qv0_lo) - (qc_lo + qp_lo) + (t_lo-t0_lo)/t0_lo;
+    amrex::Real q_hi = amrex::Real(0.61) * (qv_hi-qv0_hi) - (qt_arr(i,j,k  )-qv_hi) + dt_hi/t0_hi;
+    amrex::Real q_lo = amrex::Real(0.61) * (qv_lo-qv0_lo) - (qt_arr(i,j,k-1)-qv_lo) + dt_lo/t0_lo;
+
     amrex::Real qavg = amrex::Real(0.5)  * (q_hi + q_lo);
 
     amrex::Real r0avg = amrex::Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
@@ -174,23 +170,24 @@ buoyancy_moist_Thpert (int& i, int& j, int& k,
                        const amrex::Array4<const amrex::Real>& r0_arr,
                        const amrex::Array4<const amrex::Real>& th0_arr,
                        const amrex::Array4<const amrex::Real>& qv0_arr,
-                       const amrex::Array4<const amrex::Real>& cell_prim)
+                       const amrex::Array4<const amrex::Real>& cell_prim,
+                       const amrex::Array4<const amrex::Real>& qt_arr)
 {
     amrex::Real qv_hi = (n_qstate >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
-    amrex::Real qc_hi = (n_qstate >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
-    amrex::Real qp_hi = (n_qstate >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
-
     amrex::Real qv_lo = (n_qstate >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
-    amrex::Real qc_lo = (n_qstate >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
-    amrex::Real qp_lo = (n_qstate >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
+
+    amrex::Real qt_hi = qt_arr(i,j,k  ) - qv_hi;
+    amrex::Real qt_lo = qt_arr(i,j,k-1) - qv_lo;
+
+    amrex::Real dth_hi = cell_prim(i,j,k  ,PrimTheta_comp) - th0_arr(i,j,k  );
+    amrex::Real dth_lo = cell_prim(i,j,k-1,PrimTheta_comp) - th0_arr(i,j,k-1);
 
     amrex::Real qv0_hi = qv0_arr(i,j,k  );
     amrex::Real qv0_lo = qv0_arr(i,j,k-1);
 
-    amrex::Real q_hi = amrex::Real(0.61) * (qv_hi-qv0_hi) - (qc_hi + qp_hi)
-                       + (cell_prim(i,j,k  ,PrimTheta_comp) - th0_arr(i,j,k  )) / th0_arr(i,j,k  );
-    amrex::Real q_lo = amrex::Real(0.61) * (qv_lo-qv0_lo) - (qc_lo + qp_lo)
-                       + (cell_prim(i,j,k-1,PrimTheta_comp) - th0_arr(i,j,k-1)) / th0_arr(i,j,k-1);
+    amrex::Real q_hi = amrex::Real(0.61) * (qv_hi-qv0_hi) - qt_hi + dth_hi/th0_arr(i,j,k  );
+    amrex::Real q_lo = amrex::Real(0.61) * (qv_lo-qv0_lo) - qt_lo + dth_lo/th0_arr(i,j,k-1);
+
     amrex::Real qavg  = amrex::Real(0.5) * (q_hi + q_lo);
 
     amrex::Real r0avg = amrex::Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));

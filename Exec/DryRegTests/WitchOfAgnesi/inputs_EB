@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 1
+max_step = 100
 
 amrex.fpe_trap_invalid=1
 amrex.fpe_trap_zero=1
@@ -11,11 +11,16 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     = 0.   0.   0. 
 geometry.prob_hi     = 10.1  0.4  5.
 
-amr.n_cell           = 256  8    128
+amr.n_cell           = 128  2    64
 
-geometry.is_periodic = 1 1 0
-    
-zlo.type = "NoSlipWall"
+geometry.is_periodic = 0 1 0
+
+xlo.type = "Inflow"
+xhi.type = "Outflow"
+xlo.velocity = 10. 0. 0.
+xlo.density  = 1.0
+xlo.theta    = 1.0
+zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
@@ -28,7 +33,7 @@ erf.v              = 1        # verbosity in ERF.cpp
 amr.v              = 1        # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
-amr.max_level = 1
+amr.max_level = 0
 amr.ref_ratio_vect = 2 2 2
 erf.refinement_indicators = box1
 erf.box1.max_level = 1
@@ -44,8 +49,8 @@ erf.check_int       = -57600  # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 1       # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pert_pres pert_dens dpdx dpdy
+erf.plot_int_1      = 20       # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pert_pres pert_dens
 
 # SOLVER CHOICE
 erf.use_gravity = true
@@ -60,8 +65,12 @@ erf.molec_diff_type   = "Constant"
 erf.dynamic_viscosity = 1.0 # [kg/(m-s)]
 erf.alpha_T           = 0.0 # [m^2/s]
 
-erf.abl_driver_type = "PressureGradient"
+#erf.abl_driver_type = "PressureGradient"
+erf.abl_driver_type = "None"
 erf.abl_pressure_grad = -0.2 0. 0.
+
+erf.mg_v = 2
+erf.project_initial_velocity = true
 
 # PROBLEM PARAMETERS (optional)
 prob.T_0   = 300.0

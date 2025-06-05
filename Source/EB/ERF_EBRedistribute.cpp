@@ -75,7 +75,8 @@ redistribute_term ( int ncomp,
                                  scratch, flag,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
-                                 bc, geom, local_dt, redistribution_type);
+                                 bc, geom, local_dt, redistribution_type,
+                                 false, 2, 0.25_rt, {});
         }
         else
         {
@@ -152,7 +153,8 @@ redistribute_term ( int ncomp,
                                  scratch, flag,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
-                                 bc, geom, local_dt, redistribution_type);
+                                 bc, geom, local_dt, redistribution_type,
+                                 false, 2, 0.25_rt, {});
         }
         else
         {
