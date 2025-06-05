@@ -1043,11 +1043,13 @@ struct surface_temp
                 umm = std::max(umm, WSMIN);
             }
             Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
-            if ( ((Olen >= 0.0) && (Oleno <= 0.0)) ||
-                 ((Olen <= 0.0) && (Oleno >= 0.0)) ) {
+            if ( (((Olen >= 0.0) && (Oleno <= 0.0)) ||
+                  ((Olen <= 0.0) && (Oleno >= 0.0))) &&
+                 std::fabs(Olen) + std::fabs(Oleno) < 1.) {
                 Olen = 0.5 * (Olen + Oleno);
             }
             Oleno = Olen;
+
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
@@ -1168,8 +1170,9 @@ struct surface_temp_charnock
                 umm = std::max(umm, WSMIN);
             }
             Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
-            if ( ((Olen >= 0.0) && (Oleno <= 0.0)) ||
-                 ((Olen <= 0.0) && (Oleno >= 0.0)) ) {
+            if ( (((Olen >= 0.0) && (Oleno <= 0.0)) ||
+                  ((Olen <= 0.0) && (Oleno >= 0.0))) &&
+                 std::fabs(Olen) + std::fabs(Oleno) < 1.) {
                 Olen = 0.5 * (Olen + Oleno);
             }
             Oleno = Olen;
@@ -1286,8 +1289,9 @@ struct surface_temp_mod_charnock
                 umm = std::max(umm, WSMIN);
             }
             Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
-            if ( ((Olen >= 0.0) && (Oleno <= 0.0)) ||
-                 ((Olen <= 0.0) && (Oleno >= 0.0)) ) {
+            if ( (((Olen >= 0.0) && (Oleno <= 0.0)) ||
+                  ((Olen <= 0.0) && (Oleno >= 0.0))) &&
+                 std::fabs(Olen) + std::fabs(Oleno) < 1.) {
                 Olen = 0.5 * (Olen + Oleno);
             }
             Oleno = Olen;
@@ -1401,8 +1405,9 @@ struct surface_temp_donelan
                 umm = std::max(umm, WSMIN);
             }
             Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
-            if ( ((Olen >= 0.0) && (Oleno <= 0.0)) ||
-                 ((Olen <= 0.0) && (Oleno >= 0.0)) ) {
+            if ( (((Olen >= 0.0) && (Oleno <= 0.0)) ||
+                  ((Olen <= 0.0) && (Oleno >= 0.0))) &&
+                 std::fabs(Olen) + std::fabs(Oleno) < 1.) {
                 Olen = 0.5 * (Olen + Oleno);
             }
             Oleno = Olen;
@@ -1522,8 +1527,9 @@ struct surface_temp_wave_coupled
                 umm = std::max(umm, WSMIN);
             }
             Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
-            if ( ((Olen >= 0.0) && (Oleno <= 0.0)) ||
-                 ((Olen <= 0.0) && (Oleno >= 0.0)) ) {
+            if ( (((Olen >= 0.0) && (Oleno <= 0.0)) ||
+                  ((Olen <= 0.0) && (Oleno >= 0.0))) &&
+                 std::fabs(Olen) + std::fabs(Oleno) < 1.) {
                 Olen = 0.5 * (Olen + Oleno);
             }
             Oleno = Olen;
