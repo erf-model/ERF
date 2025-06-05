@@ -672,12 +672,23 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                      mf_mx, mf_ux, mf_vx,
                                      mf_my, mf_uy, mf_vy);
             } else {
-                DiffusionSrcForMom_N(tbx, tby, tbz,
+                if (solverChoice.terrain_type == TerrainType::EB) {
+                    DiffusionSrcForMom_EB(mfi, domain, tbx, tby, tbz,
+                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                     u, v, w,
+                                     tau11, tau22, tau33,
+                                     tau12, tau13, tau23, dxInv,
+                                     mf_mx, mf_ux, mf_vx,
+                                     mf_my, mf_uy, mf_vy,
+                                     solverChoice, ebfact, bc_ptr_d);
+                } else {
+                    DiffusionSrcForMom_N(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                      tau11, tau22, tau33,
                                      tau12, tau13, tau23, dxInv,
                                      mf_mx, mf_ux, mf_vx,
                                      mf_my, mf_uy, mf_vy);
+                }
             }
         }
 

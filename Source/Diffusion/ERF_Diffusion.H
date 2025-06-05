@@ -69,6 +69,7 @@ void DiffusionSrcForMom_EB (const amrex::MFIter& mfi,
                         const amrex::Array4<const amrex::Real>& mf_my     ,
                         const amrex::Array4<const amrex::Real>& mf_uy     ,
                         const amrex::Array4<const amrex::Real>& mf_vy     ,
+                        const SolverChoice& solverChoice,
                         const eb_& ebfact,
                         const amrex::BCRec* bc_ptr);
 

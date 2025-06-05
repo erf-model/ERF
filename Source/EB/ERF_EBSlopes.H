@@ -2,11 +2,25 @@
 #define ERF_EBSLOPES_H_
 
 #include <AMReX_EBCellFlag.H>
+#include <ERF_IndexDefines.H>
+
+/**
+ * Function for computing the slopes in the staggered grids
+ * This function now works for only face-centered grids
+ *
+ * @param[in] igrid_query index of grids where the query point is located (0=CC, 1=U, 2=V, 3=W)
+ * @param[in] igrid_data index of grids where data points are located (0=CC, 1=U, 2=V, 3=W)
+ * @param[in] bcent_eb centroid of the EB face
+ * @param[in] state_eb state at the EB face (Dirichlet data)
+ * @param[in] state array of state variable
+ * @param[in] ccent array of cell centroid coordinates
+ */
 
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>
-erf_calc_slopes_eb (const int idim,
-                    int i, int j, int k, 
+erf_calc_slopes_eb (int igrid_query,
+                    int igrid_data,
+                    int i, int j, int k,
                     amrex::RealVect const& bcent_eb,
                     amrex::Real const state_eb,
                     amrex::Array4<amrex::Real const> const& state,
@@ -14,11 +28,34 @@ erf_calc_slopes_eb (const int idim,
                     amrex::Array4<amrex::EBCellFlag const> const& flag)
 {
 
-    int ii_hi = (idim==0) ? 2: 1;
-    int jj_hi = (idim==1) ? 2: 1;
-    int kk_hi = (idim==2) ? 2: 1;
+    // amrex::Print()<<"SK: erf_calc_slopes_eb/ igrid_query = "<<igrid_query<<" igrid_data = "<<igrid_data<<std::endl;
 
-    constexpr int dim_a = 27;
+    // Fitting stencil
+
+    int ii_hi = 1;
+    int jj_hi = 1;
+    int kk_hi = 1;
+    int dim_a = 27; // neighbor stencil
+    amrex::RealVect bias{0.,0.,0.};
+
+    if (igrid_query != igrid_data) {
+
+        // Determine which directions are involved
+        bool x_involved = (igrid_query == Vars::xvel || igrid_data == Vars::xvel);
+        bool y_involved = (igrid_query == Vars::yvel || igrid_data == Vars::yvel);
+        bool z_involved = (igrid_query == Vars::zvel || igrid_data == Vars::zvel);
+
+        if (x_involved) ii_hi = 2;
+        if (y_involved) jj_hi = 2;
+        if (z_involved) kk_hi = 2;
+
+        dim_a = 48;
+
+        // Set bias in the index space between the two staggered grids
+        bias[igrid_query-1] = 0.5;
+        bias[igrid_data-1] = -0.5;
+    }
+
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 
     // Array of distances from the query point
@@ -28,9 +65,9 @@ erf_calc_slopes_eb (const int idim,
     for(int ii(-1); ii<=ii_hi; ii++) {
 
         if (!flag(i+ii,j+jj,k+kk).isCovered() ) {
-            A[lc][0] = amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) - bcent_eb[0];
-            A[lc][1] = amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) - bcent_eb[1];
-            A[lc][2] = amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) - bcent_eb[2];
+            A[lc][0] = amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) + bias[0] - bcent_eb[0];
+            A[lc][1] = amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - bcent_eb[1];
+            A[lc][2] = amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - bcent_eb[2];
         } else {
             A[lc][0] = amrex::Real(0.0);
             A[lc][1] = amrex::Real(0.0);
@@ -115,6 +152,6 @@ erf_calc_slopes_eb (const int idim,
     // Slope at centroid of (i,j,k)
     amrex::Real zslope = detAtA_z / detAtA;
 
-    return {xslope,yslope,zslope};    
+    return {xslope,yslope,zslope};
 }
 #endif
