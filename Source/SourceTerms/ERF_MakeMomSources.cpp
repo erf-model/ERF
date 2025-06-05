@@ -705,7 +705,7 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         // 10. Enforce constant mass flux
         // *****************************************************************************
-        if (enforce_massflux_x) {
+        if (is_slow_step && enforce_massflux_x) {
             Real tau_inv = Real(1.0) / solverChoice.const_massflux_tau;
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -713,10 +713,10 @@ void make_mom_sources (Real time,
                 xmom_src_arr(i, j, k) += tau_inv * (rhoUA_target - rhoUA);
             });
         }
-        if (enforce_massflux_x) {
+        if (is_slow_step && enforce_massflux_y) {
             Real tau_inv = Real(1.0) / solverChoice.const_massflux_tau;
 
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 ymom_src_arr(i, j, k) += tau_inv * (rhoVA_target - rhoVA);
             });
