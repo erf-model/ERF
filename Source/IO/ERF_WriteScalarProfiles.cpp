@@ -195,6 +195,7 @@ ERF::sum_derived_quantities (Real time)
     MultiFab r_wted_magvelsq(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
     MultiFab unwted_magvelsq(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
     MultiFab     enstrophysq(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
+    MultiFab        theta_mf(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -217,9 +218,16 @@ ERF::sum_derived_quantities (Real time)
     // Multiply the MF holding 1/2(u^2 + v^2 + w^2) by rho to get  1/2 rho (u^2 + v^2 + w^2)
     MultiFab::Multiply(r_wted_magvelsq, vars_new[lev][Vars::cons], 0, 0, 1, 0);
 
+    // Copy the MF holding (rho theta) into "theta_mf"
+    MultiFab::Copy(theta_mf, vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, 0);
+
+    // Divide (rho theta) by rho to get theta in the MF "theta_mf"
+    MultiFab::Divide(theta_mf, vars_new[lev][Vars::cons], Rho_comp, 0, 1, 0);
+
     Real  unwted_avg = volWgtSumMF(lev, unwted_magvelsq, 0, false);
     Real  r_wted_avg = volWgtSumMF(lev, r_wted_magvelsq, 0, false);
     Real enstrsq_avg = volWgtSumMF(lev, enstrophysq,     0, false);
+    Real   theta_avg = volWgtSumMF(lev, theta_mf,        0, false);
 
     // Get volume including terrain (consistent with volWgtSumMF routine)
     MultiFab volume(grids[lev], dmap[lev], 1, 0);
@@ -248,9 +256,10 @@ ERF::sum_derived_quantities (Real time)
      unwted_avg /= vol;
      r_wted_avg /= vol;
     enstrsq_avg /= vol;
+      theta_avg /= vol;
 
-    const int nfoo = 3;
-    Real foo[nfoo] = {unwted_avg,r_wted_avg,enstrsq_avg};
+    const int nfoo = 4;
+    Real foo[nfoo] = {unwted_avg,r_wted_avg,enstrsq_avg,theta_avg};
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -262,6 +271,7 @@ ERF::sum_derived_quantities (Real time)
         unwted_avg  = foo[i++];
         r_wted_avg  = foo[i++];
         enstrsq_avg = foo[i++];
+          theta_avg = foo[i++];
 
         std::ostream& data_log_der = DerDataLog(0);
 
@@ -270,12 +280,14 @@ ERF::sum_derived_quantities (Real time)
             data_log_der << std::setw(datwidth) << "        ke_den";
             data_log_der << std::setw(datwidth) << "         velsq";
             data_log_der << std::setw(datwidth) << "     enstrophy";
+            data_log_der << std::setw(datwidth) << "    int_energy";
             data_log_der << std::endl;
         }
         data_log_der << std::setw(datwidth) << std::setprecision(timeprecision) << time;
         data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  <<  unwted_avg;
         data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  <<  r_wted_avg;
         data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  << enstrsq_avg;
+        data_log_der << std::setw(datwidth) << std::setprecision(datprecision)  <<   theta_avg;
         data_log_der << std::endl;
 
       } // if IOProcessor
