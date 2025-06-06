@@ -25,6 +25,13 @@ void ERF::project_velocity (int lev, Real l_dt)
     tmp_mom.push_back(MultiFab(rW_new[lev],make_alias,0,1));
 
     project_momenta(lev, l_dt, tmp_mom);
+
+   MomentumToVelocity(vars_new[lev][Vars::xvel],
+                      vars_new[lev][Vars::yvel],
+                      vars_new[lev][Vars::zvel],
+                      vars_new[lev][Vars::cons],
+                      rU_new[lev], rV_new[lev], rW_new[lev],
+                      Geom(lev).Domain(), domain_bcs_type);
 }
 
 /**
