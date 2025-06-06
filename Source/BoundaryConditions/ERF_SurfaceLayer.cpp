@@ -536,6 +536,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // TODO: better way to generalize this?
                 if (dir == 0) {
                     t31_arr(i,j,k) = stressx; // z flux
+                    if (t13_arr) { t13_arr(i,j,k) = stressx; }
                     /*
                     if ((i == bx.smallEnd(dir) && j == bx.smallEnd(1)) ||
                         (i == bx.bigEnd(dir) && j == bx.bigEnd(1))) {
@@ -544,6 +545,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     */
                 } else if (dir == 1) {
                     t12_arr(i,j,k) = stressx;
+                    if (t21_arr) { t21_arr(i,j,k) = stressx; }
                     /*
                     if ((j == bx.smallEnd(dir) && k == bx.smallEnd(2)) ||
                         (j == bx.bigEnd(dir) && k == bx.bigEnd(2))) {
@@ -584,6 +586,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             if (!rotate) {
                 if (dir == 0) {
                     t21_arr(i,j,k) = stressy;
+                    if (t12_arr) { t12_arr(i,j,k) = stressy; }
                     /*
                     if ((i == bx.smallEnd(dir) && j == bx.smallEnd(1)) ||
                         (i == bx.bigEnd(dir) && j == bx.bigEnd(1))) {
@@ -592,6 +595,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     */
                 } else if (dir == 1) {
                     t32_arr(i,j,k) = stressy; // z flux
+                    if (t23_arr) { t23_arr(i,j,k) = stressy; }
                     /*
                     if ((j == bx.smallEnd(dir) && k == bx.smallEnd(2)) ||
                         (j == bx.bigEnd(dir) && k == bx.bigEnd(2))) {

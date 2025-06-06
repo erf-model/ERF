@@ -1094,7 +1094,6 @@ MOSTAverage::compute_plane_averages (const int& lev)
             sm_index = m_geom[lev].Domain().smallEnd(dir);
         } else {
             sm_index = m_geom[lev].Domain().bigEnd(dir);
-            if (dir == 0) sm_index += 1;
         }
 
         int imf  = 0;
@@ -1107,7 +1106,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi)
+        for (MFIter mfi(*fields[2], TileNoZ()); mfi.isValid(); ++mfi) // cell-centered for velocity mag
         //for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
